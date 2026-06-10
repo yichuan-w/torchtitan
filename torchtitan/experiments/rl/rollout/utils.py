@@ -22,27 +22,56 @@ def last_completion_text(rollout: Rollout) -> str:
 
 
 def rollout_to_episode(rollout: Rollout) -> Episode:
-    """Flatten a scored single-turn `Rollout` into an `Episode`, a class
+    """Flatten a scored `Rollout` (one or more turns) into an `Episode`, the class
     that holds only the information needed for training.
+
+    The episode's prompt is the first turn's prompt. Everything after it — each
+    turn's env-injected tokens followed by that turn's completion — is flattened
+    into one `completion_token_ids` stream with a per-token `loss_mask`: ``True``
+    on assistant tokens (trained), ``False`` on env-injected tokens (e.g. tool
+    results). Single-turn rollouts produce an all-``True`` mask, identical to the
+    pre-multi-turn behavior.
     """
-    # TODO: support multi-turn rollout flattening.
     # TODO(branching): when a turn's prompt history diverges from the previous turn's
     #       (e.g. the env edited/compacted history), the turns no longer share a prefix
     #       and must be split into separate training sequences instead of one flat episode.
     # TODO: rename Episode -> TrainingSample / rollout_to_episode ->
     #       rollout_to_training_sample (consistent with TrainingBatch).
-    if len(rollout.turns) != 1:
-        raise ValueError(
-            f"rollout_to_episode expects exactly one turn; got {len(rollout.turns)}."
-        )
-    turn = rollout.turns[0]
+    if not rollout.turns:
+        raise ValueError("rollout_to_episode requires at least one turn; got 0.")
+
+    turns = rollout.turns
+    completion_token_ids: list[int] = []
+    completion_logprobs: list[float] = []
+    loss_mask: list[bool] = []
+    # Flattened sequence so far (first prompt + everything emitted), used to verify
+    # each later turn's prompt extends the previous turn's prompt+completion exactly,
+    # so the env-injected tokens stay aligned with their logprobs/mask.
+    prev_flat: list[int] = turns[0].prompt_token_ids
+    for i, turn in enumerate(turns):
+        if i > 0:
+            if turn.prompt_token_ids[: len(prev_flat)] != prev_flat:
+                raise ValueError(
+                    f"turn {i} prompt is not a continuation of the previous turn "
+                    "(the renderer re-tokenized a boundary); cannot flatten safely."
+                )
+            env_tokens = turn.prompt_token_ids[len(prev_flat) :]
+            completion_token_ids += env_tokens
+            completion_logprobs += [0.0] * len(env_tokens)
+            loss_mask += [False] * len(env_tokens)
+        completion_token_ids += turn.completion_token_ids
+        completion_logprobs += turn.completion_logprobs
+        loss_mask += [True] * len(turn.completion_token_ids)
+        prev_flat = turn.prompt_token_ids + turn.completion_token_ids
+
     return Episode(
-        policy_version=turn.policy_version,
+        policy_version=turns[0].policy_version,
         sample_id=rollout.sample_id,
-        prompt_token_ids=turn.prompt_token_ids,
+        prompt_token_ids=turns[0].prompt_token_ids,
         completion_text=last_completion_text(rollout),
-        completion_token_ids=turn.completion_token_ids,
-        completion_logprobs=turn.completion_logprobs,
+        completion_token_ids=completion_token_ids,
+        completion_logprobs=completion_logprobs,
+        loss_mask=loss_mask,
         reward=rollout.reward,
         advantage=rollout.advantage if rollout.advantage is not None else 0.0,
     )

@@ -36,6 +36,10 @@ class Episode:
     completion_text: str
     completion_token_ids: list[int]
     completion_logprobs: list[float]
+    loss_mask: list[bool]
+    """Per-completion-token training mask, aligned with ``completion_token_ids``.
+    ``True`` for assistant tokens (trained), ``False`` for env-injected tokens
+    (e.g. tool results in a multi-turn rollout). All ``True`` for single-turn."""
     reward: float
     advantage: float
 

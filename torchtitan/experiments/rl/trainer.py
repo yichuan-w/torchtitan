@@ -14,6 +14,7 @@ import math
 import os
 import statistics
 import time
+from collections import defaultdict
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field, replace
 
@@ -24,6 +25,7 @@ import torch
 import torchstore as ts
 from monarch.actor import ProcMesh
 from monarch.spmd import setup_torch_elastic_env_async
+from renderers import Message
 
 from torchtitan.config import CompileConfig, Configurable
 from torchtitan.experiments.rl.actors.generator import (
@@ -52,6 +54,11 @@ from torchtitan.protocols.model_spec import ModelSpec
 
 logger = logging.getLogger(__name__)
 
+# Defensive ceiling on rollout turns in the controller loop. Real termination is
+# driven by the env / `TokenEnv.max_num_turns`; this only prevents a runaway loop
+# if an env never returns a terminal status.
+_MAX_TURNS_HARD_CAP = 64
+
 
 class GRPOLoss(Configurable):
     """Per-token clipped surrogate loss for GRPO.
@@ -75,8 +82,17 @@ class GRPOLoss(Configurable):
         clip_eps: float = 0.2
         """PPO clipping epsilon for the probability ratio."""
 
+        max_log_ratio: float = 10.0
+        """Clamp |log(pi_theta / pi_old)| to this before exp(). Without TIS or
+        batch-invariant mode, the generator (vLLM) and trainer logprobs can
+        diverge enough that exp(log_ratio) overflows to inf -> NaN loss (also via
+        inf*0 on masked tokens). 10.0 keeps the ratio in [4.5e-5, 2.2e4]; only
+        pathological tokens are affected, normal tokens (|log_ratio|<~1) are not.
+        TODO: TIS is the principled fix for the gen/trainer mismatch."""
+
     def __init__(self, config: Config):
         self.clip_eps = config.clip_eps
+        self.max_log_ratio = config.max_log_ratio
 
     def __call__(
         self,
@@ -102,8 +118,20 @@ class GRPOLoss(Configurable):
             dict of scalar tensors pre-normalized for SUM reduction across
             DP ranks.
         """
-        # Per-token importance sampling ratio: π_θ / π_old
-        log_ratio = policy_logprobs - generator_logprobs
+        # Per-token importance sampling ratio: π_θ / π_old.
+        # vLLM occasionally emits a non-finite logprob for a few tokens; those
+        # tokens have no valid importance ratio, so drop them from the loss (a
+        # single NaN here would otherwise NaN the whole loss, since NaN survives
+        # both the clamp below and the `* loss_mask` masking via nan*0=nan).
+        raw_log_ratio = policy_logprobs - generator_logprobs
+        loss_mask = loss_mask & torch.isfinite(raw_log_ratio)
+        # Clamp (after sanitizing) so a large generator<->trainer mismatch can't
+        # blow exp() up to inf/NaN (see Config.max_log_ratio).
+        log_ratio = torch.clamp(
+            torch.nan_to_num(raw_log_ratio),
+            -self.max_log_ratio,
+            self.max_log_ratio,
+        )
         ratio = torch.exp(log_ratio)
 
         clipped_ratio = torch.clamp(ratio, 1 - self.clip_eps, 1 + self.clip_eps)
@@ -159,7 +187,60 @@ class _RolloutGroupState:
     sample: object
     envs: list[TokenEnv]  # [group_size]
     env_init_outputs: list[TokenEnvOutput] = field(default_factory=list)
-    completions: list[Completion] | None = None
+
+
+@dataclass(kw_only=True, slots=True)
+class _LiveRollout:
+    """One in-progress rollout driven across (possibly many) turns by the
+    controller's batched multi-turn loop. Accumulates `RolloutTurn`s and tracks
+    the prompt for its next `generate` call until it reaches a terminal status."""
+
+    group_id: str
+    sample_idx: int
+    sample_id: str
+    env: TokenEnv
+    next_prompt_token_ids: list[int]
+    next_prompt_messages: list[Message] = field(default_factory=list)
+    turns: list[RolloutTurn] = field(default_factory=list)
+    status: RolloutStatus = RolloutStatus.ONGOING
+
+    async def step(self, completion: Completion) -> None:
+        """Step the env with this turn's completion, append a `RolloutTurn`, and
+        advance the prompt/status. On env failure, keep the turns collected so far
+        and mark the rollout `ERROR` (mirrors the single-turn controller)."""
+        try:
+            env_output = await self.env.step(completion)
+        except Exception:
+            logger.exception(
+                "rollout %s step failed; keeping %d turn(s) as ERROR",
+                self.sample_id,
+                len(self.turns),
+            )
+            self.status = RolloutStatus.ERROR
+            return
+        self.turns.append(
+            RolloutTurn(
+                prompt_token_ids=self.next_prompt_token_ids,
+                prompt_messages=self.next_prompt_messages,
+                completion_token_ids=completion.token_ids,
+                completion_logprobs=completion.token_logprobs,
+                policy_version=completion.policy_version,
+                completion_message=env_output.completion_message,
+                env_messages=env_output.env_messages,
+                env_rewards=env_output.env_rewards,
+            )
+        )
+        self.status = env_output.status
+        self.next_prompt_token_ids = env_output.next_prompt_token_ids or []
+        self.next_prompt_messages = env_output.next_prompt_messages or []
+
+    def to_rollout(self) -> Rollout:
+        return Rollout(
+            group_id=self.group_id,
+            sample_id=self.sample_id,
+            status=self.status,
+            turns=self.turns,
+        )
 
 
 class RLTrainer(Configurable):
@@ -207,6 +288,11 @@ class RLTrainer(Configurable):
 
         num_validation_samples: int = 20
         """Number of held-out prompts scored greedily (temp=0, n=1) per validation pass."""
+
+        validation_freq: int | None = None
+        """Run validation every `validation_freq` training steps (in addition to the
+        pre- and post-training passes), so the held-out reward trend is visible during
+        training. `None` disables periodic validation (only pre/post run)."""
 
         rollouter: Rollouter.Config
         """The rollouter: its datasets, envs, and rubric."""
@@ -520,22 +606,39 @@ class RLTrainer(Configurable):
                     return_exceptions=True,
                 )
 
-        # Prepare generate requests
-        prompt_token_ids: list[list[int]] = []  # [num_valid_samples][prompt_tokens]
-        request_ids: list[str] = []  # [num_valid_samples]
-        for group_state in valid_group_states:
-            for sample_idx, env_init_output in enumerate(group_state.env_init_outputs):
-                prompt_token_ids.append(env_init_output.next_prompt_token_ids or [])
-                # TODO(multi-turn): make request_id unique per turn (append a turn index). Today it is
-                # per-sample, so multiple generate calls within one multi-turn rollout would reuse the id.
-                request_ids.append(_sample_id(group_state.group_id, sample_idx))
+        # 5. Batched multi-turn rollout loop. Each round runs ONE batched generate
+        # over all still-ongoing rollouts, then steps each rollout's env and appends
+        # a turn. Repeat until every rollout is terminal. Generation stays batched
+        # (one generate per turn); the number of rounds is ~the max turns reached.
+        # TODO(continuous-batching): once available, drive each rollout's generate
+        # calls independently instead of round-synchronized batched generates.
+        live_rollouts: list[_LiveRollout] = [
+            _LiveRollout(
+                group_id=group_state.group_id,
+                sample_idx=sample_idx,
+                sample_id=_sample_id(group_state.group_id, sample_idx),
+                env=env,
+                next_prompt_token_ids=env_init_output.next_prompt_token_ids or [],
+                next_prompt_messages=env_init_output.next_prompt_messages or [],
+            )
+            for group_state in valid_group_states
+            for sample_idx, (env, env_init_output) in enumerate(
+                zip(group_state.envs, group_state.env_init_outputs, strict=True)
+            )
+        ]
 
-        # 5. Run one batched generate over valid group states (n=1; pre-expanded).
-        # TODO: pass the remaining budget (max_rollout_tokens - len(prompt)) to the
-        # sampling_config, to limit generation length in one turn.
-        completions: list[Completion] = []
-        if valid_group_states:
-            completions, generation_metrics = self._get_rank_0_value(
+        generation_metrics = []
+        for turn_idx in range(_MAX_TURNS_HARD_CAP):
+            active = [lr for lr in live_rollouts if lr.status is RolloutStatus.ONGOING]
+            if not active:
+                break
+            # request_id is unique per (sample, turn) so ids never collide within a
+            # generate call or across turns of a multi-turn rollout.
+            request_ids = [f"{lr.sample_id}/turn={turn_idx}" for lr in active]
+            prompt_token_ids = [lr.next_prompt_token_ids for lr in active]
+            # TODO: pass the remaining budget (max_rollout_tokens - len(prompt)) to the
+            # sampling_config, to limit generation length in one turn.
+            completions, turn_metrics = self._get_rank_0_value(
                 await self.generator.generate.call(
                     prompt_token_ids,
                     request_ids=request_ids,
@@ -549,26 +652,39 @@ class RLTrainer(Configurable):
                     f"generator returned request_ids {returned_ids}, "
                     f"expected {request_ids}"
                 )
-
-        # 6. After the batch-level generate returns, finish each group state
-        # independently: step generated rollouts, score the group, and append
-        # the result.
-        # TODO(continuous-batching): group completions by group_id parsed from request_id instead of
-        # relying on returned order; under CB completions won't come back in request order.
-        completion_offset = 0
-        for group_state in valid_group_states:
-            next_completion_offset = completion_offset + len(
-                group_state.env_init_outputs
+            generation_metrics.extend(turn_metrics)
+            # Step each active rollout; per-rollout env failures are isolated.
+            await asyncio.gather(
+                *(
+                    lr.step(completion)
+                    for lr, completion in zip(active, completions, strict=True)
+                )
             )
-            group_state.completions = completions[
-                completion_offset:next_completion_offset
-            ]
-            completion_offset = next_completion_offset
+        else:
+            # Exhausted the hard cap with rollouts still ongoing: truncate them.
+            for lr in live_rollouts:
+                if lr.status is RolloutStatus.ONGOING:
+                    logger.warning(
+                        "rollout %s hit the %d-turn hard cap; marking TRUNCATED_LENGTH",
+                        lr.sample_id,
+                        _MAX_TURNS_HARD_CAP,
+                    )
+                    lr.status = RolloutStatus.TRUNCATED_LENGTH
+
+        # 6. Group finished rollouts back by prompt group, then score + finalize each
+        # group (rubric scoring + env close).
+        live_by_group: dict[str, list[_LiveRollout]] = defaultdict(list)
+        for lr in live_rollouts:
+            live_by_group[lr.group_id].append(lr)
 
         finished_rollout_groups: list[RolloutGroup | None] = await asyncio.gather(
             *(
-                self._run_group_rollout(
+                self._score_and_finalize_group(
                     group_state=group_state,
+                    live=sorted(
+                        live_by_group[group_state.group_id],
+                        key=lambda lr: lr.sample_idx,
+                    ),
                 )
                 for group_state in valid_group_states
             )
@@ -601,44 +717,27 @@ class RLTrainer(Configurable):
         rollout_metrics += generation_metrics
         return rollout_groups, rollout_metrics
 
-    @sl.log_trace_span("_run_group_rollout")
-    async def _run_group_rollout(
+    @sl.log_trace_span("_score_and_finalize_group")
+    async def _score_and_finalize_group(
         self,
         *,
         group_state: _RolloutGroupState,
+        live: list[_LiveRollout],
     ) -> RolloutGroup | None:
-        """Step generated rollouts, score the group, and return it.
+        """Score one prompt group's finished rollouts and close its envs.
+
+        Reward is filled here from `rollouter.score_group(...)`. Envs are always
+        closed (success or failure).
 
         Args:
-            group_state: One prompt group's envs, prompt steps, and rollout slots.
+            group_state: One prompt group's envs and sample (for scoring).
+            live: The group's finished rollouts, ordered by sample index.
 
         Returns:
-            Scored rollout group, or `None` if this group failed and should be dropped.
+            Scored rollout group, or `None` if scoring failed (group dropped).
         """
         try:
-            if group_state.completions is None:
-                raise RuntimeError(f"group {group_state.group_id} has no completions")
-
-            rollouts: list[Rollout] = await asyncio.gather(
-                *(
-                    self._run_single_rollout(
-                        group_id=group_state.group_id,
-                        sample_id=_sample_id(group_state.group_id, sample_idx),
-                        env=env,
-                        env_init_output=env_init_output,
-                        completion=completion,
-                    )
-                    for sample_idx, (env, env_init_output, completion) in enumerate(
-                        zip(
-                            group_state.envs,
-                            group_state.env_init_outputs,
-                            group_state.completions,
-                            strict=True,
-                        )
-                    )
-                )
-            )
-
+            rollouts = [lr.to_rollout() for lr in live]
             outputs = await self._rollouter.score_group(rollouts, group_state.sample)
             for rollout, output in zip(rollouts, outputs, strict=True):
                 rollout.reward = output.reward
@@ -655,65 +754,6 @@ class RLTrainer(Configurable):
                 *(env.close() for env in group_state.envs),
                 return_exceptions=True,
             )
-
-    @sl.log_trace_span("_run_single_rollout")
-    async def _run_single_rollout(
-        self,
-        *,
-        group_id: str,
-        sample_id: str,
-        env: TokenEnv,
-        env_init_output: TokenEnvOutput,
-        completion: Completion,
-    ) -> Rollout:
-        """Step one env with its completion into a `Rollout`. On failure, return the
-        turns collected so far with an `ERROR` status.
-
-        Reward is left unset; the controller scores via `rollouter.score_group(...)`
-        afterward and fills `reward` / `reward_breakdown`.
-
-        Args:
-            group_id: Prompt-group ID; siblings share it for advantage centering.
-            sample_id: Unique rollout id.
-            env: The env for this rollout.
-            env_init_output: env output whose prompt produced this completion.
-            completion: Generator completion for this env's prompt.
-
-        Returns:
-            One unscored Rollout.
-        """
-        rollout_turns: list[RolloutTurn] = []
-        try:
-            env_output = await env.step(completion)
-            rollout_turns.append(
-                RolloutTurn(
-                    prompt_token_ids=env_init_output.next_prompt_token_ids or [],
-                    prompt_messages=env_init_output.next_prompt_messages or [],
-                    completion_token_ids=completion.token_ids,
-                    completion_logprobs=completion.token_logprobs,
-                    policy_version=completion.policy_version,
-                    completion_message=env_output.completion_message,
-                    env_messages=env_output.env_messages,
-                    env_rewards=env_output.env_rewards,
-                )
-            )
-            status = env_output.status
-            # TODO(multi-turn): while not status.is_terminal(): generate → step → append turn.
-            if not status.is_terminal():
-                raise RuntimeError(
-                    f"env {sample_id} returned a non-terminal turn; "
-                    "the controller does not yet support multi-turn rollouts."
-                )
-        except Exception:
-            logger.exception(
-                "rollout %s failed; keeping %d turn(s) as ERROR",
-                sample_id,
-                len(rollout_turns),
-            )
-            status = RolloutStatus.ERROR
-        return Rollout(
-            group_id=group_id, sample_id=sample_id, status=status, turns=rollout_turns
-        )
 
     @staticmethod
     @sl.log_trace_span("_build_episodes")
@@ -901,6 +941,15 @@ class RLTrainer(Configurable):
                     packing_metrics,
                 ) = self.batcher.batch(episodes, dp_degree=self.trainer_dp_degree)
 
+            if not microbatches:
+                # No trainable microbatches this step (e.g. nearly all multi-turn
+                # rollouts truncated/dropped). Skip the optim step rather than
+                # stepping the optimizer with no gradients.
+                logger.warning(
+                    "step %d produced no trainable microbatches; skipping", step
+                )
+                continue
+
             # Aggregate metrics across gradient-accumulation microbatches.
             # "/mean" and "/frac" metrics are pre-normalized by
             # num_global_valid_tokens, so summing reconstructs the global
@@ -982,6 +1031,17 @@ class RLTrainer(Configurable):
             self.metrics_processor.log(
                 step=step, metrics=step_metrics, is_validation=False
             )
+
+            # Periodic held-out validation so the eval trend is visible during
+            # training. Skip the final step; the post-training pass below covers it.
+            validation_freq = self.config.validation_freq
+            if validation_freq and step % validation_freq == 0 and step != num_steps:
+                periodic_validation_metrics = await self.validate()
+                self.metrics_processor.log(
+                    step=step,
+                    metrics=periodic_validation_metrics,
+                    is_validation=True,
+                )
 
         post_validation_metrics = await self.validate()
         self.metrics_processor.log(

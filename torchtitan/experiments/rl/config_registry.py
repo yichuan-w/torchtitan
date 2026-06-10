@@ -26,6 +26,7 @@ from torchtitan.config import (
 from torchtitan.experiments.rl.actors.generator import SamplingConfig, VLLMGenerator
 from torchtitan.experiments.rl.actors.trainer import PolicyTrainer
 from torchtitan.experiments.rl.batcher import BatchConfig, Batcher
+from torchtitan.experiments.rl.examples.search_r1 import SearchR1Rollouter
 from torchtitan.experiments.rl.examples.sum_digits import SumDigitsRollouter
 from torchtitan.experiments.rl.observability.metrics import MetricsProcessor
 from torchtitan.experiments.rl.renderer import RendererConfig
@@ -260,6 +261,83 @@ def rl_grpo_qwen3_1_7b() -> RLTrainer.Config:
             ),
         ),
     )
+
+
+def rl_grpo_qwen3_0_6b_search_r1() -> RLTrainer.Config:
+    """GRPO Search-R1 (multi-turn retrieval QA) for Qwen3-0.6B, flex attention
+    (4 GPUs: 2 gen + 2 train). Fast smoke config for the multi-turn search pipeline.
+
+    Requires a running local dense retrieval server and the Search-R1 NQ/HotpotQA
+    parquet data; see ``examples/search_r1/README.md``.
+    """
+    config = rl_grpo_qwen3_0_6b_flex()
+    config.rollouter = SearchR1Rollouter.Config()
+    # Text-tag protocol: keep the model's <think>/<search>/<answer> tags in the
+    # completion text (no chat-template thinking scaffolding).
+    config.renderer = RendererConfig(name="qwen3", enable_thinking=False)
+    # Longer packed sequences to fit retrieved passages across turns.
+    config.batcher = dataclasses.replace(
+        config.batcher,
+        batch=BatchConfig(local_batch_size=1, global_batch_size=8, seq_len=4096),
+    )
+    config.generator = dataclasses.replace(
+        config.generator,
+        sampling=SamplingConfig(
+            temperature=0.8,
+            top_p=0.95,
+            max_tokens=512,
+            stop=["</search>", "</answer>"],
+        ),
+    )
+    config.validation_freq = 10  # held-out NQ EM every 10 steps
+    config.num_validation_samples = 64  # NQ test questions per eval (less noisy EM)
+    return config
+
+
+def rl_grpo_qwen3_1_7b_search_r1() -> RLTrainer.Config:
+    """GRPO Search-R1 (multi-turn retrieval QA) for Qwen3-1.7B, varlen attention
+    (4 GPUs: 2 gen + 2 train, both TP=2).
+
+    Requires a running local dense retrieval server and the Search-R1 NQ/HotpotQA
+    parquet data; see ``examples/search_r1/README.md``.
+    """
+    config = rl_grpo_qwen3_1_7b()
+    config.rollouter = SearchR1Rollouter.Config()
+    config.renderer = RendererConfig(name="qwen3", enable_thinking=False)
+    # Small batch (global_batch_size=16) — enough to see the NQ EM trend and much
+    # faster than slime's 256. seq_len 4096 fits the multi-turn rollouts. (The
+    # earlier batch-size NaNs were the vLLM non-finite-logprob bug, now filtered.)
+    config.batcher = dataclasses.replace(
+        config.batcher,
+        batch=BatchConfig(local_batch_size=1, global_batch_size=16, seq_len=4096),
+    )
+    # 4 generator GPUs (TP=4) + 2 trainer GPUs (TP=2) = 6 GPUs (slime's layout);
+    # 4 gen GPUs ~halve rollout time vs TP=2. Optimizer/LR inherited from
+    # rl_grpo_qwen3_1_7b (AdamW 2e-6, warmup + linear decay).
+    config.generator = dataclasses.replace(
+        config.generator,
+        parallelism=dataclasses.replace(
+            config.generator.parallelism, tensor_parallel_degree=4
+        ),
+        sampling=SamplingConfig(
+            # slime uses temperature 1.0; 0.8 here is conservative. (The temp-1.0
+            # NaN was the same vLLM logprob bug, now fixed, so 1.0 is also viable.)
+            temperature=0.8,
+            top_p=0.95,
+            max_tokens=512,
+            stop=["</search>", "</answer>"],
+        ),
+    )
+    config.num_groups_per_rollout_batch = (
+        8  # 8 prompts x group_size 8 = 64 rollouts/step
+    )
+    config.num_steps = 100
+    # Eval on NQ test (slime-style): every 5 steps, 500 prompts (clean EM trend).
+    config.validation_freq = 5
+    config.num_validation_samples = 500
+    # Log a sample rollout per group each step so trajectories are inspectable.
+    config.log_samples = True
+    return config
 
 
 def rl_grpo_qwen3_14b() -> RLTrainer.Config:

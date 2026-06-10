@@ -200,6 +200,11 @@ async def main():
         await rl_trainer.train()
     except (KeyboardInterrupt, asyncio.CancelledError):
         logger.info("Interrupted; attempting graceful shutdown...")
+    except Exception:
+        # Log the real failure here: `close()` below can hang in Monarch
+        # `mesh.stop()`, which would otherwise mask the traceback entirely.
+        logger.exception("RL training failed; attempting graceful shutdown...")
+        raise
     finally:
         await rl_trainer.close()
 

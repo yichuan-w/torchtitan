@@ -165,9 +165,22 @@ class Batcher(Configurable):
             )
             packed_rows = packed_rows[:global_batch_size]
 
-        gradient_accumulation_steps = global_batch_size // (
-            self.local_batch_size * dp_degree
-        )
+        # Clamp grad-accum to the rows we actually have. With variable-length
+        # multi-turn rollouts a step can yield fewer than `global_batch_size`
+        # packed rows (truncated / dropped groups); without clamping the tail
+        # microbatch slices would be empty and `collate` would `torch.cat([])`.
+        # For the common case (rows >= global_batch_size) this is unchanged.
+        rows_per_optim_step = self.local_batch_size * dp_degree
+        gradient_accumulation_steps = len(packed_rows) // rows_per_optim_step
+        if gradient_accumulation_steps == 0:
+            logger.warning(
+                "Only %d packed rows (< %d for one optim step); skipping this batch.",
+                len(packed_rows),
+                rows_per_optim_step,
+            )
+            return [], 0, []
+        # Use only rows that fill complete microbatch sets; drop the ragged tail.
+        packed_rows = packed_rows[: gradient_accumulation_steps * rows_per_optim_step]
 
         num_global_valid_tokens = sum(
             int(row["loss_mask"].sum().item()) for row in packed_rows
@@ -233,7 +246,9 @@ class Batcher(Configurable):
                 completion_len = len(ep.completion_token_ids)
                 raw_ids = ep.prompt_token_ids + ep.completion_token_ids
                 gen_lp = [0.0] * prompt_len + ep.completion_logprobs
-                loss_mask = [False] * prompt_len + [True] * completion_len
+                # ep.loss_mask masks env-injected (e.g. tool-result) tokens in
+                # multi-turn rollouts; all True for single-turn.
+                loss_mask = [False] * prompt_len + ep.loss_mask
                 advantages = [0.0] * prompt_len + [ep.advantage] * completion_len
                 sample = {
                     "input_ids": raw_ids[:-1],
