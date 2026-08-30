@@ -579,7 +579,7 @@ default, both are shown.
 | `SWE_LOSS_CHUNKS` | `8` | `32` | chunked-loss width; fewer = larger lm_head GEMMs. Validated with TF32 above. |
 | `SWE_MAX_NUM_SEQS` | `256` | `256` | decode slots per engine. 512 collapsed the pipeline: per-seq decode halved, turns stopped fitting agent budgets. |
 | `SWE_SANDBOX_BOOT_ALLOWANCE_SEC` | `2700` | `2700` | extra initial rollout-guard headroom for the sandbox boot queue; rescheduled away once the sandbox is up. |
-| `TT_DAYTONA_CREATE_CONCURRENCY` | `128` | `16` | parallel sandbox creates; 32 left a restart's create queue tens of minutes deep. |
+| `TT_DAYTONA_CREATE_CONCURRENCY` | `8` | `16` | **per rollout-worker process**, not global: the semaphore is module-level and each worker is its own process, so the effective global parallelism is this value x SWE_NUM_ROLLOUT_WORKERS. 8 x 16 workers = 128 global, which saturates the platform's ~2000 creates/min. A `128` here (misread as global) is 2048 global and produces 429/BadRequest storms at every boot wave. |
 | `SWE_VAL_SAMPLES` | `0` | 89 or 32 | `0` disables validation entirely. |
 | `SWE_VAL_INTERVAL` | `20` | `20` | steps between validation passes. |
 | `SWE_NUM_EVAL_GENERATORS` | `0` | `0` | dedicated eval GPUs; `>0` also makes validation async. |
