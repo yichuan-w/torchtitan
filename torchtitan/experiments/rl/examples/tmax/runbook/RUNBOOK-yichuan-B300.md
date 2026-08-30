@@ -395,6 +395,71 @@ was still writing.
 
 ---
 
+## 9c. `TMAX_EXEC_TRACE_DIR`: timing every sandbox command
+
+Set it to a directory and every command the agent drives is appended to
+`<group=N_rollout=M>.jsonl` as one record:
+
+```json
+{"t": 1788074975.512, "secs": 0.92, "exit": 0, "cmd": "tmux send-keys -t terminus-2 -- 'ruby /app/solution.rb\n'"}
+```
+
+Unset, it costs nothing (the writer returns before touching the filesystem).
+Every sandbox command passes through the same `exec`, so the trace captures the
+`tmux send-keys` that carries the agent's own command text, the `capture-pane`
+that reads the screen back, and the `has-session` liveness probe. `t` is the
+start, so the GAPS between consecutive records are the time spent OUTSIDE exec,
+which is where a rollout actually goes.
+
+**What the first 1392-rollout capture showed**, and it overturns the earlier
+reading in 9a:
+
+| | share of rollout wall time |
+|---|---|
+| model generating the next action | **~85%** |
+| the wait the model itself asks for (`min_timeout_sec`) | ~9% |
+| exec round-trips (56222 of them, 0.65 s each) | ~6% |
+| **the commands themselves** | **~0** |
+
+No command is slow. All 56222 execs sit at p50 0.41 s / p90 1.20 s / p99 1.95 s,
+which is the network round-trip to Daytona; the 23 execs over 5 s (0.04%) are all
+tmux's own three calls, not the agent's. terminus never takes harbor's blocking
+path -- there is not a single `tmux wait done` in the capture -- so a command's
+runtime is never charged to the exec at all.
+
+The gap analysis separates the two kinds of waiting: a gap after `send-keys` is
+the model's requested sleep (mean 3.0 s), and a gap after `capture-pane` /
+`has-session` is the model deciding its next action (mean 13.5 s, p90 39.6 s,
+max 567 s). The second is 91% of the non-exec time.
+
+Per-command, the contrast is the point:
+
+| command | times sent | wait it asks for | time the model spent DECIDING it |
+|---|---|---|---|
+| `cat` | 3012 | 0.1 s | **35.8 s** (p90 82.5) |
+| `ls` | 2027 | 0.0 s | 24.7 s |
+| `mkdir` | 328 | 0.3 s | **41.8 s** (p90 88.7) |
+| `python3` | 1114 | 3.7 s | 37.0 s |
+| `make` | 182 | 27.0 s | 26.0 s |
+| `apt-get` | 235 | 16.9 s | 27.8 s |
+
+The model spends 36 s composing a `cat` and 42 s composing a `mkdir`, both of
+which cost nothing to run. Only `make` / `apt-get` / `wget` get a wait, and there
+it is asking correctly. `cat`, `ls` and `which` are a third of everything sent --
+the policy re-reading its environment.
+
+**So sandbox-side tuning is not where the time is.** Zeroing every exec would buy
+6%. The levers are `TMAX_TURN_MAX_TOKENS` (32768 today), per-sequence decode
+speed (12-19 tok/s, and the engines are at 5-15% KV with `Waiting: 0`, so this is
+not a capacity problem), and turn count -- which is what the training is meant to
+improve.
+
+Caveat on the capture above: it is 1392 rollouts from one partial step, skewed
+toward fast finishers. The conclusion is structural rather than distributional,
+but re-measure on a full run before quoting the percentages as final.
+
+---
+
 ## 9b. Where the remaining headroom is
 
 **Read the capacity metrics before theorising.** Two things here are easy to get

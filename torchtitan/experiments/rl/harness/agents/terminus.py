@@ -48,6 +48,7 @@ behavior (e.g. to A/B fidelity against published numbers).
 
 from __future__ import annotations
 
+import json
 import logging
 import os
 import shlex
@@ -289,10 +290,32 @@ class _CountingParser:
         return result
 
 
+def _exec_trace_path(session_id: str) -> Path | None:
+    """Per-session JSONL for the sandbox exec trace, or None when tracing is off.
+
+    ``TMAX_EXEC_TRACE_DIR`` turns it on. A rollout's wall time is dominated by
+    what happens between generations -- the training loop records only the
+    total, and the rollout dump records only the transcript -- so without this
+    there is no way to tell a slow agent command from a slow harness.
+    """
+    root = os.environ.get("TMAX_EXEC_TRACE_DIR", "")
+    if not root:
+        return None
+    safe = (session_id or "unknown").replace("/", "_")
+    return Path(root) / f"{safe}.jsonl"
+
+
 class _SandboxEnvironment:
     """Our ``Sandbox`` in the shape Terminus-2 expects of a harbor environment."""
 
-    def __init__(self, sandbox: Any, *, agent_dir: Path, user: str = "root") -> None:
+    def __init__(
+        self,
+        sandbox: Any,
+        *,
+        agent_dir: Path,
+        user: str = "root",
+        trace_session_id: str = "",
+    ) -> None:
         self._sandbox = sandbox
         self.default_user = user
         # Terminus-2 only reads ``trial_paths.agent_dir``, and only to place its
@@ -301,6 +324,8 @@ class _SandboxEnvironment:
         self.environment_dir = agent_dir
         self.environment_name = "titan-sandbox"
         self.session_id = ""
+        # Names the exec-trace file; empty disables it (see _exec_trace_path).
+        self._trace_session_id = trace_session_id
 
     async def exec(
         self,
@@ -314,6 +339,7 @@ class _SandboxEnvironment:
 
         if cwd:
             command = f"cd {shlex.quote(cwd)} && {command}"
+        started_at = time.time()
         exit_code, stdout, stderr = await self._sandbox.exec(
             command,
             user=str(user or self.default_user),
@@ -321,6 +347,7 @@ class _SandboxEnvironment:
             check=False,
             **({"timeout": timeout_sec} if timeout_sec else {}),
         )
+        self._trace_exec(command, started_at, exit_code)
         if exit_code != 0:
             # Terminus-2 surfaces a tmux failure as "Failed to start tmux session.
             # Error: <stderr>", which says nothing when the provider returns
@@ -334,6 +361,30 @@ class _SandboxEnvironment:
                 (stderr or "")[-400:],
             )
         return ExecResult(stdout=stdout, stderr=stderr, return_code=exit_code)
+
+    def _trace_exec(self, command: str, started_at: float, exit_code: int) -> None:
+        """Append one exec to the session's trace. Best-effort; never raises.
+
+        Every sandbox command the agent drives passes through ``exec``, including
+        the ``tmux send-keys`` that carries the agent's own command text and the
+        ``tmux wait done`` that blocks for its runtime -- so a trace of both
+        attributes a slow turn to the command that caused it.
+        """
+        path = _exec_trace_path(self._trace_session_id)
+        if path is None:
+            return
+        try:
+            path.parent.mkdir(parents=True, exist_ok=True)
+            record = {
+                "t": round(started_at, 3),
+                "secs": round(time.time() - started_at, 3),
+                "exit": exit_code,
+                "cmd": command[:400],
+            }
+            with open(path, "a") as f:
+                f.write(json.dumps(record) + "\n")
+        except Exception:
+            logger.debug("exec trace write failed", exc_info=True)
 
     async def upload_file(self, source_path: Path | str, target_path: str) -> None:
         with open(source_path, "rb") as f:
@@ -411,7 +462,9 @@ async def terminus_agent(task: AgentTask) -> AgentRun:
     # reward of 0 rather than a graded attempt.
     deadline = time.monotonic() + task.time_budget_sec if task.time_budget_sec else None
     with tempfile.TemporaryDirectory(prefix="tt-terminus-") as logs_dir:
-        env = _SandboxEnvironment(task.sandbox, agent_dir=Path(logs_dir))
+        env = _SandboxEnvironment(
+            task.sandbox, agent_dir=Path(logs_dir), trace_session_id=task.session_id
+        )
         try:
             max_episodes = task.max_turns or _DEFAULT_MAX_TURNS
             agent = Terminus2(
