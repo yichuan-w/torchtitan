@@ -99,7 +99,23 @@ def _handle(sp: Path):
     try:
         sig = json.loads(sp.read_text())
     except Exception as e:  # noqa: BLE001
-        log.warning("bad signal %s: %s", sp.name, e)
+        # A signal that never parses must not stay in signals/: any *.json
+        # there makes _wait_for_signals return immediately, so one corrupt
+        # file (e.g. a 0-byte leftover from a killed producer) turns the
+        # loop into a busy-spin that floods the log. Give a fresh file one
+        # grace window in case the producer is still mid-write, then
+        # quarantine it like any other junk signal.
+        try:
+            stale = time.time() - sp.stat().st_mtime > 60
+        except OSError:
+            return None  # consumed by someone else meanwhile
+        if stale:
+            junk = BASE / "evolution/junk"
+            junk.mkdir(parents=True, exist_ok=True)
+            shutil.move(str(sp), str(junk / sp.name))
+            log.warning("bad signal %s: %s -> quarantined", sp.name, e)
+        else:
+            log.warning("bad signal %s: %s (fresh, retrying)", sp.name, e)
         return None
     tid = sig.get("task_id", sp.stem)
     # Consumer-side twin of the rollouter's zero-turn guard (defense in depth;
