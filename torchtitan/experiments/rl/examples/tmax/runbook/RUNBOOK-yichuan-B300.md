@@ -591,6 +591,33 @@ sections 3, 4 and 5.
 
 ---
 
+## 10a. Open questions for the team
+
+Two values in the shared docs disagree with what this host measured. Neither is
+resolved; both change how a run is sized.
+
+**1. `TT_DAYTONA_DISK_GB=2` never applies to the TerminalWorld corpus.**
+`runbook/rltrain.env` carries the live fleet sizing as 1 vCPU / 2 GB RAM / 2 GB
+disk. The vCPU and memory halves match what the rows declare, but every one of
+the 667 rows in `tw_live.jsonl` declares `daytona_disk_gb=10` -- including the 13
+that declare no cpu or memory -- and a row's own value wins over the env
+fallback (`daytona.py`: `self.disk_gb if self.disk_gb is not None else
+_getenv(...)`). So the 2 GB default is inert for this corpus, and budgeting
+storage from it under-counts by 5x. The storage arithmetic in section 5 uses
+10 GB per sandbox, which is what the rows actually request.
+
+**2. `TT_DAYTONA_CREATE_CONCURRENCY` is per-WORKER, and the two docs read as
+different units.** The semaphore is a module-global `asyncio.Semaphore` and the
+rollout workers are separate processes, so the limit applies once per worker.
+`README_TERMINALWORLD.md` says exactly that -- `8 # per-worker create
+parallelism` -- while `RUNBOOK.md` now gives 128 without the qualifier. The two
+numbers differ by 16x, which is the worker count (`SWE_NUM_ROLLOUT_WORKERS=16`),
+so they look like one value written in two units. At 128 per worker the account
+sees 2048 concurrent creates. This host ran 32 (i.e. 512) through tw-prod-1 and
+8 (128) through tw-prod-2; neither was measured against create failures.
+
+---
+
 ## 11. What is NOT established
 
 - **The production shape has never been run on this host.** Two steps at
