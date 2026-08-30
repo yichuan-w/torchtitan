@@ -70,7 +70,8 @@ MIX = Path(os.environ.get("SWE_PROMPT_DATA", str(BASE / "data/mix/mix_live.jsonl
 # difficulty.
 SIMPLIFY_ENABLED = os.environ.get("SWE_EVOLVE_SIMPLIFY", "1").lower() not in (
     "0", "false", "no")
-POOL_ROOTS = [BASE / "data/swe-extract/tasks", BASE / "data/tw-extract/tasks"]
+POOL_ROOTS = [BASE / "data/swe-extract/tasks", BASE / "data/tw-extract/tasks",
+              BASE / "data/tmax-extract/tasks"]
 
 log = logging.getLogger("evolve_ondella")
 
