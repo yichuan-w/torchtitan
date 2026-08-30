@@ -515,6 +515,50 @@ size -- a sparse `truncate -s 10G` file is not 10 GB of usage) found every task
 in the current mix builds inside the 10 GB cap; an earlier "tier-unrunnable"
 verdict on four tasks was a sparse-file measurement artifact and was retracted.
 
+### Account capacity, and what actually bounds concurrency
+
+Per-sandbox resources come from the DATA ROW first. `TT_DAYTONA_CPU` /
+`TT_DAYTONA_MEM_GB` / `TT_DAYTONA_DISK_GB` apply only where a row declares
+nothing, so sizing the fleet from the env values alone mis-states it by whatever
+fraction of the corpus carries its own overrides, and that fraction moves every
+time the mix is rebuilt. Measure it, do not assume it.
+
+Measured on the live 1068-row `mix_live.jsonl` (2026-08-30): 60 rows declare
+`daytona_cpu`, 109 declare `daytona_mem_gb`, 58 declare `daytona_disk_gb`. The
+remaining ~95% take the env values, giving data-weighted averages of **1.08
+vCPU, 2.23 GiB memory and 2.08 GiB disk** per sandbox. A live snapshot the same
+day put 377 active sandboxes at exactly 1/2/2 with no outliers
+(`terminalworld-seeds`, `scripts/daytona_snapshot.py`; that script uses the
+SDK's `list()` because the REST endpoint ignores its `page` parameter and
+returns the same window on every page).
+
+Storage is not the binding axis at this sizing. It was, in a corpus where every
+row declared 10 GiB, but the current mix leaves disk to the env value on 95% of
+rows and averages 2.08 GiB.
+
+Account limits, recorded 2026-08-29 and **not re-verified here** (the API's
+`/organizations` endpoint rejects the sandbox key, so this number has no
+first-hand check behind it): 20000 vCPU, 80000 GiB memory, 80000 GiB storage.
+The older 5000 / 20000 / 25000 figures under-count. The account is SHARED: 1024
+sandboxes belonging to another run were live when those limits were recorded, so
+read current usage before raising concurrency rather than assuming the whole
+account is yours.
+
+Taking those limits at face value, 20000 vCPU / 1.08 vCPU per sandbox is a
+ceiling near 18000 concurrent sandboxes, and memory and disk sit higher still
+(80000 / 2.23 and 80000 / 2.08). Nothing the recipe schedules comes close, so
+Daytona capacity is not what bounds TMax concurrency. The scheduler is: 40
+active groups of 32 siblings is 1280 schedulable rollouts, and concurrency above
+1280 cannot add useful rollout work without widening the active-group window.
+The production 512-concurrency split uses 16 rollout workers with 32 sibling
+slots each; 1024 over those same 16 workers would need 48 active groups and is
+rejected under the 40-group cap, so use 8 workers for 1024, or concurrency 1008
+with 16 workers.
+
+Raising concurrency does not guarantee a speedup either way. Check Daytona
+failures and rate limits, generator queue and inflight metrics, rollout-worker
+CPU load, and trainer batch-wait time.
+
 ---
 
 ## 6. Environment variable reference

@@ -34,36 +34,6 @@ See tests/integration_tests/ for `OverrideDefinitions`.
 When running performance tests, use at least 10 training steps (for example,
 `--training.steps 10`) so startup and warmup effects do not dominate the results.
 
-### TMax Daytona Capacity
-
-As of 2026-08-29, the Daytona account limits are 20000 vCPU, 80000 GiB memory,
-and 80000 GiB storage. Do not use the older 5000 vCPU / 20000 GiB / 25000 GiB
-figures (or the 1500 vCPU / 3000 GiB ones before them) when sizing TMax runs --
-both under-count by enough to make storage look like a binding constraint when
-it is not. The account is SHARED: 1024 sandboxes belonging to another run were
-live when these limits were recorded, so check current usage before raising
-concurrency rather than assuming the whole account.
-
-Per-sandbox resources come from the DATA ROW, not from `TT_DAYTONA_CPU` /
-`TT_DAYTONA_MEM_GB` / `TT_DAYTONA_DISK_GB` -- those apply only where a row
-declares nothing. Measured over the 667-row TerminalWorld mix, the data-weighted
-averages are 1.16 vCPU, 2.61 GiB memory and 10.0 GiB storage per sandbox (474
-rows, 71%, declare 1 vCPU / 2 GiB), so budgeting at the env fallbacks
-over-counts vCPU and memory by roughly 2x. Storage is the tightest axis because
-every row in that corpus declares 10 GiB, which no env value can lower -- but at
-these limits the ceiling is still ~7000 concurrent sandboxes alongside another
-run's 1024. Daytona capacity is therefore not what bounds TMax concurrency;
-the generator side is. This does not guarantee a speedup either way: check
-Daytona failures/rate limits, generator queue and inflight metrics, rollout-worker
-CPU load, and trainer batch-wait time.
-
-The standard 9B recipe has 40 active groups of 32 siblings, or 1280 schedulable
-rollouts. Concurrency above 1280 cannot add useful rollout work without also
-increasing the active-group window. The production 512-concurrency split uses 16
-rollout workers with 32 sibling slots each. A 1024-concurrency split over those
-same 16 workers would require 48 active groups and is rejected under the default
-40-group cap; use 8 workers for 1024, or concurrency 1008 with 16 workers.
-
 ### Validating Numerics
 Non-computation changes (e.g. activation checkpointing, refactoring) must produce
 **identical loss** before vs. after with `--debug.seed=42` and `--debug.deterministic`.
