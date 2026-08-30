@@ -292,17 +292,22 @@ Both source datasets are public and ungated (verified):
 
 - `andylizf/TerminalWorld-Seeds-Clean` — the TerminalWorld half. Ships
   `data/tasks-00000.tar` plus metadata: `solvable_ids.txt` (766),
-  `train_ready_ids.txt` (669), `fragile_build_ids.txt` (174),
+  `train_ready_ids.txt` (668), `fragile_build_ids.txt` (174),
   `policy_blocked_ids.txt` (28), `oversized_memory_ids.txt` (5),
-  `pass_at_5.csv`, `tasks.parquet`.
-- `Fzz1/SWE-Smith-Seeds-Clean` — the SWE-Smith half, with
-  `main_pool_ids.txt` and `network_required_ids.txt`.
+  `pass_at_5.csv`, `tasks.parquet` (per-task `req_cpus` / `req_memory_mb` /
+  `est_disk_mb` / `terminal_domain`), `measured_disk.csv` (real block usage
+  from a full server-side build of every task).
+- `Fzz1/Tmax-Tasks-Clean` — the TMax half, take8 onward (earlier takes mixed
+  `Fzz1/SWE-Smith-Seeds-Clean` instead). Its `train` split carries 400
+  rubric-audited, solver-verified task ids with measured `peak_ram_mb` /
+  `peak_disk_mb` per task.
 
 "Solvable" here means one specific measured thing: **pass@5 != 0** under a
 reference solver, with the denominator being *graded* attempts, so a container
 that died is excluded rather than counted as a failure. `train_ready_ids.txt`
-(669) is the solvable set minus the fragile-build, policy-blocked and
-oversized-memory exclusions, and is the list to train on.
+(668) is the solvable set minus the fragile-build, policy-blocked and
+oversized-memory exclusions, minus one task (`tw_572920`) whose package fails
+to pack into a training row at all; it is the list to train on.
 
 ### Building the JSONL
 
@@ -352,6 +357,41 @@ Fields that fall back silently rather than raising — `instance_id` (falls back
 `prompt`) — are worth validating yourself, because a missing one poisons the
 pipeline with no error.
 
+### The take8 mix is reproducible (mix_v2)
+
+`mix_live.jsonl` for take8 started as `mix_v2.jsonl`, built in one shot by
+`build_mix_v2.py` (source of truth: the `terminalworld-seeds` repo; deployed
+copy under `$TRL_BASE/evolve-onhost/scripts/`) — 668 TerminalWorld rows plus
+400 TMax rows, shuffled with seed 1208, the last 64 rows after that shuffle
+being the holdout:
+
+```bash
+python3.11 build_mix_v2.py --out $TRL_BASE/data/mix/mix_v2.jsonl --apply
+```
+
+Per-row sandbox sizing comes from first sources only: `tasks.parquet`
+declarations above the 1 vCPU / 2 GiB fleet defaults, `measured_disk.csv`
+above 2 GiB (capped at Daytona's 10 GiB), and the TMax parquet's
+`peak_ram_mb` / `peak_disk_mb` plus 1 GiB slack. No template boilerplate is
+copied through: 674 of 695 `task.toml` files declare 2 vCPU / 4096 MB
+verbatim, and writing those back would undo the fleet sizing corpus-wide.
+
+The build writes `mix_v2.jsonl.manifest.json` beside the output: row counts,
+every id that failed to resolve, and a SHA-256 for each of the four inputs
+(TW id list, `tasks.parquet`, TMax train parquet, prepared TMax rows). The
+published `tasks.parquet` is byte-identical to the pinned input. The pinned TW
+id list is the pre-correction 669-id version whose one extra id (`tw_572920`)
+drops out at pack time, so rebuilding from the published 668-id list yields
+the same rows. The prepared TMax rows (`data/tmax_train.jsonl`, 14,601 rows)
+are `prepare_rts_data` output over the TMax task pool; the mix joins the 400
+`train`-split ids against it.
+
+After launch the file diverges from `mix_v2.jsonl` by exactly one mechanism:
+the evolution loop's replace-only folds. Every fold is one commit in the
+`$TRL_BASE/evolution` git repository (retuned task tree plus a
+`mix_snapshot.jsonl`), so any intermediate state of the live mix is a
+checkout, and the full lineage from `mix_v2` to now is the `git log`.
+
 ### The holdout
 
 **The last 64 rows of the training JSONL, in file order, are the validation
@@ -365,8 +405,8 @@ samples = (samples[-config.holdout_n:] if config.split == "validation"
            else samples[:-config.holdout_n])
 ```
 
-The live file is 759 rows: 695 in rotation plus the 64-row holdout tail
-(verified: `wc -l mix_live.jsonl` = 759).
+The live file is 1,068 rows: 1,004 in rotation plus the 64-row holdout tail
+(verified: `wc -l mix_live.jsonl` = 1068).
 
 Two consequences worth internalising:
 
@@ -374,12 +414,13 @@ Two consequences worth internalising:
   the last 64 rows and silently rotates your holdout. The evolution loop's fold
   is replace-only for exactly this reason, and refuses to add a label that is not
   already present.
-- **Our exact `mix_live.jsonl` is not reconstructible from the public datasets.**
-  You can build an equivalent mix from the same corpora, but not the same file:
-  its order is the accumulated result of a concatenation followed by months of
-  in-place folds and backfills. A rebuilt mix is a valid training set with a
-  *different* holdout, so eval numbers from it are not comparable to ours. If you
-  want comparable numbers, get the file itself rather than rebuilding it.
+- **The take8 starting file is exactly reconstructible** (see the section
+  above), and the holdout is a deterministic function of the seeded shuffle.
+  This was not true of take7: that file's order was the accumulated result of a
+  concatenation followed by months of in-place folds and backfills, which is
+  precisely why take8 rebuilt the mix from first sources. A mix rebuilt with a
+  different seed or input set is a valid training set with a *different*
+  holdout, so its eval numbers are not comparable to ours.
 
 ---
 
