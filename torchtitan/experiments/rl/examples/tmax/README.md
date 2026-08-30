@@ -11,18 +11,9 @@ loop. It shares the sandbox / adapter / grading machinery with
 [`examples/swe_r2e`](../swe_r2e/README.md) -- read that README first for the
 harness architecture; this one covers what tmax changes and how to run it.
 
-## Repository workflow
-
-`yichuan-w/torchtitan`, branch `yichuan/qwen35-port-cotrain`, is the single
-canonical line for this collaboration. All work happens as feature branches on
-THIS repository and merges into `yichuan/qwen35-port-cotrain` once stable
-(validated on a live run, or covered by a smoke). Do not maintain long-lived
-personal mainlines in forks: the previous split across two repositories cost a
-day of cross-repo SHA bookkeeping and stale-copy confusion.
-`andylizf/torchtitan` is frozen and serves as PR staging only.
-
 The from-zero reproduction guide for the 9B TerminalWorld run, environment lock
-included, is in [`runbook/RUNBOOK.md`](runbook/RUNBOOK.md).
+included, is in [`runbook/RUNBOOK.md`](runbook/RUNBOOK.md). The collaboration's
+branch rules are in [`.claude/CLAUDE.md`](../../../../../.claude/CLAUDE.md).
 
 ## How a rollout works
 
