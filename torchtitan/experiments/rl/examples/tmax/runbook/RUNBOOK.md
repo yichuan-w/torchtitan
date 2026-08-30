@@ -524,7 +524,6 @@ default, both are shown.
 | `SWE_INITIAL_ACTIVE_GROUPS` | `64` | computed | cold-start admission. |
 | `SWE_SELECTION_WINDOW_GROUPS` | `64` | unset (take-any) | sliding-prefix batch selection. |
 | `SWE_GPU_MEM_LIMIT` | `0.85` | `0` (keep `0.8`) | vLLM's **total** budget: weights + activations + KV. |
-| `SWE_MAX_NUM_SEQS` | `256` | derived (cap 512) | per-engine decode batch cap. |
 | `SWE_GEN_PREFIX_CACHE` | `1` | unset (vLLM's choice) | prefix caching. ~2x prefill on this hybrid, byte-identical outputs in a local smoke. |
 | `SWE_GEN_CUDAGRAPH` | unset | `1` in tmax, `0` in swe_r2e | ~3x GDN decode. Note the families disagree. |
 | `SWE_DISABLE_CUSTOM_ALL_REDUCE` | `1` | unset | falls back to NCCL. |
@@ -534,9 +533,9 @@ default, both are shown.
 | `TMAX_TURN_MAX_TOKENS` | `32768` | `16384` (terminus) | per-turn generation cap. |
 | `SWE_CKPT_INTERVAL` | `5` | `20` | steps between saves. |
 | `SWE_CKPT_KEEP` | `8` | `3` | checkpoints retained. 8 x 98 GiB ~= 0.8 TiB. |
-| `SWE_LMHEAD_TF32` | `1` | `0` | TF32 tensor cores for the fp32 lm_head matmuls (loss). |
-| `SWE_AC` | `selective` | FullAC | per-op selective activation checkpointing. |
-| `SWE_LOSS_CHUNKS` | `8` | `32` | chunked-loss width; fewer = larger lm_head GEMMs. |
+| `SWE_LMHEAD_TF32` | `1` | `0` | TF32 tensor cores for the fp32 lm_head matmuls (loss). Measured 08-30 (B300, 65536-token rows): with `SWE_LOSS_CHUNKS=8`, loss_fn 6.60 -> 0.82 s/mb, whole fwd_bwd 14.10 -> ~5.9 s/mb; grad_norm unchanged. |
+| `SWE_AC` | `selective` | FullAC | per-op selective activation checkpointing. Safe only with the packed-row cu_seqlens hoisted out of AC (4380eaab); before that fix, both AC modes could deadlock in recompute. Measured 08-30 on top of TF32+chunks: fwd_bwd ~5.9 -> 5.65 s/mb median (117 mb), backward 3.99 -> 3.72 s/mb; trainer GPUs 238/275 GiB. |
+| `SWE_LOSS_CHUNKS` | `8` | `32` | chunked-loss width; fewer = larger lm_head GEMMs. Validated with TF32 above. |
 | `SWE_MAX_NUM_SEQS` | `256` | `256` | decode slots per engine. 512 collapsed the pipeline: per-seq decode halved, turns stopped fitting agent budgets. |
 | `SWE_SANDBOX_BOOT_ALLOWANCE_SEC` | `2700` | `2700` | extra initial rollout-guard headroom for the sandbox boot queue; rescheduled away once the sandbox is up. |
 | `TT_DAYTONA_CREATE_CONCURRENCY` | `128` | `16` | parallel sandbox creates; 32 left a restart's create queue tens of minutes deep. |
