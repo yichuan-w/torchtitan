@@ -243,6 +243,35 @@ def _wait_for_signals(max_wait: int, tick: float = 2.0) -> None:
         time.sleep(tick)
 
 
+
+def _snapshot_lineage(note: str) -> None:
+    """Commit the evolution state so every task version survives.
+
+    The retuned pool is rewritten in place on re-evolve, which destroys the
+    previous version of a task -- but the loop is the research object, and
+    analysing it needs the full lineage (seed -> v1 -> v2 ...). A git repo at
+    BASE/evolution keeps every fold as a commit: the whole retuned/ tree plus a
+    snapshot of the mix taken at the same moment. Failures never break the
+    round -- versioning is an audit trail, not a dependency.
+    """
+    import subprocess
+    root = BASE / "evolution"
+    try:
+        if not (root / ".git").exists():
+            subprocess.run(["git", "init", "-q"], cwd=root, check=True)
+            (root / ".gitignore").write_text("signals/\ndeferred_easier/\n")
+        shutil.copy2(MIX, root / "mix_snapshot.jsonl")
+        subprocess.run(["git", "add", "-A"], cwd=root, check=True)
+        r = subprocess.run(
+            ["git", "-c", "user.email=evolve@terminal-rl", "-c", "user.name=evolve-loop",
+             "commit", "-q", "-m", note],
+            cwd=root, capture_output=True, text=True)
+        if r.returncode == 0:
+            log.info("lineage snapshot committed: %s", note)
+    except Exception as e:  # noqa: BLE001 -- never fail a round on archiving
+        log.warning("lineage snapshot failed: %s", e)
+
+
 def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--once", action="store_true", help="one round then exit")
@@ -275,6 +304,8 @@ def main() -> None:
                       keep_signal=args.keep_signal, limit=args.limit,
                       workers=args.workers)
         log.info("round done: %s", r)
+        if r.get("retuned") or r.get("folded"):
+            _snapshot_lineage(f"once: {r}")
         return
     log.info("evolve_ondella loop up: signals=%s mix=%s interval=%ds workers=%d",
              SIGNALS, MIX, args.interval, args.workers)
@@ -283,6 +314,8 @@ def main() -> None:
             r = run_round(workers=args.workers)
             if r["processed"]:
                 log.info("round: %s", r)
+            if r.get("retuned") or r.get("folded"):
+                _snapshot_lineage(f"round: {r}")
         except Exception as e:  # noqa: BLE001
             log.exception("round failed: %s", e)
         _wait_for_signals(args.interval)
