@@ -763,6 +763,12 @@ def rl_grpo_qwen3_5_9b_tmax() -> Controller.Config:
             # job down with `OSError: [Errno 122] Disk quota exceeded` mid-save,
             # which also leaves a truncated checkpoint behind.
             keep_latest_k=int(os.environ.get("SWE_CKPT_KEEP", "3")),
+            # SWE_CKPT_FOLDER: absolute path redirects checkpoint I/O off the
+            # dump filesystem entirely (os.path.join drops the dump prefix for
+            # absolute paths). Added when the shared GPFS fileset hit its quota
+            # mid-save and DCP left a truncated step dir behind; a host-local
+            # disk keeps saves immune to other users filling the fileset.
+            folder=os.environ.get("SWE_CKPT_FOLDER", config.trainer.checkpoint.folder),
         ),
     )
     # Optional trainer FSDP width override for a fwd/bwd speed experiment. The mast_rl
