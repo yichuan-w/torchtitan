@@ -42,23 +42,16 @@ STAMP=$(date +%Y%m%d-%H%M%S)
 DUMP=${RL_RESUME_DUMP:-$TRL_BASE/runs/tmax-9b-$STAMP}
 mkdir -p "$DUMP"
 
-# The allocator hands each mesh a CONSECUTIVE window starting at RL_GPU_OFFSET and
-# overwrites CUDA_VISIBLE_DEVICES inside the spawned process before CUDA starts.
-# Setting CUDA_VISIBLE_DEVICES here does not choose the devices, and a
-# non-contiguous RL_GPUS is silently ignored rather than honoured -- so refuse it
-# instead of running somewhere the caller did not ask for.
+# The allocator reads RL_GPUS and gives each mesh its slice of that list BY
+# POSITION, overwriting CUDA_VISIBLE_DEVICES inside the spawned process before
+# CUDA starts. The list does not have to be contiguous. Order is the placement:
+# the trainer takes the first SWE_DP_SHARD entries, then one entry per generator,
+# so put the quietest GPUs where the generators land.
 export RL_GPUS=${RL_GPUS:-0,1,2,3,4}
-_first=${RL_GPUS%%,*}
 _n=$(awk -F, '{print NF}' <<< "$RL_GPUS")
-_expect=$(seq -s, "$_first" $((_first + _n - 1)))
-export RL_GPU_OFFSET=${RL_GPU_OFFSET:-$_first}
-if [ "$RL_GPUS" != "$_expect" ]; then
-    echo "[launch] RL_GPUS=$RL_GPUS is not contiguous; the allocator would run on" >&2
-    echo "[launch] $_expect regardless. Pick a contiguous window." >&2
-    exit 2
-fi
-if [ "$RL_GPU_OFFSET" != "$_first" ]; then
-    echo "[launch] RL_GPU_OFFSET=$RL_GPU_OFFSET disagrees with RL_GPUS start $_first." >&2
+_uniq=$(tr ',' '\n' <<< "$RL_GPUS" | sort -u | grep -c .)
+if [ "$_uniq" -ne "$_n" ]; then
+    echo "[launch] RL_GPUS=$RL_GPUS names the same device twice." >&2
     exit 2
 fi
 _want=$(( ${SWE_DP_SHARD:-2} + ${SWE_GEN_DP:-3} ))

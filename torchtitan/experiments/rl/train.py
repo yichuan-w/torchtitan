@@ -60,6 +60,17 @@ class PerHostProvisioner:
     def __init__(self, total_gpus: int = 8):
         self.total_gpus = total_gpus
         self.next_gpu = 0
+        # RL_GPUS names the physical devices this run may use, in order. Each mesh
+        # takes its slice of that list by position, so the set need not be
+        # contiguous -- the GPUs are all-to-all NVLinked and nothing here requires
+        # adjacency. Order is the placement: the trainer allocates first, then one
+        # generator per entry. Unset -> RL_GPU_OFFSET applies instead.
+        self.devices = [d for d in os.environ.get("RL_GPUS", "").split(",") if d]
+        if self.devices and len(self.devices) < total_gpus:
+            raise ValueError(
+                f"RL_GPUS lists {len(self.devices)} device(s) but this run needs "
+                f"{total_gpus}. List every GPU the run may use."
+            )
 
     @property
     def available(self) -> int:
@@ -74,14 +85,19 @@ class PerHostProvisioner:
         gpu_ids = list(range(self.next_gpu, self.next_gpu + num_gpus))
         self.next_gpu += num_gpus
 
+        devices = self.devices
+
         def _bootstrap():
-            # RL_GPU_OFFSET lets a local run use a GPU subset of a shared host that
-            # does not start at absolute index 0 (e.g. GPUs 0-3 busy -> offset=4).
-            # Default 0 = unchanged behavior.
-            offset = int(os.environ.get("RL_GPU_OFFSET", "0"))
-            os.environ["CUDA_VISIBLE_DEVICES"] = ",".join(
-                str(g + offset) for g in gpu_ids
-            )
+            # RL_GPUS wins when set and is used verbatim, which is what lets a run
+            # take a non-contiguous subset. Otherwise RL_GPU_OFFSET lets a local run
+            # use a GPU subset of a shared host that does not start at absolute
+            # index 0 (e.g. GPUs 0-3 busy -> offset=4). Default 0 = unchanged.
+            if devices:
+                visible = [devices[g] for g in gpu_ids]
+            else:
+                offset = int(os.environ.get("RL_GPU_OFFSET", "0"))
+                visible = [str(g + offset) for g in gpu_ids]
+            os.environ["CUDA_VISIBLE_DEVICES"] = ",".join(visible)
             # TODO: Remove once Monarch/PyTorch fixes concurrent import during unpickling.
             import torch  # noqa: F401
 
