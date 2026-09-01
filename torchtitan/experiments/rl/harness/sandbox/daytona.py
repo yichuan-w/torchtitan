@@ -1451,7 +1451,43 @@ class DaytonaSandbox:
 
     async def read_file(self, sandbox_path: str, *, user: str = "root") -> str:
         # root can read any file; the user arg is accepted for protocol parity.
-        rc, out, _ = await self.exec(
-            f"cat {shlex.quote(sandbox_path)}", user="root", timeout=60
-        )
-        return out if rc == 0 else ""
+        #
+        # Download the bytes rather than `cat` them out of a shell. exec merges
+        # stderr into stdout -- deliberately, since an agent driving a terminal
+        # has to see its errors -- so anything the image prints when a shell
+        # starts arrives ahead of the file's contents and is indistinguishable
+        # from them. grade_tmax compares a nonce it wrote here for exact
+        # equality, to refuse a reward whose verifier never ran; on an image
+        # whose bash greets every command with a setlocale warning the
+        # comparison can never hold, and the task scores 0 before its verifier
+        # is even started. Measured across the corpus: one task in 1,062, which
+        # is the wrong number to reason from -- the noise can come from anything
+        # a login shell touches, and the next such image is silently mis-scored.
+        #
+        # write_file already uploads through fs, and the exec machinery above
+        # downloads its own status and output the same way. This was the only
+        # file operation that went out through a shell.
+        # The old body returned "" for any non-zero `cat`, so a caller that
+        # cannot read a file still gets a string. Keep that contract -- callers
+        # were written against it and a raise here would turn a graded rollout
+        # into an infra failure -- while letting a lost sandbox propagate, which
+        # `cat` did too.
+        try:
+            data = await self._retry_idempotent_rpc(
+                lambda: self._sb.fs.download_file(
+                    sandbox_path, _SESSION_RPC_TIMEOUT_SEC
+                ),
+                phase="read_file",
+                retry_kind="file_download_retry",
+                failed_kind="file_download_failed",
+                missing_kind="file_download_missing",
+            )
+        except Exception as error:  # noqa: BLE001
+            if _is_sandbox_gone_error(error):
+                raise
+            return ""
+        if data is None:
+            return ""
+        if isinstance(data, bytes):
+            return data.decode("utf-8", errors="replace")
+        return str(data)

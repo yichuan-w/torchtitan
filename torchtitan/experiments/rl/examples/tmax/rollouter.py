@@ -421,8 +421,13 @@ async def _start_entrypoint(sb: Sandbox, command: str, *, workdir: str) -> None:
     which never returns. Best-effort -- a task whose ENTRYPOINT fails scores what it
     scores, and the oracle-validation pass over the corpus already measures that.
     """
+    # No cd: Docker starts ENTRYPOINT in the image's own WORKDIR, and the
+    # container already puts every exec there -- measured on four tasks, a plain
+    # exec and a terminus tmux pane report the same directory every time, and it
+    # is the image's rather than the one data prep guessed. The guess only
+    # differs where no Dockerfile WORKDIR exists to read, which is exactly where
+    # it is wrong: tw_266088's ubuntu image stands in /root and has no /app.
     rc, _out, err = await sb.exec(
-        f"cd {shlex.quote(workdir)} 2>/dev/null || cd /; "
         f"setsid nohup {command} > {_ENTRYPOINT_LOG} 2>&1 < /dev/null &",
         user="root",
         check=False,
