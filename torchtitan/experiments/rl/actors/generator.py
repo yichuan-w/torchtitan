@@ -1270,11 +1270,26 @@ class VLLMGenerator(Actor, Configurable):
             # cheaper, #3668-safe FULL_DECODE_ONLY (mode=NONE, no inductor, decode-only
             # graphs). Local smoke: FULL_DECODE_ONLY = 2.5x decode with fast init and
             # no inductor, vs FULL_AND_PIECEWISE 3.0x but slow inductor compile.
-            vllm_compilation_config = config.cudagraph.get_vllm_compilation_config(
-                max_num_seqs=self._max_num_seqs,
-            )
-            if vllm_compilation_config is not None:
-                engine_kwargs["compilation_config"] = vllm_compilation_config
+            #
+            # SWE_GEN_VLLM_DEFAULT_COMPILE=1 forwards nothing and leaves vLLM on that
+            # O2 default. The smoke that chose FULL_DECODE_ONLY measured PURE decode.
+            # Under continuous chunked prefill a mixed batch fails
+            # _is_uniform_decode, so no FULL key matches and the step runs eager:
+            # measured on della-tridao at 15.3 tok/s per sequence with prefill=0
+            # against 7.9 with prefill active, i.e. the graph fires almost never in
+            # steady state. Costs an inductor compile at engine init (minutes).
+            if os.environ.get("SWE_GEN_VLLM_DEFAULT_COMPILE", "0") == "1":
+                logger.info(
+                    "[generator] SWE_GEN_VLLM_DEFAULT_COMPILE=1: forwarding no "
+                    "compilation_config; vLLM keeps its own default "
+                    "(inductor VLLM_COMPILE + FULL_AND_PIECEWISE)"
+                )
+            else:
+                vllm_compilation_config = config.cudagraph.get_vllm_compilation_config(
+                    max_num_seqs=self._max_num_seqs,
+                )
+                if vllm_compilation_config is not None:
+                    engine_kwargs["compilation_config"] = vllm_compilation_config
         else:
             # torchtitan_wrapper: build PretrainedConfig from ModelSpec (no
             # config.json read) + pin the attention backend for the wrapper, and
