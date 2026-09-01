@@ -920,7 +920,17 @@ class TMaxRollouter(Rollouter):
                 return
             os.makedirs(dump_dir, exist_ok=True)
             safe = sample.instance_id.replace("/", "_")
-            with open(os.path.join(dump_dir, f"{safe}.json"), "w") as f:
+            occurrence = (
+                sample.lineage.occurrence_id
+                if sample.lineage is not None
+                else f"group-{rollouts[0].group_id if rollouts else 'unknown'}"
+            )
+            safe_occurrence = occurrence.replace("/", "_").replace(":", "_")
+            # One immutable file per occurrence. A per-task filename silently
+            # overwrote an earlier pending signal when the same task repeated.
+            with open(
+                os.path.join(dump_dir, f"{safe}--{safe_occurrence}.json"), "x"
+            ) as f:
                 json.dump(
                     self._evolution_signal(sample, rollouts, rewards, renderer), f
                 )
@@ -1006,7 +1016,11 @@ class TMaxRollouter(Rollouter):
             ]
 
         return {
+            "event": "signal_created",
+            "created_time_unix_ns": time.time_ns(),
             "task_id": sample.instance_id,
+            "source_group_id": rollouts[0].group_id if rollouts else None,
+            "source_lineage": asdict(sample.lineage) if sample.lineage else None,
             "solved": len(rewards) if passed else 0,
             "total": len(rewards),
             "direction": "harder" if passed else "easier",

@@ -193,3 +193,6 @@ class RolloutGroup:
 
     metrics: list[m.Metric] = field(default_factory=list)
     """Rollout-origin metrics that ride with this group to the trainer (a failed group carries its failure metric)."""
+
+    lineage: dict[str, object] | None = None
+    """Dataset occurrence identity attached by the controller after generation."""

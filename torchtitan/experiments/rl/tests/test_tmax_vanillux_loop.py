@@ -703,11 +703,11 @@ def test_evolution_signal_written_with_direction_and_transcript(
 
     rollouter._maybe_emit_evolution_signal(sample, rollouts)
 
-    signal_path = tmp_path / "task-abc.json"
-    assert signal_path.exists()
+    signal_paths = list(tmp_path.glob("task-abc--*.json"))
+    assert len(signal_paths) == 1
     import json as _json
 
-    signal = _json.loads(signal_path.read_text())
+    signal = _json.loads(signal_paths[0].read_text())
     assert signal["task_id"] == "task-abc"
     assert signal["solved"] == 3 and signal["total"] == 3
     assert signal["direction"] == "harder"
@@ -733,4 +733,4 @@ def test_in_band_group_writes_no_evolution_signal(
 
     rollouter._maybe_emit_evolution_signal(sample, rollouts)
 
-    assert not (tmp_path / "task-band.json").exists()
+    assert not list(tmp_path.glob("task-band--*.json"))

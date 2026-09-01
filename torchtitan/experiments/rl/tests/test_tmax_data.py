@@ -59,6 +59,60 @@ def test_dataset_defaults_per_task_daytona_disk_to_none(tmp_path) -> None:
     assert next(dataset).daytona_disk_gb is None
 
 
+def test_dataset_stamps_exact_occurrence_and_epoch_lineage(tmp_path) -> None:
+    path = _write_rows(tmp_path, 2)
+    dataset = TMaxDataset(TMaxDataset.Config(data_path=str(path), shuffle=False))
+
+    first = next(dataset)
+    second = next(dataset)
+    wrapped = next(dataset)
+
+    assert first.lineage is not None
+    assert second.lineage is not None
+    assert wrapped.lineage is not None
+    assert first.lineage.task_id == "task-0"
+    assert first.lineage.dataset_epoch == 0
+    assert first.lineage.dataset_position == 0
+    assert second.lineage.dataset_position == 1
+    assert wrapped.lineage.dataset_epoch == 1
+    assert wrapped.lineage.dataset_position == 0
+    assert len({first.lineage.occurrence_id, wrapped.lineage.occurrence_id}) == 2
+    assert first.lineage.sample_revision == wrapped.lineage.sample_revision
+
+
+def test_dataset_hot_reload_records_task_revision_transition(
+    tmp_path, monkeypatch
+) -> None:
+    path = _write_row(tmp_path, disk_gb=4)
+    monkeypatch.setenv("SWE_DATA_HOT_RELOAD", "1")
+    dataset = TMaxDataset(TMaxDataset.Config(data_path=str(path), shuffle=False))
+    before = next(dataset)
+
+    row = json.loads(path.read_text())
+    row["metadata"]["daytona_disk_gb"] = 8
+    incoming = path.with_suffix(".incoming")
+    incoming.write_text(json.dumps(row) + "\n")
+    incoming.replace(path)
+    dataset._maybe_reload(min_interval_sec=0)
+    events = dataset.drain_lineage_events()
+    after = next(dataset)
+
+    assert len(events) == 1
+    event = events[0]
+    assert event["event"] == "hot_reload"
+    assert event["replaced"] == 1
+    assert event["changes"] == [
+        {
+            "task_id": "task-1",
+            "change": "replaced",
+            "previous_sample_revision": before.lineage.sample_revision,
+            "sample_revision": after.lineage.sample_revision,
+        }
+    ]
+    assert before.lineage.sample_revision != after.lineage.sample_revision
+    assert before.lineage.mix_revision != after.lineage.mix_revision
+
+
 @pytest.mark.parametrize("disk_gb", [0, -1, True, 1.5, "20"])
 def test_dataset_rejects_invalid_per_task_daytona_disk(tmp_path, disk_gb) -> None:
     path = _write_row(tmp_path, disk_gb=disk_gb)

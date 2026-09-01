@@ -161,6 +161,7 @@ class Batcher(Configurable):
             metrics,
             num_rollout_groups,
             num_metric_only_groups,
+            group_lineages,
         ) = self._take_groups_for_train_step()
         # The loss denominator counts every trained token the batch consumed, so it is
         # taken before any compute-only filtering below. Equal to the loss_mask sum over
@@ -191,6 +192,7 @@ class Batcher(Configurable):
             num_packed_valid_tokens=num_packed_valid_tokens,
             metrics=[
                 *metrics,
+                *self._lineage_metrics(group_lineages),
                 *self._packing_metrics(
                     packed_rows,
                     samples_to_pack,
@@ -209,14 +211,81 @@ class Batcher(Configurable):
                 training_sample.min_policy_version
                 for training_sample in training_samples
             ],
+            group_lineages=group_lineages,
         )
+
+    @staticmethod
+    def _lineage_metrics(
+        group_lineages: list[dict[str, object]],
+    ) -> list[m.Metric]:
+        """Small per-step aggregates for W&B; raw identities stay in JSONL."""
+        tasks = {lineage.get("task_id") for lineage in group_lineages}
+        sample_revisions = {
+            lineage.get("sample_revision") for lineage in group_lineages
+        }
+        mix_revisions = {lineage.get("mix_revision") for lineage in group_lineages}
+        epochs = [
+            int(lineage["dataset_epoch"])
+            for lineage in group_lineages
+            if isinstance(lineage.get("dataset_epoch"), int)
+        ]
+        positions = [
+            int(lineage["stream_position"])
+            for lineage in group_lineages
+            if isinstance(lineage.get("stream_position"), int)
+        ]
+        metrics = [
+            m.Metric("data_flow/train_groups", m.NoReduce(float(len(group_lineages)))),
+            m.Metric(
+                "data_flow/train_unique_tasks",
+                m.NoReduce(float(len(tasks - {None}))),
+            ),
+            m.Metric(
+                "data_flow/train_unique_sample_revisions",
+                m.NoReduce(float(len(sample_revisions - {None}))),
+            ),
+            m.Metric(
+                "data_flow/train_unique_mix_revisions",
+                m.NoReduce(float(len(mix_revisions - {None}))),
+            ),
+        ]
+        if epochs:
+            metrics.extend(
+                [
+                    m.Metric(
+                        "data_flow/train_dataset_epoch_min",
+                        m.NoReduce(float(min(epochs))),
+                    ),
+                    m.Metric(
+                        "data_flow/train_dataset_epoch_max",
+                        m.NoReduce(float(max(epochs))),
+                    ),
+                ]
+            )
+        if positions:
+            metrics.extend(
+                [
+                    m.Metric(
+                        "data_flow/train_stream_position_min",
+                        m.NoReduce(float(min(positions))),
+                    ),
+                    m.Metric(
+                        "data_flow/train_stream_position_max",
+                        m.NoReduce(float(max(positions))),
+                    ),
+                ]
+            )
+        return metrics
 
     def _take_groups_for_train_step(
         self,
-    ) -> tuple[list[TrainingSample], list[m.Metric], int, int]:
+    ) -> tuple[
+        list[TrainingSample], list[m.Metric], int, int, list[dict[str, object]]
+    ]:
         """Pop accumulated groups oldest-first until `num_groups_per_train_step` are taken."""
         taken_training_samples: list[TrainingSample] = []
         taken_metrics: list[m.Metric] = []
+        taken_group_lineages: list[dict[str, object]] = []
         num_trainable_groups = 0
         cut = 0
         for group in self._groups_for_next_batch:
@@ -228,6 +297,9 @@ class Batcher(Configurable):
             if group.training_samples:
                 num_trainable_groups += 1
                 taken_training_samples.extend(group.training_samples)
+                taken_group_lineages.append(
+                    dict(group.lineage) if group.lineage else {"group_id": group.group_id}
+                )
 
         remaining_groups = self._groups_for_next_batch[cut:]
         assert not remaining_groups, (
@@ -242,6 +314,7 @@ class Batcher(Configurable):
             taken_metrics,
             num_trainable_groups,
             num_metric_only_groups,
+            taken_group_lineages,
         )
 
     def _assign_training_samples_to_rows(

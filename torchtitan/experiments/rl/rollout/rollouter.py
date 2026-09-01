@@ -104,6 +104,11 @@ class Rollouter(Configurable):
         """Get one training sample (the env input) from the training dataset."""
         return next(self._train_dataset)
 
+    def drain_training_data_events(self) -> list[dict]:
+        """Collect optional dataset events, such as an observed hot reload."""
+        drain = getattr(self._train_dataset, "drain_lineage_events", None)
+        return drain() if drain is not None else []
+
     def get_validation_sample(self) -> object:
         """Get one validation sample (the env input) from the validation dataset."""
         return next(self._validation_dataset)

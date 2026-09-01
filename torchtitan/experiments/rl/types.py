@@ -11,6 +11,20 @@ import torch
 from torchtitan.experiments.rl.observability import metrics as m
 
 
+@dataclass(frozen=True, kw_only=True, slots=True)
+class SampleLineage:
+    """Identity of one dataset occurrence and the exact input version it used."""
+
+    occurrence_id: str
+    task_id: str
+    sample_revision: str
+    mix_revision: str
+    dataset_epoch: int
+    dataset_position: int
+    stream_position: int
+    stream_id: str
+
+
 @dataclass(frozen=True, slots=True)
 class RolloutTurnID:
     """A turn's id: (group, sibling rollout, turn index); renders to the generator request_id.
@@ -115,6 +129,7 @@ class TrainingSampleGroup:
     group_id: int
     training_samples: list[TrainingSample]
     metrics: list[m.Metric]
+    lineage: dict[str, object] | None = None
 
 
 @dataclass(kw_only=True, slots=True)
@@ -160,6 +175,8 @@ class TrainingBatch:
     # token METRICS so they are not diluted by the skipped tokens. None = no skipping,
     # metrics fall back to num_global_valid_tokens.
     num_packed_valid_tokens: int | None = None
+    # One entry per trainable rollout group represented in this optimizer step.
+    group_lineages: list[dict[str, object]] = field(default_factory=list)
 
 
 @dataclass(frozen=True, slots=True)

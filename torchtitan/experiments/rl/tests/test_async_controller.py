@@ -131,7 +131,28 @@ def _trainable_group(group_id: int, *, num_samples: int) -> TrainingSampleGroup:
             for i in range(num_samples)
         ],
         metrics=[],
+        lineage={"group_id": group_id, "occurrence_id": f"occ-{group_id}"},
     )
+
+
+def test_batcher_preserves_trainable_group_lineage() -> None:
+    batcher = _build_batcher(num_groups_per_train_step=2)
+
+    assert (
+        batcher.add_training_samples(
+            training_sample_group=_trainable_group(3, num_samples=1)
+        )
+        is None
+    )
+    batch = batcher.add_training_samples(
+        training_sample_group=_trainable_group(7, num_samples=2)
+    )
+
+    assert batch is not None
+    assert batch.group_lineages == [
+        {"group_id": 3, "occurrence_id": "occ-3"},
+        {"group_id": 7, "occurrence_id": "occ-7"},
+    ]
 
 
 def _build_batcher(

@@ -45,6 +45,7 @@ class RolloutGroupWork:
     sample: object
     """Data input produced by `rollouter.get_training_sample()`;
     passed unchanged to the env in `rollouter.run_group_rollouts`."""
+    lineage: dict[str, object] | None = None
     state: _RolloutGroupWorkState = field(
         default=_RolloutGroupWorkState.WAITING, init=False
     )
@@ -59,9 +60,6 @@ class RolloutGroupWork:
     claimed_ts: float | None = field(default=None, init=False)
     # Number of later-admitted groups selected while this group was INFLIGHT.
     bypass_count: int = field(default=0, init=False)
-    # TODO(async-rl): emit JSON lifecycle logging per RolloutGroupWork keyed by group_id:
-    # admitted/claimed/finalized/batched/trained/dropped timestamps + policy version at admission and
-    # at trainer consumption, for faithful end-to-end visibility.
 
 
 class RolloutGroupWorkBuffer(Configurable):

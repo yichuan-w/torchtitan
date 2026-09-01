@@ -133,6 +133,7 @@ from torchtitan.experiments.rl.rollout import RolloutGroup
 from torchtitan.experiments.rl.rollout.rollouter import Rollouter
 from torchtitan.experiments.rl.rollout.types import GenerateFn, is_scored
 from torchtitan.experiments.rl.rollout_recorder import RolloutSampleRecorder
+from torchtitan.experiments.rl.training_lineage import TrainingLineageRecorder
 from torchtitan.experiments.rl.routing.inter_generator_router import (
     InterGeneratorRouter,
 )
@@ -686,9 +687,16 @@ class Controller(Configurable):
         self.rollout_recorder = config.rollout_recorder.build(
             dump_dir=config.dump_folder
         )
+        self.training_lineage = TrainingLineageRecorder(dump_dir=config.dump_folder)
         self.validation_trace_recorder: ValidationTraceRecorder = (
             config.async_loop.validation.trace.build(dump_dir=config.dump_folder)
         )
+
+    def _record_training_event(self, event: str, **fields) -> None:
+        """Record lineage when initialized; object-level unit tests may omit it."""
+        recorder = getattr(self, "training_lineage", None)
+        if recorder is not None:
+            recorder.record_event(event, **fields)
 
     async def close(self):
         """Best-effort: tear down actors, close metric backends, then stop proc meshes."""
@@ -1769,12 +1777,26 @@ class Controller(Configurable):
             with sl.log_trace_span("get_training_sample"):
                 # to_thread: Dont block on dataset reads
                 sample = await asyncio.to_thread(self._rollouter.get_training_sample)
-            await group_buffer.add_work(
-                RolloutGroupWork(
-                    group_id=group_index,
-                    sample=sample,
-                )
+                dataset_events = self._rollouter.drain_training_data_events()
+            for event in dataset_events:
+                self.training_lineage.record_dataset_event(event)
+            lineage = self.training_lineage.describe_sample(
+                sample=sample, group_id=group_index
             )
+            self.training_lineage.record_sample(lineage=lineage, sample=sample)
+            work = RolloutGroupWork(
+                group_id=group_index,
+                sample=sample,
+                lineage=lineage,
+            )
+            await group_buffer.add_work(work)
+            if work.admitted_ts is not None:
+                self._record_training_event(
+                    "admitted",
+                    lineage=lineage,
+                    trainer_policy_version=self._trainer_policy_version,
+                    generator_policy_version=self._generator_policy_version,
+                )
             group_index += 1
         logger.info("Buffer closed; data input loop stopping")
 
@@ -1807,6 +1829,12 @@ class Controller(Configurable):
             if work is None:  # group_buffer closed/shutdown signal
                 logger.info("Buffer closed; rollout worker stopping")
                 return
+            self._record_training_event(
+                "claimed",
+                lineage=work.lineage,
+                trainer_policy_version=self._trainer_policy_version,
+                generator_policy_version=self._generator_policy_version,
+            )
             try:
                 with sl.log_trace_span("rollout_group"):
                     if worker is not None:
@@ -1833,6 +1861,7 @@ class Controller(Configurable):
                             prefix="rollout", rollouts=group.rollouts
                         ) + list(group.metrics)
 
+                group.lineage = work.lineage
                 # save rollout for inspection
                 self.rollout_recorder.record(
                     is_validation=False,
@@ -1844,7 +1873,24 @@ class Controller(Configurable):
                     group_id=work.group_id,
                     rollouts=[],
                     metrics=[m.Metric("rollout/group_failures", m.Sum(1.0))],
+                    lineage=work.lineage,
                 )
+            rewards = [r.reward for r in group.rollouts if is_scored(r)]
+            self._record_training_event(
+                "finalized",
+                lineage=work.lineage,
+                num_rollouts=len(group.rollouts),
+                num_scored_rollouts=len(rewards),
+                num_solved=sum(
+                    reward > 0.0 for reward in rewards if reward is not None
+                ),
+                rollout_duration_sec=(
+                    time.monotonic() - work.claimed_ts
+                    if work.claimed_ts is not None
+                    else None
+                ),
+                bypass_count=work.bypass_count,
+            )
             await group_buffer.finalize_work(group)
 
     async def _batcher_loop(
@@ -1904,6 +1950,14 @@ class Controller(Configurable):
                 default=None,
             )
             target_policy_version = batcher.next_batch_policy_version
+            self._record_training_event(
+                "selected",
+                lineage=rollout_group.lineage,
+                target_policy_version=target_policy_version,
+                solve_class=_cls,
+                solved=_ns,
+                total=_n,
+            )
             if group_min_policy_version is not None:
                 group_age = target_policy_version - group_min_policy_version
                 if _should_drop_group_at_batcher(
@@ -1922,14 +1976,47 @@ class Controller(Configurable):
                     )
                     await group_buffer.release_active_groups(1, reason="stale_dropped")
                     sl.log_trace_scalar({"rollout_buffer/dropped/stale": 1.0})
+                    self._record_training_event(
+                        "dropped",
+                        lineage=rollout_group.lineage,
+                        reason="stale",
+                        target_policy_version=target_policy_version,
+                    )
                     continue
 
             with sl.log_trace_span("training_sample_builder"):
                 training_sample_group = training_sample_builder.build_from_group(
                     rollout_group=rollout_group
                 )
+                training_sample_group = replace(
+                    training_sample_group, lineage=rollout_group.lineage
+                )
 
             if not training_sample_group.training_samples:
+                drop_metrics = {
+                    metric.key for metric in training_sample_group.metrics
+                }
+                drop_reason = next(
+                    (
+                        reason
+                        for metric_key, reason in (
+                            (
+                                "training_sample_builder/num_groups_dropped_zero_std",
+                                "zero_std",
+                            ),
+                            (
+                                "training_sample_builder/num_groups_dropped_untrainable",
+                                "untrainable",
+                            ),
+                            (
+                                "training_sample_builder/num_groups_dropped_unscored",
+                                "unscored",
+                            ),
+                        )
+                        if metric_key in drop_metrics
+                    ),
+                    "generation_failure_or_empty",
+                )
                 logger.info(
                     "[buffer] complete group_id=%d solved=%d/%d class=%s "
                     "-> RELEASE(zero_std, dropped) target_ver=%d cur_ver=%d",
@@ -1941,6 +2028,13 @@ class Controller(Configurable):
                     self._trainer_policy_version,
                 )
                 await group_buffer.release_active_groups(1, reason="untrainable_group")
+                self._record_training_event(
+                    "dropped",
+                    lineage=rollout_group.lineage,
+                    reason=drop_reason,
+                    target_policy_version=target_policy_version,
+                    solve_class=_cls,
+                )
             else:
                 # Open one cold-start headroom slot for the retained group. The
                 # group remains charged through trainer consumption and weight
@@ -1966,6 +2060,15 @@ class Controller(Configurable):
                     training_sample_group=training_sample_group,
                 )
             if maybe_training_batch is not None:
+                for lineage in maybe_training_batch.group_lineages:
+                    self._record_training_event(
+                        "packed",
+                        lineage=lineage,
+                        target_policy_version=maybe_training_batch.target_policy_version,
+                        reserved_train_step=(
+                            maybe_training_batch.target_policy_version + 1
+                        ),
+                    )
                 logger.info(
                     "[batcher_loop] packed a training batch "
                     f"for policy version {maybe_training_batch.target_policy_version} "
@@ -2081,6 +2184,14 @@ class Controller(Configurable):
 
                     if not math.isfinite(fwd_bwd_metrics["loss/mean"]):
                         logger.error("Loss is NaN/Inf; training diverged")
+                        for lineage in packed.group_lineages:
+                            self._record_training_event(
+                                "dropped",
+                                lineage=lineage,
+                                reason="nonfinite_loss",
+                                train_step=step,
+                                target_policy_version=packed.target_policy_version,
+                            )
                         break
 
                 with sl.log_trace_span("optim_step"), step_timer.record(
@@ -2115,6 +2226,14 @@ class Controller(Configurable):
                     )
                 self._generator_policy_version = optim_result.policy_version
                 logger.info(f"[trainer_loop] step {step}: weights pulled (step done)")
+                for lineage in packed.group_lineages:
+                    self._record_training_event(
+                        "trained",
+                        lineage=lineage,
+                        train_step=step,
+                        target_policy_version=packed.target_policy_version,
+                        resulting_policy_version=optim_result.policy_version,
+                    )
 
                 # Release one train step's group slots after the pull; the batcher packs exactly
                 # num_groups_per_train_step trainable groups per batch.

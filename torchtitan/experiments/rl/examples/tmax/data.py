@@ -35,10 +35,13 @@ import random
 import re
 import threading
 import time
+import uuid
 from collections.abc import Iterator
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 
 from torchtitan.config import Configurable
+from torchtitan.experiments.rl.training_lineage import canonical_json, content_revision
+from torchtitan.experiments.rl.types import SampleLineage
 
 logger = logging.getLogger(__name__)
 
@@ -95,6 +98,9 @@ class TMaxSample:
     tmax: dict = field(default_factory=dict)
     """Grading payload: ``test_sh``, ``fixtures`` ({relpath: content}), ``reward_path``."""
 
+    lineage: SampleLineage | None = field(default=None, compare=False)
+    """Per-yield identity; excluded from equality because it is not task content."""
+
 
 
 def _parse_sample_row(row: dict) -> TMaxSample:
@@ -142,6 +148,25 @@ def _parse_sample_row(row: dict) -> TMaxSample:
         or _coerce_prompt(row.get("prompt")),
         tmax=tmax,
     )
+
+
+def _load_samples(path: str) -> tuple[list[TMaxSample], list[str], str]:
+    """Load and hash every complete JSONL row in source order."""
+    samples: list[TMaxSample] = []
+    revisions: list[str] = []
+    canonical_rows: list[str] = []
+    with open(path) as f:
+        for line in f:
+            line = line.strip()
+            if not line:
+                continue
+            row = json.loads(line)
+            canonical_row = canonical_json(row)
+            samples.append(_parse_sample_row(row))
+            revisions.append(content_revision(row))
+            canonical_rows.append(canonical_row)
+    mix_revision = content_revision(canonical_rows)
+    return samples, revisions, mix_revision
 
 
 class TMaxDataset(Configurable):
@@ -193,13 +218,7 @@ class TMaxDataset(Configurable):
             raise ValueError(
                 f"TMaxDataset.Config.split must be 'train' or 'validation', got {config.split!r}"
             )
-        samples: list[TMaxSample] = []
-        with open(config.data_path) as f:
-            for line in f:
-                line = line.strip()
-                if not line:
-                    continue
-                samples.append(_parse_sample_row(json.loads(line)))
+        samples, sample_revisions, mix_revision = _load_samples(config.data_path)
         if not samples:
             raise ValueError(f"no rows found in {config.data_path}")
 
@@ -218,7 +237,14 @@ class TMaxDataset(Configurable):
                 if config.split == "validation"
                 else samples[: -config.holdout_n]
             )
+            sample_revisions = (
+                sample_revisions[-config.holdout_n :]
+                if config.split == "validation"
+                else sample_revisions[: -config.holdout_n]
+            )
         self._samples = samples
+        self._sample_revisions = sample_revisions
+        self._mix_revision = mix_revision
 
         self._rng = random.Random(config.seed)
         self._shuffle = config.shuffle
@@ -280,6 +306,10 @@ class TMaxDataset(Configurable):
                         f"all rows filtered out by skip_ids_path={config.skip_ids_path}"
                     )
         self._pos = 0
+        self._epoch = 0
+        self._stream_position = 0
+        self._stream_id = uuid.uuid4().hex
+        self._pending_lineage_events: list[dict] = []
         # True online task evolution: when SWE_DATA_HOT_RELOAD=1 and this is the
         # train split, an atomic replacement of data_path (write temp + mv) is
         # picked up mid-run - same-id rows are swapped in place (indices, shuffle
@@ -328,9 +358,28 @@ class TMaxDataset(Configurable):
             if self._shuffle:
                 self._rng.shuffle(self._order)
             self._pos = 0
+            self._epoch += 1
+        dataset_position = self._pos
         idx = self._order[self._pos]
         self._pos += 1
-        return self._samples[idx]
+        lineage = SampleLineage(
+            occurrence_id=f"{self._stream_id}:{self._stream_position}",
+            task_id=self._samples[idx].instance_id,
+            sample_revision=self._sample_revisions[idx],
+            mix_revision=self._mix_revision,
+            dataset_epoch=self._epoch,
+            dataset_position=dataset_position,
+            stream_position=self._stream_position,
+            stream_id=self._stream_id,
+        )
+        self._stream_position += 1
+        return replace(self._samples[idx], lineage=lineage)
+
+    def drain_lineage_events(self) -> list[dict]:
+        """Return hot-reload events not yet collected by the controller."""
+        events = self._pending_lineage_events
+        self._pending_lineage_events = []
+        return events
 
     def _latest_versioned(self) -> tuple[str | None, int]:
         """Newest ``<stem>.v<N>.jsonl`` beside data_path, keyed by integer N.
@@ -396,18 +445,14 @@ class TMaxDataset(Configurable):
             if version is None and mtime == self._data_mtime:
                 return
             try:
-                fresh: list[TMaxSample] = []
-                with open(src) as f:
-                    for line in f:
-                        line = line.strip()
-                        if line:
-                            fresh.append(_parse_sample_row(json.loads(line)))
+                fresh, fresh_revisions, fresh_mix_revision = _load_samples(src)
                 if self._holdout_n > 0:
                     if self._holdout_n >= len(fresh):
                         raise ValueError(
                             f"holdout_n={self._holdout_n} >= reloaded size {len(fresh)}"
                         )
                     fresh = fresh[: -self._holdout_n]
+                    fresh_revisions = fresh_revisions[: -self._holdout_n]
                 if not fresh:
                     raise ValueError(f"reloaded mix {src} has no train rows")
             except (OSError, ValueError, json.JSONDecodeError) as e:
@@ -418,26 +463,64 @@ class TMaxDataset(Configurable):
                 else:
                     self._data_mtime = mtime
                 return
-            by_id = {s.instance_id: s for s in fresh}
+            previous_mix_revision = self._mix_revision
+            previous_live_indices = set(self._order)
+            by_id = {
+                sample.instance_id: (sample, revision)
+                for sample, revision in zip(fresh, fresh_revisions, strict=True)
+            }
+            changes: list[dict[str, str | None]] = []
             replaced = 0
             for i, old in enumerate(self._samples):
-                new = by_id.pop(old.instance_id, None)
-                if new is not None:
-                    if new is not old and new != old:
+                new_pair = by_id.pop(old.instance_id, None)
+                if new_pair is not None:
+                    new, new_revision = new_pair
+                    old_revision = self._sample_revisions[i]
+                    if new_revision != old_revision:
                         replaced += 1
+                        changes.append(
+                            {
+                                "task_id": old.instance_id,
+                                "change": "replaced",
+                                "previous_sample_revision": old_revision,
+                                "sample_revision": new_revision,
+                            }
+                        )
                     self._samples[i] = new
+                    self._sample_revisions[i] = new_revision
             appended = 0
-            for new in by_id.values():
+            for new, new_revision in by_id.values():
                 self._samples.append(new)
+                self._sample_revisions.append(new_revision)
                 self._order.append(len(self._samples) - 1)
                 appended += 1
+                changes.append(
+                    {
+                        "task_id": new.instance_id,
+                        "change": "appended",
+                        "previous_sample_revision": None,
+                        "sample_revision": new_revision,
+                    }
+                )
             live_ids = {s.instance_id for s in fresh}
+            for i in previous_live_indices:
+                old = self._samples[i]
+                if old.instance_id not in live_ids:
+                    changes.append(
+                        {
+                            "task_id": old.instance_id,
+                            "change": "retired",
+                            "previous_sample_revision": self._sample_revisions[i],
+                            "sample_revision": None,
+                        }
+                    )
             before = len(self._order)
             self._order = [
                 i for i in self._order
                 if self._samples[i].instance_id in live_ids
             ]
             self._pos = min(self._pos, len(self._order))
+            self._mix_revision = fresh_mix_revision
             if version is not None:
                 self._data_version = version
             else:
@@ -448,18 +531,40 @@ class TMaxDataset(Configurable):
                 replaced, appended, before - len(self._order),
                 len(self._order), os.path.basename(src),
             )
+            self._pending_lineage_events.append(
+                {
+                    "event": "hot_reload",
+                    "observed_time_unix_ns": time.time_ns(),
+                    "source": os.path.basename(src),
+                    "source_version": version,
+                    "previous_mix_revision": previous_mix_revision,
+                    "mix_revision": fresh_mix_revision,
+                    "dataset_epoch": self._epoch,
+                    "dataset_position": self._pos,
+                    "replaced": replaced,
+                    "appended": appended,
+                    "retired": before - len(self._order),
+                    "changes": changes,
+                }
+            )
 
     def state_dict(self) -> dict:
         return {
             "rng_state": self._rng.getstate(),
             "order": list(self._order),
             "pos": self._pos,
+            "epoch": self._epoch,
+            "stream_position": self._stream_position,
+            "stream_id": self._stream_id,
         }
 
     def load_state_dict(self, state_dict: dict) -> None:
         self._rng.setstate(state_dict["rng_state"])
         self._order = list(state_dict["order"])
         self._pos = state_dict["pos"]
+        self._epoch = state_dict.get("epoch", 0)
+        self._stream_position = int(state_dict.get("stream_position", self._pos))
+        self._stream_id = state_dict.get("stream_id", self._stream_id)
 
 
 def _load_instance_ids(path: str, *, missing_ok: bool) -> set[str]:
