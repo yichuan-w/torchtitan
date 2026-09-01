@@ -93,6 +93,9 @@ def test_dataset_hot_reload_records_task_revision_transition(
     incoming = path.with_suffix(".incoming")
     incoming.write_text(json.dumps(row) + "\n")
     incoming.replace(path)
+    # Some test filesystems preserve the old file's nanosecond mtime across a
+    # rapid atomic replace. Force the existing mtime-based fallback to observe it.
+    dataset._data_mtime = -1
     dataset._maybe_reload(min_interval_sec=0)
     events = dataset.drain_lineage_events()
     after = next(dataset)
