@@ -4,6 +4,7 @@
 # This source code is licensed under the BSD-style license found in the
 # LICENSE file in the root directory of this source tree.
 
+import contextlib
 import logging
 import os
 from dataclasses import dataclass, field, replace
@@ -38,6 +39,7 @@ from torchtitan.distributed.utils import set_batch_invariance
 from torchtitan.experiments.rl.losses import GRPOLoss
 from torchtitan.experiments.rl.types import OptimStepOutput, TrainingMicrobatch
 from torchtitan.models.common.attention import FlexAttention
+from torchtitan.tools.profiler import PROFILE_DIR, PROFILE_FILE
 from torchtitan.observability import structured_logger as sl
 from torchtitan.protocols.model_spec import ModelSpec
 from torchtitan.tools import utils
@@ -80,6 +82,81 @@ def _cast_state_dict_parameters_for_transfer(
         else:
             transferred[name] = tensor.to(dtype)
     return transferred
+
+
+class _MicrobatchProfiler:
+    """Kineto profile of N consecutive forward_backward microbatches.
+
+    torchtitan's ``tools/profiler.Profiler`` is driven by a per-*step* training
+    loop; the RL trainer is an actor whose unit of work is a microbatch, so this
+    wraps the same ``torch.profiler`` with a microbatch counter instead.
+
+    Off unless ``SWE_PROFILE_MICROBATCHES`` is set. ``SWE_PROFILE_SKIP``
+    microbatches run first so the profile misses cold-start allocation and the
+    first FSDP all-gather. Ranks each write their own trace; the op table is also
+    logged so the hot kernels are readable without opening the trace.
+    """
+
+    def __init__(self, dump_folder: str, rank: int) -> None:
+        self.count = int(os.environ.get("SWE_PROFILE_MICROBATCHES", "0"))
+        self.skip = int(os.environ.get("SWE_PROFILE_SKIP", "3"))
+        self.dump_folder = dump_folder
+        self.rank = rank
+        self._seen = 0
+        self._prof: Any = None
+        self._done = False
+        if self.count:
+            logger.info(
+                f"[trainer] profiler armed: skip {self.skip} microbatch(es), "
+                f"then capture {self.count}"
+            )
+
+    @contextlib.contextmanager
+    def maybe_profile(self):
+        if not self.count or self._done:
+            yield
+            return
+        if self._seen == self.skip:
+            # with_stack attributes kernels back to the Python frame, which is
+            # what separates the GDN layers from the softmax layers and the
+            # lm_head; it costs a few seconds per microbatch and this path runs
+            # for `count` microbatches only.
+            self._prof = torch.profiler.profile(
+                activities=[
+                    torch.profiler.ProfilerActivity.CPU,
+                    torch.profiler.ProfilerActivity.CUDA,
+                ],
+                record_shapes=True,
+                with_stack=True,
+            )
+            self._prof.start()
+            logger.info(f"[trainer] profiler START at microbatch {self._seen}")
+        self._seen += 1
+        try:
+            yield
+        finally:
+            if self._prof is not None and self._seen >= self.skip + self.count:
+                self._prof.stop()
+                self._export(self._prof)
+                self._prof = None
+                self._done = True
+
+    def _export(self, prof: Any) -> None:
+        out_dir = os.path.join(self.dump_folder, PROFILE_DIR)
+        os.makedirs(out_dir, exist_ok=True)
+        path = os.path.join(out_dir, PROFILE_FILE.format(rank=self.rank))
+        try:
+            prof.export_chrome_trace(path)
+            logger.info(f"[trainer] profiler trace written to {path}")
+        except Exception as exc:  # a failed export must not kill the run
+            logger.warning(f"[trainer] profiler export failed: {exc}")
+        for key in ("self_cuda_time_total", "self_cpu_time_total"):
+            try:
+                table = prof.key_averages().table(sort_by=key, row_limit=25)
+            except Exception as exc:
+                logger.warning(f"[trainer] profiler table ({key}) failed: {exc}")
+                continue
+            logger.info(f"[trainer] profiler top ops by {key}:\n{table}")
 
 
 class PolicyTrainer(Actor, Configurable):
@@ -164,6 +241,7 @@ class PolicyTrainer(Actor, Configurable):
 
         self.config = config
         self.compile_config = compile_config
+        self._profiler = _MicrobatchProfiler(config.dump_folder, current_rank().rank)
         self.loss_fn = config.loss.build()
         # TODO: add support to compile the loss.
 
@@ -485,33 +563,40 @@ class PolicyTrainer(Actor, Configurable):
         # The model forward is where FSDP2 fully_shard issues its unshard
         # all-gather; under a multi-host dp_shard this is a cross-host collective.
         logger.info(f"[trainer] dp_rank={self.dp_rank}: model forward start")
-        with sl.log_trace_span("model_forward"):
-            pred = model(
-                token_ids, attention_masks=attention_masks, positions=positions
-            )
-        logger.info(f"[trainer] dp_rank={self.dp_rank}: model forward done")
+        with self._profiler.maybe_profile():
+            with sl.log_trace_span("model_forward"), torch.profiler.record_function(
+                "rl_model_forward"
+            ):
+                pred = model(
+                    token_ids, attention_masks=attention_masks, positions=positions
+                )
+            logger.info(f"[trainer] dp_rank={self.dp_rank}: model forward done")
 
-        with sl.log_trace_span("loss_fn"):
-            loss, loss_metrics = self.loss_fn(
-                pred,
-                labels,
-                num_global_valid_tokens,
-                generator_logprobs=generator_logprobs,
-                advantages=advantages,
-                loss_mask=loss_mask,
-                # Chunked along seq like the other tensors; used only by the
-                # SWE_DEBUG_MAX_LOGDIFF dump to record per-token positions (which
-                # reset to 0 at each packed-sample boundary).
-                positions=positions,
-                # Per-trained-token metric denominator (excludes zero-advantage
-                # tokens the batch shed); the loss scale still uses global tokens.
-                metric_denominator=num_packed_valid_tokens,
-            )
-        logger.info(f"[trainer] dp_rank={self.dp_rank}: loss done")
+            with sl.log_trace_span("loss_fn"), torch.profiler.record_function(
+                "rl_loss_fn"
+            ):
+                loss, loss_metrics = self.loss_fn(
+                    pred,
+                    labels,
+                    num_global_valid_tokens,
+                    generator_logprobs=generator_logprobs,
+                    advantages=advantages,
+                    loss_mask=loss_mask,
+                    # Chunked along seq like the other tensors; used only by the
+                    # SWE_DEBUG_MAX_LOGDIFF dump to record per-token positions (which
+                    # reset to 0 at each packed-sample boundary).
+                    positions=positions,
+                    # Per-trained-token metric denominator (excludes zero-advantage
+                    # tokens the batch shed); the loss scale still uses global tokens.
+                    metric_denominator=num_packed_valid_tokens,
+                )
+            logger.info(f"[trainer] dp_rank={self.dp_rank}: loss done")
 
-        with sl.log_trace_span("model_backward"):
-            loss.backward()
-        logger.info(f"[trainer] dp_rank={self.dp_rank}: backward done")
+            with sl.log_trace_span("model_backward"), torch.profiler.record_function(
+                "rl_model_backward"
+            ):
+                loss.backward()
+            logger.info(f"[trainer] dp_rank={self.dp_rank}: backward done")
 
         sum_reduced_metrics = {
             key: value
