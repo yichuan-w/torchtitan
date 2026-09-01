@@ -108,9 +108,13 @@ TMAX_EXEC_TIMEOUT_SEC=120
 SWE_MAX_CONTEXT_LEN=63488
 SWE_TIME_BUDGET_SEC=2400
 SWE_AGENT_TIMEOUT_FLOOR_SEC=900
-SWE_WRONG_SUBMIT_PENALTY=0.3
 SWE_SANDBOX_BOOT_ALLOWANCE_SEC=2700
 ```
+
+`SWE_WRONG_SUBMIT_PENALTY` is **left unset** (code default 0, no penalty).
+Setting it to 0.3 subtracts that much when the agent submits and is wrong; it
+shapes the reward, so it is one variable too many while throughput is the
+question being measured.
 
 One thing to watch that the reference could not have seen: with the renderer
 fixed (section 6), prior-turn reasoning is retained, so prompts grow about 4x
@@ -267,10 +271,15 @@ Added upstream on 2026-08-29 after span profiling; unset in the runs recorded
 above, so their effect has not been measured on this host.
 
 ```
-SWE_LMHEAD_TF32=1     # TF32 for the fp32 lm_head matmuls; ~9.5s of a 24s microbatch upstream
 SWE_AC=selective      # FullAC was sized for 80GB cards; a B300 rank used <60 of 288 GB
 SWE_LOSS_CHUNKS=8     # 32 -> 8: larger lm_head GEMMs, ~4 GiB more per chunk
 ```
+
+`SWE_LMHEAD_TF32` is **left unset** (code default 0): the fp32 lm_head matmuls
+keep full fp32 inputs. Setting it to 1 rounds only the matmul inputs to a 10-bit
+mantissa (fp32 accumulation and fp32 logit outputs are kept) and is worth ~9.5s
+of a 24s microbatch upstream. Turn it on when trainer step time is the
+constraint; the other two knobs above do not touch numerics.
 
 `SWE_AC=selective` trades recompute for memory. Peak trainer memory measured
 under FullAC on this host was 129 GiB of 268 GiB per rank at
@@ -570,8 +579,7 @@ SWE_ROLLOUT_CONCURRENCY=2048
 SWE_NUM_ROLLOUT_WORKERS=16
 SWE_MAX_NUM_SEQS=256
 
-# trainer speed
-SWE_LMHEAD_TF32=1
+# trainer speed. SWE_LMHEAD_TF32 deliberately unset -> full fp32 lm_head inputs.
 SWE_AC=selective
 SWE_LOSS_CHUNKS=8
 
