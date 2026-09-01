@@ -68,10 +68,17 @@ class _Root:
         return await self._inner.read_file(path, user="root", **kw)
 
 
-async def _start_entrypoint(sb, command: str, *, workdir: str) -> None:
+async def _start_entrypoint(sb, command: str, *, workdir: str) -> None:  # noqa: ARG001
+    # workdir is unused and stays in the signature on purpose: this function
+    # mirrors rollouter._start_entrypoint, and the two drop the parameter
+    # together or not at all. Dropping it here alone is the divergence this
+    # whole change is removing.
     """Start the image ENTRYPOINT detached, as PID 1 would (rollouter mirror)."""
+    # No cd: Docker starts ENTRYPOINT in the image's own WORKDIR, and the
+    # container already puts every exec there. Measured on four tasks -- a plain
+    # exec and a tmux pane land in the same directory every time, and it is the
+    # image's, not the one data prep guessed.
     await sb.exec(
-        f"cd {shlex.quote(workdir)} 2>/dev/null || cd /; "
         f"setsid nohup {command} > /tmp/entrypoint.log 2>&1 < /dev/null &",
         check=False, timeout=120)
     await asyncio.sleep(3)
@@ -110,9 +117,9 @@ async def probe(pkg: Path, shortcut: str | None, solve_timeout: int) -> dict:
                     rel = f.relative_to(sol_dir)
                     await sb.write_file(
                         f"/solution/{rel}", f.read_text(errors="replace"))
-            cmd = f"cd {workdir} && bash /solution/solve.sh"
+            cmd = "bash /solution/solve.sh"
         else:
-            cmd = f"cd {workdir} && {shortcut}"
+            cmd = shortcut
         code, out, err = await sb.exec(cmd, check=False, timeout=solve_timeout)
         log(f"run exit={code}")
         reward = await grade_tmax(sb, tmax, workdir=workdir)

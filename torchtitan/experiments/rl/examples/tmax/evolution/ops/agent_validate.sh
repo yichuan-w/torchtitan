@@ -8,6 +8,7 @@
 # Prints a compact verdict and exits 0 only when the reference solution scores
 # 1.0. Everything the agent needs in order to fix a failure is in the output.
 set -uo pipefail
+HERE=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 ROOT=/scratch/gpfs/TRIDAO/al9080/terminal-rl
 PY=/scratch/gpfs/TRIDAO/al9080/titan-rl/bin/python
 PKG=${1:-.}
@@ -28,7 +29,11 @@ trap 'rm -f "$ERR"' EXIT
 # infra-shaped failures; a real verdict -- pass or fail -- returns immediately.
 JSON=""
 for attempt in 1 2 3; do
-    OUT=$("$PY" "$ROOT/evolve-onhost/scripts/daytona_revalidate.py" "$PKG" 2>"$ERR")
+    # Resolved from this script, not from $ROOT: the out-of-repo scripts/
+    # dir held a second copy of the revalidator, and the two drifted --
+    # one of them silently wrong about workdir. One copy, next to the
+    # sibling module it imports.
+    OUT=$("$PY" "$HERE/../daytona_revalidate.py" "$PKG" 2>"$ERR")
     JSON=$(printf '%s\n' "$OUT" | tail -1)
     case "$JSON" in
         *'"stage": "daytona_error"'*|"")

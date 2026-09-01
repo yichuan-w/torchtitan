@@ -75,9 +75,30 @@ _INFRA_RE = re.compile(
 
 def daytona_probe(work: Path, shortcut: str | None = None) -> dict | None:
     """Run daytona_revalidate.py on this package; None when unconfigured."""
+    # Three different things used to collapse into one silent `return None`, and
+    # the caller turns None into "neither docker nor Daytona is configured here".
+    # For a host that genuinely has no credentials that message is true. For a
+    # tree where the script is merely missing it is a confident lie, and there is
+    # no other trace: measured on della 2026-09-01, a vendoring commit moved this
+    # script into ops/ while the resolver kept looking beside feedback_loop.py,
+    # and 423 k/k evolutions -- every "make it harder" attempt of a 13-hour run,
+    # ~1300 gpt-5.6 calls -- were rejected as unconfigured. Only simplify, whose
+    # instruction-only edits skip the build gate, could still land, so the mix
+    # drifted one way for half a day. An absent credential is a host's choice and
+    # stays quiet; an absent script is this repo's bug and has to say so.
     script = Path(__file__).resolve().parent / "daytona_revalidate.py"
-    if not (os.path.exists(DAYTONA_VENV_PY) and os.path.exists(DAYTONA_ENV_FILE)
-            and script.exists()):
+    if not script.exists():
+        log.error("daytona_revalidate.py not found at %s -- structural retunes "
+                  "cannot be revalidated and will ALL be rejected. This is a "
+                  "packaging error, not a missing credential: the script must "
+                  "sit beside feedback_loop.py (it imports pack_to_dataset as a "
+                  "sibling).", script)
+        return None
+    if not (os.path.exists(DAYTONA_VENV_PY) and os.path.exists(DAYTONA_ENV_FILE)):
+        log.info("Daytona probe unconfigured (venv=%s env_file=%s); structural "
+                 "retunes stay unshipped on this host.",
+                 os.path.exists(DAYTONA_VENV_PY),
+                 os.path.exists(DAYTONA_ENV_FILE))
         return None
     cmd = ["bash", "-c", '. "$1" && shift && exec "$@"', "-",
            DAYTONA_ENV_FILE, DAYTONA_VENV_PY, str(script), str(work)]
