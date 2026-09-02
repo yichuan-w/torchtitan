@@ -51,6 +51,7 @@ from __future__ import annotations
 import json
 import logging
 import os
+import re
 import shlex
 import tempfile
 import time
@@ -290,6 +291,42 @@ class _CountingParser:
         return result
 
 
+# Terminus-2 starts its pane with `pipe-pane 'cat > <agent_dir>/terminus_2.pane'`,
+# which copies every byte the terminal ever shows into a file inside the sandbox,
+# with no bound. That is right where it comes from -- one agent, one task, one
+# machine, and you want the whole transcript to read afterwards -- and wrong
+# here. A command that floods the terminal fills the task's own disk at pipe
+# speed: `yes` fills 2 GiB in two seconds and 10 GiB in twenty-one, and the
+# rollout dies of a full disk while the thing that filled it was the log.
+#
+# The cap is the first half of the fix and applies always. 8 MiB is far more
+# terminal text than a rollout produces -- these tasks' own disk use has a
+# median of 175 MB, so the log is noise until something floods -- and it keeps
+# the beginning, which is the half that says what led up to a flood.
+_PANE_CAP_BYTES = 8 * 1024 * 1024
+
+# The second half. Nothing reads that transcript: `terminus_2.pane` appears
+# exactly once in harbor, in the line that writes it, and we do not fetch it
+# either. Meanwhile the rollout dump has a slot for each turn's messages and
+# this harness never fills them -- 89,091 turns from one run carry no prompt,
+# completion or environment message at all. So a rollout's only record of what
+# the model actually did is written inside the sandbox and thrown away with it.
+#
+# Setting this collects it. It is off by default because it is not free: a run
+# of 22,000 rollouts fetching up to 8 MiB each is tens of gigabytes, so turn it
+# on for a run you intend to audit rather than for all of them.
+_PANE_DUMP_DIR_ENV = "TMAX_PANE_DUMP_DIR"
+
+
+def _pane_dump_path(session_id: str) -> Path | None:
+    """Where this session's terminal transcript is saved, or None when off."""
+    root = os.environ.get(_PANE_DUMP_DIR_ENV, "")
+    if not root:
+        return None
+    safe = (session_id or "unknown").replace("/", "_")
+    return Path(root) / f"{safe}.pane"
+
+
 def _exec_trace_path(session_id: str) -> Path | None:
     """Per-session JSONL for the sandbox exec trace, or None when tracing is off.
 
@@ -326,6 +363,9 @@ class _SandboxEnvironment:
         self.session_id = ""
         # Names the exec-trace file; empty disables it (see _exec_trace_path).
         self._trace_session_id = trace_session_id
+        # Set when Terminus-2 starts its pane, so the transcript can be fetched
+        # before the sandbox goes away. None until then.
+        self.pane_path: str | None = None
 
     async def exec(
         self,
@@ -339,6 +379,7 @@ class _SandboxEnvironment:
 
         if cwd:
             command = f"cd {shlex.quote(cwd)} && {command}"
+        command = self._bound_pane_pipe(command)
         started_at = time.time()
         exit_code, stdout, stderr = await self._sandbox.exec(
             command,
@@ -361,6 +402,28 @@ class _SandboxEnvironment:
                 (stderr or "")[-400:],
             )
         return ExecResult(stdout=stdout, stderr=stderr, return_code=exit_code)
+
+    _PANE_PIPE = re.compile(r"pipe-pane\s+(?:-\w+\s+\S+\s+)*'cat > (?P<path>[^']+)'")
+
+    def _bound_pane_pipe(self, command: str) -> str:
+        """Cap the pane transcript, and remember where it is.
+
+        Terminus-2 builds its tmux session with an unbounded
+        ``pipe-pane 'cat > <path>'``. Rewriting it to ``head -c`` stops the file
+        at _PANE_CAP_BYTES: head exits at the cap, tmux's pipe takes EPIPE, and
+        the terminal keeps working with nothing more written. Left alone, a
+        command that floods the terminal fills the task's own disk.
+
+        Matching on the command text rather than patching harbor keeps the fix
+        on our side of the seam, where every command it issues already passes.
+        """
+        m = self._PANE_PIPE.search(command)
+        if m is None:
+            return command
+        path = m.group("path")
+        self.pane_path = path
+        bounded = f"head -c {_PANE_CAP_BYTES} > {shlex.quote(path)}"
+        return command.replace(f"'cat > {path}'", f"'{bounded}'", 1)
 
     def _trace_exec(self, command: str, started_at: float, exit_code: int) -> None:
         """Append one exec to the session's trace. Best-effort; never raises.
@@ -543,6 +606,24 @@ async def terminus_agent(task: AgentTask) -> AgentRun:
             turns = _episodes(agent)
             finish_reason = "error"
         finally:
+            # Collect the transcript before the sandbox goes, when a run has
+            # asked for it. This is the only record of what the model actually
+            # typed and what came back: the rollout dump keeps a slot per turn
+            # for the messages and this harness never fills it.
+            dump_to = _pane_dump_path(task.session_id)
+            if dump_to is not None and env.pane_path:
+                try:
+                    text = await task.sandbox.read_file(env.pane_path, user="root")
+                    dump_to.parent.mkdir(parents=True, exist_ok=True)
+                    dump_to.write_text(text or "", errors="replace")
+                except Exception as e:  # noqa: BLE001 -- never fail a graded rollout
+                    logger.warning(
+                        "[terminus] session=%s: could not collect %s: %s: %s",
+                        task.session_id,
+                        env.pane_path,
+                        type(e).__name__,
+                        str(e)[:200],
+                    )
             if parser is not None:
                 format_errors = parser.format_errors
             if llm is not None and llm.subagent_calls:
