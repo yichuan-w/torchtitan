@@ -69,6 +69,7 @@ NEW_FILES: dict[str, dict[str, str]] = {
     "tw_582696": {"environment/sntp_server.py": "tw_582696_sntp_server.py"},
     "tw_693888": {"environment/setup_disk.sh": "tw_693888_setup_disk.sh"},
     "tw_627786": {"environment/setup_disk.sh": "tw_627786_setup_disk.sh"},
+    "tw_676108": {"environment/composer.lock": "tw_676108_composer.lock"},
 }
 
 # Files a repair removes: {task: [relative paths]}.
@@ -280,14 +281,46 @@ PATCHES: dict[str, list[tuple[str, str, str, str]]] = {
     "tw_676108": [
         (
             "environment/Dockerfile",
-            "COPY --from=composer:latest /usr/bin/composer /usr/bin/composer",
-            "# Pinned. 2.10.1 is the tag that :latest pointed at on 2026-08-13.\n"
             "# This pins the composer binary and not the dependency tree: the build\n"
             "# below runs `composer update` with no committed composer.lock, so the\n"
             "# PHP dev tools re-resolve on every rebuild and solve.sh runs phpcs,\n"
             "# phpunit and phpstan under `set -e`. Freezing that needs a lock file\n"
             "# committed into the task, which is a change to what the task ships\n"
-            "# rather than a pin. `FROM php:8.3-cli` floats within 8.3.x too.\n"
+            "# rather than a pin. `FROM php:8.3-cli` floats within 8.3.x too.",
+            "# The dependency tree is held by the committed composer.lock below,\n"
+            "# not by this line. `FROM php:8.3-cli` still floats within 8.3.x.",
+            "the note describing an unfrozen tree outlived the tree being frozen",
+        ),
+        (
+            "environment/Dockerfile",
+            "COPY composer.json ./",
+            "# The lock file ships with the task now, so the dependency tree is\n"
+            "# fixed rather than re-resolved on every build. Without it the build\n"
+            "# below ran `composer update`, and solve.sh runs phpcs, phpunit and\n"
+            "# phpstan under `set -e`: any release of those or of a transitive\n"
+            "# dependency could fail the task without the task changing. The\n"
+            "# committed lock is what the build resolved on 2026-09-02, 30\n"
+            "# packages, phpunit 9.6.36 / phpstan 1.12.34 / php_codesniffer 3.13.6.\n"
+            "COPY composer.json composer.lock ./",
+            "the PHP dependency tree re-resolved on every rebuild",
+        ),
+        (
+            "environment/Dockerfile",
+            "RUN composer update --no-interaction --prefer-dist --optimize-autoloader",
+            "# install, not update: install honours the committed lock, update\n"
+            "# rewrites it. The comment above this line already described the\n"
+            "# intent -- \"generates composer.lock ... so that solve.sh's\n"
+            "# `composer install` will be a fast no-op\" -- with nothing committed\n"
+            "# to hold it.\n"
+            "RUN composer install --no-interaction --prefer-dist --optimize-autoloader",
+            "composer update rewrites the lock the task now ships",
+        ),
+        (
+            "environment/Dockerfile",
+            "COPY --from=composer:latest /usr/bin/composer /usr/bin/composer",
+            "# Pinned. 2.10.1 is the tag that :latest pointed at on 2026-08-13.\n"
+            "# The dependency tree is held by the committed composer.lock above,\n"
+            "# not by this line. `FROM php:8.3-cli` still floats within 8.3.x.\n"
             "COPY --from=composer:2.10.1 /usr/bin/composer /usr/bin/composer",
             "the composer binary floated with :latest",
         ),
