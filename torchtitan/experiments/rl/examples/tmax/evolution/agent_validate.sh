@@ -29,11 +29,14 @@ trap 'rm -f "$ERR"' EXIT
 # infra-shaped failures; a real verdict -- pass or fail -- returns immediately.
 JSON=""
 for attempt in 1 2 3; do
-    # Resolved from this script, not from $ROOT: the out-of-repo scripts/
-    # dir held a second copy of the revalidator, and the two drifted --
-    # one of them silently wrong about workdir. One copy, next to the
-    # sibling module it imports.
-    OUT=$("$PY" "$HERE/daytona_revalidate.py" "$PKG" 2>"$ERR")
+    # Resolved from the harness directory, not from this script's location:
+    # evolve_codex.py copies this file into the agent's workdir as ./validate,
+    # so there $HERE is the workdir and holds no daytona_revalidate.py. The
+    # caller exports EVOLVE_HARNESS_DIR; $HERE stays as the fallback for
+    # running the script in place. One copy of the revalidator, next to the
+    # module it imports -- the out-of-repo scripts/ dir once held a second,
+    # drifted one.
+    OUT=$("$PY" "${EVOLVE_HARNESS_DIR:-$HERE}/daytona_revalidate.py" "$PKG" 2>"$ERR")
     JSON=$(printf '%s\n' "$OUT" | tail -1)
     case "$JSON" in
         *'"stage": "daytona_error"'*|"")

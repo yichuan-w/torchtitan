@@ -25,21 +25,34 @@ import argparse
 import asyncio
 import json
 import os
+import subprocess
 import sys
 import time
 from pathlib import Path
 
-TT_ROOT = os.environ.get("TRL_TT", os.path.expanduser("~/torchtitan-yichuan"))
-sys.path.insert(0, TT_ROOT)
+# torchtitan is imported normally; PYTHONPATH picks the checkout, the same way
+# the training launchers do it. This used to prepend a default checkout to
+# sys.path, which made the choice invisible and, worse, made it win over the
+# caller's: a caller that set its own path saw this module's default silently
+# take precedence at import time, and then verified against a harness nobody
+# was going to run. Failing to import is the honest outcome when nothing is
+# configured, so that is what happens.
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 import pack_to_dataset as pack  # noqa: E402
 
 import shlex  # noqa: E402
 
-from torchtitan.experiments.rl.harness.agents.claude_code import (  # noqa: E402
-    boot_agent_sandbox,
-)
+try:
+    from torchtitan.experiments.rl.harness.agents.claude_code import (  # noqa: E402
+        boot_agent_sandbox,
+    )
+except ModuleNotFoundError as exc:  # pragma: no cover -- configuration, not logic
+    raise SystemExit(
+        "cannot import torchtitan: set PYTHONPATH to a torchtitan checkout, "
+        "e.g. PYTHONPATH=$HOME/torchtitan-yichuan (what the training run uses) "
+        f"or a fresh clone of the canonical branch. ({exc})"
+    ) from exc
 from torchtitan.experiments.rl.examples.tmax.grading import (  # noqa: E402
     grade_tmax,
     seed_workspace,
@@ -131,6 +144,38 @@ async def probe(pkg: Path, shortcut: str | None, solve_timeout: int) -> dict:
             "passed": reward >= 1.0, "reward": reward, "tail": tail}
 
 
+def _harness_provenance() -> str:
+    """Which torchtitan produced this verdict.
+
+    A verdict describes the harness it ran through, and the checkouts disagree:
+    the training one runs 25 commits behind the canonical branch today, missing
+    the fix that stopped read_file truncating through an exec. Verifying against
+    it scored a healthy task 0 and no line in the output said which code that
+    verdict came from.
+    """
+    import torchtitan
+    root = Path(torchtitan.__file__).resolve().parent.parent
+    head = ""
+    try:
+        head = subprocess.run(
+            ["git", "-C", str(root), "log", "--oneline", "-1"],
+            capture_output=True, text=True, timeout=10,
+        ).stdout.strip()
+    except Exception:  # noqa: BLE001 -- provenance is best effort
+        pass
+    dirty = ""
+    try:
+        out = subprocess.run(
+            ["git", "-C", str(root), "status", "--porcelain"],
+            capture_output=True, text=True, timeout=10,
+        ).stdout
+        n = len([x for x in out.splitlines() if x.strip()])
+        dirty = f", {n} uncommitted" if n else ""
+    except Exception:  # noqa: BLE001
+        pass
+    return f"{root} [{head or 'no git'}{dirty}]"
+
+
 def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("package", help="task package dir")
@@ -138,6 +183,7 @@ def main() -> None:
                                        "running the reference solution")
     ap.add_argument("--solve-timeout", type=int, default=900)
     args = ap.parse_args()
+    log(f"harness: {_harness_provenance()}")
     try:
         verdict = asyncio.run(
             probe(Path(args.package), args.shortcut, args.solve_timeout))

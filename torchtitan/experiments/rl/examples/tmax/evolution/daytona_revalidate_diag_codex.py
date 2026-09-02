@@ -29,17 +29,29 @@ import sys
 import time
 from pathlib import Path
 
-TT_ROOT = os.environ.get("TRL_TT", os.path.expanduser("~/torchtitan-yichuan"))
-sys.path.insert(0, TT_ROOT)
+# torchtitan is imported normally; PYTHONPATH picks the checkout, the same way
+# the training launchers do it. This used to prepend a default checkout to
+# sys.path, which made the choice invisible and, worse, made it win over the
+# caller's: a caller that set its own path saw this module's default silently
+# take precedence at import time, and then verified against a harness nobody
+# was going to run. Failing to import is the honest outcome when nothing is
+# configured, so that is what happens.
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 import pack_to_dataset as pack  # noqa: E402
 
 import shlex  # noqa: E402
 
-from torchtitan.experiments.rl.harness.agents.claude_code import (  # noqa: E402
-    boot_agent_sandbox,
-)
+try:
+    from torchtitan.experiments.rl.harness.agents.claude_code import (  # noqa: E402
+        boot_agent_sandbox,
+    )
+except ModuleNotFoundError as exc:  # pragma: no cover -- configuration, not logic
+    raise SystemExit(
+        "cannot import torchtitan: set PYTHONPATH to a torchtitan checkout, "
+        "e.g. PYTHONPATH=$HOME/torchtitan-yichuan (what the training run uses) "
+        f"or a fresh clone of the canonical branch. ({exc})"
+    ) from exc
 from torchtitan.experiments.rl.examples.tmax.grading import (  # noqa: E402
     grade_tmax,
     seed_workspace,
