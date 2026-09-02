@@ -20,12 +20,15 @@ injected via env.
 """
 from __future__ import annotations
 
+import contextlib
+import json
 import os
 import re
-import shlex
 import shutil
 import subprocess
+import tarfile
 import tempfile
+import time
 from pathlib import Path
 
 import evolve as ev
@@ -37,6 +40,106 @@ class Blocked(Exception):
 
     Distinct from a crash: nothing went wrong, the task simply stays as it is.
     """
+
+
+def _trace_root() -> Path:
+    """Return the directory that holds durable Codex traces.
+
+    Unless ``SWE_EVOLUTION_TRACE_DIR`` overrides it, ``codex_traces`` is placed
+    inside ``SWE_TASK_EVOLUTION_DIR``. The signal consumer scans only the
+    directory's top-level JSON files, so trace subdirectories are not signals.
+    """
+    override = os.environ.get("SWE_EVOLUTION_TRACE_DIR")
+    if override:
+        return Path(override)
+    signals = os.environ.get("SWE_TASK_EVOLUTION_DIR")
+    if signals:
+        return Path(signals) / "codex_traces"
+    base = Path(os.environ.get(
+        "TRL_BASE", "/scratch/gpfs/TRIDAO/al9080/terminal-rl"))
+    return base / "evolution/signals/codex_traces"
+
+
+def _task_id(task: dict) -> str:
+    explicit = task.get("_task_id") or task.get("task_id") or task.get("_seed_id")
+    if explicit:
+        return str(explicit)
+    source = task.get("_src_dir")
+    return Path(source).name if source else "unknown"
+
+
+def _write_json_atomic(path: Path, value: dict) -> None:
+    incoming = path.with_suffix(path.suffix + ".incoming")
+    incoming.write_text(json.dumps(value, ensure_ascii=False, sort_keys=True) + "\n")
+    os.replace(incoming, path)
+
+
+def _prune_private_home(work: Path) -> None:
+    """Keep session JSONL files and discard transient Codex client state.
+
+    Each invocation has a private ``CODEX_HOME``. Files outside ``sessions/``
+    are not needed for the saved trace and can be rebuilt by the client.
+    """
+    home = work / ".cxhome"
+    if not home.is_dir():
+        return
+    for child in home.iterdir():
+        if child.name == "sessions":
+            continue
+        if child.is_dir() and not child.is_symlink():
+            shutil.rmtree(child)
+        else:
+            child.unlink(missing_ok=True)
+
+
+@contextlib.contextmanager
+def _trace_work(job: str, task: dict):
+    """Create one durable, self-describing Codex work directory."""
+    root = _trace_root()
+    root.mkdir(parents=True, exist_ok=True, mode=0o700)
+    root.chmod(0o700)
+    work = Path(tempfile.mkdtemp(prefix=f"codex-{job}-", dir=root))
+    # GPFS default ACLs can widen mkdtemp's requested mode. These directories
+    # contain private verifiers, reference solutions, and rollout transcripts.
+    work.chmod(0o700)
+    metadata = {
+        "schema_version": 1,
+        "record_type": "codex_evolution_trace",
+        "job": job,
+        "task_id": _task_id(task),
+        "model": CODEX_MODEL,
+        "status": "running",
+        "started_time_unix_ns": time.time_ns(),
+        "finished_time_unix_ns": None,
+    }
+    _write_json_atomic(work / "trace.json", metadata)
+    try:
+        yield work
+    except BaseException as exc:
+        metadata["status"] = "blocked" if isinstance(exc, Blocked) else "failed"
+        metadata["error_type"] = type(exc).__name__
+        metadata["error"] = str(exc)
+        try:
+            setattr(exc, "codex_trace_dir", str(work))
+        except Exception:
+            pass
+        raise
+    else:
+        metadata["status"] = "completed"
+    finally:
+        metadata["finished_time_unix_ns"] = time.time_ns()
+        try:
+            _prune_private_home(work)
+        except OSError as exc:
+            metadata["cache_cleanup_error"] = f"{type(exc).__name__}: {exc}"
+        _write_json_atomic(work / "trace.json", metadata)
+
+
+def _attach_trace(out: dict, task: dict, work: Path) -> dict:
+    prior = list(task.get("_codex_trace_dirs") or [])
+    out["_codex_trace_dir"] = str(work)
+    out["_codex_trace_dirs"] = [*prior, str(work)]
+    return out
 
 CODEX_BIN = os.environ.get("CODEX_BIN", "/scratch/gpfs/TRIDAO/al9080/terminal-rl/bin/codex")
 CODEX_MODEL = os.environ.get("SYNTH_MODEL", "gpt-5.6")
@@ -88,8 +191,7 @@ def simplify_codex(task: dict, solved: int = 0, attempts: int = 16,
     if not os.path.exists(CODEX_BIN):
         raise RuntimeError(f"codex binary not found at {CODEX_BIN}")
     level = "specific" if trajectory else "vague"
-    work = Path(tempfile.mkdtemp(prefix="codex-retune-"))
-    try:
+    with _trace_work("retune", task) as work:
         # lay the task out on disk exactly as the package looks
         fmap = ev.file_map(task)
         for key, rel in fmap.items():
@@ -102,22 +204,7 @@ def simplify_codex(task: dict, solved: int = 0, attempts: int = 16,
             verifier=ev._verifier_rel(task), solved=solved, attempts=attempts,
             level=level, level_rule=ev.HINT_LEVELS[level], max_calls=MAX_TOOL_CALLS))
 
-        home = work / ".cxhome"
-        home.mkdir()
-        env = dict(os.environ)
-        env["CODEX_HOME"] = str(home)
-        env["OPENAI_API_KEY"] = llm._api_key()
-        cmd = [
-            CODEX_BIN, "exec",
-            "--dangerously-bypass-approvals-and-sandbox", "--skip-git-repo-check",
-            "-c", "model_providers.oai.name=openai",
-            "-c", f"model_providers.oai.base_url={API_BASE}",
-            "-c", "model_providers.oai.env_key=OPENAI_API_KEY",
-            "-c", "model_provider=oai",
-            "-C", str(work), "-m", CODEX_MODEL, "-",
-        ]
-        p = subprocess.run(cmd, input=_PROMPT, capture_output=True, text=True,
-                           timeout=TIMEOUT_SEC, env=env)
+        p = _run_codex(work, _PROMPT, timeout=TIMEOUT_SEC)
         new_instruction = (work / fmap["instruction"]).read_text()
         if not new_instruction.strip():
             raise RuntimeError("codex emptied the instruction")
@@ -125,9 +212,7 @@ def simplify_codex(task: dict, solved: int = 0, attempts: int = 16,
             raise RuntimeError(f"codex left the instruction unchanged "
                                f"(exit {p.returncode}): {p.stdout[-200:]}")
         out = {**task, "instruction": new_instruction, "_hint": "codex"}
-        return out
-    finally:
-        shutil.rmtree(work, ignore_errors=True)
+        return _attach_trace(out, task, work)
 
 _ORACLE_AGENTS_MD = """# Your job: make the reference solution pass the verifier
 
@@ -204,28 +289,117 @@ def _codex_cmd(work: Path) -> list[str]:
     ]
 
 
-def _run_codex(work: Path, prompt: str) -> subprocess.CompletedProcess:
+def _as_text(value: str | bytes | None) -> str:
+    if value is None:
+        return ""
+    if isinstance(value, bytes):
+        return value.decode(errors="replace")
+    return value
+
+
+def _snapshot_inputs(work: Path) -> None:
+    """Archive the exact pre-agent workspace before Codex can modify it."""
+    run = work / "run"
+    run.mkdir(exist_ok=True)
+    archive = run / "input-package.tar.gz"
+    incoming = work / ".input-package.tar.gz.incoming"
+    with tarfile.open(incoming, "w:gz") as tf:
+        for child in sorted(work.iterdir()):
+            if child.name in (".cxhome", incoming.name):
+                continue
+            tf.add(child, arcname=child.name, recursive=True)
+    os.replace(incoming, archive)
+
+
+def _write_process_record(
+    work: Path,
+    *,
+    command: list[str],
+    status: str,
+    started_time_unix_ns: int,
+    stdout: str | bytes | None = None,
+    stderr: str | bytes | None = None,
+    returncode: int | None = None,
+    timeout_seconds: int | None = None,
+    error: str | None = None,
+) -> None:
+    run = work / "run"
+    run.mkdir(exist_ok=True)
+    (run / "codex.stdout.txt").write_text(_as_text(stdout))
+    (run / "codex.stderr.txt").write_text(_as_text(stderr))
+    record = {
+        "schema_version": 1,
+        "command": command,
+        "status": status,
+        "returncode": returncode,
+        "timeout_seconds": timeout_seconds,
+        "started_time_unix_ns": started_time_unix_ns,
+        "finished_time_unix_ns": time.time_ns(),
+    }
+    if error:
+        record["error"] = error
+    _write_json_atomic(run / "codex_process.json", record)
+
+
+def _run_codex(
+    work: Path,
+    prompt: str,
+    *,
+    timeout: int = TIMEOUT_SEC,
+) -> subprocess.CompletedProcess:
     """Run codex in `work` with a private CODEX_HOME and the us.api provider.
 
     A stray ChatGPT token in the shared home otherwise wins and 401s, which is
     why the home is per-invocation rather than shared.
     """
-    home = work / ".cxhome"
-    home.mkdir(exist_ok=True)
-    env = dict(os.environ)
-    env["CODEX_HOME"] = str(home)
-    env["OPENAI_API_KEY"] = llm._api_key()
-    cmd = [
-        CODEX_BIN, "exec",
-        "--dangerously-bypass-approvals-and-sandbox", "--skip-git-repo-check",
-        "-c", "model_providers.oai.name=openai",
-        "-c", f"model_providers.oai.base_url={API_BASE}",
-        "-c", "model_providers.oai.env_key=OPENAI_API_KEY",
-        "-c", "model_provider=oai",
-        "-C", str(work), "-m", CODEX_MODEL, "-",
-    ]
-    return subprocess.run(cmd, input=prompt, capture_output=True, text=True,
-                          timeout=TIMEOUT_SEC, env=env)
+    run = work / "run"
+    run.mkdir(exist_ok=True)
+    (run / "codex_prompt.txt").write_text(prompt)
+    _snapshot_inputs(work)
+    cmd = _codex_cmd(work)
+    started = time.time_ns()
+    try:
+        result = subprocess.run(
+            cmd,
+            input=prompt,
+            capture_output=True,
+            text=True,
+            timeout=timeout,
+            env=_codex_env(work),
+        )
+    except subprocess.TimeoutExpired as exc:
+        _write_process_record(
+            work,
+            command=cmd,
+            status="timed_out",
+            started_time_unix_ns=started,
+            stdout=exc.stdout,
+            stderr=exc.stderr,
+            timeout_seconds=timeout,
+            error=str(exc),
+        )
+        raise
+    except Exception as exc:
+        _write_process_record(
+            work,
+            command=cmd,
+            status="failed_to_start",
+            started_time_unix_ns=started,
+            timeout_seconds=timeout,
+            error=f"{type(exc).__name__}: {exc}",
+        )
+        raise
+    _write_process_record(
+        work,
+        command=cmd,
+        status="exited",
+        started_time_unix_ns=started,
+        stdout=result.stdout,
+        stderr=result.stderr,
+        returncode=result.returncode,
+        timeout_seconds=timeout,
+    )
+    return result
 
 
 def _lay_out(task: dict, work: Path) -> dict:
@@ -253,6 +427,9 @@ def _lay_out(task: dict, work: Path) -> dict:
         dest = work / rel
         dest.parent.mkdir(parents=True, exist_ok=True)
         dest.write_text(task[key])
+    # copytree applies the source package's root mode to the existing work directory.
+    # Restore the trace directory's private mode before writing prompts or sessions.
+    work.chmod(0o700)
     return fmap
 
 
@@ -267,8 +444,7 @@ def repair_oracle_codex(task: dict, observed: str, exit_code: int = 1) -> dict:
     """
     if not os.path.exists(CODEX_BIN):
         raise RuntimeError(f"codex binary not found at {CODEX_BIN}")
-    work = Path(tempfile.mkdtemp(prefix="codex-oracle-"))
-    try:
+    with _trace_work("oracle", task) as work:
         fmap = _lay_out(task, work)
         (work / "run").mkdir(exist_ok=True)
         (work / "run" / "failure.txt").write_text(
@@ -287,9 +463,7 @@ def repair_oracle_codex(task: dict, observed: str, exit_code: int = 1) -> dict:
             raise RuntimeError(f"codex changed nothing (exit {p.returncode}): "
                                f"{p.stdout[-200:]}")
         out["_repaired"] = "codex_oracle_observed"
-        return out
-    finally:
-        shutil.rmtree(work, ignore_errors=True)
+        return _attach_trace(out, task, work)
 
 # --------------------------------------------------------------------------
 # Agentic evolution: one session, with the real validator as a tool
@@ -405,8 +579,7 @@ def evolve_agentic(task: dict, job: str, trajectory: str = "",
     """
     if not os.path.exists(CODEX_BIN):
         raise RuntimeError(f"codex binary not found at {CODEX_BIN}")
-    work = Path(tempfile.mkdtemp(prefix=f"codex-{job}-"))
-    try:
+    with _trace_work(job, task) as work:
         fmap = _lay_out(task, work)
         (work / "run").mkdir(exist_ok=True)
         (work / "traces").mkdir(exist_ok=True)
@@ -438,9 +611,7 @@ def evolve_agentic(task: dict, job: str, trajectory: str = "",
             "repair": _REPAIR_JOB.format(exit_code=exit_code),
         }[job]
 
-        p = subprocess.run(
-            _codex_cmd(work), input=prompt, capture_output=True, text=True,
-            timeout=AGENT_TIMEOUT, env=_codex_env(work))
+        p = _run_codex(work, prompt, timeout=AGENT_TIMEOUT)
 
         verdict = work / "run" / "verdict.txt"
         if verdict.exists():
@@ -504,6 +675,4 @@ def evolve_agentic(task: dict, job: str, trajectory: str = "",
                     f"agent did not declare which axis it used "
                     f"(run/operator.txt={chosen!r}, offered={sorted(allowed)})")
             out["_operator"], out["_family"] = chosen, allowed[chosen]
-        return out
-    finally:
-        shutil.rmtree(work, ignore_errors=True)
+        return _attach_trace(out, task, work)
