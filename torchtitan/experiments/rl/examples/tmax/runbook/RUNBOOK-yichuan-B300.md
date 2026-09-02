@@ -886,6 +886,144 @@ the previous run looked identical for its first 30 minutes.
 
 ---
 
+## 10c. Run tag `wd-20260902b`, launched 2026-09-02 04:18
+
+The profile 10b describes, with four things changed after a night of measuring on
+this host. Every value below is read back from the live process, not from the file
+it was written in.
+
+### What moved from 10b, and what measured it
+
+**Both TF32 paths off (`SWE_LMHEAD_TF32=0`, `SWE_LMHEAD_TF32X3=0`).**
+Start here, because an earlier note in this file was wrong in a way worth
+recording. tmax does *not* lack `LMHeadCastConverter`: it inherits its model_spec
+from `rl_grpo_qwen3_5_9b_swe_r2e`, which builds it through
+`_qwen3_5_rl_model_registry(..., converters=[LMHeadCastConverter.Config()])`. The
+lm_head has always been a `CastLinear`. Grepping only `tmax/config_registry.py`
+missed the inheritance.
+
+What is true is that `SWE_LMHEAD_TF32X3=1` does not cover backward.
+`_linear_tf32x3` sets `float32_matmul_precision("high")` inside
+`CastLinear.forward` and restores it in a `finally`, so autograd runs the two
+backward matmuls outside that context at the default precision. The 2026-08-31
+trace shows exactly that shape: 48 `tensorop_tf32gemm` launches (3 matmuls x 8
+loss chunks x 2 profiled microbatches -- the 3xTF32 forward) alongside 32
+`simt_sgemm` launches (one forward and one backward per chunk-instance, IEEE
+fp32 on CUDA cores). Backward is the larger half: 4,400 ms against 3,923 ms.
+
+`SWE_LMHEAD_TF32=1` (`trainer.py:234`) is the switch that does cover backward --
+it sets `torch.backends.cuda.matmul.fp32_precision = "tf32"` process-wide for the
+trainer. It costs accuracy: measured on this host at the 9B lm_head shape, plain
+TF32 has a median relative error of 2.9e-4 against 9.6e-6 for the 3xTF32 split.
+Those logits feed logprob and the DPPO importance ratio `exp(new - old)`, and
+`old` comes from the generator, a separate process this trainer-scoped switch
+does not touch -- so the error lands in trainer/generator divergence, which is
+what `CastLinear` exists to prevent. Both are off here to get a clean fp32
+baseline; the cost is roughly 12 s of a 42 s microbatch. Turn one back on only
+while watching `bit_wise/*` and `loss/ratio_mean`.
+
+**`SWE_MAX_ACTIVE_GROUPS` 96 -> 160, `SWE_INITIAL_ACTIVE_GROUPS` 32 -> 64.**
+An active slot is charged when a group starts and freed only when the trainer
+*trains* it, so completed-but-unbatched groups hold slots too. Measured at 96 on
+2026-09-02 03:58: 159 groups issued, 64 released by two train steps, so 95 of 96
+slots taken -- of which **81 were finished groups queued for training and only 14
+were live rollouts**. The engines sat at 6% KV with `Waiting: 0`. Starving the
+rollouts of slots looks nothing like an engine problem, and the fix is not in the
+engine: size this knob for the training queue depth, not for the rollouts.
+
+**`SWE_ROLLOUT_CONCURRENCY` 1024 -> 1508, `SWE_MAX_NUM_SEQS` 256 -> 512.**
+Neither was binding at 96 groups. 1508 over 16 workers needs 96 groups by the
+`config_registry.py:567` constraint, comfortably under 160. 256 was where the
+previous run pinned before its prefix hit rate collapsed; KV is not the limit
+here, so raise the ceiling rather than let a queue form against it.
+
+**Evolution on the codex arm, simplify off.**
+`SWE_RETUNE_AGENT=codex` because the default `chat` arm reaches the k/k (harder)
+direction without the trajectory -- `ev.evolve` and `llm.synthesize` take no
+`trajectory` argument. Same corpus, same day: chat gave TerminalWorld 47% and
+tmax 2%; codex gave 63% and 60%. `SWE_EVOLVE_SIMPLIFY=0` because the ratchet only
+turns one way and this run wants to measure the harder direction alone; 0/k
+signals accumulate in `evolution/deferred_easier/` and replay if it is turned back
+on. The arm needs `/scratch/gpfs/TRIDAO/al9080/terminal-rl/bin/codex` (258 MB)
+and falls back to the chat operator on any exception, silently -- check for
+`arm=agent_harder` in the evolve log to confirm which one actually ran.
+
+**Both dumps on.** `SWE_ROLLOUT_DUMP_DIR` for the full decoded trajectory per
+rollout, `SWE_PROFILE_MICROBATCHES=2` for a fresh trace under a known env.
+
+### The env
+
+```
+TRL_BASE=/scratch/gpfs/TRIDAO/al9080/terminal-rl/workdirs/wd-20260902b
+SWE_PROMPT_DATA=$TRL_BASE/data/mix/mix_live.jsonl        # 663 TW rows
+SWE_TASK_EVOLUTION_DIR=$TRL_BASE/evolution/signals
+SWE_ROLLOUT_DUMP_DIR=$TRL_BASE/rollout-dumps
+TMAX_EXEC_TRACE_DIR=$TRL_BASE/exec-traces
+SWE_DATA_HOT_RELOAD=1
+
+RL_GPUS=2,0,6,1,4          # trainer 2,0 | generators 6,1,4
+SWE_DP_SHARD=2
+SWE_GEN_DP=3
+
+SWE_NUM_GROUPS_PER_TRAIN_STEP=32
+SWE_GROUP_SIZE=16
+SWE_DROP_ZERO_STD=0
+
+SWE_MAX_ACTIVE_GROUPS=160
+SWE_INITIAL_ACTIVE_GROUPS=64
+SWE_ROLLOUT_CONCURRENCY=1508
+SWE_NUM_ROLLOUT_WORKERS=16
+SWE_MAX_NUM_SEQS=512
+SWE_GPU_MEM_LIMIT=0.85
+
+SWE_LMHEAD_TF32=0
+SWE_LMHEAD_TF32X3=0
+SWE_AC=full
+SWE_LOSS_CHUNKS=8
+SWE_LR=3e-6
+SWE_PROFILE_MICROBATCHES=2
+SWE_PROFILE_SKIP=3
+
+TMAX_AGENT=terminus
+TMAX_TERMINUS_MAX_TURNS=120
+TMAX_TURN_MAX_TOKENS=32768
+TMAX_EXEC_TIMEOUT_SEC=120
+SWE_MAX_CONTEXT_LEN=63488
+SWE_AGENT_TIMEOUT_FLOOR_SEC=900
+SWE_TIME_BUDGET_SEC=3600
+```
+
+Evolution runs as its own process against the same root:
+
+```
+TRL_BASE=$W SWE_RETUNE_AGENT=codex SWE_EVOLVE_SIMPLIFY=0 \
+  python .../evolution/evolve_ondella.py --interval 120 --workers 16 \
+         --log $W/logs/evolve.log
+```
+
+### Building the mix, verified
+
+663 rows from `metadata/train_ready_ids.txt`, packages from the published
+`data/tasks-00000.tar` (LFS oid `8d0a11e0...`; note `shard_manifest.jsonl` still
+carries the pre-repair sha256 and disagrees). Canary stripped from `prompt` and
+`metadata.problem_statement`, left in the build and grading files. cpu, memory and
+disk from `measured_resources.csv` `provision_*`. Checks that ran after the build:
+canary remaining 0, `daytona_*` null on 0 rows, id set equal to
+`train_ready_ids.txt`, prefixes 100% `tw_`.
+
+### What to watch, and what it would mean
+
+| signal | healthy | what a miss means |
+|---|---|---|
+| `Waiting` on the engines | 0 | slots or concurrency are binding again |
+| prefix hit rate | >90% | a group's 16 siblings stopped being admitted together |
+| in-flight groups vs 160 | headroom left | the training queue is eating the budget again |
+| `arm=agent_harder` in evolve log | present | codex fell back to chat silently |
+| `bit_wise/*`, `loss/ratio_mean` | stable | trainer/generator divergence (relevant if TF32 is turned on) |
+| step interval | vs 16.6 min on the 09-01 run | the fp32 baseline costs ~12 s of a 42 s microbatch |
+
+---
+
 ## 10a. Open questions for the team
 
 Two values in the shared docs disagree with what this host measured. Neither is
