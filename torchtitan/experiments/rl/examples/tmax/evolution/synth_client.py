@@ -146,7 +146,20 @@ def _client():
     if _CLIENT is None:
         from openai import OpenAI
 
-        _CLIENT = OpenAI(api_key=_api_key(), base_url=API_BASE)
+        # Bound the wait. The SDK defaults to read=600s with max_retries=2,
+        # and chat() wraps that in its own retries=4, so one unlucky call can
+        # block for 600 x 3 x 4 = 2 hours. run_round waits on as_completed over
+        # every future, so a handful of those stall the whole round: measured
+        # on della 2026-09-01, the loop sat 4.5h at rounds=0 with 11 sockets
+        # ESTAB and idle. A healthy effort=high call answers in ~7s, so 180s is
+        # already 25x headroom; one SDK retry keeps a genuine blip recoverable
+        # while capping the worst case at 180 x 2 x 4 = 24 min.
+        _CLIENT = OpenAI(
+            api_key=_api_key(),
+            base_url=API_BASE,
+            timeout=float(os.environ.get("SYNTH_TIMEOUT_SEC", "180")),
+            max_retries=int(os.environ.get("SYNTH_MAX_RETRIES", "1")),
+        )
     return _CLIENT
 
 
