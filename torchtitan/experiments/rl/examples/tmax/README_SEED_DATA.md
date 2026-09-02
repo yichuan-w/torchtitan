@@ -70,6 +70,20 @@ system, the docker socket, `--privileged`, an end-of-life base image with no
 mirror, or a verifier that never writes a reward. `COPY` from the build context
 is **not** a drop reason -- those sources are carried as `build_context` instead.
 
+**The filter reads the Dockerfile only, and that is deliberate.** Comments are
+stripped from it first, because 87 of 89 `--privileged` / `docker.sock` hits in
+this corpus sat inside comments describing how the task was authored, and those
+tasks build and grade in a plain container. A task's `docker-compose.yaml` is
+not read at all, for the same reason measured a second time: 9 train-ready tasks
+declare `privileged: true` there, and 5 of them pass their verifier without it.
+The declaration records the author's local setup, not a requirement.
+
+Widening the filter to that file would drop those 5 to catch one task that
+really does need a kernel module, and that task was found by running it rather
+than by reading its compose file. **A task that cannot run unprivileged fails
+its oracle**, which is the instrument that decides this, and the compose
+declaration is kept as a measurement rather than promoted to a filter.
+
 ### Example
 
 ```bash
