@@ -274,6 +274,11 @@ def _codex_env(work: Path) -> dict:
     env = dict(os.environ)
     env["CODEX_HOME"] = str(home)
     env["OPENAI_API_KEY"] = llm._api_key()
+    # ./validate is a copy of agent_validate.sh dropped into `work`, so from
+    # inside the workdir the script cannot find daytona_revalidate.py beside
+    # itself. Tell it where the harness lives. Without this every codex retune
+    # ends in BLOCKED and the loop records it as `kept`.
+    env["EVOLVE_HARNESS_DIR"] = str(Path(__file__).resolve().parent)
     return env
 
 
