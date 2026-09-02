@@ -190,6 +190,52 @@ Two consequences:
    buys queueing, not throughput. Their count moves; re-measure before blaming
    the code:
 
+3. **TODO: keep `mix_live.jsonl` in sync with the upstream measured disk.**
+   The claim above that "every row in this corpus declares 10 GiB" does not hold
+   for `data/mix/mix_live.jsonl` as generated: 864 of its 1067 rows declared
+   `daytona_disk_gb: 1`. Rows provisioned at 1 GiB die at session create with
+   `no space left on device` (`mkdir /root/.daytona/sessions/<id>`), which is
+   deterministic -- `max_attempts: 6` never reaches attempt 2, and the whole
+   group of 16 is lost. Measured over a 15k-rollout run: 65 such events across
+   30 tasks, two of which (`tw_177860`, `tw_680933`) lost all 16 rollouts each.
+
+   The fix is not to guess sizes and not to push anything upstream. The Clean
+   dataset already carries them: `andylizf/TerminalWorld-Seeds-Clean`, file
+   `metadata/measured_disk.csv`, from its 2026-08-30 "measured real-block disk
+   usage for 759 tasks (full Daytona build campaign)" commit. Column
+   `recommend_daytona_gb` is the number to take. Against it, 513 of the 667
+   overlapping rows in our local copy were UNDER-provisioned (510 of them
+   1 GiB where the measurement says 2 GiB) -- our copy predates that campaign.
+
+   Sync on every data rebuild, raising only (the measurement covers build-time
+   occupancy; a task that downloads at runtime can need more):
+
+```python
+import json, pandas as pd
+from huggingface_hub import hf_hub_download
+md = pd.read_csv(hf_hub_download(
+    "andylizf/TerminalWorld-Seeds-Clean", "metadata/measured_disk.csv",
+    repo_type="dataset"))
+rec = {str(k): int(v) for k, v in zip(md.task_id, md.recommend_daytona_gb)
+       if pd.notna(v)}
+out = []
+for line in open("data/mix/mix_live.jsonl"):
+    if not line.strip():
+        continue
+    row = json.loads(line)
+    meta = row.get("metadata") or {}
+    want, cur = rec.get(str(meta.get("instance_id"))), meta.get("daytona_disk_gb")
+    if want is not None and cur is not None and cur < want:
+        meta["daytona_disk_gb"] = want
+    out.append(json.dumps(row, ensure_ascii=False))
+open("data/mix/mix_live.jsonl", "w").write("\n".join(out) + "\n")
+```
+
+   Applied 2026-08-31: 513 rows raised. Still unresolved -- 352 rows remain at
+   1 GiB and 83 declare nothing, because only 667 of the 1067 rows appear in the
+   measured table at all. Those are the next ones to blow up.
+
+
 ```bash
 source /ssd1/k3/yichuan/rltrain.secrets.env
 python - <<'PY'
