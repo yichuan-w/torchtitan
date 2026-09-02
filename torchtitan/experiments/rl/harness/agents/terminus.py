@@ -422,9 +422,7 @@ class _SandboxEnvironment:
             return command
         path = m.group("path")
         self.pane_path = path
-        bounded = (
-            f"head -c {_PANE_CAP_BYTES} > {shlex.quote(path)}"
-        )
+        bounded = f"head -c {_PANE_CAP_BYTES} > {shlex.quote(path)}"
         return command.replace(f"'cat > {path}'", f"'{bounded}'", 1)
 
     def _trace_exec(self, command: str, started_at: float, exit_code: int) -> None:
