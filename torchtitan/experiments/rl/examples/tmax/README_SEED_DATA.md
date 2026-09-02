@@ -8,7 +8,9 @@ same verifier contract, so **one adapter (`prepare_rts_data.py`) and one grader
 columns differ.
 
 > Scope: this doc is about *preparing the data*. For the training recipe, the
-> rollout loop, and the run knobs, see [`README.md`](./README.md).
+> rollout loop, and the run knobs, see [`README.md`](./README.md). For how each
+> task's sandbox gets its cpu / memory / disk, see
+> [`SANDBOX_SIZING.md`](./SANDBOX_SIZING.md).
 
 ---
 
@@ -100,9 +102,10 @@ jsonl `label` and keep the subset you want.
 | `reference_partial` | True 55 | reference is deliberately incomplete (mostly already `fail`) |
 
 The dataset also ships the settled filter as id lists under `metadata/`:
-**`train_ready_ids.txt` (669) is the canonical training subset** -- the
+**`train_ready_ids.txt` (663) is the canonical training subset** -- the
 oracle-passed tasks minus the fragile-build, policy-blocked and
-oversized-memory ids. Prefer joining on it over re-deriving from the columns.
+oversized-memory ids. Count it rather than quoting one: it moves whenever a task
+is repaired back in or a decayed one is dropped. Prefer joining on it over re-deriving from the columns.
 Clean-for-training means exactly three things: the reference solution passes
 its verifier, the task builds and runs inside the sandbox platform's limits,
 and the metadata reflects the task. Audit flags (instruction text quoting
@@ -119,7 +122,7 @@ they do not gate this list.
 | `bug_family` | pr / lm_rewrite / procedural / combine_file / combine_module / lm_modify | pr / lm_rewrite / procedural are the sweet spot; combine_* bundle multiple bugs (all-or-nothing reward, harder); lm_modify (`func_basic`) is often over-specified/easy |
 
 Recommended subsets:
-- TerminalWorld: `metadata/train_ready_ids.txt` -> 669 tasks (equivalently:
+- TerminalWorld: `metadata/train_ready_ids.txt` -> 663 tasks (equivalently:
   `reward_verdict == "pass"` minus the fragile-build, policy-blocked and
   oversized-memory id lists).
 - SWE-Smith: `in_main_pool and not network_required` -> 1,408 tasks.
