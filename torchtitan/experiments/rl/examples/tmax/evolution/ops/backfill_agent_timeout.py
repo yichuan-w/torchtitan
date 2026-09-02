@@ -1,12 +1,14 @@
 #!/usr/bin/env python3
-"""Backfill ``metadata.agent_timeout_sec`` into rows the mix already holds.
+"""Backfill or strip ``metadata.agent_timeout_sec`` on rows the mix holds.
 
-prepare_rts_data now reads a task's own ``[agent] timeout_sec``, so every row
-built from here on carries it -- fold-ins included, since pack_to_dataset.to_row
-delegates to that same adapter. Rows already in the mix were built before the
-change and carry nothing, so each one would keep taking the flat
-SWE_TIME_BUDGET_SEC until it happened to be re-folded, which for most tasks is
-never.
+POST-MORTEM (2026-08-29): the backfill direction is retired for training rows.
+Declared budgets are sized for oracle solvers; backfilled into rotation rows
+they killed 75-85% of rollouts for the 9B policy, and --strip reverted them the
+same day. The standing policy: training rows carry NO agent_timeout_sec -- the
+launcher's flat SWE_TIME_BUDGET_SEC=2400 governs -- and prepare_rts_data emits
+a task's declared ``[agent] timeout_sec`` only under SWE_EMIT_AGENT_TIMEOUT=1,
+an eval-only opt-in. Use --strip to remove the key from rotation rows; do not
+re-run the backfill against the training mix.
 
 Two things this script is careful about, because the mix is read live by a
 running trainer (SWE_DATA_HOT_RELOAD=1):
@@ -77,6 +79,15 @@ def main() -> None:
     ap.add_argument("--mix", default=str(ROOT / "data/mix/mix_live.jsonl"))
     ap.add_argument("--holdout-n", type=int, default=HOLDOUT_N)
     ap.add_argument("--apply", action="store_true")
+    ap.add_argument("--strip", action="store_true", help=(
+        "REMOVE metadata.agent_timeout_sec from rotation rows instead of adding "
+        "it. Post-mortem of 08-29: backfilled budgets (mostly 600-1800s, floored "
+        "to 900) were sized for oracle solvers, not a 9B policy at ~7 tok/s -- "
+        "75-85%% of rollouts started dying at the budget with few or zero turns "
+        "(healthy boot before the backfill: 7108 completed / 30 errors; every "
+        "boot after: 3-25%% completion). The rollouter's own design note says "
+        "training rows keep the launcher's SWE_TIME_BUDGET_SEC; declared "
+        "budgets are for the TB-2.0 eval set, which prepare_tb2_data handles."))
     args = ap.parse_args()
 
     mix = Path(args.mix)
@@ -88,6 +99,40 @@ def main() -> None:
     out: list[str] = []
     dist: collections.Counter = collections.Counter()
     changed = already = undeclared = restyled = 0
+    if args.strip:
+        for line in rotation:
+            row = json.loads(line)
+            tid = row["metadata"]["instance_id"]
+            if row["metadata"].get("agent_timeout_sec") is None:
+                already += 1
+                out.append(line)
+                continue
+            ea = _ascii_style(row, line)
+            if ea is None:
+                restyled += 1
+                print(f"  {tid}: line style unrecognised -- left unchanged")
+                out.append(line)
+                continue
+            del row["metadata"]["agent_timeout_sec"]
+            out.append(json.dumps(row, ensure_ascii=ea))
+            changed += 1
+        print(f"  strip: {changed} rows lose agent_timeout_sec, "
+              f"{already} had none, {restyled} unrecognised")
+        assert holdout == lines[-n_hold:], "holdout window moved"
+        if not args.apply:
+            print(f"dry run -- pass --apply to write ({changed} rows would change)")
+            return
+        bak = f"{mix}.bak-strip-timeout-{time.strftime('%Y%m%d-%H%M%S')}"
+        shutil.copy2(mix, bak)
+        mix.write_text("\n".join(out + holdout) + "\n")
+        print(f"wrote {mix} ({changed} rows changed); backup {bak}")
+        check = [l for l in mix.read_text().splitlines() if l.strip()]
+        assert len(check) == len(lines), "row count moved"
+        assert check[-n_hold:] == holdout, "holdout no longer byte-identical"
+        assert not any(json.loads(l)["metadata"].get("agent_timeout_sec")
+                       for l in check[:-n_hold]), "a rotation row kept a budget"
+        print(f"verified: {len(check)} rows, holdout byte-identical, budgets gone")
+        return
     for line in rotation:
         row = json.loads(line)
         tid = row["metadata"]["instance_id"]
