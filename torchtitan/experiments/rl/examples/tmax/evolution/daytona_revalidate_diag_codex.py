@@ -24,19 +24,45 @@ from __future__ import annotations
 import argparse
 import asyncio
 import json
-import os
 import sys
 import time
 from pathlib import Path
 
-# torchtitan is imported normally; PYTHONPATH picks the checkout, the same way
-# the training launchers do it. This used to prepend a default checkout to
-# sys.path, which made the choice invisible and, worse, made it win over the
-# caller's: a caller that set its own path saw this module's default silently
-# take precedence at import time, and then verified against a harness nobody
-# was going to run. Failing to import is the honest outcome when nothing is
-# configured, so that is what happens.
+# This file lives inside the torchtitan tree it verifies against, so the harness
+# it imports is the one in that tree, and nothing has to be configured for that
+# to be true.
+#
+# It used to live in another repository and prepend a checkout to sys.path,
+# defaulting to a separate clone. That made the choice invisible and, worse,
+# made it win: the insert runs at import time, so a caller that set its own path
+# still got this module's default, and the verdict then described a harness
+# nobody was going to run. It happened: a healthy task scored 0 against a clone
+# missing the fix that stopped read_file truncating through an exec.
+#
+# PYTHONPATH still wins if it is set, because that is how Python already works
+# and the training launchers use it. What is gone is a default pointing
+# somewhere else.
 sys.path.insert(0, str(Path(__file__).resolve().parent))
+
+
+def _repo_root() -> Path | None:
+    """The checkout this file sits in, found by looking for the package.
+
+    Counting parent directories would be shorter and would break silently the
+    next time this file moves: it would resolve to some other directory that
+    happens to exist, and the import would fall through to whatever else is on
+    the path. Looking for torchtitan/__init__.py either finds the tree or does
+    not.
+    """
+    for parent in Path(__file__).resolve().parents:
+        if (parent / "torchtitan" / "__init__.py").exists():
+            return parent
+    return None
+
+
+_TREE = _repo_root()
+if _TREE is not None and str(_TREE) not in sys.path:
+    sys.path.append(str(_TREE))
 
 import pack_to_dataset as pack  # noqa: E402
 
@@ -48,9 +74,10 @@ try:
     )
 except ModuleNotFoundError as exc:  # pragma: no cover -- configuration, not logic
     raise SystemExit(
-        "cannot import torchtitan: set PYTHONPATH to a torchtitan checkout, "
-        "e.g. PYTHONPATH=$HOME/torchtitan-yichuan (what the training run uses) "
-        f"or a fresh clone of the canonical branch. ({exc})"
+        "cannot import torchtitan. This file expects to sit inside a torchtitan "
+        f"checkout and found {_TREE if _TREE else 'none above it'}; if it was "
+        "copied out of the repository, set PYTHONPATH to a checkout instead. "
+        f"({exc})"
     ) from exc
 from torchtitan.experiments.rl.examples.tmax.grading import (  # noqa: E402
     grade_tmax,
