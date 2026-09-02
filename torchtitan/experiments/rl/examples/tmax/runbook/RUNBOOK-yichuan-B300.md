@@ -645,6 +645,247 @@ sections 3, 4 and 5.
 
 ---
 
+## 10b. The 2026-09-02 run: per-run workdir, TerminalWorld only, evolution on
+
+Section 10 is the no-evolution profile. This one runs the online task-evolution
+loop beside the trainer, and every path it touches is per-run rather than shared.
+Both changes came out of failures measured on this host over 2026-09-01/02; the
+numbers below are from those measurements, not from a recipe.
+
+### What made this run different
+
+**A private workdir, because two loops on one host ate each other's work.**
+`evolve_ondella.py` derives `signals/`, `consumed/`, `retuned/`, `junk/`,
+`deferred_easier/`, the lineage git, `POOL_ROOTS` and the default mix from one
+env var, `TRL_BASE`. Left at its default, every loop on the host shares all of
+them: on 2026-09-01 two were running and consuming signals out of the same
+directory. Separately, other tooling rewrote the shared `data/mix/mix_live.jsonl`
+nine times during a single 13-hour run (`.bak-audit-*`, `.bak-overcap-*`,
+`.bak-busybox-*`, `.bak-evolved-*`), and each rewrite tripped
+`SWE_DATA_HOT_RELOAD` and invalidated the prefix cache -- the hit rate cycled
+92% -> 43-58% every 15-20 minutes. Pointing `TRL_BASE` at a per-run directory
+fixes both, and needs no code change.
+
+Building one is three steps and about 5 MB:
+
+```bash
+W=/scratch/gpfs/TRIDAO/al9080/terminal-rl/workdirs/wd-<stamp>
+mkdir -p $W/data/tw-extract/tasks $W/data/mix $W/evolution/signals $W/logs $W/runs $W/meta
+
+# 1. packages: the published shard, filtered by the published id list
+curl -sL "https://huggingface.co/datasets/andylizf/TerminalWorld-Seeds-Clean/resolve/main/data/tasks-00000.tar" -o t.tar
+tar -xf t.tar -C /tmp/hf                      # 1353 complete packages
+while read -r t; do cp -a /tmp/hf/tasks/$t $W/data/tw-extract/tasks/$t; done < train_ready_ids.txt
+
+# 2. pack to rows
+TRL_BASE=$W python .../evolution/pack_to_dataset.py \
+    --evolved $W/data/tw-extract/tasks --out $W/data/mix/mix_live.jsonl
+
+# 3. strip the canary from what the model reads; size from the measurements
+#    (see below)
+```
+
+**TerminalWorld only, 663 rows.** `metadata/train_ready_ids.txt` is the
+dataset's own list: the 766 tasks with a non-zero pass@5, minus 174 fragile
+builds, 28 the solver's content filter refuses, and 5 that ask for more memory
+than an 8 GiB sandbox allows. Take the list rather than deriving one -- it moves.
+The 2026-09-02 re-verification dropped three real defects (`tw_158378` ships a
+reference solution that is partial by construction, `tw_364770` clones a git host
+that no longer answers, `tw_262649` fills any disk it is given) and brought two
+back after their Dockerfiles were repaired.
+
+Do not build the packages from a local pool without diffing it first: of the 663
+here, 659 differed from the published tar and 8 carried Dockerfiles the dataset
+had since repaired.
+
+**Two data fixes that are not optional.**
+
+- *Canary.* All 1,353 `instruction.md` files carry the harbor canary, on purpose
+  -- it is how a model trained on this corpus is detected. Strip it from `prompt`
+  and `metadata.problem_statement`, which the model reads, and leave it in the
+  build and grading files, which it never sees.
+- *Resources.* Rows packed from the tar carry no `daytona_*` fields, and the
+  fleet defaults do not apply once a row declares its own. Fill them from
+  `metadata/measured_resources.csv` columns `provision_cpu`, `provision_mem_gb`,
+  `provision_disk_gb` -- measurements with 1.3x headroom, not the `est_disk_mb`
+  estimate. 663/663 are covered. Under-provisioned disk is what
+  `session_disk_exhausted` measures: it is deterministic, `max_attempts` never
+  helps, and the whole group of 16 is lost.
+
+### Concurrency: what the numbers have to satisfy
+
+Three knobs are coupled, and setting one alone stops the run at startup.
+
+```
+config_registry.py:567   SWE_MAX_ACTIVE_GROUPS >= sum over workers of
+                         (worker_concurrency // SWE_GROUP_SIZE + 1)
+controller.py:376        1 <= SWE_INITIAL_ACTIVE_GROUPS <= SWE_MAX_ACTIVE_GROUPS
+```
+
+`SWE_ROLLOUT_CONCURRENCY` is split across `SWE_NUM_ROLLOUT_WORKERS` and then
+again capped at `SWE_MAX_ACTIVE_GROUPS` workers, so lowering the group cap
+without lowering the concurrency *raises* the lower bound it has to clear.
+Dropping `SWE_MAX_ACTIVE_GROUPS` 160 -> 48 while leaving concurrency at 1508
+demanded 96 and the launch died in 2 minutes with a `ValueError`. Check a
+candidate offline before spending a cold start on it:
+
+```python
+from ...config_registry import _split_rollout_concurrency as split
+wc = split(CONC, NUM_WORKERS, max_num_workers=MAX_GROUPS)
+assert sum(c // GROUP_SIZE + 1 for c in wc) <= MAX_GROUPS
+```
+
+The reason to lower it at all: the engines hold `generators x SWE_MAX_NUM_SEQS`
+sequences (here 3 x 256 = 768). At concurrency 1508 the mean was fine -- Running
+sat at 65-230 for hours -- but the run collapsed periodically, not once. Sampled
+in 15-minute buckets from the first completed group:
+
+```
+minutes after first group   Running  Waiting  prefix hit
+       0-15                    178       0      91.8%
+      15-30                    165       0      95.4%
+      30-45                    248      52      63.4%
+      45-60                    195      92       4.4%
+      60-75                    254     197       7.7%
+      75-90                    251     136       9.5%
+      90-105                   124       0      95.5%
+```
+
+Running pins at the 256 per-engine cap, the queue backs up, and a group's 16
+siblings stop being admitted together -- which is where the prefix sharing comes
+from, so the hit rate follows the queue down. KV was never the constraint (60%
+used at the worst point). Rollout median time tripled, 266s -> 1374s, while the
+turn count stayed flat at 13-17: the tasks did not get harder, every turn queued.
+
+Sizing rule: keep `SWE_ROLLOUT_CONCURRENCY` near the engines' total sequence
+slots, then raise `SWE_MAX_ACTIVE_GROUPS` until the assertion above passes.
+
+### Evolution: the arm matters more than the corpus
+
+`SWE_RETUNE_AGENT` defaults to `chat`, which reaches the k/k (harder) direction
+without the trajectory: `ev.evolve` and `llm.synthesize` have no `trajectory`
+parameter, so the model sees the instruction, Dockerfile and reference solution
+but never how the agent solved it. Only the `codex` arm passes
+`trajectory=format_trace(attempts)`. The 0/k (easier) direction always gets the
+trace, on both arms.
+
+Measured on this host on 2026-09-01/02, same corpus, same day:
+
+```
+                    k/k attempts   accepted
+chat    TerminalWorld     145         47%
+chat    tmax               85          2%
+codex   TerminalWorld     113         63%
+codex   tmax               62         60%
+```
+
+The corpus gap is an artefact of the arm. Under `chat`, 51 of tmax's 85 died at
+the shortcut probe -- the rewrite could be passed by printing the expected answer
+into the artifact its verifier compares -- and under `codex` that share falls to
+22 of 62. Do not conclude a corpus cannot be evolved from a `chat`-arm run.
+
+`SWE_EVOLVE_SIMPLIFY` defaults to on. The ratchet it drives turns one way: a
+simplify only has to leave `solve.sh` passing, while an evolve has to survive a
+rebuilt verifier and a cheat probe. Watch `rollout_reward/_mean` against the
+fixed holdout -- the on-mix rate climbing while the fixed eval stays flat is the
+signature of a mix getting easier rather than a policy getting better. Turning
+the branch off does not discard the backlog: 0/k signals move to
+`evolution/deferred_easier/` and replay when it is turned back on.
+
+### Placing the meshes
+
+`RL_GPUS` is positional -- trainer takes the first `SWE_DP_SHARD` entries, then
+one generator per entry. Generators hold ~235 GiB of KV each and the trainer
+~170, so give the generators the roomiest cards. Free memory on this host on
+2026-09-02, with two other tenants resident:
+
+```
+GPU     6      1      4      2      0  |     3      7      5
+free  268796 268796 266993 262376 260919 | 249262 249056 239737   MiB
+```
+
+Trainer on 2,0 and generators on 6,1,4 keeps every mesh off the three cards
+holding another user's ~19.6 GiB blocks. DCGM at the same moment put SMACT at
+0.001-0.072 on all eight: the co-tenants were memory-resident and idle, so this
+is a memory decision and not a contention one. Re-measure before each launch --
+tenancy moved twice in one evening.
+
+### The env this run used
+
+Only the lines that differ from section 10 or that the evolution loop needs. The
+rest is unchanged.
+
+```
+# per-run root: signals/, consumed/, retuned/, junk/, deferred_easier/, the
+# lineage git, POOL_ROOTS and runs/ all hang off this
+TRL_BASE=/scratch/gpfs/TRIDAO/al9080/terminal-rl/workdirs/wd-20260902-tw
+
+# TerminalWorld only, 663 rows, canary stripped, sized from measured_resources
+SWE_PROMPT_DATA=$TRL_BASE/data/mix/mix_live.jsonl
+SWE_TASK_EVOLUTION_DIR=$TRL_BASE/evolution/signals
+SWE_DATA_HOT_RELOAD=1
+
+# placement: trainer 2,0 | generators 6,1,4
+RL_GPUS=2,0,6,1,4
+SWE_DP_SHARD=2
+SWE_GEN_DP=3
+
+# batch shape
+SWE_NUM_GROUPS_PER_TRAIN_STEP=32
+SWE_GROUP_SIZE=16
+SWE_DROP_ZERO_STD=0
+
+# concurrency -- these three move together, see above
+SWE_ROLLOUT_CONCURRENCY=1024
+SWE_NUM_ROLLOUT_WORKERS=16
+SWE_MAX_ACTIVE_GROUPS=96
+SWE_INITIAL_ACTIVE_GROUPS=32
+SWE_MAX_NUM_SEQS=256
+SWE_GPU_MEM_LIMIT=0.85
+
+# agent
+TMAX_AGENT=terminus
+TMAX_TERMINUS_MAX_TURNS=120
+TMAX_TURN_MAX_TOKENS=32768
+TMAX_EXEC_TIMEOUT_SEC=120
+SWE_MAX_CONTEXT_LEN=63488
+SWE_AGENT_TIMEOUT_FLOOR_SEC=900
+
+# rollout budget: timed-out rollouts ran a median 2446s and p90 2577s against
+# the old 2400s cap, i.e. cut off rather than stuck (104 execs against 54 for a
+# normal rollout, 23.5s vs 17.9s per turn -- turn count dominates, not inference)
+SWE_TIME_BUDGET_SEC=3600
+
+# trainer
+SWE_AC=full
+SWE_LMHEAD_TF32X3=1
+SWE_LOSS_CHUNKS=8
+SWE_LR=3e-6
+SWE_PROFILE_MICROBATCHES=0
+
+# per-sandbox exec timings, per run (a stale value here silently interleaves
+# two runs' traces under one directory: group ids collide and the later write wins)
+TMAX_EXEC_TRACE_DIR=$TRL_BASE/exec-traces
+```
+
+The evolution loop runs as its own process against the same root, so restarting
+it costs no rollouts:
+
+```bash
+TRL_BASE=$W TRL_TT=... PYTHONPATH=... \
+  python .../evolution/evolve_ondella.py --interval 120 --workers 16 \
+         --log $W/logs/evolve.log
+```
+
+### Not established
+
+Whether concurrency 1024 holds. The collapse above first appears 30-45 minutes
+after the first completed group, and this run had not reached that window when
+these numbers were written. Zero queue depth during a cold start proves nothing:
+the previous run looked identical for its first 30 minutes.
+
+---
+
 ## 10a. Open questions for the team
 
 Two values in the shared docs disagree with what this host measured. Neither is
