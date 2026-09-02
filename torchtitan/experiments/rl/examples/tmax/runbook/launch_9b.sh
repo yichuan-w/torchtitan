@@ -67,7 +67,22 @@ export PYTHONPATH=$TRL_TT
 export SWE_PROMPT_DATA=${RL_DATA:-$SWE_PROMPT_DATA}
 [ -n "${SWE_TASK_EVOLUTION_DIR:-}" ] && mkdir -p "$SWE_TASK_EVOLUTION_DIR"
 
-echo "[launch] dump=$DUMP data=$SWE_PROMPT_DATA gpus=$CUDA_VISIBLE_DEVICES" | tee "$DUMP/launch.info"
+# Checkpoints go to the host-local disk, not the dump directory. The shared GPFS
+# fileset was down to 337 GB free on 2026-09-02 with 39 x 102 GB checkpoints on
+# it, and a save that hits the quota leaves a truncated step dir behind. A run
+# from before this rule that is resumed keeps its checkpoints where they are; a
+# new run gets a symlink from its own directory so the run alone still says
+# where its checkpoints went. Host-local means the trainer must run on this box.
+_ckpt_link="$DUMP/outputs/rl/checkpoint"
+if [ -d "$_ckpt_link" ] && [ ! -L "$_ckpt_link" ]; then
+    export SWE_CKPT_FOLDER=${SWE_CKPT_FOLDER:-$_ckpt_link}
+else
+    export SWE_CKPT_FOLDER=${SWE_CKPT_FOLDER:-/scratch/al9080/terminal-rl/ckpt/$(basename "$DUMP")}
+    mkdir -p "$SWE_CKPT_FOLDER" "$DUMP/outputs/rl"
+    [ -L "$_ckpt_link" ] || ln -s "$SWE_CKPT_FOLDER" "$_ckpt_link"
+fi
+
+echo "[launch] dump=$DUMP data=$SWE_PROMPT_DATA gpus=$CUDA_VISIBLE_DEVICES ckpt=$SWE_CKPT_FOLDER" | tee "$DUMP/launch.info"
 env | grep -E "^(SWE_|TMAX_|TT_DAYTONA|RL_|CUDA_VISIBLE|WANDB_PROJECT)" | sort >> "$DUMP/launch.info"
 
 # Checkpoints and W&B files land under the CWD, so run from the dump directory.
