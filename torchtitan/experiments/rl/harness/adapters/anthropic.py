@@ -481,9 +481,12 @@ class AnthropicAdapter:
             return None
 
         async with session.lock:
-            prompt_ids, extends_previous, turn_messages, messages_are_full = (
-                _plan_prompt(self, session, body)
-            )
+            (
+                prompt_ids,
+                extends_previous,
+                turn_messages,
+                messages_are_full,
+            ) = _plan_prompt(self, session, body)
 
             # Per-turn generation cap: respect the model context budget so a long
             # prompt does not overflow max_model_len mid-trajectory.
