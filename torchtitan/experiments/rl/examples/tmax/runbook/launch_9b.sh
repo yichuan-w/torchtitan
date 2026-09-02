@@ -1,23 +1,37 @@
 #!/bin/bash
 # Start the reference 9B TerminalWorld RL run.
 #
-#   ./launch_9b.sh                 # uses rltrain.env next to this script
-#   RL_DATA=/path/other.jsonl ./launch_9b.sh
+#   TRL_PROFILE=andy ./launch_9b.sh         # whose checkout and data root
+#   TRL_PROFILE=yichuan RL_DATA=/path/other.jsonl ./launch_9b.sh
 #
-# Anything already set in the environment wins over rltrain.env, so a one-off
-# override needs no edit to the file. Everything this script does not set is left
+# Two people launch on this box from the same account, each from their own
+# checkout and data root. profiles/<name>.env holds those paths (and nothing
+# else); rltrain.env holds the recipe, which is shared. TRL_PROFILE has no
+# default on purpose: the one time it was implied, every run launched from the
+# other person's tree.
+#
+# Anything already set in the environment wins over both files, so a one-off
+# override needs no edit to either. Everything this script does not set is left
 # at the code default on purpose.
 set -euo pipefail
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-# rltrain.env first, but never clobber what the caller already exported.
-if [ -f "$HERE/rltrain.env" ]; then
+# KEY=VALUE lines, no expansion; never clobber what the caller already exported.
+load_env_file() {
     while IFS='=' read -r k v; do
         case "$k" in ''|\#*) continue ;; esac
         [ -n "${!k-}" ] || export "$k=$v"
-    done < "$HERE/rltrain.env"
+    done < "$1"
+}
+
+if [ -z "${TRL_PROFILE:-}" ] || [ ! -f "$HERE/profiles/$TRL_PROFILE.env" ]; then
+    echo "[launch] set TRL_PROFILE to one of: $(ls "$HERE/profiles" | sed 's/\.env$//' | tr '\n' ' ')" >&2
+    echo "[launch] it picks profiles/<name>.env: the checkout (TRL_TT) and data root (TRL_BASE) to run from." >&2
+    exit 2
 fi
+load_env_file "$HERE/profiles/$TRL_PROFILE.env"
+[ -f "$HERE/rltrain.env" ] && load_env_file "$HERE/rltrain.env"
 
 : "${TRL_BASE:?set TRL_BASE (data/runs/logs root)}"
 : "${TRL_TT:?set TRL_TT (torchtitan checkout)}"
@@ -65,6 +79,11 @@ export CUDA_VISIBLE_DEVICES=$RL_GPUS
 # torchtitan is NOT installed into the venv; it is imported from the checkout.
 export PYTHONPATH=$TRL_TT
 export SWE_PROMPT_DATA=${RL_DATA:-$SWE_PROMPT_DATA}
+if [ ! -f "$SWE_PROMPT_DATA" ]; then
+    echo "[launch] SWE_PROMPT_DATA=$SWE_PROMPT_DATA does not exist (profile $TRL_PROFILE)." >&2
+    echo "[launch] build the mix there, or export RL_DATA=/path/to/mix.jsonl." >&2
+    exit 2
+fi
 [ -n "${SWE_TASK_EVOLUTION_DIR:-}" ] && mkdir -p "$SWE_TASK_EVOLUTION_DIR"
 
 # Checkpoints go to the host-local disk, not the dump directory. The shared GPFS
@@ -82,8 +101,8 @@ else
     [ -L "$_ckpt_link" ] || ln -s "$SWE_CKPT_FOLDER" "$_ckpt_link"
 fi
 
-echo "[launch] dump=$DUMP data=$SWE_PROMPT_DATA gpus=$CUDA_VISIBLE_DEVICES ckpt=$SWE_CKPT_FOLDER" | tee "$DUMP/launch.info"
-env | grep -E "^(SWE_|TMAX_|TT_DAYTONA|RL_|CUDA_VISIBLE|WANDB_PROJECT)" | sort >> "$DUMP/launch.info"
+echo "[launch] profile=$TRL_PROFILE tt=$TRL_TT dump=$DUMP data=$SWE_PROMPT_DATA gpus=$CUDA_VISIBLE_DEVICES ckpt=$SWE_CKPT_FOLDER" | tee "$DUMP/launch.info"
+env | grep -E "^(SWE_|TMAX_|TT_DAYTONA|RL_|TRL_|CUDA_VISIBLE|WANDB_PROJECT)" | sort >> "$DUMP/launch.info"
 
 # Checkpoints and W&B files land under the CWD, so run from the dump directory.
 cd "$DUMP"
