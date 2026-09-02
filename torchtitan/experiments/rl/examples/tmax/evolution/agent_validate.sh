@@ -33,7 +33,7 @@ for attempt in 1 2 3; do
     # dir held a second copy of the revalidator, and the two drifted --
     # one of them silently wrong about workdir. One copy, next to the
     # sibling module it imports.
-    OUT=$("$PY" "$HERE/../daytona_revalidate.py" "$PKG" 2>"$ERR")
+    OUT=$("$PY" "$HERE/daytona_revalidate.py" "$PKG" 2>"$ERR")
     JSON=$(printf '%s\n' "$OUT" | tail -1)
     case "$JSON" in
         *'"stage": "daytona_error"'*|"")
