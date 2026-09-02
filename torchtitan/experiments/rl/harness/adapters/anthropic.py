@@ -58,6 +58,23 @@ class CapturedTurn:
     # (TITO-bridged). False marks a history rewrite (compaction) -> episode branch.
     extends_previous: bool
     stop_reason: int | str | None = None
+    # The conversation itself, so a dump is readable without a tokenizer. Kept as
+    # a delta wherever one exists rather than as the full history each turn: a
+    # 40-turn tmax episode would otherwise carry the same growing context forty
+    # times, which is quadratic in episode length. Concatenating the deltas
+    # rebuilds the whole conversation and costs it once.
+    messages: list[Message] = field(default_factory=list)
+    """The messages behind ``prompt_token_ids``: either the delta the environment
+    just sent, or the whole conversation. ``messages_are_full_prompt`` says which."""
+
+    messages_are_full_prompt: bool = False
+    """True when ``messages`` is the whole conversation up to this turn (the first
+    turn, and any turn whose prompt had to be re-rendered from scratch); False when
+    it is only what arrived since the previous turn."""
+
+    completion_message: Message | None = None
+    """This turn's completion as a message, so a dump can be read without a
+    tokenizer."""
 
 
 @dataclass
@@ -464,7 +481,12 @@ class AnthropicAdapter:
             return None
 
         async with session.lock:
-            prompt_ids, extends_previous = _plan_prompt(self, session, body)
+            (
+                prompt_ids,
+                extends_previous,
+                turn_messages,
+                messages_are_full,
+            ) = _plan_prompt(self, session, body)
 
             # Per-turn generation cap: respect the model context budget so a long
             # prompt does not overflow max_model_len mid-trajectory.
@@ -484,6 +506,8 @@ class AnthropicAdapter:
                             max_policy_version=None,
                             finish_reason="length",
                             extends_previous=extends_previous,
+                            messages=turn_messages,
+                            messages_are_full_prompt=messages_are_full,
                         )
                     )
                     empty_blocks = [{"type": "text", "text": ""}]
@@ -509,6 +533,14 @@ class AnthropicAdapter:
             if completion is None:
                 return None
 
+            # Parsed here rather than just before the response is built, because
+            # the captured turn stores the same blocks: the dump then carries the
+            # assistant's own message in the form the client saw, and nobody has
+            # to hold a tokenizer to read it.
+            blocks, stop = _completion_to_blocks(
+                self.renderer, completion.token_ids, session.tools
+            )
+
             session.turns.append(
                 CapturedTurn(
                     prompt_token_ids=list(prompt_ids),
@@ -519,6 +551,9 @@ class AnthropicAdapter:
                     finish_reason=completion.finish_reason,
                     extends_previous=extends_previous,
                     stop_reason=completion.stop_reason,
+                    messages=turn_messages,
+                    messages_are_full_prompt=messages_are_full,
+                    completion_message={"role": "assistant", "content": blocks},
                 )
             )
             session.last_prompt_ids = list(prompt_ids)
@@ -539,9 +574,6 @@ class AnthropicAdapter:
                 completion.finish_reason,
             )
 
-            blocks, stop = _completion_to_blocks(
-                self.renderer, completion.token_ids, session.tools
-            )
             if completion.finish_reason == "length":
                 stop = "max_tokens"
             in_tok, out_tok = len(prompt_ids), len(completion.token_ids)
@@ -566,7 +598,7 @@ def _request_session_id(request: web.Request) -> str:
 
 def _plan_prompt(
     adapter: AnthropicAdapter, session: _Session, body: dict
-) -> tuple[list[int], bool]:
+) -> tuple[list[int], bool, list[Message], bool]:
     """Decide this turn's prompt token ids and whether it extends the previous turn.
 
     append (TITO bridge): the request continues the last turn's history (same
@@ -623,7 +655,9 @@ def _plan_prompt(
             if bridged is not None:
                 session.prev_msg_hashes = msg_hashes
                 session.prev_system_hash = system_hash
-                return list(bridged.token_ids), True
+                # new_messages is exactly what arrived since the last turn,
+                # which is the delta a dump needs.
+                return list(bridged.token_ids), True, list(new_messages), False
             rerender_reason = "bridge_returned_none"
 
     # new / wipe: full re-render.
@@ -651,7 +685,11 @@ def _plan_prompt(
     session.prev_system_hash = system_hash
     # extends_previous False only when there WAS a previous turn (a real rewrite);
     # the very first turn is the episode's natural start, not a branch.
-    return prompt_ids, session.req_count == 0
+    # No bridge: this prompt was rendered from the whole conversation, so the
+    # delta is that conversation. On the first turn that is the opening prompt;
+    # on a rewrite it restates the history the rewrite produced, which is what a
+    # reader needs to see the branch.
+    return prompt_ids, session.req_count == 0, list(chat), True
 
 
 async def _handle_messages(request: web.Request) -> web.StreamResponse:
