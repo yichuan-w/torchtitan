@@ -1,0 +1,28 @@
+Blackwell: fix the FA3 capability gates, and make FA4 selectable
+
+has_cuda_capability(9, 0) is a >= check, so SM 10.x matches it and takes paths
+meant for Hopper. Three places acted on that:
+
+- models/common/attention.py and experiments/rl/models/attention.py activate
+  FA3, which is Hopper-only and raises on Blackwell. Gated to 9.x exactly.
+- actors/generator.py skips block_size=256 on the assumption FA3 is present.
+  Blackwell without FA3/FA4 wheels runs the FA2 path, which needs it, and vLLM
+  refuses with "Paged KV cache block size must be divisible by 256". This is
+  pytorch/torchtitan#4097.
+
+The RL attention adapter also had to learn this vLLM's KV cache layout: it packs
+K and V along the last dimension rather than unbind(1), so the split is now
+chosen from the layout instead of assumed.
+
+Blackwell's flash path is FA4, and it is now reachable under SWE_ATTN_FA4=1
+rather than by default. Opt-in because whether FA4 works depends on which
+cutlass-dsl runtime is loaded, not on the GPU: the runtime ships in
+nvidia-cutlass-dsl-libs-cu12 and -cu13, vllm pins [cu13]==4.6.0, and against
+4.6.0 or 4.6.1 the backward never returns - no error, no steps, while the
+meta-package still reports 4.6.2. On 4.6.2 a stage-1 run completes ten steps
+with trainer and generator in one process group.
+
+Recipe sizing moves to SWE_TRAIN_TP / SWE_GEN_TP / SWE_GEN_DP /
+SWE_GPU_MEM_LIMIT, every default matching what the recipe had before, so a run
+that sets nothing behaves as it did. The values that fit a shared box live in
+the launch script rather than in the recipe.

@@ -732,7 +732,7 @@ python evolve_ondella.py --once --only <task_id> \
     --mix-out /tmp/mix_test.jsonl --keep-signal
 ```
 
-Restart with `ops/restart_evolve.sh`, not Ctrl-C: an interrupt gets absorbed
+Restart with `restart_evolve.sh`, not Ctrl-C: an interrupt gets absorbed
 mid-round and you end up with two instances. Verify with
 `pgrep -cf evolve_ondella` — it should print `1`. The loop's credentials live
 only in its own process environment, which is why the restart script carries them
