@@ -153,3 +153,148 @@ def test_converter_raises_when_lm_head_absent():
     cfg.lm_head = None
     with pytest.raises(ValueError, match="lm_head"):
         LMHeadCastConverter.Config().build().convert(cfg)
+
+
+# --- SWE_LMHEAD_TF32X3: fp32-accuracy lm_head on tensor cores, fwd and bwd ---
+
+from torchtitan.experiments.rl.models.cast_linear import (  # noqa: E402
+    _LinearTF32,
+    _mm_fp32_on_tensor_cores,
+    _split_tf32,
+    _tf32_mm,
+)
+
+_needs_cuda = pytest.mark.skipif(
+    not torch.cuda.is_available(), reason="needs TF32 tensor cores"
+)
+
+
+def _rel_err(got: torch.Tensor, ref: torch.Tensor) -> float:
+    return ((got - ref).norm() / ref.norm()).item()
+
+
+def test_split_tf32_is_exact_for_bf16_upcast():
+    # The premise behind the single-matmul forward: a value that came from bf16
+    # (7 mantissa bits) is already TF32-representable (10 bits), so its
+    # remainder is exactly zero. A genuine fp32 value leaves a remainder.
+    t = torch.randn(64, 64, dtype=torch.bfloat16).float()
+    hi, lo = _split_tf32(t)
+    assert torch.equal(hi, t)
+    assert torch.count_nonzero(lo) == 0
+    t32 = torch.randn(64, 64, dtype=torch.float32)
+    hi, lo = _split_tf32(t32)
+    assert torch.equal(hi + lo, t32)
+    assert torch.count_nonzero(lo) > 0
+
+
+def _ieee_fp32_reference(x32, w32, go):
+    """Forward and both backward matmuls at IEEE fp32 (no TF32), via autograd."""
+    prev = torch.get_float32_matmul_precision()
+    torch.set_float32_matmul_precision("highest")
+    try:
+        xr = x32.detach().clone().requires_grad_(True)
+        wr = w32.detach().clone().requires_grad_(True)
+        out = F.linear(xr, wr)
+        out.backward(go)
+        return out.detach(), xr.grad, wr.grad
+    finally:
+        torch.set_float32_matmul_precision(prev)
+
+
+@_needs_cuda
+@pytest.mark.parametrize("x_src,w_src", [
+    (torch.bfloat16, torch.bfloat16),  # the trainer's case: both operands from bf16
+    (torch.float32, torch.bfloat16),   # fp32 hidden state against a bf16 weight
+    (torch.float32, torch.float32),    # nothing exact: the 3xTF32 split on both
+])
+def test_linear_tf32_matches_ieee_fp32_forward_and_backward(x_src, w_src):
+    torch.manual_seed(0)
+    dev = "cuda"
+    x32 = torch.randn(2, 128, 256, device=dev, dtype=x_src).float().requires_grad_(True)
+    w32 = torch.randn(1024, 256, device=dev, dtype=w_src).float().requires_grad_(True)
+    go = torch.randn(2, 128, 1024, device=dev, dtype=torch.float32)  # full-mantissa fp32
+    x_exact = x_src in (torch.bfloat16, torch.float16)
+    w_exact = w_src in (torch.bfloat16, torch.float16)
+
+    out = _LinearTF32.apply(x32, w32, x_exact, w_exact)
+    out.backward(go)
+    ref_out, ref_gx, ref_gw = _ieee_fp32_reference(x32, w32, go)
+
+    # fp32-accuracy from the tensor cores: within 1e-5 of the IEEE fp32 result
+    # on the forward and on BOTH backward matmuls. Plain TF32 sits near 1e-3
+    # here (see test below), so this bound is what separates the two.
+    assert _rel_err(out, ref_out) < 1e-5
+    assert _rel_err(x32.grad, ref_gx) < 1e-5
+    assert _rel_err(w32.grad, ref_gw) < 1e-5
+
+
+@_needs_cuda
+def test_plain_tf32_is_not_fp32_accurate_on_fp32_operands():
+    # Shows the split is doing work: the same matmul with plain TF32 inputs
+    # (no split) is ~1e-3 off, two orders above the bound the split meets.
+    torch.manual_seed(0)
+    a = torch.randn(512, 256, device="cuda")
+    b = torch.randn(256, 1024, device="cuda")
+    prev = torch.get_float32_matmul_precision()
+    try:
+        torch.set_float32_matmul_precision("highest")
+        ref = a @ b
+        torch.set_float32_matmul_precision("high")
+        plain = a @ b
+    finally:
+        torch.set_float32_matmul_precision(prev)
+    split = _mm_fp32_on_tensor_cores(a, b, False, False)
+    assert _rel_err(plain, ref) > 1e-4
+    assert _rel_err(split, ref) < 1e-5
+
+
+@_needs_cuda
+def test_cast_linear_tf32x3_end_to_end_with_bf16_parameter(monkeypatch):
+    # The trainer's shape of things: bf16 parameter, bf16 hidden state, fp32
+    # loss gradient. Output is fp32 and matches the IEEE fp32 lm_head; the
+    # gradient reaches the bf16 parameter.
+    monkeypatch.setenv("SWE_LMHEAD_TF32X3", "1")
+    torch.manual_seed(0)
+    lm_head = CastLinear.Config(in_features=256, out_features=1024, bias=False).build()
+    lm_head = lm_head.to("cuda", torch.bfloat16)
+    x = torch.randn(2, 128, 256, device="cuda", dtype=torch.bfloat16, requires_grad=True)
+    out = lm_head(x)
+    assert out.dtype == torch.float32
+    go = torch.randn_like(out)
+    out.backward(go)
+    ref_out, ref_gx, ref_gw = _ieee_fp32_reference(x.float(), lm_head.weight.float(), go)
+    assert _rel_err(out, ref_out) < 1e-5
+    assert lm_head.weight.grad is not None and lm_head.weight.grad.dtype == torch.bfloat16
+    # The parameter gradient is rounded to bf16 by the cast either way; compare
+    # against the reference rounded the same way.
+    assert _rel_err(lm_head.weight.grad.float(), ref_gw.to(torch.bfloat16).float()) < 1e-2
+    assert _rel_err(x.grad.float(), ref_gx.to(torch.bfloat16).float()) < 1e-2
+
+
+@_needs_cuda
+def test_cast_linear_tf32x3_no_grad_path(monkeypatch):
+    monkeypatch.setenv("SWE_LMHEAD_TF32X3", "1")
+    lm_head = CastLinear.Config(in_features=256, out_features=1024, bias=False).build()
+    lm_head = lm_head.to("cuda", torch.bfloat16)
+    x = torch.randn(2, 128, 256, device="cuda", dtype=torch.bfloat16)
+    with torch.no_grad():
+        out = lm_head(x)
+    ref_out, _, _ = _ieee_fp32_reference(
+        x.float().requires_grad_(True), lm_head.weight.float().requires_grad_(True),
+        torch.zeros(2, 128, 1024, device="cuda"),
+    )
+    assert out.dtype == torch.float32
+    assert _rel_err(out, ref_out) < 1e-5
+
+
+@_needs_cuda
+def test_tf32_mm_long_reduction_stays_fp32_accurate():
+    # grad_x reduces over the vocab (248320 terms). One TF32 GEMM over that K
+    # measured 9.3e-4 off an fp64 reference on B300 even with TF32-exact inputs;
+    # _tf32_mm splits the reduction so the result stays at the K=4096 level.
+    torch.manual_seed(0)
+    a = torch.randn(64, 248320, device="cuda", dtype=torch.bfloat16).float()
+    b = (torch.randn(248320, 256, device="cuda", dtype=torch.bfloat16) * 0.02).float()
+    ref = a.double() @ b.double()
+    got = _tf32_mm(a, b)
+    assert ((got.double() - ref).norm() / ref.norm()).item() < 3e-5
