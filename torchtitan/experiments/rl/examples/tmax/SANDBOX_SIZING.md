@@ -32,8 +32,8 @@ each capped at the platform maximum: 4 cores / 8 GiB / 10 GiB
 `1.3` is headroom and multiplies measurements only. A floor already states a
 requirement, and multiplying a number nobody measured only inflates it.
 
-The rule is implemented once, in `derive_sizing.py`. Applying it to the mix,
-exporting the published CSV, and re-verifying all read that script's output
+The rule is implemented once, in `derive_sizing.py`. Applying it to the training
+mix, exporting the published CSV, and re-verifying all read that script's output
 rather than recomputing. Three scripts each doing their own arithmetic is three
 sets of numbers that disagree.
 
@@ -49,23 +49,23 @@ sets of numbers that disagree.
 runnable reference solution, so they can be measured twice. The TMax half's gold
 is a snapshot of the finished state rather than a script, so unpacking it
 completes the task without spending anything, and those 400 tasks have the agent
-measurement as their only source. `peer` moves 5 of them.
+measurement as their only source. `peer` is what moves 5 of those 400.
 
 ## Why three sources and not one
 
 The first version sized from the agent measurement alone. It broke 16 of 663
-tasks: 3 were killed by the kernel, and 4 could not create a sandbox session at
-all.
+tasks. Among them, 3 were killed by the kernel and 4 could not create a sandbox
+session at all.
 
 **The reason is that the agent picks its own route.** An expensive step it
 happens to skip, `conda create` or `blkar decode`, never enters its peak, while
 the reference solution runs that step every time. Adding the reference solution
-as a second workload showed the gap is not a tail effect: **141 of 663 tasks
+as a second workload showed the gap is not a tail effect: **146 of 663 tasks
 (22%) peak higher under the reference solution, by a median of 2.0x, a 95th
-percentile of 10.7x, and a maximum of 24.1x.**
+percentile of 10.9x, and a maximum of 27.1x.**
 
 Neither reading describes the policy being trained, which is a third thing. Two
-independent workloads is what is available, and one is measurably not enough.
+independent workloads are what is available, and one is measurably not enough.
 
 ## The CPU bound
 
@@ -96,14 +96,15 @@ it.
 
 **Memory, 2 GiB when the reference solution did not pass.** Such a task rests on
 the agent measurement alone, and that is exactly the reading that under-read 16
-tasks into failure. Writing it a size below the fleet default would lower a
-number nothing can check: all of the downside, none of the upside.
+tasks into failure. Sizing it below the account's default would lower a number
+nothing can check: all of the downside, none of the upside.
 
 ## What is deliberately not a floor
 
 The task's own `req_memory_mb` and `req_cpus`. Across 663 tasks `req_memory_mb`
-takes four values (2048 on 388, 4096 on 115, 1024 on 82, absent on 67). **It is
-a template field, not a statement about the task.**
+takes six values, three of which cover 88% of the corpus: 2048 on 388, 4096 on
+115, 1024 on 82, 8192 on 6, 512 on 5, and absent on 67. **It is a template
+field, not a statement about the task.**
 
 Using it as a floor raises mean memory per sandbox from 1.10 to 2.18 GiB, which
 halves how many sandboxes the account can hold at once, in exchange for a number
@@ -154,8 +155,8 @@ default and recorded as task failures. Declarations across the corpus run
 600 / 900 / 1200 / 1800 / 2400 / 2700 / 3600 / 5400 / 7200, so roughly 35% of
 tasks declare more than 900.
 
-Note that the declared timeout is calibrated as expert time times three, which
-makes it right for the reference solution and wrong for the policy. Backfilling
+The declared timeout is calibrated as expert time times three, which makes it
+right for the reference solution and wrong for the policy. Backfilling
 it onto training rows once dropped 75-85% of rollouts from the launcher's 2400
 seconds to the floor's 900 and starved a run; those rows carry no
 `agent_timeout_sec` for that reason. The same number is correct here and
@@ -207,7 +208,7 @@ held no live sandboxes for that label at all.
 
 ## Two biases that stay
 
-- The measurement describes **the measuring agent's** behaviour, not the trained
+- The measurement describes **the measuring agent's** behavior, not the trained
   policy's. The reference solution covers part of that gap and cannot close it,
   because the policy is neither.
 - **The max over three attempts sits below the tail of 16 rollouts per task** in
