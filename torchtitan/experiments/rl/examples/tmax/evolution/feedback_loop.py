@@ -42,7 +42,6 @@ import argparse
 import json
 import logging
 import os
-import random
 import re
 import shutil
 import subprocess
@@ -234,6 +233,20 @@ def revalidate(work: Path, image: str, tid: str, task: dict,
     return {"ok": True}
 
 
+def _record_codex_traces(rec: dict, value) -> None:
+    """Attach durable Codex work directories to the per-signal audit record."""
+    if isinstance(value, BaseException):
+        paths = [getattr(value, "codex_trace_dir", "")]
+    elif isinstance(value, dict):
+        paths = value.get("_codex_trace_dirs") or [value.get("_codex_trace_dir", "")]
+    else:
+        paths = []
+    current = rec.setdefault("codex_trace_dirs", [])
+    for path in paths:
+        if path and path not in current:
+            current.append(path)
+
+
 def process_one(rollout: dict, src_dir: Path, out_root: Path) -> dict:
     tid = rollout["task_id"]
     solved = rollout.get("solved", 0)
@@ -258,6 +271,9 @@ def process_one(rollout: dict, src_dir: Path, out_root: Path) -> dict:
         shutil.copytree(src_dir, work)
 
         task = ev.load(work)
+        # Each concurrent invocation gets a unique directory name; write the
+        # stable task ID to trace.json so the directory remains attributable.
+        task["_task_id"] = tid
         if solved == 0:                                   # 0/k -> easier
             # Retune arm, selectable per run. "chat" (default): one gpt-5.6 call
             # with the trace in the prompt. "codex": agentic, full traces as
@@ -277,7 +293,9 @@ def process_one(rollout: dict, src_dir: Path, out_root: Path) -> dict:
                     import evolve_codex as ec
                     new = ec.simplify_codex(task, solved=0, attempts=graded,
                                             trajectory=trace, hint=hint_lvl)
+                    _record_codex_traces(rec, new)
                 except Exception as e:  # noqa: BLE001 -- fall back to chat
+                    _record_codex_traces(rec, e)
                     log.warning("codex retune failed (%s); chat fallback", e)
                     new = ev.simplify(task, solved=0, attempts=graded,
                                       trajectory=trace, hint=hint_lvl)
@@ -319,6 +337,7 @@ def process_one(rollout: dict, src_dir: Path, out_root: Path) -> dict:
                     new = ec.evolve_agentic(
                         agent_task, "harder", trajectory=format_trace(attempts),
                         operator=shortlist)
+                    _record_codex_traces(rec, new)
                     rec["action"], rec["hint"] = "evolve", new.get("_hint")
                     rec["agent_validated"] = new.get("_agent_validated")
                     weaker = _verifier_weakened(
@@ -328,6 +347,7 @@ def process_one(rollout: dict, src_dir: Path, out_root: Path) -> dict:
                     if weaker:
                         raise RuntimeError(f"verifier weakened: {weaker}")
                 except ec_Blocked as e:
+                    _record_codex_traces(rec, e)
                     # It read the package and said the axis does not fit, or
                     # that it cannot be made harder honestly. Take the answer:
                     # falling through to the chat operator asks a weaker method
@@ -337,6 +357,7 @@ def process_one(rollout: dict, src_dir: Path, out_root: Path) -> dict:
                     return {**rec, "status": "kept", "why": str(e)[:200],
                             "out_dir": str(work)}
                 except Exception as e:  # noqa: BLE001 -- chat operator below
+                    _record_codex_traces(rec, e)
                     log.warning("agent evolve failed (%s); chat fallback", e)
                     new = None
             else:
@@ -405,7 +426,9 @@ def process_one(rollout: dict, src_dir: Path, out_root: Path) -> dict:
                 try:
                     import evolve_codex as ec
                     fixed = ec.repair_oracle_codex(new, tail, code)
+                    _record_codex_traces(rec, fixed)
                 except Exception as e:  # noqa: BLE001 -- fall back to chat
+                    _record_codex_traces(rec, e)
                     log.warning("codex oracle repair failed (%s); chat fallback", e)
             if fixed is None:
                 try:
