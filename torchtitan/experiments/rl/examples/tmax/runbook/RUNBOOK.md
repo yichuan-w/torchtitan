@@ -78,9 +78,11 @@ Non-obvious requirements, all verified:
 Four steps from a clean machine. This is the whole thing.
 
 ```bash
-# 0. Pick three paths. These are the only machine-specific values.
-export TRL_BASE=/scratch/gpfs/TRIDAO/al9080/terminal-rl      # data, runs, logs
-export TRL_TT=/home/al9080/torchtitan-yichuan                # torchtitan checkout
+# 0. Pick a profile. profiles/<name>.env holds the checkout (TRL_TT) and the
+#    data root (TRL_BASE); two people launch on this box from one account, each
+#    from their own. The model and venv are shared.
+export TRL_PROFILE=andy                                       # or yichuan
+set -a; . profiles/$TRL_PROFILE.env; set +a                   # for the steps below
 export TRL_MODEL=/scratch/gpfs/TRIDAO/al9080/models/Qwen3.5-9B
 export TRL_VENV=/scratch/gpfs/TRIDAO/al9080/titan-rl         # virtualenv
 
@@ -714,8 +716,7 @@ off, the too-hard tail freezes instead of being loosened.
 
 ```bash
 cd "$TRL_TT/torchtitan/experiments/rl/examples/tmax/evolution"
-export TRL_BASE=/scratch/gpfs/TRIDAO/al9080/terminal-rl
-export TRL_TT=/home/al9080/torchtitan-yichuan
+set -a; . ../runbook/profiles/andy.env; set +a   # TRL_BASE, TRL_TT, signals dir; or yichuan.env
 export OPENAI_API_KEY=...  DAYTONA_API_KEY=...
 export SWE_RETUNE_AGENT=codex SWE_EVOLVE_SIMPLIFY=0 SWE_SIMPLIFY_HINT=vague
 
