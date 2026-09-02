@@ -149,6 +149,14 @@ def _handle(sp: Path):
     st = rec.get("status", "?")
     if st not in ("ok", "kept") and rec.get("why"):
         log.warning("%s %s: %s", tid, st, str(rec["why"])[:300])
+    elif st == "kept" and rec.get("why"):
+        # A codex `kept` is the agent reading the package and declining the axis
+        # it was given -- a real answer, not an error. But it left no trace at
+        # all, so a run where every k/k signal came back kept read exactly like
+        # one where the agent never ran (measured 2026-09-02: 5 of 5 kept, and
+        # the only way to tell them apart was to catch a /tmp workdir before it
+        # was cleaned up). The verdict text says which axis did not fit.
+        log.info("%s kept: %s", tid, str(rec["why"])[:300])
     return {"tid": tid, "status": st, "action": rec.get("action", "-"),
             "solved": rec.get("solved"), "graded": rec.get("graded"),
             "fast": rec.get("revalidate", {}).get("fast_path", ""),
