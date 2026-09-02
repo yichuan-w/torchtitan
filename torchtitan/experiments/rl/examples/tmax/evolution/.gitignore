@@ -1,0 +1,15 @@
+# Bulk corpus data is not tracked; the operator cards and the clean-set metadata are.
+data/*
+!data/operator_cards.json
+!data/operator_cards_authors.json
+!data/operator_keywords.json
+!data/seed-dataset-clean/
+data/seed-dataset-clean/*
+!data/seed-dataset-clean/metadata/
+results/*.jsonl
+results/contamination/inputs/
+results/contamination/embeddings.npz
+logs/
+tmp/
+.synth_env
+__pycache__/

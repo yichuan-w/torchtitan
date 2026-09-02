@@ -1,0 +1,11 @@
+Hi Daytona team,
+
+I'm Zhifei Li, an incoming CS PhD student at Princeton working on ML systems with Tri Dao. I contribute to SkyPilot and built LEANN and PixelRAG, both open source.
+
+My current project is RL training for terminal agents, building on AI2's tmax recipe, which uses Daytona as its rollout sandbox backend. A training run keeps a few hundred sandboxes alive concurrently (the reference config runs 512), each executing up to 64 bash commands per episode over a 15k-task corpus, so sandbox capacity is the real bottleneck. We would rather run this on Daytona than maintain our own container fleet.
+
+Do you offer credits for academic research? We would acknowledge Daytona in any resulting papers and can share what we learn about running RL rollouts at this scale.
+
+Best,
+Zhifei Li
+https://zhifei.li

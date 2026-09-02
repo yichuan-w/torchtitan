@@ -10,6 +10,8 @@ dist/*
 
 # data
 data
+# The tmax evolution tooling tracks its operator cards and clean-set metadata.
+!torchtitan/experiments/rl/examples/tmax/evolution/data/
 out
 wandb
 
