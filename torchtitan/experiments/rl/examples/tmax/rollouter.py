@@ -73,7 +73,7 @@ from collections.abc import Mapping
 from dataclasses import asdict, dataclass, field
 from typing import TYPE_CHECKING
 
-from renderers import Renderer
+from renderers import Message, Renderer
 
 from torchtitan.experiments.rl.environment import TokenEnv
 from torchtitan.experiments.rl.examples.tmax.data import TMaxDataset, TMaxSample
@@ -91,6 +91,7 @@ from torchtitan.experiments.rl.examples.tmax.vanillux_loop import (  # noqa: F40
 from torchtitan.experiments.rl.harness import (
     AgentTask,
     AnthropicAdapter,
+    CapturedTurn,
     boot_agent_sandbox,
     get_agent,
     Sandbox,
@@ -186,6 +187,65 @@ _TIMEOUT_ISSUE_KINDS = {
     "command_status_timeout",
     "command_timeout",
 }
+
+
+def _captured_to_turns(
+    captured: list[CapturedTurn], group_id: str, rollout_idx: int
+) -> list[RolloutTurn]:
+    """Lay the adapter's captured turns out as RolloutTurns.
+
+    Two jobs. Empty-completion turns are dropped so rollout_to_training_samples
+    only sees trainable turns (a non-final empty completion would otherwise
+    raise).
+
+    And the conversation is laid back out. Without it a rollout dump holds token
+    ids and a reward, so answering "what did the agent actually type" means
+    re-running the episode; these fields are logging-only and never reach the
+    loss. The adapter captures the conversation as a delta per turn -- storing
+    the full history on every turn is quadratic in episode length -- so it is
+    reassembled here into the shape RolloutTurn documents: ``prompt_messages``
+    is the conversation up to a turn, ``env_messages`` is what the environment
+    replied afterwards.
+    """
+    turns: list[RolloutTurn] = []
+    pending_env: list[Message] = []
+    for ct in captured:
+        if not ct.completion_token_ids:
+            # An over-budget turn is dropped, but the environment output that
+            # pushed it over budget is the episode's last observation. Hold it
+            # for the previous turn rather than losing it.
+            if not ct.messages_are_full_prompt:
+                pending_env.extend(ct.messages)
+            continue
+        if ct.messages_are_full_prompt:
+            # First turn, or a prompt re-rendered from scratch: these messages
+            # ARE the conversation up to here, so nothing stays pending for the
+            # turn before it.
+            prompt_messages = list(ct.messages)
+            pending_env = []
+        else:
+            prompt_messages = []
+            pending_env.extend(ct.messages)
+        if turns and pending_env:
+            turns[-1].env_messages = pending_env
+        turns.append(
+            RolloutTurn(
+                rollout_id=RolloutTurnID(
+                    group_id=group_id, rollout_id=rollout_idx, turn_id=len(turns)
+                ),
+                prompt_token_ids=ct.prompt_token_ids,
+                completion_token_ids=ct.completion_token_ids,
+                completion_logprobs=ct.completion_logprobs,
+                min_policy_version=ct.min_policy_version,
+                max_policy_version=ct.max_policy_version,
+                prompt_messages=prompt_messages,
+                completion_message=ct.completion_message,
+            )
+        )
+        pending_env = []
+    if turns and pending_env:
+        turns[-1].env_messages = pending_env
+    return turns
 
 
 @dataclass(slots=True)
@@ -1244,23 +1304,7 @@ class TMaxRollouter(Rollouter):
             infra_failed=infra_failed,
         )
 
-        # Drop empty-completion turns so rollout_to_training_samples only sees
-        # trainable turns (a non-final empty completion would otherwise raise).
-        turns: list[RolloutTurn] = [
-            RolloutTurn(
-                rollout_id=RolloutTurnID(
-                    group_id=group_id, rollout_id=rollout_idx, turn_id=turn_idx
-                ),
-                prompt_token_ids=ct.prompt_token_ids,
-                completion_token_ids=ct.completion_token_ids,
-                completion_logprobs=ct.completion_logprobs,
-                min_policy_version=ct.min_policy_version,
-                max_policy_version=ct.max_policy_version,
-            )
-            for turn_idx, ct in enumerate(
-                ct for ct in captured if ct.completion_token_ids
-            )
-        ]
+        turns = _captured_to_turns(captured, group_id, rollout_idx)
 
         # Load-bearing invariant: the off-policy age filter (controller) takes
         # min()/max() over each sample's turn policy versions, which TypeErrors
