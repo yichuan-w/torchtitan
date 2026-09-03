@@ -106,7 +106,12 @@ else
     [ -L "$_ckpt_link" ] || ln -s "$SWE_CKPT_FOLDER" "$_ckpt_link"
 fi
 # Say which weights the trainer will start from, so launch.info answers it.
-_latest_step=$(ls -d "$SWE_CKPT_FOLDER"/step-* 2>/dev/null | sort -V | tail -1)
+# `ls` exits 2 when the glob matches nothing, and under `set -o pipefail`
+# that is the pipeline's status, so the assignment aborts the script before
+# a single [launch] line is printed. A fresh run never has step-* -- this
+# folder is named after the new dump and is no longer pre-created -- so
+# every first launch died silently with exit 2. Keep the failure local.
+_latest_step=$(ls -d "$SWE_CKPT_FOLDER"/step-* 2>/dev/null | sort -V | tail -1 || true)
 if [ -n "$_latest_step" ]; then
     echo "[launch] resuming from $_latest_step"
 else
