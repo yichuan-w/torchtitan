@@ -176,35 +176,39 @@ overran the agent budget after every restart — which is why it was halved.
 
 ## Online evolution
 
-To restart it after changing a prompt or a script, use
-`evolve-onhost/scripts/restart_evolve.sh`. The loop holds its credentials only in its own
-environment — there is no env file it reads at startup — so a restart has to carry them
-across from the process it replaces, and that is what the script is for. Job prompts are
-module constants and need the restart; `AGENTS.md` is copied from disk at every session
-and does not.
+The loop runs `evolve_ondella.py` from a torchtitan checkout on della (the live one is
+`$HOME/../scratch/gpfs/TRIDAO/al9080/andy-rl-tb/torchtitan`, on the canonical branch), as a
+systemd user unit named `evolve-<workdir name>`. A user unit rather than a nohup'd
+process: nohup'd processes are SIGKILLed with the ssh session on della-tridao.
 
-To start it from nothing:
+To restart it after changing a prompt or a script, fast-forward that checkout and run
+`restart_evolve.sh <old loop pid>` from its `evolution/` directory. The loop holds its
+credentials only in its own environment — there is no env file it reads at startup — so
+the script reads them from `/proc/<pid>/environ` (into `<workdir>/meta/evolve.env`, kept
+out of the evolution root because the lineage snapshot commits that directory), stops the
+old process group, marks the Codex traces it interrupted, and starts the replacement unit
+with the same log, worker and interval arguments. Job prompts are module constants and
+need the restart; `AGENTS.md` is copied from disk at every session and does not.
+
+To start it from nothing, for one training workdir:
 
 ```bash
-tmux new-session -d -s evolveloop -c $ROOT
-tmux send-keys -t evolveloop \
-  ". ~/.config/daytona/env; SYNTH_ENV_FILE=$ROOT/.synth_env TRL_TT=\$HOME/torchtitan \
-   SWE_RETUNE_AGENT=codex SWE_SIMPLIFY_HINT=vague \
-   $PY evolve-onhost/scripts/evolve_ondella.py --interval 120 --workers 16" Enter
+TT_DAYTONA_CPU=1 TT_DAYTONA_MEM_GB=2 TT_DAYTONA_DISK_GB=2 \
+  bash della/launch_evolveloop.sh /scratch/gpfs/TRIDAO/al9080/terminal-rl/workdirs/<wd> 16
 ```
 
-Copy the whole line. Each part earns its place:
-
-- `. ~/.config/daytona/env` — without it, structural revalidation silently fails `no_docker`.
-- `SYNTH_ENV_FILE` — without it the loop dies at startup with `no OPENAI_API_KEY`.
-- `SWE_RETUNE_AGENT=codex` — agentic retune with the full failure traces as files, rather
-  than one chat call with a truncated trace. Falls back to chat per signal on error; the
-  per-signal log line shows which arm ran (`arm=codex`).
-- `SWE_SIMPLIFY_HINT=vague` — how much guidance a rewrite may add. `specific` writes
-  where-to-look hints into the task text, and the policy learns to follow hints rather
-  than to solve.
-- `--workers 16` — not a throughput knob. The loop is signal-starved (89% of rounds carry
-  ≤8 signals); this only drains rare bursts faster.
+The three `TT_DAYTONA_*` are the trainer's fleet defaults and have to match its launch
+env: a row declaring no `daytona_*` of its own is verified at this size, and the script
+refuses to start without them. It sources `~/.config/daytona/env` (without it structural
+revalidation silently fails `no_docker`), points `SYNTH_ENV_FILE` at the OpenAI key
+(without it the loop dies at startup with `no OPENAI_API_KEY`), and sets
+`SWE_RETUNE_AGENT=codex` (agentic retune with the full failure traces as files, no chat
+fallback: a failed session leaves the task as it was and logs `agent_failed`),
+`SWE_SIMPLIFY_HINT=vague` (`specific` writes where-to-look hints into the task text, and
+the policy learns to follow hints rather than to solve) and `SWE_EVOLVE_SIMPLIFY=0` (0/k
+signals defer to `evolution/deferred_easier`). The worker count is not a throughput knob:
+the loop is signal-starved (89% of rounds carry ≤8 signals) and it only drains rare
+bursts faster.
 
 What it does: training emits a signal for every group that came back all-solved or
 all-failed, because those produce no gradient. All-failed means the task is too hard, so
@@ -238,17 +242,19 @@ writes `"status": "interrupted"` before starting the replacement loop. Set
 data because the archived workspace includes the verifier, reference solution, and full
 rollout transcripts.
 
-**Restarting it: `pkill -f evolve_ondella`, not Ctrl-C.** Ctrl-C mid-round gets absorbed
-and you end up with two instances. The loop holds `<evolution root>/evolve_ondella.lock`
-for its lifetime -- flock on its own node, a 30 s heartbeat on the file's mtime for other
-nodes -- so a second start over the same signals directory exits 1 naming the holder
-instead of running beside it. Nothing stale needs clearing: the kernel drops the flock
-when the holder dies, and a holder on another node is treated as dead once its heartbeat
-is 90 s old. Afterwards check the process is genuinely new:
+**Stopping it: `restart_evolve.sh`, or `systemctl --user stop evolve-<wd>`, not Ctrl-C.**
+Ctrl-C mid-round gets absorbed and you end up with two instances. The loop holds
+`<evolution root>/evolve_ondella.lock` for its lifetime -- flock on its own node, a 30 s
+heartbeat on the file's mtime for other nodes -- so a second start over the same signals
+directory exits 1 naming the holder instead of running beside it. Nothing stale needs
+clearing: the kernel drops the flock when the holder dies, and a holder on another node is
+treated as dead once its heartbeat is 90 s old. Afterwards check the process is genuinely
+new:
 
 ```bash
-pgrep -cf evolve_ondella          # must be 1
-ps -o etimes= -p $(pgrep -f evolve_ondella | head -1)   # must be small
+systemctl --user show evolve-<wd> -p MainPID -p ActiveEnterTimestamp
+pat=evolve_ondella; pgrep -cf "${pat}\.py"   # must be 1; a plain pgrep -f counts
+                                            # your own ssh command line too
 ```
 
 ## Measuring whether it is learning
