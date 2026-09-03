@@ -190,6 +190,32 @@ old process group, marks the Codex traces it interrupted, and starts the replace
 with the same log, worker and interval arguments. Job prompts are module constants and
 need the restart; `AGENTS.md` is copied from disk at every session and does not.
 
+**Changing the loop while a run depends on it.** The loop that feeds a training
+run is the run's, and every restart of it interrupts Codex sessions and changes
+the behaviour the run is being measured under (four restarts in one afternoon on
+wd-20260903b, each for one change). So a change is tried somewhere else first:
+a dev workdir with the run's shape and no trainer, run from a second checkout.
+
+```bash
+# once: a dev checkout and a dev workdir (a copy of the mix, the pools, empty queues)
+git clone <the production checkout> /scratch/gpfs/TRIDAO/al9080/andy-rl-dev/torchtitan
+D=/scratch/gpfs/TRIDAO/al9080/terminal-rl/workdirs/wd-evolve-dev
+mkdir -p $D/data/mix $D/evolution/signals $D/logs
+cp $W/data/mix/mix_live.jsonl $D/data/mix/ && ln -s $W/data/tw-extract $D/data/tw-extract
+
+# per change: put the code in the dev checkout (rsync a branch, or fetch and
+# check it out), replay a few of the run's consumed signals, run one round
+EVO=/scratch/gpfs/TRIDAO/al9080/andy-rl-dev/torchtitan/torchtitan/experiments/rl/examples/tmax/evolution
+bash $EVO/della/replay_signals.sh $W/evolution $D 3 harder
+TT_DAYTONA_CPU=1 TT_DAYTONA_MEM_GB=2 TT_DAYTONA_DISK_GB=2 bash $EVO/della/evolve_dev_round.sh $D 3
+```
+
+Folds land in the dev copy of the mix; `$D/evolution/{retuned,consumed,lineage}`
+and the Codex traces under `$D/evolution/signals/codex_traces/` are the
+evidence. The production checkout is fast-forwarded, and its loop restarted with
+`restart_evolve.sh`, only at a moment agreed with whoever owns the run, and
+only for changes that ran here.
+
 To start it from nothing, for one training workdir:
 
 ```bash
