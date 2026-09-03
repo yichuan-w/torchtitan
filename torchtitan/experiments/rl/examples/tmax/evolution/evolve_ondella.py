@@ -39,12 +39,15 @@ Usage:
 from __future__ import annotations
 
 import argparse
+import fcntl
 import hashlib
 import json
 import logging
 import os
 import shutil
+import socket
 import sys
+import threading
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
@@ -67,6 +70,7 @@ LINEAGE = Path(os.environ.get(
     "SWE_EVOLUTION_LINEAGE",
     str(EVOLUTION_ROOT / "evolution_lineage.jsonl"),
 ))
+LOCK = EVOLUTION_ROOT / "evolve_ondella.lock"
 # The 0/k -> easier branch is switchable, because the ratchet it drives only
 # turns one way. A simplify is accepted almost every time -- the revalidation
 # asks whether solve.sh still passes, and rewriting the instruction cannot break
@@ -83,6 +87,85 @@ POOL_ROOTS = [BASE / "data/swe-extract/tasks", BASE / "data/tw-extract/tasks",
               BASE / "data/tmax-extract/tasks"]
 
 log = logging.getLogger("evolve_ondella")
+
+
+LOCK_HEARTBEAT_SEC = 30
+# A contender on another node treats a heartbeat older than this as a dead
+# holder. Three beats: one missed beat is a stalled GPFS write, not a death.
+LOCK_STALE_SEC = 3 * LOCK_HEARTBEAT_SEC
+
+
+def _heartbeat(fd: int) -> None:
+    while True:
+        time.sleep(LOCK_HEARTBEAT_SEC)
+        try:
+            os.utime(fd)
+        except OSError:
+            pass
+
+
+def acquire_singleton(lock_path: Path = LOCK) -> int:
+    """Hold the one-loop-per-evolution-root lock for the life of this process.
+
+    The loop is a singleton by contract -- two instances over one signals
+    directory race for the same signal files, send the same k/k task to Codex
+    twice, write the same retuned/<tid>/ concurrently and fold over each
+    other's mix -- but nothing enforced it. There are five ways to launch it
+    (restart_evolve.sh, launch_evolveloop.sh, the training launcher, a
+    hand-typed command, a per-workdir systemd script); only one stops the
+    previous instance first, and it stopped the first pgrep match only.
+    Measured 2026-09-02: nine launches in one day, two instances alive at once
+    for 27 minutes. Guarding every launcher is whack-a-mole; the process
+    guards itself.
+
+    Two layers, because no single primitive reaches across nodes here:
+
+    * flock, for the node the loop runs on. The kernel drops it when the
+      holder dies, however it dies, so a SIGKILLed loop never leaves a stale
+      lock. flock rather than fcntl: a POSIX record lock is released the
+      moment its process closes any fd on the file, which a stray read of the
+      lock file would do silently.
+    * a heartbeat, for other nodes. Neither flock nor fcntl held across nodes
+      on this GPFS mount (measured 2026-09-02: a holder on della-tridao did
+      not stop a contender on della-gpu), so the holder touches the file's
+      mtime every LOCK_HEARTBEAT_SEC and a contender that finds another host
+      named in the file with a heartbeat under LOCK_STALE_SEC refuses. A dead
+      holder on another node clears itself after LOCK_STALE_SEC; nothing has
+      to be removed by hand.
+
+    Test modes (--once, --only) take it too: a hand round over a live loop's
+    signals dir collides the same way. The returned fd must stay open.
+    """
+    lock_path.parent.mkdir(parents=True, exist_ok=True)
+    fd = os.open(lock_path, os.O_RDWR | os.O_CREAT, 0o644)
+    try:
+        fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except OSError:
+        holder = os.pread(fd, 4096, 0).decode(errors="replace").strip()
+        os.close(fd)
+        raise SystemExit(
+            f"evolve_ondella: another instance already runs over "
+            f"{lock_path.parent} ({holder or 'holder unknown'}). Stop it "
+            f"first -- restart_evolve.sh does -- rather than start a second."
+        ) from None
+    host = socket.gethostname()
+    holder = os.pread(fd, 4096, 0).decode(errors="replace").strip()
+    age = time.time() - os.fstat(fd).st_mtime
+    if holder and f"host={host} " not in holder and age < LOCK_STALE_SEC:
+        os.close(fd)
+        raise SystemExit(
+            f"evolve_ondella: another instance runs over {lock_path.parent} "
+            f"on a different node, heartbeat {age:.0f}s old ({holder}). Stop "
+            f"it there; if it is already dead, its heartbeat goes stale after "
+            f"{LOCK_STALE_SEC}s and this start will go through."
+        )
+    os.ftruncate(fd, 0)
+    os.write(fd, (f"host={host} pid={os.getpid()} "
+                  f"started={time.strftime('%Y-%m-%dT%H:%M:%S%z')} "
+                  f"argv={' '.join(sys.argv)}\n").encode())
+    threading.Thread(target=_heartbeat, args=(fd,), daemon=True,
+                     name="evolve-lock-heartbeat").start()
+    return fd
 
 
 def _canonical_json(value: object) -> str:
@@ -531,6 +614,9 @@ def main() -> None:
                     help="concurrent re-tunes per round")
     ap.add_argument("--log", default=str(EVOLUTION_ROOT / "evolve_ondella.log"))
     args = ap.parse_args()
+    # Before the log file is even opened: a refused second instance must not
+    # write "loop up" into the log the first one owns.
+    _lock_fd = acquire_singleton()  # noqa: F841 -- held for the process lifetime
 
     Path(args.log).parent.mkdir(parents=True, exist_ok=True)
     logging.basicConfig(
@@ -553,8 +639,8 @@ def main() -> None:
         if r.get("retuned") or r.get("folded"):
             _snapshot_lineage(f"once: {r}")
         return
-    log.info("evolve_ondella loop up: signals=%s mix=%s interval=%ds workers=%d",
-             SIGNALS, MIX, args.interval, args.workers)
+    log.info("evolve_ondella loop up: pid=%d signals=%s mix=%s interval=%ds "
+             "workers=%d", os.getpid(), SIGNALS, MIX, args.interval, args.workers)
     while True:
         try:
             r = run_round(workers=args.workers)

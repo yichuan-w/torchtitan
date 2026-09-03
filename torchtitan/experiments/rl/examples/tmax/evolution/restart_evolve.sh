@@ -16,15 +16,19 @@ INTERVAL=${EVOLVE_INTERVAL:-120}
 
 [ -f "$ENVFILE" ] || { echo "no env snapshot at $ENVFILE"; exit 1; }
 
-OLD_PID=$(pgrep -f evolve_ondella.py | head -1)
-if [ -n "$OLD_PID" ]; then
+# Every instance, not the first pgrep match: with two alive (it has happened --
+# a launcher that does not stop its predecessor) `head -1` stopped one and
+# started a third. The loop now refuses to start while another holds its lock,
+# so a survivor here would make the start below fail rather than double up.
+for OLD_PID in $(pgrep -f evolve_ondella.py); do
     OLD_PGID=$(ps -o pgid= -p "$OLD_PID" | tr -d ' ')
-    OLD_TRACE_DIR=$(tr '\0' '\n' < "/proc/$OLD_PID/environ" | sed -n 's/^SWE_EVOLUTION_TRACE_DIR=//p')
     case "$OLD_PGID" in
-        ''|*[!0-9]*) echo "invalid process group for pid $OLD_PID: $OLD_PGID"; exit 1 ;;
+        '') echo "pid $OLD_PID already gone"; continue ;;
+        *[!0-9]*) echo "invalid process group for pid $OLD_PID: $OLD_PGID"; exit 1 ;;
     esac
     [ "$OLD_PGID" -gt 1 ] || { echo "refusing to stop process group $OLD_PGID"; exit 1; }
-    echo "stopping the running loop process group $OLD_PGID"
+    OLD_TRACE_DIR=$(tr '\0' '\n' < "/proc/$OLD_PID/environ" 2>/dev/null | sed -n 's/^SWE_EVOLUTION_TRACE_DIR=//p')
+    echo "stopping the running loop pid $OLD_PID process group $OLD_PGID"
     # The loop is started with setsid. Stop every process in its group so Codex and
     # validator subprocesses cannot outlive the loop being replaced.
     kill -TERM -- "-$OLD_PGID"
@@ -39,7 +43,7 @@ if [ -n "$OLD_PID" ]; then
             "$OLD_TRACE_DIR" --stopped-loop-pid "$OLD_PID" || \
             echo "warning: some Codex trace records could not be finalized"
     fi
-fi
+done
 
 # Session-scoped variables belong to whoever was logged in when the snapshot was
 # taken, not to the loop; carrying them forward is at best noise.
