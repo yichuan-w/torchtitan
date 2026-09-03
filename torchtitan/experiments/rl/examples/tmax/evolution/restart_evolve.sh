@@ -59,7 +59,7 @@ while IFS= read -r line; do
 done < "$ENVFILE"
 
 export SYNTH_ENV_FILE=${SYNTH_ENV_FILE:-$ROOT/.synth_env}
-export TRL_TT=${TRL_TT:-$HOME/torchtitan-yichuan}
+export TRL_TT=${TRL_TT:-$HOME/torchtitan}
 export SWE_RETUNE_AGENT=${SWE_RETUNE_AGENT:-codex}
 export SWE_SIMPLIFY_HINT=${SWE_SIMPLIFY_HINT:-vague}
 export SWE_EVOLVE_SIMPLIFY=${SWE_EVOLVE_SIMPLIFY:-0}

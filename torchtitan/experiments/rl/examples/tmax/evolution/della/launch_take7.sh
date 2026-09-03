@@ -10,14 +10,14 @@
 set -euo pipefail
 . /scratch/gpfs/TRIDAO/al9080/titan-rl/bin/activate
 . ~/.config/daytona/env
-cd ~/torchtitan-yichuan
+cd ~/torchtitan
 
 STAMP=$(date +%Y%m%d-%H%M%S)
 DUMP=${RL_RESUME_DUMP:-/scratch/gpfs/TRIDAO/al9080/terminal-rl/runs/tw-mix-take7-$STAMP}
 mkdir -p "$DUMP"
 
 export CUDA_VISIBLE_DEVICES=${RL_GPUS:-1,2,4,6,7}
-export PYTHONPATH=$HOME/torchtitan-yichuan
+export PYTHONPATH=$HOME/torchtitan
 export SWE_PROMPT_DATA=${RL_DATA:-/scratch/gpfs/TRIDAO/al9080/terminal-rl/data/mix/mix_live.jsonl}
 export SWE_DATA_HOT_RELOAD=1
 export SWE_TASK_EVOLUTION_DIR=/scratch/gpfs/TRIDAO/al9080/terminal-rl/evolution/signals

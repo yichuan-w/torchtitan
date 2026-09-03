@@ -9,7 +9,7 @@ set -euo pipefail
 R=/scratch/gpfs/TRIDAO/al9080/terminal-rl
 . ~/.config/daytona/env
 export SYNTH_ENV_FILE=$R/.synth_env
-export TRL_TT=$HOME/torchtitan-yichuan
+export TRL_TT=$HOME/torchtitan
 export SWE_TASK_EVOLUTION_DIR=${SWE_TASK_EVOLUTION_DIR:-$R/evolution/signals}
 EVOLUTION_ROOT=$(dirname "$SWE_TASK_EVOLUTION_DIR")
 export SWE_EVOLUTION_TRACE_DIR=${SWE_EVOLUTION_TRACE_DIR:-$SWE_TASK_EVOLUTION_DIR/codex_traces}

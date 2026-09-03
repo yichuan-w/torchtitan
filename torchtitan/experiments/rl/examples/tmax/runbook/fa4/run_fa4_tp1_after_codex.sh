@@ -30,7 +30,7 @@ fi
 echo "$(date -Is) independent check finished; GPUs 6 and 7 are ours"
 
 mkdir -p "$ARCH"
-mv -f "$HOME/torchtitan-yichuan/outputs/rl" "$ARCH/rl.pre_tp1.$(date +%s)" 2>/dev/null
+mv -f "$HOME/torchtitan/outputs/rl" "$ARCH/rl.pre_tp1.$(date +%s)" 2>/dev/null
 
 cd "$HOME/terminal-rl/scripts" || exit 1
 RL_GPU_OFFSET=6 SWE_TRAIN_TP=1 SWE_GEN_TP=1 SWE_ATTN_FA4=1 \
