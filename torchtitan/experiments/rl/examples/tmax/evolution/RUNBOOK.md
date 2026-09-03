@@ -232,7 +232,12 @@ data because the archived workspace includes the verifier, reference solution, a
 rollout transcripts.
 
 **Restarting it: `pkill -f evolve_ondella`, not Ctrl-C.** Ctrl-C mid-round gets absorbed
-and you end up with two instances. Afterwards check the process is genuinely new:
+and you end up with two instances. The loop holds `<evolution root>/evolve_ondella.lock`
+for its lifetime -- flock on its own node, a 30 s heartbeat on the file's mtime for other
+nodes -- so a second start over the same signals directory exits 1 naming the holder
+instead of running beside it. Nothing stale needs clearing: the kernel drops the flock
+when the holder dies, and a holder on another node is treated as dead once its heartbeat
+is 90 s old. Afterwards check the process is genuinely new:
 
 ```bash
 pgrep -cf evolve_ondella          # must be 1
