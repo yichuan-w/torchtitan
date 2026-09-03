@@ -677,12 +677,15 @@ harder — and folds the rewrite back into the live training file.
 3. **Revalidate.** A structural change must be rebuilt and its reference solution
    re-run before it is trusted. On a host with no Docker that happens in Daytona
    — two probes in two fresh sandboxes (oracle, then a shortcut/cheat check).
-   Both open at the size the row will be provisioned at: the seed's `daytona_*`
-   raised to what the reference solution measured in the agent's own container
-   (`derive_sizing.size_from_oracle`, the seed campaign's rule), never lowered.
-   The agent's container opens at the seed's size too, and reruns a check the
-   box cut short once at the platform ceiling, so the measurement is the
-   task's and not the box's.
+   Both open in the seed's box (`daytona_*`), raised to what the reference
+   solution measured in the agent's own container. The size that lands in the
+   row comes from the oracle probe's own counters, sized by
+   `derive_sizing.size_from_oracle` (the seed campaign's rule) and never below
+   the seed: the agent's `./sandbox check` reading only picks the box the
+   probe runs in, since the agent can edit its copy of the sandbox tool and
+   cannot reach the probe's container. When the box cuts the reference
+   solution short the agent's check says so, and `./sandbox check --max`
+   measures at the platform ceiling.
    A simplify takes an instruction-only fast path with no build and no sandbox,
    which is why the loop is cheap on the direction that dominates.
 4. **Fold.** Accepted rewrites are written back into the mix atomically

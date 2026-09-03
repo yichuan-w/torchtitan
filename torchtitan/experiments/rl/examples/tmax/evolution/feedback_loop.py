@@ -238,7 +238,8 @@ def revalidate(work: Path, image: str, tid: str, task: dict,
             return {"ok": False, "stage": "null_pass",
                     "why": "verifier passes on the untouched workspace"}
         return {"ok": True, "fast_path": "daytona_oracle",
-                "reward": dv.get("reward")}
+                "reward": dv.get("reward"), "measured": dv.get("measured"),
+                "resources": dv.get("resources")}
     sl.sh(["docker", "rmi", "-f", image], 300)
     ok, tail = sl.build_image(work, image)
     if not ok:
@@ -268,22 +269,27 @@ def _record_codex_traces(rec: dict, value) -> None:
             current.append(path)
 
 
-def provision(new: dict, floor: dict | None) -> dict | None:
-    """The size the rewritten row is provisioned at, and where it came from.
+def provision(measured: dict | None, floor: dict | None, *, box: dict | None = None,
+              at_max: bool = False, by: str = "") -> dict | None:
+    """A size for the rewritten row from one measurement, and where it came from.
 
     `floor` is what training gave the seed (the row's own daytona_* filled out
-    with the fleet default); `new["_measured"]` is what the reference solution
-    cost in the agent's container on the last check that passed. The row gets
-    max(floor, measured) on every axis: a measurement sizes it, and never
-    below the seed, because a harder version whose counters read lower is one
-    run's reading, not evidence the seed was oversized. With no measurement
-    the floor stands (what the fold inherited before there was a measurement);
-    with neither there is nothing to write and the row keeps following the
-    fleet default.
+    with the fleet default); `measured` is what the reference solution cost in
+    one container, read from its counters; `box` is the container that run
+    was in and `by` names who ran it. The result is max(floor, measured) on
+    every axis: a measurement sizes the row, and never below the seed, because
+    a harder version whose counters read lower is one run's reading, not
+    evidence the seed was oversized. With no measurement the floor stands
+    (what the fold inherited before there was a measurement); with neither
+    there is nothing to write and the row keeps following the fleet default.
+
+    Called twice per rewrite. The agent's own `./sandbox check` reading picks
+    the box the loop's probe runs in; the probe's reading, taken in a
+    container the agent never touched, is what the row is provisioned from.
     """
     floor = {k: v for k, v in (floor or {}).items()
              if k in RESOURCE_KEYS and v is not None}
-    m = new.get("_measured") or {}
+    m = measured or {}
     sized = None
     if any(m.get(k) is not None for k in ("mem_peak_mb", "df_used_mb", "cpu_seconds")):
         sized = ds.size_from_oracle(m.get("mem_peak_mb"), m.get("df_used_mb"),
@@ -294,9 +300,25 @@ def provision(new: dict, floor: dict | None) -> dict | None:
     if sized:
         for k in RESOURCE_KEYS:
             size[k] = max(floor.get(k) or 0, sized[k])
-    return {**size, "source": "measured" if sized else "inherited",
+    return {**size, "source": f"measured:{by}" if sized else "inherited",
             "floor": floor, "sized": sized, "measured": m or None,
-            "box": new.get("_box"), "at_max": bool(new.get("_at_max"))}
+            "box": box, "at_max": bool(at_max)}
+
+
+def _probe_box(new: dict, floor: dict | None) -> dict | None:
+    """Where to run the loop's probe: the seed's box, raised to what the agent's
+    last passing check measured. The agent's reading picks the box only."""
+    return provision(new.get("_measured"), floor, box=new.get("_box"),
+                     at_max=bool(new.get("_at_max")), by="agent_check")
+
+
+def _size_from_probe(work: Path, rec: dict, verdict: dict, floor: dict | None) -> None:
+    """After a probe that passed and measured: provision the row from its
+    counters rather than the agent's. The agent can edit its copy of the
+    sandbox tool; it cannot reach the probe's container."""
+    if verdict.get("ok") and verdict.get("measured"):
+        _write_provision(work, rec, provision(
+            verdict["measured"], floor, box=verdict.get("resources"), by="loop_probe"))
 
 
 def _write_provision(work: Path, rec: dict, size: dict | None) -> None:
@@ -472,11 +494,12 @@ def process_one(rollout: dict, src_dir: Path, out_root: Path,
                 {"operator": new.get("_operator"),
                  "family": new.get("_family"), "parent": tid}))
 
-        size = provision(new, resources)
-        _write_provision(work, rec, size)
+        box = _probe_box(new, resources)
+        _write_provision(work, rec, box)
         v = revalidate(work, image, tid, new, orig=task, changed=changed,
-                       resources=size)
+                       resources=box)
         rec["revalidate"] = v
+        _size_from_probe(work, rec, v, resources)
         if (
             not v["ok"]
             and rec["action"] == "evolve"
@@ -531,12 +554,13 @@ def process_one(rollout: dict, src_dir: Path, out_root: Path,
                         dest = work / rel
                         dest.parent.mkdir(parents=True, exist_ok=True)
                         dest.write_bytes(blob)
-                    size = provision(fixed, resources)
-                    _write_provision(work, rec, size)
+                    box = _probe_box(fixed, resources)
+                    _write_provision(work, rec, box)
                     v2 = revalidate(work, image, tid, fixed, orig=task,
                                     changed=[k for k in ev.file_map(fixed)
                                              if fixed[k] != task[k]] + list(extra),
-                                    resources=size)
+                                    resources=box)
+                    _size_from_probe(work, rec, v2, resources)
                     rec["oracle_repair"] = {"files": repaired + list(extra),
                                             "ok": v2["ok"]}
                     if v2["ok"]:
