@@ -257,6 +257,24 @@ async def grade_tmax(
         )
         return 0.0
 
+    # PRE-VERIFY (reaudit decision-1): run the task's exported pre_test integrity check ONCE as root, here between
+    # the sentinel confirmation and the verifier — the same single seam the anti-tamper reset uses. It re-hashes the
+    # spec's pinned references (assert-refuse; it never restores, so it cannot clobber an honest edit, and it never
+    # writes reward.txt — as a separate exec that write would be overwritten by test.sh; the short-circuit lives
+    # here). A nonzero exit means a pinned reference was mutated / deleted / a pinned command diverged, so the
+    # episode scores 0 WITHOUT running the verifier. Absent field ⇒ no-op (the whole corpus before this lands).
+    pre_test = tmax.get("pre_test_sh")
+    if pre_test:
+        pt_rc, _pt_out, _pt_err = await sb.exec(
+            pre_test, user="root", check=False, timeout=min(120, timeout),
+        )
+        if pt_rc != 0:
+            logger.info(
+                "[tmax] pre_test integrity check failed (rc=%s); scoring 0 without running the verifier",
+                pt_rc,
+            )
+            return 0.0
+
     # test.sh scripts assume they are invoked as `bash /tests/test.sh` (they use
     # $(dirname "$0") to find sibling fixtures). Run as root so /logs and any
     # system path is writable; the verifier is trusted dataset code.

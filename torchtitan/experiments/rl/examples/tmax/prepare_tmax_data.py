@@ -72,6 +72,36 @@ _FIXTURE_ROOTS = ("environment/seeds", "tests")
 _WORKDIR_CANDIDATES = ("/home/user", "/app", "/workspace")
 _DEFAULT_WORKDIR = "/workspace"
 
+# PRE-VERIFY (reaudit decision-1): an optional per-task pre_test integrity check exported by
+# tools/pretest_export.py (a JSONL of {task_id, pre_test_sh, ...}). When present it is carried into
+# tmax["pre_test_sh"] and grading.py runs it once, as root, before test.sh (assert-refuse over the spec's pinned
+# references). Absent file / unknown task ⇒ omitted ⇒ grading is a no-op, so this is safe on the whole corpus.
+_PRETEST_EXPORT_PATH = os.environ.get(
+    "TMAX_PRETEST_EXPORT",
+    "/data/users/zekaili/fangzhou/tb_check/reaudit_398/repairs/pretest_export.jsonl",
+)
+_PRETEST_BY_ID: dict[str, str] | None = None
+
+
+def _pretest_for(task_id: str) -> str:
+    """The exported pre_test_sh for a task, or '' if there is no export / no entry. Loaded once and cached."""
+    global _PRETEST_BY_ID
+    if _PRETEST_BY_ID is None:
+        _PRETEST_BY_ID = {}
+        try:
+            with open(_PRETEST_EXPORT_PATH, encoding="utf-8") as fh:
+                for ln in fh:
+                    ln = ln.strip()
+                    if not ln:
+                        continue
+                    row = json.loads(ln)
+                    pt = row.get("pre_test_sh") or ""
+                    if pt:
+                        _PRETEST_BY_ID[row["task_id"]] = pt
+        except (OSError, ValueError):
+            _PRETEST_BY_ID = {}
+    return _PRETEST_BY_ID.get(task_id, "")
+
 
 def _download() -> str:
     """Download the parquet + task-data.tar.gz via huggingface_hub; return the
@@ -198,6 +228,7 @@ def _to_row(task_id: str, image: str, task_dir: str, image_prefix: str) -> dict 
                 "test_sh": test_sh,
                 "fixtures": fixtures,
                 "reward_path": _REWARD_PATH,
+                **({"pre_test_sh": pt} if (pt := _pretest_for(task_id)) else {}),
             },
         },
     }
