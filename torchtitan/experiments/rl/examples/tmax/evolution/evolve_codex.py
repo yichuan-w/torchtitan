@@ -570,10 +570,11 @@ the pipeline that built these tasks learned the hard way:
   and `./sandbox check` measures what the reference solution costs in it. The
   task is provisioned from that measurement, never below the seed's size and
   never from a number you write. If the solution outgrows the box, `check`
-  reruns it once at the platform ceiling (4 vCPU / 8 GiB / 10 GiB) and says so;
-  `./sandbox reset --max` gives you that box to work in yourself. A task that
-  needs more than the ceiling never starts, so it is unrunnable rather than
-  hard: keep what the solution has to do well inside it.
+  says what ran out; `./sandbox check --max` measures it at the platform
+  ceiling (4 vCPU / 8 GiB / 10 GiB) and `./sandbox reset --max` gives you that
+  box to work in. A task that needs more than the ceiling never starts, so it
+  is unrunnable rather than hard: keep what the solution has to do well inside
+  it.
 - Guard edits against paths you did not create (`test -f` first); prefer adding a
   local fixture over patching something the image cloned.
 

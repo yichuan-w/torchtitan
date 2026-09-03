@@ -208,80 +208,60 @@ def test_up_opens_the_box_run_resources_json_names(tmp_path, monkeypatch) -> Non
     assert asb._read_state(pkg)["resources"]["source"] == "ceiling"
 
 
-def test_check_reruns_once_at_the_ceiling_when_the_box_starved_the_oracle(
+def _starved_handler(oracles):
+    def handler(req):
+        if req["op"] == "grade":
+            return {"ok": True, "reward": 0.0}
+        if req["op"] == "oracle":            # the kernel killed the solution
+            oracles.append(req)
+            return {"ok": True, "reward": 0.0, "solve_exit": 137, "tail": "Killed",
+                    "measured": {"oom_kill": 1, "mem_peak_mb": 2048.0, "solve_secs": 12.0}}
+        return {"ok": True}
+    return handler
+
+
+def test_check_reports_a_starved_oracle_and_leaves_the_ceiling_to_the_agent(
         tmp_path, monkeypatch, capsys) -> None:
     pkg = tmp_path / "pkg"
     (pkg / "run").mkdir(parents=True)
     (pkg / "run" / "resources.json").write_text(
         '{"cpu": 1, "mem_gb": 2, "disk_gb": 2, "source": "row"}\n')
     oracles = []
-
-    def handler(req):
-        if req["op"] == "grade":
-            return {"ok": True, "reward": 0.0}
-        if req["op"] == "oracle":
-            oracles.append(req)
-            if len(oracles) == 1:       # training-size box: the kernel killed it
-                return {"ok": True, "reward": 0.0, "solve_exit": 137, "tail": "Killed",
-                        "measured": {"oom_kill": 1, "mem_peak_mb": 2048.0,
-                                     "solve_secs": 12.0}}
-            return {"ok": True, "reward": 1.0, "solve_exit": 0, "tail": "",
-                    "measured": {"oom_kill": 0, "mem_peak_mb": 3100.0,
-                                 "cpu_seconds": 40.0, "df_used_mb": 900.0,
-                                 "solve_secs": 30.0}}
-        return {"ok": True}
-
-    server = _FakeServer(handler)
+    server = _FakeServer(_starved_handler(oracles))
     try:
         asb._write_state(pkg, {"status": "down"})
         monkeypatch.setattr(asb, "cmd_up", _fake_up(pkg, server))
-        monkeypatch.setattr(asb, "cmd_down", lambda _pkg: (
-            asb._write_state(pkg, {"status": "down"}) or 0))
-        rc = asb.cmd_check(pkg, 30)
-    finally:
-        server.close()
-
-    assert rc == 0
-    assert len(oracles) == 2
-    out = capsys.readouterr().out
-    assert "oracle ran out of memory in the training-size box" in out
-    assert "rerunning the check once at the platform ceiling" in out
-    assert "VERDICT: pass" in out and "Passed at the ceiling" in out
-    records = [json.loads(l) for l in (pkg / "run" / "checks.jsonl").read_text().splitlines()]
-    assert [r["verdict"] for r in records] == ["fail", "pass"]
-    assert records[0]["starved"] == "memory" and records[0]["at_max"] is False
-    assert records[0]["resources"]["mem_gb"] == 2
-    assert records[1]["at_max"] is True
-    assert records[1]["resources"]["source"] == "ceiling"
-    assert records[1]["measured"]["mem_peak_mb"] == 3100.0
-
-
-def test_check_does_not_rerun_when_still_starved_at_the_ceiling(
-        tmp_path, monkeypatch, capsys) -> None:
-    pkg = tmp_path / "pkg"
-    (pkg / "run").mkdir(parents=True)
-    oracles = []
-
-    def handler(req):
-        if req["op"] == "grade":
-            return {"ok": True, "reward": 0.0}
-        if req["op"] == "oracle":
-            oracles.append(req)
-            return {"ok": True, "reward": 0.0, "solve_exit": 137, "tail": "Killed",
-                    "measured": {"oom_kill": 1, "mem_peak_mb": 8000.0, "solve_secs": 5.0}}
-        return {"ok": True}
-
-    server = _FakeServer(handler)
-    try:
-        asb._write_state(pkg, {"status": "down"})
-        monkeypatch.setattr(asb, "cmd_up", _fake_up(pkg, server))
-        monkeypatch.setattr(asb, "cmd_down", lambda _pkg: (
-            asb._write_state(pkg, {"status": "down"}) or 0))
         rc = asb.cmd_check(pkg, 30)
     finally:
         server.close()
 
     assert rc == 1
-    assert len(oracles) == 2        # once at training size, once at the ceiling, no more
+    assert len(oracles) == 1                 # no rerun on the tool's own initiative
     out = capsys.readouterr().out
-    assert "Still out of memory at the platform ceiling" in out
+    assert "VERDICT: fail" in out
+    assert "ran out of memory in this box" in out
+    assert "./sandbox check --max" in out
+    record = json.loads((pkg / "run" / "checks.jsonl").read_text().strip())
+    assert record["verdict"] == "fail" and record["starved"] == "memory"
+    assert record["at_max"] is False and record["resources"]["mem_gb"] == 2
+    assert record["measured"]["oom_kill"] == 1
+
+
+def test_check_at_the_ceiling_names_the_task_unrunnable_when_still_starved(
+        tmp_path, monkeypatch, capsys) -> None:
+    pkg = tmp_path / "pkg"
+    (pkg / "run").mkdir(parents=True)
+    oracles = []
+    server = _FakeServer(_starved_handler(oracles))
+    try:
+        asb._write_state(pkg, {"status": "down"})
+        monkeypatch.setattr(asb, "cmd_up", _fake_up(pkg, server))
+        rc = asb.cmd_check(pkg, 30, at_max=True)
+    finally:
+        server.close()
+
+    assert rc == 1 and len(oracles) == 1
+    out = capsys.readouterr().out
+    assert "Out of memory at the platform ceiling" in out
+    record = json.loads((pkg / "run" / "checks.jsonl").read_text().strip())
+    assert record["at_max"] is True and record["resources"]["source"] == "ceiling"

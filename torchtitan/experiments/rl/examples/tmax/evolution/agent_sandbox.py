@@ -25,11 +25,11 @@ of those and timed out. This hands the agent the container itself.
                             passes an untouched workspace pays for nothing);
                             oracle, which must pass. Prints VERDICT: pass|fail.
                             The oracle run is measured (memory peak, cpu
-                            seconds, disk) and the task is provisioned from
-                            that reading. A run the box cut short -- OOM
+                            seconds, disk). A run the box cut short -- OOM
                             kill, disk full, out of time on its cores -- is
-                            rerun once at the ceiling, so the reading is the
-                            task's and not the box's.
+                            reported as such; --max runs the same check at
+                            the platform ceiling, where nothing truncates
+                            the reading.
     ./sandbox down          delete the container
     ./sandbox status
 
@@ -333,11 +333,12 @@ def _starved(r: dict, solve_timeout: int) -> str:
 def cmd_check(pkg: Path, solve_timeout: int, at_max: bool = False) -> int:
     """The whole verdict on a fresh container: rebuild, null probe, oracle.
 
-    The oracle run is measured, and that measurement is what the caller sizes
-    the rewritten task from, so the box has to be one the reading describes
-    the task in: the training size by default, and once at the ceiling when
-    the solution outgrew it. A run the box cut short is not a verdict on the
-    task, it is a verdict on the box.
+    The oracle run is measured, and that measurement decides which box the
+    caller's own probe runs in, so the box has to be one the reading describes
+    the task in: the training size by default, the ceiling on --max. A run the
+    box cut short is not a verdict on the task, it is a verdict on the box,
+    and the output says so; whether to measure at the ceiling or make the
+    solution need less is the agent's call, not this tool's.
 
     The container's counters are a high-water mark since boot, so the reading
     covers the entrypoint and the null-probe grade as well as the solution.
@@ -381,32 +382,30 @@ def cmd_check(pkg: Path, solve_timeout: int, at_max: bool = False) -> int:
                         "resources": box, "at_max": at_max,
                         "measured": r.get("measured"), "starved": starved,
                         "elapsed_s": round(time.time() - started)})
-    if starved and not at_max:
-        # The reading is the box's limit, not the task's need. One rerun at the
-        # ceiling answers both questions at once: whether the solution passes
-        # given enough, and how much enough is.
-        print(f"oracle ran out of {starved} in the training-size box "
-              f"[{_box_str(box)}]: reward={reward} solve_exit={r.get('solve_exit')} "
-              f"{_measured_str(r.get('measured'))}")
-        print(f"rerunning the check once at the platform ceiling "
-              f"[{_box_str(CEILING)}] to measure what the solution actually needs")
-        return cmd_check(pkg, solve_timeout, at_max=True)
     print(f"VERDICT: {'pass' if ok else 'fail'}   reward={reward}   "
           f"solve_exit={r.get('solve_exit')}   null_reward={null_reward}   "
           f"took={time.time() - started:.0f}s   box=[{_box_str(box)}]")
     print(f"measured: {_measured_str(r.get('measured'))}")
     if ok and at_max:
-        print("Passed at the ceiling: the task will be provisioned from this "
-              "measurement (never below the seed's size). If that reading is "
-              "close to the ceiling the task is unrunnable, not hard -- shrink it.")
+        print("Passed at the ceiling: the task will be provisioned from what the "
+              "reference solution measured (never below the seed's size). If that "
+              "reading is close to the ceiling the task is unrunnable, not hard: "
+              "shrink it.")
     if not ok:
         tail = r.get("tail") or ""
         print("--- what the run printed (tail) ---")
         print(tail if tail.strip() else "(empty)")
-        if starved:
-            print(f"\nStill out of {starved} at the platform ceiling: the task needs "
-                  f"more than any sandbox can have. Shrink what the solution has to "
-                  f"do, then check again.")
+        if starved and at_max:
+            print(f"\nOut of {starved} at the platform ceiling: the task needs more "
+                  f"than any sandbox can have. Shrink what the solution has to do, "
+                  f"then check again.")
+        elif starved:
+            print(f"\nThe reference solution ran out of {starved} in this box, which is "
+                  f"the size training gives the task. Either make the solution need "
+                  f"less, or, if the harder task genuinely needs more, measure it at "
+                  f"the platform ceiling: ./sandbox check --max [{_box_str(CEILING)}]. "
+                  f"A pass there provisions the task from that measurement; a reading "
+                  f"close to the ceiling means unrunnable, not hard.")
         else:
             print("\nFix the task so the reference solution scores 1.0, then check again. "
                   "The container is still up: ./sandbox exec to look around.")
