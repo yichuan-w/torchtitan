@@ -13,7 +13,7 @@ Paths, once:
 ```bash
 ROOT=/scratch/gpfs/TRIDAO/al9080/terminal-rl     # data, logs, scripts, run dirs
 PY=/scratch/gpfs/TRIDAO/al9080/titan-rl/bin/python
-TT=~/torchtitan-yichuan                          # training code: yichuan-w/torchtitan,
+TT=~/torchtitan                          # training code: yichuan-w/torchtitan,
                                                  # branch yichuan/qwen35-port-cotrain (the
                                                  # single canonical line; andylizf/torchtitan
                                                  # is frozen, PR staging only)
@@ -188,7 +188,7 @@ To start it from nothing:
 ```bash
 tmux new-session -d -s evolveloop -c $ROOT
 tmux send-keys -t evolveloop \
-  ". ~/.config/daytona/env; SYNTH_ENV_FILE=$ROOT/.synth_env TRL_TT=\$HOME/torchtitan-yichuan \
+  ". ~/.config/daytona/env; SYNTH_ENV_FILE=$ROOT/.synth_env TRL_TT=\$HOME/torchtitan \
    SWE_RETUNE_AGENT=codex SWE_SIMPLIFY_HINT=vague \
    $PY evolve-onhost/scripts/evolve_ondella.py --interval 120 --workers 16" Enter
 ```

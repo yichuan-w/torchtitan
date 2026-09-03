@@ -22,7 +22,7 @@ import os
 
 _TT_CANDIDATES = [
     os.environ.get("TRL_TT", ""),
-    os.path.expanduser("~/torchtitan-yichuan"),
+    os.path.expanduser("~/torchtitan"),
     os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(
         os.path.abspath(__file__)))), "torchtitan"),
 ]
