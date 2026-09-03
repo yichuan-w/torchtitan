@@ -297,6 +297,35 @@ class TestCheckpointManager(unittest.TestCase):
 
     @mock.patch("torch.distributed.get_rank", return_value=0)
     @mock.patch("torchtitan.components.checkpoint.dcp.load")
+    def test_load_takes_initial_path_when_folder_exists_but_is_empty(
+        self, mock_load, mock_rank
+    ):
+        # The checkpoint folder exists (a launcher's mkdir -p, or a run killed
+        # before its first save) but holds no step-*. That is a fresh run and
+        # must load the initial weights, not return False with the model left
+        # on its random init.
+        cfg = self.trainer_config.checkpoint
+        cfg.folder = os.path.join(self.test_folder, "empty_but_present")
+        os.makedirs(cfg.folder, exist_ok=True)
+        initial = os.path.join(self.test_folder, "initial", "step-100")
+        os.makedirs(initial, exist_ok=True)
+        cfg.initial_load_path = initial
+        manager = CheckpointManager(
+            dataloader=self.data_loader,
+            model_parts=self.model_parts,
+            optimizers=self.optimizers,
+            lr_schedulers=self.lr_schedulers,
+            states=self.states,
+            config=self.trainer_config.checkpoint,
+            sd_adapter=None,
+            base_folder=self.trainer_config.dump_folder,
+        )
+        self.assertTrue(manager.load(step=-1))
+        self.assertEqual(mock_load.call_args.kwargs["checkpoint_id"], initial)
+        manager.close()
+
+    @mock.patch("torch.distributed.get_rank", return_value=0)
+    @mock.patch("torchtitan.components.checkpoint.dcp.load")
     def test_load_finds_latest_and_calls_dcp_load(self, mock_load, mock_rank):
         ckpt_folder = os.path.join(self.test_folder, "checkpoints")
         os.makedirs(ckpt_folder, exist_ok=True)
