@@ -116,8 +116,15 @@ than a convenient one:
 **Resources are a request the platform can refuse, not a hint.** An oversized ask
 is rejected when the sandbox is created, so the task never starts and never earns a
 verdict — five tasks declaring 16 GiB against an 8 GiB cap produced 704 refused
-creates before anyone noticed. Do not raise memory, disk or timeout above what the
-seed already needed.
+creates before anyone noticed. Memory, disk and cores are not yours to set: they
+are measured. Your container opens at the size training gives this task
+(`run/resources.json`), `./sandbox check` measures what the reference solution
+costs in it, and the task is provisioned from that reading, never below the
+seed's size. A solution the box cuts short — OOM-killed, disk full, out of time
+on its cores — makes `check` rerun once at the platform ceiling (4 vCPU / 8 GiB /
+10 GiB) and say so; a reading close to that ceiling means the task is unrunnable,
+not hard, so keep what the solution has to do well inside it. Do not raise the
+timeout above what the seed already needed.
 
 **Building is not starting.** 25 tasks in one run built correctly and then never
 reached running state, costing 1,172 creates between them. If your environment does
@@ -131,19 +138,26 @@ worse than the task you started from.
 ## The container, and verifying your own work
 
 ```
-./sandbox up             build the image and boot a container (minutes)
+./sandbox up             build the image and boot a container (minutes), at the
+                         size training gives this task; --max opens the platform
+                         ceiling (4 vCPU / 8 GiB / 10 GiB) instead
 ./sandbox exec 'CMD'     run CMD inside it, as root; --timeout N (default 120 s)
-./sandbox oracle         copy solution/ in, run solve.sh, grade it
+./sandbox oracle         copy solution/ in, run solve.sh, grade it; prints what
+                         the run cost (memory peak, cpu seconds, disk)
 ./sandbox grade          grade the current state as it is
-./sandbox reset          a fresh container from the current Dockerfile
+./sandbox reset          a fresh container from the current Dockerfile (--max as
+                         for up)
 ./sandbox check          reset; grade the untouched workspace, which must fail;
                          run the oracle, which must pass. Prints VERDICT: pass|fail
+                         and the oracle's measured cost. A run the box cut short
+                         is rerun once at the ceiling
 ./sandbox down           delete it
 ```
 
-This is the task's own environment, built and graded the way the training
-harness does it. Use `exec` to look around, run one step, read a log, see what
-a check sees. `oracle` and `grade` re-read `solution/` and `tests/` every time,
+This is the task's own environment, built, sized and graded the way the training
+harness does it: the container is the size the task gets in training, so what
+runs out of memory or time here runs out there too. Use `exec` to look around,
+run one step, read a log, see what a check sees. `oracle` and `grade` re-read `solution/` and `tests/` every time,
 so an edit is judged as soon as it is saved. A container keeps the state of
 whatever ran in it; `reset` when that matters. Edits to the Dockerfile take
 effect on `reset`.

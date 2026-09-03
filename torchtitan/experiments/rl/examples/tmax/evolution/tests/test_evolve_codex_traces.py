@@ -346,3 +346,44 @@ def test_check_verdict_raises_blocked_on_give_up(tmp_path) -> None:
 
     with pytest.raises(ec.Blocked, match="operator-misfit"):
         ec._check_verdict(tmp_path)
+
+
+def test_write_resources_tells_the_sandbox_tool_the_training_box(tmp_path) -> None:
+    pkg = tmp_path / "pkg"
+    pkg.mkdir()
+    ec._write_resources(pkg, {"instruction": "x"})
+    assert not (pkg / "run" / "resources.json").exists()
+
+    ec._write_resources(pkg, {"_resources": {"cpu": 1, "mem_gb": 2, "disk_gb": 2,
+                                             "source": "row"}})
+    assert json.loads((pkg / "run" / "resources.json").read_text()) == {
+        "cpu": 1, "mem_gb": 2, "disk_gb": 2, "source": "row"}
+
+
+def test_collect_carries_the_measurement_of_the_last_passing_check(tmp_path) -> None:
+    pkg = tmp_path / "pkg"
+    for d in ("environment", "solution", "tests", "run"):
+        (pkg / d).mkdir(parents=True)
+    (pkg / "instruction.md").write_text("new")
+    (pkg / "environment/Dockerfile").write_text("FROM scratch\n")
+    (pkg / "solution/solve.sh").write_text("#!/bin/sh\n")
+    (pkg / "tests/test_state.py").write_text("assert True\n")
+    task = {"instruction": "old", "dockerfile": "FROM scratch\n",
+            "solve_sh": "#!/bin/sh\n", "test_state_py": "assert True\n"}
+    checks = pkg / "run/checks.jsonl"
+
+    # A failing last check carries nothing: the measurement is the box's.
+    checks.write_text(json.dumps({"verdict": "fail", "measured": {"oom_kill": 1}}) + "\n")
+    out = ec._collect(task, pkg, ec.ev.file_map(task))
+    assert "_measured" not in out
+
+    checks.write_text(
+        json.dumps({"verdict": "fail", "measured": {"oom_kill": 1}}) + "\n"
+        + json.dumps({"verdict": "pass", "at_max": True,
+                      "resources": {"cpu": 4, "mem_gb": 8, "disk_gb": 10, "source": "ceiling"},
+                      "measured": {"mem_peak_mb": 3100.0, "cpu_seconds": 40.0,
+                                   "df_used_mb": 900.0}}) + "\n")
+    out = ec._collect(task, pkg, ec.ev.file_map(task))
+    assert out["_measured"]["mem_peak_mb"] == 3100.0
+    assert out["_box"]["source"] == "ceiling"
+    assert out["_at_max"] is True

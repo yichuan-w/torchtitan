@@ -22,7 +22,9 @@ A round:
      (0/k easier, k/k harder-or-kept, in-band kept), archive the signal
   3. fold every re-tuned package into the data_path with pack_to_dataset,
      writing a new file and swapping it in atomically so a half-written mix is
-     never visible to the hot reload
+     never visible to the hot reload. The folded row is provisioned at
+     max(what the seed had, what the reference solution measured in the
+     agent's container) -- a measurement, never the agent's estimate
 
 Observable (per-signal log line), resumable (consumed signals are archived and
 skipped; re-tuned packages are keyed by task id and overwrite cleanly),
@@ -87,6 +89,61 @@ POOL_ROOTS = [BASE / "data/swe-extract/tasks", BASE / "data/tw-extract/tasks",
               BASE / "data/tmax-extract/tasks"]
 
 log = logging.getLogger("evolve_ondella")
+
+
+def _env_int(name: str) -> int | None:
+    v = os.environ.get(name, "").strip()
+    return int(v) if v.isdigit() else None
+
+
+# The fleet default: what a row declaring no daytona_* of its own gets in
+# training. Read from this process's env the way the harness reads it, so it
+# is the trainer's only when the launcher carries the trainer's TT_DAYTONA_*
+# across; main() logs what it resolved to. On the live mix every row declares
+# all three (663/663 on wd-20260903b), so this is the fallback for a rebuilt
+# mix, not the common path.
+FLEET = {"cpu": _env_int("TT_DAYTONA_CPU"), "mem_gb": _env_int("TT_DAYTONA_MEM_GB"),
+         "disk_gb": _env_int("TT_DAYTONA_DISK_GB")}
+ROW_KEYS = {"cpu": "daytona_cpu", "mem_gb": "daytona_mem_gb",
+            "disk_gb": "daytona_disk_gb"}
+
+
+def declared_resources(mix: Path) -> dict[str, dict]:
+    """Per row of the mix, the daytona_* it declares, keyed by instance id."""
+    out: dict[str, dict] = {}
+    if not mix.exists():
+        return out
+    for ln in open(mix):
+        if not ln.strip():
+            continue
+        md = json.loads(ln).get("metadata") or {}
+        iid = md.get("instance_id")
+        if iid:
+            out[iid] = {k: md[rk] for k, rk in ROW_KEYS.items() if rk in md}
+    return out
+
+
+def training_box(tid: str, declared: dict[str, dict] | None) -> dict:
+    """The size training gives this task: the row's own values, the fleet
+    default where the row declares nothing, None where neither says (the
+    harness default then applies, and the source names that)."""
+    own = (declared or {}).get(tid) or {}
+    box = {k: own[k] if own.get(k) is not None else FLEET[k] for k in ROW_KEYS}
+    if all(own.get(k) is not None for k in ROW_KEYS):
+        src = "row"
+    elif any(box[k] is None for k in ROW_KEYS):
+        src = "row+fleet_default+harness_default" if own else "harness_default"
+    else:
+        src = "row+fleet_default" if own else "fleet_default"
+    return {**box, "source": src}
+
+
+def _read_provision(pkg: Path) -> dict:
+    """The size feedback_loop left beside the package, or {} if none."""
+    try:
+        return json.loads((pkg / ".resources.json").read_text())
+    except (OSError, ValueError):
+        return {}
 
 
 LOCK_HEARTBEAT_SEC = 30
@@ -297,8 +354,11 @@ def signal_to_rollout(sig: dict) -> dict:
             "_source": "signal"}
 
 
-def _handle(sp: Path):
-    """Resolve one signal to (record, task_id, was_retuned) or None to skip."""
+def _handle(sp: Path, declared: dict[str, dict] | None = None):
+    """Resolve one signal to (record, task_id, was_retuned) or None to skip.
+
+    `declared` is the mix's per-row daytona_* (declared_resources), read once
+    per round; it says what box training gives each task."""
     try:
         sig = json.loads(sp.read_text())
     except Exception as e:  # noqa: BLE001
@@ -356,7 +416,8 @@ def _handle(sp: Path):
         return {"tid": tid, "status": "no_pool_dir", "retuned": False,
                 "action": "-", "solved": sig.get("solved"), "graded": sig.get("total"),
                 **source}
-    rec = fb.process_one(signal_to_rollout(sig), src, OUT_ROOT)
+    rec = fb.process_one(signal_to_rollout(sig), src, OUT_ROOT,
+                         resources=training_box(tid, declared))
     st = rec.get("status", "?")
     if st not in ("ok", "kept") and rec.get("why"):
         log.warning("%s %s: %s", tid, st, str(rec["why"])[:300])
@@ -373,6 +434,7 @@ def _handle(sp: Path):
             "fast": rec.get("revalidate", {}).get("fast_path", ""),
             "hint": rec.get("hint"),
             "codex_trace_dirs": _trace_references(rec.get("codex_trace_dirs", [])),
+            "resources": rec.get("resources"),
             "retuned": st in ("ok", "kept"), **source}
 
 
@@ -393,12 +455,13 @@ def _signal_time_key(path: Path) -> tuple[int, str]:
         return 0, path.name
 
 
-def _handle_task_signals(paths: list[Path]) -> list[tuple[Path, dict | None]]:
+def _handle_task_signals(paths: list[Path], declared: dict[str, dict] | None = None,
+                         ) -> list[tuple[Path, dict | None]]:
     """Process repeated occurrences of one task serially to avoid output races."""
     results = []
     for path in sorted(paths, key=_signal_time_key):
         received_time = time.time_ns()
-        result = _handle(path)
+        result = _handle(path, declared)
         if result is not None:
             result["signal_received_time_unix_ns"] = received_time
             result["retune_finished_time_unix_ns"] = time.time_ns()
@@ -434,9 +497,12 @@ def run_round(only: str | None = None, mix_out: Path | None = None,
     signals_by_task: dict[str, list[Path]] = {}
     for signal_path in sig_files:
         signals_by_task.setdefault(_signal_task_key(signal_path), []).append(signal_path)
+    # What box training gives each task, from the mix the trainer reads. Read
+    # once here rather than per signal: the mix is 12 MB on GPFS.
+    declared = declared_resources(MIX)
     with ThreadPoolExecutor(max_workers=workers) as ex:
         futs = {
-            ex.submit(_handle_task_signals, paths): task_id
+            ex.submit(_handle_task_signals, paths, declared): task_id
             for task_id, paths in signals_by_task.items()
         }
         for fut in as_completed(futs):
@@ -463,6 +529,7 @@ def run_round(only: str | None = None, mix_out: Path | None = None,
                     total=r.get("graded"),
                     signal_file=r.get("signal_file"),
                     codex_trace_dirs=r.get("codex_trace_dirs", []),
+                    resources=r.get("resources"),
                     **lineage_fields,
                 )
                 log.info("%s solved=%s/%s -> %s (%s%s%s)", r["tid"], r["solved"],
@@ -526,22 +593,34 @@ def run_round(only: str | None = None, mix_out: Path | None = None,
             # corpus that is 1 CPU against a measured 2, so a retuned task runs
             # on half the cores it was provisioned for, hits
             # SWE_TIME_BUDGET_SEC, and the timeout reads back to this loop as
-            # "too hard" -- a task made easier because it was starved. Carry the
-            # replaced row's values across: a retune edits the instruction,
-            # tests, solution and Dockerfile, never the provisioning the task
-            # was measured at. (The harder version may genuinely need more; that
-            # needs a fresh measurement, not a guess, and inheriting is strictly
-            # closer than the fleet default either way.)
+            # "too hard" -- a task made easier because it was starved.
+            #
+            # feedback_loop leaves .resources.json beside the package: max(what
+            # the seed had, what the reference solution measured in the
+            # agent's container), so a harder version that outgrew the seed's
+            # box is provisioned for what it needs and one that did not keeps
+            # the seed's size. Without that file (no measurement, a package
+            # from before there was one) the replaced row's values carry
+            # across: a retune edits the instruction, tests, solution and
+            # Dockerfile, never the provisioning the task was measured at.
             old_md = json.loads(rows[row["label"]])["metadata"]
-            for _k in ("daytona_cpu", "daytona_mem_gb", "daytona_disk_gb"):
-                if _k not in row["metadata"] and _k in old_md:
-                    row["metadata"][_k] = old_md[_k]
+            sized = _read_provision(OUT_ROOT / tid)
+            for key, rk in ROW_KEYS.items():
+                if sized.get(key) is not None:
+                    row["metadata"][rk] = sized[key]
+                elif rk not in row["metadata"] and rk in old_md:
+                    row["metadata"][rk] = old_md[rk]
+            res = {rk: row["metadata"].get(rk) for rk in ROW_KEYS.values()}
+            res_source = sized.get("source") or "inherited"
+            log.info("fold %s: %s (%s)", tid,
+                     " ".join(f"{k}={v}" for k, v in res.items()), res_source)
             rows[row["label"]] = json.dumps(row) + "\n"
             folded += 1
             folded_records.append(
                 {
                     "task_id": tid,
                     "sample_revision": _content_revision(row),
+                    "resources": {**res, "source": res_source},
                     **retuned_sources.get(tid, {}),
                 }
             )
@@ -645,6 +724,12 @@ def main() -> None:
         # reads twice the real count. Stray library prints still reach the log
         # through that redirect; they just no longer arrive via two paths.
         handlers=[logging.FileHandler(args.log)])
+    # A row declaring no daytona_* is boxed at this size, here and (if the
+    # trainer's env agrees) in training. None means the harness default 2/4/6,
+    # which is not what the trainer runs at unless its env says so too.
+    log.info("fleet default for rows declaring no daytona_*: cpu=%s mem_gb=%s "
+             "disk_gb=%s (from TT_DAYTONA_CPU/MEM_GB/DISK_GB; None = harness "
+             "default 2/4/6)", FLEET["cpu"], FLEET["mem_gb"], FLEET["disk_gb"])
 
     mix_out = Path(args.mix_out) if args.mix_out else None
     if args.once or args.only:

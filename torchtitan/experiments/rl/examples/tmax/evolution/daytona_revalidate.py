@@ -127,7 +127,78 @@ def log(msg: str) -> None:
     print(f"[{time.strftime('%H:%M:%S')}] {msg}", file=sys.stderr, flush=True)
 
 
-async def probe(pkg: Path, shortcut: str | None, solve_timeout: int) -> dict:
+# A box at the platform ceiling cannot truncate a reading; a box below it can,
+# which is what the `oom_kill` / disk-exhausted / timeout fields beside a
+# measurement report.
+from derive_sizing import CEILING  # noqa: E402
+
+# oom_kill separates a kernel kill from a deadline; memory.peak beside
+# memory.max shows a near miss as well as a hit; cpu.stat's usage_usec over the
+# solve's wall time is the mean cores the reference solution drew. The same
+# read as verify_provisioning.py takes for the seed campaign, so a task sized
+# here and a seed sized there rest on the same counters.
+CGROUP_READ = ("cat /sys/fs/cgroup/memory.events 2>/dev/null | tr '\\n' ' '; echo '|'; "
+               "cat /sys/fs/cgroup/memory.peak /sys/fs/cgroup/memory.max "
+               "2>/dev/null | tr '\\n' ' '; echo '|'; "
+               "awk '/usage_usec/{print $2}' /sys/fs/cgroup/cpu.stat 2>/dev/null")
+
+
+async def measure(sb, solve_secs: float, tail: str = "") -> dict:
+    """What the container's counters say the run just finished cost.
+
+    Read before grading, which starts processes of its own and would fold their
+    memory into a peak meant to describe the solution. `df` of `/` is the
+    sandbox disk: its size is the quota, so `df_used_mb` is the occupancy the
+    quota has to hold, image included.
+    """
+    _, ev, _ = await sb.exec(CGROUP_READ, check=False, timeout=60)
+    parts = (ev or "").split("|")
+    toks = parts[0].split()
+    kv = dict(zip(toks[::2], toks[1::2]))
+    nums = [int(x) for x in (parts[1] if len(parts) > 1 else "").split()
+            if x.isdigit()]
+    usec = next((int(x) for x in (parts[2] if len(parts) > 2 else "").split()
+                 if x.isdigit()), None)
+    _, dfout, _ = await sb.exec("df -B1 --output=size,used / | tail -1",
+                                check=False, timeout=60)
+    dparts = (dfout or "").split()
+    size_mb = used_mb = None
+    if len(dparts) == 2 and all(x.isdigit() for x in dparts):
+        size_mb = round(int(dparts[0]) / 1048576, 1)
+        used_mb = round(int(dparts[1]) / 1048576, 1)
+    return {
+        "solve_secs": round(solve_secs, 1),
+        "cpu_seconds": round(usec / 1e6, 1) if usec else None,
+        "cpu_mean_cores": (round(usec / 1e6 / solve_secs, 2)
+                           if usec and solve_secs > 0 else None),
+        "oom_kill": int(kv.get("oom_kill", -1)),
+        "mem_peak_mb": round(nums[0] / 1048576, 1) if nums else None,
+        "mem_max_mb": round(nums[1] / 1048576, 1) if len(nums) > 1 else None,
+        "df_size_mb": size_mb, "df_used_mb": used_mb,
+        "disk_exhausted": "no space left" in (tail or "").lower(),
+    }
+
+
+def starved(measured: dict, solve_exit: int | None, solve_timeout: int) -> str:
+    """Why a failed run cannot be trusted as a measurement, or "" if it can.
+
+    A run the box cut short read the box, not the task: the kernel killed it
+    (oom_kill), the disk filled (ENOSPC in the output), or it ran out of solve
+    budget on the cores it had (exit 124 from the harness's own `timeout`
+    wrapper, or a wall time at the budget). Any of those on a box below the
+    ceiling means "measure again at the ceiling", not "the task is broken".
+    """
+    if measured.get("oom_kill", 0) > 0:
+        return "memory"
+    if measured.get("disk_exhausted"):
+        return "disk"
+    if solve_exit == 124 or (measured.get("solve_secs") or 0) >= solve_timeout:
+        return "time"
+    return ""
+
+
+async def probe(pkg: Path, shortcut: str | None, solve_timeout: int,
+                resources: dict | None = None) -> dict:
     row = pack.to_row(str(pkg))
     md = row["metadata"]
     tmax = md["tmax"]
@@ -137,14 +208,22 @@ async def probe(pkg: Path, shortcut: str | None, solve_timeout: int) -> dict:
         return {"ok": False, "stage": "no_solution",
                 "why": "package ships no solution/solve.sh"}
 
+    # The box is the caller's to size: the loop passes the size the row will be
+    # provisioned at, so an oracle pass here is a pass where training will run
+    # it. A key left None falls to the harness default (TT_DAYTONA_*), which is
+    # what a row declaring nothing gets in training too -- provided this process
+    # carries the trainer's env, which evolve_ondella resolves and logs.
+    box = {**{"cpu": None, "mem_gb": None, "disk_gb": md.get("daytona_disk_gb")},
+           **{k: v for k, v in (resources or {}).items() if v is not None}}
     log(f"boot sandbox for {md['instance_id']} "
-        f"({'shortcut probe' if shortcut else 'oracle'})")
+        f"({'shortcut probe' if shortcut else 'oracle'}) "
+        f"box=cpu:{box['cpu']} mem_gb:{box['mem_gb']} disk_gb:{box['disk_gb']}")
     async with boot_agent_sandbox(
         md.get("image") or "",
         dockerfile=md.get("dockerfile") or None,
         build_context=md.get("build_context") or None,
         install_claude=False,
-        disk_gb=md.get("daytona_disk_gb"),
+        cpu=box["cpu"], memory=box["mem_gb"], disk_gb=box["disk_gb"],
     ) as sandbox:
         sb = _Root(sandbox)
         if md.get("entrypoint"):
@@ -159,15 +238,22 @@ async def probe(pkg: Path, shortcut: str | None, solve_timeout: int) -> dict:
             cmd = "bash /solution/solve.sh"
         else:
             cmd = shortcut
+        t0 = time.time()
         code, out, err = await sb.exec(cmd, check=False, timeout=solve_timeout)
         log(f"run exit={code}")
+        measured = await measure(sb, time.time() - t0, tail=(out or "") + (err or ""))
         reward = await grade_tmax(sb, tmax, workdir=workdir)
     tail = (out + "\n" + err)[-400:]
     if shortcut is None:
+        why = starved(measured, code, solve_timeout) if reward < 1.0 else ""
         return {"ok": reward >= 1.0, "stage": "daytona_oracle",
-                "reward": reward, "solve_exit": code, "tail": tail}
+                "reward": reward, "solve_exit": code, "tail": tail,
+                "resources": box, "measured": measured,
+                **({"starved": why, "why": f"reference solution ran out of {why} "
+                                          f"in box {box}"} if why else {})}
     return {"ok": True, "stage": "daytona_shortcut",
-            "passed": reward >= 1.0, "reward": reward, "tail": tail}
+            "passed": reward >= 1.0, "reward": reward, "tail": tail,
+            "resources": box}
 
 
 def _harness_provenance() -> str:
@@ -208,11 +294,16 @@ def main() -> None:
     ap.add_argument("--shortcut", help="probe this cheat command instead of "
                                        "running the reference solution")
     ap.add_argument("--solve-timeout", type=int, default=900)
+    ap.add_argument("--cpu", type=int, help="box size; unset = harness default")
+    ap.add_argument("--mem-gb", type=int)
+    ap.add_argument("--disk-gb", type=int)
     args = ap.parse_args()
     log(f"harness: {_harness_provenance()}")
     try:
         verdict = asyncio.run(
-            probe(Path(args.package), args.shortcut, args.solve_timeout))
+            probe(Path(args.package), args.shortcut, args.solve_timeout,
+                  resources={"cpu": args.cpu, "mem_gb": args.mem_gb,
+                             "disk_gb": args.disk_gb}))
     except ValueError as e:
         # The package itself did not check out -- a missing harness file, a
         # malformed layout. Reporting it as a platform error is what made the
