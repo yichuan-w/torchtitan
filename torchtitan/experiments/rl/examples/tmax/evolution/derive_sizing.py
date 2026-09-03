@@ -51,6 +51,9 @@ from pathlib import Path
 
 CODEX_RAM, CODEX_DISK = 359.5, 357.0
 CPU_CAP, MEM_CAP, DISK_CAP = 4, 8, 10
+# The platform's per-sandbox ceiling as a box (daytona.io/docs/en/limits). A
+# reading taken at this size cannot be truncated by the box.
+CEILING = {"cpu": CPU_CAP, "mem_gb": MEM_CAP, "disk_gb": DISK_CAP}
 HEADROOM = 1.3
 DISK_FLOOR_GB = 2
 # A task measured by only one of the two workloads keeps the fleet default as a
@@ -67,6 +70,36 @@ UNVERIFIED_MEM_FLOOR_GB = 2
 # --timeout the oracle run and the training harness use, or the bound describes
 # a deadline nobody enforces.
 SOLVE_BUDGET_S = 900
+
+
+def size_from_oracle(mem_peak_mb: float | None, df_used_mb: float | None,
+                     cpu_seconds: float | None, *,
+                     solve_budget_s: int = SOLVE_BUDGET_S) -> dict:
+    """The oracle terms of main()'s rule, for one reference-solution run.
+
+    main() sizes a seed from three sources at once; this is what the oracle
+    source alone contributes, and it is what the evolution loop applies to a
+    task the agent just rewrote: the reference solution ran in the agent's
+    container, the container's counters say what it took, and the rewritten
+    task is provisioned from that reading, never from the agent's guess. The
+    rule has to stay the one main() uses, or a task sized in the loop and the
+    same task sized in the campaign come out different for no reason: HEADROOM
+    on the measurement, DISK_FLOOR_GB under the disk, cpu from cpu-seconds over
+    the solve budget, every dimension capped at the platform.
+
+    An oracle reading on its own is one source, so the single-source memory
+    floor applies exactly as it does in main(): what the reference solution
+    does is not what an agent's route does, in either direction.
+
+    A reading taken in a box the solution outgrew is the box, not the task;
+    callers check `oom_kill` / disk exhaustion / timeout before trusting it.
+    """
+    mem_gb = max(math.ceil((mem_peak_mb or 0) * HEADROOM / 1024), 1,
+                 UNVERIFIED_MEM_FLOOR_GB)
+    disk_gb = max(math.ceil((df_used_mb or 0) * HEADROOM / 1024), DISK_FLOOR_GB)
+    cpu = max(math.ceil((cpu_seconds or 0) / solve_budget_s), 1)
+    return {"cpu": min(cpu, CPU_CAP), "mem_gb": min(mem_gb, MEM_CAP),
+            "disk_gb": min(disk_gb, DISK_CAP)}
 
 
 def load(path: str, key: str = "task_id") -> dict:

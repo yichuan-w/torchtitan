@@ -566,9 +566,14 @@ the pipeline that built these tasks learned the hard way:
 - No internet-only runtime behaviour, no proxies, credentials or external
   services. The sandbox may have none of them and the reference solution will
   fail where an agent would too.
-- Do not raise the task's memory, disk or timeout unless the seed already needed
-  it. A sandbox that asks for more than the platform allows never starts, so the
-  task is unrunnable rather than hard.
+- The container is the size training gives this task (`run/resources.json`),
+  and `./sandbox check` measures what the reference solution costs in it. The
+  task is provisioned from that measurement, never below the seed's size and
+  never from a number you write. If the solution outgrows the box, `check`
+  reruns it once at the platform ceiling (4 vCPU / 8 GiB / 10 GiB) and says so;
+  `./sandbox reset --max` gives you that box to work in yourself. A task that
+  needs more than the ceiling never starts, so it is unrunnable rather than
+  hard: keep what the solution has to do well inside it.
 - Guard edits against paths you did not create (`test -f` first); prefer adding a
   local fixture over patching something the image cloned.
 
@@ -674,21 +679,43 @@ def _sandbox_down(work: Path) -> None:
         pass
 
 
-def _agent_checked(pkg: Path) -> bool:
-    """Whether the agent's last `./sandbox check` passed."""
+def _last_check(pkg: Path) -> dict | None:
+    """The last record `./sandbox check` appended, or None."""
     path = pkg / "run" / "checks.jsonl"
     if not path.exists():
-        return False
+        return None
     last = None
     for line in path.read_text().splitlines():
         if line.strip():
             last = line
     if not last:
-        return False
+        return None
     try:
-        return json.loads(last).get("verdict") == "pass"
+        return json.loads(last)
     except ValueError:
-        return False
+        return None
+
+
+def _agent_checked(pkg: Path) -> bool:
+    """Whether the agent's last `./sandbox check` passed."""
+    return (_last_check(pkg) or {}).get("verdict") == "pass"
+
+
+def _write_resources(pkg: Path, task: dict) -> None:
+    """Tell the sandbox tool what size box training gives this task.
+
+    `_resources` is the row's own daytona_cpu/mem_gb/disk_gb filled out with
+    the trainer's fleet defaults, resolved by the loop. Without this file the
+    tool opens the harness default box (2/4/6), which on this corpus is a size
+    up from what training runs at (1/2/2): the agent's check would pass in a
+    box the task never gets, and the fold would inherit the seed's size for a
+    task that had outgrown it.
+    """
+    res = task.get("_resources")
+    if not res:
+        return
+    (pkg / "run").mkdir(exist_ok=True)
+    (pkg / "run" / "resources.json").write_text(json.dumps(res, sort_keys=True) + "\n")
 
 
 def _collect(task: dict, pkg: Path, fmap: dict) -> dict:
@@ -717,6 +744,14 @@ def _collect(task: dict, pkg: Path, fmap: dict) -> dict:
         fmap["test_state_py"] = alt
     out = {**task, **{key: (pkg / rel).read_text() for key, rel in fmap.items()}}
     out["_verifier_rel"] = fmap["test_state_py"]
+    # What the reference solution cost in the agent's own container, from the
+    # last check that passed. The caller sizes the rewritten row from this --
+    # a measurement, never the agent's estimate -- and verifies at that size.
+    chk = _last_check(pkg) or {}
+    if chk.get("verdict") == "pass":
+        out["_measured"] = chk.get("measured")
+        out["_box"] = chk.get("resources")
+        out["_at_max"] = bool(chk.get("at_max"))
     mapped = set(fmap.values())
     src_dir = task.get("_src_dir")
     out["_extra_files"] = {}
@@ -773,6 +808,7 @@ def evolve_agentic(task: dict, job: str, trajectory: str = "",
         pkg = work / "pkg"
         fmap = _lay_out(task, pkg)
         (pkg / "run").mkdir(exist_ok=True)
+        _write_resources(pkg, task)
         _write_traces(pkg, attempts, trajectory)
         if observed:
             (pkg / "run" / "failure.txt").write_text(observed)
@@ -867,6 +903,7 @@ def resume_agentic(task: dict, observed: str, exit_code: int = 1) -> dict:
     sid = _session_id(work)
     fmap = ev.file_map(task)
     (pkg / "run").mkdir(exist_ok=True)
+    _write_resources(pkg, task)
     (pkg / "run" / "failure.txt").write_text(observed or "(no output captured)")
     for stale in ("verdict.txt", "checks.jsonl"):
         (pkg / "run" / stale).unlink(missing_ok=True)

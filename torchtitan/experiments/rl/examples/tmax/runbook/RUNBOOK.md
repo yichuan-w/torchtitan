@@ -677,12 +677,20 @@ harder — and folds the rewrite back into the live training file.
 3. **Revalidate.** A structural change must be rebuilt and its reference solution
    re-run before it is trusted. On a host with no Docker that happens in Daytona
    — two probes in two fresh sandboxes (oracle, then a shortcut/cheat check).
+   Both open at the size the row will be provisioned at: the seed's `daytona_*`
+   raised to what the reference solution measured in the agent's own container
+   (`derive_sizing.size_from_oracle`, the seed campaign's rule), never lowered.
+   The agent's container opens at the seed's size too, and reruns a check the
+   box cut short once at the platform ceiling, so the measurement is the
+   task's and not the box's.
    A simplify takes an instruction-only fast path with no build and no sandbox,
    which is why the loop is cheap on the direction that dominates.
 4. **Fold.** Accepted rewrites are written back into the mix atomically
    (temp file, then `os.replace`), **replace-only**: a label not already in the
    file is skipped, because a new row lands at the end and would shift the
-   holdout tail.
+   holdout tail. The folded row carries the size from step 3 in its `daytona_*`
+   keys (`.resources.json` beside the retuned package says where it came from),
+   and the `folded` lineage event records it with its source.
 5. **Reload.** With `SWE_DATA_HOT_RELOAD=1` the trainer re-reads the file on
    mtime change (rate-limited to one stat per 20s). Same-id rows are swapped in
    place so a resumed checkpoint's ordering still points at the same tasks.

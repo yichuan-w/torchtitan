@@ -52,6 +52,7 @@ from pathlib import Path
 import synth_loop as sl
 import synth_client as llm
 import evolve as ev
+import derive_sizing as ds
 
 log = logging.getLogger("feedback")
 
@@ -72,8 +73,17 @@ _INFRA_RE = re.compile(
     r"no stdout|TooManyRequests|429")
 
 
-def daytona_probe(work: Path, shortcut: str | None = None) -> dict | None:
-    """Run daytona_revalidate.py on this package; None when unconfigured."""
+RESOURCE_KEYS = ("cpu", "mem_gb", "disk_gb")
+
+
+def daytona_probe(work: Path, shortcut: str | None = None,
+                  resources: dict | None = None) -> dict | None:
+    """Run daytona_revalidate.py on this package; None when unconfigured.
+
+    `resources` is the box to run it in: the size the row is provisioned at in
+    training, so an oracle pass here is a pass where the task will be run. A
+    key left None falls to the harness default for this process's env.
+    """
     # Three different things used to collapse into one silent `return None`, and
     # the caller turns None into "neither docker nor Daytona is configured here".
     # For a host that genuinely has no credentials that message is true. For a
@@ -103,6 +113,9 @@ def daytona_probe(work: Path, shortcut: str | None = None) -> dict | None:
            DAYTONA_ENV_FILE, DAYTONA_VENV_PY, str(script), str(work)]
     if shortcut:
         cmd += ["--shortcut", shortcut]
+    for key in RESOURCE_KEYS:
+        if (resources or {}).get(key) is not None:
+            cmd += [f"--{key.replace('_', '-')}", str(resources[key])]
     # One retry, only for infra-shaped failures. The platform is measurably
     # flaky (DaytonaTimeout/BadGateway bursts), and a probe that fails for the
     # platform's sake discards a perfectly good retune: in one window 79
@@ -164,7 +177,8 @@ def format_trace(attempts: list[dict], keep: int = 3) -> str:
 
 
 def revalidate(work: Path, image: str, tid: str, task: dict,
-               orig: dict | None = None, changed: list[str] | None = None) -> dict:
+               orig: dict | None = None, changed: list[str] | None = None,
+               resources: dict | None = None) -> dict:
     """After an adjustment: still builds, still self-consistent, and the
     verifier still fails an untouched workspace. Building here checks the task
     is well-formed; it never runs the solver.
@@ -206,7 +220,11 @@ def revalidate(work: Path, image: str, tid: str, task: dict,
     # environment the task will be solved in. Only when neither docker nor the
     # Daytona probe is available does the change stay unshipped.
     if not shutil.which("docker"):
-        dv = daytona_probe(work)
+        # In the box the row will be provisioned at. The probe used to open the
+        # harness default (2/4/6) whatever the row said, so a task that fit
+        # there and not in its training box (1/2/2 on this corpus) passed here
+        # and was starved there, and the timeout read back as "too hard".
+        dv = daytona_probe(work, resources=resources)
         if dv is None:
             return {"ok": False, "stage": "no_docker",
                     "why": "structural change needs a build; neither docker "
@@ -215,7 +233,7 @@ def revalidate(work: Path, image: str, tid: str, task: dict,
             return {"ok": False, "stage": dv.get("stage", "daytona"),
                     "why": str(dv.get("why") or f"reward={dv.get('reward')} "
                                f"solve_exit={dv.get('solve_exit')}")[:200]}
-        null = daytona_probe(work, shortcut=":") or {}
+        null = daytona_probe(work, shortcut=":", resources=resources) or {}
         if null.get("passed"):
             return {"ok": False, "stage": "null_pass",
                     "why": "verifier passes on the untouched workspace"}
@@ -250,7 +268,62 @@ def _record_codex_traces(rec: dict, value) -> None:
             current.append(path)
 
 
-def process_one(rollout: dict, src_dir: Path, out_root: Path) -> dict:
+def provision(new: dict, floor: dict | None) -> dict | None:
+    """The size the rewritten row is provisioned at, and where it came from.
+
+    `floor` is what training gave the seed (the row's own daytona_* filled out
+    with the fleet default); `new["_measured"]` is what the reference solution
+    cost in the agent's container on the last check that passed. The row gets
+    max(floor, measured) on every axis: a measurement sizes it, and never
+    below the seed, because a harder version whose counters read lower is one
+    run's reading, not evidence the seed was oversized. With no measurement
+    the floor stands (what the fold inherited before there was a measurement);
+    with neither there is nothing to write and the row keeps following the
+    fleet default.
+    """
+    floor = {k: v for k, v in (floor or {}).items()
+             if k in RESOURCE_KEYS and v is not None}
+    m = new.get("_measured") or {}
+    sized = None
+    if any(m.get(k) is not None for k in ("mem_peak_mb", "df_used_mb", "cpu_seconds")):
+        sized = ds.size_from_oracle(m.get("mem_peak_mb"), m.get("df_used_mb"),
+                                    m.get("cpu_seconds"))
+    if sized is None and not floor:
+        return None
+    size = dict(floor)
+    if sized:
+        for k in RESOURCE_KEYS:
+            size[k] = max(floor.get(k) or 0, sized[k])
+    return {**size, "source": "measured" if sized else "inherited",
+            "floor": floor, "sized": sized, "measured": m or None,
+            "box": new.get("_box"), "at_max": bool(new.get("_at_max"))}
+
+
+def _write_provision(work: Path, rec: dict, size: dict | None) -> None:
+    """Leave the size beside the package, where the fold reads it.
+
+    The daytona_* keys do not live in a package (pack.to_row has no source for
+    them), so the fold has to be told. A file in the package directory is a
+    record that travels with the rewrite; a value passed in memory is not.
+    None removes one left by an earlier attempt on the same package.
+    """
+    rec["resources"] = size
+    path = work / ".resources.json"
+    if size is None:
+        path.unlink(missing_ok=True)
+        return
+    path.write_text(json.dumps(size, sort_keys=True) + "\n")
+
+
+def process_one(rollout: dict, src_dir: Path, out_root: Path,
+                resources: dict | None = None) -> dict:
+    """Retune one task from its rollout signal.
+
+    `resources` is the box training gives the task: the row's daytona_* filled
+    out with the fleet default. The agent works in it, the reference solution
+    is measured in it, and the rewrite is provisioned from that measurement
+    (never below it) and revalidated at the resulting size.
+    """
     tid = rollout["task_id"]
     solved = rollout.get("solved", 0)
     graded = rollout.get("graded", len([r for r in rollout.get("rewards", [])
@@ -342,7 +415,8 @@ def process_one(rollout: dict, src_dir: Path, out_root: Path) -> dict:
                 try:
                     import evolve_codex as ec
                     from evolve_codex import Blocked as ec_Blocked
-                    agent_task = {**task, "_solved": solved, "_attempts": graded}
+                    agent_task = {**task, "_solved": solved, "_attempts": graded,
+                                  "_resources": resources}
                     new = ec.evolve_agentic(agent_task, "harder", attempts=attempts,
                                             operator=shortlist)
                     _record_codex_traces(rec, new)
@@ -398,7 +472,10 @@ def process_one(rollout: dict, src_dir: Path, out_root: Path) -> dict:
                 {"operator": new.get("_operator"),
                  "family": new.get("_family"), "parent": tid}))
 
-        v = revalidate(work, image, tid, new, orig=task, changed=changed)
+        size = provision(new, resources)
+        _write_provision(work, rec, size)
+        v = revalidate(work, image, tid, new, orig=task, changed=changed,
+                       resources=size)
         rec["revalidate"] = v
         if (
             not v["ok"]
@@ -454,9 +531,12 @@ def process_one(rollout: dict, src_dir: Path, out_root: Path) -> dict:
                         dest = work / rel
                         dest.parent.mkdir(parents=True, exist_ok=True)
                         dest.write_bytes(blob)
+                    size = provision(fixed, resources)
+                    _write_provision(work, rec, size)
                     v2 = revalidate(work, image, tid, fixed, orig=task,
                                     changed=[k for k in ev.file_map(fixed)
-                                             if fixed[k] != task[k]] + list(extra))
+                                             if fixed[k] != task[k]] + list(extra),
+                                    resources=size)
                     rec["oracle_repair"] = {"files": repaired + list(extra),
                                             "ok": v2["ok"]}
                     if v2["ok"]:
