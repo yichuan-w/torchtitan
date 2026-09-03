@@ -150,7 +150,8 @@ worse than the task you started from.
 ./sandbox reset          a fresh container from the current Dockerfile (--max as
                          for up)
 ./sandbox check          reset; grade the untouched workspace, which must fail;
-                         run the oracle, which must pass. Prints VERDICT: pass|fail
+                         run the oracle, which must pass; audit the names the
+                         verifier depends on (below). Prints VERDICT: pass|fail
                          and the oracle's measured cost (--max: at the ceiling;
                          rarely the right call)
 ./sandbox down           delete it
@@ -176,6 +177,22 @@ exists in the untouched container: a verifier that demands a file only the
 reference solution knows the name of makes the task unsolvable, and the caller
 sends it back. Editing `sandbox`, or shaping the task around it, costs you the
 whole session and gains nothing.
+
+**A verifier may not depend on a name the task never states.** You write the
+solution first and the verifier against it, so the verifier inherits the
+solution's private vocabulary: the keys of the report it parses, the label a
+regex anchors on, the file name an artifact must have. The instruction comes
+last and describes those in prose, and a policy that does every bit of the work
+then writes `source_basename:` where the verifier reads `report["source"]`, or
+`- Commit: <sha>` where the verifier wants a line starting `Commit:`, and scores
+zero. Of eight hardened tasks reviewed that the policy failed 16 of 16 times,
+five failed on exactly this, three with all the work done. So: every key, label
+and file name the verifier reads has to appear, spelled the same, in the
+instruction or in a file the image ships that the instruction points at; or the
+verifier checks the value rather than the name (a report line that contains the
+commit's SHA, a field whose value equals the file's SHA-256, whichever key it is
+under). `./sandbox check` runs this audit after the oracle and fails the check on
+what it finds; the caller runs the same audit and sends the rewrite back.
 
 **Run `./sandbox check` before you finish.** A rewrite that has not passed it is
 discarded whole, and the task goes back into training exactly as it was, so an

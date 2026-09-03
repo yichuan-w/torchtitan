@@ -101,7 +101,8 @@ def test_process_one_probes_in_the_agents_box_and_sizes_from_its_own_reading(
                 "_box": BOX, "_at_max": False,
                 "_agent_validated": True, "_extra_files": {}}
 
-    def fake_revalidate(work, image, tid, new, orig=None, changed=None, resources=None):
+    def fake_revalidate(work, image, tid, new, orig=None, changed=None, resources=None,
+                        baseline=None):
         seen["probe_box"] = resources
         # The loop's own probe, in that 4 GiB box, read 1200 MB.
         return {"ok": True, "fast_path": "daytona_oracle", "reward": 1.0,

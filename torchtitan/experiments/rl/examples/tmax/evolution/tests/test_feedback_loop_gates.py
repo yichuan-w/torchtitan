@@ -139,3 +139,43 @@ def test_process_one_returns_a_dark_paths_verdict_to_the_agents_session(tmp_path
     assert rec["oracle_repair"]["ok"] is True
     assert seen["observed"].startswith("The verifier requires paths")
     assert seen["exit_code"] == 0
+
+
+def test_revalidate_sends_back_names_the_task_never_states(tmp_path, monkeypatch) -> None:
+    work, task = _pkg(tmp_path, "Write /app/report.json.",
+                      'report = json.load(open("/app/report.json"))\n'
+                      'assert report["source_sha256"]\nassert report["input_records"] == 3\n')
+
+    def fake_probe(w, shortcut=None, resources=None, require_paths=None):
+        if shortcut is None:
+            return {"ok": True, "stage": "daytona_oracle", "reward": 1.0, "solve_exit": 0,
+                    "paths_checked": require_paths, "paths_missing": [],
+                    "measured": {"mem_peak_mb": 100}, "resources": {"cpu": 1}}
+        return {"ok": True, "stage": "daytona_shortcut", "passed": False}
+
+    monkeypatch.setattr(fb, "daytona_probe", fake_probe)
+    monkeypatch.setattr(fb.shutil, "which", lambda _n: None)
+
+    # The seed's verifier already read input_records unseen; only the new key counts.
+    v = fb.revalidate(work, "img", "tid", task, orig=SEED, changed=["test_state_py"],
+                      baseline=["input_records"])
+    assert v["ok"] is False and v["stage"] == "dark_literals"
+    assert v["literals"] == ["source_sha256"]
+    assert "source_sha256" in v["why"]
+
+    # An oracle failure carries the names along, so one repair round sees both.
+    monkeypatch.setattr(fb, "daytona_probe", lambda *a, **k: {
+        "ok": False, "stage": "daytona_oracle", "reward": 0.0, "solve_exit": 1, "tail": "boom"})
+    v = fb.revalidate(work, "img", "tid", task, orig=SEED, changed=["test_state_py"],
+                      baseline=["input_records"])
+    assert v["stage"] == "daytona_oracle" and v["literals"] == ["source_sha256"]
+    assert "Also:" in v["why"] and "source_sha256" in v["why"]
+
+
+def test_seed_literals_come_from_the_pool_copy(tmp_path) -> None:
+    src = tmp_path / "src"
+    (src / "environment").mkdir(parents=True)
+    (src / "environment" / "README.md").write_text("The report has input_records.\n")
+    task = {**SEED, "test_state_py": 'assert report["input_records"]\nassert report["hidden_key"]\n',
+            "_verifier_rel": "tests/test_state.py"}
+    assert fb.seed_literals(task, src) == ["hidden_key"]

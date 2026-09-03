@@ -692,8 +692,15 @@ harder — and folds the rewrite back into the live training file.
    the rewrite goes back to the agent's session as `dark_paths` (measured on
    wd-20260903b: the static audit flags a third of agentic rewrites, most of
    them README-documented and fine; the container check is what separates
-   those from a genuinely unsolvable task). A session that never passed its
-   own `./sandbox check` is discarded as `agent_failed`.
+   those from a genuinely unsolvable task). The same goes for names: the keys,
+   line labels and file names the rewritten verifier depends on have to be
+   stated, spelled the same, where the agent can read them, or the rewrite
+   goes back as `dark_literals` (`verifier_literals.py`; the agent's own
+   `./sandbox check` fails on the same audit first, so a repair round is the
+   exception). Reviewed on wd-20260903b: five of eight hardened tasks that went
+   0/16 failed on a report key or line label only the reference solution knew,
+   three of them with the work otherwise complete. A session that never passed
+   its own `./sandbox check` is discarded as `agent_failed`.
    A simplify takes an instruction-only fast path with no build and no sandbox,
    which is why the loop is cheap on the direction that dominates.
 4. **Fold.** Accepted rewrites are written back into the mix atomically

@@ -23,7 +23,10 @@ of those and timed out. This hands the agent the container itself.
                             Dockerfile (--max as for up)
     ./sandbox check         reset; grade, which must FAIL (a verifier that
                             passes an untouched workspace pays for nothing);
-                            oracle, which must pass. Prints VERDICT: pass|fail.
+                            oracle, which must pass; then the names audit:
+                            every key, label or filename the verifier depends
+                            on has to be stated where an agent can read it.
+                            Prints VERDICT: pass|fail.
                             The oracle run is measured (memory peak, cpu
                             seconds, disk). A run the box cut short -- OOM
                             kill, disk full, out of time on its cores -- is
@@ -63,6 +66,7 @@ import time
 from pathlib import Path
 
 from derive_sizing import CEILING  # noqa: E402 -- stdlib-only sibling
+import verifier_literals as vl  # noqa: E402 -- stdlib-only sibling
 
 EXEC_TIMEOUT = 120
 SOLVE_TIMEOUT = 900
@@ -330,6 +334,21 @@ def _starved(r: dict, solve_timeout: int) -> str:
     return ""
 
 
+def _verifier_rel(pkg: Path) -> str:
+    return "tests/test_state.py" if (pkg / "tests" / "test_state.py").exists() else "tests/test.sh"
+
+
+def _names_audit(pkg: Path) -> list[str]:
+    """Names the verifier depends on that nothing the agent can read states,
+    beyond what the seed's verifier already did (run/seed_literals.json, written
+    by the harness at layout; absent for a package driven by hand)."""
+    try:
+        baseline = json.loads((pkg / "run" / "seed_literals.json").read_text())
+    except (OSError, ValueError):
+        baseline = []
+    return vl.audit_package(pkg, _verifier_rel(pkg), baseline)
+
+
 def cmd_check(pkg: Path, solve_timeout: int, at_max: bool = False) -> int:
     """The whole verdict on a fresh container: rebuild, null probe, oracle.
 
@@ -374,18 +393,34 @@ def cmd_check(pkg: Path, solve_timeout: int, at_max: bool = False) -> int:
         print(f"VERDICT: error   stage=oracle ({r.get('error')})")
         return 2
     reward = float(r.get("reward") or 0)
-    ok = reward >= 1.0
-    starved = "" if ok else _starved(r, solve_timeout)
+    oracle_ok = reward >= 1.0
+    starved = "" if oracle_ok else _starved(r, solve_timeout)
+    # The reference solution passing says the verifier and the solution agree.
+    # It says nothing about whether an agent that reads only the instruction
+    # could have; that is what the names audit asks, and it is part of the
+    # verdict because the caller enforces the same rule.
+    names = _names_audit(pkg)
+    ok = oracle_ok and not names
     _append_check(pkg, {"time": _now(), "verdict": "pass" if ok else "fail",
-                        "stage": "oracle", "reward": reward,
+                        "stage": "dark_literals" if oracle_ok and names else "oracle",
+                        "reward": reward,
                         "solve_exit": r.get("solve_exit"), "null_reward": null_reward,
                         "resources": box, "at_max": at_max,
                         "measured": r.get("measured"), "starved": starved,
+                        "dark_literals": names,
                         "elapsed_s": round(time.time() - started)})
+    if oracle_ok and names:
+        print(f"VERDICT: fail   stage=dark_literals   reward={reward}   "
+              f"took={time.time() - started:.0f}s   box=[{_box_str(box)}]")
+        print(f"measured: {_measured_str(r.get('measured'))}")
+        print("The reference solution passes, but " + vl.why(names))
+        return 1
     print(f"VERDICT: {'pass' if ok else 'fail'}   reward={reward}   "
           f"solve_exit={r.get('solve_exit')}   null_reward={null_reward}   "
           f"took={time.time() - started:.0f}s   box=[{_box_str(box)}]")
     print(f"measured: {_measured_str(r.get('measured'))}")
+    if names:
+        print("Also, once the solution passes: " + vl.why(names))
     if ok and at_max:
         print("Passed at the ceiling: the task will be provisioned from what the "
               "reference solution measured (never below the seed's size). If that "

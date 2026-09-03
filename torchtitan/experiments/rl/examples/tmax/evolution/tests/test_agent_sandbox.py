@@ -265,3 +265,50 @@ def test_check_at_the_ceiling_names_the_task_unrunnable_when_still_starved(
     assert "Out of memory at the platform ceiling" in out
     record = json.loads((pkg / "run" / "checks.jsonl").read_text().strip())
     assert record["at_max"] is True and record["resources"]["source"] == "ceiling"
+
+
+def test_check_fails_on_names_the_task_never_states(tmp_path, monkeypatch, capsys) -> None:
+    pkg = tmp_path / "pkg"
+    (pkg / "run").mkdir(parents=True)
+    (pkg / "tests").mkdir()
+    (pkg / "environment").mkdir()
+    (pkg / "instruction.md").write_text("Write a report to /app/report.json.\n")
+    (pkg / "environment" / "Dockerfile").write_text("FROM scratch\n")
+    (pkg / "tests" / "test_state.py").write_text(
+        'import json\nreport = json.load(open("/app/report.json"))\n'
+        'assert report["source_sha256"]\nassert report["checked_streams"] == 3\n')
+    (pkg / "run" / "seed_literals.json").write_text('["checked_streams"]\n')   # the seed already had it
+
+    def handler(req):
+        if req["op"] == "grade":
+            return {"ok": True, "reward": 0.0}
+        if req["op"] == "oracle":
+            return {"ok": True, "reward": 1.0, "solve_exit": 0, "tail": "", "measured": {}}
+        return {"ok": True}
+
+    server = _FakeServer(handler)
+    try:
+        asb._write_state(pkg, {"status": "down"})
+        monkeypatch.setattr(asb, "cmd_up", _fake_up(pkg, server))
+        rc = asb.cmd_check(pkg, 30)
+    finally:
+        server.close()
+
+    assert rc == 1
+    out = capsys.readouterr().out
+    assert "VERDICT: fail   stage=dark_literals" in out
+    assert "'source_sha256'" in out and "checked_streams" not in out.split("VERDICT")[1]
+    record = json.loads((pkg / "run" / "checks.jsonl").read_text().strip())
+    assert record["verdict"] == "fail" and record["stage"] == "dark_literals"
+    assert record["dark_literals"] == ["source_sha256"] and record["reward"] == 1.0
+
+    # State the key where the agent reads and the same check passes.
+    (pkg / "instruction.md").write_text(
+        "Write a report to /app/report.json with keys source_sha256 and checked_streams.\n")
+    server = _FakeServer(handler)
+    try:
+        asb._write_state(pkg, {"status": "down"})
+        monkeypatch.setattr(asb, "cmd_up", _fake_up(pkg, server))
+        assert asb.cmd_check(pkg, 30) == 0
+    finally:
+        server.close()
