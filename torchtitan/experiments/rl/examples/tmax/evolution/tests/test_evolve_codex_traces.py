@@ -279,6 +279,46 @@ def test_collect_carries_new_and_changed_support_files_as_bytes(tmp_path) -> Non
     assert out["_extra_files"] == {"environment/fixture.bin": b"\x00\x01"}
 
 
+def test_collect_reresolves_a_switched_verifier(tmp_path) -> None:
+    # Source carried tests/test_state.py; the agent rewrote the grader as
+    # tests/test.sh and dropped the helper. _collect must read test.sh back and
+    # carry its path, not crash on the deleted test_state.py.
+    src = tmp_path / "src"
+    (src / "tests").mkdir(parents=True)
+    (src / "tests/test_state.py").write_text("old helper\n")
+    pkg = tmp_path / "pkg"
+    for d in ("environment", "solution", "tests", "run"):
+        (pkg / d).mkdir(parents=True)
+    (pkg / "instruction.md").write_text("new")
+    (pkg / "environment/Dockerfile").write_text("FROM scratch\n")
+    (pkg / "solution/solve.sh").write_text("#!/bin/sh\n")
+    (pkg / "tests/test.sh").write_text("bash grader\n")   # only test.sh now
+    task = {"_src_dir": str(src), "_verifier_rel": "tests/test_state.py",
+            "instruction": "old", "dockerfile": "FROM scratch\n",
+            "solve_sh": "#!/bin/sh\n", "test_state_py": "old helper\n"}
+
+    out = ec._collect(task, pkg, ec.ev.file_map(task))
+
+    assert out["_verifier_rel"] == "tests/test.sh"
+    assert out["test_state_py"] == "bash grader\n"
+    assert out["_extra_files"] == {}
+
+
+def test_collect_raises_when_the_agent_deletes_every_verifier(tmp_path) -> None:
+    pkg = tmp_path / "pkg"
+    for d in ("environment", "solution", "tests", "run"):
+        (pkg / d).mkdir(parents=True)
+    (pkg / "instruction.md").write_text("new")
+    (pkg / "environment/Dockerfile").write_text("FROM scratch\n")
+    (pkg / "solution/solve.sh").write_text("#!/bin/sh\n")   # no tests/* at all
+    task = {"_verifier_rel": "tests/test_state.py", "instruction": "old",
+            "dockerfile": "FROM scratch\n", "solve_sh": "#!/bin/sh\n",
+            "test_state_py": "old\n"}
+
+    with pytest.raises(RuntimeError, match="no verifier"):
+        ec._collect(task, pkg, ec.ev.file_map(task))
+
+
 def test_agent_checked_reads_the_last_check(tmp_path) -> None:
     (tmp_path / "run").mkdir()
     checks = tmp_path / "run/checks.jsonl"
