@@ -701,7 +701,22 @@ def _collect(task: dict, pkg: Path, fmap: dict) -> dict:
     nobody carried back, which failed as `copy_source_missing` with the agent's
     own run reported as a pass. Bytes, not text: a fixture may be a binary.
     """
+    # The agent may rewrite the verifier as the other corpus's form -- grading
+    # always runs tests/test.sh, and a TW task carrying tests/test_state.py can
+    # legitimately grow a test.sh and drop the helper -- so read back whichever
+    # verifier is on disk now, not the path the source happened to carry, and
+    # carry that path forward so the writeback and the row builder follow the
+    # file the agent kept. A task that passed ./sandbox check with a switched
+    # verifier used to crash here on the deleted file and be discarded whole.
+    fmap = dict(fmap)
+    if not (pkg / fmap["test_state_py"]).exists():
+        alt = next((c for c in ev.VERIFIER_CANDIDATES if (pkg / c).exists()), None)
+        if alt is None:
+            raise RuntimeError(
+                f"agent left no verifier on disk ({ev.VERIFIER_CANDIDATES})")
+        fmap["test_state_py"] = alt
     out = {**task, **{key: (pkg / rel).read_text() for key, rel in fmap.items()}}
+    out["_verifier_rel"] = fmap["test_state_py"]
     mapped = set(fmap.values())
     src_dir = task.get("_src_dir")
     out["_extra_files"] = {}

@@ -122,6 +122,32 @@ def test_check_records_a_null_probe_pass_as_a_failure(tmp_path, monkeypatch, cap
     assert record["verdict"] == "fail" and record["stage"] == "null_probe"
 
 
+def test_check_returns_nonzero_when_the_oracle_fails(tmp_path, monkeypatch, capsys) -> None:
+    pkg = tmp_path / "pkg"
+
+    def handler(req):
+        if req["op"] == "grade":            # null probe: untouched fails, correct
+            return {"ok": True, "reward": 0.0}
+        if req["op"] == "oracle":           # reference solution does not pass
+            return {"ok": True, "reward": 0.0, "solve_exit": 7, "tail": "boom"}
+        return {"ok": True}
+
+    server = _FakeServer(handler)
+    try:
+        asb._write_state(pkg, {"status": "down"})
+        monkeypatch.setattr(asb, "cmd_up", lambda _pkg: (
+            asb._write_state(pkg, {"status": "ready", "sock": server.path}) or 0))
+        rc = asb.cmd_check(pkg, 30)
+    finally:
+        server.close()
+
+    assert rc == 1
+    out = capsys.readouterr().out
+    assert "VERDICT: fail" in out and "solve_exit=7" in out
+    record = json.loads((pkg / "run" / "checks.jsonl").read_text().strip())
+    assert record["verdict"] == "fail" and record["stage"] == "oracle"
+
+
 def test_request_without_a_server_is_an_error_not_a_hang(tmp_path) -> None:
     r = asb._request({"sock": "/tmp/definitely-not-there.sock"}, "ping", wait=1)
     assert r["ok"] is False and "not reachable" in r["error"]

@@ -292,7 +292,7 @@ def cmd_check(pkg: Path, solve_timeout: int) -> int:
         print(tail if tail.strip() else "(empty)")
         print("\nFix the task so the reference solution scores 1.0, then check again. "
               "The container is still up: ./sandbox exec to look around.")
-    return 0 if ok else 1
+    return 0 if ok else 1  # nonzero on fail so `./sandbox check` reflects it
 
 
 # --------------------------------------------------------------------------
