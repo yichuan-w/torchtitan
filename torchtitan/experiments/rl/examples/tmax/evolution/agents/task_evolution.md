@@ -23,7 +23,7 @@ Your working directory is the task package itself.
 **You may edit any of them, and you may add new ones.** A file you create in the
 package travels back with it, so an axis that needs a fixture, a config or a data
 file is a normal thing to do rather than something to work around. `AGENTS.md`,
-`validate` and `traces/` are the harness and do not travel. Which files you
+`sandbox` and `traces/` are the harness and do not travel. Which files you
 *should* touch depends on the job in your prompt, and that prompt says so.
 
 Two files in `run/` are read by the caller rather than by you:
@@ -54,8 +54,10 @@ was written once and never recomputed.
 
 **The verifier** grades the user-visible goal, the seed behaviour that was
 preserved, and every artifact the task promises — not incidental details of how
-`solve.sh` happens to do it. It carries four roles, as four separate test
-functions, because merging them loses the dense signal the task exists for:
+`solve.sh` happens to do it. Four roles have to be covered. They are roles, not
+a count: keep every existing test function that still holds under the new axis
+and add what the axis needs, so the verifier never checks less than the seed's
+did. The roles:
 
 - `required_evidence` — the agent had to find something, not guess it;
 - `intermediate_artifact` — it produced the middle of the workflow, not only the end;
@@ -126,28 +128,40 @@ prefer the form the seed already proved.
 `BLOCKED: <reason>` in `run/verdict.txt`. A task that only builds on a lucky day is
 worse than the task you started from.
 
-## Verify your own work
+## The container, and verifying your own work
 
 ```
-./validate
+./sandbox up             build the image and boot a container (minutes)
+./sandbox exec 'CMD'     run CMD inside it, as root; --timeout N (default 120 s)
+./sandbox oracle         copy solution/ in, run solve.sh, grade it
+./sandbox grade          grade the current state as it is
+./sandbox reset          a fresh container from the current Dockerfile
+./sandbox check          reset; grade the untouched workspace, which must fail;
+                         run the oracle, which must pass. Prints VERDICT: pass|fail
+./sandbox down           delete it
 ```
 
-This builds the package, runs `solution/solve.sh` inside it, and grades the
-result with the package's own verifier — the same path the training harness
-uses. It prints `VERDICT: pass` or `VERDICT: fail` with the run's output, and it
-is the only thing that decides whether your rewrite is accepted.
+This is the task's own environment, built and graded the way the training
+harness does it. Use `exec` to look around, run one step, read a log, see what
+a check sees. `oracle` and `grade` re-read `solution/` and `tests/` every time,
+so an edit is judged as soon as it is saved. A container keeps the state of
+whatever ran in it; `reset` when that matters. Edits to the Dockerfile take
+effect on `reset`.
 
-`./validate` is your mirror, not the judge. The caller re-runs the same checks
-afterwards from files you cannot reach, and adds a probe that tries to pass the
-task without doing the work. A rewrite that only satisfies the copy in this
-directory is caught there and thrown away, so editing `validate`, or shaping the
-task around it, costs you the whole session and gains nothing.
+`./sandbox check` is what decides whether your rewrite is accepted, and it is
+your mirror, not the judge: the caller re-runs the same checks afterwards from
+files you cannot reach — a fresh build, the reference solution against the
+verifier, and the verifier alone on an untouched workspace, which must fail. A
+verifier that passes without the solution pays for nothing; a rewrite that only
+satisfies the copy in this directory is caught there and thrown away. Editing
+`sandbox`, or shaping the task around it, costs you the whole session and gains
+nothing.
 
-**Run it before you finish.** A rewrite that has not passed `./validate` is
+**Run `./sandbox check` before you finish.** A rewrite that has not passed it is
 discarded whole, and the task goes back into training exactly as it was, so an
-edit you were confident about but did not verify is worth nothing. Each run
-takes a few minutes because it boots a real container; budget for two or three,
-not for guessing.
+edit you were confident about but did not verify is worth nothing. Each check
+rebuilds the image and takes minutes; `exec` takes seconds, so do the looking
+there and save `check` for the end.
 
 When it fails, read the output before editing. It tells you which check failed
 and what the run printed. Editing on an impression of what the code should do is
@@ -200,4 +214,4 @@ only passes because the solution avoided the environment is not a task.
 ## Finishing
 
 Your edits in place are the entire output. Do not print the files. Stop once
-`./validate` prints `VERDICT: pass`, or once you have written `run/verdict.txt`.
+`./sandbox check` prints `VERDICT: pass`, or once you have written `run/verdict.txt`.
