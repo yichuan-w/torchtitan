@@ -16,6 +16,8 @@
 # TT_DAYTONA_CPU / TT_DAYTONA_MEM_GB / TT_DAYTONA_DISK_GB set in this shell
 # override the snapshot: the loop needs the trainer's values for a row that
 # declares no daytona_* of its own, and an older loop may not carry them.
+# TRL_VENV_PY names the interpreter when the old loop's own is not the venv
+# python (default: the old loop's argv[0]).
 set -uo pipefail
 EVO=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 OLD=${1:?old loop pid}
@@ -37,7 +39,12 @@ UNIT=evolve-$(basename "$W")
 LOG=$(argval log "$EVROOT/evolve_ondella.log")
 WORKERS=$(argval workers 16)
 INTERVAL=$(argval interval 120)
-PY=$(readlink -f "/proc/$OLD/exe")
+# argv[0], not the resolved executable: the venv's bin/python is a symlink to
+# the interpreter, and the interpreter run by its real path has no venv, so
+# the loop starts and then finds no daytona or openai to import.
+PY=${TRL_VENV_PY:-$(tr '\0' '\n' < "/proc/$OLD/cmdline" | head -1)}
+"$PY" -c 'import sys; sys.exit(sys.prefix == sys.base_prefix)' 2>/dev/null \
+  || { echo "$PY is not a virtualenv python; set TRL_VENV_PY to the loop's venv"; exit 1; }
 TRACE_DIR=$(envval SWE_EVOLUTION_TRACE_DIR)
 TRACE_DIR=${TRACE_DIR:-$SIGNALS/codex_traces}
 # Not under EVROOT: the loop's lineage snapshot `git add -A`s that directory,
