@@ -77,12 +77,15 @@ RESOURCE_KEYS = ("cpu", "mem_gb", "disk_gb")
 
 
 def daytona_probe(work: Path, shortcut: str | None = None,
-                  resources: dict | None = None) -> dict | None:
+                  resources: dict | None = None,
+                  require_paths: list[str] | None = None) -> dict | None:
     """Run daytona_revalidate.py on this package; None when unconfigured.
 
     `resources` is the box to run it in: the size the row is provisioned at in
     training, so an oracle pass here is a pass where the task will be run. A
     key left None falls to the harness default for this process's env.
+    `require_paths` come back in the verdict as `paths_missing`: the ones the
+    untouched workspace does not have.
     """
     # Three different things used to collapse into one silent `return None`, and
     # the caller turns None into "neither docker nor Daytona is configured here".
@@ -116,6 +119,8 @@ def daytona_probe(work: Path, shortcut: str | None = None,
     for key in RESOURCE_KEYS:
         if (resources or {}).get(key) is not None:
             cmd += [f"--{key.replace('_', '-')}", str(resources[key])]
+    for p in require_paths or ():
+        cmd += ["--require-path", p]
     # One retry, only for infra-shaped failures. The platform is measurably
     # flaky (DaytonaTimeout/BadGateway bursts), and a probe that fails for the
     # platform's sake discards a perfectly good retune: in one window 79
@@ -176,6 +181,53 @@ def format_trace(attempts: list[dict], keep: int = 3) -> str:
     return "\n".join(out)
 
 
+CONTEXT_FILE_MAX = 256 * 1024
+
+
+def context_text(work: Path) -> str:
+    """Everything in the build context an agent could read inside the image:
+    the files under environment/ other than the Dockerfile (which the audit
+    already sees). A README the instruction points at lives here."""
+    out = []
+    root = work / "environment"
+    if not root.is_dir():
+        return ""
+    for f in sorted(root.rglob("*")):
+        if f.is_file() and f.name != "Dockerfile" and f.stat().st_size <= CONTEXT_FILE_MAX:
+            out.append(f.read_text(errors="replace"))
+    return "\n".join(out)
+
+
+def new_dark_paths(work: Path, task: dict, orig: dict) -> list[str]:
+    """Paths the rewritten verifier requires that nothing the agent can read
+    names, and that the seed's verifier did not already require unseen.
+
+    Measured on wd-20260903b (299 agentic folds): the static audit alone flags
+    100, but 72 of those name every path in a file the image ships (a README
+    the instruction points at), which is the agent's favourite way to make a
+    task harder and is discoverable. So the build context counts as visible.
+    What is left still has to be checked against the container: a verifier
+    that asserts /usr/bin/curl exists asks nothing of the agent. The probe
+    does that part.
+    """
+    ctx = context_text(work)
+    seen = {**task, "instruction": task["instruction"] + "\n" + ctx}
+    before = set(sl.audit(orig)["dark_paths"])
+    return [p for p in sl.audit(seen)["dark_paths"]
+            if p not in before and ":" not in p and not any(c in p for c in "*?[")]
+
+
+def _dark_paths_why(missing: list[str]) -> str:
+    return ("The verifier requires paths that nothing an agent can see reveals: "
+            "they are not named in the instruction, the Dockerfile or any file "
+            "in the build context, and they do not exist in the untouched "
+            "container: " + ", ".join(missing) + ". An agent that reads only the "
+            "instruction and the container cannot know to create them. Name "
+            "them where the agent will read them (the instruction, or a file in "
+            "the image the instruction points at), or make the verifier stop "
+            "depending on them; do not weaken what it checks otherwise.")
+
+
 def revalidate(work: Path, image: str, tid: str, task: dict,
                orig: dict | None = None, changed: list[str] | None = None,
                resources: dict | None = None) -> dict:
@@ -224,7 +276,14 @@ def revalidate(work: Path, image: str, tid: str, task: dict,
         # harness default (2/4/6) whatever the row said, so a task that fit
         # there and not in its training box (1/2/2 on this corpus) passed here
         # and was starved there, and the timeout read back as "too hard".
-        dv = daytona_probe(work, resources=resources)
+        #
+        # The same container answers whether the verifier's unseen paths are
+        # preconditions or artifacts: a structural rewrite that makes the
+        # verifier demand a file the task never names passed the oracle (the
+        # reference solution knows the name) and then failed every rollout.
+        # That was the instruction-only fast path's audit, never applied here.
+        dark = new_dark_paths(work, task, orig) if orig is not None else []
+        dv = daytona_probe(work, resources=resources, require_paths=dark)
         if dv is None:
             return {"ok": False, "stage": "no_docker",
                     "why": "structural change needs a build; neither docker "
@@ -233,6 +292,11 @@ def revalidate(work: Path, image: str, tid: str, task: dict,
             return {"ok": False, "stage": dv.get("stage", "daytona"),
                     "why": str(dv.get("why") or f"reward={dv.get('reward')} "
                                f"solve_exit={dv.get('solve_exit')}")[:200]}
+        missing = dv.get("paths_missing") or []
+        if missing:
+            return {"ok": False, "stage": "dark_paths", "paths": missing,
+                    "why": _dark_paths_why(missing), "solve_exit": dv.get("solve_exit"),
+                    "measured": dv.get("measured"), "resources": dv.get("resources")}
         null = daytona_probe(work, shortcut=":", resources=resources) or {}
         if null.get("passed"):
             return {"ok": False, "stage": "null_pass",
@@ -503,7 +567,7 @@ def process_one(rollout: dict, src_dir: Path, out_root: Path,
         if (
             not v["ok"]
             and rec["action"] == "evolve"
-            and v.get("stage") == "daytona_oracle"
+            and v.get("stage") in ("daytona_oracle", "dark_paths")
         ):
             # The structural operator regenerates instruction, solution and
             # verifier together, and the hard part is making the three agree:
@@ -518,7 +582,12 @@ def process_one(rollout: dict, src_dir: Path, out_root: Path,
             # that back for one more repair and revalidate again. Repairing the
             # task is the point; rewriting the instruction instead would leave
             # the verifier as weak as it was.
-            tail, code = v.get("tail", ""), int(v.get("solve_exit") or 1)
+            # What the agent gets to read: the verdict's own diagnosis first
+            # (a run the box starved, paths the verifier demands unseen), then
+            # whatever the run printed. A tail alone showed "No space left on
+            # device" without saying the box was the training size.
+            tail = "\n\n".join(s for s in (v.get("why"), v.get("tail")) if s)
+            code = int(v["solve_exit"]) if v.get("solve_exit") is not None else 1
             fixed = None
             if os.environ.get("SWE_RETUNE_AGENT", "chat") == "codex":
                 # Back to the session that wrote the files, with the failure it
