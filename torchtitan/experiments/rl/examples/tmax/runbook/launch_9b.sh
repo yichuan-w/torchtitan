@@ -97,8 +97,20 @@ if [ -d "$_ckpt_link" ] && [ ! -L "$_ckpt_link" ]; then
     export SWE_CKPT_FOLDER=${SWE_CKPT_FOLDER:-$_ckpt_link}
 else
     export SWE_CKPT_FOLDER=${SWE_CKPT_FOLDER:-/scratch/al9080/terminal-rl/ckpt/$(basename "$DUMP")}
-    mkdir -p "$SWE_CKPT_FOLDER" "$DUMP/outputs/rl"
+    # The folder is NOT created here: the checkpointer creates it on the first
+    # save. Before the 2026-09-02 fix in components/checkpoint.py, a folder that
+    # existed without a step-* made the trainer skip the initial HF load and
+    # start from random weights; not pre-creating it keeps that from mattering
+    # on a tree without the fix.
+    mkdir -p "$DUMP/outputs/rl"
     [ -L "$_ckpt_link" ] || ln -s "$SWE_CKPT_FOLDER" "$_ckpt_link"
+fi
+# Say which weights the trainer will start from, so launch.info answers it.
+_latest_step=$(ls -d "$SWE_CKPT_FOLDER"/step-* 2>/dev/null | sort -V | tail -1)
+if [ -n "$_latest_step" ]; then
+    echo "[launch] resuming from $_latest_step"
+else
+    echo "[launch] fresh start: initial weights from $TRL_MODEL (no step-* under $SWE_CKPT_FOLDER)"
 fi
 
 echo "[launch] profile=$TRL_PROFILE tt=$TRL_TT dump=$DUMP data=$SWE_PROMPT_DATA gpus=$CUDA_VISIBLE_DEVICES ckpt=$SWE_CKPT_FOLDER" | tee "$DUMP/launch.info"

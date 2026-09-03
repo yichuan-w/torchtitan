@@ -792,7 +792,19 @@ class CheckpointManager(Configurable):
         from_hf = False
         from_quantized = False
 
-        if not os.path.exists(self.folder):
+        # The decision is whether the folder holds a checkpoint, not whether it
+        # exists. A folder that exists but has no step-* directory is a fresh
+        # run whose folder was created ahead of the first save -- a launcher's
+        # mkdir -p, or an earlier launch killed before it saved -- and it must
+        # take the initial load exactly like a missing folder. Deciding on
+        # existence alone fell through to _find_load_step, returned False, and
+        # left the model on its random init: on 2026-09-02 every launch with a
+        # pre-created checkpoint folder trained, and served rollouts from, an
+        # uninitialized 9B model for hours before anyone read the warning.
+        folder_has_checkpoint = os.path.exists(self.folder) and (
+            step != -1 or self._find_load_step() != -1
+        )
+        if not folder_has_checkpoint:
             model_only = self.initial_load_model_only
             from_hf = self.initial_load_in_hf
             from_quantized = self.initial_load_in_hf_quantized
@@ -840,13 +852,13 @@ class CheckpointManager(Configurable):
             if self.initial_load_path:
                 logger.warning(
                     "checkpoint.initial_load_path is provided but the "
-                    "checkpoint.folder exists. Checkpointer will use the checkpoints "
-                    f"from the checkpoint.folder {self.folder}."
+                    "checkpoint.folder holds a checkpoint. Checkpointer will use "
+                    f"the checkpoints from the checkpoint.folder {self.folder}."
                 )
             if self.initial_load_in_hf:
                 logger.warning(
                     "checkpoint.initial_load_in_hf is True but the checkpoint.folder "
-                    "exists. Checkpointer will not load from HF safetensors"
+                    "holds a checkpoint. Checkpointer will not load from HF safetensors"
                 )
 
             step = self._find_load_step() if step == -1 else step
