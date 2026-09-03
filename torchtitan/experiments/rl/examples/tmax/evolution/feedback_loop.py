@@ -22,7 +22,7 @@ model, in exactly the shape training will hand back.
 
 Per task, given its rollout record:
   1. route on the solve count (above)
-  2. re-validate whatever changed: build, oracle, shortcut execution — an
+  2. re-validate whatever changed: build, oracle, null probe — an
      adjustment can break a task, and shipping a broken one is worse than not
      adjusting it. (This builds, but it does not solve: checking a task is
      well-formed is the data side's job; solving it is not.)
@@ -165,9 +165,18 @@ def format_trace(attempts: list[dict], keep: int = 3) -> str:
 
 def revalidate(work: Path, image: str, tid: str, task: dict,
                orig: dict | None = None, changed: list[str] | None = None) -> dict:
-    """After an adjustment: still builds, still self-consistent, still not
-    passable by a shortcut. Building here checks the task is well-formed; it
-    never runs the solver.
+    """After an adjustment: still builds, still self-consistent, and the
+    verifier still fails an untouched workspace. Building here checks the task
+    is well-formed; it never runs the solver.
+
+    The null probe replaced an LLM-guessed shortcut. Of the 148 rewrites that
+    probe rejected in one week, 29 had "passed" on `cd /app` or `mkdir -p` --
+    a verifier green before anything is done, which this probe catches for
+    free -- and 100 on the expected artifact printf'd into place by a reader
+    who had seen the solution and the verifier. A policy that has seen neither
+    cannot write that answer, so those were tasks fit to train on, thrown away
+    at a chat call and a sandbox each. The hackability question moved into the
+    agent's session, where it has the container and can try for itself.
 
     Instruction-only fast path. When the only file the retune touched is the
     instruction, nothing that affects the build, the verifier, or the reference
@@ -206,13 +215,10 @@ def revalidate(work: Path, image: str, tid: str, task: dict,
             return {"ok": False, "stage": dv.get("stage", "daytona"),
                     "why": str(dv.get("why") or f"reward={dv.get('reward')} "
                                f"solve_exit={dv.get('solve_exit')}")[:200]}
-        diag = llm.diagnose_unsolved(task)
-        shortcut = str(diag.get("shortcut") or "").strip()
-        if shortcut:
-            hack = daytona_probe(work, shortcut=shortcut) or {}
-            if hack.get("passed"):
-                return {"ok": False, "stage": "shortcut",
-                        "why": f"passed on: {shortcut[:150]}"}
+        null = daytona_probe(work, shortcut=":") or {}
+        if null.get("passed"):
+            return {"ok": False, "stage": "null_pass",
+                    "why": "verifier passes on the untouched workspace"}
         return {"ok": True, "fast_path": "daytona_oracle",
                 "reward": dv.get("reward")}
     sl.sh(["docker", "rmi", "-f", image], 300)
@@ -223,13 +229,10 @@ def revalidate(work: Path, image: str, tid: str, task: dict,
     if not oracle.get("ok"):
         return {"ok": False, "stage": "oracle",
                 "why": oracle.get("test_tail", "")[-200:]}
-    diag = llm.diagnose_unsolved(task)
-    shortcut = str(diag.get("shortcut") or "").strip()
-    if shortcut:
-        hack = sl.shortcut_check(work, image, tid, shortcut)
-        if hack.get("passed"):
-            return {"ok": False, "stage": "shortcut",
-                    "why": f"passed on: {shortcut[:150]}"}
+    null = sl.shortcut_check(work, image, tid, ":")
+    if null.get("passed"):
+        return {"ok": False, "stage": "null_pass",
+                "why": "verifier passes on the untouched workspace"}
     return {"ok": True}
 
 
@@ -294,11 +297,10 @@ def process_one(rollout: dict, src_dir: Path, out_root: Path) -> dict:
                     new = ec.simplify_codex(task, solved=0, attempts=graded,
                                             trajectory=trace, hint=hint_lvl)
                     _record_codex_traces(rec, new)
-                except Exception as e:  # noqa: BLE001 -- fall back to chat
+                except Exception as e:  # noqa: BLE001 -- the task stays as it is
                     _record_codex_traces(rec, e)
-                    log.warning("codex retune failed (%s); chat fallback", e)
-                    new = ev.simplify(task, solved=0, attempts=graded,
-                                      trajectory=trace, hint=hint_lvl)
+                    return {**rec, "status": "agent_failed", "action": "simplify",
+                            "why": f"{type(e).__name__}: {e}"[:200]}
             else:
                 new = ev.simplify(task, solved=0, attempts=graded,
                                   trajectory=("" if arm == "none" else trace),
@@ -330,22 +332,22 @@ def process_one(rollout: dict, src_dir: Path, out_root: Path) -> dict:
             rec["operator"], rec["family"] = operator, fam
 
             if os.environ.get("SWE_RETUNE_AGENT", "chat") == "codex":
+                # No chat fallback. Measured over 434 agent sessions, every
+                # fallback followed a timeout or a "verifier weakened" verdict
+                # that was itself wrong (the heuristic counted test functions
+                # while the spec asked for four roles), and neither is a thing
+                # one chat call does better; it only put the weaker method's
+                # output into the fold as if the agent had written it. A
+                # failed session leaves the task as it was, and says why.
                 try:
                     import evolve_codex as ec
                     from evolve_codex import Blocked as ec_Blocked
                     agent_task = {**task, "_solved": solved, "_attempts": graded}
-                    new = ec.evolve_agentic(
-                        agent_task, "harder", trajectory=format_trace(attempts),
-                        operator=shortlist)
+                    new = ec.evolve_agentic(agent_task, "harder", attempts=attempts,
+                                            operator=shortlist)
                     _record_codex_traces(rec, new)
                     rec["action"], rec["hint"] = "evolve", new.get("_hint")
                     rec["agent_validated"] = new.get("_agent_validated")
-                    weaker = _verifier_weakened(
-                        task, new,
-                        next((k for k, r in ev.file_map(task).items()
-                              if r == task.get("_verifier_rel")), None))
-                    if weaker:
-                        raise RuntimeError(f"verifier weakened: {weaker}")
                 except ec_Blocked as e:
                     _record_codex_traces(rec, e)
                     # It read the package and said the axis does not fit, or
@@ -356,10 +358,10 @@ def process_one(rollout: dict, src_dir: Path, out_root: Path) -> dict:
                     rec["action"] = "keep"
                     return {**rec, "status": "kept", "why": str(e)[:200],
                             "out_dir": str(work)}
-                except Exception as e:  # noqa: BLE001 -- chat operator below
+                except Exception as e:  # noqa: BLE001 -- the task stays as it is
                     _record_codex_traces(rec, e)
-                    log.warning("agent evolve failed (%s); chat fallback", e)
-                    new = None
+                    return {**rec, "status": "agent_failed", "action": "evolve",
+                            "why": f"{type(e).__name__}: {e}"[:200]}
             else:
                 new = None
 
@@ -419,31 +421,44 @@ def process_one(rollout: dict, src_dir: Path, out_root: Path) -> dict:
             tail, code = v.get("tail", ""), int(v.get("solve_exit") or 1)
             fixed = None
             if os.environ.get("SWE_RETUNE_AGENT", "chat") == "codex":
-                # The agentic repair is the one that fits this job: both files
-                # are on disk at full length and it can grep between them,
-                # rather than holding a 500-line solution and a 500-line
-                # verifier in a single prompt and guessing which side is wrong.
+                # Back to the session that wrote the files, with the failure it
+                # never saw. A fresh repair session, chat or agentic, has to
+                # rediscover from the files alone why they look the way they
+                # do; the one that wrote them is on disk and can be resumed.
                 try:
                     import evolve_codex as ec
-                    fixed = ec.repair_oracle_codex(new, tail, code)
+                    from evolve_codex import Blocked as ec_Blocked
+                    if new.get("_codex_trace_dir"):
+                        fixed = ec.resume_agentic(new, tail, code)
+                    else:
+                        fixed = ec.repair_oracle_codex(new, tail, code)
                     _record_codex_traces(rec, fixed)
-                except Exception as e:  # noqa: BLE001 -- fall back to chat
+                except ec_Blocked as e:
                     _record_codex_traces(rec, e)
-                    log.warning("codex oracle repair failed (%s); chat fallback", e)
-            if fixed is None:
+                    log.info("%s oracle repair declined: %s", tid, str(e)[:200])
+                except Exception as e:  # noqa: BLE001 -- the failed verdict stands
+                    _record_codex_traces(rec, e)
+                    log.warning("%s oracle repair failed: %s", tid, str(e)[:200])
+            else:
                 try:
                     fixed = ev.repair_oracle(new, tail, code)
                 except Exception:  # noqa: BLE001 -- repair is best-effort
                     fixed = None
             if fixed is not None:
                 repaired = [k for k in ev.file_map(fixed) if fixed[k] != new[k]]
-                if repaired:
+                extra = fixed.get("_extra_files") or {}
+                if repaired or extra:
                     for key, rel in ev.file_map(fixed).items():
                         (work / rel).write_text(fixed[key])
+                    for rel, blob in extra.items():
+                        dest = work / rel
+                        dest.parent.mkdir(parents=True, exist_ok=True)
+                        dest.write_bytes(blob)
                     v2 = revalidate(work, image, tid, fixed, orig=task,
                                     changed=[k for k in ev.file_map(fixed)
-                                             if fixed[k] != task[k]])
-                    rec["oracle_repair"] = {"files": repaired, "ok": v2["ok"]}
+                                             if fixed[k] != task[k]] + list(extra))
+                    rec["oracle_repair"] = {"files": repaired + list(extra),
+                                            "ok": v2["ok"]}
                     if v2["ok"]:
                         rec["revalidate"] = v2
                         return {**rec, "status": "ok", "out_dir": str(work)}
@@ -465,30 +480,6 @@ def process_one(rollout: dict, src_dir: Path, out_root: Path) -> dict:
         if shutil.which("docker"):
             sl.sh(["docker", "rmi", "-f", image], 300)
 
-
-
-def _verifier_weakened(before: dict, after: dict, vkey: str | None) -> str:
-    """Describe how the verifier got weaker, or "" when it did not.
-
-    An evolve is allowed to rewrite the verifier -- that is often the only way to
-    ask for more -- so this cannot compare text. It compares how much the file
-    checks: the count of assertions and test functions. Those can legitimately
-    move a little when checks are merged or restructured, so only a real drop
-    counts, and only in the direction that matters.
-    """
-    if not vkey or vkey not in before or vkey not in after:
-        return ""
-    def strength(text: str) -> tuple[int, int]:
-        return (len(re.findall(r"\bassert\b|\bassertEqual\b|\bassertTrue\b"
-                               r"|\[ +-[a-z] |\bexit 1\b", text)),
-                len(re.findall(r"^\s*def test_|^\s*check_", text, re.M)))
-    a_asserts, a_tests = strength(before[vkey])
-    b_asserts, b_tests = strength(after[vkey])
-    if a_asserts >= 4 and b_asserts < a_asserts * 0.6:
-        return f"checks {a_asserts} -> {b_asserts}"
-    if a_tests >= 2 and b_tests < a_tests:
-        return f"test functions {a_tests} -> {b_tests}"
-    return ""
 
 
 def load_rollouts(path: Path) -> dict:

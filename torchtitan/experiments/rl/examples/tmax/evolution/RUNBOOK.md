@@ -219,10 +219,17 @@ does not scan that subdirectory. The signal queue's parent remains the artifact 
 the evolution run: `consumed/`, `retuned/`, `deferred_easier/`, `junk/`,
 `evolution_stats.json`, `evolution_lineage.jsonl`, and `evolve_ondella.log` are written
 there. Each Codex retune, evolve, or oracle-repair attempt keeps one trace directory;
-`trace.json` records the task ID and invocation status, `run/` contains the pre-agent
-workspace archive, prompt, and process output, and `.cxhome/sessions/` contains the Codex
-session JSONL when the CLI created one. Final retune and fold outcomes remain in
-`evolution_lineage.jsonl`. After stopping the old loop's process group, the restart script
+`trace.json` records the task ID and invocation status (and, for a resumed oracle repair,
+a `repairs` list), `harness/` holds the prompt, the pre-agent archive of the package and
+the process output, `pkg/` is the agent's working directory (the package plus `run/` and
+`traces/`; `run/sandbox.log` and `run/checks.jsonl` are the container's log and the
+agent's own verdicts), and `.cxhome/sessions/` contains the Codex session JSONL when the
+CLI created one. Final retune and fold outcomes remain in `evolution_lineage.jsonl`. A
+session that fails (timeout, no axis declared, nothing changed) leaves the task as it was
+and logs `agent_failed` with the reason; there is no chat fallback on the codex arm.
+Revalidation of a structural rewrite is the oracle on a fresh build plus a null probe (the
+verifier alone on an untouched workspace, which must fail, or the rewrite is rejected as
+`null_pass`). After stopping the old loop's process group, the restart script
 backs up each trace record still in the `running` state as `trace.pre-finalize.json`, then
 writes `"status": "interrupted"` before starting the replacement loop. Set
 `SWE_EVOLUTION_TRACE_DIR` to move Codex traces elsewhere.

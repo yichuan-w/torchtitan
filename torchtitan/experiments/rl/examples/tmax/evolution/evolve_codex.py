@@ -1,22 +1,22 @@
 #!/usr/bin/env python3
-"""Agentic retune: make a task easier with the Codex CLI instead of one chat call.
+"""Agentic retune: change a task with the Codex CLI instead of one chat call.
 
 The chat retune (evolve.simplify) crams the failure traces into a single prompt
 truncated to 20k chars, then asks once. This gives Codex the FULL traces as
 files in a working directory and a role via AGENTS.md, and lets it read, focus,
-and rewrite the instruction agentically -- no truncation, and the role/rules
-live in a maintainable file rather than a built string.
+and rewrite agentically -- no truncation, and the role/rules live in a
+maintainable file rather than a built string.
 
-Same contract as evolve.simplify: takes the task dict, returns a new task dict
-with the instruction rewritten and `_hint` set (here always "codex"). The output
-goes through the SAME leak/dark audit downstream -- this only changes HOW the
-new instruction is written, not the gate it must pass.
+Same contract as evolve.simplify / evolve.evolve: takes the task dict, returns
+a new task dict with files rewritten and `_hint` set. The output goes through
+the SAME revalidation downstream -- this only changes HOW the new files are
+written, not the gate they must pass.
 
-Runs Codex LOCALLY on della (the retune reads and rewrites; it does not run the
-task, so no sandbox). Auth mirrors solve_daytona's verified incantation: a fresh
-CODEX_HOME (a stray ChatGPT token otherwise wins and 401s), a model_provider
-whose base_url is the same us.api endpoint synth_client uses, and the key
-injected via env.
+Runs Codex LOCALLY on della (the agent reads and rewrites here; the task's own
+container it reaches through ./sandbox, on Daytona). Auth mirrors
+solve_daytona's verified incantation: a fresh CODEX_HOME (a stray ChatGPT token
+otherwise wins and 401s), a model_provider whose base_url is the same us.api
+endpoint synth_client uses, and the key injected via env.
 """
 from __future__ import annotations
 
@@ -94,7 +94,21 @@ def _prune_private_home(work: Path) -> None:
 
 @contextlib.contextmanager
 def _trace_work(job: str, task: dict):
-    """Create one durable, self-describing Codex work directory."""
+    """Create one durable, self-describing Codex trace directory.
+
+        <trace>/trace.json   this record
+        <trace>/harness/     what the harness gave and got back: the prompt,
+                             the pre-agent archive of pkg/, process output
+        <trace>/.cxhome/     the CLI's private home; sessions/ survives, the
+                             rest is pruned
+        <trace>/pkg/         the agent's working directory: the package,
+                             AGENTS.md, ./sandbox, run/, traces/
+
+    The agent's cwd is pkg/, one level down, so nothing the harness records
+    about the session is in its view. It used to be: the agent listed
+    .cxhome/ and the input archive with `find .` and once deleted its own
+    scratch to tidy up.
+    """
     root = _trace_root()
     root.mkdir(parents=True, exist_ok=True, mode=0o700)
     root.chmod(0o700)
@@ -102,12 +116,15 @@ def _trace_work(job: str, task: dict):
     # GPFS default ACLs can widen mkdtemp's requested mode. These directories
     # contain private verifiers, reference solutions, and rollout transcripts.
     work.chmod(0o700)
+    (work / "pkg").mkdir(mode=0o700)
+    (work / "harness").mkdir(mode=0o700)
     metadata = {
-        "schema_version": 1,
+        "schema_version": 2,
         "record_type": "codex_evolution_trace",
         "job": job,
         "task_id": _task_id(task),
         "model": CODEX_MODEL,
+        "reasoning_effort": CODEX_EFFORT,
         "status": "running",
         "started_time_unix_ns": time.time_ns(),
         "finished_time_unix_ns": None,
@@ -120,8 +137,8 @@ def _trace_work(job: str, task: dict):
         metadata["error_type"] = type(exc).__name__
         metadata["error"] = str(exc)
         try:
-            setattr(exc, "codex_trace_dir", str(work))
-        except Exception:
+            exc.codex_trace_dir = str(work)
+        except Exception:  # noqa: BLE001 -- some exceptions refuse attributes
             pass
         raise
     else:
@@ -138,11 +155,18 @@ def _trace_work(job: str, task: dict):
 def _attach_trace(out: dict, task: dict, work: Path) -> dict:
     prior = list(task.get("_codex_trace_dirs") or [])
     out["_codex_trace_dir"] = str(work)
-    out["_codex_trace_dirs"] = [*prior, str(work)]
+    if str(work) not in prior:
+        prior.append(str(work))
+    out["_codex_trace_dirs"] = prior
     return out
+
 
 CODEX_BIN = os.environ.get("CODEX_BIN", "/scratch/gpfs/TRIDAO/al9080/terminal-rl/bin/codex")
 CODEX_MODEL = os.environ.get("SYNTH_MODEL", "gpt-5.6")
+# Same knob as the chat calls: high unless SYNTH_EFFORT says otherwise. Left
+# unset, the CLI ran the sessions at its own default, which the session log
+# records as reasoning_effort=null.
+CODEX_EFFORT = llm.EFFORT
 API_BASE = os.environ.get("SYNTH_API_BASE", "https://us.api.openai.com/v1")
 # Turn budget the agent is told to respect; the hard cap is the subprocess
 # timeout below. "deadline in the prompt" per the design.
@@ -186,26 +210,26 @@ _PROMPT = ("Read AGENTS.md and the files it points to, then rewrite instruction.
 def simplify_codex(task: dict, solved: int = 0, attempts: int = 16,
                    trajectory: str = "", hint: str = "specific") -> dict:
     """Codex-driven counterpart of evolve.simplify. Returns a new task dict with
-    `instruction` rewritten and `_hint="codex"`. Raises on hard failure so the
-    caller can fall back to the chat retune."""
+    `instruction` rewritten and `_hint="codex"`. Raises on hard failure."""
     if not os.path.exists(CODEX_BIN):
         raise RuntimeError(f"codex binary not found at {CODEX_BIN}")
     level = "specific" if trajectory else "vague"
     with _trace_work("retune", task) as work:
+        pkg = work / "pkg"
         # lay the task out on disk exactly as the package looks
         fmap = ev.file_map(task)
         for key, rel in fmap.items():
-            dest = work / rel
+            dest = pkg / rel
             dest.parent.mkdir(parents=True, exist_ok=True)
             dest.write_text(task[key])
-        (work / "traces").mkdir(exist_ok=True)
-        (work / "traces" / "failures.txt").write_text(trajectory or "(no transcript captured)")
-        (work / "AGENTS.md").write_text(_AGENTS_MD.format(
+        (pkg / "traces").mkdir(exist_ok=True)
+        (pkg / "traces" / "failures.txt").write_text(trajectory or "(no transcript captured)")
+        (pkg / "AGENTS.md").write_text(_AGENTS_MD.format(
             verifier=ev._verifier_rel(task), solved=solved, attempts=attempts,
             level=level, level_rule=ev.HINT_LEVELS[level], max_calls=MAX_TOOL_CALLS))
 
         p = _run_codex(work, _PROMPT, timeout=TIMEOUT_SEC)
-        new_instruction = (work / fmap["instruction"]).read_text()
+        new_instruction = (pkg / fmap["instruction"]).read_text()
         if not new_instruction.strip():
             raise RuntimeError("codex emptied the instruction")
         if new_instruction == task["instruction"]:
@@ -213,6 +237,7 @@ def simplify_codex(task: dict, solved: int = 0, attempts: int = 16,
                                f"(exit {p.returncode}): {p.stdout[-200:]}")
         out = {**task, "instruction": new_instruction, "_hint": "codex"}
         return _attach_trace(out, task, work)
+
 
 _ORACLE_AGENTS_MD = """# Your job: make the reference solution pass the verifier
 
@@ -258,7 +283,6 @@ _ORACLE_PROMPT = ("Read AGENTS.md, then read run/failure.txt and fix the task so
                   "in place and stop.")
 
 
-
 def _split_attempts(trajectory: str) -> list[str]:
     """Split a concatenated transcript back into per-attempt chunks."""
     if not trajectory.strip():
@@ -268,30 +292,56 @@ def _split_attempts(trajectory: str) -> list[str]:
     return [p for p in (part.strip() for part in parts) if p] or [trajectory]
 
 
+def _render_attempt(attempt: dict) -> str:
+    """One rollout as the agent reads it: the header, then every turn whole.
+
+    Same shape as feedback_loop.format_trace, minus its cuts. That function was
+    written for the chat prompt and trims each turn's terminal output to 600
+    characters and the verifier tail to 400; on disk there is no budget to
+    protect, and the cut landed exactly where the agent needed to look.
+    """
+    lines = [f"--- attempt reward={attempt.get('reward')} "
+             f"turns={attempt.get('turns')} ---"]
+    for step in attempt.get("transcript") or []:
+        lines.append(f"$ {step.get('cmd', '')}")
+        lines.append(f"  {step.get('out', '')}")
+    if attempt.get("test_tail"):
+        lines.append(f"verifier tail: {attempt['test_tail']}")
+    return "\n".join(lines)
+
+
 def _codex_env(work: Path) -> dict:
     home = work / ".cxhome"
     home.mkdir(exist_ok=True)
     env = dict(os.environ)
     env["CODEX_HOME"] = str(home)
     env["OPENAI_API_KEY"] = llm._api_key()
-    # ./validate is a copy of agent_validate.sh dropped into `work`, so from
-    # inside the workdir the script cannot find daytona_revalidate.py beside
-    # itself. Tell it where the harness lives. Without this every codex retune
-    # ends in BLOCKED and the loop records it as `kept`.
+    # ./sandbox is a copy of agent_sandbox.sh dropped into pkg/, so from inside
+    # the workdir the script cannot find agent_sandbox.py beside itself. Tell
+    # it where the harness lives. Without this every session ends in BLOCKED
+    # and the loop records it as `kept`.
     env["EVOLVE_HARNESS_DIR"] = str(Path(__file__).resolve().parent)
     return env
 
 
-def _codex_cmd(work: Path) -> list[str]:
-    return [
-        CODEX_BIN, "exec",
+def _codex_cmd(work: Path, resume: str | None = None) -> list[str]:
+    cmd = [CODEX_BIN, "exec"]
+    if resume:
+        cmd += ["resume", resume]
+    cmd += [
         "--dangerously-bypass-approvals-and-sandbox", "--skip-git-repo-check",
         "-c", "model_providers.oai.name=openai",
         "-c", f"model_providers.oai.base_url={API_BASE}",
         "-c", "model_providers.oai.env_key=OPENAI_API_KEY",
         "-c", "model_provider=oai",
-        "-C", str(work), "-m", CODEX_MODEL, "-",
+        "-c", f"model_reasoning_effort={CODEX_EFFORT}",
     ]
+    # `exec resume` takes no -C (codex-cli 0.149: it continues in the
+    # session's recorded cwd); the subprocess is started in pkg/ either way.
+    if not resume:
+        cmd += ["-C", str(work / "pkg")]
+    cmd += ["-m", CODEX_MODEL, "-"]
+    return cmd
 
 
 def _as_text(value: str | bytes | None) -> str:
@@ -303,15 +353,12 @@ def _as_text(value: str | bytes | None) -> str:
 
 
 def _snapshot_inputs(work: Path) -> None:
-    """Archive the exact pre-agent workspace before Codex can modify it."""
-    run = work / "run"
-    run.mkdir(exist_ok=True)
-    archive = run / "input-package.tar.gz"
-    incoming = work / ".input-package.tar.gz.incoming"
+    """Archive the exact pre-agent package before Codex can modify it."""
+    pkg = work / "pkg"
+    archive = work / "harness" / "input-package.tar.gz"
+    incoming = archive.with_suffix(".gz.incoming")
     with tarfile.open(incoming, "w:gz") as tf:
-        for child in sorted(work.iterdir()):
-            if child.name in (".cxhome", incoming.name):
-                continue
+        for child in sorted(pkg.iterdir()):
             tf.add(child, arcname=child.name, recursive=True)
     os.replace(incoming, archive)
 
@@ -319,6 +366,7 @@ def _snapshot_inputs(work: Path) -> None:
 def _write_process_record(
     work: Path,
     *,
+    name: str,
     command: list[str],
     status: str,
     started_time_unix_ns: int,
@@ -328,10 +376,10 @@ def _write_process_record(
     timeout_seconds: int | None = None,
     error: str | None = None,
 ) -> None:
-    run = work / "run"
-    run.mkdir(exist_ok=True)
-    (run / "codex.stdout.txt").write_text(_as_text(stdout))
-    (run / "codex.stderr.txt").write_text(_as_text(stderr))
+    harness = work / "harness"
+    harness.mkdir(exist_ok=True)
+    (harness / f"{name}.stdout.txt").write_text(_as_text(stdout))
+    (harness / f"{name}.stderr.txt").write_text(_as_text(stderr))
     record = {
         "schema_version": 1,
         "command": command,
@@ -343,7 +391,7 @@ def _write_process_record(
     }
     if error:
         record["error"] = error
-    _write_json_atomic(run / "codex_process.json", record)
+    _write_json_atomic(harness / f"{name}_process.json", record)
 
 
 def _run_codex(
@@ -351,17 +399,23 @@ def _run_codex(
     prompt: str,
     *,
     timeout: int = TIMEOUT_SEC,
+    resume: str | None = None,
+    name: str = "codex",
 ) -> subprocess.CompletedProcess:
-    """Run codex in `work` with a private CODEX_HOME and the us.api provider.
+    """Run codex over `work/pkg` with a private CODEX_HOME and the us.api provider.
 
     A stray ChatGPT token in the shared home otherwise wins and 401s, which is
-    why the home is per-invocation rather than shared.
+    why the home is per-invocation rather than shared. `resume` continues a
+    recorded session (its id) instead of starting one; the pre-agent archive is
+    taken only for a fresh session, since a resumed one starts from the files
+    the first left.
     """
-    run = work / "run"
-    run.mkdir(exist_ok=True)
-    (run / "codex_prompt.txt").write_text(prompt)
-    _snapshot_inputs(work)
-    cmd = _codex_cmd(work)
+    harness = work / "harness"
+    harness.mkdir(exist_ok=True)
+    (harness / f"{name}_prompt.txt").write_text(prompt)
+    if not resume:
+        _snapshot_inputs(work)
+    cmd = _codex_cmd(work, resume=resume)
     started = time.time_ns()
     try:
         result = subprocess.run(
@@ -370,45 +424,33 @@ def _run_codex(
             capture_output=True,
             text=True,
             timeout=timeout,
+            cwd=str(work / "pkg"),
             env=_codex_env(work),
         )
     except subprocess.TimeoutExpired as exc:
         _write_process_record(
-            work,
-            command=cmd,
-            status="timed_out",
-            started_time_unix_ns=started,
-            stdout=exc.stdout,
-            stderr=exc.stderr,
-            timeout_seconds=timeout,
-            error=str(exc),
+            work, name=name, command=cmd, status="timed_out",
+            started_time_unix_ns=started, stdout=exc.stdout, stderr=exc.stderr,
+            timeout_seconds=timeout, error=str(exc),
         )
         raise
     except Exception as exc:
         _write_process_record(
-            work,
-            command=cmd,
-            status="failed_to_start",
-            started_time_unix_ns=started,
-            timeout_seconds=timeout,
+            work, name=name, command=cmd, status="failed_to_start",
+            started_time_unix_ns=started, timeout_seconds=timeout,
             error=f"{type(exc).__name__}: {exc}",
         )
         raise
     _write_process_record(
-        work,
-        command=cmd,
-        status="exited",
-        started_time_unix_ns=started,
-        stdout=result.stdout,
-        stderr=result.stderr,
-        returncode=result.returncode,
-        timeout_seconds=timeout,
+        work, name=name, command=cmd, status="exited",
+        started_time_unix_ns=started, stdout=result.stdout, stderr=result.stderr,
+        returncode=result.returncode, timeout_seconds=timeout,
     )
     return result
 
 
-def _lay_out(task: dict, work: Path) -> dict:
-    """Put the whole package in `work`, then overwrite the editable files.
+def _lay_out(task: dict, pkg: Path) -> dict:
+    """Put the whole package in `pkg`, then overwrite the editable files.
 
     Laying out only the four files that round-trip through the task dict gives
     the agent a package that cannot run: `tests/test.sh` is the harness entry
@@ -422,47 +464,49 @@ def _lay_out(task: dict, work: Path) -> dict:
     src = task.get("_src_dir")
     if src and Path(src).is_dir():
         shutil.copytree(
-            src, work, dirs_exist_ok=True,
+            src, pkg, dirs_exist_ok=True,
             # Backups of the pre-canary-strip instruction are not part of the
             # task and would show the agent text the pool deliberately removed.
             ignore=shutil.ignore_patterns("*.bak-*", ".provenance.json",
                                           "__pycache__", ".git"))
     fmap = ev.file_map(task)
     for key, rel in fmap.items():
-        dest = work / rel
+        dest = pkg / rel
         dest.parent.mkdir(parents=True, exist_ok=True)
         dest.write_text(task[key])
-    # copytree applies the source package's root mode to the existing work directory.
-    # Restore the trace directory's private mode before writing prompts or sessions.
-    work.chmod(0o700)
+    # copytree applies the source package's root mode to the existing directory.
+    # Restore the private mode before writing prompts or sessions beside it.
+    pkg.chmod(0o700)
     return fmap
 
 
 def repair_oracle_codex(task: dict, observed: str, exit_code: int = 1) -> dict:
-    """Codex-driven counterpart of evolve.repair_oracle.
+    """Fresh-session repair of a task whose reference solution failed the run.
 
     The chat repair reads the two files and guesses which side is wrong. Here the
     agent has both files on disk at full length and the run output that proves
     they disagree, and can grep between them instead of holding a 500-line
-    solution and a 500-line verifier in one prompt. Raises on failure so the
-    caller falls back to the chat repair.
+    solution and a 500-line verifier in one prompt. `resume_agentic` is the
+    better tool when the session that wrote the files is on disk; this is for
+    when it is not. Raises on failure.
     """
     if not os.path.exists(CODEX_BIN):
         raise RuntimeError(f"codex binary not found at {CODEX_BIN}")
     with _trace_work("oracle", task) as work:
-        fmap = _lay_out(task, work)
-        (work / "run").mkdir(exist_ok=True)
-        (work / "run" / "failure.txt").write_text(
+        pkg = work / "pkg"
+        fmap = _lay_out(task, pkg)
+        (pkg / "run").mkdir(exist_ok=True)
+        (pkg / "run" / "failure.txt").write_text(
             observed or "(no output captured)")
-        (work / "AGENTS.md").write_text(_ORACLE_AGENTS_MD.format(
+        (pkg / "AGENTS.md").write_text(_ORACLE_AGENTS_MD.format(
             verifier=ev._verifier_rel(task), exit_code=exit_code,
             max_calls=MAX_TOOL_CALLS))
         p = _run_codex(work, _ORACLE_PROMPT)
-        verdict = work / "run" / "verdict.txt"
+        verdict = pkg / "run" / "verdict.txt"
         if verdict.exists() and verdict.read_text().strip().upper().startswith("BLOCKED"):
             raise RuntimeError(f"codex reported blocked: "
                                f"{verdict.read_text().strip()[:160]}")
-        out = {**task, **{key: (work / rel).read_text()
+        out = {**task, **{key: (pkg / rel).read_text()
                           for key, rel in fmap.items()}}
         if all(out[key] == task[key] for key in fmap):
             raise RuntimeError(f"codex changed nothing (exit {p.returncode}): "
@@ -471,12 +515,13 @@ def repair_oracle_codex(task: dict, observed: str, exit_code: int = 1) -> dict:
         return _attach_trace(out, task, work)
 
 # --------------------------------------------------------------------------
-# Agentic evolution: one session, with the real validator as a tool
+# Agentic evolution: one session, with the task's own container as a tool
 # --------------------------------------------------------------------------
 
 SPEC = Path(__file__).resolve().parent / "agents" / "task_evolution.md"
-VALIDATE = Path(__file__).resolve().parent / "agent_validate.sh"
+SANDBOX = Path(__file__).resolve().parent / "agent_sandbox.sh"
 AGENT_TIMEOUT = int(os.environ.get("EVOLVE_AGENT_TIMEOUT", "2400"))
+SCAFFOLD = {"AGENTS.md", "sandbox"}
 
 _HARDER_JOB = """This task was solved {solved} of {attempts} attempts, so it is too
 easy to teach anything. Make it harder along exactly one of these axes:
@@ -527,8 +572,8 @@ the pipeline that built these tasks learned the hard way:
 - Guard edits against paths you did not create (`test -f` first); prefer adding a
   local fixture over patching something the image cloned.
 
-**Before you run `./validate`, reconcile the verifier against the solution one
-check at a time.** For each check, name the lines of `solve.sh` that make it
+**Before you run `./sandbox check`, reconcile the verifier against the solution
+one check at a time.** For each check, name the lines of `solve.sh` that make it
 pass. A check with nothing behind it is the single largest way these tasks are
 lost: the reference runs cleanly, scores zero, and the whole task is thrown away
 after a full image build. Where nothing satisfies a check, fix `solve.sh` if the
@@ -547,122 +592,207 @@ Aim for a task a capable agent lands about half the time."""
 _EASIER_JOB = """This task was solved {solved} of {attempts} attempts — the agent
 never got there, so it teaches nothing either.
 
-The full transcripts of the failed attempts are in `traces/failures.txt`. Read
-them to find where the agent actually got stuck, then make the smallest change
-that clears that one obstacle. Prefer adding to the instruction what a fair task
-would have said; only take structure out of the task itself if the instruction
-cannot carry it.
+The full transcripts of the failed attempts are in `traces/`, one file per
+attempt. Read them to find where the agent actually got stuck, then make the
+smallest change that clears that one obstacle. Prefer adding to the instruction
+what a fair task would have said; only take structure out of the task itself if
+the instruction cannot carry it.
 
 Aim for a task a capable agent lands about half the time."""
 
-_REPAIR_JOB = """This task was just rewritten and the pieces no longer agree: the
-reference solution was run against the verifier and failed with exit
+_REPAIR_JOB = """Your rewrite did not survive the caller's check. It rebuilt the
+package from scratch and ran `solution/solve.sh` against the verifier: exit
 {exit_code}. The run's output is in `run/failure.txt`.
 
 Read that first, find the check that failed and the lines of `solution/solve.sh`
 responsible for it, and fix them. Prefer fixing the solution; change the verifier
 only where it demands something the instruction never promised and the workspace
-never reveals. Do not rewrite what the run shows is already working.
+never reveals. Do not rewrite what the run shows is already working. The
+container you had is gone; `./sandbox up` gives you a fresh one.
 
-Confirm with `./validate` before you stop."""
+Confirm with `./sandbox check` before you stop."""
+
+_BUDGET = """
+
+Budget: this session is ended at {deadline} ({budget_min} minutes from now),
+whatever state the files are in, and a session that ends that way is discarded
+whole. `./sandbox up`, `reset` and `check` build the image and take minutes each;
+`./sandbox exec` takes seconds. Plan for two or three checks, not for guessing."""
+
+
+def _budget(timeout: int) -> str:
+    deadline = time.strftime("%H:%M %Z", time.localtime(time.time() + timeout))
+    return _BUDGET.format(deadline=deadline, budget_min=timeout // 60)
+
+
+def _candidates(operator: list[tuple[str, str, str]] | None) -> str:
+    """The scored shortlist, each entry with its full card.
+
+    The one-line definition is what the pool's scan matches on; the card is
+    what the authors wrote for whoever builds the task: what the seed needs to
+    have, how the harder version is constructed, what the verifier checks and
+    how a shortcut is refused. The agent used to get the line only.
+    """
+    cands = list(operator or [])
+    if not cands:
+        return "    (none)"
+    parts = []
+    for i, (fam, op, defn) in enumerate(cands, 1):
+        card = llm.operator_card(op)
+        card_lines = "\n".join("       " + line for line in card.splitlines())
+        parts.append(f"    {i}. {op} ({fam})\n       {defn}\n{card_lines}")
+    return "\n".join(parts)
+
+
+def _write_traces(pkg: Path, attempts: list[dict] | None, trajectory: str) -> None:
+    # One file per attempt rather than all sixteen concatenated: the agent
+    # reads one, forms a view, reads another. A single blob of 60k characters
+    # is read once, from the top, and mostly skipped. Structured attempts are
+    # rendered whole; a pre-rendered transcript is split back up as a fallback.
+    (pkg / "traces").mkdir(exist_ok=True)
+    chunks = ([_render_attempt(a) for a in attempts] if attempts
+              else _split_attempts(trajectory))
+    for i, chunk in enumerate(chunks, 1):
+        (pkg / "traces" / f"attempt-{i:02d}.txt").write_text(chunk)
+
+
+def _sandbox_down(work: Path) -> None:
+    """Delete the container a session left running. Best effort."""
+    pkg = work / "pkg"
+    state = pkg / "run" / "sandbox.json"
+    if not state.exists():
+        return
+    try:
+        if json.loads(state.read_text()).get("status") == "down":
+            return
+    except ValueError:
+        pass
+    try:
+        subprocess.run([str(pkg / "sandbox"), "down"], cwd=pkg, env=_codex_env(work),
+                       capture_output=True, text=True, timeout=300)
+    except Exception:  # noqa: BLE001 -- cleanup must not turn a verdict into a crash
+        pass
+
+
+def _agent_checked(pkg: Path) -> bool:
+    """Whether the agent's last `./sandbox check` passed."""
+    path = pkg / "run" / "checks.jsonl"
+    if not path.exists():
+        return False
+    last = None
+    for line in path.read_text().splitlines():
+        if line.strip():
+            last = line
+    if not last:
+        return False
+    try:
+        return json.loads(last).get("verdict") == "pass"
+    except ValueError:
+        return False
+
+
+def _collect(task: dict, pkg: Path, fmap: dict) -> dict:
+    """Read the package back: the four round-tripping files plus everything new.
+
+    Only those four travel in the task dict, so a fixture the agent created --
+    an init.sql, a conf the new Dockerfile COPYs -- was written, validated in
+    place, and then dropped on the way out when the directory was removed. The
+    package that reached revalidation had a Dockerfile referring to files
+    nobody carried back, which failed as `copy_source_missing` with the agent's
+    own run reported as a pass. Bytes, not text: a fixture may be a binary.
+    """
+    out = {**task, **{key: (pkg / rel).read_text() for key, rel in fmap.items()}}
+    mapped = set(fmap.values())
+    src_dir = task.get("_src_dir")
+    out["_extra_files"] = {}
+    for f in sorted(pkg.rglob("*")):
+        if not f.is_file():
+            continue
+        rel = str(f.relative_to(pkg))
+        top = rel.split("/", 1)[0]
+        if rel in mapped or rel in SCAFFOLD:
+            continue
+        if top in ("run", "traces", "__pycache__"):
+            continue
+        src_file = Path(src_dir) / rel if src_dir else None
+        if src_file is not None and src_file.is_file() and \
+                src_file.read_bytes() == f.read_bytes():
+            continue          # unchanged support file; already on disk there
+        out["_extra_files"][rel] = f.read_bytes()
+    return out
+
+
+def _check_verdict(pkg: Path) -> None:
+    verdict = pkg / "run" / "verdict.txt"
+    if verdict.exists():
+        text = verdict.read_text().strip()
+        head = text.upper()
+        # Both are legitimate endings, and both mean the same thing here:
+        # leave the task alone. Giving up honestly has to be at least as
+        # easy as passing, or the only way to finish is to make the check
+        # weaker until it passes.
+        if head.startswith("BLOCKED") or head.startswith("GIVE UP"):
+            raise Blocked(text[:200])
 
 
 def evolve_agentic(task: dict, job: str, trajectory: str = "",
                    observed: str = "", exit_code: int = 1,
-                   operator: list[tuple[str, str, str]] | None = None
+                   operator: list[tuple[str, str, str]] | None = None,
+                   attempts: list[dict] | None = None,
                    ) -> dict:
-    """Run one agent session over the task package, with `./validate` as its tool.
+    """Run one agent session over the task package, with its container as a tool.
 
-    This replaces the blind chain -- generate, validate outside the agent, fail,
-    call a separate repair that has forgotten everything, validate again -- with
-    a single session that can check its own work and read the actual failure. The
-    caller still revalidates afterwards; the agent's own pass is not the gate,
-    it is what stops the agent from finishing on a rewrite it never ran.
+    The agent works in a copy of the package and reaches the task's own
+    environment through ./sandbox: a container it can run commands in, run the
+    reference solution in, grade, and rebuild fresh. The caller still
+    revalidates afterwards; the agent's own pass is not the gate, it is what
+    stops the agent from finishing on a rewrite it never ran.
 
-    `job` is one of "harder", "easier", "repair". Raises on failure so the caller
-    can fall back to the chat operator.
+    `job` is one of "harder", "easier", "repair". `attempts` are the rollouts
+    as the signal carries them; `trajectory` is the pre-rendered fallback.
+    Raises on failure; raises Blocked when the agent declined.
     """
     if not os.path.exists(CODEX_BIN):
         raise RuntimeError(f"codex binary not found at {CODEX_BIN}")
     with _trace_work(job, task) as work:
-        fmap = _lay_out(task, work)
-        (work / "run").mkdir(exist_ok=True)
-        (work / "traces").mkdir(exist_ok=True)
-        for i, attempt in enumerate(_split_attempts(trajectory), 1):
-            # One file per attempt rather than all sixteen concatenated: the
-            # agent reads one, forms a view, reads another. A single blob of
-            # 60k characters is read once, from the top, and mostly skipped.
-            (work / "traces" / f"attempt-{i:02d}.txt").write_text(attempt)
+        pkg = work / "pkg"
+        fmap = _lay_out(task, pkg)
+        (pkg / "run").mkdir(exist_ok=True)
+        _write_traces(pkg, attempts, trajectory)
         if observed:
-            (work / "run" / "failure.txt").write_text(observed)
-        shutil.copy2(SPEC, work / "AGENTS.md")
-        shutil.copy2(VALIDATE, work / "validate")
-        os.chmod(work / "validate", 0o755)
+            (pkg / "run" / "failure.txt").write_text(observed)
+        shutil.copy2(SPEC, pkg / "AGENTS.md")
+        shutil.copy2(SANDBOX, pkg / "sandbox")
+        os.chmod(pkg / "sandbox", 0o755)
 
         solved = task.get("_solved", 0)
-        attempts = task.get("_attempts", 16)
+        attempts_n = task.get("_attempts", len(attempts) if attempts else 16)
         # `operator` is the scored shortlist, in score order, each entry
         # (family, operator_id, definition) -- the same order operator_shortlist
         # and pick_operator both return.
         cands = list(operator or [])
         allowed = {op: fam for fam, op, _ in cands}
-        candidates = "\n".join(
-            f"    {i}. {op} ({fam})\n       {defn}"
-            for i, (fam, op, defn) in enumerate(cands, 1)) or "    (none)"
         prompt = {
-            "harder": _HARDER_JOB.format(solved=solved, attempts=attempts,
-                                         candidates=candidates),
-            "easier": _EASIER_JOB.format(solved=solved, attempts=attempts),
+            "harder": _HARDER_JOB.format(solved=solved, attempts=attempts_n,
+                                         candidates=_candidates(cands)),
+            "easier": _EASIER_JOB.format(solved=solved, attempts=attempts_n),
             "repair": _REPAIR_JOB.format(exit_code=exit_code),
-        }[job]
+        }[job] + _budget(AGENT_TIMEOUT)
 
-        p = _run_codex(work, prompt, timeout=AGENT_TIMEOUT)
+        try:
+            p = _run_codex(work, prompt, timeout=AGENT_TIMEOUT)
+        finally:
+            _sandbox_down(work)
 
-        verdict = work / "run" / "verdict.txt"
-        if verdict.exists():
-            text = verdict.read_text().strip()
-            head = text.upper()
-            # Both are legitimate endings, and both mean the same thing here:
-            # leave the task alone. Giving up honestly has to be at least as
-            # easy as passing, or the only way to finish is to make the check
-            # weaker until it passes.
-            if head.startswith("BLOCKED") or head.startswith("GIVE UP"):
-                raise Blocked(text[:200])
-        out = {**task, **{key: (work / rel).read_text()
-                          for key, rel in fmap.items()}}
-        # Everything the agent wrote that is NOT one of the four round-tripping
-        # files. Only those four travel in the task dict, so a fixture the agent
-        # created -- an init.sql, a conf the new Dockerfile COPYs -- was written,
-        # validated in place, and then dropped on the way out when this directory
-        # was removed. The package that reached revalidation had a Dockerfile
-        # referring to files nobody carried back, which failed as
-        # `copy_source_missing` with the agent's own run reported as a pass.
-        # Bytes, not text: a fixture may be a binary.
-        mapped = set(fmap.values())
-        scaffold = {"AGENTS.md", "validate"}
-        src_dir = task.get("_src_dir")
-        out["_extra_files"] = {}
-        for f in sorted(work.rglob("*")):
-            if not f.is_file():
-                continue
-            rel = str(f.relative_to(work))
-            top = rel.split("/", 1)[0]
-            if rel in mapped or rel in scaffold:
-                continue
-            if top in ("run", "traces", ".cxhome", "__pycache__"):
-                continue
-            src_file = Path(src_dir) / rel if src_dir else None
-            if src_file is not None and src_file.is_file() and \
-                    src_file.read_bytes() == f.read_bytes():
-                continue          # unchanged support file; already on disk there
-            out["_extra_files"][rel] = f.read_bytes()
+        _check_verdict(pkg)
+        out = _collect(task, pkg, fmap)
         if all(out[key] == task[key] for key in fmap) and not out["_extra_files"]:
             raise RuntimeError(f"agent changed nothing (exit {p.returncode}): "
                                f"{p.stdout[-200:]}")
         if not out["instruction"].strip():
             raise RuntimeError("agent emptied the instruction")
         out["_hint"] = f"agent_{job}"
-        out["_agent_validated"] = "VERDICT: pass" in p.stdout
+        out["_agent_validated"] = _agent_checked(pkg)
         if cands:
             # The diversity terms are not a counter -- they are recomputed each
             # round by rescanning the pool and reading the operator off every
@@ -671,7 +801,7 @@ def evolve_agentic(task: dict, job: str, trajectory: str = "",
             # why an unreadable declaration fails the session rather than
             # defaulting to the top candidate: a wrong operator on a folded task
             # is worse for the balance than no task, because it is counted.
-            declared = (work / "run" / "operator.txt")
+            declared = (pkg / "run" / "operator.txt")
             chosen = (declared.read_text().strip().split()[0]
                       if declared.exists() and declared.read_text().strip()
                       else "")
@@ -681,3 +811,85 @@ def evolve_agentic(task: dict, job: str, trajectory: str = "",
                     f"(run/operator.txt={chosen!r}, offered={sorted(allowed)})")
             out["_operator"], out["_family"] = chosen, allowed[chosen]
         return _attach_trace(out, task, work)
+
+
+def _session_id(work: Path) -> str:
+    """The id of the session recorded under this trace's CODEX_HOME."""
+    newest = None
+    for f in (work / ".cxhome" / "sessions").rglob("*.jsonl"):
+        if newest is None or f.stat().st_mtime > newest.stat().st_mtime:
+            newest = f
+    if newest is None:
+        raise RuntimeError(f"no recorded session under {work / '.cxhome'}")
+    with newest.open() as fh:
+        for line in fh:
+            try:
+                rec = json.loads(line)
+            except ValueError:
+                continue
+            if rec.get("type") == "session_meta":
+                sid = (rec.get("payload") or {}).get("id")
+                if sid:
+                    return str(sid)
+    raise RuntimeError(f"no session_meta in {newest}")
+
+
+def resume_agentic(task: dict, observed: str, exit_code: int = 1) -> dict:
+    """Continue the session that wrote this task, with the caller's failure.
+
+    The caller rebuilt the package and ran the reference solution against the
+    verifier; it failed. A fresh repair session has to rediscover what the
+    first one knew -- why the files look the way they do -- from the files
+    alone. The first session is on disk (`codex exec resume`), so give it the
+    failure instead. Raises on failure; raises Blocked when the agent declined.
+    """
+    if not os.path.exists(CODEX_BIN):
+        raise RuntimeError(f"codex binary not found at {CODEX_BIN}")
+    work = Path(task.get("_codex_trace_dir") or "")
+    pkg = work / "pkg"
+    if not pkg.is_dir():
+        raise RuntimeError(f"no agent package to resume at {pkg}")
+    sid = _session_id(work)
+    fmap = ev.file_map(task)
+    (pkg / "run").mkdir(exist_ok=True)
+    (pkg / "run" / "failure.txt").write_text(observed or "(no output captured)")
+    for stale in ("verdict.txt", "checks.jsonl"):
+        (pkg / "run" / stale).unlink(missing_ok=True)
+    meta_path = work / "trace.json"
+    meta = json.loads(meta_path.read_text())
+    meta.setdefault("repairs", []).append(
+        {"session_id": sid, "status": "running", "exit_code": exit_code,
+         "started_time_unix_ns": time.time_ns()})
+    _write_json_atomic(meta_path, meta)
+    repair = meta["repairs"][-1]
+    try:
+        prompt = _REPAIR_JOB.format(exit_code=exit_code) + _budget(AGENT_TIMEOUT)
+        try:
+            p = _run_codex(work, prompt, timeout=AGENT_TIMEOUT, resume=sid,
+                           name=f"codex.repair{len(meta['repairs'])}")
+        finally:
+            _sandbox_down(work)
+        _check_verdict(pkg)
+        out = _collect(task, pkg, fmap)
+        if all(out[key] == task[key] for key in fmap) and not out["_extra_files"]:
+            raise RuntimeError(f"agent changed nothing on resume "
+                               f"(exit {p.returncode}): {p.stdout[-200:]}")
+        out["_repaired"] = "codex_resume"
+        out["_agent_validated"] = _agent_checked(pkg)
+        repair["status"] = "completed"
+        return _attach_trace(out, task, work)
+    except BaseException as exc:
+        repair["status"] = "blocked" if isinstance(exc, Blocked) else "failed"
+        repair["error"] = f"{type(exc).__name__}: {exc}"[:300]
+        try:
+            exc.codex_trace_dir = str(work)
+        except Exception:  # noqa: BLE001 -- some exceptions refuse attributes
+            pass
+        raise
+    finally:
+        repair["finished_time_unix_ns"] = time.time_ns()
+        try:
+            _prune_private_home(work)
+        except OSError:
+            pass
+        _write_json_atomic(meta_path, meta)
