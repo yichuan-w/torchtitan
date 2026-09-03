@@ -992,12 +992,22 @@ class TMaxRollouter(Rollouter):
             safe_occurrence = occurrence.replace("/", "_").replace(":", "_")
             # One immutable file per occurrence. A per-task filename silently
             # overwrote an earlier pending signal when the same task repeated.
-            with open(
-                os.path.join(dump_dir, f"{safe}--{safe_occurrence}.json"), "x"
-            ) as f:
-                json.dump(
-                    self._evolution_signal(sample, rollouts, rewards, renderer), f
-                )
+            #
+            # Built in full and written beside the queue before it is renamed
+            # in: the consumer treats any *.json here as pending work and
+            # returns from its wait the moment one appears, so a file opened
+            # before the transcripts were decoded showed up empty and was
+            # re-read at millisecond cadence for its whole 60 s grace window,
+            # each miss logged. `.incoming` does not match the consumer's glob.
+            final = os.path.join(dump_dir, f"{safe}--{safe_occurrence}.json")
+            incoming = final + ".incoming"
+            signal = self._evolution_signal(sample, rollouts, rewards, renderer)
+            with open(incoming, "x") as f:
+                json.dump(signal, f)
+            if os.path.exists(final):
+                os.unlink(incoming)
+                raise FileExistsError(final)
+            os.replace(incoming, final)
         except Exception as e:  # noqa: BLE001 -- token decode etc. must not kill rollout
             logger.warning(
                 f"[tmax] evolution signal failed for {sample.instance_id}: {e}"
