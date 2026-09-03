@@ -1,102 +1,102 @@
 #!/usr/bin/env bash
-# Restart the della-side evolution loop, preserving the environment it needs.
+# Restart the della-side evolution loop, carrying the environment of the loop
+# it replaces, as a systemd user unit.
 #
-# The loop's credentials and knobs live only in its own environment -- there is
-# no env file it reads at startup -- so a restart has to carry them across from
-# the process being replaced. Word-splitting a saved environment does not
-# survive contact with it: SSH_CONNECTION and LESSOPEN hold spaces, and
-# `env $(cat saved)` turns the second word of the first such value into the
-# command name. Read it line by line instead, value verbatim to end of line.
+# Everything comes from the running loop: its environment (read from
+# /proc/<pid>/environ; there is no env file it reads at startup), its log,
+# worker and interval arguments (from its argv) and the workdir it serves
+# (from SWE_TASK_EVOLUTION_DIR). The replacement runs evolve_ondella.py from
+# the checkout this script sits in, so fast-forward that checkout first. A
+# user unit rather than setsid nohup: nohup'd processes are SIGKILLed with the
+# ssh session on della-tridao. --collect removes the unit on exit, so read the
+# loop's log for health rather than systemctl status.
+#
+#   usage: restart_evolve.sh <old loop pid>
+#
+# TT_DAYTONA_CPU / TT_DAYTONA_MEM_GB / TT_DAYTONA_DISK_GB set in this shell
+# override the snapshot: the loop needs the trainer's values for a row that
+# declares no daytona_* of its own, and an older loop may not carry them.
 set -uo pipefail
-ROOT=/scratch/gpfs/TRIDAO/al9080/terminal-rl
-VENV=/scratch/gpfs/TRIDAO/al9080/titan-rl/bin/python
-ENVFILE=${1:-$ROOT/tmp/evolve.env}
-WORKERS=${EVOLVE_WORKERS:-16}
-INTERVAL=${EVOLVE_INTERVAL:-120}
+EVO=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
+OLD=${1:?old loop pid}
 
-[ -f "$ENVFILE" ] || { echo "no env snapshot at $ENVFILE"; exit 1; }
+kill -0 "$OLD" 2>/dev/null || { echo "pid $OLD is not running"; exit 1; }
+tr '\0' '\n' < "/proc/$OLD/cmdline" | grep -q 'evolve_ondella\.py$' \
+  || { echo "pid $OLD is not an evolve_ondella.py process"; exit 1; }
+argval() {  # value following --<name> in the old loop's argv, else $2
+  local v; v=$(tr '\0' '\n' < "/proc/$OLD/cmdline" | awk -v k="--$1" '$0==k{getline; print; exit}')
+  echo "${v:-$2}"
+}
+envval() { tr '\0' '\n' < "/proc/$OLD/environ" | sed -n "s/^$1=//p" | head -1; }
 
-# Every instance, not the first pgrep match: with two alive (it has happened --
-# a launcher that does not stop its predecessor) `head -1` stopped one and
-# started a third. The loop now refuses to start while another holds its lock,
-# so a survivor here would make the start below fail rather than double up.
-for OLD_PID in $(pgrep -f evolve_ondella.py); do
-    OLD_PGID=$(ps -o pgid= -p "$OLD_PID" | tr -d ' ')
-    case "$OLD_PGID" in
-        '') echo "pid $OLD_PID already gone"; continue ;;
-        *[!0-9]*) echo "invalid process group for pid $OLD_PID: $OLD_PGID"; exit 1 ;;
-    esac
-    [ "$OLD_PGID" -gt 1 ] || { echo "refusing to stop process group $OLD_PGID"; exit 1; }
-    OLD_TRACE_DIR=$(tr '\0' '\n' < "/proc/$OLD_PID/environ" 2>/dev/null | sed -n 's/^SWE_EVOLUTION_TRACE_DIR=//p')
-    echo "stopping the running loop pid $OLD_PID process group $OLD_PGID"
-    # The loop is started with setsid. Stop every process in its group so Codex and
-    # validator subprocesses cannot outlive the loop being replaced.
-    kill -TERM -- "-$OLD_PGID"
-    for _ in $(seq 1 20); do
-        kill -0 -- "-$OLD_PGID" 2>/dev/null || break
-        sleep 3
-    done
-    kill -0 -- "-$OLD_PGID" 2>/dev/null && kill -KILL -- "-$OLD_PGID"
-    sleep 2
-    if [ -n "$OLD_TRACE_DIR" ]; then
-        "$VENV" "$ROOT/evolve-onhost/scripts/finalize_interrupted_traces.py" \
-            "$OLD_TRACE_DIR" --stopped-loop-pid "$OLD_PID" || \
-            echo "warning: some Codex trace records could not be finalized"
-    fi
-done
+SIGNALS=$(envval SWE_TASK_EVOLUTION_DIR)
+[ -n "$SIGNALS" ] || { echo "old loop carries no SWE_TASK_EVOLUTION_DIR"; exit 1; }
+EVROOT=$(dirname "$SIGNALS")
+W=$(dirname "$EVROOT")
+UNIT=evolve-$(basename "$W")
+LOG=$(argval log "$EVROOT/evolve_ondella.log")
+WORKERS=$(argval workers 16)
+INTERVAL=$(argval interval 120)
+PY=$(readlink -f "/proc/$OLD/exe")
+TRACE_DIR=$(envval SWE_EVOLUTION_TRACE_DIR)
+TRACE_DIR=${TRACE_DIR:-$SIGNALS/codex_traces}
+# Not under EVROOT: the loop's lineage snapshot `git add -A`s that directory,
+# and the snapshot carries credentials.
+ENVFILE=${EVOLVE_ENV_FILE:-$W/meta/evolve.env}
+mkdir -p "$(dirname "$ENVFILE")" "$(dirname "$LOG")"
 
-# Session-scoped variables belong to whoever was logged in when the snapshot was
-# taken, not to the loop; carrying them forward is at best noise.
-while IFS= read -r line; do
-    case "$line" in
-        ""|"#"*) continue ;;
-        SSH_*|_=*|SHLVL=*|PWD=*|OLDPWD=*|TERM=*|LESSOPEN=*|LESSCLOSE=*) continue ;;
-        # Exported shell functions arrive as `BASH_FUNC_name%%=() {` and run
-        # over several lines, so every line after the first parses as garbage.
-        # They are the shell's, not the loop's.
-        BASH_FUNC_*|"}"|"("*|" "*|")"*) continue ;;
-    esac
-    key=${line%%=*}
-    case "$key" in
-        [A-Za-z_][A-Za-z0-9_]*) export "$key=${line#*=}" ;;
-    esac
-done < "$ENVFILE"
+# Snapshot the running loop's environment in systemd EnvironmentFile form
+# (KEY="value", backslash and double quote escaped). Session-scoped variables
+# belong to whoever launched it, not to the loop.
+umask 077
+[ -f "$ENVFILE" ] && cp -p "$ENVFILE" "$ENVFILE.bak-$(date +%Y%m%d-%H%M%S)"
+tr '\0' '\n' < "/proc/$OLD/environ" | python3 -c '
+import os, sys
+skip = ("SSH_", "BASH_FUNC_", "LESSOPEN", "LESSCLOSE")
+drop = {"_", "SHLVL", "PWD", "OLDPWD", "TERM", "DISPLAY"}
+override = {k: os.environ[k] for k in ("TT_DAYTONA_CPU", "TT_DAYTONA_MEM_GB", "TT_DAYTONA_DISK_GB")
+            if os.environ.get(k)}
+seen = set()
+def emit(k, v):
+    v = v.replace("\\", "\\\\").replace("\"", "\\\"")
+    print(f"{k}=\"{v}\"")
+for line in sys.stdin.read().split("\n"):
+    if "=" not in line:
+        continue
+    k, v = line.split("=", 1)
+    if k in drop or k.startswith(skip) or not k.replace("_", "a").isalnum():
+        continue
+    seen.add(k)
+    emit(k, override.get(k, v))
+for k, v in override.items():
+    if k not in seen:
+        emit(k, v)
+missing = [k for k in ("TT_DAYTONA_CPU", "TT_DAYTONA_MEM_GB", "TT_DAYTONA_DISK_GB")
+           if k not in seen and k not in override]
+if missing:
+    print("warning: the loop will carry no " + " ".join(missing)
+          + "; a row declaring no daytona_* is then verified at the harness default 2/4/6,"
+          + " not at the size the trainer uses", file=sys.stderr)
+' > "$ENVFILE.new" || exit 1
+mv "$ENVFILE.new" "$ENVFILE"
 
-export SYNTH_ENV_FILE=${SYNTH_ENV_FILE:-$ROOT/.synth_env}
-export TRL_TT=${TRL_TT:-$HOME/torchtitan}
-export SWE_RETUNE_AGENT=${SWE_RETUNE_AGENT:-codex}
-export SWE_SIMPLIFY_HINT=${SWE_SIMPLIFY_HINT:-vague}
-export SWE_EVOLVE_SIMPLIFY=${SWE_EVOLVE_SIMPLIFY:-0}
-SWE_TASK_EVOLUTION_DIR=${SWE_TASK_EVOLUTION_DIR:-$ROOT/evolution/signals}
-export SWE_TASK_EVOLUTION_DIR
-EVOLUTION_ROOT=$(dirname "$SWE_TASK_EVOLUTION_DIR")
-LEGACY_TRACE_DIR=$EVOLUTION_ROOT/codex_traces
-# Old environment snapshots may contain the previous derived default as an
-# explicit value. Rewrite only that value; preserve custom trace directories.
-if [ -z "${SWE_EVOLUTION_TRACE_DIR:-}" ] || [ "$SWE_EVOLUTION_TRACE_DIR" = "$LEGACY_TRACE_DIR" ]; then
-    SWE_EVOLUTION_TRACE_DIR=$SWE_TASK_EVOLUTION_DIR/codex_traces
-fi
-export SWE_EVOLUTION_TRACE_DIR
-export SWE_EVOLUTION_STATS=${SWE_EVOLUTION_STATS:-$EVOLUTION_ROOT/evolution_stats.json}
-export SWE_EVOLUTION_LINEAGE=${SWE_EVOLUTION_LINEAGE:-$EVOLUTION_ROOT/evolution_lineage.jsonl}
-LOG=${SWE_EVOLUTION_LOG:-$EVOLUTION_ROOT/evolve_ondella.log}
-mkdir -p "$SWE_TASK_EVOLUTION_DIR" "$SWE_EVOLUTION_TRACE_DIR" "$(dirname "$LOG")"
+# Stop the whole process group: Codex sessions and probes must not outlive
+# the loop being replaced. Then mark the trace records they leave running.
+PGID=$(ps -o pgid= -p "$OLD" | tr -d ' ')
+# A signal to group 0 or -1 reaches every process of the user; never that.
+[ "${PGID:-0}" -gt 1 ] 2>/dev/null || { echo "refusing to signal process group '$PGID'"; exit 1; }
+echo "stopping loop pid $OLD (pgid $PGID) serving $W"
+kill -TERM -- "-$PGID"
+for _ in $(seq 1 30); do kill -0 "$OLD" 2>/dev/null || break; sleep 2; done
+kill -0 "$OLD" 2>/dev/null && { echo "still alive, SIGKILL"; kill -KILL -- "-$PGID"; sleep 2; }
+"$PY" "$EVO/finalize_interrupted_traces.py" "$TRACE_DIR" --stopped-loop-pid "$OLD" \
+  || echo "warning: some Codex trace records could not be finalized"
 
-cd "$ROOT" || exit 1
-setsid nohup "$VENV" evolve-onhost/scripts/evolve_ondella.py \
-    --interval "$INTERVAL" --workers "$WORKERS" --log "$LOG" \
-    >> "$LOG" 2>&1 < /dev/null &
-sleep 15
-
-PID=$(pgrep -f evolve_ondella.py | head -1)
-if [ -z "$PID" ]; then
-    echo "FAILED to start; last lines of $LOG:"
-    tail -5 "$LOG"
-    exit 1
-fi
-echo "running pid=$PID workers=$WORKERS interval=$INTERVAL"
-echo "  SWE_RETUNE_AGENT=$(tr '\0' '\n' < /proc/$PID/environ | sed -n 's/^SWE_RETUNE_AGENT=//p')"
-echo "  SWE_TASK_EVOLUTION_DIR=$(tr '\0' '\n' < /proc/$PID/environ | sed -n 's/^SWE_TASK_EVOLUTION_DIR=//p')"
-echo "  SWE_EVOLUTION_TRACE_DIR=$(tr '\0' '\n' < /proc/$PID/environ | sed -n 's/^SWE_EVOLUTION_TRACE_DIR=//p')"
-echo "  DAYTONA_API_KEY set: $(tr '\0' '\n' < /proc/$PID/environ | grep -c '^DAYTONA_API_KEY=')"
-echo "  SYNTH_ENV_FILE=$(tr '\0' '\n' < /proc/$PID/environ | sed -n 's/^SYNTH_ENV_FILE=//p')"
+systemctl --user stop "$UNIT" 2>/dev/null
+systemd-run --user --unit="$UNIT" --collect --working-directory="$W" \
+  -p EnvironmentFile="$ENVFILE" \
+  bash -c "exec $PY $EVO/evolve_ondella.py --interval $INTERVAL --workers $WORKERS --log $LOG >> ${LOG%.log}_stdout.log 2>&1"
+sleep 8
+echo "unit $UNIT: $(systemctl --user is-active "$UNIT")"
+systemctl --user show "$UNIT" -p MainPID -p ActiveEnterTimestamp
+tail -3 "$LOG"
