@@ -33,6 +33,7 @@ from pathlib import Path
 
 import evolve as ev
 import synth_client as llm
+import verifier_literals as vl
 
 
 class Blocked(Exception):
@@ -477,7 +478,20 @@ def _lay_out(task: dict, pkg: Path) -> dict:
     # copytree applies the source package's root mode to the existing directory.
     # Restore the private mode before writing prompts or sessions beside it.
     pkg.chmod(0o700)
+    _write_seed_literals(pkg, fmap["test_state_py"])
     return fmap
+
+
+def _write_seed_literals(pkg: Path, verifier_rel: str) -> None:
+    """What the seed's verifier already depends on unseen, for `./sandbox
+    check`'s names audit to subtract: the agent answers for the names its
+    rewrite added, not for the seed's. Written once, at layout, while the
+    package on disk is still the seed."""
+    path = pkg / "run" / "seed_literals.json"
+    if path.exists():
+        return
+    path.parent.mkdir(exist_ok=True)
+    path.write_text(json.dumps(vl.audit_package(pkg, verifier_rel)) + "\n")
 
 
 def repair_oracle_codex(task: dict, observed: str, exit_code: int = 1) -> dict:

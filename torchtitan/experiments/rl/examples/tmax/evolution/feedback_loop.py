@@ -53,6 +53,7 @@ import synth_loop as sl
 import synth_client as llm
 import evolve as ev
 import derive_sizing as ds
+import verifier_literals as vl
 
 log = logging.getLogger("feedback")
 
@@ -228,9 +229,29 @@ def _dark_paths_why(missing: list[str]) -> str:
             "depending on them; do not weaken what it checks otherwise.")
 
 
+def seed_literals(task: dict, src_dir: Path) -> list[str]:
+    """What the seed's verifier already depends on unseen, so a rewrite
+    answers for the names it added and not for the seed's."""
+    return vl.unseen(task["test_state_py"], vl.kind_of(ev._verifier_rel(task)),
+                     vl.visible_text(src_dir, instruction=task["instruction"],
+                                     dockerfile=task["dockerfile"]))
+
+
+def new_dark_literals(work: Path, task: dict, baseline) -> list[str]:
+    """Key-, label- and filename-shaped names the rewritten verifier depends
+    on that the instruction, the Dockerfile and the build context never
+    state. The same defect as new_dark_paths for strings that are not paths:
+    the report key the policy has to guess, the line label the regex anchors
+    on. Five of eight hardened tasks reviewed on wd-20260903b failed on this
+    with the work otherwise done."""
+    return vl.unseen(task["test_state_py"], vl.kind_of(ev._verifier_rel(task)),
+                     vl.visible_text(work, instruction=task["instruction"],
+                                     dockerfile=task["dockerfile"]), baseline)
+
+
 def revalidate(work: Path, image: str, tid: str, task: dict,
                orig: dict | None = None, changed: list[str] | None = None,
-               resources: dict | None = None) -> dict:
+               resources: dict | None = None, baseline=None) -> dict:
     """After an adjustment: still builds, still self-consistent, and the
     verifier still fails an untouched workspace. Building here checks the task
     is well-formed; it never runs the solver.
@@ -283,19 +304,31 @@ def revalidate(work: Path, image: str, tid: str, task: dict,
         # reference solution knows the name) and then failed every rollout.
         # That was the instruction-only fast path's audit, never applied here.
         dark = new_dark_paths(work, task, orig) if orig is not None else []
+        # Static, so it costs nothing to ask before the probe; reported with
+        # whichever failure comes first, so one repair round sees everything.
+        names = new_dark_literals(work, task, baseline or ()) if orig is not None else []
         dv = daytona_probe(work, resources=resources, require_paths=dark)
         if dv is None:
             return {"ok": False, "stage": "no_docker",
                     "why": "structural change needs a build; neither docker "
                            "nor Daytona is configured here"}
+        also = ("\n\nAlso: " + vl.why(names)) if names else ""
         if not dv.get("ok"):
             return {"ok": False, "stage": dv.get("stage", "daytona"),
                     "why": str(dv.get("why") or f"reward={dv.get('reward')} "
-                               f"solve_exit={dv.get('solve_exit')}")[:200]}
+                               f"solve_exit={dv.get('solve_exit')}")[:200] + also,
+                    "literals": names, "tail": dv.get("tail", ""),
+                    "solve_exit": dv.get("solve_exit"), "measured": dv.get("measured"),
+                    "resources": dv.get("resources")}
         missing = dv.get("paths_missing") or []
         if missing:
             return {"ok": False, "stage": "dark_paths", "paths": missing,
-                    "why": _dark_paths_why(missing), "solve_exit": dv.get("solve_exit"),
+                    "why": _dark_paths_why(missing) + also, "literals": names,
+                    "solve_exit": dv.get("solve_exit"),
+                    "measured": dv.get("measured"), "resources": dv.get("resources")}
+        if names:
+            return {"ok": False, "stage": "dark_literals", "literals": names,
+                    "why": vl.why(names), "solve_exit": dv.get("solve_exit"),
                     "measured": dv.get("measured"), "resources": dv.get("resources")}
         null = daytona_probe(work, shortcut=":", resources=resources) or {}
         if null.get("passed"):
@@ -436,6 +469,9 @@ def process_one(rollout: dict, src_dir: Path, out_root: Path,
         # Each concurrent invocation gets a unique directory name; write the
         # stable task ID to trace.json so the directory remains attributable.
         task["_task_id"] = tid
+        # The names the seed's verifier already depended on unseen, taken from
+        # the pool copy before anything here is rewritten.
+        baseline = seed_literals(task, src_dir)
         if solved == 0:                                   # 0/k -> easier
             # Retune arm, selectable per run. "chat" (default): one gpt-5.6 call
             # with the trace in the prompt. "codex": agentic, full traces as
@@ -561,13 +597,13 @@ def process_one(rollout: dict, src_dir: Path, out_root: Path,
         box = _probe_box(new, resources)
         _write_provision(work, rec, box)
         v = revalidate(work, image, tid, new, orig=task, changed=changed,
-                       resources=box)
+                       resources=box, baseline=baseline)
         rec["revalidate"] = v
         _size_from_probe(work, rec, v, resources)
         if (
             not v["ok"]
             and rec["action"] == "evolve"
-            and v.get("stage") in ("daytona_oracle", "dark_paths")
+            and v.get("stage") in ("daytona_oracle", "dark_paths", "dark_literals")
         ):
             # The structural operator regenerates instruction, solution and
             # verifier together, and the hard part is making the three agree:
@@ -628,7 +664,7 @@ def process_one(rollout: dict, src_dir: Path, out_root: Path,
                     v2 = revalidate(work, image, tid, fixed, orig=task,
                                     changed=[k for k in ev.file_map(fixed)
                                              if fixed[k] != task[k]] + list(extra),
-                                    resources=box)
+                                    resources=box, baseline=baseline)
                     _size_from_probe(work, rec, v2, resources)
                     rec["oracle_repair"] = {"files": repaired + list(extra),
                                             "ok": v2["ok"]}
