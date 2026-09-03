@@ -401,11 +401,11 @@ def cmd_check(pkg: Path, solve_timeout: int, at_max: bool = False) -> int:
                   f"then check again.")
         elif starved:
             print(f"\nThe reference solution ran out of {starved} in this box, which is "
-                  f"the size training gives the task. Either make the solution need "
-                  f"less, or, if the harder task genuinely needs more, measure it at "
-                  f"the platform ceiling: ./sandbox check --max [{_box_str(CEILING)}]. "
-                  f"A pass there provisions the task from that measurement; a reading "
-                  f"close to the ceiling means unrunnable, not hard.")
+                  f"the size training gives the task. Make the solution need less. "
+                  f"Only if the harder task genuinely needs more than the seed had, "
+                  f"./sandbox check --max [{_box_str(CEILING)}] measures it at the "
+                  f"platform ceiling; that should be rare, and a reading close to the "
+                  f"ceiling means unrunnable, not hard.")
         else:
             print("\nFix the task so the reference solution scores 1.0, then check again. "
                   "The container is still up: ./sandbox exec to look around.")

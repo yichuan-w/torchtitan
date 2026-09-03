@@ -387,3 +387,14 @@ def test_collect_carries_the_measurement_of_the_last_passing_check(tmp_path) -> 
     assert out["_measured"]["mem_peak_mb"] == 3100.0
     assert out["_box"]["source"] == "ceiling"
     assert out["_at_max"] is True
+
+
+def test_require_checked_discards_a_session_without_a_passing_check(tmp_path) -> None:
+    (tmp_path / "run").mkdir()
+    with pytest.raises(RuntimeError, match="without a passing"):
+        ec._require_checked(tmp_path)
+    (tmp_path / "run/checks.jsonl").write_text('{"verdict": "fail"}\n')
+    with pytest.raises(RuntimeError, match="without a passing"):
+        ec._require_checked(tmp_path)
+    (tmp_path / "run/checks.jsonl").write_text('{"verdict": "fail"}\n{"verdict": "pass"}\n')
+    ec._require_checked(tmp_path)

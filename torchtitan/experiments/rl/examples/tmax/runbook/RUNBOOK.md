@@ -685,7 +685,15 @@ harder — and folds the rewrite back into the live training file.
    probe runs in, since the agent can edit its copy of the sandbox tool and
    cannot reach the probe's container. When the box cuts the reference
    solution short the agent's check says so, and `./sandbox check --max`
-   measures at the platform ceiling.
+   measures at the platform ceiling. The oracle probe also asks the untouched
+   container about every path the rewritten verifier requires that neither
+   the instruction, the Dockerfile nor a file in the build context names: one
+   that does not exist there is something an agent cannot know to create, and
+   the rewrite goes back to the agent's session as `dark_paths` (measured on
+   wd-20260903b: the static audit flags a third of agentic rewrites, most of
+   them README-documented and fine; the container check is what separates
+   those from a genuinely unsolvable task). A session that never passed its
+   own `./sandbox check` is discarded as `agent_failed`.
    A simplify takes an instruction-only fast path with no build and no sandbox,
    which is why the loop is cheap on the direction that dominates.
 4. **Fold.** Accepted rewrites are written back into the mix atomically

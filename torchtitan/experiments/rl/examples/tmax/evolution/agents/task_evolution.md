@@ -121,10 +121,12 @@ are measured. Your container opens at the size training gives this task
 (`run/resources.json`), `./sandbox check` measures what the reference solution
 costs in it, and the task is provisioned from that reading, never below the
 seed's size. When the box cuts the solution short — OOM-killed, disk full, out of
-time on its cores — `check` says which, and `./sandbox check --max` measures the
-task at the platform ceiling (4 vCPU / 8 GiB / 10 GiB); a reading close to that
-ceiling means the task is unrunnable, not hard, so keep what the solution has to
-do well inside it. Do not raise the timeout above what the seed already needed.
+time on its cores — `check` says which; make the solution need less. `./sandbox
+check --max` measures the task at the platform ceiling (4 vCPU / 8 GiB / 10 GiB)
+and is for the rare harder task that genuinely needs more than the seed had, not
+a way past a failing check; a reading close to that ceiling means the task is
+unrunnable, not hard. Do not raise the timeout above what the seed already
+needed.
 
 **Building is not starting.** 25 tasks in one run built correctly and then never
 reached running state, costing 1,172 creates between them. If your environment does
@@ -149,8 +151,8 @@ worse than the task you started from.
                          for up)
 ./sandbox check          reset; grade the untouched workspace, which must fail;
                          run the oracle, which must pass. Prints VERDICT: pass|fail
-                         and the oracle's measured cost; --max runs it at the
-                         ceiling
+                         and the oracle's measured cost (--max: at the ceiling;
+                         rarely the right call)
 ./sandbox down           delete it
 ```
 
@@ -167,9 +169,13 @@ your mirror, not the judge: the caller re-runs the same checks afterwards from
 files you cannot reach — a fresh build, the reference solution against the
 verifier, and the verifier alone on an untouched workspace, which must fail. A
 verifier that passes without the solution pays for nothing; a rewrite that only
-satisfies the copy in this directory is caught there and thrown away. Editing
-`sandbox`, or shaping the task around it, costs you the whole session and gains
-nothing.
+satisfies the copy in this directory is caught there and thrown away. The caller
+also checks that every path the verifier requires is either named where an agent
+can read it (the instruction, the Dockerfile, a file the image ships) or already
+exists in the untouched container: a verifier that demands a file only the
+reference solution knows the name of makes the task unsolvable, and the caller
+sends it back. Editing `sandbox`, or shaping the task around it, costs you the
+whole session and gains nothing.
 
 **Run `./sandbox check` before you finish.** A rewrite that has not passed it is
 discarded whole, and the task goes back into training exactly as it was, so an

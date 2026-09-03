@@ -24,6 +24,7 @@ from __future__ import annotations
 import argparse
 import asyncio
 import json
+import shlex
 import subprocess
 import sys
 import time
@@ -198,7 +199,8 @@ def starved(measured: dict, solve_exit: int | None, solve_timeout: int) -> str:
 
 
 async def probe(pkg: Path, shortcut: str | None, solve_timeout: int,
-                resources: dict | None = None) -> dict:
+                resources: dict | None = None,
+                require_paths: list[str] | None = None) -> dict:
     row = pack.to_row(str(pkg))
     md = row["metadata"]
     tmax = md["tmax"]
@@ -229,6 +231,19 @@ async def probe(pkg: Path, shortcut: str | None, solve_timeout: int,
         if md.get("entrypoint"):
             await _start_entrypoint(sb, md["entrypoint"], workdir=workdir)
         await seed_workspace(sb, tmax)
+        # Which of the paths the caller asks about the untouched workspace
+        # already has. A path the verifier requires that is here before anything
+        # runs is a precondition the agent inherits; one that is not, and that
+        # nothing the agent can read names, is something it cannot know to
+        # create. Asked before the solution runs, which would create them.
+        missing: list[str] = []
+        if require_paths:
+            script = "; ".join(
+                f"test -e {shlex.quote(p)} && echo p{i} || echo m{i}"
+                for i, p in enumerate(require_paths))
+            _, pout, _ = await sb.exec(script, check=False, timeout=60)
+            hits = {ln.strip() for ln in (pout or "").splitlines()}
+            missing = [p for i, p in enumerate(require_paths) if f"m{i}" in hits]
         if shortcut is None:
             for f in sorted(sol_dir.rglob("*")):
                 if f.is_file():
@@ -249,11 +264,13 @@ async def probe(pkg: Path, shortcut: str | None, solve_timeout: int,
         return {"ok": reward >= 1.0, "stage": "daytona_oracle",
                 "reward": reward, "solve_exit": code, "tail": tail,
                 "resources": box, "measured": measured,
+                "paths_checked": list(require_paths or []), "paths_missing": missing,
                 **({"starved": why, "why": f"reference solution ran out of {why} "
                                           f"in box {box}"} if why else {})}
     return {"ok": True, "stage": "daytona_shortcut",
             "passed": reward >= 1.0, "reward": reward, "tail": tail,
-            "resources": box}
+            "resources": box, "paths_checked": list(require_paths or []),
+            "paths_missing": missing}
 
 
 def _harness_provenance() -> str:
@@ -297,13 +314,17 @@ def main() -> None:
     ap.add_argument("--cpu", type=int, help="box size; unset = harness default")
     ap.add_argument("--mem-gb", type=int)
     ap.add_argument("--disk-gb", type=int)
+    ap.add_argument("--require-path", action="append", default=[],
+                    help="report whether this path exists in the untouched "
+                         "workspace (repeatable)")
     args = ap.parse_args()
     log(f"harness: {_harness_provenance()}")
     try:
         verdict = asyncio.run(
             probe(Path(args.package), args.shortcut, args.solve_timeout,
                   resources={"cpu": args.cpu, "mem_gb": args.mem_gb,
-                             "disk_gb": args.disk_gb}))
+                             "disk_gb": args.disk_gb},
+                  require_paths=args.require_path))
     except ValueError as e:
         # The package itself did not check out -- a missing harness file, a
         # malformed layout. Reporting it as a platform error is what made the

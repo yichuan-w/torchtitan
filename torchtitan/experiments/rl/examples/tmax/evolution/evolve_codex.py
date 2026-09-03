@@ -570,11 +570,11 @@ the pipeline that built these tasks learned the hard way:
   and `./sandbox check` measures what the reference solution costs in it. The
   task is provisioned from that measurement, never below the seed's size and
   never from a number you write. If the solution outgrows the box, `check`
-  says what ran out; `./sandbox check --max` measures it at the platform
-  ceiling (4 vCPU / 8 GiB / 10 GiB) and `./sandbox reset --max` gives you that
-  box to work in. A task that needs more than the ceiling never starts, so it
-  is unrunnable rather than hard: keep what the solution has to do well inside
-  it.
+  says what ran out; make the solution need less. `./sandbox check --max`
+  measures at the platform ceiling (4 vCPU / 8 GiB / 10 GiB) and is for the
+  rare harder task that genuinely needs more than the seed had, not a way
+  past a failing check. A task that needs more than the ceiling never starts,
+  so it is unrunnable rather than hard.
 - Guard edits against paths you did not create (`test -f` first); prefer adding a
   local fixture over patching something the image cloned.
 
@@ -607,14 +607,20 @@ the instruction cannot carry it.
 Aim for a task a capable agent lands about half the time."""
 
 _REPAIR_JOB = """Your rewrite did not survive the caller's check. It rebuilt the
-package from scratch and ran `solution/solve.sh` against the verifier: exit
-{exit_code}. The run's output is in `run/failure.txt`.
+package from scratch, ran `solution/solve.sh` against the verifier (exit
+{exit_code}) and audited what the verifier demands against what an agent can
+see. The verdict and the run's output are in `run/failure.txt`.
 
-Read that first, find the check that failed and the lines of `solution/solve.sh`
-responsible for it, and fix them. Prefer fixing the solution; change the verifier
-only where it demands something the instruction never promised and the workspace
-never reveals. Do not rewrite what the run shows is already working. The
-container you had is gone; `./sandbox up` gives you a fresh one.
+Read that first. If the run failed, find the check that failed and the lines
+of `solution/solve.sh` responsible for it, and fix them; prefer fixing the
+solution, and change the verifier only where it demands something the
+instruction never promised and the workspace never reveals. If the verdict
+names paths the verifier requires that nothing the agent can see reveals, name
+them where the agent will read them (the instruction, or a file in the image
+the instruction points at), or make the verifier stop depending on them; do
+not weaken what it checks otherwise. Do not rewrite what the run shows is
+already working. The container you had is gone; `./sandbox up` gives you a
+fresh one.
 
 Confirm with `./sandbox check` before you stop."""
 
@@ -700,6 +706,17 @@ def _last_check(pkg: Path) -> dict | None:
 def _agent_checked(pkg: Path) -> bool:
     """Whether the agent's last `./sandbox check` passed."""
     return (_last_check(pkg) or {}).get("verdict") == "pass"
+
+
+def _require_checked(pkg: Path) -> None:
+    """AGENTS.md promises that a rewrite which never passed `./sandbox check`
+    is discarded whole. Until this, nothing enforced it: the caller's probe
+    would find out at its own expense. Measured on wd-20260903b, 298 of 299
+    folded sessions had the record anyway, so this bites rarely and keeps the
+    promise true."""
+    if not _agent_checked(pkg):
+        raise RuntimeError("agent finished without a passing ./sandbox check "
+                           "(run/checks.jsonl); the rewrite is discarded")
 
 
 def _write_resources(pkg: Path, task: dict) -> None:
@@ -837,6 +854,7 @@ def evolve_agentic(task: dict, job: str, trajectory: str = "",
             _sandbox_down(work)
 
         _check_verdict(pkg)
+        _require_checked(pkg)
         out = _collect(task, pkg, fmap)
         if all(out[key] == task[key] for key in fmap) and not out["_extra_files"]:
             raise RuntimeError(f"agent changed nothing (exit {p.returncode}): "
@@ -923,6 +941,7 @@ def resume_agentic(task: dict, observed: str, exit_code: int = 1) -> dict:
         finally:
             _sandbox_down(work)
         _check_verdict(pkg)
+        _require_checked(pkg)
         out = _collect(task, pkg, fmap)
         if all(out[key] == task[key] for key in fmap) and not out["_extra_files"]:
             raise RuntimeError(f"agent changed nothing on resume "
