@@ -518,6 +518,24 @@ def run_round(only: str | None = None, mix_out: Path | None = None,
                 # of the family being dropped. Replace only.
                 log.warning("fold skip %s: no longer in the mix", tid)
                 continue
+            # Per-sandbox resources do not live in the package. prepare_rts_data
+            # takes them through _to_row(resources=...), which the mix build
+            # filled from measured_resources.csv; pack.to_row has no source for
+            # them, so a folded row arrives with the three keys absent and the
+            # sandbox falls back to the TT_DAYTONA_* fleet defaults. On this
+            # corpus that is 1 CPU against a measured 2, so a retuned task runs
+            # on half the cores it was provisioned for, hits
+            # SWE_TIME_BUDGET_SEC, and the timeout reads back to this loop as
+            # "too hard" -- a task made easier because it was starved. Carry the
+            # replaced row's values across: a retune edits the instruction,
+            # tests, solution and Dockerfile, never the provisioning the task
+            # was measured at. (The harder version may genuinely need more; that
+            # needs a fresh measurement, not a guess, and inheriting is strictly
+            # closer than the fleet default either way.)
+            old_md = json.loads(rows[row["label"]])["metadata"]
+            for _k in ("daytona_cpu", "daytona_mem_gb", "daytona_disk_gb"):
+                if _k not in row["metadata"] and _k in old_md:
+                    row["metadata"][_k] = old_md[_k]
             rows[row["label"]] = json.dumps(row) + "\n"
             folded += 1
             folded_records.append(
