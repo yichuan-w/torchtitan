@@ -629,6 +629,7 @@ default, both are shown.
 | `SWE_VAL_SAMPLES` | `0` | 89 or 32 | `0` disables validation entirely. |
 | `SWE_VAL_INTERVAL` | `20` | `20` | steps between validation passes. |
 | `SWE_NUM_EVAL_GENERATORS` | `0` | `0` | dedicated eval GPUs; `>0` also makes validation async. |
+| `SWE_EVAL_GEN_DP` | `0` | `0` | engines per eval generator. `0` = as wide as a training generator (`SWE_GEN_DP`), which on one 8-GPU box hands most of the box to a host that works every `SWE_VAL_INTERVAL` steps; `1` spends one GPU on it. A pass still running at the next interval is skipped, not queued, so undersizing thins the eval curve rather than stalling the step. |
 | `SWE_DATA_HOT_RELOAD` | `1` | `0` | re-read the JSONL on mtime change. Required for evolution. |
 | `TT_DAYTONA_CREATE_RETRIES` | `8` | `5` | create retries. |
 | `TT_DAYTONA_MEM_GB` | `4` | `4` | per-sandbox memory when the row declares none. |

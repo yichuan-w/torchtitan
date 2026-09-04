@@ -658,6 +658,14 @@ def rl_grpo_qwen3_5_9b_tmax() -> Controller.Config:
     # CPU worker processes for the same reason the training pool exists (the per-turn
     # agent orchestration serializes on one GIL).
     config.num_eval_generators = int(os.environ.get("SWE_NUM_EVAL_GENERATORS", "0"))
+    # SWE_EVAL_GEN_DP sizes that host independently of SWE_GEN_DP. Unset (0) keeps it
+    # the width of a training generator, which on one 8-GPU box is most of the box for
+    # something that runs every SWE_VAL_INTERVAL steps; =1 spends a single GPU on it.
+    # A pass that then outlasts the interval is skipped, not queued
+    # (_start_async_validation), so the cost of undersizing is a thinner eval curve.
+    config.eval_generator_data_parallel_degree = int(
+        os.environ.get("SWE_EVAL_GEN_DP", "0")
+    )
     config.num_eval_rollout_workers = (
         int(os.environ.get("SWE_NUM_EVAL_ROLLOUT_WORKERS", "4"))
         if config.num_eval_generators
