@@ -122,11 +122,13 @@ def _episode_env_identity(task_dir: str, image: str, image_prefix: str = "") -> 
                 return "dockerfile:" + hashlib.sha256(f.read()).hexdigest()
     ref = image or ""
     if image_prefix and ref.startswith(image_prefix):
-        ref = ref[len(image_prefix):]
+        ref = ref[len(image_prefix) :]
     return "image:" + ref
 
 
-def _pretest_tmax_fields(task_id: str, task_dir: str, image: str, image_prefix: str = "") -> dict:
+def _pretest_tmax_fields(
+    task_id: str, task_dir: str, image: str, image_prefix: str = ""
+) -> dict:
     """tmax fields for the pre-verify hook: {} when the task has no exported pre_test. Otherwise the check plus
     the drift-guard identities grading.py compares -- the captured identity (from the export stamp) and this
     episode's identity (computed here) -- and task_id for the skip log. `image` must be the UNPREFIXED reference
@@ -139,7 +141,9 @@ def _pretest_tmax_fields(task_id: str, task_dir: str, image: str, image_prefix: 
         "pre_test_sh": fields["pre_test_sh"],
         "task_id": task_id,
         "pretest_env_identity": stamped,
-        "pretest_episode_env_identity": _episode_env_identity(task_dir, image, image_prefix),
+        "pretest_episode_env_identity": _episode_env_identity(
+            task_dir, image, image_prefix
+        ),
     }
 
 
@@ -251,7 +255,7 @@ def _to_row(task_id: str, image: str, task_dir: str, image_prefix: str) -> dict 
     if not instruction.strip() or not test_sh.strip():
         return None
 
-    raw_image = image                                   # the reference as read, before the registry prefix
+    raw_image = image  # the reference as read, before the registry prefix
     if image_prefix and "/" in image and not image.startswith(image_prefix):
         image = image_prefix + image
     workdir = _detect_workdir(instruction)
@@ -382,9 +386,13 @@ def main() -> None:
     if not rows:
         print("ERROR: produced 0 rows", file=sys.stderr)
         sys.exit(1)
-    _sc_matched, _sc_total = selfcheck_env_identities(rows)  # raises on a corpus-wide identity mismatch
+    _sc_matched, _sc_total = selfcheck_env_identities(
+        rows
+    )  # raises on a corpus-wide identity mismatch
     if _sc_total:
-        print(f"env-identity self-check: {_sc_matched}/{_sc_total} stamped rows match their episode identity")
+        print(
+            f"env-identity self-check: {_sc_matched}/{_sc_total} stamped rows match their episode identity"
+        )
     _write_jsonl(rows, args.out)
     print(f"wrote {len(rows)} tmax tasks -> {args.out}")
 
