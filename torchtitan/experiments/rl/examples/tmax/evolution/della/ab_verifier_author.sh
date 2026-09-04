@@ -48,6 +48,6 @@ for MODE in same blind; do
     tail -n +$((BEFORE + 1)) "$W/evolution/evolution_lineage.jsonl" > "$OUT/lineage.jsonl" 2>/dev/null || true
     cp "$W/data/mix/mix_live.jsonl" "$OUT/mix_after.jsonl"
     echo "{\"mode\": \"$MODE\", \"started\": $START, \"finished\": $END, \"wall_s\": $((END - START))}" > "$OUT/timing.json"
-    echo "[ab] mode=$MODE done in $((END - START))s; $(grep -c '"event": "folded"' "$OUT/lineage.jsonl" 2>/dev/null || echo 0) folded"
+    echo "[ab] mode=$MODE done in $((END - START))s; $(grep -c "\"folded\"" "$OUT/lineage.jsonl" 2>/dev/null || echo 0) folded"
 done
 echo "[ab] finished; summarise with: python3 $HERE/../ab_verifier_author_summary.py $AB"
