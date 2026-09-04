@@ -267,7 +267,7 @@ def test_check_at_the_ceiling_names_the_task_unrunnable_when_still_starved(
     assert record["at_max"] is True and record["resources"]["source"] == "ceiling"
 
 
-def test_check_fails_on_names_the_task_never_states(tmp_path, monkeypatch, capsys) -> None:
+def test_check_reports_names_the_task_never_states(tmp_path, monkeypatch, capsys) -> None:
     pkg = tmp_path / "pkg"
     (pkg / "run").mkdir(parents=True)
     (pkg / "tests").mkdir()
@@ -294,12 +294,14 @@ def test_check_fails_on_names_the_task_never_states(tmp_path, monkeypatch, capsy
     finally:
         server.close()
 
-    assert rc == 1
+    # Advice, not a verdict: the check passes, the name is printed after the
+    # verdict line and recorded, and the seed's own unseen key is not repeated.
+    assert rc == 0
     out = capsys.readouterr().out
-    assert "VERDICT: fail   stage=dark_literals" in out
+    assert "VERDICT: pass" in out
     assert "'source_sha256'" in out and "checked_streams" not in out.split("VERDICT")[1]
     record = json.loads((pkg / "run" / "checks.jsonl").read_text().strip())
-    assert record["verdict"] == "fail" and record["stage"] == "dark_literals"
+    assert record["verdict"] == "pass" and record["stage"] == "oracle"
     assert record["dark_literals"] == ["source_sha256"] and record["reward"] == 1.0
 
     # State the key where the agent reads and the same check passes.

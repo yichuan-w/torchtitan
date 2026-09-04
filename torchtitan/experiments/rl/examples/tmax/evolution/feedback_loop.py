@@ -332,25 +332,25 @@ def revalidate(work: Path, image: str, tid: str, task: dict,
                     "solve_exit": dv.get("solve_exit"), "measured": dv.get("measured"),
                     "resources": dv.get("resources")}
         missing = dv.get("paths_missing") or []
-        if missing:
-            return {"ok": False, "stage": "dark_paths", "paths": missing,
-                    "why": _dark_paths_why(missing) + also, "literals": names,
-                    "solve_exit": dv.get("solve_exit"),
-                    "measured": dv.get("measured"), "resources": dv.get("resources")}
-        if names:
-            return {"ok": False, "stage": "dark_literals", "literals": names,
-                    "why": vl.why(names) + (("\n\nAlso: " + ts.why(step)) if step else ""),
-                    "step": step, "solve_exit": dv.get("solve_exit"),
-                    "measured": dv.get("measured"), "resources": dv.get("resources")}
+        # The two audits of what the verifier demands unseen are advice, not
+        # a verdict. Measured on wd-20260904a over 464 rewrites, the names
+        # audit flagged 130 literals without its seed baseline and none with
+        # it, and every one of the 130 was a false positive (fstab column
+        # names, language keywords, environment variables, a jupyter output
+        # line); the paths audit rejected nothing across 621 signals. A gate
+        # with no measured precision has no business discarding a session, so
+        # both ride along in the record for whoever reads it and for the
+        # agent's next prompt, and the size rule below stays the gate.
+        advice = {"dark_paths": missing, "dark_literals": names}
         if step:
             return {"ok": False, "stage": "step_size", "step": step, "why": ts.why(step),
-                    "solve_exit": dv.get("solve_exit"),
+                    "advice": advice, "solve_exit": dv.get("solve_exit"),
                     "measured": dv.get("measured"), "resources": dv.get("resources")}
         null = daytona_probe(work, shortcut=":", resources=resources) or {}
         if null.get("passed"):
             return {"ok": False, "stage": "null_pass",
                     "why": "verifier passes on the untouched workspace"}
-        return {"ok": True, "fast_path": "daytona_oracle",
+        return {"ok": True, "fast_path": "daytona_oracle", "advice": advice,
                 "reward": dv.get("reward"), "measured": dv.get("measured"),
                 "resources": dv.get("resources")}
     sl.sh(["docker", "rmi", "-f", image], 300)
@@ -645,7 +645,7 @@ def process_one(rollout: dict, src_dir: Path, out_root: Path,
         if (
             not v["ok"]
             and rec["action"] == "evolve"
-            and v.get("stage") in ("daytona_oracle", "dark_paths", "dark_literals", "step_size")
+            and v.get("stage") in ("daytona_oracle", "step_size")
         ):
             # The structural operator regenerates instruction, solution and
             # verifier together, and the hard part is making the three agree:

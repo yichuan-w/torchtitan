@@ -171,11 +171,11 @@ files you cannot reach — a fresh build, the reference solution against the
 verifier, and the verifier alone on an untouched workspace, which must fail. A
 verifier that passes without the solution pays for nothing; a rewrite that only
 satisfies the copy in this directory is caught there and thrown away. The caller
-also checks that every path the verifier requires is either named where an agent
-can read it (the instruction, the Dockerfile, a file the image ships) or already
-exists in the untouched container: a verifier that demands a file only the
-reference solution knows the name of makes the task unsolvable, and the caller
-sends it back. Editing `sandbox`, or shaping the task around it, costs you the
+also lists every path the verifier requires that is neither named where an agent
+can read it (the instruction, the Dockerfile, a file the image ships) nor already
+present in the untouched container: a verifier that demands a file only the
+reference solution knows the name of makes the task unsolvable. That list is
+advice too, recorded with the rewrite rather than rejecting it. Editing `sandbox`, or shaping the task around it, costs you the
 whole session and gains nothing.
 
 **A harder task is one rung above the seed, and the rung is measured.** Keep
@@ -201,8 +201,11 @@ and file name the verifier reads has to appear, spelled the same, in the
 instruction or in a file the image ships that the instruction points at; or the
 verifier checks the value rather than the name (a report line that contains the
 commit's SHA, a field whose value equals the file's SHA-256, whichever key it is
-under). `./sandbox check` runs this audit after the oracle and fails the check on
-what it finds; the caller runs the same audit and sends the rewrite back.
+under). `./sandbox check` runs this audit after the oracle and prints what it
+finds. It is advice, not the verdict: the audit is a heuristic over string
+literals and it flags things an agent does know (environment variable names,
+standard column names), so read each name it lists and fix the ones that are
+real. The caller records the same list beside the rewrite.
 
 **Run `./sandbox check` before you finish.** A rewrite that has not passed it is
 discarded whole, and the task goes back into training exactly as it was, so an
