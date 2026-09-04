@@ -27,10 +27,14 @@ outside the table, and 85% of the ones training sampled again came back
 one requirement is two or three assertions.
 
 So a rewrite is one rung up: at least MIN_ADDED lines more than the seed
-(it did get harder), at most MAX_ADDED more (one requirement), never past
-MAX_LINES, and at most MAX_ADDED_ASSERTS more assertions. The policy's own
-effort on the seed (turns, commands typed) was tried as a predictor of the
-rewrite's outcome and carried nothing (AUC 0.47), so it is not used.
+(it did get harder), at most MAX_ADDED more (one requirement), and at most
+MAX_ADDED_ASSERTS more assertions. The band is relative to the seed, with no
+absolute ceiling: the seed at its size scored 16/16, which is the proof the
+policy handles that size, and one rung above it is what is asked. (An
+absolute ceiling of 20 was tried first; with a 17-line seed it left one
+admissible size and with an 18-line seed none.) The policy's own effort on
+the seed (turns, commands typed) was tried as a predictor of the rewrite's
+outcome and carried nothing (AUC 0.47), so it is not used.
 """
 from __future__ import annotations
 
@@ -40,7 +44,6 @@ from pathlib import Path
 
 MIN_ADDED = 3
 MAX_ADDED = 8
-MAX_LINES = 20
 MAX_ADDED_ASSERTS = 5
 
 
@@ -86,12 +89,9 @@ def violations(seed: dict, new: dict) -> list[str]:
                    f"needs at least {MIN_ADDED} more, or the policy has nothing new to do")
     if n > s + MAX_ADDED:
         out.append(f"the reference solution has {n} lines against the seed's {s}; one rung is at "
-                   f"most {MAX_ADDED} more (seeds with 14-20 lines are where the training signal "
-                   f"is mixed most often; past 20 the 0/16 share doubles)")
-    if n > MAX_LINES:
-        out.append(f"the reference solution has {n} lines; nothing above {MAX_LINES} is allowed, "
-                   f"the policy runs out of budget there (one in three seeds that size scored "
-                   f"0/16, and rewrites at 125 lines scored 0/16 five times in six)")
+                   f"most {MAX_ADDED} more (in this corpus the 0/16 share doubles once a task "
+                   f"outgrows the 14-20 line band, and rewrites that grew to 125 lines scored "
+                   f"0/16 five times in six)")
     sa, na = seed["verifier_asserts"], new["verifier_asserts"]
     if na > sa + MAX_ADDED_ASSERTS:
         out.append(f"the verifier has {na} assertions against the seed's {sa}; one requirement is "

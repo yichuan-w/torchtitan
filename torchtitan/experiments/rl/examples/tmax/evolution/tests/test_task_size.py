@@ -26,15 +26,17 @@ def test_one_rung_is_a_band_above_the_seed() -> None:
     too_small = ts.violations(seed, {"solution_lines": 10, "verifier_asserts": 6})
     assert len(too_small) == 1 and "at least 3 more" in too_small[0]
     too_big = ts.violations(seed, {"solution_lines": 30, "verifier_asserts": 8})
-    assert any("at most 8 more" in v for v in too_big) and any("above 20" in v for v in too_big)
+    assert len(too_big) == 1 and "at most 8 more" in too_big[0]
     asserts = ts.violations(seed, {"solution_lines": 14, "verifier_asserts": 20})
     assert len(asserts) == 1 and "at most 5 more" in asserts[0]
 
 
-def test_absolute_ceiling_holds_for_a_large_seed() -> None:
-    seed = {"solution_lines": 18, "verifier_asserts": 10}
-    vs = ts.violations(seed, {"solution_lines": 24, "verifier_asserts": 12})
-    assert len(vs) == 1 and "above 20" in vs[0]
+def test_a_large_seed_keeps_its_own_band() -> None:
+    # A 17-line seed that scored 16/16 proves the policy handles 17; one rung
+    # above it is 20 to 25, not "under 20".
+    seed = {"solution_lines": 17, "verifier_asserts": 12}
+    assert ts.violations(seed, {"solution_lines": 24, "verifier_asserts": 15}) == []
+    assert ts.violations(seed, {"solution_lines": 19, "verifier_asserts": 12}) != []
 
 
 def test_size_of_package_reads_the_files(tmp_path) -> None:

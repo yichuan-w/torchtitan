@@ -346,4 +346,4 @@ def test_check_fails_a_rewrite_more_than_one_rung_above_the_seed(tmp_path, monke
     assert "VERDICT: fail   stage=step_size" in out and "more than one rung" in out
     record = json.loads((pkg / "run" / "checks.jsonl").read_text().strip())
     assert record["stage"] == "step_size" and record["reward"] == 1.0
-    assert any("above 20" in v for v in record["step_size"])
+    assert any("at most 8 more" in v for v in record["step_size"])

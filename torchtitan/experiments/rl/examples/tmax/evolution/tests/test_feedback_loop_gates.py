@@ -200,7 +200,7 @@ def test_revalidate_sends_back_a_rewrite_that_jumped_too_far(tmp_path, monkeypat
 
     v = fb.revalidate(work, "img", "tid", task, orig=SEED, changed=["solve_sh"])
     assert v["ok"] is False and v["stage"] == "step_size"
-    assert any("above 20" in s for s in v["step"]) and "one rung" in v["why"]
+    assert any("at most 8 more" in s for s in v["step"]) and "one rung" in v["why"]
 
     # One rung above the seed passes.
     task["solve_sh"] = SEED["solve_sh"] + "\n".join(f"step {i}" for i in range(5)) + "\n"

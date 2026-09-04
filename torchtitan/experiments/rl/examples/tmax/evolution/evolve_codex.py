@@ -555,12 +555,11 @@ instruction handed over, the step the agent never had to work out.
 
 The size of the rewrite is checked, not trusted. The reference solution may
 grow by {min_added} to {max_added} non-comment lines over the seed's
-{seed_lines} and may not pass {max_lines}; the verifier may gain at most
-{max_asserts} assertions over the seed's {seed_asserts}. `./sandbox check`
-fails outside that and the caller rejects the rewrite. Measured on this
-corpus: rewrites that grew to 125 lines came back 0/16 five times in six,
-while seeds of 14 to 20 lines are where the training signal is mixed most
-often. A harder task is one more thing to get right, not a new workflow.
+{seed_lines}; the verifier may gain at most {max_asserts} assertions over the
+seed's {seed_asserts}. `./sandbox check` fails outside that and the caller
+rejects the rewrite. Measured on this corpus: rewrites that grew to 125 lines
+came back 0/16 five times in six, while the seed at its own size was solved
+every time. A harder task is one more thing to get right, not a new workflow.
 
 Pick from that list and nothing else. The list is not a menu of equals — it is
 ordered, and the order was computed against the whole task pool: which
@@ -882,7 +881,6 @@ def evolve_agentic(task: dict, job: str, trajectory: str = "",
                                          seed_lines=seed_size["solution_lines"],
                                          seed_asserts=seed_size["verifier_asserts"],
                                          min_added=ts.MIN_ADDED, max_added=ts.MAX_ADDED,
-                                         max_lines=ts.MAX_LINES,
                                          max_asserts=ts.MAX_ADDED_ASSERTS),
             "easier": _EASIER_JOB.format(solved=solved, attempts=attempts_n),
             "repair": _REPAIR_JOB.format(exit_code=exit_code),
