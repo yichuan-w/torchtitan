@@ -26,8 +26,12 @@ other people run from.
 
 Write only to the tree our profile names, update it by pulling rather than
 copying files into it, and do not create or adopt a checkout outside the
-profiles. The workspace `CLAUDE.md` carries the reasons and the della-side
-detail; `evolution/della/evolveloop_env.sh` enforces the first of them.
+profiles. A checkout is not a repository: a push to `origin` is a reviewable
+commit and takes Zhifei's approval, while writing into someone's working tree
+changes what is running out of it right now and leaves no record, so its owner
+is the one who does it. The workspace `CLAUDE.md` carries the rest of the
+reasons and the della-side detail; `evolution/della/evolveloop_env.sh` enforces
+the first rule.
 
 ## Keep the work inside experiments/
 
