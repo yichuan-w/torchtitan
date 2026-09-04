@@ -12,6 +12,10 @@
 # replay_signals.sh from a real run's consumed signals. Each round consumes
 # the signals it processes and costs one Codex session and a few sandboxes
 # per k/k signal, so keep the limit small.
+#
+# Run it from your profile's checkout with the branch checked out -- never
+# from a tree files were copied into, or the commit this prints is not the
+# code that ran.
 set -euo pipefail
 W=${1:?dev workdir, e.g. /scratch/gpfs/TRIDAO/al9080/terminal-rl/workdirs/wd-evolve-dev}
 LIMIT=${2:-3}

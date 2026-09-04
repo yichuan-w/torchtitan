@@ -15,6 +15,33 @@ neither copy is identifiably the one that ran.
 Pushing to `origin` writes into someone else's repository and needs Zhifei's
 approval, given in the conversation before staging.
 
+## One checkout per person, selected by profile
+
+Two people launch from one account on della. `runbook/profiles/<name>.env` holds
+the checkout (`TRL_TT`) and data root (`TRL_BASE`) each runs from, and
+`launch_9b.sh` refuses to start without `TRL_PROFILE`.
+
+The path never says whose checkout it is: the account is `al9080`, Zhifei's
+netID, so every directory on the box has an andy-shaped name, including the
+tree Yichuan runs from. Only the profile is authority.
+
+| profile | `TRL_TT` | whose |
+|---|---|---|
+| `andy` | `/home/al9080/torchtitan` | ours |
+| `yichuan` | `/scratch/gpfs/TRIDAO/al9080/andy-rl-tb/torchtitan` | Yichuan's |
+
+Work in our profile's checkout. Do not update his, and do not create a third:
+a running loop reads `agents/task_evolution.md`, `agent_sandbox.sh`,
+`agent_sandbox.py` and `daytona_revalidate.py` from its checkout at the moment
+it uses them, so updating that tree changes a run in flight, with nothing in
+its log to say so.
+
+Update a checkout with `git pull`, never with `rsync`. A tree whose HEAD names
+one commit and whose files are another cannot be traced to anything, and the
+next pull silently reverts the copy. To try an unmerged branch on della, push
+it and check it out there; if a checkout cannot reach GitHub, give it
+credentials.
+
 ## Keep the work inside experiments/
 
 Changes belong under `torchtitan/experiments/rl/`. Core torchtitan is shared
