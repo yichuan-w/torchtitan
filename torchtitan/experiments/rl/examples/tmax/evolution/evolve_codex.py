@@ -527,7 +527,7 @@ def _lay_out(task: dict, pkg: Path) -> dict:
             # Backups of the pre-canary-strip instruction are not part of the
             # task and would show the agent text the pool deliberately removed.
             ignore=shutil.ignore_patterns("*.bak-*", ".provenance.json",
-                                          "__pycache__", ".git"))
+                                          ".resources.json", "__pycache__", ".git"))
     fmap = ev.file_map(task)
     for key, rel in fmap.items():
         dest = pkg / rel

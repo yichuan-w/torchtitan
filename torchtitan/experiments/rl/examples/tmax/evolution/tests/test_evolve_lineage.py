@@ -103,7 +103,7 @@ def test_repeated_task_signals_run_in_creation_order(tmp_path, monkeypatch) -> N
     earlier.write_text(json.dumps({"created_time_unix_ns": 10}))
     seen = []
 
-    def fake_handle(path, declared=None):
+    def fake_handle(path, declared=None, revisions=None):
         seen.append(path.name)
         return {"tid": "task-a"}
 
@@ -166,7 +166,8 @@ def _fold_fixture(tmp_path, monkeypatch, provision: dict | None) -> Path:
     monkeypatch.setattr(od, "OUT_ROOT", tmp_path / "retuned")
     monkeypatch.setattr(od, "MIX", mix)
     monkeypatch.setattr(od, "LINEAGE", tmp_path / "lineage.jsonl")
-    monkeypatch.setattr(od, "_handle", lambda _sp, declared=None: {
+    monkeypatch.setattr(od, "PARENTS", tmp_path / "parents")
+    monkeypatch.setattr(od, "_handle", lambda _sp, declared=None, revisions=None: {
         "tid": "task-a", "status": "ok", "retuned": True, "action": "evolve",
         "solved": 16, "graded": 16})
     # pack.to_row has no source for daytona_*: the folded row arrives without them.
@@ -202,3 +203,47 @@ def test_fold_inherits_the_seed_size_without_a_measurement(tmp_path, monkeypatch
     events = [json.loads(l) for l in (tmp_path / "lineage.jsonl").read_text().splitlines()]
     folded = [e for e in events if e["event"] == "folded"][0]
     assert folded["resources"]["source"] == "inherited"
+
+
+def test_a_rewrite_starts_from_the_version_the_mix_is_serving(tmp_path, monkeypatch) -> None:
+    """The climb: parent = the last accepted child, seed only when there is none."""
+    monkeypatch.setattr(od, "PARENTS", tmp_path / "parents")
+    seed = tmp_path / "pool" / "tw_a"
+    seed.mkdir(parents=True)
+    (seed / "instruction.md").write_text("seed\n")
+    monkeypatch.setattr(od, "resolve_src", lambda tid: seed if tid == "tw_a" else None)
+
+    # No parent yet: the seed.
+    assert od.parent_src("tw_a", {"tw_a": "rev1"}) is None
+
+    # One fold: the folded package becomes the parent, at rung 1.
+    retuned = tmp_path / "retuned" / "tw_a"
+    retuned.mkdir(parents=True)
+    (retuned / "instruction.md").write_text("rung one\n")
+    monkeypatch.setattr(od, "OUT_ROOT", tmp_path / "retuned")
+    assert od.record_parent("tw_a", "rev1") == 1
+    got = od.parent_src("tw_a", {"tw_a": "rev1"})
+    assert got is not None
+    assert (got / "instruction.md").read_text() == "rung one\n"
+
+    # A second fold replaces it and counts the next rung.
+    (retuned / "instruction.md").write_text("rung two\n")
+    assert od.record_parent("tw_a", "rev2") == 2
+    assert (od.parent_src("tw_a", {"tw_a": "rev2"}) / "instruction.md").read_text() == "rung two\n"
+
+    # The mix moved on without us (rebuilt, or our fold was rejected): stale,
+    # so the seed is the honest starting point again.
+    assert od.parent_src("tw_a", {"tw_a": "some-other-revision"}) is None
+    assert od.parent_src("tw_a", {}) is None
+
+
+def test_mix_revisions_match_what_a_fold_records(tmp_path) -> None:
+    mix = tmp_path / "mix.jsonl"
+    row = {"label": "tw_a", "metadata": {"instance_id": "tw_a", "problem_statement": "x"}}
+    mix.write_text(json.dumps(row) + "\n" + json.dumps(
+        {"label": "tw_b", "metadata": {"instance_id": "tw_b"}}) + "\n")
+    revs = od.mix_revisions(mix)
+    assert set(revs) == {"tw_a", "tw_b"}
+    # The fold records _content_revision(row) of the very dict it wrote, so a
+    # parent recorded at fold time matches what this reads back.
+    assert revs["tw_a"] == od._content_revision(row)

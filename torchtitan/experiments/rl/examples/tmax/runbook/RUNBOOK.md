@@ -673,7 +673,13 @@ harder — and folds the rewrite back into the live training file.
    and pooled worker processes.
 2. **Retune.** `evolve_ondella.py` picks signals up, and routes: all-fail →
    simplify the instruction only, never the verifier; all-pass → a structural
-   change to one operator.
+   change to one operator, one rung above **the version the mix is serving**.
+   That version is kept in `evolution/parents/<task_id>/` with its revision and
+   rung recorded beside it; a rewrite starts from it, and from the seed only
+   when there is none or when the recorded revision no longer matches the live
+   row (the mix was rebuilt, the family dropped, a later fold rejected). Before
+   this the source was always the seed, so a task needing three rungs rebuilt
+   rung one every time it signalled and never climbed.
 3. **Revalidate.** A structural change must be rebuilt and its reference solution
    re-run before it is trusted. On a host with no Docker that happens in Daytona
    — two probes in two fresh sandboxes (oracle, then a shortcut/cheat check).

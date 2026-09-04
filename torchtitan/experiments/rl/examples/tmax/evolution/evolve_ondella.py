@@ -63,6 +63,9 @@ SIGNALS = Path(os.environ.get("SWE_TASK_EVOLUTION_DIR", str(BASE / "evolution/si
 EVOLUTION_ROOT = SIGNALS.parent
 CONSUMED = EVOLUTION_ROOT / "consumed"
 OUT_ROOT = EVOLUTION_ROOT / "retuned"
+# The package the mix currently serves for a task, kept as the next rewrite's
+# starting point. See parent_src.
+PARENTS = EVOLUTION_ROOT / "parents"
 MIX = Path(os.environ.get("SWE_PROMPT_DATA", str(BASE / "data/mix/mix_live.jsonl")))
 STATS = Path(os.environ.get(
     "SWE_EVOLUTION_STATS",
@@ -336,12 +339,83 @@ def update_evolution_stats(
 
 
 def resolve_src(tid: str) -> Path | None:
-    """The source package for a task id, from whichever corpus carries it."""
+    """The seed package for a task id, from whichever corpus carries it."""
     for root in POOL_ROOTS:
         d = root / tid
         if (d / "instruction.md").exists():
             return d
     return None
+
+
+def mix_revisions(mix: Path) -> dict[str, str]:
+    """The revision of every row as the mix now stands, keyed by instance id."""
+    out: dict[str, str] = {}
+    if not mix.exists():
+        return out
+    for ln in open(mix):
+        if not ln.strip():
+            continue
+        row = json.loads(ln)
+        iid = (row.get("metadata") or {}).get("instance_id")
+        if iid:
+            out[iid] = _content_revision(row)
+    return out
+
+
+def parent_src(tid: str, revisions: dict[str, str] | None) -> Path | None:
+    """The version the mix is serving right now, when this loop wrote it.
+
+    A task is rewritten every time it comes back with no spread, and each
+    rewrite is one rung above what it started from. Starting from the seed
+    every time rebuilds rung one forever: the task that needs three rungs
+    never gets past the first, and training keeps paying 16 rollouts to be
+    told again that it is too easy. So the parent is the last accepted child,
+    and only the seed when there is none -- the same rule the BenchEvolver
+    paper states as `parent = Last(lineage) if lineage else seed`.
+
+    The recorded revision is what makes this safe. It is the row this package
+    produced when it was folded; if the live mix no longer carries that row --
+    the mix was rebuilt, the family was dropped, a later fold of ours was
+    rejected -- the parent is stale and the seed is the honest starting point.
+    """
+    pkg = PARENTS / tid
+    try:
+        meta = json.loads((PARENTS / f"{tid}.json").read_text())
+    except (OSError, ValueError):
+        return None
+    if not (pkg / "instruction.md").exists():
+        return None
+    if meta.get("sample_revision") != (revisions or {}).get(tid):
+        return None
+    return pkg
+
+
+def record_parent(tid: str, revision: str) -> int:
+    """Keep the just-folded package as the next rewrite's starting point, and
+    return the rung it now sits at. Written whole then swapped in, so a crash
+    mid-copy cannot leave a half package that a later round would evolve."""
+    meta_path = PARENTS / f"{tid}.json"
+    rung = 0
+    try:
+        rung = int(json.loads(meta_path.read_text()).get("rung", 0))
+    except (OSError, ValueError):
+        pass
+    PARENTS.mkdir(parents=True, exist_ok=True)
+    dest, incoming = PARENTS / tid, PARENTS / f".{tid}.incoming"
+    shutil.rmtree(incoming, ignore_errors=True)
+    shutil.copytree(OUT_ROOT / tid, incoming)
+    if dest.exists():
+        stale = PARENTS / f".{tid}.stale"
+        shutil.rmtree(stale, ignore_errors=True)
+        os.rename(dest, stale)
+        os.rename(incoming, dest)
+        shutil.rmtree(stale, ignore_errors=True)
+    else:
+        os.rename(incoming, dest)
+    meta_path.write_text(json.dumps(
+        {"sample_revision": revision, "rung": rung + 1,
+         "folded_time_unix_ns": time.time_ns()}, sort_keys=True) + "\n")
+    return rung + 1
 
 
 def signal_to_rollout(sig: dict) -> dict:
@@ -354,7 +428,8 @@ def signal_to_rollout(sig: dict) -> dict:
             "_source": "signal"}
 
 
-def _handle(sp: Path, declared: dict[str, dict] | None = None):
+def _handle(sp: Path, declared: dict[str, dict] | None = None,
+            revisions: dict[str, str] | None = None):
     """Resolve one signal to (record, task_id, was_retuned) or None to skip.
 
     `declared` is the mix's per-row daytona_* (declared_resources), read once
@@ -411,11 +486,13 @@ def _handle(sp: Path, declared: dict[str, dict] | None = None):
         return {"tid": tid, "status": "deferred_easier", "retuned": False,
                 "action": "-", "solved": 0, "graded": sig.get("total"),
                 **source}
-    src = resolve_src(tid)
+    # One rung above what training is running right now, not above the seed.
+    src = parent_src(tid, revisions) or resolve_src(tid)
     if src is None:
         return {"tid": tid, "status": "no_pool_dir", "retuned": False,
                 "action": "-", "solved": sig.get("solved"), "graded": sig.get("total"),
                 **source}
+    from_parent = src.parent == PARENTS
     rec = fb.process_one(signal_to_rollout(sig), src, OUT_ROOT,
                          resources=training_box(tid, declared))
     st = rec.get("status", "?")
@@ -435,6 +512,7 @@ def _handle(sp: Path, declared: dict[str, dict] | None = None):
             "hint": rec.get("hint"),
             "codex_trace_dirs": _trace_references(rec.get("codex_trace_dirs", [])),
             "resources": rec.get("resources"),
+            "from_parent": from_parent,
             "retuned": st in ("ok", "kept"), **source}
 
 
@@ -456,12 +534,13 @@ def _signal_time_key(path: Path) -> tuple[int, str]:
 
 
 def _handle_task_signals(paths: list[Path], declared: dict[str, dict] | None = None,
+                         revisions: dict[str, str] | None = None,
                          ) -> list[tuple[Path, dict | None]]:
     """Process repeated occurrences of one task serially to avoid output races."""
     results = []
     for path in sorted(paths, key=_signal_time_key):
         received_time = time.time_ns()
-        result = _handle(path, declared)
+        result = _handle(path, declared, revisions)
         if result is not None:
             result["signal_received_time_unix_ns"] = received_time
             result["retune_finished_time_unix_ns"] = time.time_ns()
@@ -500,9 +579,12 @@ def run_round(only: str | None = None, mix_out: Path | None = None,
     # What box training gives each task, from the mix the trainer reads. Read
     # once here rather than per signal: the mix is 12 MB on GPFS.
     declared = declared_resources(MIX)
+    # Which row the mix carries for each task, so a rewrite starts from the
+    # version training is running rather than from the seed.
+    revisions = mix_revisions(MIX)
     with ThreadPoolExecutor(max_workers=workers) as ex:
         futs = {
-            ex.submit(_handle_task_signals, paths, declared): task_id
+            ex.submit(_handle_task_signals, paths, declared, revisions): task_id
             for task_id, paths in signals_by_task.items()
         }
         for fut in as_completed(futs):
@@ -612,14 +694,23 @@ def run_round(only: str | None = None, mix_out: Path | None = None,
                     row["metadata"][rk] = old_md[rk]
             res = {rk: row["metadata"].get(rk) for rk in ROW_KEYS.values()}
             res_source = sized.get("source") or "inherited"
-            log.info("fold %s: %s (%s)", tid,
-                     " ".join(f"{k}={v}" for k, v in res.items()), res_source)
             rows[row["label"]] = json.dumps(row) + "\n"
+            revision = _content_revision(row)
+            # Keep it as the next rewrite's starting point, so the task climbs
+            # instead of being rebuilt from the seed on its next signal.
+            try:
+                rung = record_parent(tid, revision)
+            except Exception as e:  # noqa: BLE001 -- a fold must not fail on this
+                log.warning("fold %s: could not record the parent: %s", tid, e)
+                rung = None
+            log.info("fold %s: rung %s, %s (%s)", tid, rung,
+                     " ".join(f"{k}={v}" for k, v in res.items()), res_source)
             folded += 1
             folded_records.append(
                 {
                     "task_id": tid,
-                    "sample_revision": _content_revision(row),
+                    "sample_revision": revision,
+                    "rung": rung,
                     "resources": {**res, "source": res_source},
                     **retuned_sources.get(tid, {}),
                 }
