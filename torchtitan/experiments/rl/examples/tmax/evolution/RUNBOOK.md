@@ -216,6 +216,24 @@ evidence. The production checkout is fast-forwarded, and its loop restarted with
 `restart_evolve.sh`, only at a moment agreed with whoever owns the run, and
 only for changes that ran here.
 
+**Restarting is not the only way code reaches a running loop.** Most of the
+loop is imported once and frozen into the process, which is why it feels safe
+to update the checkout under it. These are not: they are read from the checkout
+at the moment they are used, so a `git pull` in that directory changes the
+behaviour of a run already in flight, with nothing in its log to say so.
+
+| read at use time | when |
+|---|---|
+| `agents/task_evolution.md` | copied into the agent's package at every session |
+| `agent_sandbox.sh` | copied in as `./sandbox` at every session |
+| `agent_sandbox.py` | executed afresh on every `./sandbox` call |
+| `task_size.py`, `verifier_literals.py` | imported by `agent_sandbox.py`, so also per call |
+| `daytona_revalidate.py` | spawned as a subprocess for every probe |
+
+So the checkout a run reads is part of that run, and updating it is a change
+to the experiment. Deploy to the dev checkout; let whoever owns the run pull
+when they choose.
+
 To start it from nothing, for one training workdir:
 
 ```bash

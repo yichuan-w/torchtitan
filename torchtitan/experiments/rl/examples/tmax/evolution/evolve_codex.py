@@ -207,6 +207,17 @@ API_BASE = os.environ.get("SYNTH_API_BASE", "https://us.api.openai.com/v1")
 # Turn budget the agent is told to respect; the hard cap is the subprocess
 # timeout below. "deadline in the prompt" per the design.
 MAX_TOOL_CALLS = int(os.environ.get("CODEX_RETUNE_MAX_CALLS", "25"))
+# Which driver runs a session. "exec" is `codex exec`, a batch: whatever the
+# agent got wrong is found by the caller afterwards and costs another session.
+# "sdk" drives the app-server protocol through codex_session.py, which watches
+# the package as it changes and steers the running turn when the rewrite
+# leaves a rule -- the correction arrives at minute three instead of in the
+# next session. It needs the openai-codex SDK, which lives in its own
+# virtualenv (TRL_SDK_PY) rather than the training one.
+CODEX_DRIVER = os.environ.get("EVOLVE_CODEX_DRIVER", "exec")
+SDK_PY = os.environ.get(
+    "TRL_SDK_PY", "/scratch/gpfs/TRIDAO/al9080/terminal-rl/sdkvenv/bin/python")
+SESSION_DRIVER = Path(__file__).resolve().parent / "codex_session.py"
 TIMEOUT_SEC = int(os.environ.get("CODEX_RETUNE_TIMEOUT", "600"))
 
 _AGENTS_MD = """# Your job: make ONE terminal task easier, by rewriting its instruction only
@@ -360,6 +371,26 @@ def _codex_env(work: Path) -> dict:
     return env
 
 
+def _provider_overrides() -> list[str]:
+    """The provider settings both drivers pass; the SDK takes them as a list."""
+    return [
+        "model_providers.oai.name=openai",
+        f"model_providers.oai.base_url={API_BASE}",
+        "model_providers.oai.env_key=OPENAI_API_KEY",
+        "model_provider=oai",
+    ]
+
+
+def _session_cmd(work: Path, prompt_file: Path, *, timeout: int, name: str,
+                 resume: str | None) -> list[str]:
+    cmd = [SDK_PY, str(SESSION_DRIVER), "--work", str(work),
+           "--prompt-file", str(prompt_file), "--timeout", str(timeout),
+           "--name", name, "--model", CODEX_MODEL, "--effort", str(CODEX_EFFORT)]
+    if resume:
+        cmd += ["--resume", resume]
+    return cmd
+
+
 def _codex_cmd(work: Path, resume: str | None = None) -> list[str]:
     cmd = [CODEX_BIN, "exec"]
     if resume:
@@ -450,7 +481,14 @@ def _run_codex(
     (harness / f"{name}_prompt.txt").write_text(prompt)
     if not resume:
         _snapshot_inputs(work)
-    cmd = _codex_cmd(work, resume=resume)
+    env = _codex_env(work)
+    if CODEX_DRIVER == "sdk":
+        prompt_file = harness / f"{name}_prompt.txt"
+        cmd = _session_cmd(work, prompt_file, timeout=timeout, name=name, resume=resume)
+        env["CODEX_BIN"] = CODEX_BIN
+        env["EVOLVE_CODEX_OVERRIDES"] = "\n".join(_provider_overrides())
+    else:
+        cmd = _codex_cmd(work, resume=resume)
     out_path = harness / f"{name}.stdout.txt"
     err_path = harness / f"{name}.stderr.txt"
     started = time.time_ns()
@@ -468,7 +506,7 @@ def _run_codex(
                 stderr=err_f,
                 text=True,
                 cwd=str(work / "pkg"),
-                env=_codex_env(work),
+                env=env,
             )
             try:
                 proc.communicate(input=prompt, timeout=timeout)
