@@ -27,10 +27,15 @@ export TT_DAYTONA_CPU=1 TT_DAYTONA_MEM_GB=2 TT_DAYTONA_DISK_GB=2
 # per rollout-worker process: 16 x 8 workers = 128 creates in flight per eval
 export TT_DAYTONA_CREATE_CONCURRENCY=16 TT_DAYTONA_EPHEMERAL=1
 export TT_DAYTONA_CREATE_RETRIES=8 TT_DAYTONA_LABEL=tb2_eval_local
-# The checkout this script sits in, not a fixed path: two people share this
-# account and a hardcoded one runs somebody else's code from somebody else's
-# tree without saying so.
-export TRL_TT=$(git -C "$(dirname "${BASH_SOURCE[0]}")" rev-parse --show-toplevel)
+# The profile says which checkout to run; the script's own location is used
+# only to find it. Two people launch from one account here and every path
+# carries the same name, so neither a hardcoded path nor "wherever this file
+# sits" answers the question.
+: "${TRL_PROFILE:?name the profile whose checkout to run; see runbook/profiles/}"
+_PROFILE=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/../../runbook/profiles/$TRL_PROFILE.env
+[ -f "$_PROFILE" ] || { echo "no profile $TRL_PROFILE at $_PROFILE" >&2; exit 2; }
+export TRL_TT=$(sed -n 's/^TRL_TT=//p' "$_PROFILE")
+[ -d "$TRL_TT" ] || { echo "profile $TRL_PROFILE names TRL_TT=$TRL_TT, not a directory" >&2; exit 2; }
 export RL_GPUS=$OFF,$((OFF+1)) RL_GPU_OFFSET=$OFF
 export PATH=/scratch/gpfs/TRIDAO/al9080/titan-rl/bin:$PATH
 export PYTHONPATH=$TRL_TT${PYTHONPATH:+:$PYTHONPATH}

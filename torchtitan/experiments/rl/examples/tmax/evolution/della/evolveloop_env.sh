@@ -16,23 +16,20 @@
 : "${TT_DAYTONA_MEM_GB:?the per-sandbox memory default the trainer runs with, GiB}"
 : "${TT_DAYTONA_DISK_GB:?the per-sandbox disk default the trainer runs with, GiB}"
 R=/scratch/gpfs/TRIDAO/al9080/terminal-rl
-EVO=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
-TT=$(git -C "$EVO" rev-parse --show-toplevel)
-# Two people launch from one account here, and every launcher in this directory
-# takes its checkout from wherever the script itself sits -- so running one out
-# of the other person's tree pairs their code with our data root, silently. The
-# profile is only a label until something compares it against the tree in hand,
-# which is what this does. `launch_9b.sh` refuses to start without TRL_PROFILE
-# for the same reason: the one time it was implied, every run launched from the
-# other person's tree.
-PROFILE=$TT/torchtitan/experiments/rl/examples/tmax/runbook/profiles/$TRL_PROFILE.env
+# The profile says which checkout runs, and that is the answer -- not where
+# this file happens to sit. Two people launch from one account here and every
+# path on the box carries the same name, so a script that infers its checkout
+# from its own location runs whichever tree it was copied into and says
+# nothing. Locating the profile is the only thing the script's position is used
+# for; after that TRL_TT is the profile's, and so is everything derived from
+# it.
+HERE=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
+PROFILE=$HERE/../../runbook/profiles/$TRL_PROFILE.env
 [ -f "$PROFILE" ] || { echo "[env] no profile $TRL_PROFILE at $PROFILE" >&2; return 2 2>/dev/null || exit 2; }
-PROFILE_TT=$(sed -n 's/^TRL_TT=//p' "$PROFILE")
-if [ "$PROFILE_TT" != "$TT" ]; then
-    echo "[env] profile $TRL_PROFILE names $PROFILE_TT, but this script is in $TT." >&2
-    echo "[env] run it from the checkout your profile names; another person's tree is theirs." >&2
-    return 2 2>/dev/null || exit 2
-fi
+TT=$(sed -n 's/^TRL_TT=//p' "$PROFILE")
+[ -n "$TT" ] && [ -d "$TT" ] || { echo "[env] profile $TRL_PROFILE names TRL_TT=$TT, which is not a directory" >&2; return 2 2>/dev/null || exit 2; }
+EVO=$TT/torchtitan/experiments/rl/examples/tmax/evolution
+case "$HERE" in "$TT"/*) ;; *) echo "[env] running $TT (profile $TRL_PROFILE); this script was invoked from $HERE" >&2 ;; esac
 PY=${TRL_VENV_PY:-/scratch/gpfs/TRIDAO/al9080/titan-rl/bin/python}
 UNIT=evolve-$(basename "$W")
 LOG=$W/logs/evolve.log
