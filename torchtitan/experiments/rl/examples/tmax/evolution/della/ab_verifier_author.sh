@@ -13,7 +13,7 @@
 # re-queued, since a replay is the point.
 set -euo pipefail
 W=${1:?dev workdir}
-FROM=${2:?the live round's evolution/consumed directory}
+FROM=${2:?the consumed directory of the live round}
 shift 2
 [ $# -gt 0 ] || { echo "name the signal files to replay" >&2; exit 2; }
 case "$W" in *-dev*) ;; *) echo "refusing: $W is not a dev workdir" >&2; exit 1 ;; esac
