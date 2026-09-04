@@ -591,6 +591,26 @@ FAMILY_FLOOR = 0.25         # an over-used family is damped, never excluded
 # pool. The authors damp it by a constant rather than reweighting the scan.
 BROAD_OPERATOR = {"config_data_consistency": 0.35}
 
+# How much of that spreading pressure applies. Synthesis builds the pool from
+# nothing and wants all of it. Evolution starts from a task that already exists
+# and only has to make it harder, so the family term -- which boosts whichever
+# family is behind, across the whole pool -- moves a task out of the kind of
+# work it was about. Measured over 463 rewrites on wd-20260904a it held the
+# five families at 96/96/93/91/87, and that near-uniformity is the drift
+# Yichuan reported. The operator term damps a repeat within the operators this
+# seed has a foothold for, which is a narrower push, so it stays on.
+DIVERSITY_MODES = ("family+freq", "freq", "off")
+EVOLUTION_DIVERSITY_DEFAULT = "freq"
+
+
+def _diversity_mode(mode: str | None) -> str:
+    """The spreading terms to apply, from the argument or SWE_OPERATOR_DIVERSITY."""
+    if mode is None:
+        mode = os.environ.get("SWE_OPERATOR_DIVERSITY", "").strip() or EVOLUTION_DIVERSITY_DEFAULT
+    if mode not in DIVERSITY_MODES:
+        raise ValueError(f"diversity mode {mode!r} is not one of {DIVERSITY_MODES}")
+    return mode
+
 
 _KEYWORDS: dict[str, list[str]] | None = None
 
@@ -665,11 +685,15 @@ def local_fit(seed: dict) -> dict[str, float]:
 
 
 def score_operators(seed: dict, used_ops: dict[str, int],
-                    used_fams: dict[str, int]) -> list[tuple[float, str, str]]:
+                    used_fams: dict[str, int],
+                    mode: str = "family+freq") -> list[tuple[float, str, str]]:
     """S(o) = L(o) x D(f(o)) x P(o), over the operators the scan surfaced.
 
-        D(f) = max(0.25, 1 + 0.2N - n_f)     family balance
-        P(o) = 1 / (1 + n_o)                 operator inverse frequency
+        D(f) = max(0.25, 1 + 0.2N - n_f)     family balance   ("family+freq")
+        P(o) = 1 / (1 + n_o)                 operator inverse frequency ("freq")
+
+    `mode` drops the terms it does not name: "freq" leaves D at 1, "off"
+    leaves both at 1 and ranks on local fit alone. See DIVERSITY_MODES.
 
     Multiplied rather than added, which is the part that matters: under a sum,
     an operator with no foothold in the seed still wins on being under-used, and
@@ -693,8 +717,9 @@ def score_operators(seed: dict, used_ops: dict[str, int],
             continue
         fam = fam_of[op]
         balance = max(FAMILY_FLOOR,
-                      1 + FAMILY_TARGET_SHARE * assigned - used_fams.get(fam, 0))
-        inv_freq = 1.0 / (1 + used_ops.get(op, 0))
+                      1 + FAMILY_TARGET_SHARE * assigned - used_fams.get(fam, 0)
+                      ) if mode == "family+freq" else 1.0
+        inv_freq = 1.0 / (1 + used_ops.get(op, 0)) if mode != "off" else 1.0
         scored.append((local * balance * inv_freq, fam, op))
     scored.sort(reverse=True)
     return scored
@@ -717,7 +742,8 @@ class Blocked(Exception):
 
 def operator_shortlist(seed: dict, used_ops: dict[str, int],
                        used_fams: dict[str, int],
-                       k: int = 1 + FALLBACK_COUNT
+                       k: int = 1 + FALLBACK_COUNT,
+                       mode: str | None = None
                        ) -> list[tuple[str, str, str]]:
     """The scored candidates, in score order, without collapsing them to one.
 
@@ -739,8 +765,12 @@ def operator_shortlist(seed: dict, used_ops: dict[str, int],
 
     Blocked is raised only when the local scan surfaced nothing -- a real miss,
     not a judgement made from truncated text.
+
+    This is evolution's entry, so `mode` defaults to EVOLUTION_DIVERSITY_DEFAULT
+    and SWE_OPERATOR_DIVERSITY overrides it. `pick_operator`, which synthesis
+    calls, keeps the full pressure.
     """
-    scored = score_operators(seed, used_ops, used_fams)
+    scored = score_operators(seed, used_ops, used_fams, _diversity_mode(mode))
     if not scored:
         raise Blocked("local scan found no operator with any signal in the seed")
     return [(fam, op, ops.OPERATORS[fam][op]) for _, fam, op in scored[:k]]
