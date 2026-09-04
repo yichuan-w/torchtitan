@@ -1024,6 +1024,225 @@ canary remaining 0, `daytona_*` null on 0 rows, id set equal to
 
 ---
 
+## 10d. Run tag `wd-20260904a`, launched 2026-09-04 04:07:32
+
+A clean restart from the 663-row base corpus with the one-rung `step_size` gate
+(PR #39) in place from step 0. Every value below is read back from
+`/proc/<pid>/environ` of the live trainer, not from the file it was written in.
+
+### Why it was restarted, and the one thing that had to change
+
+The 2026-09-03 run and its evolve loop were both SIGKILLed at 03:29:35, within
+three seconds of each other. There was no kernel OOM (`dmesg` carries no
+oom-kill), no CUDA OOM in the log, and the watchdog's own log was empty: both
+processes had been started with `nohup ... &` from a CLI session and went away
+with its process group. `nohup` blocks SIGHUP, not a process-group SIGKILL.
+
+So this run is launched by **systemd user units**, not by a shell:
+
+```
+~/.config/systemd/user/tmax-trainer.service   ExecStart=$W/bin/svc_train.sh
+~/.config/systemd/user/tmax-evolve.service    ExecStart=$W/bin/svc_evolve.sh
+Restart=always  RestartSec=60  StartLimitIntervalSec=0
+```
+
+`loginctl show-user` reports `Linger=yes`, so the units survive logout. Both are
+`enable`d, so they come back after a reboot. Measured: 15 h uptime with
+`NRestarts=0` on the trainer across two CLI sessions ending, where the previous
+launch method lost the run at the first one.
+
+`svc_train.sh` pins `RL_RESUME_DUMP` to whatever `launch_9b.sh` stamped the first
+time. Without that pin a restart stamps a *new* dump directory, finds no `step-*`
+under it, and silently begins again from the HF weights -- which is invisible in
+the metrics. The launch line is the check: `[launch] resuming from .../step-N`
+against `[launch] fresh start: initial weights from ...`.
+
+### Placement: 2+3 on the five least-contended cards
+
+Measured 2026-09-04 04:00 with every one of our own processes stopped, so the
+numbers below are other people's:
+
+| GPU | foreign MiB | SMACT (30 samples) | |
+|---|---|---|---|
+| 0 | 270867 | 0.0078 | two `serve_policy`, unusable |
+| 1 | 1822 | 0.0002 | -> generator |
+| 2 | 1766 | 0.0002 | -> generator |
+| 3 | 21036 | 0.0010 | left to its tenants |
+| 4 | 19555 | 0.0000 | left to its tenant |
+| 5 | 3417 | 0.0000 | -> generator (two pollers) |
+| 6 | 5 | 0.0000 | -> trainer |
+| 7 | 7 | 0.0000 | -> trainer |
+
+6 and 7 are the only two cards with nothing on them, so FSDP takes them: it is
+synchronous, and a straggler shard costs the whole step. The three generators are
+independent, so they take 1, 2 and 5. Card 5's two pollers report 92-100% in
+nvidia-smi's `utilization.gpu` and 0.000 in DCGM SMACT -- duty cycle, not
+occupancy; do not size against the former.
+
+`SWE_DP_SHARD=2` rather than 3: at dp_shard=3 a step measured ~9.6 min against
+~14.7 min to fill 32 groups, so the trainer idled a third of the time. At 2 the
+step is 11-14 min, matched to generation, with a card moved to where the
+throughput is.
+
+### The env
+
+```
+TRL_PROFILE=yichuan
+TRL_TT=/scratch/gpfs/TRIDAO/al9080/andy-rl-tb/torchtitan          # 6d7277f9
+TRL_BASE=/scratch/gpfs/TRIDAO/al9080/terminal-rl/workdirs/wd-20260904a
+TRL_MODEL=/scratch/gpfs/TRIDAO/al9080/models/Qwen3.5-9B
+SWE_PROMPT_DATA=$TRL_BASE/data/mix/mix_live.jsonl                 # 663 TW rows, base
+SWE_TASK_EVOLUTION_DIR=$TRL_BASE/evolution/signals
+SWE_ROLLOUT_DUMP_DIR=$TRL_BASE/rollout-dumps
+TMAX_EXEC_TRACE_DIR=$TRL_BASE/exec-traces
+SWE_CKPT_FOLDER=/scratch/al9080/terminal-rl/ckpt/tmax-9b-20260904-040732
+
+RL_GPUS=6,7,1,2,5            CUDA_VISIBLE_DEVICES=6,7,1,2,5
+SWE_DP_SHARD=2               SWE_GEN_DP=3
+SWE_AC=full
+SWE_GEN_BACKEND=vllm_native  SWE_GEN_VLLM_DEFAULT_COMPILE=1
+SWE_GEN_PREFIX_CACHE=1       SWE_GPU_MEM_LIMIT=0.85
+SWE_MAX_NUM_SEQS=256         SWE_MAX_CONTEXT_LEN=63488
+SWE_DISABLE_CUSTOM_ALL_REDUCE=1
+
+SWE_GROUP_SIZE=16            SWE_NUM_GROUPS_PER_TRAIN_STEP=32
+SWE_MAX_ACTIVE_GROUPS=160    SWE_INITIAL_ACTIVE_GROUPS=64
+SWE_ROLLOUT_CONCURRENCY=1536 SWE_NUM_ROLLOUT_WORKERS=16
+SWE_TIME_BUDGET_SEC=3600     SWE_AGENT_TIMEOUT_FLOOR_SEC=900
+TMAX_AGENT=terminus          TMAX_TERMINUS_MAX_TURNS=120
+TMAX_EXEC_TIMEOUT_SEC=120
+
+SWE_LR=3e-6                  SWE_LOSS_CHUNKS=8
+SWE_TRAIN_STEPS=150          SWE_DROP_ZERO_STD=0
+SWE_CKPT_INTERVAL=3          SWE_CKPT_KEEP=3
+SWE_DATA_HOT_RELOAD=1
+SWE_VAL_SAMPLES=0            SWE_VAL_INTERVAL=20   SWE_NUM_EVAL_GENERATORS=0
+SWE_PROFILE_MICROBATCHES=3   SWE_PROFILE_SKIP=5
+
+SWE_LMHEAD_TF32 and SWE_LMHEAD_TF32X3 are both unset (= 0). See below.
+
+TT_DAYTONA_CPU=1  TT_DAYTONA_MEM_GB=2  TT_DAYTONA_DISK_GB=2  TT_DAYTONA_MAX_MEM_GB=8
+TT_DAYTONA_CREATE_CONCURRENCY=128  TT_DAYTONA_CREATE_RETRIES=8
+TT_DAYTONA_EPHEMERAL=1  TT_DAYTONA_AUTO_DELETE_MIN=15  TT_DAYTONA_HEARTBEAT_SEC=180
+TT_DAYTONA_LABEL=new_titan_swe_r2e
+WANDB_PROJECT=terminal-agent-rl                       # run zjd05wdj
+```
+
+Evolution: `SWE_RETUNE_AGENT=codex`, `SWE_EVOLVE_SIMPLIFY=0`,
+`evolve_ondella.py --interval 120 --workers 16`.
+
+### The corpus is the base one, verified three ways
+
+`mix_live.jsonl` was rebuilt rather than inherited, because the 2026-09-03 run's
+copy carried 195 already-hardened rows. Checks against the untouched base:
+
+```
+663 rows                                     = base row count
+0 rows differ in metadata.tmax               = no hardened verifier/fixtures
+195 rows differ from wd-20260903d            = none of its hardening carried over
+```
+
+`metadata.tmax` is the only thing evolution rewrites, so 0 there is the check that
+matters. Two rows the predecessor had hardened (`tw_100135`, `tw_197232`) were
+reverted. A 605-row difference against an older base file is a leading newline in
+`prompt`, not evolution.
+
+### The profile, and the one lever that is left
+
+`SWE_PROFILE_MICROBATCHES=3` wrote a trace at step 1. Read on 2026-09-04, at
+12-13 s per microbatch (the uncontended rate), 3 microbatches, 34.33 s of kernels:
+
+| | lm_head fp32 SIMT | model GEMM (TC) | elementwise | other | NCCL | reduce | copy | total |
+|---|---|---|---|---|---|---|---|---|
+| `rl_loss_fn` | **17.30s** | 0.00s | 0.20s | 0.01s | 0.06s | 0.24s | 0.01s | 17.82s |
+| `rl_model_backward` | 0.00s | 5.32s | 4.29s | 1.46s | 0.86s | 0.40s | 0.12s | 12.45s |
+| `rl_model_forward` | 0.00s | 1.65s | 1.73s | 0.29s | 0.14s | 0.11s | 0.11s | 4.02s |
+
+The matrix is block-diagonal: `rl_loss_fn` is 97% one kernel, and that kernel
+appears nowhere else. The GPU has kernels resident 99.4% of the window, so this is
+not launch overhead, not the input pipeline, and not communication (NCCL is 3.2%).
+
+`cutlass3x_sm100_simt_sgemm_f32_f32_f32_f32_f32`, 72 launches (8 loss chunks x
+{forward, dgrad, wgrad} x 3 microbatches), ~240 ms each. SIMT = CUDA cores. Per
+microbatch the lm_head is 2 x 65536 x 4096 x 248320 x 3 = 400 TFLOP in 5.94 s =
+67 TFLOP/s, about 84% of the B300's non-tensor-core fp32 ceiling -- the kernel is
+near the hardware limit; the hardware path is the cost. Of 3744 GEMM launches in
+the step only these 72 are fp32; everything else is bf16 on tensor cores.
+
+So an operator carrying ~11% of the step's FLOPs takes ~50% of its time.
+
+**Re-measured 2026-09-04 on this host (`evolution/bench_lmhead_tf32.py --iters 5`,
+[8192,4096] x [4096,248320], forward plus both backward matmuls):**
+
+```
+                      fwd+bwd        out      grad_x     grad_w
+ieee_fp32            3673.6 ms   0.0e+00    0.0e+00    0.0e+00
+plain_tf32            312.6 ms   7.3e-06    6.2e-04    2.1e-04
+old_tf32x3_fwd_only  2547.8 ms   7.3e-06    0.0e+00    0.0e+00
+new_tf32x3_fwd_bwd    535.9 ms   7.3e-06    1.3e-05    9.6e-06
+```
+
+This corrects the reasoning in 10c on one point. **The forward error is 7.3e-6 on
+all three TF32 paths, plain TF32 included.** Both lm_head operands are upcast from
+bf16 (the decoder-norm output, the FSDP-all-gathered weight), and bf16's 8-bit
+significand is exactly representable in TF32's 11, so truncating them is a no-op;
+the 7.3e-6 is accumulation order against the CUDA-core kernel, not lost precision.
+The logits -- and therefore the DPPO importance ratio, whose `old` term comes from
+the generator -- are affected identically by both paths. That argument does not
+separate them.
+
+What separates them is backward, where `grad_out` is genuine fp32: plain TF32
+truncates it (6.2e-4 / 2.1e-4), the split path reconstructs it (1.3e-5 / 9.6e-6).
+
+At the step level, with lm_head at 50.4%, Amdahl caps both: TF32x3 gives ~1.68x,
+plain TF32 ~1.91x. Plain buys 14% more step time for 20-50x the gradient error and
+does it through a process-wide `torch.backends.cuda.matmul.fp32_precision` that
+would silently catch any fp32 matmul added later; `_LinearTF32` is scoped to
+`CastLinear`. Neither is on in this run, which is the fp32 baseline. Turn on
+TF32x3 first, and only while watching `bit_wise/logprob_diff/abs_mean` (1.6-1.8e-2
+here), `debug/vllm_local_kl_k3_mean` (1.0-1.1e-3), `loss/ratio_mean` (1.00000x)
+and `grad_norm`.
+
+### What it measured, 15 h in
+
+```
+step 53, 2098 groups, epoch ~3.0, no restarts, 0 CUDA OOM, 0 SupervisionError
+microbatch 12.0-12.8 s     step 11-14 min (50-65 microbatches)
+group classes              full 28% / partial 61% / not_solve 11%
+stale_dropped              313 of 2098 (15%), flat for hours once warm
+prefix hit rate            92-97%
+evolution                  542 folds, 535 hardened, 210 deferred, 7 agent_failed (1.0%)
+```
+
+Hardened tasks, redrawn after the fold (205 samples, group id greater than the
+signal's trigger group):
+
+```
+partial_solve  84%      not_solve 16%      full_solve 0%
+```
+
+Against the 2026-09-03 run without the `step_size` gate, whose hardened tasks came
+back `not_solve` 46% of the time. No hardened task has returned 16/16 -- across
+310 tasks the pre-hardening draw was 16/16 in 71.1% of 655 draws, and 0.0% of 213
+draws after.
+
+### Contention is invisible in SMACT and in memory
+
+Between roughly 11:49 and 16:40 the step rate doubled, 12.5 -> 25 s per microbatch,
+and recovered on its own. Two tenants had arrived on the trainer's cards
+(`zl3193`, 120 GiB on GPU6, 14:42-16:40; another on 6 and 7 before it). Neither
+was visible in the two things being watched: DCGM SMACT on a shared card *includes
+the other tenant's* work, so GPU6 read 0.78-0.89 throughout, and our own
+allocator's cached segments hid the memory (both cards read 258 GiB whether the
+121 GiB belonged to us or to someone else -- our real footprint is 137 GiB).
+
+The only direct signal is the step rate itself. Sample the microbatch counter over
+a fixed window and compare against the 12-13 s baseline; list the non-self PIDs on
+the trainer's cards in the same breath. Five hours of half-speed training cost
+about 2.5 h before the shape of it was recognised.
+
+---
+
 ## 10a. Open questions for the team
 
 Two values in the shared docs disagree with what this host measured. Neither is
