@@ -236,6 +236,12 @@ and the Codex traces under `$D/evolution/signals/codex_traces/` are the
 evidence. Another person's checkout is fast-forwarded, and their loop restarted,
 only by them.
 
+**`TRL_PROFILE` decides which checkout runs, not the directory a script sits
+in.** `evolveloop_env.sh` and `tb2_eval_local.sh` use their own location only to
+find `runbook/profiles/<name>.env`, and take `TRL_TT` from that file; a copy of
+one invoked from somewhere else still runs the tree its profile names, and says
+so. Give every launch a profile.
+
 **Restarting is not the only way code reaches a running loop.** Most of the
 loop is imported once and frozen into the process, which is why it feels safe
 to update the checkout under it. These are not: they are read from the checkout
