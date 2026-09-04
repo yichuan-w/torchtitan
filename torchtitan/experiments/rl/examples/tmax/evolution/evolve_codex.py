@@ -1385,7 +1385,6 @@ def evolve_agentic(task: dict, job: str, trajectory: str = "",
         if vwork is not None:
             out["_verifier_author"] = "blind"
             out["_verifier_trace_dir"] = str(vwork)
-            out["_codex_trace_dirs"] = list(task.get("_codex_trace_dirs") or []) + [str(vwork)]
         if cands:
             # The diversity terms are not a counter -- they are recomputed each
             # round by rescanning the pool and reading the operator off every
@@ -1403,7 +1402,10 @@ def evolve_agentic(task: dict, job: str, trajectory: str = "",
                     f"agent did not declare which axis it used "
                     f"(run/operator.txt={chosen!r}, offered={sorted(allowed)})")
             out["_operator"], out["_family"] = chosen, allowed[chosen]
-        return _attach_trace(out, task, work)
+        out = _attach_trace(out, task, work)
+        if vwork is not None and str(vwork) not in out["_codex_trace_dirs"]:
+            out["_codex_trace_dirs"].append(str(vwork))
+        return out
 
 
 def _session_id(work: Path) -> str:
