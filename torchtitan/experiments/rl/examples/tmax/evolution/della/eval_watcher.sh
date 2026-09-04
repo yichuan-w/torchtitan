@@ -42,7 +42,7 @@ while [ $(date +%s) -lt $deadline ]; do
         continue
       fi
     fi
-    OUT=$(ssh -o BatchMode=yes -o ConnectTimeout=20 della9 "sbatch $R/scripts/tb2_eval.sbatch $GCK/$S" 2>&1)
+    OUT=$(ssh -o BatchMode=yes -o ConnectTimeout=20 della9 "sbatch --export=ALL,TRL_TT=$TRL_TT $R/scripts/tb2_eval.sbatch $GCK/$S" 2>&1)
     echo "$(date "+%F %T") $S -> $OUT" >> $LOG
     echo "$SRC/$S" >> $MARK
   done

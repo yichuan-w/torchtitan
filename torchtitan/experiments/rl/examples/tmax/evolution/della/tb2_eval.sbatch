@@ -38,7 +38,11 @@ export TMAX_TURN_MAX_TOKENS=32768
 export TT_DAYTONA_CPU=1 TT_DAYTONA_MEM_GB=2 TT_DAYTONA_DISK_GB=2
 export TT_DAYTONA_CREATE_CONCURRENCY=128 TT_DAYTONA_EPHEMERAL=1
 export TT_DAYTONA_CREATE_RETRIES=8 TT_DAYTONA_LABEL=tb2_eval_h100
-export TRL_TT=/home/al9080/torchtitan
+# SLURM copies this script to a spool directory before running it, so it cannot
+# find its own tree the way the other scripts do. The submitter resolves the
+# profile and exports TRL_TT; eval_watcher.sh does that, and a hand-submitted
+# job needs `sbatch --export=ALL` with TRL_TT already set.
+: "${TRL_TT:?resolve it from a profile and export it before sbatch (see eval_watcher.sh)}"
 export CUDA_VISIBLE_DEVICES=0,1
 export PATH=/scratch/gpfs/TRIDAO/al9080/titan-rl/bin:$PATH
 export PYTHONPATH=$TRL_TT${PYTHONPATH:+:$PYTHONPATH}
