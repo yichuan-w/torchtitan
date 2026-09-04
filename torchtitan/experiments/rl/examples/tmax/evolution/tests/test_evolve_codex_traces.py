@@ -102,6 +102,48 @@ def _work(tmp_path: Path) -> Path:
     return work
 
 
+class _FakePopen:
+    """A codex process that writes to the streams the harness opened for it."""
+
+    def __init__(self, command, *, stdout=None, stderr=None, out="", err="",
+                 returncode=0, on_start=None, timeout_after=None, **kwargs):
+        self.args, self.returncode = command, returncode
+        self._out, self._err = stdout, stderr
+        self._text, self._errtext = out, err
+        self._timeout_after = timeout_after
+        self._wrote = False
+        self.kwargs = kwargs
+        if on_start:
+            on_start(command, kwargs)
+
+    def communicate(self, input=None, timeout=None):
+        # Whatever ran before the deadline is on disk either way, and it is
+        # written once: the reap after kill() does not re-run the process.
+        if self._wrote:
+            return None, None
+        self._wrote = True
+        self._out.write(self._text); self._out.flush()
+        self._err.write(self._errtext); self._err.flush()
+        if self._timeout_after is not None:
+            raise subprocess.TimeoutExpired(self.args, self._timeout_after)
+        return None, None
+
+    def kill(self):
+        self.returncode = -9
+
+
+def _fake_popen(monkeypatch, **cfg):
+    """Patch Popen with a fake that records the call and writes the streams."""
+    seen = {}
+
+    def factory(command, **kwargs):
+        seen["command"], seen["kwargs"] = command, kwargs
+        return _FakePopen(command, **{**kwargs, **cfg})
+
+    monkeypatch.setattr(ec.subprocess, "Popen", factory)
+    return seen
+
+
 def test_run_codex_keeps_harness_records_out_of_the_agents_directory(
     tmp_path, monkeypatch
 ) -> None:
@@ -115,18 +157,15 @@ def test_run_codex_keeps_harness_records_out_of_the_agents_directory(
     (pkg / "run/failure.txt").write_text("observed validator failure")
     monkeypatch.setattr(ec, "_codex_env", lambda _work: {"CODEX_HOME": "unused"})
 
-    def fake_run(command, **kwargs):
-        assert (work / "harness/input-package.tar.gz").exists()
-        assert kwargs["input"] == "do the work"
-        assert kwargs["cwd"] == str(pkg)
-        assert command[command.index("-C") + 1] == str(pkg)
-        assert f"model_reasoning_effort={ec.CODEX_EFFORT}" in command
-        return subprocess.CompletedProcess(command, 0, "VERDICT: pass\n", "warning\n")
-
-    monkeypatch.setattr(ec.subprocess, "run", fake_run)
+    seen = _fake_popen(monkeypatch, out="VERDICT: pass\n", err="warning\n")
 
     result = ec._run_codex(work, "do the work", timeout=17)
 
+    command, kwargs = seen["command"], seen["kwargs"]
+    assert (work / "harness/input-package.tar.gz").exists()
+    assert kwargs["cwd"] == str(pkg)
+    assert command[command.index("-C") + 1] == str(pkg)
+    assert f"model_reasoning_effort={ec.CODEX_EFFORT}" in command
     assert result.returncode == 0
     assert (work / "harness/codex_prompt.txt").read_text() == "do the work"
     assert (work / "harness/codex.stdout.txt").read_text() == "VERDICT: pass\n"
@@ -150,15 +189,14 @@ def test_run_codex_resume_continues_in_place_without_cd(tmp_path, monkeypatch) -
     work = _work(tmp_path)
     monkeypatch.setattr(ec, "_codex_env", lambda _work: {"CODEX_HOME": "unused"})
 
-    def fake_run(command, **kwargs):
-        assert command[1:3] == ["exec", "resume"] and command[3] == "sid-1"
-        assert "-C" not in command
-        assert kwargs["cwd"] == str(work / "pkg")
-        return subprocess.CompletedProcess(command, 0, "", "")
-
-    monkeypatch.setattr(ec.subprocess, "run", fake_run)
+    seen = _fake_popen(monkeypatch)
 
     ec._run_codex(work, "fix it", timeout=5, resume="sid-1", name="codex.repair1")
+
+    command, kwargs = seen["command"], seen["kwargs"]
+    assert command[1:3] == ["exec", "resume"] and command[3] == "sid-1"
+    assert "-C" not in command
+    assert kwargs["cwd"] == str(work / "pkg")
 
     assert (work / "harness/codex.repair1_prompt.txt").read_text() == "fix it"
     assert not (work / "harness/input-package.tar.gz").exists()
@@ -170,12 +208,7 @@ def test_run_codex_preserves_partial_output_on_timeout(tmp_path, monkeypatch) ->
     work = _work(tmp_path)
     monkeypatch.setattr(ec, "_codex_env", lambda _work: {"CODEX_HOME": "unused"})
 
-    def fake_run(command, **_kwargs):
-        raise subprocess.TimeoutExpired(
-            command, 9, output=b"partial stdout", stderr=b"partial stderr"
-        )
-
-    monkeypatch.setattr(ec.subprocess, "run", fake_run)
+    _fake_popen(monkeypatch, out="partial stdout", err="partial stderr", timeout_after=9)
 
     with pytest.raises(subprocess.TimeoutExpired):
         ec._run_codex(work, "do the work", timeout=9)
@@ -192,15 +225,14 @@ def test_simplify_codex_keeps_a_replayable_trace(tmp_path, monkeypatch) -> None:
     monkeypatch.setattr(ec, "CODEX_BIN", sys.executable)
     monkeypatch.setattr(ec.llm, "_api_key", lambda: "test-key")
 
-    def fake_run(command, **kwargs):
+    def on_start(command, kwargs):
         pkg = Path(command[command.index("-C") + 1])
         (pkg / "instruction.md").write_text("rewritten instruction")
         session = Path(kwargs["env"]["CODEX_HOME"]) / "sessions/2026/09/01/trace.jsonl"
         session.parent.mkdir(parents=True)
         session.write_text('{"type":"session_meta"}\n')
-        return subprocess.CompletedProcess(command, 0, "done\n", "")
 
-    monkeypatch.setattr(ec.subprocess, "run", fake_run)
+    _fake_popen(monkeypatch, out="done\n", on_start=on_start)
     task = {
         "_task_id": "task-c",
         "instruction": "original instruction",
