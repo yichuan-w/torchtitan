@@ -56,10 +56,15 @@ CYBER_RETRIES = int(os.environ.get("CODEX_CYBER_RETRIES", "2"))
 
 
 def cyber_filtered(work: Path) -> bool:
-    """Whether the provider's classifier stopped this session."""
-    for stderr in sorted((work / "harness").glob("*.stderr.txt")):
+    """Whether the provider's classifier stopped this session.
+
+    Both streams, since codex prints the refusal on stderr today and would
+    carry it as an `item.type: "error"` event on stdout under `--json`.
+    """
+    harness = work / "harness"
+    for stream in sorted(list(harness.glob("*.stderr.txt")) + list(harness.glob("*.stdout.txt"))):
         try:
-            if CYBER_FLAG in stderr.read_text(errors="replace"):
+            if CYBER_FLAG in stream.read_text(errors="replace"):
                 return True
         except OSError:
             pass
@@ -401,16 +406,15 @@ def _write_process_record(
     command: list[str],
     status: str,
     started_time_unix_ns: int,
-    stdout: str | bytes | None = None,
-    stderr: str | bytes | None = None,
     returncode: int | None = None,
     timeout_seconds: int | None = None,
     error: str | None = None,
 ) -> None:
+    """The record beside the streams. `_run_codex` writes `{name}.stdout.txt`
+    and `{name}.stderr.txt` as the process runs, so they are not written here;
+    what is left is the metadata that is only known once it ends."""
     harness = work / "harness"
     harness.mkdir(exist_ok=True)
-    (harness / f"{name}.stdout.txt").write_text(_as_text(stdout))
-    (harness / f"{name}.stderr.txt").write_text(_as_text(stderr))
     record = {
         "schema_version": 1,
         "command": command,
@@ -447,24 +451,40 @@ def _run_codex(
     if not resume:
         _snapshot_inputs(work)
     cmd = _codex_cmd(work, resume=resume)
+    out_path = harness / f"{name}.stdout.txt"
+    err_path = harness / f"{name}.stderr.txt"
     started = time.time_ns()
+    # Streamed to disk rather than captured in memory. A session runs for tens
+    # of minutes and used to write nothing until it ended, so a killed one
+    # (SIGKILL leaves no record at all) took its log with it, and there was no
+    # way to watch a live one. Now `tail -f` works, a kill keeps whatever ran,
+    # and the provider's refusal line lands on disk the moment it is printed.
     try:
-        result = subprocess.run(
-            cmd,
-            input=prompt,
-            capture_output=True,
-            text=True,
-            timeout=timeout,
-            cwd=str(work / "pkg"),
-            env=_codex_env(work),
-        )
+        with out_path.open("w") as out_f, err_path.open("w") as err_f:
+            proc = subprocess.Popen(
+                cmd,
+                stdin=subprocess.PIPE,
+                stdout=out_f,
+                stderr=err_f,
+                text=True,
+                cwd=str(work / "pkg"),
+                env=_codex_env(work),
+            )
+            try:
+                proc.communicate(input=prompt, timeout=timeout)
+            except subprocess.TimeoutExpired:
+                proc.kill()
+                proc.communicate()
+                raise
     except subprocess.TimeoutExpired as exc:
         _write_process_record(
             work, name=name, command=cmd, status="timed_out",
-            started_time_unix_ns=started, stdout=exc.stdout, stderr=exc.stderr,
-            timeout_seconds=timeout, error=str(exc),
+            started_time_unix_ns=started, timeout_seconds=timeout, error=str(exc),
         )
-        raise
+        # The partial streams are on disk; hand them to the caller too, which
+        # is where the old in-memory capture put them.
+        raise subprocess.TimeoutExpired(cmd, timeout, output=_read_stream(out_path),
+                                        stderr=_read_stream(err_path)) from exc
     except Exception as exc:
         _write_process_record(
             work, name=name, command=cmd, status="failed_to_start",
@@ -474,10 +494,18 @@ def _run_codex(
         raise
     _write_process_record(
         work, name=name, command=cmd, status="exited",
-        started_time_unix_ns=started, stdout=result.stdout, stderr=result.stderr,
-        returncode=result.returncode, timeout_seconds=timeout,
+        started_time_unix_ns=started, returncode=proc.returncode,
+        timeout_seconds=timeout,
     )
-    return result
+    return subprocess.CompletedProcess(cmd, proc.returncode,
+                                       _read_stream(out_path), _read_stream(err_path))
+
+
+def _read_stream(path: Path) -> str:
+    try:
+        return path.read_text(errors="replace")
+    except OSError:
+        return ""
 
 
 def _lay_out(task: dict, pkg: Path) -> dict:
