@@ -396,21 +396,22 @@ def _parse_turn(index: int, step: dict) -> dict:
     return turn
 
 
-_TRACES_SPEC = """
+_TRACES_SPEC = r"""
 
-TRACES. `traces/attempt-NN.jsonl`, one file per attempt, one JSON object per
-line. Line 1 is the attempt: attempt, reward, turns, and how it ended (status,
-finish_reason, submitted, format_errors, infra_failed) when the run recorded
-that. Every later line is one turn, in order: turn, keystrokes (a list: what
-the agent typed; empty on a closing turn), task_complete, output (the
-terminal after it; empty on the last turn, where the episode ended),
-analysis, plan, think. A turn with no parseable response has raw instead of
-keystrokes. There is no jq on this host; these are enough:
+TRACES. `traces/attempt-NN.jsonl`, one file per attempt (NN counts from 01,
+in the order the attempts ran), one JSON object per line. Line 1 is the
+attempt: attempt, reward, turns, and how it ended (status, finish_reason,
+submitted, format_errors, infra_failed) when the run recorded that. Every
+later line is one turn, in order: turn, keystrokes (a list: what the agent
+typed; empty on a closing turn), task_complete, output (the terminal after
+it; empty on the last turn, where the episode ended), analysis, plan, think.
+A turn with no parseable response has raw instead of keystrokes. jq is on
+PATH; these are enough:
 
-  head -qn1 traces/*.jsonl              # every attempt's outcome line
-  tail -n 4 traces/attempt-03.jsonl     # its last four turns, output included
-  python3 -c 'import json,sys; [print(t["turn"], "".join(t.get("keystrokes") or [t.get("raw", "")]).rstrip()) for t in map(json.loads, open(sys.argv[1])) if "turn" in t]' traces/attempt-01.jsonl
-                                        # the commands alone, one turn per line"""
+  head -qn1 traces/*.jsonl                                    # every attempt's outcome line
+  jq -r 'select(.turn) | "\(.turn)\t" + ((.keystrokes // [.raw]) | join(""))' traces/attempt-01.jsonl
+                                                              # the commands alone, turn number first
+  tail -n 4 traces/attempt-03.jsonl | jq -r '.turn, .output'  # what the last four turns saw"""
 
 
 def _traces_spec(attempts: list[dict] | None) -> str:
@@ -429,6 +430,9 @@ def _codex_env(work: Path) -> dict:
     # it where the harness lives. Without this every session ends in BLOCKED
     # and the loop records it as `kept`.
     env["EVOLVE_HARNESS_DIR"] = str(Path(__file__).resolve().parent)
+    # jq sits beside the codex binary, for reading traces/; the loop's own
+    # PATH (a systemd unit's) does not carry that directory.
+    env["PATH"] = str(Path(CODEX_BIN).parent) + os.pathsep + env.get("PATH", "")
     return env
 
 

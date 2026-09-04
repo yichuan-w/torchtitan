@@ -557,4 +557,14 @@ def test_traces_spec_names_the_file_and_the_readers() -> None:
     assert "traces/attempt-NN.jsonl" in spec
     assert "head -qn1 traces/*.jsonl" in spec
     assert "keystrokes" in spec and "raw" in spec
-    assert "jq" in spec  # says there is none on this host
+    assert "jq -r 'select(.turn)" in spec and "\\(.turn)" in spec  # jq's escape, not python's
+
+
+def test_codex_env_puts_the_tool_dir_first_on_path(tmp_path, monkeypatch) -> None:
+    monkeypatch.setattr(ec.llm, "_api_key", lambda: "k")
+    monkeypatch.setattr(ec, "CODEX_BIN", str(tmp_path / "bin" / "codex"))
+    monkeypatch.setenv("PATH", "/usr/bin")
+
+    env = ec._codex_env(_work(tmp_path))
+
+    assert env["PATH"].startswith(str(tmp_path / "bin") + ":/usr/bin")

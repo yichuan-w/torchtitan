@@ -944,8 +944,8 @@ direction without the trajectory -- `ev.evolve` and `llm.synthesize` take no
 tmax 2%; codex gave 63% and 60%. `SWE_EVOLVE_SIMPLIFY=0` because the ratchet only
 turns one way and this run wants to measure the harder direction alone; 0/k
 signals accumulate in `evolution/deferred_easier/` and replay if it is turned back
-on. The arm needs `/scratch/gpfs/TRIDAO/al9080/terminal-rl/bin/codex` (258 MB)
-and falls back to the chat operator on any exception, silently -- check for
+on. The arm needs `/scratch/gpfs/TRIDAO/al9080/terminal-rl/bin/codex` (258 MB), with `jq`
+beside it for reading traces, and falls back to the chat operator on any exception, silently -- check for
 `arm=agent_harder` in the evolve log to confirm which one actually ran.
 
 **Both dumps on.** `SWE_ROLLOUT_DUMP_DIR` for the full decoded trajectory per
