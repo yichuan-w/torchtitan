@@ -56,6 +56,15 @@ STAMP=$(date +%Y%m%d-%H%M%S)
 DUMP=${RL_RESUME_DUMP:-$TRL_BASE/runs/tmax-9b-$STAMP}
 mkdir -p "$DUMP"
 
+# Everything a run produces lives in its own directory. These two per-rollout
+# dumps used to write wherever the environment pointed, and the same
+# environment launches run after run, so runs interleaved in one directory:
+# the exec traces of two runs under one stamp, and rollout-dumps named
+# group=<id>_rollout=<i> overwritten across runs because group ids restart at
+# zero. Setting the variable still turns the dump on; the place is the run's.
+[ -n "${SWE_ROLLOUT_DUMP_DIR:-}" ] && export SWE_ROLLOUT_DUMP_DIR="$DUMP/rollout-dumps"
+[ -n "${TMAX_EXEC_TRACE_DIR:-}" ] && export TMAX_EXEC_TRACE_DIR="$DUMP/exec-traces"
+
 # The allocator reads RL_GPUS and gives each mesh its slice of that list BY
 # POSITION, overwriting CUDA_VISIBLE_DEVICES inside the spawned process before
 # CUDA starts. The list does not have to be contiguous. Order is the placement:
