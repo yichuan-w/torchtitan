@@ -694,6 +694,21 @@ def repair_oracle_codex(task: dict, observed: str, exit_code: int = 1) -> dict:
 
 SPEC = Path(__file__).resolve().parent / "agents" / "task_evolution.md"
 SANDBOX = Path(__file__).resolve().parent / "agent_sandbox.sh"
+# Who writes the verifier of a harder rewrite. "same": the session that wrote
+# the solution, as it always has. "blind": a second session that is shown the
+# instruction, the environment and the seed's verifier, and not the solution,
+# so it cannot inherit the solution's private vocabulary -- the hidden
+# contract that failed five of eight reviewed 0/16 tasks is then impossible
+# by construction rather than caught by a heuristic afterwards. It costs a
+# second session and one more ./sandbox check per rewrite, which is why it is
+# a flag until a round has measured the effect and the latency.
+VERIFIER_AUTHOR = os.environ.get("SWE_VERIFIER_AUTHOR", "same")
+VERIFIER_SPEC = Path(__file__).resolve().parent / "agents" / "verifier_author.md"
+# What the verifier's author must not see. Everything else in the package is
+# what an agent attempting the task could read.
+HIDDEN_FROM_VERIFIER = ("solution", "traces", "AGENTS.md", "sandbox",
+                        "run/checks.jsonl", "run/verdict.txt", "run/failure.txt",
+                        "run/sandbox.json", "run/sandbox.log")
 AGENT_TIMEOUT = int(os.environ.get("EVOLVE_AGENT_TIMEOUT", "2400"))
 SCAFFOLD = {"AGENTS.md", "sandbox"}
 
@@ -783,6 +798,91 @@ different counts, and that note is what it reads.
 
 Aim for a task a capable agent lands about half the time."""
 
+_HARDER_JOB_BLIND = """This task was solved {solved} of {attempts} attempts, so it is too
+easy to teach anything. Make it one rung harder, along exactly one of these
+axes:
+
+{candidates}
+
+One rung, not a new task. Keep everything the seed asks for and add ONE
+requirement that the agent which solved it never had to meet. The attempts
+that solved it are in `traces/`, one file per attempt (format under TRACES at
+the end). What made the task easy is visible there: the guidance the
+instruction handed over, the step the agent never had to work out. Before you
+choose the axis, list the commands of two or three attempts end to end; the
+attempt that solved it in the fewest turns says which step was free.
+
+The size of the rewrite is checked, not trusted. The reference solution may
+grow by {min_added} to {max_added} non-comment lines over the seed's
+{seed_lines}; the verifier may gain at most {max_asserts} assertions over the
+seed's {seed_asserts}. `./sandbox check` fails outside that and the caller
+rejects the rewrite. Measured on this corpus: rewrites that grew to 125 lines
+came back 0/16 five times in six, while the seed at its own size was solved
+every time. A harder task is one more thing to get right, not a new workflow.
+
+Pick from that list and nothing else. The list is not a menu of equals — it is
+ordered, and the order was computed against the whole task pool: which
+transformations are under-represented right now, and which ones this task has a
+foothold for. Work down it and take the first axis this package genuinely
+supports, so that substituting whichever is easiest to write cannot quietly
+collapse the pool onto a few kinds of change. Then write that axis's id, alone
+on one line, to `run/operator.txt`, before you start changing anything.
+
+Then do the work in this order, one file at a time. The order is not
+arbitrary — each file is written against the one before it, and the synthesis
+pipeline that produced these tasks runs the same sequence for that reason:
+
+  1. `solution/solve.sh` — what the answer now is under this axis: the seed's
+     solution plus the one new step, not a rewrite of it.
+  2. `instruction.md` — what the agent is told. Everything the new requirement
+     needs checked has to be discoverable from it and from the files the image
+     ships, because that is all the verifier's author will see (below).
+  3. `environment/Dockerfile` — the environment the other two assume.
+
+**Leave `tests/` exactly as it is.** The verifier for this rung is written by a
+second session that is shown the instruction, the environment and the seed's
+verifier, and not your solution -- so it cannot depend on a name only your
+solution knows. `./sandbox check` here grades your solution with the seed's
+verifier: it must still pass (the seed's checks are the floor) and the untouched
+workspace must still fail. It cannot see the new requirement; the other session
+will, from the instruction alone. A name your solution invents and the
+instruction never states will not be checked, so state it, or make the result
+checkable by value.
+
+Add whatever new files the change needs — a fixture the Dockerfile COPYs, a
+config, a data file. Anything you write in the package comes back with it.
+
+Constraints on the environment, because step 4 is yours now and these are what
+the pipeline that built these tasks learned the hard way:
+
+- **Every COPY source must exist in the package.** A Dockerfile line referring to
+  a file you did not write is the most common way a rewritten task is thrown
+  away: it builds nowhere, and the failure arrives long after this session ended.
+- Preserve the seed's base image and installation style; make the smallest change
+  the axis needs. An environment rewritten wholesale is a new task, not a harder
+  one.
+- No internet-only runtime behaviour, no proxies, credentials or external
+  services. The sandbox may have none of them and the reference solution will
+  fail where an agent would too.
+- The container is the size training gives this task (`run/resources.json`),
+  and `./sandbox check` measures what the reference solution costs in it. The
+  task is provisioned from that measurement, never below the seed's size and
+  never from a number you write. If the solution outgrows the box, `check`
+  says what ran out; make the solution need less. `./sandbox check --max`
+  measures at the platform ceiling (4 vCPU / 8 GiB / 10 GiB) and is for the
+  rare harder task that genuinely needs more than the seed had, not a way
+  past a failing check. A task that needs more than the ceiling never starts,
+  so it is unrunnable rather than hard.
+- Guard edits against paths you did not create (`test -f` first); prefer adding a
+  local fixture over patching something the image cloned.
+
+If, having read the package, you judge that none of the listed axes fits this
+task, write `GIVE UP: operator-misfit — <why>` and stop. Say which ones you
+considered and what was missing for each; a later round will come back with
+different counts, and that note is what it reads.
+
+Aim for a task a capable agent lands about half the time."""
+
 _EASIER_JOB = """This task was solved {solved} of {attempts} attempts — the agent
 never got there, so it teaches nothing either.
 
@@ -815,6 +915,37 @@ already working. The container you had is gone; `./sandbox up` gives you a
 fresh one.
 
 Confirm with `./sandbox check` before you stop."""
+
+_VERIFIER_JOB = """The task in this package was just made one rung harder: `instruction.md` now
+asks for one more thing than the seed did. Write the verifier for the task as the
+instruction states it.
+
+You are shown the instruction, `environment/`, and the seed's verifier at
+`{verifier_rel}` (what the task checked before this rung; it has {seed_asserts}
+assertions). You are not shown the reference solution, on purpose; AGENTS.md says
+why. Keep every existing check that still holds and add at most {max_asserts}
+assertions for the new requirement, each satisfiable by an agent that has read
+only the instruction and explored the container. Where the instruction leaves a
+name open, check the value.
+
+Then do the task yourself through `./sandbox exec`, the way the instruction
+describes it, and `./sandbox grade`: it must pass. `./sandbox reset` and grade
+the untouched workspace: it must fail. Both, before you finish."""
+
+_VERIFIER_REPAIR_JOB = """The verifier you wrote does not agree with the task's reference solution, which
+you cannot see: the caller ran that solution in a fresh container (exit
+{exit_code}) and graded it with your verifier, and it failed. The run's output
+is in `run/failure.txt`.
+
+Read it first. The instruction is the contract. The usual cause is a check that
+demands something the instruction does not ask for, or a name the instruction
+leaves open: loosen that check to what the instruction actually promises, or
+check the value instead of the name. Do not drop a check the seed's verifier
+already had, and do not weaken a check the instruction plainly requires. If the
+run failed a check the instruction does require, the solution is what is wrong:
+write `BLOCKED: <which check, and what the run showed>` to `run/verdict.txt` and
+stop, and the caller sends the solution back."""
+
 
 _BUDGET = """
 
@@ -928,6 +1059,159 @@ def _require_checked(pkg: Path) -> None:
     if not _agent_checked(pkg):
         raise RuntimeError("agent finished without a passing ./sandbox check "
                            "(run/checks.jsonl); the rewrite is discarded")
+
+
+def _harness_check(work: Path, name: str = "check") -> str:
+    """Run `./sandbox check` in the author's package from the harness rather
+    than from a session, and return what it printed. Used when the verifier
+    was written elsewhere: the record it appends to run/checks.jsonl is the
+    same one _require_checked reads."""
+    pkg = work / "pkg"
+    out_path = work / "harness" / f"{name}.stdout.txt"
+    try:
+        p = subprocess.run([str(pkg / "sandbox"), "check"], cwd=pkg, env=_codex_env(work),
+                           capture_output=True, text=True, timeout=AGENT_TIMEOUT)
+        text = (p.stdout or "") + (("\n" + p.stderr) if p.stderr else "")
+    except subprocess.TimeoutExpired as exc:
+        text = f"./sandbox check timed out after {AGENT_TIMEOUT}s\n{exc.stdout or ''}"
+    finally:
+        _sandbox_down(work)
+    out_path.write_text(text)
+    return text
+
+
+def _blind_layout(pkg: Path, vpkg: Path) -> None:
+    """The author's package minus what the verifier's author must not see."""
+    hidden = set(HIDDEN_FROM_VERIFIER)
+
+    def ignore(d, names):
+        rel = Path(d).relative_to(pkg)
+        return {n for n in names if str(rel / n) in hidden or (str(rel) == "." and n in hidden)}
+
+    shutil.copytree(pkg, vpkg, dirs_exist_ok=True, ignore=ignore)
+    vpkg.chmod(0o700)
+    (vpkg / "run").mkdir(exist_ok=True)
+    shutil.copy2(VERIFIER_SPEC, vpkg / "AGENTS.md")
+    shutil.copy2(SANDBOX, vpkg / "sandbox")
+    os.chmod(vpkg / "sandbox", 0o755)
+
+
+def _verifier_on_disk(pkg: Path, preferred: str) -> str:
+    if (pkg / preferred).exists():
+        return preferred
+    alt = next((c for c in ev.VERIFIER_CANDIDATES if (pkg / c).exists()), None)
+    if alt is None:
+        raise RuntimeError(f"no verifier on disk ({ev.VERIFIER_CANDIDATES})")
+    return alt
+
+
+def _take_verifier(vpkg: Path, pkg: Path, seed_rel: str, seed_text: str) -> str:
+    """Copy the verifier the blind author wrote into the author's package,
+    replacing the seed's, and return its path. Raises when nothing changed."""
+    rel = _verifier_on_disk(vpkg, seed_rel)
+    text = (vpkg / rel).read_text()
+    if rel == seed_rel and text == seed_text:
+        raise RuntimeError("verifier author changed nothing")
+    if rel != seed_rel:
+        (pkg / seed_rel).unlink(missing_ok=True)
+    dest = pkg / rel
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    dest.write_text(text)
+    # The author's last check graded the seed's verifier; it says nothing
+    # about this one, so it must not satisfy _require_checked.
+    (pkg / "run" / "checks.jsonl").unlink(missing_ok=True)
+    return rel
+
+
+def _blind_verifier(task: dict, work: Path, fmap: dict) -> tuple[Path, str]:
+    """Second session: write the verifier without seeing the solution.
+
+    Lays the author's package out again under its own trace directory with
+    `solution/` and the harness's own files removed, runs one session against
+    AGENTS.md = verifier_author.md, and copies the verifier it wrote back into
+    the author's package. Returns that trace directory and the verifier's
+    path. The caller then runs the check that the two sessions never could:
+    the hidden solution against the blind verifier.
+    """
+    pkg = work / "pkg"
+    seed_rel = fmap["test_state_py"]
+    seed_text = task["test_state_py"]
+    seed_size = ts.size_of(task["solve_sh"], seed_text,
+                           "python" if seed_rel.endswith(".py") else "shell")
+    with _trace_work("verifier", task) as vwork:
+        vpkg = vwork / "pkg"
+        _blind_layout(pkg, vpkg)
+        prompt = _VERIFIER_JOB.format(verifier_rel=seed_rel,
+                                      seed_asserts=seed_size["verifier_asserts"],
+                                      max_asserts=ts.MAX_ADDED_ASSERTS) + _budget(AGENT_TIMEOUT)
+        try:
+            _run_codex(vwork, prompt, timeout=AGENT_TIMEOUT)
+        finally:
+            _sandbox_down(vwork)
+        _check_verdict(vpkg)
+        rel = _take_verifier(vpkg, pkg, seed_rel, seed_text)
+        return vwork, rel
+
+
+def _blind_repair(task: dict, work: Path, vwork: Path, fmap: dict,
+                  observed: str, exit_code: int) -> str:
+    """Resume the verifier's session with the failure the hidden solution
+    produced against its verifier, and take the repaired verifier back."""
+    pkg, vpkg = work / "pkg", vwork / "pkg"
+    seed_rel = fmap["test_state_py"]
+    sid = _session_id(vwork)
+    (vpkg / "run").mkdir(exist_ok=True)
+    (vpkg / "run" / "failure.txt").write_text(observed or "(no output captured)")
+    (vpkg / "run" / "verdict.txt").unlink(missing_ok=True)
+    meta_path = vwork / "trace.json"
+    meta = json.loads(meta_path.read_text())
+    meta.setdefault("repairs", []).append(
+        {"session_id": sid, "status": "running", "exit_code": exit_code,
+         "started_time_unix_ns": time.time_ns()})
+    _write_json_atomic(meta_path, meta)
+    repair = meta["repairs"][-1]
+    try:
+        prompt = _VERIFIER_REPAIR_JOB.format(exit_code=exit_code) + _budget(AGENT_TIMEOUT)
+        try:
+            _run_codex(vwork, prompt, timeout=AGENT_TIMEOUT, resume=sid,
+                       name=f"codex.repair{len(meta['repairs'])}")
+        finally:
+            _sandbox_down(vwork)
+        _check_verdict(vpkg)
+        before = (pkg / _verifier_on_disk(pkg, seed_rel)).read_text()
+        rel = _take_verifier(vpkg, pkg, _verifier_on_disk(pkg, seed_rel), before)
+        repair["status"] = "completed"
+        return rel
+    except Exception as exc:
+        repair["status"] = "failed"
+        repair["error"] = f"{type(exc).__name__}: {exc}"[:300]
+        raise
+    finally:
+        repair["finished_time_unix_ns"] = time.time_ns()
+        _write_json_atomic(meta_path, meta)
+
+
+def _reconcile_blind(task: dict, work: Path, vwork: Path, fmap: dict) -> None:
+    """Hidden solution against blind verifier, with one bounded repair.
+
+    The two sessions never saw each other's file, so the first time they meet
+    is here. A failure means the verifier asks for something the instruction
+    did not promise, or the solution does not do what the instruction says;
+    the verifier's author gets the run once and decides which, and a second
+    failure discards the rewrite. The seed goes back into training unchanged,
+    which is the safe outcome for a pair that cannot agree.
+    """
+    pkg = work / "pkg"
+    text = _harness_check(work, name="check.blind1")
+    if _agent_checked(pkg):
+        return
+    chk = _last_check(pkg) or {}
+    code = int(chk["solve_exit"]) if chk.get("solve_exit") is not None else 1
+    _blind_repair(task, work, vwork, fmap, text[-4000:], code)
+    text = _harness_check(work, name="check.blind2")
+    if not _agent_checked(pkg):
+        raise RuntimeError("blind verifier and reference solution still disagree after "
+                           "one repair: " + text[-300:].replace("\n", " | "))
 
 
 def _write_resources(pkg: Path, task: dict) -> None:
@@ -1054,8 +1338,10 @@ def evolve_agentic(task: dict, job: str, trajectory: str = "",
         allowed = {op: fam for fam, op, _ in cands}
         seed_size = ts.size_of(task["solve_sh"], task["test_state_py"],
                                "python" if ev._verifier_rel(task).endswith(".py") else "shell")
+        blind = job == "harder" and VERIFIER_AUTHOR == "blind"
         prompt = {
-            "harder": _HARDER_JOB.format(solved=solved, attempts=attempts_n,
+            "harder": (_HARDER_JOB_BLIND if blind else _HARDER_JOB).format(
+                                         solved=solved, attempts=attempts_n,
                                          candidates=_candidates(cands),
                                          seed_lines=seed_size["solution_lines"],
                                          seed_asserts=seed_size["verifier_asserts"],
@@ -1070,9 +1356,13 @@ def evolve_agentic(task: dict, job: str, trajectory: str = "",
         finally:
             _sandbox_down(work)
 
+        vwork = None
         try:
             _check_verdict(pkg)
             _require_checked(pkg)
+            if blind:
+                vwork, fmap["test_state_py"] = _blind_verifier(task, work, fmap)
+                _reconcile_blind(task, work, vwork, fmap)
             out = _collect(task, pkg, fmap)
         except Blocked:
             raise
@@ -1092,6 +1382,10 @@ def evolve_agentic(task: dict, job: str, trajectory: str = "",
             raise RuntimeError("agent emptied the instruction")
         out["_hint"] = f"agent_{job}"
         out["_agent_validated"] = _agent_checked(pkg)
+        if vwork is not None:
+            out["_verifier_author"] = "blind"
+            out["_verifier_trace_dir"] = str(vwork)
+            out["_codex_trace_dirs"] = list(task.get("_codex_trace_dirs") or []) + [str(vwork)]
         if cands:
             # The diversity terms are not a counter -- they are recomputed each
             # round by rescanning the pool and reading the operator off every
@@ -1133,6 +1427,24 @@ def _session_id(work: Path) -> str:
     raise RuntimeError(f"no session_meta in {newest}")
 
 
+def _resume_blind(task: dict, work: Path, observed: str, exit_code: int) -> dict:
+    vwork = Path(task.get("_verifier_trace_dir") or "")
+    if not (vwork / "pkg").is_dir():
+        raise RuntimeError(f"no verifier session to resume at {vwork}")
+    pkg = work / "pkg"
+    fmap = ev.file_map(task)
+    _write_resources(pkg, task)
+    fmap["test_state_py"] = _blind_repair(task, work, vwork, fmap, observed, exit_code)
+    text = _harness_check(work, name=f"check.resume{time.time_ns() % 100000}")
+    if not _agent_checked(pkg):
+        raise RuntimeError("blind verifier and reference solution still disagree on resume: "
+                           + text[-300:].replace("\n", " | "))
+    out = _collect(task, pkg, fmap)
+    out["_repaired"] = "codex_resume_verifier"
+    out["_agent_validated"] = True
+    return _attach_trace(out, task, work)
+
+
 def resume_agentic(task: dict, observed: str, exit_code: int = 1) -> dict:
     """Continue the session that wrote this task, with the caller's failure.
 
@@ -1148,6 +1460,11 @@ def resume_agentic(task: dict, observed: str, exit_code: int = 1) -> dict:
     pkg = work / "pkg"
     if not pkg.is_dir():
         raise RuntimeError(f"no agent package to resume at {pkg}")
+    if task.get("_verifier_author") == "blind":
+        # The caller's oracle failed at the row's size. The session that can
+        # answer without seeing the solution is the verifier's; resuming the
+        # author instead would hand it the verifier it was kept away from.
+        return _resume_blind(task, work, observed, exit_code)
     sid = _session_id(work)
     fmap = ev.file_map(task)
     (pkg / "run").mkdir(exist_ok=True)
