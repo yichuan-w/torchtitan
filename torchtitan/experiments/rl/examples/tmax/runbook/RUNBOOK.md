@@ -701,6 +701,16 @@ harder — and folds the rewrite back into the live training file.
    0/16 failed on a report key or line label only the reference solution knew,
    three of them with the work otherwise complete. A session that never passed
    its own `./sandbox check` is discarded as `agent_failed`.
+   The rewrite also has to be one rung above the seed, by size (`task_size.py`):
+   the reference solution grows by 3 to 8 non-comment lines over the seed's and
+   the verifier gains at most 5 assertions, or the check fails as `step_size`
+   and revalidate sends it back. The numbers come from the seed corpus's own
+   training outcomes (solutions of 14 to 20 lines have the largest mixed-signal
+   share; the 0/16 share doubles past 20; the agentic arm's unbounded rewrites
+   had a median of 125 lines and came back 0/16 five times in six). Size is a
+   heuristic for how much the policy has to reproduce, not a difficulty
+   measurement; the difficulty probe on the eval host (step 6) is the
+   measurement, and the training signal is the final word.
    A simplify takes an instruction-only fast path with no build and no sandbox,
    which is why the loop is cheap on the direction that dominates.
 4. **Fold.** Accepted rewrites are written back into the mix atomically
@@ -714,6 +724,15 @@ harder — and folds the rewrite back into the live training file.
    place so a resumed checkpoint's ordering still points at the same tasks.
    Validation stays pinned to the boot-time file. A malformed reload is logged
    and ignored, never fatal.
+
+6. **Probe, before a change to the loop reaches a run.** A rewrite's difficulty
+   is measured, not judged: `eval_host/difficulty_probe.sh <rows.jsonl>
+   <base|step-N> [k]` on the flow-matic eval host runs the policy k times per
+   task at the training rollout's sampling and prints passes per task; 0/k is
+   too hard for that policy, k/k too easy, the band between is what a fold
+   should land in. Used on a dev workdir's folds (`della/probe_rows.sh` picks
+   the rows) to check a change to the harder arm before the production loop
+   gets it; the training signal remains the final measurement.
 
 ### Credentials and knobs
 
