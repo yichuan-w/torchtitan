@@ -882,9 +882,17 @@ class TMaxRollouter(Rollouter):
         except OSError as e:
             logger.warning(f"[tmax] zero-std annotate failed for {dump_dir}: {e}")
 
-    def _guard_for(self, budget_sec: int) -> int:
-        """Whole-rollout wall-clock guard for an agent budget: + verifier + boot."""
-        return budget_sec + self._eval_timeout_sec + 300
+    def _guard_for(self, budget_sec: int, verifier_sec: int | None = None) -> int:
+        """Whole-rollout wall-clock guard for an agent budget: + verifier + boot.
+
+        ``verifier_sec`` is the grader's own budget for this task. It must be the
+        SAME value the grade call gets: a guard built on the configured default
+        while the grader runs on a task's declared 12000s kills the rollout mid-grade
+        and scores it as an infrastructure failure.
+        """
+        if verifier_sec is None:
+            verifier_sec = self._eval_timeout_sec
+        return budget_sec + verifier_sec + 300
 
     # Extra initial guard headroom for the sandbox-creation queue. After a restart
     # every rollout boots a sandbox at once and the creation queue runs tens of
@@ -914,6 +922,28 @@ class TMaxRollouter(Rollouter):
         if declared is None:
             return self._time_budget_sec
         return max(int(declared), _DECLARED_AGENT_BUDGET_FLOOR_SEC)
+
+    def _verifier_budget_sec(self, sample: TMaxSample) -> int:
+        """Wall-clock budget for this task's GRADER, in seconds.
+
+        The grader is the benchmark's own test.sh, and Harbor states its budget per
+        task -- 360s to 12000s across TB-2.1's 89 tasks. Passing one configured value
+        to all of them scores a task 0 for being slow rather than for being wrong:
+        at ``TMAX_EVAL_TIMEOUT_SEC=600`` that is 87 of the 89, and no value covers the
+        suite without also being absurd for the tasks that grade in a minute.
+
+        ``eval_timeout_sec`` becomes the FLOOR, mirroring ``_agent_budget_sec``: a
+        declared budget only ever raises it. The declared numbers are sized for the
+        benchmark's reference runner, and our sandbox is a 1-vCPU Daytona box for 83
+        of these tasks, so the floor is what keeps a task that declares 360s from
+        being graded on a machine slower than the one that number was measured on.
+        A corpus that declares nothing (RTS, TerminalWorld) is unaffected.
+        """
+        declared = sample.verifier_timeout_sec
+        if declared is None:
+            return self._eval_timeout_sec
+        return max(int(declared), self._eval_timeout_sec)
+
     def _maybe_emit_evolution_signal(
         self, sample: TMaxSample, rollouts: list[Rollout], renderer=None
     ) -> None:
@@ -962,7 +992,9 @@ class TMaxRollouter(Rollouter):
                 try:
                     qdir = os.path.join(os.path.dirname(dump_dir), "infra_quarantine")
                     os.makedirs(qdir, exist_ok=True)
-                    qf = os.path.join(qdir, f"{sample.instance_id.replace('/', '_')}.json")
+                    qf = os.path.join(
+                        qdir, f"{sample.instance_id.replace('/', '_')}.json"
+                    )
                     seen = 0
                     if os.path.exists(qf):
                         with open(qf) as fh:
@@ -1046,6 +1078,7 @@ class TMaxRollouter(Rollouter):
         at most 34k and 10k characters per turn over 300 dumps. Best-effort:
         on any failure the caller falls back to the message-parse path.
         """
+
         def dec(ids):
             if tokenizer is None or not ids:
                 return ""
@@ -1057,17 +1090,21 @@ class TMaxRollouter(Rollouter):
             cmd = dec(getattr(tn, "completion_token_ids", None))
             resp = ""
             if i + 1 < len(turns):
-                cur = list(getattr(tn, "prompt_token_ids", []) or []) + \
-                    list(getattr(tn, "completion_token_ids", []) or [])
+                cur = list(getattr(tn, "prompt_token_ids", []) or []) + list(
+                    getattr(tn, "completion_token_ids", []) or []
+                )
                 nxt = list(getattr(turns[i + 1], "prompt_token_ids", []) or [])
                 if nxt[: len(cur)] == cur:
-                    resp = dec(nxt[len(cur):])
+                    resp = dec(nxt[len(cur) :])
             out.append({"cmd": cmd, "out": resp})
         return out
 
     def _evolution_signal(
-        self, sample: TMaxSample, rollouts: list[Rollout],
-        rewards: list[float], renderer=None
+        self,
+        sample: TMaxSample,
+        rollouts: list[Rollout],
+        rewards: list[float],
+        renderer=None,
     ) -> dict:
         """What a zero-std group hands the data side: which way to move the task and
         the per-attempt command transcript a hint is read from. Same shape a solver
@@ -1087,7 +1124,8 @@ class TMaxRollouter(Rollouter):
         tokenizer = None
         if renderer is not None:
             tokenizer = getattr(renderer, "tokenizer", None) or getattr(
-                renderer, "_tokenizer", None)
+                renderer, "_tokenizer", None
+            )
 
         def transcript(r):
             try:
@@ -1096,8 +1134,10 @@ class TMaxRollouter(Rollouter):
             except Exception:  # noqa: BLE001 -- never break signal emission
                 pass
             return [
-                {"cmd": self._message_text(turn.completion_message),
-                 "out": "\n".join(self._message_text(m) for m in turn.env_messages)}
+                {
+                    "cmd": self._message_text(turn.completion_message),
+                    "out": "\n".join(self._message_text(m) for m in turn.env_messages),
+                }
                 for turn in r.turns
             ]
 
@@ -1112,11 +1152,13 @@ class TMaxRollouter(Rollouter):
             "total": len(rewards),
             "direction": "harder" if passed else "easier",
             "attempts": [
-                {"reward": r.reward, "turns": len(r.turns),
-                 "status": str(r.status),
-                 **{k: r.diagnostics[k] for k in outcome_keys
-                    if k in r.diagnostics},
-                 "transcript": transcript(r)}
+                {
+                    "reward": r.reward,
+                    "turns": len(r.turns),
+                    "status": str(r.status),
+                    **{k: r.diagnostics[k] for k in outcome_keys if k in r.diagnostics},
+                    "transcript": transcript(r),
+                }
                 for r in rollouts
                 if r.reward is not None
             ],
@@ -1179,6 +1221,7 @@ class TMaxRollouter(Rollouter):
         # Hoisted out of the try so the completion line can report them whatever
         # path the rollout takes out of it. Both are pure reads of `sample`.
         budget_sec = self._agent_budget_sec(sample)
+        verifier_sec = self._verifier_budget_sec(sample)
         started_at = time.monotonic()
         await self._rollout_gate.acquire_sibling((group_id, rollout_idx))
         try:
@@ -1191,7 +1234,8 @@ class TMaxRollouter(Rollouter):
                 max_context_tokens=self._max_context_tokens,
             )
             async with asyncio.timeout(
-                self._guard_for(budget_sec) + self._SANDBOX_BOOT_ALLOWANCE_SEC
+                self._guard_for(budget_sec, verifier_sec)
+                + self._SANDBOX_BOOT_ALLOWANCE_SEC
             ) as rollout_timeout:
                 # host_loop drives the sandbox with bash directly; it never runs the
                 # Claude Code CLI, so skip the curl-based install (the tmax task
@@ -1212,7 +1256,7 @@ class TMaxRollouter(Rollouter):
                     # deadline (set at agent start in the harness).
                     rollout_timeout.reschedule(
                         asyncio.get_running_loop().time()
-                        + self._guard_for(budget_sec)
+                        + self._guard_for(budget_sec, verifier_sec)
                     )
                     # Force every tool command to run as root (tmax tasks touch
                     # system paths); the faithful Vanillux loop dispatches bash here.
@@ -1269,7 +1313,7 @@ class TMaxRollouter(Rollouter):
                             sandbox,
                             sample.tmax,
                             workdir=sample.workdir,
-                            timeout_sec=self._eval_timeout_sec,
+                            timeout_sec=verifier_sec,
                         )
                         sparse_reward = reward
                         # Read the verifier's second output (the per-test CTRF
@@ -1409,9 +1453,16 @@ class TMaxRollouter(Rollouter):
         # flag: exit 137 / oom phrasing in any env message. The default 4GiB
         # sandbox is smaller than 26 tasks own declared req_memory_mb, so this
         # is the readout that says when memory, not the model, failed the task.
-        _oom_marks = ("Killed", "Out of memory", "Cannot allocate memory",
-                      "MemoryError", "exit=137", "exit code 137",
-                      "No space left on device", "Disk quota exceeded")
+        _oom_marks = (
+            "Killed",
+            "Out of memory",
+            "Cannot allocate memory",
+            "MemoryError",
+            "exit=137",
+            "exit code 137",
+            "No space left on device",
+            "Disk quota exceeded",
+        )
         oom_suspect = any(
             any(m in self._message_text(msg) for m in _oom_marks)
             for turn in turns
