@@ -13,7 +13,11 @@ DUMP=${RL_RESUME_DUMP:-/scratch/gpfs/TRIDAO/al9080/terminal-rl/runs/tw-mix-$STAM
 mkdir -p "$DUMP"
 
 export CUDA_VISIBLE_DEVICES=${RL_GPUS:-1,2,4,6,7}
-export PYTHONPATH=$HOME/torchtitan
+# The checkout this script sits in, not a fixed path: $HOME/torchtitan is a
+# stale tree on della (13 PRs behind the canonical branch as of 2026-09-04)
+# and nothing running reads it, so a run launched against it would train old
+# code with nothing in the log to say so.
+export PYTHONPATH=$(git -C "$(dirname "${BASH_SOURCE[0]}")" rev-parse --show-toplevel)
 # The LIVE data path: the online evolution consumer atomically replaces this
 # file and SWE_DATA_HOT_RELOAD picks it up mid-run - no restart.
 export SWE_PROMPT_DATA=${RL_DATA:-/scratch/gpfs/TRIDAO/al9080/terminal-rl/data/mix/mix_live.jsonl}
