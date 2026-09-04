@@ -2,8 +2,8 @@
 # Start the evolve loop for one training workdir, from nothing, as a systemd
 # user unit running evolve_ondella.py from the checkout this script sits in.
 #
-#   usage: TT_DAYTONA_CPU=1 TT_DAYTONA_MEM_GB=2 TT_DAYTONA_DISK_GB=2 \
-#          launch_evolveloop.sh <workdir> [workers]
+#   usage: TRL_PROFILE=andy TT_DAYTONA_CPU=1 TT_DAYTONA_MEM_GB=2 \
+#          TT_DAYTONA_DISK_GB=2 launch_evolveloop.sh <workdir> [workers]
 #
 # This is the production loop that feeds a training run: restart it only at
 # an agreed moment (restart_evolve.sh carries its environment across). Try a

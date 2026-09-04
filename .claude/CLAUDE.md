@@ -15,6 +15,20 @@ neither copy is identifiably the one that ran.
 Pushing to `origin` writes into someone else's repository and needs Zhifei's
 approval, given in the conversation before staging.
 
+## One checkout per person, selected by profile
+
+Two people launch from one account on della. `TRL_PROFILE` picks whose checkout
+and data root a run uses; the profiles are one file per person in
+`torchtitan/experiments/rl/examples/tmax/runbook/profiles/`, and ours is
+`andy`. A directory named after Andy is not evidence it is ours: the account is
+`al9080`, so every path on that box carries that name, including the trees
+other people run from.
+
+Write only to the tree our profile names, update it by pulling rather than
+copying files into it, and do not create or adopt a checkout outside the
+profiles. The workspace `CLAUDE.md` carries the reasons and the della-side
+detail; `evolution/della/evolveloop_env.sh` enforces the first of them.
+
 ## Keep the work inside experiments/
 
 Changes belong under `torchtitan/experiments/rl/`. Core torchtitan is shared
