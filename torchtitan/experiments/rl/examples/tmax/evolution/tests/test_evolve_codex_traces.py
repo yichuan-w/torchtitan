@@ -474,3 +474,28 @@ def test_cyber_filtered_reads_every_stderr_the_session_wrote(tmp_path) -> None:
     (work / "harness" / "codex.repair1.stderr.txt").write_text(
         "ERROR: This content was flagged for possible cybersecurity risk. If this seems wrong...\n")
     assert ec.cyber_filtered(work) is True
+
+
+def test_render_attempt_header_says_how_the_attempt_ended() -> None:
+    attempt = {
+        "reward": 1.0, "turns": 2, "status": "completed",
+        "finish_reason": "submit", "submitted": True,
+        "format_errors": 0, "infra_failed": False,
+        "transcript": [{"cmd": "ls", "out": "a b"}],
+    }
+
+    text = ec._render_attempt(attempt)
+
+    assert text.splitlines()[0] == (
+        "--- attempt reward=1.0 turns=2 status=completed finish_reason=submit "
+        "submitted=True format_errors=0 infra_failed=False ---"
+    )
+    assert text.splitlines()[1:] == ["$ ls", "  a b"]
+
+
+def test_render_attempt_keeps_the_old_header_for_old_signals() -> None:
+    text = ec._render_attempt(
+        {"reward": 0.0, "turns": 1, "transcript": [{"cmd": "ls", "out": ""}]}
+    )
+
+    assert text.splitlines()[0] == "--- attempt reward=0.0 turns=1 ---"
