@@ -44,7 +44,7 @@ class Filtered(RuntimeError):
     writes nothing to stdout. It is not a verdict on the task: the flag fires
     late, once the session's context carries the task's own material (a
     crackme's disassembly, angr's symbolic-execution output), and it is
-    probabilistic -- over the three tmax seeds it has ever hit, 11 of 21
+    probabilistic -- over the three seeds it has ever hit, 11 of 21
     sessions were stopped and 10 ran to the end, four of those producing a
     usable rewrite. So the answer is a fresh session, not a dead task; a
     resumed one would carry the flagged context straight back.
@@ -339,6 +339,10 @@ def _split_attempts(trajectory: str) -> list[str]:
     return [p for p in (part.strip() for part in parts) if p] or [trajectory]
 
 
+_ATTEMPT_OUTCOME_KEYS = ("status", "finish_reason", "submitted", "format_errors",
+                         "infra_failed")
+
+
 def _render_attempt(attempt: dict) -> str:
     """One rollout as the agent reads it: the header, then every turn whole.
 
@@ -346,9 +350,17 @@ def _render_attempt(attempt: dict) -> str:
     written for the chat prompt and trims each turn's terminal output to 600
     characters and the verifier tail to 400; on disk there is no budget to
     protect, and the cut landed exactly where the agent needed to look.
+
+    The header also says how the attempt ended when the signal carries it
+    (status, finish_reason, submitted, format_errors, infra_failed), so a
+    reader can pick the attempt that submitted over one that ran out of
+    budget before opening either. Signals written before those fields
+    existed render the old two-field header.
     """
-    lines = [f"--- attempt reward={attempt.get('reward')} "
-             f"turns={attempt.get('turns')} ---"]
+    head = [f"reward={attempt.get('reward')}", f"turns={attempt.get('turns')}"]
+    head += [f"{key}={attempt[key]}" for key in _ATTEMPT_OUTCOME_KEYS
+             if key in attempt]
+    lines = ["--- attempt " + " ".join(head) + " ---"]
     for step in attempt.get("transcript") or []:
         lines.append(f"$ {step.get('cmd', '')}")
         lines.append(f"  {step.get('out', '')}")

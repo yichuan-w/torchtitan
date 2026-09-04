@@ -734,3 +734,71 @@ def test_in_band_group_writes_no_evolution_signal(
     rollouter._maybe_emit_evolution_signal(sample, rollouts)
 
     assert not list(tmp_path.glob("task-band--*.json"))
+
+
+def test_evolution_signal_transcript_is_whole_and_says_how_the_attempt_ended() -> None:
+    """The per-attempt transcript is the decoded token stream, uncut: a cap on
+    the completion lands on the ``<commands>`` block at its end, which is the
+    part a reader needs. The attempt also carries the loop's outcome fields."""
+    from types import SimpleNamespace
+
+    from torchtitan.experiments.rl.rollout.types import RolloutTurn
+    from torchtitan.experiments.rl.types import RolloutTurnID
+
+    class _Tok:
+        def decode(self, ids, skip_special_tokens=False):
+            return "".join({1: "p", 2: "c", 3: "o"}[i] for i in ids)
+
+    prompt_1 = [1] * 10
+    completion_1 = [2] * 6000  # longer than the 4000-char cap this used to have
+    terminal_1 = [3] * 5000
+    turns = [
+        RolloutTurn(
+            rollout_id=RolloutTurnID(group_id=1, rollout_id=0, turn_id=0),
+            prompt_token_ids=prompt_1,
+            completion_token_ids=completion_1,
+            completion_logprobs=[0.0] * len(completion_1),
+        ),
+        RolloutTurn(
+            rollout_id=RolloutTurnID(group_id=1, rollout_id=0, turn_id=1),
+            prompt_token_ids=prompt_1 + completion_1 + terminal_1,
+            completion_token_ids=[2] * 5,
+            completion_logprobs=[0.0] * 5,
+        ),
+    ]
+    rollout = Rollout(
+        group_id=1,
+        rollout_id=0,
+        status=RolloutStatus.COMPLETED,
+        reward=1.0,
+        turns=turns,
+        diagnostics={
+            "finish_reason": "submit",
+            "submitted": True,
+            "format_errors": 0,
+            "infra_failed": False,
+            "ctrf": None,
+        },
+    )
+    sample = TMaxSample(
+        instance_id="task-whole",
+        image="example/image",
+        workdir="/workspace",
+        problem_statement="test",
+    )
+    rollouter = object.__new__(TMaxRollouter)
+
+    signal = rollouter._evolution_signal(
+        sample, [rollout], [1.0], SimpleNamespace(tokenizer=_Tok())
+    )
+
+    (attempt,) = signal["attempts"]
+    assert attempt["transcript"][0]["cmd"] == "c" * 6000
+    assert attempt["transcript"][0]["out"] == "o" * 5000
+    assert attempt["transcript"][1]["cmd"] == "c" * 5
+    assert attempt["status"] == "completed"
+    assert attempt["finish_reason"] == "submit"
+    assert attempt["submitted"] is True
+    assert attempt["format_errors"] == 0
+    assert attempt["infra_failed"] is False
+    assert "ctrf" not in attempt

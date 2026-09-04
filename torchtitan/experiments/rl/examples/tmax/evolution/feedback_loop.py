@@ -456,7 +456,7 @@ def _evolve_retrying_the_filter(ec, rec: dict, tid: str, agent_task: dict,
 
     The cybersecurity classifier fires late in a session whose context carries
     a reverse-engineering task's own material, and probabilistically: over the
-    three tmax seeds it has ever hit, 11 of 21 sessions were stopped and 10 ran
+    three seeds it has ever hit, 11 of 21 sessions were stopped and 10 ran
     to the end. A stopped session says nothing about the task, so a fresh one
     is started -- fresh, not resumed, since the flagged context is exactly what
     a resume would carry back. At the measured rate two retries take the

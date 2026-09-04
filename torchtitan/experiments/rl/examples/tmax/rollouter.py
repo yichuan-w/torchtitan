@@ -1036,14 +1036,20 @@ class TMaxRollouter(Rollouter):
         nothing (every cmd/out was ""). The reliable text is the token stream:
         a turn's completion is the model's action (``<tool_call>`` and all), and
         the tool_response is the next turn's prompt delta -- the same TITO
-        reconstruction the SWE_ROLLOUT_DUMP_DIR trace uses. Bounded per turn so
-        one pathological turn cannot bloat the signal. Best-effort: on any
-        failure the caller falls back to the message-parse path.
+        reconstruction the SWE_ROLLOUT_DUMP_DIR trace uses. Whole turns, not a
+        per-turn cut: the completion ends with the ``<commands>`` block, so the
+        4000-character cap this used to apply took the command itself out of
+        98% of the turns it touched -- 1-2% of turns, but 29% of the attempts
+        in all-pass signals and 63% in all-fail ones (wd-20260904a, 400
+        signals each). The stream is bounded upstream anyway, by the
+        generator's per-turn completion limit and Terminus's terminal window:
+        at most 34k and 10k characters per turn over 300 dumps. Best-effort:
+        on any failure the caller falls back to the message-parse path.
         """
         def dec(ids):
             if tokenizer is None or not ids:
                 return ""
-            return tokenizer.decode(list(ids), skip_special_tokens=False)[:4000]
+            return tokenizer.decode(list(ids), skip_special_tokens=False)
 
         turns = rollout.turns
         out = []
@@ -1070,7 +1076,13 @@ class TMaxRollouter(Rollouter):
         every reward is the same and one of them decides the direction).
 
         Transcript is decoded from tokens (see ``_rollout_transcript``); a parsed-
-        message fallback keeps the old shape if decoding is unavailable."""
+        message fallback keeps the old shape if decoding is unavailable.
+
+        Each attempt also says how it ended: ``status``, plus the loop's
+        ``finish_reason``, ``submitted``, ``format_errors`` and ``infra_failed``
+        from ``Rollout.diagnostics`` -- the facts the SWE_ROLLOUT_DUMP_DIR header
+        carries -- so a reader can tell a submit from a budget stop or a parse
+        failure without decoding the transcript."""
         passed = rewards[0] > 0
         tokenizer = None
         if renderer is not None:
@@ -1089,6 +1101,7 @@ class TMaxRollouter(Rollouter):
                 for turn in r.turns
             ]
 
+        outcome_keys = ("finish_reason", "submitted", "format_errors", "infra_failed")
         return {
             "event": "signal_created",
             "created_time_unix_ns": time.time_ns(),
@@ -1100,6 +1113,9 @@ class TMaxRollouter(Rollouter):
             "direction": "harder" if passed else "easier",
             "attempts": [
                 {"reward": r.reward, "turns": len(r.turns),
+                 "status": str(r.status),
+                 **{k: r.diagnostics[k] for k in outcome_keys
+                    if k in r.diagnostics},
                  "transcript": transcript(r)}
                 for r in rollouts
                 if r.reward is not None
