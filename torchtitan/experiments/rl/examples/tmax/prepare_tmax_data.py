@@ -86,7 +86,7 @@ _PRETEST_BY_ID: dict[str, dict] | None = None
 
 def _pretest_for(task_id: str) -> dict:
     """Exported pre_test fields for a task: {} when there is no export / no entry, else
-    {"pre_test_sh", "dockerfile_sha256"} (the capture Dockerfile stamp for the drift guard). Loaded once."""
+    {"pre_test_sh", "env_kind", "env_identity"} -- the captured environment identity for the drift guard."""
     global _PRETEST_BY_ID
     if _PRETEST_BY_ID is None:
         _PRETEST_BY_ID = {}
@@ -101,36 +101,39 @@ def _pretest_for(task_id: str) -> dict:
                     if pt:
                         _PRETEST_BY_ID[row["task_id"]] = {
                             "pre_test_sh": pt,
-                            "dockerfile_sha256": row.get("dockerfile_sha256") or "",
+                            "env_kind": row.get("env_kind") or "image",
+                            "env_identity": row.get("env_identity") or "",
                         }
         except (OSError, ValueError):
             _PRETEST_BY_ID = {}
     return _PRETEST_BY_ID.get(task_id, {})
 
 
-def _dockerfile_sha256_bundle(task_dir: str) -> str:
-    """sha256 of THIS episode's environment Dockerfile as materialised in the task bundle
-    (<task_dir>/environment/Dockerfile, then <task_dir>/Dockerfile), or '' if absent."""
+def _episode_env_identity(task_dir: str, image: str) -> str:
+    """This episode's environment identity: "dockerfile:<sha256>" when the bundle carries a Dockerfile
+    (environment/Dockerfile, then Dockerfile), else "image:<ref>" for the image the sample boots. Compared to
+    the captured identity so a task whose environment drifted since capture skips the pin check."""
     for rel in ("environment/Dockerfile", "Dockerfile"):
         fp = os.path.join(task_dir, rel)
         if os.path.isfile(fp):
             with open(fp, "rb") as f:
-                return hashlib.sha256(f.read()).hexdigest()
-    return ""
+                return "dockerfile:" + hashlib.sha256(f.read()).hexdigest()
+    return "image:" + (image or "")
 
 
-def _pretest_tmax_fields(task_id: str, task_dir: str) -> dict:
+def _pretest_tmax_fields(task_id: str, task_dir: str, image: str) -> dict:
     """tmax fields for the pre-verify hook: {} when the task has no exported pre_test. Otherwise the check plus
-    the drift-guard stamps grading.py compares -- the capture sha (from the export) and this episode's Dockerfile
-    sha (computed from the bundle) -- and task_id for the skip log."""
+    the drift-guard identities grading.py compares -- the captured identity (from the export stamp) and this
+    episode's identity (computed here) -- and task_id for the skip log."""
     fields = _pretest_for(task_id)
     if not fields.get("pre_test_sh"):
         return {}
+    stamped = f"{fields.get('env_kind') or 'image'}:{fields.get('env_identity') or ''}"
     return {
         "pre_test_sh": fields["pre_test_sh"],
         "task_id": task_id,
-        "pretest_dockerfile_sha256": fields.get("dockerfile_sha256") or "",
-        "pretest_episode_dockerfile_sha256": _dockerfile_sha256_bundle(task_dir),
+        "pretest_env_identity": stamped,
+        "pretest_episode_env_identity": _episode_env_identity(task_dir, image),
     }
 
 
@@ -259,7 +262,7 @@ def _to_row(task_id: str, image: str, task_dir: str, image_prefix: str) -> dict 
                 "test_sh": test_sh,
                 "fixtures": fixtures,
                 "reward_path": _REWARD_PATH,
-                **_pretest_tmax_fields(task_id, task_dir),
+                **_pretest_tmax_fields(task_id, task_dir, image),
             },
         },
     }

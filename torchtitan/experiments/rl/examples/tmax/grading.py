@@ -265,21 +265,17 @@ async def grade_tmax(
     # episode scores 0 WITHOUT running the verifier. Absent field ⇒ no-op (the whole corpus before this lands).
     pre_test = tmax.get("pre_test_sh")
     if pre_test:
-        # DOCKERFILE-DRIFT GUARD (reaudit): tw_* task ids evolve IN PLACE across breeding rounds, so a task's
-        # environment/Dockerfile may differ from the one its pins were captured against. The pins are keyed by
-        # task_id, so on a changed environment the assert-refuse would falsely refuse an HONEST episode. Skip the
-        # pin check ONLY on a PROVEN mismatch (both shas known and different) -- a null capture or episode sha is
-        # not proof of drift, so the check still runs. On skip it is a no-op: reward path unchanged, grading falls
-        # through to test.sh. Both shas are carried in tmax by prepare_tmax_data (grade_tmax has no Dockerfile).
-        _cap = tmax.get("pretest_dockerfile_sha256") or ""
-        _cur = tmax.get("pretest_episode_dockerfile_sha256") or ""
-        if _cap and _cur and _cap != _cur:
-            logger.info(
-                "[tmax] pre_test SKIPPED for %s: dockerfile drift since capture (capture=%s episode=%s); "
-                "grading via test.sh without the pin check",
-                tmax.get("task_id", "?"), _cap, _cur,
-            )
-        else:
+        # ENVIRONMENT-DRIFT GUARD (reaudit): tw_* task ids evolve IN PLACE across breeding rounds, so a task's
+        # environment can differ from the one its pins were captured against. The pins are keyed by task_id, so
+        # on a changed environment the assert-refuse would falsely refuse an HONEST episode. Run the pin check
+        # ONLY when this episode's environment identity equals the captured one; on any difference OR a missing
+        # identity, SKIP (no-op: reward path unchanged, grading falls through to test.sh) and log one line. The
+        # identities are carried in tmax by prepare_tmax_data (grade_tmax sees no image/Dockerfile of its own).
+        # Round 0: both are "image:<ref>" and match, so the block runs; an evolved task that rewrote its
+        # Dockerfile shows "dockerfile:<sha>" and mismatches, so it is skipped.
+        _stamped = tmax.get("pretest_env_identity") or ""
+        _episode = tmax.get("pretest_episode_env_identity") or ""
+        if _stamped and _episode and _stamped == _episode:
             pt_rc, _pt_out, _pt_err = await sb.exec(
                 pre_test, user="root", check=False, timeout=min(120, timeout),
             )
@@ -289,6 +285,12 @@ async def grade_tmax(
                     pt_rc,
                 )
                 return 0.0
+        else:
+            logger.info(
+                "[tmax] pre_test SKIPPED for %s: environment changed since capture (stamped=%s episode=%s); "
+                "grading via test.sh without the pin check",
+                tmax.get("task_id", "?"), _stamped or "?", _episode or "?",
+            )
 
     # test.sh scripts assume they are invoked as `bash /tests/test.sh` (they use
     # $(dirname "$0") to find sibling fixtures). Run as root so /logs and any

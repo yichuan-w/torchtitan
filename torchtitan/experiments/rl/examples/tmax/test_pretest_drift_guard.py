@@ -1,14 +1,14 @@
-"""Dockerfile-drift guard for the tmax pre-verify hook (reaudit).
+"""Environment-drift guard for the tmax pre-verify hook (reaudit).
 
-Covers the training-side half: prepare_tmax_data carries the capture stamp (from the export) and this
-episode's Dockerfile sha (from the bundle) plus task_id into tmax; grading.py SKIPS the pin check only on a
-proven mismatch. Pure/offline -- no sandbox, no torch; imports prepare_tmax_data (stdlib-only at module level)
-and mirrors grading.py's skip condition. Run: ``python3 test_pretest_drift_guard.py``.
+Covers the training-side half: prepare_tmax_data carries the captured environment identity (from the export
+stamp) and this episode's identity (computed from the bundle: "dockerfile:<sha>" if the bundle has a Dockerfile,
+else "image:<ref>") plus task_id into tmax; grading.py runs the pin check ONLY when the two identities are equal,
+else skips. Pure/offline -- no sandbox, no torch; imports prepare_tmax_data (stdlib-only at module level) and
+mirrors grading.py's run/skip condition. Run: ``python3 test_pretest_drift_guard.py``.
 """
 import hashlib
 import importlib.util
 import json
-import os
 import pathlib
 import tempfile
 
@@ -16,6 +16,8 @@ _HERE = pathlib.Path(__file__).resolve().parent
 _spec = importlib.util.spec_from_file_location("ptd", _HERE / "prepare_tmax_data.py")
 PTD = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(PTD)
+
+_IMG = "hamishi740/swerl-tmax-v3:2df1439e90a7"
 
 
 def _bundle(dockerfile_bytes: bytes | None) -> str:
@@ -26,62 +28,55 @@ def _bundle(dockerfile_bytes: bytes | None) -> str:
     return str(d)
 
 
-def _export(rows: list[dict]) -> str:
+def _use_export(rows: list[dict]) -> None:
     p = tempfile.mktemp(suffix=".jsonl")
     with open(p, "w") as fh:
         for r in rows:
             fh.write(json.dumps(r) + "\n")
-    return p
-
-
-def _use_export(path: str) -> None:
-    PTD._PRETEST_EXPORT_PATH = path
+    PTD._PRETEST_EXPORT_PATH = p
     PTD._PRETEST_BY_ID = None            # bust the module cache
 
 
-def test_dockerfile_sha256_bundle():
-    body = b"FROM scratch\nRUN echo hi\n"
-    tdir = _bundle(body)
-    assert PTD._dockerfile_sha256_bundle(tdir) == hashlib.sha256(body).hexdigest()
-    assert PTD._dockerfile_sha256_bundle(_bundle(None)) == ""     # verifier-only bundle -> ""
+def test_episode_env_identity():
+    # no Dockerfile in the bundle -> "image:<ref>"; a Dockerfile -> "dockerfile:<sha256>"
+    assert PTD._episode_env_identity(_bundle(None), _IMG) == "image:" + _IMG
+    body = b"FROM base\nRUN echo hi\n"
+    assert PTD._episode_env_identity(_bundle(body), _IMG) == "dockerfile:" + hashlib.sha256(body).hexdigest()
 
 
-def test_pretest_tmax_fields_carries_both_shas_and_task_id():
-    cap = "a" * 64
-    _use_export(_export([{"task_id": "task_1", "pre_test_sh": "exit 0", "dockerfile_sha256": cap}]))
-    body = b"FROM base\n"
-    tdir = _bundle(body)
-    f = PTD._pretest_tmax_fields("task_1", tdir)
-    assert f["pre_test_sh"] == "exit 0"
-    assert f["task_id"] == "task_1"
-    assert f["pretest_dockerfile_sha256"] == cap                            # capture stamp from the export
-    assert f["pretest_episode_dockerfile_sha256"] == hashlib.sha256(body).hexdigest()  # this episode
-    # a task with no exported pre_test contributes no tmax fields
-    assert PTD._pretest_tmax_fields("task_absent", tdir) == {}
+def test_pretest_tmax_fields_carry_identities():
+    _use_export([{"task_id": "task_1", "pre_test_sh": "exit 0", "env_kind": "image", "env_identity": _IMG}])
+    f = PTD._pretest_tmax_fields("task_1", _bundle(None), _IMG)
+    assert f["pre_test_sh"] == "exit 0" and f["task_id"] == "task_1"
+    assert f["pretest_env_identity"] == "image:" + _IMG              # captured stamp, canonicalised
+    assert f["pretest_episode_env_identity"] == "image:" + _IMG      # this episode
+    assert PTD._pretest_tmax_fields("task_absent", _bundle(None), _IMG) == {}
 
 
-# --- grading.py skip decision, mirrored (grade_tmax is async + sandbox-bound; this is its exact predicate) ---
-def _would_skip(cap: str, cur: str) -> bool:
-    cap = cap or ""
-    cur = cur or ""
-    return bool(cap and cur and cap != cur)
+# --- grading.py run/skip decision, mirrored (grade_tmax is async + sandbox-bound; this is its exact predicate) ---
+def _would_run(stamped: str, episode: str) -> bool:
+    return bool(stamped and episode and stamped == episode)
 
 
-def test_skip_vs_run_predicate():
-    assert _would_skip("a" * 64, "b" * 64) is True     # proven drift -> SKIP the pin check
-    assert _would_skip("a" * 64, "a" * 64) is False    # same env -> RUN as today
-    assert _would_skip("", "b" * 64) is False          # capture unknown -> not proof -> RUN
-    assert _would_skip("a" * 64, "") is False          # episode sha uncomputable -> not proof -> RUN
-    assert _would_skip("", "") is False                # nothing known -> RUN (inert until stamped)
+def test_run_vs_skip_predicate():
+    assert _would_run("image:" + _IMG, "image:" + _IMG) is True     # same env -> RUN the pin check
+    assert _would_run("image:" + _IMG, "dockerfile:" + "a" * 64) is False   # Dockerfile rewritten -> SKIP
+    assert _would_run("image:a", "image:b") is False                # image ref changed -> SKIP
+    assert _would_run("", "image:" + _IMG) is False                 # missing stamp -> SKIP
+    assert _would_run("image:" + _IMG, "") is False                 # missing episode id -> SKIP
 
 
-def test_end_to_end_match_runs_drift_skips():
-    cap = hashlib.sha256(b"FROM base\n").hexdigest()
-    _use_export(_export([{"task_id": "task_1", "pre_test_sh": "exit 0", "dockerfile_sha256": cap}]))
-    same = PTD._pretest_tmax_fields("task_1", _bundle(b"FROM base\n"))
-    assert not _would_skip(same["pretest_dockerfile_sha256"], same["pretest_episode_dockerfile_sha256"])
-    drift = PTD._pretest_tmax_fields("task_1", _bundle(b"FROM other\n"))
-    assert _would_skip(drift["pretest_dockerfile_sha256"], drift["pretest_episode_dockerfile_sha256"])
+def test_end_to_end_round0_runs_drift_skips():
+    _use_export([{"task_id": "task_1", "pre_test_sh": "exit 0", "env_kind": "image", "env_identity": _IMG}])
+    # round 0: bundle has no Dockerfile, boots the stamped image -> identities match -> RUN
+    r0 = PTD._pretest_tmax_fields("task_1", _bundle(None), _IMG)
+    assert _would_run(r0["pretest_env_identity"], r0["pretest_episode_env_identity"])
+    # evolved: the round rewrote a Dockerfile into the bundle -> "dockerfile:<sha>" != "image:<ref>" -> SKIP
+    ev = PTD._pretest_tmax_fields("task_1", _bundle(b"FROM other\n"), _IMG)
+    assert not _would_run(ev["pretest_env_identity"], ev["pretest_episode_env_identity"])
+    # evolved: same kind, different image ref -> SKIP
+    im = PTD._pretest_tmax_fields("task_1", _bundle(None), "hamishi740/swerl-tmax-v3:deadbeefcafe")
+    assert not _would_run(im["pretest_env_identity"], im["pretest_episode_env_identity"])
 
 
 if __name__ == "__main__":
