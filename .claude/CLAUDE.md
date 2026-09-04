@@ -17,30 +17,17 @@ approval, given in the conversation before staging.
 
 ## One checkout per person, selected by profile
 
-Two people launch from one account on della. `runbook/profiles/<name>.env` holds
-the checkout (`TRL_TT`) and data root (`TRL_BASE`) each runs from, and
-`launch_9b.sh` refuses to start without `TRL_PROFILE`.
+Two people launch from one account on della. `TRL_PROFILE` picks whose checkout
+and data root a run uses; the profiles are one file per person in
+`torchtitan/experiments/rl/examples/tmax/runbook/profiles/`, and ours is
+`andy`. A directory named after Andy is not evidence it is ours: the account is
+`al9080`, so every path on that box carries that name, including the trees
+other people run from.
 
-The path never says whose checkout it is: the account is `al9080`, Zhifei's
-netID, so every directory on the box has an andy-shaped name, including the
-tree Yichuan runs from. Only the profile is authority.
-
-| profile | `TRL_TT` | whose |
-|---|---|---|
-| `andy` | `/home/al9080/torchtitan` | ours |
-| `yichuan` | `/scratch/gpfs/TRIDAO/al9080/andy-rl-tb/torchtitan` | Yichuan's |
-
-Work in our profile's checkout. Do not update his, and do not create a third:
-a running loop reads `agents/task_evolution.md`, `agent_sandbox.sh`,
-`agent_sandbox.py` and `daytona_revalidate.py` from its checkout at the moment
-it uses them, so updating that tree changes a run in flight, with nothing in
-its log to say so.
-
-Update a checkout with `git pull`, never with `rsync`. A tree whose HEAD names
-one commit and whose files are another cannot be traced to anything, and the
-next pull silently reverts the copy. To try an unmerged branch on della, push
-it and check it out there; if a checkout cannot reach GitHub, give it
-credentials.
+Write only to the tree our profile names, update it by pulling rather than
+copying files into it, and do not create or adopt a checkout outside the
+profiles. The workspace `CLAUDE.md` carries the reasons and the della-side
+detail; `evolution/della/evolveloop_env.sh` enforces the first of them.
 
 ## Keep the work inside experiments/
 

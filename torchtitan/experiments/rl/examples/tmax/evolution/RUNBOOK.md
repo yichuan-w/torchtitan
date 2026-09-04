@@ -176,12 +176,13 @@ overran the agent budget after every restart — which is why it was halved.
 
 ## Online evolution
 
-The loop runs `evolve_ondella.py` from a torchtitan checkout on della (the live one is
-`$HOME/../scratch/gpfs/TRIDAO/al9080/andy-rl-tb/torchtitan`, on the canonical branch), as a
-systemd user unit named `evolve-<workdir name>`. A user unit rather than a nohup'd
-process: nohup'd processes are SIGKILLed with the ssh session on della-tridao.
+The loop runs `evolve_ondella.py` from the checkout its profile names, as a systemd
+user unit called `evolve-<workdir name>`. A user unit rather than a nohup'd process:
+nohup'd processes are SIGKILLed with the ssh session on della-tridao. Which checkout
+that is depends on whose run it is -- `runbook/profiles/<name>.env` -- and a loop
+another profile owns is restarted by its owner, not from here.
 
-To restart it after changing a prompt or a script, fast-forward that checkout and run
+To restart our own after changing a prompt or a script, pull that checkout and run
 `restart_evolve.sh <old loop pid>` from its `evolution/` directory. The loop holds its
 credentials only in its own environment — there is no env file it reads at startup — so
 the script reads them from `/proc/<pid>/environ` (into `<workdir>/meta/evolve.env`, kept
