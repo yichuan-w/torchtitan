@@ -109,22 +109,28 @@ def _pretest_for(task_id: str) -> dict:
     return _PRETEST_BY_ID.get(task_id, {})
 
 
-def _episode_env_identity(task_dir: str, image: str) -> str:
+def _episode_env_identity(task_dir: str, image: str, image_prefix: str = "") -> str:
     """This episode's environment identity: "dockerfile:<sha256>" when the bundle carries a Dockerfile
     (environment/Dockerfile, then Dockerfile), else "image:<ref>" for the image the sample boots. Compared to
-    the captured identity so a task whose environment drifted since capture skips the pin check."""
+    the captured identity so a task whose environment drifted since capture skips the pin check. The image ref
+    is normalised to the UNPREFIXED reference (a leading registry prefix such as "docker.io/" is stripped) so it
+    matches env_stamp.env_identity, which is the image_map reference verbatim with no registry prefix."""
     for rel in ("environment/Dockerfile", "Dockerfile"):
         fp = os.path.join(task_dir, rel)
         if os.path.isfile(fp):
             with open(fp, "rb") as f:
                 return "dockerfile:" + hashlib.sha256(f.read()).hexdigest()
-    return "image:" + (image or "")
+    ref = image or ""
+    if image_prefix and ref.startswith(image_prefix):
+        ref = ref[len(image_prefix):]
+    return "image:" + ref
 
 
-def _pretest_tmax_fields(task_id: str, task_dir: str, image: str) -> dict:
+def _pretest_tmax_fields(task_id: str, task_dir: str, image: str, image_prefix: str = "") -> dict:
     """tmax fields for the pre-verify hook: {} when the task has no exported pre_test. Otherwise the check plus
     the drift-guard identities grading.py compares -- the captured identity (from the export stamp) and this
-    episode's identity (computed here) -- and task_id for the skip log."""
+    episode's identity (computed here) -- and task_id for the skip log. `image` must be the UNPREFIXED reference
+    (the registry prefix is not part of env_stamp.env_identity)."""
     fields = _pretest_for(task_id)
     if not fields.get("pre_test_sh"):
         return {}
@@ -133,7 +139,7 @@ def _pretest_tmax_fields(task_id: str, task_dir: str, image: str) -> dict:
         "pre_test_sh": fields["pre_test_sh"],
         "task_id": task_id,
         "pretest_env_identity": stamped,
-        "pretest_episode_env_identity": _episode_env_identity(task_dir, image),
+        "pretest_episode_env_identity": _episode_env_identity(task_dir, image, image_prefix),
     }
 
 
@@ -245,6 +251,7 @@ def _to_row(task_id: str, image: str, task_dir: str, image_prefix: str) -> dict 
     if not instruction.strip() or not test_sh.strip():
         return None
 
+    raw_image = image                                   # the reference as read, before the registry prefix
     if image_prefix and "/" in image and not image.startswith(image_prefix):
         image = image_prefix + image
     workdir = _detect_workdir(instruction)
@@ -262,7 +269,9 @@ def _to_row(task_id: str, image: str, task_dir: str, image_prefix: str) -> dict 
                 "test_sh": test_sh,
                 "fixtures": fixtures,
                 "reward_path": _REWARD_PATH,
-                **_pretest_tmax_fields(task_id, task_dir, image),
+                # episode identity from the UNPREFIXED ref (env_stamp.env_identity carries no registry prefix);
+                # image_prefix is passed so an already-prefixed source ref is normalised too.
+                **_pretest_tmax_fields(task_id, task_dir, raw_image, image_prefix),
             },
         },
     }
@@ -313,6 +322,32 @@ def build_rows(
     return out
 
 
+def selfcheck_env_identities(rows: list[dict]) -> tuple[int, int]:
+    """Guard against a corpus-wide silent skip: among rows that carry a pre_test and both drift-guard
+    identities, count how many MATCH (stamped == episode). Returns (matched, stamped_total). Raises when there
+    is at least one stamped row and NONE match -- that means every task would skip the pin check from round 0
+    (e.g. a registry-prefix mismatch), which must fail loudly at prep time rather than silently disable the hook."""
+    matched = total = 0
+    for r in rows:
+        tm = (r.get("metadata") or {}).get("tmax") or {}
+        if not tm.get("pre_test_sh"):
+            continue
+        st = tm.get("pretest_env_identity") or ""
+        ep = tm.get("pretest_episode_env_identity") or ""
+        if not (st and ep):
+            continue
+        total += 1
+        if st == ep:
+            matched += 1
+    if total and matched == 0:
+        raise RuntimeError(
+            f"env-identity self-check FAILED: 0 of {total} stamped rows match their episode identity -- the "
+            "pre-verify pin check would be skipped corpus-wide from round 0 (likely a registry-prefix mismatch "
+            "between env_stamp.env_identity and the booted image ref). Refusing to write the dataset."
+        )
+    return matched, total
+
+
 def _write_jsonl(rows: list[dict], path: str) -> None:
     os.makedirs(os.path.dirname(os.path.abspath(path)) or ".", exist_ok=True)
     with open(path, "w") as f:
@@ -347,6 +382,9 @@ def main() -> None:
     if not rows:
         print("ERROR: produced 0 rows", file=sys.stderr)
         sys.exit(1)
+    _sc_matched, _sc_total = selfcheck_env_identities(rows)  # raises on a corpus-wide identity mismatch
+    if _sc_total:
+        print(f"env-identity self-check: {_sc_matched}/{_sc_total} stamped rows match their episode identity")
     _write_jsonl(rows, args.out)
     print(f"wrote {len(rows)} tmax tasks -> {args.out}")
 

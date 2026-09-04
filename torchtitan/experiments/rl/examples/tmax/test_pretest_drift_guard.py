@@ -79,6 +79,51 @@ def test_end_to_end_round0_runs_drift_skips():
     assert not _would_run(im["pretest_env_identity"], im["pretest_episode_env_identity"])
 
 
+def _task_dir_with(instruction=b"do the thing\n", test_sh=b"echo ok\n", dockerfile=None):
+    d = pathlib.Path(tempfile.mkdtemp())
+    (d / "instruction.md").write_bytes(instruction)
+    (d / "tests").mkdir()
+    (d / "tests" / "test.sh").write_bytes(test_sh)
+    if dockerfile is not None:
+        (d / "environment").mkdir(parents=True, exist_ok=True)
+        (d / "environment" / "Dockerfile").write_bytes(dockerfile)
+    return str(d)
+
+
+def test_to_row_episode_identity_matches_stamp_under_default_prefix():
+    # BLOCKING-defect regression (Fable 4e9966e): _to_row applies image_prefix ("docker.io/") to metadata.image,
+    # but the episode identity must be computed from the UNPREFIXED ref so it equals the stamp. Go through the
+    # real _to_row with the default prefix and a real stamped row; identities must be EQUAL.
+    _use_export([{"task_id": "task_1", "pre_test_sh": "exit 0", "env_kind": "image", "env_identity": _IMG}])
+    row = PTD._to_row("task_1", _IMG, _task_dir_with(), PTD._DEFAULT_IMAGE_PREFIX)
+    tm = row["metadata"]["tmax"]
+    assert row["metadata"]["image"] == PTD._DEFAULT_IMAGE_PREFIX + _IMG      # image IS prefixed for boot
+    assert tm["pretest_env_identity"] == "image:" + _IMG                    # stamp, unprefixed
+    assert tm["pretest_episode_env_identity"] == "image:" + _IMG            # episode, unprefixed -> EQUAL
+    assert tm["pretest_env_identity"] == tm["pretest_episode_env_identity"]
+    # a Dockerfile in the bundle overrides the image identity -> mismatch (would skip)
+    row2 = PTD._to_row("task_1", _IMG, _task_dir_with(dockerfile=b"FROM x\n"), PTD._DEFAULT_IMAGE_PREFIX)
+    tm2 = row2["metadata"]["tmax"]
+    assert tm2["pretest_episode_env_identity"].startswith("dockerfile:")
+    assert tm2["pretest_env_identity"] != tm2["pretest_episode_env_identity"]
+
+
+def test_selfcheck_raises_on_corpus_wide_mismatch():
+    def _row(stamped, episode, pre="exit 0"):
+        return {"metadata": {"tmax": {"pre_test_sh": pre,
+                "pretest_env_identity": stamped, "pretest_episode_env_identity": episode}}}
+    # every stamped row mismatches -> raise (corpus-wide silent skip must fail loudly)
+    try:
+        PTD.selfcheck_env_identities([_row("image:a", "image:docker.io/a"), _row("image:b", "image:docker.io/b")])
+        assert False, "expected RuntimeError"
+    except RuntimeError:
+        pass
+    # at least one matches -> no raise; returns (matched, total)
+    assert PTD.selfcheck_env_identities([_row("image:a", "image:a"), _row("image:b", "image:x")]) == (1, 2)
+    # no stamped rows -> no raise, (0, 0)
+    assert PTD.selfcheck_env_identities([{"metadata": {"tmax": {}}}]) == (0, 0)
+
+
 if __name__ == "__main__":
     import traceback
     tests = sorted(k for k, v in list(globals().items()) if k.startswith("test_") and callable(v))
