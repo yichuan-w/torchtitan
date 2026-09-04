@@ -27,7 +27,10 @@ export TT_DAYTONA_CPU=1 TT_DAYTONA_MEM_GB=2 TT_DAYTONA_DISK_GB=2
 # per rollout-worker process: 16 x 8 workers = 128 creates in flight per eval
 export TT_DAYTONA_CREATE_CONCURRENCY=16 TT_DAYTONA_EPHEMERAL=1
 export TT_DAYTONA_CREATE_RETRIES=8 TT_DAYTONA_LABEL=tb2_eval_local
-export TRL_TT=/home/al9080/torchtitan
+# The checkout this script sits in, not a fixed path: two people share this
+# account and a hardcoded one runs somebody else's code from somebody else's
+# tree without saying so.
+export TRL_TT=$(git -C "$(dirname "${BASH_SOURCE[0]}")" rev-parse --show-toplevel)
 export RL_GPUS=$OFF,$((OFF+1)) RL_GPU_OFFSET=$OFF
 export PATH=/scratch/gpfs/TRIDAO/al9080/titan-rl/bin:$PATH
 export PYTHONPATH=$TRL_TT${PYTHONPATH:+:$PYTHONPATH}

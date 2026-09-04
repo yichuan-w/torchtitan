@@ -156,8 +156,7 @@ Logs, eval artifacts and data stay on GPFS.
 systemctl --user start rltrain.service
 ```
 
-The unit runs `$ROOT/scripts/launch_take7.sh` (the name is historical; it is the current
-recipe) with `$ROOT/scripts/rltrain.env`, restarts unconditionally after 30 s
+The unit runs the launcher with `$ROOT/scripts/rltrain.env`, restarts unconditionally after 30 s
 (`Restart=always` — a trainer NCCL abort exits 0, which `on-failure` treated as a clean
 stop and left the run down; stop the unit explicitly when a run is meant to end), and refuses to
 start on any host but della-tridao — the home directory is shared NFS, so without that
@@ -342,7 +341,7 @@ To evaluate the base model on either, for a baseline to compare against:
 tmux new-session -d -s baseeval
 tmux send-keys -t baseeval \
   "RL_GPUS=1,2,3,4,7 RL_RESUME_DUMP=$ROOT/runs/base-eval-$(date +%s) SWE_TRAIN_STEPS=0 \
-   SWE_TB2_VAL_DATA=$ROOT/data/mix/tb2_eval.jsonl bash $ROOT/scripts/launch_take7.sh" Enter
+   SWE_TB2_VAL_DATA=$ROOT/data/mix/tb2_eval.jsonl TRL_PROFILE=andy bash runbook/launch_9b.sh" Enter
 ```
 
 `SWE_TRAIN_STEPS=0` evaluates and exits. A fresh `RL_RESUME_DUMP` means no checkpoint to
@@ -399,7 +398,7 @@ it), and `train-vitals.timer` appends a vitals snapshot every 15 min.
 - **Never check GPUs or processes through a tailnet alias.** Aliases have resolved to
   della-gpu, a different machine with one GPU. Two "training died" panics came from
   reading the wrong host. Go through `ssh della-ts` then `ssh della-tridao`.
-- **A knob that looks set may not be.** `launch_take7.sh` used to hardcode its exports,
+- **A knob that looks set may not be.** A launcher here once hardcoded its exports,
   which silently beat the env file; and `preserve_all_thinking` was dropped by the
   renderer config layer for two months. If a setting matters, read it back out of
   `/proc/<pid>/environ` or the startup log, do not trust that you set it.
