@@ -639,8 +639,19 @@ def local_fit(seed: dict) -> dict[str, float]:
     blocked 3-14% of seeds against their measured 0.33-0.57%. With a base of 1
     nothing scores zero, that path stops firing on absent signal, and what it
     still catches is the model declining a seed it has actually read.
+
+    Keywords are matched against the instruction and the solution, not the
+    Dockerfile. The Dockerfile is environment boilerplate that says the same
+    thing for every task -- WORKDIR, COPY, chmod, apt-get -- so with it in the
+    text, `workdir` alone hit 662 of 663 seeds and `path_workdir_alignment`
+    was the top operator for 533 of them; 69% of seeds had an all-environment
+    top six, whatever the task was about. Without it the top family spreads
+    289/191/83/68/32 across the five. The Dockerfile still feeds the structure
+    markers below, which add the same amount to every operator and so cannot
+    tilt the ranking.
     """
-    blob = (seed["instruction"] + seed["dockerfile"] + seed["solution"]).lower()
+    text = (seed["instruction"] + seed["solution"]).lower()
+    blob = text + seed["dockerfile"].lower()
     names = " ".join((seed.get("env_files") or {}).keys()).lower()
     # File structure as the authors describe it: extensions, build files, logs,
     # environment markers. Read off the seed's own files, not its prose.
@@ -664,7 +675,7 @@ def local_fit(seed: dict) -> dict[str, float]:
     per_op = _operator_keywords()
     fit: dict[str, float] = {}
     for fam, operators in ops.OPERATORS.items():
-        fam_hits = sum(1 for m in ops.AFFORDANCE[fam] if m in blob)
+        fam_hits = sum(1 for m in ops.AFFORDANCE[fam] if m in text)
         for op, definition in operators.items():
             # Per-operator keywords derived from that operator's own card, which
             # is where the authors put them: `seed_affordances` says what a seed
@@ -673,12 +684,12 @@ def local_fit(seed: dict) -> dict[str, float]:
             # keyword that misses is how an operator scores low on a seed it fits.
             kw = per_op.get(op)
             if kw:
-                op_hits = sum(1 for w in kw if w in blob)
+                op_hits = sum(1 for w in kw if w in text)
             else:
                 words = [w for w in re.findall(r"[a-z]{4,}", definition.lower())
                          if w not in ("verify", "ensure", "align", "check",
                                       "with", "that", "from", "into", "using")]
-                op_hits = sum(1 for w in words if w in blob)
+                op_hits = sum(1 for w in words if w in text)
             fit[op] = (1 + fam_hits + op_hits + structure) \
                 * BROAD_OPERATOR.get(op, 1.0)
     return fit

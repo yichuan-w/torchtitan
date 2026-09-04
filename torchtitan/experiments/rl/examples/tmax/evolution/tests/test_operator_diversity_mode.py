@@ -62,3 +62,24 @@ def test_the_shortlist_evolution_reads_leaves_the_family_term_out(monkeypatch) -
     # Synthesis keeps the full pressure, so the same counts do change its ranking.
     assert (llm.score_operators(SEED, {}, ahead, "family+freq")
             != llm.score_operators(SEED, {}, {}, "family+freq"))
+
+
+def test_dockerfile_boilerplate_does_not_pick_the_operator() -> None:
+    # Every Dockerfile says WORKDIR and chmod. A seed about diffing two YAML
+    # files must not come out as a path or permission task because of it.
+    diff_task = {
+        "task_id": "t",
+        "instruction": "Compare the two YAML config files with gendiff and write the "
+                       "diff output to /app/result.txt.",
+        "dockerfile": "FROM python:3.11-slim\nCOPY gendiff /usr/local/bin/gendiff\n"
+                      "RUN chmod +x /usr/local/bin/gendiff\nWORKDIR /app\n",
+        "solution": "gendiff /app/file1.yml /app/file2.yml > /app/result.txt\n",
+        "env_files": {"Dockerfile": "", "file1.yml": "", "file2.yml": "", "gendiff": ""},
+    }
+    with_df = llm.local_fit(diff_task)
+    without_df = llm.local_fit({**diff_task, "dockerfile": ""})
+    # The Dockerfile may still add structure points, but equally to every
+    # operator, so the ranking is the same with and without it.
+    rank = lambda fit: [op for op, _ in sorted(fit.items(), key=lambda kv: (-kv[1], kv[0]))]
+    assert rank(with_df) == rank(without_df)
+    assert rank(with_df)[0] != "path_workdir_alignment"
