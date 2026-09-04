@@ -350,7 +350,7 @@ def revalidate(work: Path, image: str, tid: str, task: dict,
         if null.get("passed"):
             return {"ok": False, "stage": "null_pass",
                     "why": "verifier passes on the untouched workspace"}
-        return {"ok": True, "fast_path": "daytona_oracle",
+        return {"ok": True, "fast_path": "daytona_oracle", "advice": advice,
                 "reward": dv.get("reward"), "measured": dv.get("measured"),
                 "resources": dv.get("resources")}
     sl.sh(["docker", "rmi", "-f", image], 300)

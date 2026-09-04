@@ -93,7 +93,10 @@ def _wire(monkeypatch, tmp_path, sessions: list, checks: list, verifier_text=NEW
             (pkg / "instruction.md").write_text(NEW_INSTRUCTION)
             _pass(pkg)                      # the author's own check, seed verifier
         else:
-            (pkg / "tests" / "test_state.py").write_text(verifier_text)
+            # A resumed verifier session repairs; an unchanged file would be
+            # refused as "changed nothing", which is its own failure.
+            text = verifier_text + ("\n# repaired\n" if resume else "")
+            (pkg / "tests" / "test_state.py").write_text(text)
         (work / "harness").mkdir(exist_ok=True)
         (work / "harness" / f"{name}.stdout.txt").write_text("")
         return type("P", (), {"returncode": 0, "stdout": "", "stderr": ""})()
@@ -102,7 +105,7 @@ def _wire(monkeypatch, tmp_path, sessions: list, checks: list, verifier_text=NEW
         checks.append(name)
         pkg = work / "pkg"
         assert (pkg / "solution" / "solve.sh").read_text() == NEW_SOLVE
-        assert (pkg / "tests" / "test_state.py").read_text() == verifier_text
+        assert (pkg / "tests" / "test_state.py").read_text().startswith(verifier_text)
         _pass(pkg, stage="oracle")
         return "VERDICT: pass"
 
