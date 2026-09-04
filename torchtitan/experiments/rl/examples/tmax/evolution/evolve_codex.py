@@ -341,32 +341,81 @@ def _split_attempts(trajectory: str) -> list[str]:
 
 _ATTEMPT_OUTCOME_KEYS = ("status", "finish_reason", "submitted", "format_errors",
                          "infra_failed")
+_CHAT_MARKERS = re.compile(r"<\|im_(?:start|end)\|>(?:assistant|user|system)?\n?")
 
 
-def _render_attempt(attempt: dict) -> str:
-    """One rollout as the agent reads it: the header, then every turn whole.
+def _strip_markers(text: str) -> str:
+    """Drop what the chat template wraps a turn in: ``<|im_end|>``, the
+    ``<|im_start|>user`` before a terminal reply, and the
+    ``<|im_start|>assistant\\n<think>\\n\\n`` opener the template appends
+    after it, which the decoded delta carries at its tail."""
+    text = _CHAT_MARKERS.sub("", text)
+    return re.sub(r"<think>\s*$", "", text).strip()
 
-    Same shape as feedback_loop.format_trace, minus its cuts. That function was
-    written for the chat prompt and trims each turn's terminal output to 600
-    characters and the verifier tail to 400; on disk there is no budget to
-    protect, and the cut landed exactly where the agent needed to look.
 
-    The header also says how the attempt ended when the signal carries it
-    (status, finish_reason, submitted, format_errors, infra_failed), so a
-    reader can pick the attempt that submitted over one that ran out of
-    budget before opening either. Signals written before those fields
-    existed render the old two-field header.
+def _parse_turn(index: int, step: dict) -> dict:
+    """One Terminus turn from the signal's ``{cmd, out}`` into named fields.
+
+    The completion is the thinking (the template opens ``<think>`` for the
+    model, so the text starts inside it), ``</think>``, then a ``<response>``
+    holding ``<analysis>``, ``<plan>`` and ``<commands>`` with one or more
+    ``<keystrokes>`` blocks. Measured on 1257 real turns: all but two carry
+    all three, one in six has more than one keystrokes block, one in five
+    carries ``<task_complete>``. The text rendering put the whole completion
+    after a ``$ ``, thinking first, so the command an attempt actually ran
+    was the last thing in each turn and the hardest to find. A response with
+    no keystrokes is a real turn (the closing one: 1902 of 10149 real turns,
+    almost all of them ``task_complete``) and keeps an empty list; only a
+    completion with no response at all (a format error, a turn cut at the
+    token budget) keeps its text under ``raw`` rather than being dropped.
+
+    Field order is the reading order: what ran, what came back, then the
+    long prose, so a line seen through ``head`` or ``sed`` leads with the
+    command.
     """
-    head = [f"reward={attempt.get('reward')}", f"turns={attempt.get('turns')}"]
-    head += [f"{key}={attempt[key]}" for key in _ATTEMPT_OUTCOME_KEYS
-             if key in attempt]
-    lines = ["--- attempt " + " ".join(head) + " ---"]
-    for step in attempt.get("transcript") or []:
-        lines.append(f"$ {step.get('cmd', '')}")
-        lines.append(f"  {step.get('out', '')}")
-    if attempt.get("test_tail"):
-        lines.append(f"verifier tail: {attempt['test_tail']}")
-    return "\n".join(lines)
+    cmd = _strip_markers(step.get("cmd", "") or "")
+    out = _strip_markers(step.get("out", "") or "")
+    think, closed, rest = cmd.partition("</think>")
+    if not closed:
+        think, rest = "", cmd
+    think = think.removeprefix("<think>").strip()
+    turn: dict = {"turn": index}
+    if re.search(r"<(?:response|analysis|commands)>", rest):
+        turn["keystrokes"] = re.findall(r"<keystrokes[^>]*>(.*?)</keystrokes>", rest, re.S)
+    else:
+        turn["raw"] = rest.strip()
+    if "<task_complete>true</task_complete>" in rest:
+        turn["task_complete"] = True
+    turn["output"] = out
+    for tag in ("analysis", "plan"):
+        m = re.search(rf"<{tag}>(.*?)</{tag}>", rest, re.S)
+        if m:
+            turn[tag] = m.group(1).strip()
+    if think:
+        turn["think"] = think
+    return turn
+
+
+_TRACES_SPEC = """
+
+TRACES. `traces/attempt-NN.jsonl`, one file per attempt, one JSON object per
+line. Line 1 is the attempt: attempt, reward, turns, and how it ended (status,
+finish_reason, submitted, format_errors, infra_failed) when the run recorded
+that. Every later line is one turn, in order: turn, keystrokes (a list: what
+the agent typed; empty on a closing turn), task_complete, output (the
+terminal after it; empty on the last turn, where the episode ended),
+analysis, plan, think. A turn with no parseable response has raw instead of
+keystrokes. There is no jq on this host; these are enough:
+
+  head -qn1 traces/*.jsonl              # every attempt's outcome line
+  tail -n 4 traces/attempt-03.jsonl     # its last four turns, output included
+  python3 -c 'import json,sys; [print(t["turn"], "".join(t.get("keystrokes") or [t.get("raw", "")]).rstrip()) for t in map(json.loads, open(sys.argv[1])) if "turn" in t]' traces/attempt-01.jsonl
+                                        # the commands alone, one turn per line"""
+
+
+def _traces_spec(attempts: list[dict] | None) -> str:
+    """The format paragraph, only when structured attempts were written."""
+    return _TRACES_SPEC if attempts else ""
 
 
 def _codex_env(work: Path) -> dict:
@@ -655,10 +704,12 @@ axes:
 {candidates}
 
 One rung, not a new task. Keep everything the seed asks for and add ONE
-requirement that the agent which solved it never had to meet. Transcripts of
-the attempts that solved it are in `traces/`, one file per attempt; read a
-couple first, since what made the task easy is visible there: the guidance the
-instruction handed over, the step the agent never had to work out.
+requirement that the agent which solved it never had to meet. The attempts
+that solved it are in `traces/`, one file per attempt (format under TRACES at
+the end). What made the task easy is visible there: the guidance the
+instruction handed over, the step the agent never had to work out. Before you
+choose the axis, list the commands of two or three attempts end to end; the
+attempt that solved it in the fewest turns says which step was free.
 
 The size of the rewrite is checked, not trusted. The reference solution may
 grow by {min_added} to {max_added} non-comment lines over the seed's
@@ -735,9 +786,11 @@ Aim for a task a capable agent lands about half the time."""
 _EASIER_JOB = """This task was solved {solved} of {attempts} attempts — the agent
 never got there, so it teaches nothing either.
 
-The full transcripts of the failed attempts are in `traces/`, one file per
-attempt. Read them to find where the agent actually got stuck, then make the
-smallest change that clears that one obstacle. Prefer adding to the instruction
+The failed attempts are in `traces/`, one file per attempt (format under
+TRACES at the end). Read the last turns of several of them to find where the
+agent actually got stuck: the same failing command, the same missing file, the
+same misreading of the instruction. Then make the smallest change that clears
+that one obstacle. Prefer adding to the instruction
 what a fair task would have said; only take structure out of the task itself if
 the instruction cannot carry it.
 
@@ -796,15 +849,34 @@ def _candidates(operator: list[tuple[str, str, str]] | None) -> str:
 
 
 def _write_traces(pkg: Path, attempts: list[dict] | None, trajectory: str) -> None:
-    # One file per attempt rather than all sixteen concatenated: the agent
-    # reads one, forms a view, reads another. A single blob of 60k characters
-    # is read once, from the top, and mostly skipped. Structured attempts are
-    # rendered whole; a pre-rendered transcript is split back up as a fallback.
+    """One JSONL file per attempt, ``traces/attempt-NN.jsonl``.
+
+    Line 1 is the attempt: reward, turns and, when the signal carries them,
+    how it ended (status, finish_reason, submitted, format_errors,
+    infra_failed). Every later line is one turn from ``_parse_turn``. One
+    line per turn is what makes head, tail, sed and grep enough on a host
+    without jq: the agent used to open the text rendering with
+    ``sed -n '1,260p'`` and stop, which on a median attempt was the first
+    six turns, thinking included, and on an all-fail attempt never reached
+    the turn where it got stuck.
+
+    One file per attempt rather than all sixteen concatenated: the agent
+    reads one, forms a view, reads another. A pre-rendered transcript with
+    no structured attempts behind it is split back up and written as text.
+    """
     (pkg / "traces").mkdir(exist_ok=True)
-    chunks = ([_render_attempt(a) for a in attempts] if attempts
-              else _split_attempts(trajectory))
-    for i, chunk in enumerate(chunks, 1):
-        (pkg / "traces" / f"attempt-{i:02d}.txt").write_text(chunk)
+    if not attempts:
+        for i, chunk in enumerate(_split_attempts(trajectory), 1):
+            (pkg / "traces" / f"attempt-{i:02d}.txt").write_text(chunk)
+        return
+    for i, attempt in enumerate(attempts, 1):
+        head = {"attempt": i, "reward": attempt.get("reward"),
+                "turns": attempt.get("turns")}
+        head.update({k: attempt[k] for k in _ATTEMPT_OUTCOME_KEYS if k in attempt})
+        lines = [json.dumps(head, ensure_ascii=False)]
+        lines += [json.dumps(_parse_turn(n, step), ensure_ascii=False)
+                  for n, step in enumerate(attempt.get("transcript") or [], 1)]
+        (pkg / "traces" / f"attempt-{i:02d}.jsonl").write_text("\n".join(lines) + "\n")
 
 
 def _sandbox_down(work: Path) -> None:
@@ -991,7 +1063,7 @@ def evolve_agentic(task: dict, job: str, trajectory: str = "",
                                          max_asserts=ts.MAX_ADDED_ASSERTS),
             "easier": _EASIER_JOB.format(solved=solved, attempts=attempts_n),
             "repair": _REPAIR_JOB.format(exit_code=exit_code),
-        }[job] + _budget(AGENT_TIMEOUT)
+        }[job] + _traces_spec(attempts) + _budget(AGENT_TIMEOUT)
 
         try:
             p = _run_codex(work, prompt, timeout=AGENT_TIMEOUT)

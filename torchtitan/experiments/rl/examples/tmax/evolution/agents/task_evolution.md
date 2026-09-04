@@ -17,7 +17,7 @@ Your working directory is the task package itself.
 | `solution/solve.sh` | the reference solution, run to prove the task is solvable |
 | `tests/test_state.py` or `tests/test.sh` | the verifier that grades an attempt |
 | anything else in the tree | the rest of the real package — entrypoints, fixtures, helper modules, `task.toml`. Present because the package has to actually run. |
-| `traces/` | transcripts of real attempts, when the caller had them |
+| `traces/` | real attempts at this task, one JSONL file each, when the caller had them; the prompt's TRACES paragraph gives the format |
 | `run/` | scratch space for you, and where you write the two files below |
 
 **You may edit any of them, and you may add new ones.** A file you create in the

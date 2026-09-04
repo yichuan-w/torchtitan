@@ -252,16 +252,21 @@ def test_simplify_codex_keeps_a_replayable_trace(tmp_path, monkeypatch) -> None:
     assert (trace / ".cxhome/sessions/2026/09/01/trace.jsonl").exists()
 
 
-def test_render_attempt_keeps_every_turn_whole() -> None:
+def test_parse_turn_keeps_every_turn_whole() -> None:
+    """feedback_loop.format_trace trims each turn's output to 600 characters
+    for the chat prompt; on disk there is no budget to protect, and the cut
+    landed exactly where the agent needed to look. A turn is written whole."""
     long_out = "x" * 5000
-    text = ec._render_attempt({
-        "reward": 1.0, "turns": 2,
-        "transcript": [{"cmd": "ls", "out": long_out}, {"cmd": "cat f", "out": "y"}],
-        "test_tail": "t" * 1000,
+    turn = ec._parse_turn(1, {
+        "cmd": "hm\n</think>\n\n<response><analysis>a</analysis><plan>p</plan>"
+               "<commands><keystrokes duration=\"0.1\">cat big\n</keystrokes></commands>"
+               "</response><|im_end|>",
+        "out": "<|im_end|>\n<|im_start|>user\n" + long_out + "<|im_end|>\n<|im_start|>assistant\n<think>\n\n",
     })
 
-    assert text.startswith("--- attempt reward=1.0 turns=2 ---\n$ ls\n")
-    assert long_out in text and "t" * 1000 in text
+    assert turn["output"] == long_out
+    assert turn["keystrokes"] == ["cat big\n"]
+
 
 
 def test_write_traces_one_file_per_attempt_untruncated(tmp_path) -> None:
@@ -271,7 +276,7 @@ def test_write_traces_one_file_per_attempt_untruncated(tmp_path) -> None:
     ec._write_traces(tmp_path, attempts, "")
 
     files = sorted((tmp_path / "traces").iterdir())
-    assert [f.name for f in files][:2] == ["attempt-01.txt", "attempt-02.txt"]
+    assert [f.name for f in files][:2] == ["attempt-01.jsonl", "attempt-02.jsonl"]
     assert len(files) == 16
     assert "o" * 700 in files[0].read_text()
 
@@ -476,26 +481,80 @@ def test_cyber_filtered_reads_every_stderr_the_session_wrote(tmp_path) -> None:
     assert ec.cyber_filtered(work) is True
 
 
-def test_render_attempt_header_says_how_the_attempt_ended() -> None:
-    attempt = {
-        "reward": 1.0, "turns": 2, "status": "completed",
-        "finish_reason": "submit", "submitted": True,
-        "format_errors": 0, "infra_failed": False,
-        "transcript": [{"cmd": "ls", "out": "a b"}],
+def test_write_traces_makes_one_jsonl_per_attempt_with_parsed_turns(tmp_path) -> None:
+    pkg = tmp_path / "pkg"
+    pkg.mkdir()
+    cmd = (
+        "Let me look.\n</think>\n\n<response>\n<analysis>fresh shell</analysis>\n"
+        "<plan>list it</plan>\n<commands>\n"
+        '<keystrokes duration="0.1">ls /app\n</keystrokes>\n'
+        '<keystrokes duration="0.1">cat /app/a.txt\n</keystrokes>\n'
+        "</commands>\n<task_complete>true</task_complete>\n</response><|im_end|>"
+    )
+    out = (
+        "<|im_end|>\n<|im_start|>user\nNew Terminal Output:\n\nroot@x:/app# ls /app\n"
+        "a.txt\n<|im_end|>\n<|im_start|>assistant\n<think>\n\n"
+    )
+    attempts = [
+        {
+            "reward": 1.0, "turns": 3, "status": "completed", "finish_reason": "submit",
+            "submitted": True, "format_errors": 0, "infra_failed": False,
+            "transcript": [
+                {"cmd": cmd, "out": out},
+                {"cmd": "done\n</think>\n\n<response>\n<analysis>all good</analysis>\n"
+                        "<plan>none</plan>\n<commands>\n</commands>\n"
+                        "<task_complete>true</task_complete>\n</response><|im_end|>",
+                 "out": "<|im_end|>\n<|im_start|>user\nNew Terminal Output:\n\nroot@x:/app# "
+                        "<|im_end|>\n<|im_start|>assistant\n<think>\n\n"},
+                {"cmd": "no response here<|im_end|>", "out": ""},
+            ],
+        },
+        {"reward": 0.0, "turns": 0, "transcript": []},
+    ]
+
+    ec._write_traces(pkg, attempts, "")
+
+    assert sorted(p.name for p in (pkg / "traces").iterdir()) == [
+        "attempt-01.jsonl", "attempt-02.jsonl",
+    ]
+    lines = [json.loads(l) for l in (pkg / "traces/attempt-01.jsonl").read_text().splitlines()]
+    assert lines[0] == {
+        "attempt": 1, "reward": 1.0, "turns": 3, "status": "completed",
+        "finish_reason": "submit", "submitted": True, "format_errors": 0,
+        "infra_failed": False,
     }
+    assert list(lines[1])[:4] == ["turn", "keystrokes", "task_complete", "output"]
+    assert lines[1]["keystrokes"] == ["ls /app\n", "cat /app/a.txt\n"]
+    assert lines[1]["task_complete"] is True
+    assert lines[1]["output"] == "New Terminal Output:\n\nroot@x:/app# ls /app\na.txt"
+    assert lines[1]["analysis"] == "fresh shell" and lines[1]["plan"] == "list it"
+    assert lines[1]["think"] == "Let me look."
+    assert "<|im" not in json.dumps(lines[1])
+    # A closing turn: a parsed response with no commands keeps an empty list.
+    assert lines[2]["keystrokes"] == [] and lines[2]["task_complete"] is True
+    assert "raw" not in lines[2] and lines[2]["output"] == "New Terminal Output:\n\nroot@x:/app#"
+    assert lines[3] == {"turn": 3, "raw": "no response here", "output": ""}
+    # A signal from before the outcome fields existed: header without them.
+    old = json.loads((pkg / "traces/attempt-02.jsonl").read_text().splitlines()[0])
+    assert old == {"attempt": 2, "reward": 0.0, "turns": 0}
 
-    text = ec._render_attempt(attempt)
 
-    assert text.splitlines()[0] == (
-        "--- attempt reward=1.0 turns=2 status=completed finish_reason=submit "
-        "submitted=True format_errors=0 infra_failed=False ---"
-    )
-    assert text.splitlines()[1:] == ["$ ls", "  a b"]
+def test_write_traces_falls_back_to_text_for_a_prerendered_transcript(tmp_path) -> None:
+    pkg = tmp_path / "pkg"
+    pkg.mkdir()
+
+    ec._write_traces(pkg, None, "--- attempt 1 ---\n$ ls\n--- attempt 2 ---\n$ pwd")
+
+    assert sorted(p.name for p in (pkg / "traces").iterdir()) == [
+        "attempt-01.txt", "attempt-02.txt",
+    ]
+    assert ec._traces_spec(None) == ""
 
 
-def test_render_attempt_keeps_the_old_header_for_old_signals() -> None:
-    text = ec._render_attempt(
-        {"reward": 0.0, "turns": 1, "transcript": [{"cmd": "ls", "out": ""}]}
-    )
+def test_traces_spec_names_the_file_and_the_readers() -> None:
+    spec = ec._traces_spec([{"reward": 1.0, "turns": 1, "transcript": []}])
 
-    assert text.splitlines()[0] == "--- attempt reward=0.0 turns=1 ---"
+    assert "traces/attempt-NN.jsonl" in spec
+    assert "head -qn1 traces/*.jsonl" in spec
+    assert "keystrokes" in spec and "raw" in spec
+    assert "jq" in spec  # says there is none on this host
