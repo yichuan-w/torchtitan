@@ -110,7 +110,9 @@ def test_process_one_probes_in_the_agents_box_and_sizes_from_its_own_reading(
                 "resources": {k: resources[k] for k in ("cpu", "mem_gb", "disk_gb")}}
 
     fake_ec = types.SimpleNamespace(evolve_agentic=fake_evolve_agentic,
-                                    Blocked=type("Blocked", (Exception,), {}))
+                                    Blocked=type("Blocked", (Exception,), {}),
+                                    Filtered=type("Filtered", (RuntimeError,), {}),
+                                    CYBER_RETRIES=2)
     monkeypatch.setitem(sys.modules, "evolve_codex", fake_ec)
     monkeypatch.setenv("SWE_RETUNE_AGENT", "codex")
     monkeypatch.setattr(fb.ev, "load", lambda _work: dict(task))

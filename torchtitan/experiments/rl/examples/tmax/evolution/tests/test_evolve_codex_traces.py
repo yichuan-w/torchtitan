@@ -431,3 +431,14 @@ def test_lay_out_records_the_seed_size(tmp_path) -> None:
     ec._lay_out(task, pkg)
     assert json.loads((pkg / "run/seed_size.json").read_text()) == {
         "solution_lines": 2, "verifier_asserts": 2}
+
+
+def test_cyber_filtered_reads_every_stderr_the_session_wrote(tmp_path) -> None:
+    work = tmp_path / "work"
+    (work / "harness").mkdir(parents=True)
+    assert ec.cyber_filtered(work) is False
+    (work / "harness" / "codex.stderr.txt").write_text("angr symbolic execution notes\n")
+    assert ec.cyber_filtered(work) is False
+    (work / "harness" / "codex.repair1.stderr.txt").write_text(
+        "ERROR: This content was flagged for possible cybersecurity risk. If this seems wrong...\n")
+    assert ec.cyber_filtered(work) is True

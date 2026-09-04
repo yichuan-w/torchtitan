@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import sys
 import types
+
+import pytest
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
@@ -125,7 +127,9 @@ def test_process_one_returns_a_dark_paths_verdict_to_the_agents_session(tmp_path
 
     fake_ec = types.SimpleNamespace(evolve_agentic=fake_evolve_agentic,
                                     resume_agentic=fake_resume_agentic,
-                                    Blocked=type("Blocked", (Exception,), {}))
+                                    Blocked=type("Blocked", (Exception,), {}),
+                                    Filtered=type("Filtered", (RuntimeError,), {}),
+                                    CYBER_RETRIES=2)
     monkeypatch.setitem(sys.modules, "evolve_codex", fake_ec)
     monkeypatch.setenv("SWE_RETUNE_AGENT", "codex")
     monkeypatch.setattr(fb.ev, "load", lambda _w: dict(task))
@@ -206,3 +210,35 @@ def test_revalidate_sends_back_a_rewrite_that_jumped_too_far(tmp_path, monkeypat
     task["solve_sh"] = SEED["solve_sh"] + "\n".join(f"step {i}" for i in range(5)) + "\n"
     v = fb.revalidate(work, "img", "tid", task, orig=SEED, changed=["solve_sh"])
     assert v["ok"] is True
+
+
+def test_a_filtered_session_is_retried_fresh_then_gives_up(monkeypatch) -> None:
+    calls = []
+    rec: dict = {}
+
+    class FakeEC:
+        CYBER_RETRIES = 2
+        Filtered = type("Filtered", (RuntimeError,), {})
+
+        def evolve_agentic(self, agent_task, job, **kwargs):
+            calls.append(job)
+            if len(calls) < 3:
+                raise self.Filtered("classifier stopped the session")
+            return {"instruction": "harder", "_extra_files": {}}
+
+    ec = FakeEC()
+    out = fb._evolve_retrying_the_filter(ec, rec, "tw_x", {"instruction": "seed"}, [], [])
+    assert out["instruction"] == "harder"
+    assert len(calls) == 3                      # two retries, each a fresh session
+    assert rec["cyber_filtered"] == 2
+
+    # Filtered every time: the task is left alone rather than recorded as bad.
+    class AlwaysFiltered(FakeEC):
+        def evolve_agentic(self, agent_task, job, **kwargs):
+            calls.append(job)
+            raise self.Filtered("stopped again")
+
+    calls.clear()
+    with pytest.raises(AlwaysFiltered.Filtered):
+        fb._evolve_retrying_the_filter(AlwaysFiltered(), rec, "tw_x", {}, [], [])
+    assert len(calls) == 3

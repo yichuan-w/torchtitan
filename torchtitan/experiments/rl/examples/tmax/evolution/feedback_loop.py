@@ -450,6 +450,32 @@ def _write_provision(work: Path, rec: dict, size: dict | None) -> None:
     path.write_text(json.dumps(size, sort_keys=True) + "\n")
 
 
+def _evolve_retrying_the_filter(ec, rec: dict, tid: str, agent_task: dict,
+                               attempts: list[dict], shortlist) -> dict:
+    """One agent session, retried when the provider's classifier stops it.
+
+    The cybersecurity classifier fires late in a session whose context carries
+    a reverse-engineering task's own material, and probabilistically: over the
+    three tmax seeds it has ever hit, 11 of 21 sessions were stopped and 10 ran
+    to the end. A stopped session says nothing about the task, so a fresh one
+    is started -- fresh, not resumed, since the flagged context is exactly what
+    a resume would carry back. At the measured rate two retries take the
+    per-task failure rate from about a half to about one in seven.
+    """
+    for attempt in range(1, ec.CYBER_RETRIES + 2):
+        try:
+            return ec.evolve_agentic(agent_task, "harder", attempts=attempts,
+                                     operator=shortlist)
+        except ec.Filtered as e:
+            _record_codex_traces(rec, e)
+            rec["cyber_filtered"] = attempt
+            if attempt > ec.CYBER_RETRIES:
+                raise
+            log.info("%s: the provider's cybersecurity classifier stopped the session "
+                     "(attempt %d of %d); starting a fresh one", tid, attempt,
+                     ec.CYBER_RETRIES + 1)
+
+
 def process_one(rollout: dict, src_dir: Path, out_root: Path,
                 resources: dict | None = None) -> dict:
     """Retune one task from its rollout signal.
@@ -555,8 +581,8 @@ def process_one(rollout: dict, src_dir: Path, out_root: Path,
                     from evolve_codex import Blocked as ec_Blocked
                     agent_task = {**task, "_solved": solved, "_attempts": graded,
                                   "_resources": resources}
-                    new = ec.evolve_agentic(agent_task, "harder", attempts=attempts,
-                                            operator=shortlist)
+                    new = _evolve_retrying_the_filter(ec, rec, tid, agent_task,
+                                                      attempts, shortlist)
                     _record_codex_traces(rec, new)
                     rec["action"], rec["hint"] = "evolve", new.get("_hint")
                     rec["agent_validated"] = new.get("_agent_validated")
