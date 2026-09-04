@@ -19,7 +19,7 @@
 # TRL_VENV_PY names the interpreter when the old loop's own is not the venv
 # python (default: the old loop's argv[0]).
 set -uo pipefail
-EVO=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
+HERE=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 OLD=${1:?old loop pid}
 
 kill -0 "$OLD" 2>/dev/null || { echo "pid $OLD is not running"; exit 1; }
@@ -30,6 +30,17 @@ argval() {  # value following --<name> in the old loop's argv, else $2
   echo "${v:-$2}"
 }
 envval() { tr '\0' '\n' < "/proc/$OLD/environ" | sed -n "s/^$1=//p" | head -1; }
+
+# The profile the stopped loop was launched with says which checkout the
+# replacement runs; this script only needs its own location to find that
+# profile. A copy invoked from elsewhere still restarts the profile's tree.
+TRL_PROFILE=${TRL_PROFILE:-$(envval TRL_PROFILE)}
+: "${TRL_PROFILE:?the stopped loop carried no TRL_PROFILE; pass one}"
+PROFILE=$HERE/../runbook/profiles/$TRL_PROFILE.env
+[ -f "$PROFILE" ] || { echo "no profile $TRL_PROFILE at $PROFILE"; exit 2; }
+TT=$(sed -n 's/^TRL_TT=//p' "$PROFILE")
+[ -d "$TT" ] || { echo "profile $TRL_PROFILE names TRL_TT=$TT, not a directory"; exit 2; }
+EVO=$TT/torchtitan/experiments/rl/examples/tmax/evolution
 
 SIGNALS=$(envval SWE_TASK_EVOLUTION_DIR)
 [ -n "$SIGNALS" ] || { echo "old loop carries no SWE_TASK_EVOLUTION_DIR"; exit 1; }
