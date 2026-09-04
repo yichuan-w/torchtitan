@@ -68,8 +68,9 @@ mkdir -p "$DUMP"
 # The allocator reads RL_GPUS and gives each mesh its slice of that list BY
 # POSITION, overwriting CUDA_VISIBLE_DEVICES inside the spawned process before
 # CUDA starts. The list does not have to be contiguous. Order is the placement:
-# the trainer takes the first SWE_DP_SHARD entries, then one entry per generator,
-# so put the quietest GPUs where the generators land.
+# the trainer takes the first SWE_DP_SHARD entries, then one entry per generator
+# engine, then one per eval-generator engine, so put the quietest GPUs where the
+# generators land and the eval host last.
 export RL_GPUS=${RL_GPUS:-0,1,2,3,4}
 _n=$(awk -F, '{print NF}' <<< "$RL_GPUS")
 _uniq=$(tr ',' '\n' <<< "$RL_GPUS" | sort -u | grep -c .)
@@ -77,9 +78,18 @@ if [ "$_uniq" -ne "$_n" ]; then
     echo "[launch] RL_GPUS=$RL_GPUS names the same device twice." >&2
     exit 2
 fi
-_want=$(( ${SWE_DP_SHARD:-2} + ${SWE_GEN_DP:-3} ))
+# Eval generators are GPUs too. This check used to leave them out entirely, so any
+# run with SWE_NUM_EVAL_GENERATORS>0 passed here and then failed in the allocator
+# ("RL_GPUS lists N device(s) but this run needs M") after the launcher had already
+# stamped a dump directory. SWE_EVAL_GEN_DP unset means an eval host is as wide as a
+# training one, which is what train.py assumes too.
+_eval_n=${SWE_NUM_EVAL_GENERATORS:-0}
+_eval_dp=${SWE_EVAL_GEN_DP:-0}
+[ "$_eval_dp" -eq 0 ] && _eval_dp=${SWE_GEN_DP:-3}
+_want=$(( ${SWE_DP_SHARD:-2} + ${SWE_GEN_DP:-3} + _eval_n * _eval_dp ))
 if [ "$_want" -ne "$_n" ]; then
-    echo "[launch] SWE_DP_SHARD($SWE_DP_SHARD) + SWE_GEN_DP($SWE_GEN_DP) = $_want" >&2
+    echo "[launch] SWE_DP_SHARD($SWE_DP_SHARD) + SWE_GEN_DP($SWE_GEN_DP)" >&2
+    echo "[launch]   + $_eval_n eval generator(s) x $_eval_dp GPU = $_want" >&2
     echo "[launch] but RL_GPUS lists $_n GPUs. They must match." >&2
     exit 2
 fi
