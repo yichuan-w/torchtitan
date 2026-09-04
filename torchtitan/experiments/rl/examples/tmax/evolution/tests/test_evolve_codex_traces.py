@@ -414,3 +414,20 @@ def test_lay_out_records_what_the_seed_verifier_already_depends_on_unseen(tmp_pa
     pkg.mkdir()
     ec._lay_out(task, pkg)
     assert json.loads((pkg / "run/seed_literals.json").read_text()) == ["legacy_key"]
+
+
+def test_lay_out_records_the_seed_size(tmp_path) -> None:
+    src = tmp_path / "src"
+    for d in ("environment", "solution", "tests"):
+        (src / d).mkdir(parents=True)
+    (src / "instruction.md").write_text("Do the thing.\n")
+    (src / "environment/Dockerfile").write_text("FROM scratch\n")
+    (src / "solution/solve.sh").write_text("#!/bin/sh\ncd /app\nmake\n")
+    (src / "tests/test_state.py").write_text("assert True\nassert 1\n")
+    task = {"_src_dir": str(src), "instruction": "Do the thing.\n", "dockerfile": "FROM scratch\n",
+            "solve_sh": "#!/bin/sh\ncd /app\nmake\n", "test_state_py": "assert True\nassert 1\n"}
+    pkg = tmp_path / "pkg"
+    pkg.mkdir()
+    ec._lay_out(task, pkg)
+    assert json.loads((pkg / "run/seed_size.json").read_text()) == {
+        "solution_lines": 2, "verifier_asserts": 2}

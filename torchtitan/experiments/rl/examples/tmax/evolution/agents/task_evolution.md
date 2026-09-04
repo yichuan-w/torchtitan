@@ -178,6 +178,16 @@ reference solution knows the name of makes the task unsolvable, and the caller
 sends it back. Editing `sandbox`, or shaping the task around it, costs you the
 whole session and gains nothing.
 
+**A harder task is one rung above the seed, and the rung is measured.** Keep
+everything the seed asks for and add one requirement. The reference solution
+may grow by 3 to 8 non-comment lines over the seed's; the verifier may gain at
+most 5 assertions. `./sandbox check` fails outside that and the caller rejects
+the rewrite. The numbers come from this corpus: the seed at its own size was
+solved every time, the 0/16 share doubles once a task outgrows the 14 to 20
+line band, and the rewrites that grew to 125 lines came back 0/16 five times in
+six. Size is not difficulty, but a rewrite outside that band has left the
+region where the policy can be taught.
+
 **A verifier may not depend on a name the task never states.** You write the
 solution first and the verifier against it, so the verifier inherits the
 solution's private vocabulary: the keys of the report it parses, the label a
