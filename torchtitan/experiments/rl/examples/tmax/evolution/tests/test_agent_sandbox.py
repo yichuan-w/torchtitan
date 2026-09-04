@@ -312,3 +312,38 @@ def test_check_fails_on_names_the_task_never_states(tmp_path, monkeypatch, capsy
         assert asb.cmd_check(pkg, 30) == 0
     finally:
         server.close()
+
+
+def test_check_fails_a_rewrite_more_than_one_rung_above_the_seed(tmp_path, monkeypatch, capsys) -> None:
+    pkg = tmp_path / "pkg"
+    (pkg / "run").mkdir(parents=True)
+    (pkg / "tests").mkdir()
+    (pkg / "solution").mkdir()
+    (pkg / "environment").mkdir()
+    (pkg / "instruction.md").write_text("Write /app/out.txt with the report.\n")
+    (pkg / "environment" / "Dockerfile").write_text("FROM scratch\n")
+    (pkg / "tests" / "test_state.py").write_text("assert open('/app/out.txt').read()\n")
+    (pkg / "solution" / "solve.sh").write_text("\n".join(f"echo {i} >> /app/out.txt" for i in range(40)) + "\n")
+    (pkg / "run" / "seed_size.json").write_text('{"solution_lines": 9, "verifier_asserts": 6}\n')
+
+    def handler(req):
+        if req["op"] == "grade":
+            return {"ok": True, "reward": 0.0}
+        if req["op"] == "oracle":
+            return {"ok": True, "reward": 1.0, "solve_exit": 0, "tail": "", "measured": {}}
+        return {"ok": True}
+
+    server = _FakeServer(handler)
+    try:
+        asb._write_state(pkg, {"status": "down"})
+        monkeypatch.setattr(asb, "cmd_up", _fake_up(pkg, server))
+        rc = asb.cmd_check(pkg, 30)
+    finally:
+        server.close()
+
+    assert rc == 1
+    out = capsys.readouterr().out
+    assert "VERDICT: fail   stage=step_size" in out and "more than one rung" in out
+    record = json.loads((pkg / "run" / "checks.jsonl").read_text().strip())
+    assert record["stage"] == "step_size" and record["reward"] == 1.0
+    assert any("above 20" in v for v in record["step_size"])

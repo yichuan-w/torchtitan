@@ -66,6 +66,7 @@ import time
 from pathlib import Path
 
 from derive_sizing import CEILING  # noqa: E402 -- stdlib-only sibling
+import task_size as ts  # noqa: E402 -- stdlib-only sibling
 import verifier_literals as vl  # noqa: E402 -- stdlib-only sibling
 
 EXEC_TIMEOUT = 120
@@ -349,6 +350,17 @@ def _names_audit(pkg: Path) -> list[str]:
     return vl.audit_package(pkg, _verifier_rel(pkg), baseline)
 
 
+def _step_audit(pkg: Path) -> list[str]:
+    """How far the rewrite sits above the seed, against the one-rung rule
+    (run/seed_size.json, written by the harness at layout; absent for a
+    package driven by hand, and then nothing is checked)."""
+    try:
+        seed = json.loads((pkg / "run" / "seed_size.json").read_text())
+    except (OSError, ValueError):
+        return []
+    return ts.violations(seed, ts.size_of_package(pkg, _verifier_rel(pkg)))
+
+
 def cmd_check(pkg: Path, solve_timeout: int, at_max: bool = False) -> int:
     """The whole verdict on a fresh container: rebuild, null probe, oracle.
 
@@ -400,20 +412,26 @@ def cmd_check(pkg: Path, solve_timeout: int, at_max: bool = False) -> int:
     # could have; that is what the names audit asks, and it is part of the
     # verdict because the caller enforces the same rule.
     names = _names_audit(pkg)
-    ok = oracle_ok and not names
+    step = _step_audit(pkg)
+    ok = oracle_ok and not names and not step
     _append_check(pkg, {"time": _now(), "verdict": "pass" if ok else "fail",
-                        "stage": "dark_literals" if oracle_ok and names else "oracle",
+                        "stage": ("dark_literals" if oracle_ok and names else
+                                  "step_size" if oracle_ok and step else "oracle"),
                         "reward": reward,
                         "solve_exit": r.get("solve_exit"), "null_reward": null_reward,
                         "resources": box, "at_max": at_max,
                         "measured": r.get("measured"), "starved": starved,
-                        "dark_literals": names,
+                        "dark_literals": names, "step_size": step,
                         "elapsed_s": round(time.time() - started)})
-    if oracle_ok and names:
-        print(f"VERDICT: fail   stage=dark_literals   reward={reward}   "
+    if oracle_ok and (names or step):
+        stage = "dark_literals" if names else "step_size"
+        print(f"VERDICT: fail   stage={stage}   reward={reward}   "
               f"took={time.time() - started:.0f}s   box=[{_box_str(box)}]")
         print(f"measured: {_measured_str(r.get('measured'))}")
-        print("The reference solution passes, but " + vl.why(names))
+        if names:
+            print("The reference solution passes, but " + vl.why(names))
+        if step:
+            print(("Also: " if names else "The reference solution passes, but ") + ts.why(step))
         return 1
     print(f"VERDICT: {'pass' if ok else 'fail'}   reward={reward}   "
           f"solve_exit={r.get('solve_exit')}   null_reward={null_reward}   "
@@ -421,6 +439,8 @@ def cmd_check(pkg: Path, solve_timeout: int, at_max: bool = False) -> int:
     print(f"measured: {_measured_str(r.get('measured'))}")
     if names:
         print("Also, once the solution passes: " + vl.why(names))
+    if step:
+        print("Also, once the solution passes: " + ts.why(step))
     if ok and at_max:
         print("Passed at the ceiling: the task will be provisioned from what the "
               "reference solution measured (never below the seed's size). If that "

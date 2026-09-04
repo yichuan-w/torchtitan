@@ -33,6 +33,7 @@ from pathlib import Path
 
 import evolve as ev
 import synth_client as llm
+import task_size as ts
 import verifier_literals as vl
 
 
@@ -492,6 +493,9 @@ def _write_seed_literals(pkg: Path, verifier_rel: str) -> None:
         return
     path.parent.mkdir(exist_ok=True)
     path.write_text(json.dumps(vl.audit_package(pkg, verifier_rel)) + "\n")
+    # And the seed's size, for the one-rung check the same tool runs.
+    (pkg / "run" / "seed_size.json").write_text(
+        json.dumps(ts.size_of_package(pkg, verifier_rel)) + "\n")
 
 
 def repair_oracle_codex(task: dict, observed: str, exit_code: int = 1) -> dict:
@@ -538,13 +542,25 @@ AGENT_TIMEOUT = int(os.environ.get("EVOLVE_AGENT_TIMEOUT", "2400"))
 SCAFFOLD = {"AGENTS.md", "sandbox"}
 
 _HARDER_JOB = """This task was solved {solved} of {attempts} attempts, so it is too
-easy to teach anything. Make it harder along exactly one of these axes:
+easy to teach anything. Make it one rung harder, along exactly one of these
+axes:
 
 {candidates}
 
-Transcripts of the attempts that solved it are in `traces/`, one file per
-attempt. Read a couple first: what made the task easy is visible there — the
-guidance the instruction handed over, the step the agent never had to work out.
+One rung, not a new task. Keep everything the seed asks for and add ONE
+requirement that the agent which solved it never had to meet. Transcripts of
+the attempts that solved it are in `traces/`, one file per attempt; read a
+couple first, since what made the task easy is visible there: the guidance the
+instruction handed over, the step the agent never had to work out.
+
+The size of the rewrite is checked, not trusted. The reference solution may
+grow by {min_added} to {max_added} non-comment lines over the seed's
+{seed_lines} and may not pass {max_lines}; the verifier may gain at most
+{max_asserts} assertions over the seed's {seed_asserts}. `./sandbox check`
+fails outside that and the caller rejects the rewrite. Measured on this
+corpus: rewrites that grew to 125 lines came back 0/16 five times in six,
+while seeds of 14 to 20 lines are where the training signal is mixed most
+often. A harder task is one more thing to get right, not a new workflow.
 
 Pick from that list and nothing else. The list is not a menu of equals — it is
 ordered, and the order was computed against the whole task pool: which
@@ -558,7 +574,8 @@ Then do the work in this order, one file at a time. The order is not
 arbitrary — each file is written against the one before it, and the synthesis
 pipeline that produced these tasks runs the same sequence for that reason:
 
-  1. `solution/solve.sh` — what the answer now is under this axis.
+  1. `solution/solve.sh` — what the answer now is under this axis: the seed's
+     solution plus the one new step, not a rewrite of it.
   2. the verifier — written against that answer and against the axis, not
      against incidental details of the workspace.
   3. `instruction.md` — what the agent is told. It has to make everything the
@@ -632,7 +649,9 @@ instruction never promised and the workspace never reveals. If the verdict
 names paths the verifier requires that nothing the agent can see reveals, name
 them where the agent will read them (the instruction, or a file in the image
 the instruction points at), or make the verifier stop depending on them; do
-not weaken what it checks otherwise. Do not rewrite what the run shows is
+not weaken what it checks otherwise. If the verdict says the rewrite is more
+than one rung above the seed, take requirements out until it is one: the
+seed's deliverable plus one new thing. Do not rewrite what the run shows is
 already working. The container you had is gone; `./sandbox up` gives you a
 fresh one.
 
@@ -855,9 +874,16 @@ def evolve_agentic(task: dict, job: str, trajectory: str = "",
         # and pick_operator both return.
         cands = list(operator or [])
         allowed = {op: fam for fam, op, _ in cands}
+        seed_size = ts.size_of(task["solve_sh"], task["test_state_py"],
+                               "python" if ev._verifier_rel(task).endswith(".py") else "shell")
         prompt = {
             "harder": _HARDER_JOB.format(solved=solved, attempts=attempts_n,
-                                         candidates=_candidates(cands)),
+                                         candidates=_candidates(cands),
+                                         seed_lines=seed_size["solution_lines"],
+                                         seed_asserts=seed_size["verifier_asserts"],
+                                         min_added=ts.MIN_ADDED, max_added=ts.MAX_ADDED,
+                                         max_lines=ts.MAX_LINES,
+                                         max_asserts=ts.MAX_ADDED_ASSERTS),
             "easier": _EASIER_JOB.format(solved=solved, attempts=attempts_n),
             "repair": _REPAIR_JOB.format(exit_code=exit_code),
         }[job] + _budget(AGENT_TIMEOUT)

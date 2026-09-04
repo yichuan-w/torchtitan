@@ -53,6 +53,7 @@ import synth_loop as sl
 import synth_client as llm
 import evolve as ev
 import derive_sizing as ds
+import task_size as ts
 import verifier_literals as vl
 
 log = logging.getLogger("feedback")
@@ -249,6 +250,10 @@ def new_dark_literals(work: Path, task: dict, baseline) -> list[str]:
                                      dockerfile=task["dockerfile"]), baseline)
 
 
+def _kind(task: dict) -> str:
+    return "python" if ev._verifier_rel(task).endswith(".py") else "shell"
+
+
 def revalidate(work: Path, image: str, tid: str, task: dict,
                orig: dict | None = None, changed: list[str] | None = None,
                resources: dict | None = None, baseline=None) -> dict:
@@ -307,12 +312,18 @@ def revalidate(work: Path, image: str, tid: str, task: dict,
         # Static, so it costs nothing to ask before the probe; reported with
         # whichever failure comes first, so one repair round sees everything.
         names = new_dark_literals(work, task, baseline or ()) if orig is not None else []
+        # One rung above the seed, by the size rule task_size.py documents;
+        # the agent's own check applies it first, this is the backstop.
+        step = (ts.violations(ts.size_of(orig["solve_sh"], orig["test_state_py"], _kind(orig)),
+                              ts.size_of(task["solve_sh"], task["test_state_py"], _kind(task)))
+                if orig is not None else [])
         dv = daytona_probe(work, resources=resources, require_paths=dark)
         if dv is None:
             return {"ok": False, "stage": "no_docker",
                     "why": "structural change needs a build; neither docker "
                            "nor Daytona is configured here"}
-        also = ("\n\nAlso: " + vl.why(names)) if names else ""
+        also = (("\n\nAlso: " + vl.why(names)) if names else "") + \
+               (("\n\nAlso: " + ts.why(step)) if step else "")
         if not dv.get("ok"):
             return {"ok": False, "stage": dv.get("stage", "daytona"),
                     "why": str(dv.get("why") or f"reward={dv.get('reward')} "
@@ -328,7 +339,12 @@ def revalidate(work: Path, image: str, tid: str, task: dict,
                     "measured": dv.get("measured"), "resources": dv.get("resources")}
         if names:
             return {"ok": False, "stage": "dark_literals", "literals": names,
-                    "why": vl.why(names), "solve_exit": dv.get("solve_exit"),
+                    "why": vl.why(names) + (("\n\nAlso: " + ts.why(step)) if step else ""),
+                    "step": step, "solve_exit": dv.get("solve_exit"),
+                    "measured": dv.get("measured"), "resources": dv.get("resources")}
+        if step:
+            return {"ok": False, "stage": "step_size", "step": step, "why": ts.why(step),
+                    "solve_exit": dv.get("solve_exit"),
                     "measured": dv.get("measured"), "resources": dv.get("resources")}
         null = daytona_probe(work, shortcut=":", resources=resources) or {}
         if null.get("passed"):
@@ -603,7 +619,7 @@ def process_one(rollout: dict, src_dir: Path, out_root: Path,
         if (
             not v["ok"]
             and rec["action"] == "evolve"
-            and v.get("stage") in ("daytona_oracle", "dark_paths", "dark_literals")
+            and v.get("stage") in ("daytona_oracle", "dark_paths", "dark_literals", "step_size")
         ):
             # The structural operator regenerates instruction, solution and
             # verifier together, and the hard part is making the three agree:

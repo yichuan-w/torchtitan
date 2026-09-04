@@ -17,8 +17,10 @@ def _pkg(tmp_path, instruction, verifier, readme=None):
     (work / "environment/Dockerfile").write_text("FROM scratch\nWORKDIR /app\n")
     if readme is not None:
         (work / "environment/README.md").write_text(readme)
+    # A rewrite one rung above SEED: the seed's solution plus four lines.
     task = {"instruction": instruction, "dockerfile": "FROM scratch\nWORKDIR /app\n",
-            "solve_sh": "#!/bin/sh\n", "test_state_py": verifier}
+            "solve_sh": "#!/bin/sh\ncd /app\nmake\nmake test\ncp out report.txt\n",
+            "test_state_py": verifier}
     return work, task
 
 
@@ -179,3 +181,28 @@ def test_seed_literals_come_from_the_pool_copy(tmp_path) -> None:
     task = {**SEED, "test_state_py": 'assert report["input_records"]\nassert report["hidden_key"]\n',
             "_verifier_rel": "tests/test_state.py"}
     assert fb.seed_literals(task, src) == ["hidden_key"]
+
+
+def test_revalidate_sends_back_a_rewrite_that_jumped_too_far(tmp_path, monkeypatch) -> None:
+    work, task = _pkg(tmp_path, "Write the report to /app/report.txt.",
+                      'assert open("/app/report.txt").read()\n')
+    task["solve_sh"] = "\n".join(f"step {i}" for i in range(30)) + "\n"     # seed: 1 line
+
+    def fake_probe(w, shortcut=None, resources=None, require_paths=None):
+        if shortcut is None:
+            return {"ok": True, "stage": "daytona_oracle", "reward": 1.0, "solve_exit": 0,
+                    "paths_checked": require_paths, "paths_missing": [],
+                    "measured": {"mem_peak_mb": 100}, "resources": {"cpu": 1}}
+        return {"ok": True, "stage": "daytona_shortcut", "passed": False}
+
+    monkeypatch.setattr(fb, "daytona_probe", fake_probe)
+    monkeypatch.setattr(fb.shutil, "which", lambda _n: None)
+
+    v = fb.revalidate(work, "img", "tid", task, orig=SEED, changed=["solve_sh"])
+    assert v["ok"] is False and v["stage"] == "step_size"
+    assert any("above 20" in s for s in v["step"]) and "one rung" in v["why"]
+
+    # One rung above the seed passes.
+    task["solve_sh"] = SEED["solve_sh"] + "\n".join(f"step {i}" for i in range(5)) + "\n"
+    v = fb.revalidate(work, "img", "tid", task, orig=SEED, changed=["solve_sh"])
+    assert v["ok"] is True
