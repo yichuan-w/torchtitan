@@ -37,6 +37,35 @@ import task_size as ts
 import verifier_literals as vl
 
 
+class Filtered(RuntimeError):
+    """The provider's cybersecurity classifier stopped the session.
+
+    Codex exits 1 with "flagged for possible cybersecurity risk" on stderr and
+    writes nothing to stdout. It is not a verdict on the task: the flag fires
+    late, once the session's context carries the task's own material (a
+    crackme's disassembly, angr's symbolic-execution output), and it is
+    probabilistic -- over the three tmax seeds it has ever hit, 11 of 21
+    sessions were stopped and 10 ran to the end, four of those producing a
+    usable rewrite. So the answer is a fresh session, not a dead task; a
+    resumed one would carry the flagged context straight back.
+    """
+
+
+CYBER_FLAG = "flagged for possible cybersecurity risk"
+CYBER_RETRIES = int(os.environ.get("CODEX_CYBER_RETRIES", "2"))
+
+
+def cyber_filtered(work: Path) -> bool:
+    """Whether the provider's classifier stopped this session."""
+    for stderr in sorted((work / "harness").glob("*.stderr.txt")):
+        try:
+            if CYBER_FLAG in stderr.read_text(errors="replace"):
+                return True
+        except OSError:
+            pass
+    return False
+
+
 class Blocked(Exception):
     """The agent declined the job rather than forcing a pass.
 
@@ -891,9 +920,21 @@ def evolve_agentic(task: dict, job: str, trajectory: str = "",
         finally:
             _sandbox_down(work)
 
-        _check_verdict(pkg)
-        _require_checked(pkg)
-        out = _collect(task, pkg, fmap)
+        try:
+            _check_verdict(pkg)
+            _require_checked(pkg)
+            out = _collect(task, pkg, fmap)
+        except Blocked:
+            raise
+        except Exception as exc:
+            # A session the classifier stopped left the package half-written,
+            # so every check below it fails for that reason rather than for
+            # the rewrite's. Say which it was, so the caller starts a fresh
+            # session instead of recording the task as unevolvable.
+            if cyber_filtered(work):
+                raise Filtered(f"the provider's cybersecurity classifier stopped the "
+                               f"session ({type(exc).__name__}: {exc})"[:300]) from exc
+            raise
         if all(out[key] == task[key] for key in fmap) and not out["_extra_files"]:
             raise RuntimeError(f"agent changed nothing (exit {p.returncode}): "
                                f"{p.stdout[-200:]}")
