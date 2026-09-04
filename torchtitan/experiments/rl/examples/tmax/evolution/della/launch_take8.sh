@@ -42,7 +42,11 @@ if [ "$RL_GPU_OFFSET" != "$_gpu_first" ]; then
     exit 2
 fi
 export CUDA_VISIBLE_DEVICES=$RL_GPUS
-export PYTHONPATH=$HOME/torchtitan
+# The checkout this script sits in, not a fixed path: $HOME/torchtitan is a
+# stale tree on della (13 PRs behind the canonical branch as of 2026-09-04)
+# and nothing running reads it, so a run launched against it would train old
+# code with nothing in the log to say so.
+export PYTHONPATH=$(git -C "$(dirname "${BASH_SOURCE[0]}")" rev-parse --show-toplevel)
 export SWE_PROMPT_DATA=${RL_DATA:-/scratch/gpfs/TRIDAO/al9080/terminal-rl/data/mix/mix_live.jsonl}
 export SWE_DATA_HOT_RELOAD=${SWE_DATA_HOT_RELOAD:-1}
 export SWE_TASK_EVOLUTION_DIR=${SWE_TASK_EVOLUTION_DIR:-/scratch/gpfs/TRIDAO/al9080/terminal-rl/evolution/signals}
