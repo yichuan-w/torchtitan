@@ -51,6 +51,7 @@ Run with a python that has ``huggingface_hub`` + ``pyarrow`` (HF_TOKEN set)::
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import os
 import sys
@@ -80,11 +81,12 @@ _PRETEST_EXPORT_PATH = os.environ.get(
     "TMAX_PRETEST_EXPORT",
     "/data/users/zekaili/fangzhou/tb_check/reaudit_398/repairs/pretest_export.jsonl",
 )
-_PRETEST_BY_ID: dict[str, str] | None = None
+_PRETEST_BY_ID: dict[str, dict] | None = None
 
 
-def _pretest_for(task_id: str) -> str:
-    """The exported pre_test_sh for a task, or '' if there is no export / no entry. Loaded once and cached."""
+def _pretest_for(task_id: str) -> dict:
+    """Exported pre_test fields for a task: {} when there is no export / no entry, else
+    {"pre_test_sh", "dockerfile_sha256"} (the capture Dockerfile stamp for the drift guard). Loaded once."""
     global _PRETEST_BY_ID
     if _PRETEST_BY_ID is None:
         _PRETEST_BY_ID = {}
@@ -97,10 +99,39 @@ def _pretest_for(task_id: str) -> str:
                     row = json.loads(ln)
                     pt = row.get("pre_test_sh") or ""
                     if pt:
-                        _PRETEST_BY_ID[row["task_id"]] = pt
+                        _PRETEST_BY_ID[row["task_id"]] = {
+                            "pre_test_sh": pt,
+                            "dockerfile_sha256": row.get("dockerfile_sha256") or "",
+                        }
         except (OSError, ValueError):
             _PRETEST_BY_ID = {}
-    return _PRETEST_BY_ID.get(task_id, "")
+    return _PRETEST_BY_ID.get(task_id, {})
+
+
+def _dockerfile_sha256_bundle(task_dir: str) -> str:
+    """sha256 of THIS episode's environment Dockerfile as materialised in the task bundle
+    (<task_dir>/environment/Dockerfile, then <task_dir>/Dockerfile), or '' if absent."""
+    for rel in ("environment/Dockerfile", "Dockerfile"):
+        fp = os.path.join(task_dir, rel)
+        if os.path.isfile(fp):
+            with open(fp, "rb") as f:
+                return hashlib.sha256(f.read()).hexdigest()
+    return ""
+
+
+def _pretest_tmax_fields(task_id: str, task_dir: str) -> dict:
+    """tmax fields for the pre-verify hook: {} when the task has no exported pre_test. Otherwise the check plus
+    the drift-guard stamps grading.py compares -- the capture sha (from the export) and this episode's Dockerfile
+    sha (computed from the bundle) -- and task_id for the skip log."""
+    fields = _pretest_for(task_id)
+    if not fields.get("pre_test_sh"):
+        return {}
+    return {
+        "pre_test_sh": fields["pre_test_sh"],
+        "task_id": task_id,
+        "pretest_dockerfile_sha256": fields.get("dockerfile_sha256") or "",
+        "pretest_episode_dockerfile_sha256": _dockerfile_sha256_bundle(task_dir),
+    }
 
 
 def _download() -> str:
@@ -228,7 +259,7 @@ def _to_row(task_id: str, image: str, task_dir: str, image_prefix: str) -> dict 
                 "test_sh": test_sh,
                 "fixtures": fixtures,
                 "reward_path": _REWARD_PATH,
-                **({"pre_test_sh": pt} if (pt := _pretest_for(task_id)) else {}),
+                **_pretest_tmax_fields(task_id, task_dir),
             },
         },
     }
