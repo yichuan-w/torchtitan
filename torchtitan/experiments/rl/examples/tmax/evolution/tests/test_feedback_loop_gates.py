@@ -57,7 +57,7 @@ def test_new_dark_paths_ignores_what_the_seed_already_required_unseen(tmp_path) 
     assert fb.new_dark_paths(work, task, seed) == []
 
 
-def test_revalidate_sends_back_paths_the_untouched_container_lacks(tmp_path, monkeypatch) -> None:
+def test_revalidate_records_paths_the_untouched_container_lacks(tmp_path, monkeypatch) -> None:
     work, task = _pkg(tmp_path, "Do the thing.",
                       'assert open("/app/out.json").read()\nassert open("/usr/bin/curl")\n')
     calls = []
@@ -78,11 +78,11 @@ def test_revalidate_sends_back_paths_the_untouched_container_lacks(tmp_path, mon
                       resources={"cpu": 1})
 
     assert calls[0] == (None, ["/app/out.json", "/usr/bin/curl"])
-    assert v["ok"] is False and v["stage"] == "dark_paths"
-    assert v["paths"] == ["/app/out.json"]
-    assert "/app/out.json" in v["why"] and "/usr/bin/curl" not in v["why"]
-    assert v["solve_exit"] == 0
-    assert len(calls) == 1                      # no null probe after a rejection
+    # Advice, not a verdict: the rewrite passes and the missing path rides
+    # along in the record for whoever reads it.
+    assert v["ok"] is True and v["fast_path"] == "daytona_oracle"
+    assert v["advice"]["dark_paths"] == ["/app/out.json"]
+    assert len(calls) == 2                      # the null probe still runs
 
 
 def test_revalidate_passes_when_every_unseen_path_is_a_precondition(tmp_path, monkeypatch) -> None:
@@ -102,7 +102,7 @@ def test_revalidate_passes_when_every_unseen_path_is_a_precondition(tmp_path, mo
     assert v["ok"] is True and v["fast_path"] == "daytona_oracle"
 
 
-def test_process_one_returns_a_dark_paths_verdict_to_the_agents_session(tmp_path, monkeypatch) -> None:
+def test_process_one_returns_a_step_size_verdict_to_the_agents_session(tmp_path, monkeypatch) -> None:
     src = tmp_path / "src"
     task = dict(SEED)
     for key, rel in fb.ev.file_map(task).items():
@@ -110,8 +110,8 @@ def test_process_one_returns_a_dark_paths_verdict_to_the_agents_session(tmp_path
         (src / rel).write_text(task[key])
     seen = {}
     verdicts = iter([
-        {"ok": False, "stage": "dark_paths", "paths": ["/app/out.json"],
-         "why": "The verifier requires paths ... /app/out.json ...", "solve_exit": 0},
+        {"ok": False, "stage": "step_size", "step": ["the reference solution has 40 lines"],
+         "why": "The rewrite is more than one rung above the seed: ...", "solve_exit": 0},
         {"ok": True, "fast_path": "daytona_oracle", "reward": 1.0},
     ])
 
@@ -143,11 +143,11 @@ def test_process_one_returns_a_dark_paths_verdict_to_the_agents_session(tmp_path
 
     assert rec["status"] == "ok", rec
     assert rec["oracle_repair"]["ok"] is True
-    assert seen["observed"].startswith("The verifier requires paths")
+    assert seen["observed"].startswith("The rewrite is more than one rung")
     assert seen["exit_code"] == 0
 
 
-def test_revalidate_sends_back_names_the_task_never_states(tmp_path, monkeypatch) -> None:
+def test_revalidate_records_names_the_task_never_states(tmp_path, monkeypatch) -> None:
     work, task = _pkg(tmp_path, "Write /app/report.json.",
                       'report = json.load(open("/app/report.json"))\n'
                       'assert report["source_sha256"]\nassert report["input_records"] == 3\n')
@@ -165,9 +165,8 @@ def test_revalidate_sends_back_names_the_task_never_states(tmp_path, monkeypatch
     # The seed's verifier already read input_records unseen; only the new key counts.
     v = fb.revalidate(work, "img", "tid", task, orig=SEED, changed=["test_state_py"],
                       baseline=["input_records"])
-    assert v["ok"] is False and v["stage"] == "dark_literals"
-    assert v["literals"] == ["source_sha256"]
-    assert "source_sha256" in v["why"]
+    assert v["ok"] is True
+    assert v["advice"]["dark_literals"] == ["source_sha256"]
 
     # An oracle failure carries the names along, so one repair round sees both.
     monkeypatch.setattr(fb, "daytona_probe", lambda *a, **k: {
