@@ -80,6 +80,14 @@ class TMaxSample:
     Harbor states this per task, not per benchmark. None for corpora that do not
     declare one, in which case the rollouter falls back to its configured default."""
 
+    verifier_timeout_sec: float | None = None
+    """The task's own wall-clock budget for the GRADER (Harbor ``[verifier].timeout_sec``).
+
+    Stated per task like ``agent_timeout_sec``, and for the same reason: a task whose
+    test suite compiles a renderer needs a different budget than one that greps a log.
+    TB-2.1 declares 360s to 12000s across its 89 tasks. None for corpora that declare
+    nothing, in which case the rollouter uses its configured default."""
+
     daytona_cpu: int | None = None
     """Optional per-task Daytona vCPU allocation. None = TT_DAYTONA_CPU default."""
 
@@ -100,7 +108,6 @@ class TMaxSample:
 
     lineage: SampleLineage | None = field(default=None, compare=False)
     """Per-yield identity; excluded from equality because it is not task content."""
-
 
 
 def _parse_sample_row(row: dict) -> TMaxSample:
@@ -140,6 +147,7 @@ def _parse_sample_row(row: dict) -> TMaxSample:
         build_context=build_context,
         entrypoint=md.get("entrypoint"),
         agent_timeout_sec=md.get("agent_timeout_sec"),
+        verifier_timeout_sec=md.get("verifier_timeout_sec"),
         daytona_cpu=daytona_resources["daytona_cpu"],
         daytona_mem_gb=daytona_resources["daytona_mem_gb"],
         daytona_disk_gb=daytona_resources["daytona_disk_gb"],
@@ -516,8 +524,7 @@ class TMaxDataset(Configurable):
                     )
             before = len(self._order)
             self._order = [
-                i for i in self._order
-                if self._samples[i].instance_id in live_ids
+                i for i in self._order if self._samples[i].instance_id in live_ids
             ]
             self._pos = min(self._pos, len(self._order))
             self._mix_revision = fresh_mix_revision
@@ -528,8 +535,11 @@ class TMaxDataset(Configurable):
             logger.info(
                 "TMaxDataset: hot reload - %d replaced, %d appended, %d retired "
                 "(%d in rotation) from %s",
-                replaced, appended, before - len(self._order),
-                len(self._order), os.path.basename(src),
+                replaced,
+                appended,
+                before - len(self._order),
+                len(self._order),
+                os.path.basename(src),
             )
             self._pending_lineage_events.append(
                 {

@@ -114,9 +114,10 @@ python -m torchtitan.experiments.rl.examples.tmax.prepare_tb2_data \
 > but 10 rebuilt images, 4 timeout corrections and 27 tasks with fixed instructions /
 > tests / solutions / environments. The 2.1 builder also ships the 7 binary grading fixtures that
 > `prepare_tb2_data.py` silently dropped (those tasks could not score above 0 on the
-> old file) and emits per-task `daytona_cpu/mem_gb/disk_gb`. Set
-> `TMAX_EVAL_TIMEOUT_SEC=1800` for a full-suite eval -- two tasks declare an 1800s
-> verifier budget and the grader applies one global value. Both JSONLs feed the same
+> old file) and emits per-task `daytona_cpu/mem_gb/disk_gb`. Each row also carries its
+> declared `verifier_timeout_sec` (360s to 12000s across the 89) and the rollouter
+> grades on it, floored at `TMAX_EVAL_TIMEOUT_SEC`, so nothing needs setting for a
+> full-suite eval. Both JSONLs feed the same
 > `SWE_TB2_DATA` / `SWE_TB2_VAL_DATA` path; a 2.0 number and a 2.1 number are not
 > directly comparable.
 

@@ -26,9 +26,9 @@ aborts unless the tree yields 89 tasks.
 Rows are what ``TMaxDataset`` (data.py) consumes -- same keys as the 2.0 script
 plus agent/verifier timeouts, the daytona_* trio, and tb_version/task_source.
 
-Set ``TMAX_EVAL_TIMEOUT_SEC=1800`` for a full-suite eval: filter-js-from-html and
-query-optimize declare an 1800s verifier budget and the grader applies one global
-value. Output is ~26 MB; the base64 fixtures dominate.
+Each row carries its declared ``verifier_timeout_sec`` and the rollouter grades on
+it, floored at ``TMAX_EVAL_TIMEOUT_SEC``; there is nothing to set for a full-suite
+eval. Output is ~26 MB; the base64 fixtures dominate.
 
     python -m torchtitan.experiments.rl.examples.tmax.prepare_tb2_1_data \
         --out tb2_1_eval.jsonl [--tasks-root /path/to/terminal-bench-2-1]
@@ -353,8 +353,8 @@ def _to_row(
         # Harbor states the agent budget per task, not per benchmark; the rollouter
         # falls back to its configured default when this is None.
         "agent_timeout_sec": _positive_number(_get(cfg, "agent", "timeout_sec")),
-        # Provenance only today: grade_tmax is called with one global
-        # TMAX_EVAL_TIMEOUT_SEC, not with this. Two TB-2.1 tasks declare 1800.
+        # Read per task by the rollouter (_verifier_budget_sec), with
+        # TMAX_EVAL_TIMEOUT_SEC as the floor. TB-2.1 declares 360s to 12000s.
         "verifier_timeout_sec": _positive_number(_get(cfg, "verifier", "timeout_sec")),
         # Provenance must describe what was actually read, not what this script is
         # named for: pointed at a 2.0-style tree it must not stamp rows as 2.1.
