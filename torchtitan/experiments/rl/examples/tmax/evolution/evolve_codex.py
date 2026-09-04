@@ -948,7 +948,14 @@ check the value instead of the name. Do not drop a check the seed's verifier
 already had, and do not weaken a check the instruction plainly requires. If the
 run failed a check the instruction does require, the solution is what is wrong:
 write `BLOCKED: <which check, and what the run showed>` to `run/verdict.txt` and
-stop, and the caller sends the solution back."""
+stop, and the caller sends the solution back.
+
+If instead the verdict says the verifier is more than one rung above the seed --
+too many assertions over the seed's count -- the solution passed and the size
+is what failed: fold the checks for the new requirement into fewer assertions,
+or drop the ones that restate what the seed's already cover, until the count is
+within the limit. Measured on the first paired round, that was the one repair
+of six blind rewrites: ten assertions against a seed's four, trimmed to pass."""
 
 
 _BUDGET = """
