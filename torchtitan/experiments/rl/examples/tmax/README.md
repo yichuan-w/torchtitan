@@ -254,7 +254,7 @@ Everything below is read from the environment in `config_registry.py` /
 | `TMAX_EXEC_TIMEOUT_SEC` | 120 | Per-command timeout; a foreground server can otherwise burn the budget |
 | `TMAX_FORMAT_ERROR_FEEDBACK` | 0 | 0 = break on the first turn with no `bash` call (reference behavior) |
 | `SWE_VAL_SAMPLES` / `SWE_VAL_INTERVAL` | 32 / 20 | Held-out validation size and cadence; `SWE_VAL_SAMPLES=0` turns it off |
-| `SWE_ROLLOUT_DUMP_DIR` | unset | Per-rollout decoded completions + reward (what the model actually trained on) |
+| `SWE_ROLLOUT_DUMP_DIR` | unset | Per-rollout decoded completions + reward (what the model actually trained on). Any value turns it on; `launch_9b.sh` writes the files under the run's own `rollout-dumps/` |
 | `SWE_ZERO_STD_DIR` | unset | Log all-pass / all-fail prompts, to feed back as `SWE_SKIP_PROMPTS` |
 | `TT_ROLLOUT_LOG_LEVEL` | INFO | `DEBUG` adds one line per agent turn (prompt len, max_tokens, finish reason) |
 

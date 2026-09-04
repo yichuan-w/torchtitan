@@ -957,8 +957,8 @@ rollout, `SWE_PROFILE_MICROBATCHES=2` for a fresh trace under a known env.
 TRL_BASE=/scratch/gpfs/TRIDAO/al9080/terminal-rl/workdirs/wd-20260902b
 SWE_PROMPT_DATA=$TRL_BASE/data/mix/mix_live.jsonl        # 663 TW rows
 SWE_TASK_EVOLUTION_DIR=$TRL_BASE/evolution/signals
-SWE_ROLLOUT_DUMP_DIR=$TRL_BASE/rollout-dumps
-TMAX_EXEC_TRACE_DIR=$TRL_BASE/exec-traces
+SWE_ROLLOUT_DUMP_DIR=$TRL_BASE/rollout-dumps   # any value turns it on; launch_9b.sh writes under runs/<run>/rollout-dumps/
+TMAX_EXEC_TRACE_DIR=$TRL_BASE/exec-traces      # same: runs/<run>/exec-traces/
 SWE_DATA_HOT_RELOAD=1
 
 RL_GPUS=2,0,6,1,4          # trainer 2,0 | generators 6,1,4
