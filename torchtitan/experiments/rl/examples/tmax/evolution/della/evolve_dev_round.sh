@@ -22,7 +22,9 @@ case "$W" in
   *wd-evolve-dev*|*-dev*) ;;
   *) echo "refusing: $W does not look like a dev workdir (name it *-dev)"; exit 1 ;;
 esac
-echo "checkout $TT at $(git -C "$TT" log --oneline -1)"
+# The dev checkout usually carries a branch's files rsynced over HEAD, so say
+# both: which commit, and how many tracked files differ from it.
+echo "checkout $TT at $(git -C "$TT" log --oneline -1); $(git -C "$TT" status --porcelain | wc -l | tr -d ' ') file(s) differ from HEAD"
 echo "signals pending: $(ls "$SWE_TASK_EVOLUTION_DIR"/*.json 2>/dev/null | wc -l), limit $LIMIT, log $LOG"
 cd "$W"
 exec "$PY" "$EVO/evolve_ondella.py" --once --limit "$LIMIT" --workers "$WORKERS" --log "$LOG"
