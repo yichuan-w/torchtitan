@@ -247,3 +247,34 @@ def test_mix_revisions_match_what_a_fold_records(tmp_path) -> None:
     # The fold records _content_revision(row) of the very dict it wrote, so a
     # parent recorded at fold time matches what this reads back.
     assert revs["tw_a"] == od._content_revision(row)
+
+
+def test_handle_reports_whether_it_started_from_the_parent(tmp_path, monkeypatch) -> None:
+    signal = tmp_path / "task-a.json"
+    signal.write_text(json.dumps({"task_id": "tw_a", "solved": 16, "total": 16,
+                                  "attempts": [{"turns": 3}]}))
+    parents = tmp_path / "parents"
+    (parents / "tw_a").mkdir(parents=True)
+    (parents / "tw_a" / "instruction.md").write_text("rung one\n")
+    (parents / "tw_a.json").write_text(json.dumps({"sample_revision": "rev1", "rung": 1}))
+    seed = tmp_path / "seed"
+    seed.mkdir()
+    (seed / "instruction.md").write_text("seed\n")
+    monkeypatch.setattr(od, "PARENTS", parents)
+    monkeypatch.setattr(od, "resolve_src", lambda _t: seed)
+    monkeypatch.setattr(od, "OUT_ROOT", tmp_path / "retuned")
+    seen = {}
+
+    def fake_process_one(rollout, src, out_root, resources=None):
+        seen["src"] = src
+        return {"status": "ok", "action": "evolve", "solved": 16, "graded": 16}
+
+    monkeypatch.setattr(od.fb, "process_one", fake_process_one)
+
+    got = od._handle(signal, {}, {"tw_a": "rev1"})
+    assert got["from_parent"] is True and seen["src"] == parents / "tw_a"
+
+    # The mix moved on: the parent is stale, so the seed is the starting point
+    # and the record says so.
+    got = od._handle(signal, {}, {"tw_a": "rev-other"})
+    assert got["from_parent"] is False and seen["src"] == seed

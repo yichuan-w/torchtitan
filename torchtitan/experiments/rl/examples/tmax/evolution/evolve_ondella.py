@@ -612,12 +612,16 @@ def run_round(only: str | None = None, mix_out: Path | None = None,
                     signal_file=r.get("signal_file"),
                     codex_trace_dirs=r.get("codex_trace_dirs", []),
                     resources=r.get("resources"),
+                    from_parent=r.get("from_parent"),
                     **lineage_fields,
                 )
-                log.info("%s solved=%s/%s -> %s (%s%s%s)", r["tid"], r["solved"],
+                # `from` is the ladder: `parent` means this rewrite built on the
+                # version training is running, `seed` that it started over.
+                log.info("%s solved=%s/%s -> %s (%s%s%s, from=%s)", r["tid"], r["solved"],
                          r["graded"], r["action"], r["status"],
                          f", {r['fast']}" if r.get("fast") else "",
-                         f", arm={r['hint']}" if r.get("hint") else "")
+                         f", arm={r['hint']}" if r.get("hint") else "",
+                         "parent" if r.get("from_parent") else "seed")
                 if r["retuned"]:
                     if r["tid"] not in retuned_ids:
                         retuned_ids.append(r["tid"])
