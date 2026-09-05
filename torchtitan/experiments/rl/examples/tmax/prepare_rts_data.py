@@ -55,8 +55,10 @@ import shlex
 import sys
 
 from torchtitan.experiments.rl.examples.tmax.prepare_tmax_data import (
+    _DEFAULT_IMAGE_PREFIX,
     _pretest_tmax_fields,
     _REWARD_PATH,
+    selfcheck_env_identities,
 )
 
 # TerminalWorld/harbor ships a canary comment in instruction.md so a model trained
@@ -498,7 +500,10 @@ def _to_row(
                 task_id,
                 task_dir,
                 "",
-                "",
+                # A packaged one-line `FROM docker.io/<repo>:<tag>` must resolve to the UNPREFIXED
+                # "image:<repo>:<tag>" to match env_stamp.env_identity (which carries no registry prefix);
+                # passing "" here left the prefix on and skipped the hook for every prefixed-FROM row.
+                _DEFAULT_IMAGE_PREFIX,
                 pre_test_sh=(pretest or ("", ""))[0],
                 stamped_identity=(pretest or ("", ""))[1],
             ),
@@ -653,6 +658,20 @@ def main() -> None:
     if not rows:
         print(f"ERROR: produced 0 rows (filters: {reasons})", file=sys.stderr)
         sys.exit(1)
+    # Same guard prepare_tmax_data runs: if any row carries a pre_test but 0 of the stamped rows match their
+    # episode identity, every task would skip the pin check from round 0 (e.g. a registry-prefix mismatch) --
+    # raise at prep time rather than ship a silently-disabled hook on this path too.
+    _sc_matched, _sc_total, _sc_unstamped = selfcheck_env_identities(rows)
+    if _sc_total:
+        print(
+            f"env-identity self-check: {_sc_matched}/{_sc_total} stamped rows match their episode identity"
+        )
+    if _sc_unstamped:
+        print(
+            f"WARNING: {_sc_unstamped} row(s) carry pre_test_sh with no usable env identity -- their pin "
+            "check can never run",
+            file=sys.stderr,
+        )
     _write_jsonl(rows, args.out)
     print(f"wrote {len(rows)} RTS tasks -> {args.out}")
     for reason, n in sorted(reasons.items(), key=lambda kv: -kv[1]):

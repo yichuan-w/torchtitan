@@ -383,6 +383,45 @@ def test_rts_pretest_map_reads_optional_columns():
     assert RTS._load_pretest_map(str(without)) == {}  # pre-hook dataset: no entries
 
 
+def test_rts_prefixed_from_image_still_fires():
+    # SWE-Smith-style base on docker.io: the packaged one-line FROM carries a registry prefix, while the stamp
+    # (env_stamp.env_identity) is the UNPREFIXED ref. Patch 9 passes _DEFAULT_IMAGE_PREFIX so the prefix is
+    # stripped and episode == stamp -> the hook RUNS. With the pre-patch-9 "" it stayed "image:docker.io/..."
+    # and skipped for every prefixed-FROM row.
+    ref = "jyangballin/swesmith.x86_64.foo:bar"
+    pkg = _seeds_package(b"# setup.sh inlined\nFROM docker.io/" + ref.encode() + b"\n")
+    row, why = RTS._to_row(pkg, pretest=("exit 0", "image:" + ref))
+    assert why == "ok"
+    tm = row["metadata"]["tmax"]
+    assert tm["pretest_episode_env_identity"] == "image:" + ref  # docker.io/ stripped
+    assert _would_run(tm["pretest_env_identity"], tm["pretest_episode_env_identity"])
+
+
+def test_rts_main_wires_the_selfcheck_guard():
+    # patch 9 imports prepare_tmax_data.selfcheck_env_identities into the rts path so a corpus-wide identity
+    # mismatch raises at prep time (the guard that would have caught the prefix bug), same as prepare_tmax_data.
+    assert RTS.selfcheck_env_identities is PREP.selfcheck_env_identities
+
+    def _row(st, ep):
+        return {
+            "metadata": {
+                "tmax": {
+                    "pre_test_sh": "exit 0",
+                    "pretest_env_identity": st,
+                    "pretest_episode_env_identity": ep,
+                }
+            }
+        }
+
+    try:
+        RTS.selfcheck_env_identities(
+            [_row("image:a", "image:docker.io/a"), _row("image:b", "image:docker.io/b")]
+        )
+        raise AssertionError("expected RuntimeError on a corpus-wide mismatch")
+    except RuntimeError:
+        pass
+
+
 if __name__ == "__main__":
     import traceback
 
