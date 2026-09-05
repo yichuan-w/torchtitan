@@ -294,8 +294,13 @@ echo "[launch] profile=$TRL_PROFILE tt=$TRL_TT@$TT_COMMIT data=$SWE_PROMPT_DATA 
 # recovers one that died. Arguments: unit suffix, the command, what it produces.
 start_timer() {
     local unit="$1-$(basename "$TRL_BASE")" cmd="$2" what="$3"
-    systemctl --user stop "$unit.timer" "$unit.service" 2>/dev/null
-    systemctl --user reset-failed "$unit.timer" "$unit.service" 2>/dev/null
+    # Clear a unit left by an earlier launch of this root so systemd-run can
+    # create it again. On a root's first launch the unit is not loaded, and
+    # then `stop` exits 5 and `reset-failed` exits 1; without `|| true` the
+    # launcher's set -e ends the script right here, before the trainer starts,
+    # with nothing printed (stderr is discarded on purpose above).
+    systemctl --user stop "$unit.timer" "$unit.service" 2>/dev/null || true
+    systemctl --user reset-failed "$unit.timer" "$unit.service" 2>/dev/null || true
     # Nice 15 and idle I/O: copying 109 GB and converting one to bf16 are
     # both background chores next to the training they exist to protect, and
     # the box runs at a load average near 40 on its 256 cores. The scheduler
