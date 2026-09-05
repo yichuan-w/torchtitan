@@ -328,9 +328,12 @@ Both source datasets are public and ungated (verified):
   `est_disk_mb` / `terminal_domain`), `measured_disk.csv` (real block usage
   from a full server-side build of every task).
 - `Fzz1/Tmax-Tasks-Clean` — the TMax half, take8 onward (earlier takes mixed
-  `Fzz1/SWE-Smith-Seeds-Clean` instead). Its `train` split carries 400
-  rubric-audited, solver-verified task ids with measured `peak_ram_mb` /
-  `peak_disk_mb` per task.
+  `Fzz1/SWE-Smith-Seeds-Clean` instead). Its `reaudit` split carries 456 task
+  packages in the seeds layout (`data/tasks-reaudit-*.tar`: instruction, a
+  bare-`FROM` Dockerfile, the reference solution, `test.sh`), 163 of them with
+  a pin hook (`pre_test_sh`) that grading runs before `test.sh`;
+  `reaudit_full.parquet` carries measured `peak_ram_mb` / `peak_disk_mb` for
+  most of them. Take8 used the `train` split (400 ids, image-only rows).
 
 "Solvable" here means one specific measured thing: **pass@5 != 0** under a
 reference solver, with the denominator being *graded* attempts, so a container
@@ -408,14 +411,17 @@ copied through: 674 of 695 `task.toml` files declare 2 vCPU / 4096 MB
 verbatim, and writing those back would undo the fleet sizing corpus-wide.
 
 The build writes `mix_v2.jsonl.manifest.json` beside the output: row counts,
-every id that failed to resolve, and a SHA-256 for each of the four inputs
-(TW id list, `tasks.parquet`, TMax train parquet, prepared TMax rows). The
-published `tasks.parquet` is byte-identical to the pinned input. The pinned TW
-id list is the pre-correction 669-id version whose one extra id (`tw_572920`)
-drops out at pack time, so rebuilding from the published 668-id list yields
-the same rows. The prepared TMax rows (`data/tmax_train.jsonl`, 14,601 rows)
-are `prepare_rts_data` output over the TMax task pool; the mix joins the 400
-`train`-split ids against it.
+every id that failed to resolve, and a SHA-256 for each input
+(TW id list, `tasks.parquet`, the TMax package tree by digest,
+`reaudit.parquet`, `reaudit_full.parquet`). The TMax rows are packed from the
+reaudit packages under `data/sources/tmax-extract/tasks`, the directory the
+loop copies r0 from, through `pack.to_row` like the TW seeds; the pin hook
+and the domain come from `reaudit.parquet`, the size from `reaudit_full`'s
+measured peaks. Take8's mix was built differently: its TMax rows were
+`prepare_rts_data` output over the whole TMax pool (`data/tmax_train.jsonl`,
+14,601 rows) joined against the 400 `train`-split ids, and its pinned TW id
+list was the pre-correction 669-id version whose one extra id (`tw_572920`)
+dropped out at pack time.
 
 After launch the mix moves by exactly one mechanism: the evolution loop's
 replace-only folds. Every fold publishes the next
