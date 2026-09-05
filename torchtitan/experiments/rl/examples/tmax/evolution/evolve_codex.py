@@ -704,9 +704,15 @@ SANDBOX = Path(__file__).resolve().parent / "agent_sandbox.sh"
 # so it cannot inherit the solution's private vocabulary -- the hidden
 # contract that failed five of eight reviewed 0/16 tasks is then impossible
 # by construction rather than caught by a heuristic afterwards. It costs a
-# second session and one more ./sandbox check per rewrite, which is why it is
-# a flag until a round has measured the effect and the latency.
-VERIFIER_AUTHOR = os.environ.get("SWE_VERIFIER_AUTHOR", "same")
+# second session and one more ./sandbox check per rewrite: on the first paired
+# round (wd-evolve-dev/ab/20260904-170942, six 16/16 signals each way) the
+# per-task time went from a median of 430 s to 974 s and the round's wall
+# clock from 1323 s to 2320 s on three workers, with the same six of six
+# folded, the same sizes, and the hidden solution passing the blind verifier
+# at first meeting on all six. The verifiers it wrote recompute the expected
+# result from the container instead of asserting the solution's strings,
+# which is what the split was for. "same" remains for comparison.
+VERIFIER_AUTHOR = os.environ.get("SWE_VERIFIER_AUTHOR", "blind")
 VERIFIER_SPEC = Path(__file__).resolve().parent / "agents" / "verifier_author.md"
 # What the verifier's author must not see. Everything else in the package is
 # what an agent attempting the task could read.
