@@ -27,7 +27,9 @@ _PKG = "torchtitan.experiments.rl.examples.tmax"
 
 
 def _load(name: str):
-    spec = importlib.util.spec_from_file_location(f"{_PKG}.{name}", _HERE / f"{name}.py")
+    spec = importlib.util.spec_from_file_location(
+        f"{_PKG}.{name}", _HERE / f"{name}.py"
+    )
     mod = importlib.util.module_from_spec(spec)
     sys.modules[f"{_PKG}.{name}"] = mod
     spec.loader.exec_module(mod)
@@ -41,14 +43,33 @@ R = _load("prepare_tmax_reaudit_data")
 _REF = "hamishi740/swerl-tmax-v3:0123456789ab"
 _IDENTITY = "image:" + _REF
 _DOCKERFILE = f"# build-nothing bundle\nFROM docker.io/{_REF}\n".encode()
-_TEST_SH = b'#!/bin/bash\necho 1 > /logs/verifier/reward.txt\n'
-_PRE_TEST = b'#!/bin/bash\nsha256sum -c /tests/reference_pins.sha256 || exit 1\n'
+_TEST_SH = b"#!/bin/bash\necho 1 > /logs/verifier/reward.txt\n"
+_PRE_TEST = b"#!/bin/bash\nsha256sum -c /tests/reference_pins.sha256 || exit 1\n"
 _COLUMNS = [
-    "task_id", "task_group_id", "task_content_sha256", "validation_status", "instruction",
-    "solution", "dockerfile", "member_prefix", "file_count", "archive_entry_count",
-    "uncompressed_bytes", "shard", "terminal_domain", "tw_source_type", "req_cpus",
-    "req_memory_mb", "base_image", "est_disk_mb", "verdict_flipped", "reward_verdict",
-    "reference_partial", "dockerfile_repaired", "pre_test_sh", "pre_test_env_identity",
+    "task_id",
+    "task_group_id",
+    "task_content_sha256",
+    "validation_status",
+    "instruction",
+    "solution",
+    "dockerfile",
+    "member_prefix",
+    "file_count",
+    "archive_entry_count",
+    "uncompressed_bytes",
+    "shard",
+    "terminal_domain",
+    "tw_source_type",
+    "req_cpus",
+    "req_memory_mb",
+    "base_image",
+    "est_disk_mb",
+    "verdict_flipped",
+    "reward_verdict",
+    "reference_partial",
+    "dockerfile_repaired",
+    "pre_test_sh",
+    "pre_test_env_identity",
 ]
 
 
@@ -72,8 +93,12 @@ def _content_sha(files: dict[str, bytes]) -> str:
     return h.hexdigest()
 
 
-def _fixture(rows_spec: list[tuple[str, str, str]], tamper: str | None = None, drop_pkg: str | None = None,
-             binary_fixture: str | None = None):
+def _fixture(
+    rows_spec: list[tuple[str, str, str]],
+    tamper: str | None = None,
+    drop_pkg: str | None = None,
+    binary_fixture: str | None = None,
+):
     """(parquet_path, tar_path, workdir). rows_spec: (task_id, pre_test_sh, pre_test_env_identity)."""
     import pyarrow as pa
     import pyarrow.parquet as pq
@@ -85,7 +110,9 @@ def _fixture(rows_spec: list[tuple[str, str, str]], tamper: str | None = None, d
         for tid, sh, idn in rows_spec:
             files = _package(tid, with_pins=bool(sh))
             if binary_fixture == tid:
-                files["tests/blob.bin"] = b"\xff\xfe\x00binary"       # not UTF-8: prepare_rts_data refuses such a package
+                files[
+                    "tests/blob.bin"
+                ] = b"\xff\xfe\x00binary"  # not UTF-8: prepare_rts_data refuses such a package
             sha = _content_sha(files)
             if tamper == tid:
                 files["instruction.md"] += b"tampered after the sha was recorded\n"
@@ -94,19 +121,34 @@ def _fixture(rows_spec: list[tuple[str, str, str]], tamper: str | None = None, d
                     info = tarfile.TarInfo(f"tasks/{tid}/{rel}")
                     info.size = len(files[rel])
                     tf.addfile(info, io.BytesIO(files[rel]))
-            rows.append({
-                "task_id": tid, "task_group_id": tid, "task_content_sha256": sha,
-                "validation_status": "tmax_verified",
-                "instruction": files["instruction.md"].decode(), "solution": files["solution/solve.sh"].decode(),
-                "dockerfile": _DOCKERFILE.decode(), "member_prefix": f"tasks/{tid}",
-                "file_count": len(files), "archive_entry_count": len(files),
-                "uncompressed_bytes": sum(len(v) for v in files.values()),
-                "shard": "data/tasks-reaudit-00000.tar", "terminal_domain": "debugging",
-                "tw_source_type": "tmax_open_instruct", "req_cpus": 1.0, "req_memory_mb": 2048.0,
-                "base_image": _REF, "est_disk_mb": 1024.0, "verdict_flipped": False,
-                "reward_verdict": "pass", "reference_partial": False, "dockerfile_repaired": False,
-                "pre_test_sh": sh, "pre_test_env_identity": idn,
-            })
+            rows.append(
+                {
+                    "task_id": tid,
+                    "task_group_id": tid,
+                    "task_content_sha256": sha,
+                    "validation_status": "tmax_verified",
+                    "instruction": files["instruction.md"].decode(),
+                    "solution": files["solution/solve.sh"].decode(),
+                    "dockerfile": _DOCKERFILE.decode(),
+                    "member_prefix": f"tasks/{tid}",
+                    "file_count": len(files),
+                    "archive_entry_count": len(files),
+                    "uncompressed_bytes": sum(len(v) for v in files.values()),
+                    "shard": "data/tasks-reaudit-00000.tar",
+                    "terminal_domain": "debugging",
+                    "tw_source_type": "tmax_open_instruct",
+                    "req_cpus": 1.0,
+                    "req_memory_mb": 2048.0,
+                    "base_image": _REF,
+                    "est_disk_mb": 1024.0,
+                    "verdict_flipped": False,
+                    "reward_verdict": "pass",
+                    "reference_partial": False,
+                    "dockerfile_repaired": False,
+                    "pre_test_sh": sh,
+                    "pre_test_env_identity": idn,
+                }
+            )
     table = pa.table({c: [r[c] for r in rows] for c in _COLUMNS})
     pq_path = d / "reaudit.parquet"
     pq.write_table(table, pq_path)
@@ -115,16 +157,24 @@ def _fixture(rows_spec: list[tuple[str, str, str]], tamper: str | None = None, d
 
 HOOKED = ("task_000001_aaaaaaaa", _PRE_TEST.decode(), _IDENTITY)
 UNHOOKED = ("task_000002_bbbbbbbb", "", "")
-BROKEN = ("task_000003_cccccccc", _PRE_TEST.decode(), "")     # a script with no identity
+BROKEN = ("task_000003_cccccccc", _PRE_TEST.decode(), "")  # a script with no identity
 
 
 def _prepare(spec, **kw):
     """(summary, rows, work_dir) for a fixture built from ``spec``; fixture kwargs are tamper/drop_pkg."""
     _fx = ("tamper", "drop_pkg", "binary_fixture")
-    pq_path, tar_path, work = _fixture(spec, **{k: v for k, v in kw.items() if k in _fx})
+    pq_path, tar_path, work = _fixture(
+        spec, **{k: v for k, v in kw.items() if k in _fx}
+    )
     out = pathlib.Path(work).parent / "out.jsonl"
-    summary = R.prepare(parquet_path=pq_path, tar_path=tar_path, out=str(out), work_dir=work,
-                        expect_rows=len(spec), **{k: v for k, v in kw.items() if k not in _fx})
+    summary = R.prepare(
+        parquet_path=pq_path,
+        tar_path=tar_path,
+        out=str(out),
+        work_dir=work,
+        expect_rows=len(spec),
+        **{k: v for k, v in kw.items() if k not in _fx},
+    )
     rows = [json.loads(l) for l in out.read_text().splitlines()]
     return summary, rows, work
 
@@ -137,9 +187,15 @@ def test_hooked_and_unhooked_rows_carry_exactly_what_grading_reads():
     tm = by[HOOKED[0]]["metadata"]["tmax"]
     # the three fields grading.py reads, spelled the way it reads them -- not the parquet's column names
     assert tm["pre_test_sh"] == HOOKED[1]
-    assert tm["pretest_env_identity"] == _IDENTITY                 # stamped, from the dataset, verbatim
-    assert tm["pretest_episode_env_identity"] == _IDENTITY         # computed from the bare-FROM Dockerfile, UNPREFIXED
-    assert "pre_test_env_identity" not in tm                       # the column name must not leak into the row
+    assert (
+        tm["pretest_env_identity"] == _IDENTITY
+    )  # stamped, from the dataset, verbatim
+    assert (
+        tm["pretest_episode_env_identity"] == _IDENTITY
+    )  # computed from the bare-FROM Dockerfile, UNPREFIXED
+    assert (
+        "pre_test_env_identity" not in tm
+    )  # the column name must not leak into the row
     assert tm["task_id"] == HOOKED[0]
     # an unhooked task carries NONE of the hook keys: absent, not empty, so the grading block is a no-op
     tm2 = by[UNHOOKED[0]]["metadata"]["tmax"]
@@ -149,8 +205,16 @@ def test_hooked_and_unhooked_rows_carry_exactly_what_grading_reads():
     assert "tests/reference_pins.sha256" in tm["fixtures"]
     # the split's resource columns became the sandbox sizing, clamped to the floors
     md = by[HOOKED[0]]["metadata"]
-    assert md["daytona_cpu"] == 1 and md["daytona_mem_gb"] == 2 and md["daytona_disk_gb"] == 10, md
-    assert md["instance_id"] == HOOKED[0] and md["image"] == "" and md["dockerfile"] == _DOCKERFILE.decode()
+    assert (
+        md["daytona_cpu"] == 1
+        and md["daytona_mem_gb"] == 2
+        and md["daytona_disk_gb"] == 10
+    ), md
+    assert (
+        md["instance_id"] == HOOKED[0]
+        and md["image"] == ""
+        and md["dockerfile"] == _DOCKERFILE.decode()
+    )
 
 
 def test_rows_are_one_to_one_with_prepare_rts_data_outside_the_hook():
@@ -168,10 +232,16 @@ def test_rows_are_one_to_one_with_prepare_rts_data_outside_the_hook():
     Everything else -- prompt, label, instance_id, image, dockerfile, workdir, problem_statement,
     oracle_commands, tmax.test_sh, tmax.fixtures, tmax.reward_path, and any build_context / entrypoint /
     toml-derived key -- must be byte-equal."""
-    _HOOK_KEYS = ("pre_test_sh", "pretest_env_identity", "pretest_episode_env_identity", "task_id")
+    _HOOK_KEYS = (
+        "pre_test_sh",
+        "pretest_env_identity",
+        "pretest_episode_env_identity",
+        "task_id",
+    )
     _SIZING_KEYS = ("daytona_cpu", "daytona_mem_gb", "daytona_disk_gb")
     # the fixture's split columns (see _fixture) through prepare_rts_data's own clamping rule
     import math
+
     _expect_sizing = {
         "daytona_cpu": max(RTS._DAYTONA_CPU_FLOOR, int(round(1.0))),
         "daytona_mem_gb": max(RTS._DAYTONA_MEM_GB_FLOOR, math.ceil(2048.0 / 1024)),
@@ -185,19 +255,35 @@ def test_rows_are_one_to_one_with_prepare_rts_data_outside_the_hook():
         ref, reason = RTS._to_row(str(work / "tasks" / tid))
         assert reason == "ok", reason
         ours = json.loads(json.dumps(r))
-        popped_hook = {k: ours["metadata"]["tmax"].pop(k) for k in _HOOK_KEYS if k in ours["metadata"]["tmax"]}
-        popped_sizing = {k: ours["metadata"].pop(k) for k in _SIZING_KEYS if k in ours["metadata"]}
+        popped_hook = {
+            k: ours["metadata"]["tmax"].pop(k)
+            for k in _HOOK_KEYS
+            if k in ours["metadata"]["tmax"]
+        }
+        popped_sizing = {
+            k: ours["metadata"].pop(k) for k in _SIZING_KEYS if k in ours["metadata"]
+        }
         assert ours == ref, tid
         # the excluded keys, each against what the fixture says it must be
-        assert not any(k in ref["metadata"]["tmax"] for k in _HOOK_KEYS), tid      # the oracle never carries them
-        assert not any(k in ref["metadata"] for k in _SIZING_KEYS), tid            # nor the sizing, called without resources
+        assert not any(
+            k in ref["metadata"]["tmax"] for k in _HOOK_KEYS
+        ), tid  # the oracle never carries them
+        assert not any(
+            k in ref["metadata"] for k in _SIZING_KEYS
+        ), tid  # nor the sizing, called without resources
         if tid in hooked_ids:
             assert set(popped_hook) == set(_HOOK_KEYS), popped_hook
             assert popped_hook["task_id"] == tid
             assert popped_hook["pre_test_sh"] == HOOKED[1]
-            assert popped_hook["pretest_env_identity"] == popped_hook["pretest_episode_env_identity"] == _IDENTITY
+            assert (
+                popped_hook["pretest_env_identity"]
+                == popped_hook["pretest_episode_env_identity"]
+                == _IDENTITY
+            )
         else:
-            assert popped_hook == {}, popped_hook                                   # an unhooked task has none of the four
+            assert (
+                popped_hook == {}
+            ), popped_hook  # an unhooked task has none of the four
         assert popped_sizing == _expect_sizing, (tid, popped_sizing)
 
 
@@ -244,7 +330,9 @@ def test_a_non_utf8_fixture_refuses_the_package_by_name_as_prepare_rts_data_does
     except R.RefuseError as e:
         assert "built 1 rows of 2" in str(e) and "tests_fixture_binary" in str(e), e
     else:
-        raise AssertionError("a package with a non-UTF-8 fixture must be filtered, and the count guard must refuse")
+        raise AssertionError(
+            "a package with a non-UTF-8 fixture must be filtered, and the count guard must refuse"
+        )
     # and prepare_rts_data's own _to_row refuses the same package with the same reason -- the oracle for this rule
     pq_path, tar_path, work = _fixture([UNHOOKED], binary_fixture=UNHOOKED[0])
     R.verify_and_extract(tar_path, R.load_split(pq_path), work)
@@ -256,30 +344,49 @@ def test_row_count_guard_and_limit():
     pq_path, tar_path, work = _fixture([HOOKED, UNHOOKED])
     out = str(pathlib.Path(work).parent / "o.jsonl")
     try:
-        R.prepare(parquet_path=pq_path, tar_path=tar_path, out=out, work_dir=work, expect_rows=3)
+        R.prepare(
+            parquet_path=pq_path,
+            tar_path=tar_path,
+            out=out,
+            work_dir=work,
+            expect_rows=3,
+        )
     except R.RefuseError as e:
         assert "expected 3" in str(e), e
     else:
         raise AssertionError("a row count other than --expect-rows must refuse")
-    s = R.prepare(parquet_path=pq_path, tar_path=tar_path, out=out, work_dir=work + "2", expect_rows=3, limit=1)
-    assert s["rows"] == 1                                           # --limit lifts the count guard, as in prepare_rts_data
+    s = R.prepare(
+        parquet_path=pq_path,
+        tar_path=tar_path,
+        out=out,
+        work_dir=work + "2",
+        expect_rows=3,
+        limit=1,
+    )
+    assert s["rows"] == 1  # --limit lifts the count guard, as in prepare_rts_data
 
 
 def test_package_sha_rule_matches_the_split_builder():
     """relpath + NUL + content + NUL over sorted FILE members, relpath relative to the package prefix."""
-    files = _package("task_000009_99999999", with_pins=False)   # an unhooked fixture package has 5 files
+    files = _package(
+        "task_000009_99999999", with_pins=False
+    )  # an unhooked fixture package has 5 files
     pq_path, tar_path, _w = _fixture([("task_000009_99999999", "", "")])
     with tarfile.open(tar_path) as tf:
         groups = R._package_members(tf)
         assert list(groups) == ["tasks/task_000009_99999999"]
-        assert R._package_sha256(tf, "tasks/task_000009_99999999", groups["tasks/task_000009_99999999"]) == _content_sha(files)
+        assert R._package_sha256(
+            tf, "tasks/task_000009_99999999", groups["tasks/task_000009_99999999"]
+        ) == _content_sha(files)
 
 
 def test_a_tar_member_outside_the_task_root_refuses():
     d = pathlib.Path(tempfile.mkdtemp())
     p = d / "bad.tar"
     with tarfile.open(p, "w") as tf:
-        info = tarfile.TarInfo("../escape.sh"); info.size = 1; tf.addfile(info, io.BytesIO(b"x"))
+        info = tarfile.TarInfo("../escape.sh")
+        info.size = 1
+        tf.addfile(info, io.BytesIO(b"x"))
     with tarfile.open(p) as tf:
         try:
             R._package_members(tf)
@@ -294,7 +401,9 @@ if __name__ == "__main__":
 
     _tests = [f for n, f in list(globals().items()) if n.startswith("test_")]
     _declared = len(re.findall(r"^def test_", pathlib.Path(__file__).read_text(), re.M))
-    assert len(_tests) == _declared, f"{_declared} declared, {len(_tests)} visible to the runner"
+    assert (
+        len(_tests) == _declared
+    ), f"{_declared} declared, {len(_tests)} visible to the runner"
     for f in _tests:
         f()
     print(f"ok {len(_tests)}")

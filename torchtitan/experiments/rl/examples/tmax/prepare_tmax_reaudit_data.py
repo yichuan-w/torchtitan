@@ -90,7 +90,9 @@ from torchtitan.experiments.rl.examples.tmax.prepare_tmax_data import (
 )
 
 HF_REPO = "Fzz1/Tmax-Tasks-Clean"
-HF_REVISION = "7eb7c31a3d1eb644284b5871af0d1120ab7361a3"  # main moves; the split does not
+HF_REVISION = (
+    "7eb7c31a3d1eb644284b5871af0d1120ab7361a3"  # main moves; the split does not
+)
 HF_PARQUET = "splits/reaudit.parquet"
 HF_TAR = "data/tasks-reaudit-00000.tar"
 # sha256 of the published bytes at HF_REVISION (the split builder's own publish record).
@@ -261,7 +263,9 @@ def verify_and_extract(tar_path: str, rows: list[dict], out_root: str) -> str:
                 dest = os.path.join(out_root, m.name)
                 real_root = os.path.realpath(out_root)
                 if os.path.commonpath([real_root, os.path.realpath(dest)]) != real_root:
-                    raise RefuseError(f"tar member {m.name!r} escapes the extraction dir")
+                    raise RefuseError(
+                        f"tar member {m.name!r} escapes the extraction dir"
+                    )
                 os.makedirs(os.path.dirname(dest), exist_ok=True)
                 src = tar.extractfile(m)
                 assert src is not None
@@ -486,7 +490,9 @@ def prepare(
         )
     write_jsonl(built, out)
     if smoke_size > 0:
-        smoke = os.path.join(os.path.dirname(os.path.abspath(out)), "reaudit_smoke.jsonl")
+        smoke = os.path.join(
+            os.path.dirname(os.path.abspath(out)), "reaudit_smoke.jsonl"
+        )
         write_jsonl(built[:smoke_size], smoke)
     return {
         "rows": len(built),
@@ -508,20 +514,37 @@ def main() -> None:
         "a public revision needs none",
     )
     ap.add_argument("--cache-dir", default=None, help="huggingface_hub cache dir")
-    ap.add_argument("--parquet", default=None, help="local splits/reaudit.parquet (skips the fetch)")
-    ap.add_argument("--tar", default=None, help="local data/tasks-reaudit-00000.tar (skips the fetch)")
+    ap.add_argument(
+        "--parquet", default=None, help="local splits/reaudit.parquet (skips the fetch)"
+    )
+    ap.add_argument(
+        "--tar",
+        default=None,
+        help="local data/tasks-reaudit-00000.tar (skips the fetch)",
+    )
     ap.add_argument(
         "--no-sha-pin",
         action="store_true",
         help="do not assert the published sha256 of the parquet/tar (only for a NEW revision)",
     )
-    ap.add_argument("--expect-rows", type=int, default=EXPECT_ROWS, help="refuse on any other count")
-    ap.add_argument("--work-dir", default=None, help="where packages are extracted (default: a tempdir)")
+    ap.add_argument(
+        "--expect-rows", type=int, default=EXPECT_ROWS, help="refuse on any other count"
+    )
+    ap.add_argument(
+        "--work-dir",
+        default=None,
+        help="where packages are extracted (default: a tempdir)",
+    )
     ap.add_argument("--limit", type=int, default=None, help="emit at most N tasks")
     ap.add_argument("--seed", type=int, default=42, help="task-order shuffle seed")
     ap.add_argument("--max-oracle-commands", type=int, default=None, metavar="N")
     ap.add_argument("--inject-agent-runtime", action="store_true")
-    ap.add_argument("--smoke-size", type=int, default=0, help="also write reaudit_smoke.jsonl with N rows")
+    ap.add_argument(
+        "--smoke-size",
+        type=int,
+        default=0,
+        help="also write reaudit_smoke.jsonl with N rows",
+    )
     args = ap.parse_args()
 
     if (args.parquet is None) != (args.tar is None):
