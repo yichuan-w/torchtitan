@@ -803,13 +803,22 @@ def rl_grpo_qwen3_5_9b_tmax() -> Controller.Config:
             # A save blocks the training loop: the framework default is
             # async_mode="disabled", and the 9B's 109 GB of model plus optimizer
             # state took 61-86 s per save on this box (measured over four runs
-            # on 2026-09-04/05), every SWE_CKPT_INTERVAL steps. "async" blocks
-            # only for the GPU-to-CPU copy and writes from a thread;
-            # "async_with_pinned_mem" blocks for under a second and holds the
-            # whole 109 GB in pinned host RAM, which is half of what the box has
-            # free. Left at the framework default until a run has measured the
-            # threaded mode against the same recipe -- a save that is still
-            # writing when the next one starts is worse than a blocking one.
+            # on 2026-09-04/05), every SWE_CKPT_INTERVAL steps.
+            #
+            # "async" is the mode to reach for: the loop blocks only for the
+            # GPU-to-CPU copy and a background thread writes, and the next
+            # save waits on the previous one (maybe_wait_for_saving), so the
+            # writes cannot pile up. Its cost is GIL contention while that
+            # thread runs -- on a published 1.3B benchmark the step time stayed
+            # ~50% above baseline for the duration of the background write.
+            #
+            # "async_with_pinned_mem" is NOT safe on this stack as it stands.
+            # It hands back a staging future that has to be awaited after
+            # backward and before the optimizer step, or the copy in flight
+            # picks up weights the step has already changed; every torchtitan
+            # trainer calls maybe_wait_for_staging() for that, and this RL
+            # trainer (actors/trainer.py, save_checkpoint) does not. It also
+            # pins the whole 109 GB for the life of the job.
             async_mode=os.environ.get("SWE_CKPT_ASYNC", "disabled"),
             # SWE_CKPT_FOLDER: absolute path redirects checkpoint I/O off the
             # dump filesystem entirely (os.path.join drops the dump prefix for
