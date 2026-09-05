@@ -313,7 +313,9 @@ publishing one -- needs the weights alone, so `ckpt_export.py` writes each
 complete step to `weights/step-<N>/` as bf16 Hugging Face safetensors with the
 base model's config and tokenizer beside them: 18 GB a step and 93 s of CPU, and every step
 is kept, where keeping the full states would be 109 GB each. The launcher
-starts that timer too (`TRL_CKPT_EXPORT=0` turns it off). None of these
+starts that timer too (`TRL_CKPT_EXPORT=0` turns it off). Both timers are
+separate processes at Nice 15 with idle I/O: the trainer never waits on
+either, and neither takes CPU or disk the training wants. None of these
 directories is written by the trainer.
 
 ## Experiments and runs

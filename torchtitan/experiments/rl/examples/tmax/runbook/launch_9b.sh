@@ -296,8 +296,14 @@ start_timer() {
     local unit="$1-$(basename "$TRL_BASE")" cmd="$2" what="$3"
     systemctl --user stop "$unit.timer" "$unit.service" 2>/dev/null
     systemctl --user reset-failed "$unit.timer" "$unit.service" 2>/dev/null
+    # Nice 15 and idle I/O: copying 109 GB and converting one to bf16 are
+    # both background chores next to the training they exist to protect, and
+    # the box runs at a load average near 40 on its 256 cores. The scheduler
+    # hands them what training is not using; on an idle box they run at full
+    # speed anyway.
     if systemd-run --user --unit="$unit" --collect --on-calendar='*:0/15' \
         --timer-property=AccuracySec=1min \
+        -p Nice=15 -p IOSchedulingClass=idle -p CPUSchedulingPolicy=batch \
         -E TRL_BASE="$TRL_BASE" -E TRL_TT="$TRL_TT" -E TRL_MODEL="$TRL_MODEL" \
         -E PYTHONPATH="$TRL_TT" $cmd >/dev/null 2>&1; then
         echo "[launch] $unit every 15 min -> $what"
