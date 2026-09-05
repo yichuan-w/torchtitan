@@ -25,6 +25,8 @@ python3 -m torchtitan.experiments.rl.train \
 import asyncio
 import logging
 import os
+import signal
+import threading
 from collections.abc import Callable
 from dataclasses import dataclass, field
 
@@ -300,6 +302,76 @@ def _configure_monarch_runtime() -> None:
         logger.warning("configure_monarch skipped (%s): %s", type(e).__name__, e)
 
 
+# A run that is killed from outside currently looks exactly like a run that
+# finished: the controller catches the interrupt, closes cleanly, and exits 0, so
+# systemd's Restart=on-failure never fires and nothing records who sent the
+# signal. The two helpers below fix both halves of that.
+_FORENSIC_SIGNALS = (signal.SIGINT, signal.SIGTERM)
+
+
+def _describe_sender(pid: int) -> str:
+    """Best-effort identity of whoever sent us a signal.
+
+    The sender is usually already gone -- the shell behind a `pkill` exits
+    immediately -- so every read here is allowed to fail; the bare pid is still
+    worth having.
+    """
+    if pid <= 0:
+        return "pid=0 (kernel, or a sender the kernel did not name)"
+    bits = [f"pid={pid}"]
+    try:
+        with open(f"/proc/{pid}/cmdline", "rb") as f:
+            cmd = f.read().replace(b"\0", b" ").decode(errors="replace").strip()
+        bits.append(f"cmd={cmd or '<exited>'}")
+    except OSError:
+        bits.append("cmd=<exited>")
+    try:
+        with open(f"/proc/{pid}/status") as f:
+            for line in f:
+                if line.startswith(("Uid:", "PPid:", "Name:")):
+                    k, v = line.split(":", 1)
+                    bits.append(
+                        f"{k.lower()}={v.split()[0] if k != 'Name' else v.strip()}"
+                    )
+    except OSError:
+        pass
+    return " ".join(bits)
+
+
+def _install_signal_forensics(on_signal) -> None:
+    """Record the sender of SIGINT/SIGTERM, then start a graceful shutdown.
+
+    A Python signal handler is called with (signum, frame) and never learns who
+    signalled us. ``sigwaitinfo`` does carry si_pid, but only delivers signals
+    that are blocked, so the mask has to go up first -- and a blocked mask is
+    inherited across both fork and exec. Call this only AFTER the actor procs
+    have been spawned, or every child inherits a SIGTERM it cannot be stopped
+    with.
+    """
+    signal.pthread_sigmask(signal.SIG_BLOCK, _FORENSIC_SIGNALS)
+    # Anything we fork from here (vLLM engine procs, dataloader workers) gets the
+    # default disposition back.
+    os.register_at_fork(
+        after_in_child=lambda: signal.pthread_sigmask(
+            signal.SIG_UNBLOCK, _FORENSIC_SIGNALS
+        )
+    )
+
+    def _wait() -> None:
+        while True:
+            try:
+                info = signal.sigwaitinfo(_FORENSIC_SIGNALS)
+            except InterruptedError:
+                continue
+            name = signal.Signals(info.si_signo).name
+            who = _describe_sender(info.si_pid)
+            logger.error("KILLED BY %s sent from %s", name, who)
+            on_signal(info.si_signo, who)
+            return
+
+    threading.Thread(target=_wait, name="signal-forensics", daemon=True).start()
+
+
 async def main():
     config = ConfigManager().parse_args()
     assert isinstance(config, Controller.Config)
@@ -313,6 +385,7 @@ async def main():
     sl.log_trace_instant("structured_logger_started")
 
     rl_trainer: Controller = config.build()
+    killed: dict = {}
     try:
         trainer_world_size = _compute_trainer_world_size(config.trainer.parallelism)
         per_generator_world_size = _compute_generator_world_size(
@@ -328,6 +401,19 @@ async def main():
                 config.eval_generator_parallelism()
             ),
         )
+        # The child procs exist now, so blocking these signals here no longer
+        # leaks a mask into them.
+        loop = asyncio.get_running_loop()
+        this_task = asyncio.current_task()
+        try:
+            _install_signal_forensics(
+                lambda signo, who: (
+                    killed.update(signo=signo, who=who),
+                    loop.call_soon_threadsafe(this_task.cancel),
+                )
+            )
+        except Exception as e:  # never let forensics cost us a run
+            logger.warning("signal forensics unavailable (%s): %s", type(e).__name__, e)
         await rl_trainer.setup_async(
             trainer_mesh=trainer_mesh,
             generator_meshes=generator_meshes,
@@ -338,6 +424,19 @@ async def main():
         logger.info("Interrupted; attempting graceful shutdown...")
     finally:
         await rl_trainer.close()
+
+    if killed:
+        # Exit non-zero so being killed is distinguishable from finishing:
+        # Restart=on-failure cannot bring back a run that exits 0. A deliberate
+        # `systemctl stop` still will not be restarted -- systemd suppresses that
+        # regardless of the exit status.
+        logger.error(
+            "Exiting %d after %s from %s",
+            128 + killed["signo"],
+            signal.Signals(killed["signo"]).name,
+            killed["who"],
+        )
+        raise SystemExit(128 + killed["signo"])
 
 
 if __name__ == "__main__":
