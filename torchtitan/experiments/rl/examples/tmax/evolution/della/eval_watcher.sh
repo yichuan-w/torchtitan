@@ -1,26 +1,33 @@
 #!/bin/bash
-# Auto-submit a TB2 eval for every new take8 checkpoint. Runs on della-tridao;
-# sbatch happens via ssh to the login node (della9). One eval per step dir,
-# tracked in a submitted-marker file. Exits after 24h.
+# Auto-submit a TB2 eval for every new checkpoint of a run. Runs on
+# della-tridao; sbatch happens via ssh to the login node (della9). One eval per
+# step dir, tracked in a submitted-marker file. Exits after 24h.
 #
-# Checkpoints may live on della-tridao's LOCAL RAID (SWE_CKPT_FOLDER in
-# rltrain.env) because the shared GPFS fileset can be filled by other tenants
+#   eval_watcher.sh [run dir]       # default: $TRL_BASE/runs/latest
+#
+# Checkpoints live on della-tridao's LOCAL RAID (the run's `checkpoints` link
+# points there) because the shared GPFS fileset can be filled by other tenants
 # mid-save. pli eval nodes can only read GPFS, so each new local step is
-# rsynced to the dump's GPFS checkpoint dir before sbatch, and the GPFS copy
-# is pruned once its eval job leaves the queue (the local copy is the
-# permanent archive). With SWE_CKPT_FOLDER unset, this degrades to the old
-# watch-GPFS-directly behavior (rsync from a dir to itself is a no-op).
-R=/scratch/gpfs/TRIDAO/al9080/terminal-rl
-MARK=$R/logs/eval_submitted.list
-LOG=$R/logs/eval_watcher.log
+# rsynced to the run's `checkpoints-staged/` on GPFS before sbatch, and the
+# staged copy is pruned once its eval job leaves the queue (the local copy is
+# the permanent archive). A run whose `checkpoints` is a real directory on
+# GPFS degrades to watching it directly (rsync from a dir to itself is a no-op).
+: "${TRL_BASE:?the experiment root}"
+: "${TRL_TT:?the checkout the eval runs}"
+: "${TRL_MODEL:?the base model directory}"
+HERE=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
+R=$TRL_BASE
+D=$(readlink -f "${1:-$R/runs/latest}")
+[ -d "$D" ] || { echo "no run directory at ${1:-$R/runs/latest}" >&2; exit 2; }
+GCK=$D/checkpoints-staged
+SRC=$(readlink -f "$D/checkpoints" 2>/dev/null)
+[ -d "$SRC" ] || SRC=$GCK
+mkdir -p "$R/evals" "$R/logs"
+MARK=$R/evals/submitted.list
+LOG=$R/logs/eval_watcher--$(date -u +%Y%m%d-%H%M%SZ).log
 touch $MARK
 deadline=$(( $(date +%s) + 86400 ))
 while [ $(date +%s) -lt $deadline ]; do
-  D=$(sed -n "s/^RL_RESUME_DUMP=//p" $R/scripts/rltrain.env 2>/dev/null | tail -1)
-  [ -d "$D" ] || D=$(ls -d $R/runs/tw-mix-take8-* 2>/dev/null | tail -1)
-  GCK=$D/outputs/rl/checkpoint
-  SRC=$(sed -n "s/^SWE_CKPT_FOLDER=//p" $R/scripts/rltrain.env 2>/dev/null | tail -1)
-  [ -d "$SRC" ] || SRC=$GCK
   for CK in $(ls -d $SRC/step-* 2>/dev/null); do
     S=$(basename $CK)
     grep -q "^$SRC/$S$" $MARK && continue
@@ -42,7 +49,7 @@ while [ $(date +%s) -lt $deadline ]; do
         continue
       fi
     fi
-    OUT=$(ssh -o BatchMode=yes -o ConnectTimeout=20 della9 "sbatch --export=ALL,TRL_TT=$TRL_TT $R/scripts/tb2_eval.sbatch $GCK/$S" 2>&1)
+    OUT=$(ssh -o BatchMode=yes -o ConnectTimeout=20 della9 "sbatch --export=ALL,TRL_TT=$TRL_TT,TRL_BASE=$TRL_BASE,TRL_MODEL=$TRL_MODEL --output=$R/logs/tb2_eval--%j.log $HERE/tb2_eval.sbatch $GCK/$S" 2>&1)
     echo "$(date "+%F %T") $S -> $OUT" >> $LOG
     echo "$SRC/$S" >> $MARK
   done
