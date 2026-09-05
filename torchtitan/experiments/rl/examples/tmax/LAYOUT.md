@@ -38,15 +38,18 @@ $TRL_BASE/
 │   └── mix/
 │       ├── history/v0001--<stamp>.jsonl           every version ever served; append-only
 │       ├── history/v0001--<stamp>.manifest.json   version, parent_version, sha256, rows, stamp
+│       ├── history/v0001--<stamp>.inputs.json     the seed builder's own manifest, copied in (v1 only)
 │       └── live.jsonl            a hardlink to the current version (replaced atomically); never edited in place
 ├── runs/
 │   ├── latest -> tmax-9b--<stamp>
 │   └── tmax-9b--<stamp>/         one process lifetime; only the trainer writes here
 │       ├── launch.json           profile, tt commit, mix version+sha, gpus, env, resumed_from, checkpoint_step
+│       ├── launch.diff           the checkout's uncommitted changes, when tt_commit ends in -dirty
 │       ├── stdout.log
 │       ├── inputs/mix.jsonl      hardlink to the history version loaded at boot
 │       ├── trainer/              structured logs, metrics, profiling
 │       │   └── mix_versions.jsonl   one line per boot or hot reload: stamp, event, version, sha256, replaced, appended, retired
+│       │                              (which step ran on which version: join the stamp with the structured logs' step times)
 │       ├── checkpoints -> <local disk>/ckpt/tmax-9b--<stamp>
 │       ├── rollouts/<task>/g<group>-r<idx>.jsonl   one file per rollout (format below)
 │       │                     …/g<group>-r<idx>.pane    the terminal transcript, when TMAX_PANE_DUMP=1
@@ -162,7 +165,9 @@ same task and rev, or a signal about a rev the task has already moved past
 per task per round, the newest whose `rev` is the task's latest. The loop's
 "pending" set is every file under `runs/*/signals/` whose `signal` id has no
 ledger line. Handling a deferred signal later appends a new line; the old one
-stays.
+stays. A signal whose handling failed before its rewrite directory existed
+(the copy of `r<rev>` or the hardlinks could not be made) gets no ledger
+line and is retried next round; `loop.log` holds the traceback.
 
 ### Rewrite `tasks/<task>/rewrites/<stamp>--<job>/rewrite.json`
 
@@ -275,7 +280,7 @@ the next version and moves the link.
 
 ```json
 {"name": "tw-evolve-sep", "created": "…", "profile": "andy", "purpose": "…", "seed_mix_version": 1,
- "seed_mix": {"path": "/…/mix_tw_20260904.jsonl", "sha256": "…", "manifest": "/…/mix_tw_20260904.manifest.json"},
+ "seed_mix": {"path": "/…/mix_tw_20260904.jsonl", "sha256": "…", "inputs": "data/mix/history/v0001--<stamp>.inputs.json"},
  "forked_from": null}
 ```
 

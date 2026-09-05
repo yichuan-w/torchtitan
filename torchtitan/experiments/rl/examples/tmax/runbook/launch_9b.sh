@@ -201,8 +201,11 @@ fi
 # runs/latest points here; experiment.json is written once per root.
 TT_COMMIT=$(git -C "$TRL_TT" rev-parse --short HEAD)
 if [ -n "$(git -C "$TRL_TT" status --porcelain --untracked-files=no)" ]; then
-    # A commit that does not describe the files is worse than none: say so.
+    # A commit that does not describe the files is worse than none: say so,
+    # and keep the difference itself. "-dirty" alone says the run cannot be
+    # reproduced from the commit; launch.diff is what makes it reproducible.
     TT_COMMIT=$TT_COMMIT-dirty
+    git -C "$TRL_TT" diff HEAD > "$RUN/launch.diff"
 fi
 python - "$RUN" "$STAMP" "$TT_COMMIT" "$RESUMED_FROM" "$CHECKPOINT_STEP" <<'PY'
 import json
