@@ -105,6 +105,9 @@ _HOOK_COLUMNS = ("pre_test_sh", "pre_test_env_identity")
 # OPTIONAL column: a JSON list of the task's protected paths. Empty cell (or the column absent, as in the
 # first published cut) means the row carries no integrity baseline and grades exactly as before.
 _PROTECTED_COLUMN = "protected_paths"
+_PROTECTED_CMDS_COLUMN = (
+    "protected_cmds"  # same contract: a JSON list of command strings, or empty
+)
 _NEEDED_COLUMNS = (
     "task_id",
     "member_prefix",
@@ -186,28 +189,43 @@ def load_split(parquet_path: str) -> list[dict]:
     return rows
 
 
-def protected_paths_map(rows: list[dict]) -> dict[str, list[str]]:
-    """{task_id: [paths]} for every row whose ``protected_paths`` cell is a non-empty JSON list. An empty
-    cell or an absent column contributes nothing -- the key is then ABSENT from the row, never an empty
-    list. A cell that is present but not a JSON list of non-empty strings refuses by task id: a malformed
-    list must not read as "no protected paths"."""
+def _json_list_map(rows: list[dict], column: str) -> dict[str, list[str]]:
+    """{task_id: [entries]} for every row whose ``column`` cell is a non-empty JSON list. An empty cell or an
+    absent column contributes nothing -- the key is then ABSENT from the row, never an empty list. A cell
+    that is present but not a JSON list of non-empty strings refuses by task id: a malformed list must not
+    read as "none". The list is iterated AS A LIST and never joined and re-split -- five shipped paths
+    contain spaces, and every shipped command contains a quote character."""
     out: dict[str, list[str]] = {}
     for r in rows:
-        raw = r.get(_PROTECTED_COLUMN)
+        raw = r.get(column)
         if raw is None or not str(raw).strip():
             continue
         try:
-            paths = json.loads(raw)
+            entries = json.loads(raw)
         except ValueError:
-            raise RefuseError(f"{r['task_id']}: protected_paths is not JSON") from None
-        if not isinstance(paths, list) or not all(
-            isinstance(p, str) and p.strip() for p in paths
+            raise RefuseError(f"{r['task_id']}: {column} is not JSON") from None
+        if not isinstance(entries, list) or not all(
+            isinstance(p, str) and p.strip() for p in entries
         ):
             raise RefuseError(
-                f"{r['task_id']}: protected_paths must be a JSON list of non-empty strings"
+                f"{r['task_id']}: {column} must be a JSON list of non-empty strings"
             )
-        if paths:
-            out[r["task_id"]] = paths
+        if entries:
+            out[r["task_id"]] = entries
+    return out
+
+
+def protected_paths_map(rows: list[dict]) -> dict[str, list[str]]:
+    return _json_list_map(rows, _PROTECTED_COLUMN)
+
+
+def protected_cmds_map(rows: list[dict]) -> dict[str, list[str]]:
+    """Command entries additionally refuse a newline: the hook's manifest is line-based and no shipped
+    entry carries one, so a newline can only be corruption."""
+    out = _json_list_map(rows, _PROTECTED_CMDS_COLUMN)
+    for tid, cmds in out.items():
+        if any("\n" in c or "\r" in c for c in cmds):
+            raise RefuseError(f"{tid}: a protected_cmds entry contains a newline")
     return out
 
 
@@ -314,6 +332,7 @@ def to_row(
     resources: dict[str, int] | None = None,
     pretest: tuple[str, str] | None = None,
     protected_paths: list[str] | None = None,
+    protected_cmds: list[str] | None = None,
 ) -> tuple[dict | None, str]:
     """One trainer row, or ``(None, reason)`` when filtered. Same helpers, same keys, same order
     and same conditions as ``prepare_rts_data._to_row`` AS THE TRAINER RUNS IT (the branch this
@@ -416,6 +435,9 @@ def to_row(
         # INTEGRITY BASELINE: the paths the harness digests after setup and re-checks before the verifier.
         # Carried only when non-empty; grading reads tmax["protected_paths"] and consults nothing else.
         metadata["tmax"]["protected_paths"] = list(protected_paths)
+    if protected_cmds:
+        # ...and the commands whose OUTPUT is protected, digested with the hook's own environment wrapper.
+        metadata["tmax"]["protected_cmds"] = list(protected_cmds)
     if build_context:
         metadata["build_context"] = build_context
     if daytona_mem_gb:
@@ -450,6 +472,7 @@ def build_rows(
         if (r.get("pre_test_sh") or "").strip()
     }
     protected = protected_paths_map(rows)
+    protected_cmds = protected_cmds_map(rows)
     ids = sorted(r["task_id"] for r in rows)
     random.Random(seed).shuffle(ids)
     out: list[dict] = []
@@ -461,6 +484,7 @@ def build_rows(
             resources=resource_map.get(tid),
             pretest=pretest_map.get(tid),
             protected_paths=protected.get(tid),
+            protected_cmds=protected_cmds.get(tid),
         )
         if (
             row is not None
@@ -535,7 +559,11 @@ def prepare(
         "protected": sum(
             1 for r in built if r["metadata"]["tmax"].get("protected_paths")
         ),
+        "protected_cmds": sum(
+            1 for r in built if r["metadata"]["tmax"].get("protected_cmds")
+        ),
         "protected_column_present": any(_PROTECTED_COLUMN in r for r in rows),
+        "protected_cmds_column_present": any(_PROTECTED_CMDS_COLUMN in r for r in rows),
         "stamped_matched": matched,
         "stamped_total": stamped,
         "reasons": reasons,
@@ -623,11 +651,9 @@ def main() -> None:
         f"(hooked {summary['hooked']}, env-identity self-check "
         f"{summary['stamped_matched']}/{summary['stamped_total']} stamped rows match; "
         f"protected paths on {summary['protected']} row(s)"
-        + (
-            ""
-            if summary["protected_column_present"]
-            else " -- column absent from this split"
-        )
+        + ("" if summary["protected_column_present"] else " [column absent]")
+        + f", protected commands on {summary['protected_cmds']} row(s)"
+        + ("" if summary["protected_cmds_column_present"] else " [column absent]")
         + ")"
     )
     for reason, n in sorted(summary["reasons"].items(), key=lambda kv: -kv[1]):

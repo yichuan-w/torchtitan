@@ -49,42 +49,75 @@ def _run(coro):
 def test_command_for_a_two_path_fixture_is_exactly_this():
     """One absolute path with a space (quoted), one relative path resolved against the workdir. The
     string is pinned verbatim: both harness halves run it, so any change here is a change to what
-    'unchanged' means."""
-    cmd = IB.build_digest_command(["/app/data dir/model.bin", "tests"], "/workspace")
+    'unchanged' means. Every subcommand's stderr is discarded inside the string, because the executor
+    merges stderr into the text it returns and a tool warning would become a malformed line."""
+    entries = [("path", "/app/data dir/model.bin"), ("path", "tests")]
+    cmd = IB.build_digest_command(entries, "/workspace")
     expected = (
-        "if [ -f '/app/data dir/model.bin' ]; then printf '%s 0\\n' \"$(sha256sum -- '/app/data dir/model.bin' | cut -d' ' -f1)\"; "
-        "elif [ -d '/app/data dir/model.bin' ]; then printf '%s 0\\n' \"$(cd -- '/app/data dir/model.bin' && find . -type f -print0 | LC_ALL=C sort -z | xargs -0 -r sha256sum | sha256sum | cut -d' ' -f1)\"; "
+        "if [ -f '/app/data dir/model.bin' ]; then printf '%s 0\\n' \"$(sha256sum -- '/app/data dir/model.bin' 2>/dev/null | cut -d' ' -f1)\"; "
+        "elif [ -d '/app/data dir/model.bin' ]; then printf '%s 0\\n' \"$(cd -- '/app/data dir/model.bin' 2>/dev/null && find . -type f -print0 2>/dev/null | LC_ALL=C sort -z | xargs -0 -r sha256sum 2>/dev/null | sha256sum | cut -d' ' -f1)\"; "
         "elif [ -e '/app/data dir/model.bin' ]; then printf 'OTHER 0\\n'; else printf 'ABSENT 0\\n'; fi; "
-        "if [ -f /workspace/tests ]; then printf '%s 1\\n' \"$(sha256sum -- /workspace/tests | cut -d' ' -f1)\"; "
-        "elif [ -d /workspace/tests ]; then printf '%s 1\\n' \"$(cd -- /workspace/tests && find . -type f -print0 | LC_ALL=C sort -z | xargs -0 -r sha256sum | sha256sum | cut -d' ' -f1)\"; "
+        "if [ -f /workspace/tests ]; then printf '%s 1\\n' \"$(sha256sum -- /workspace/tests 2>/dev/null | cut -d' ' -f1)\"; "
+        "elif [ -d /workspace/tests ]; then printf '%s 1\\n' \"$(cd -- /workspace/tests 2>/dev/null && find . -type f -print0 2>/dev/null | LC_ALL=C sort -z | xargs -0 -r sha256sum 2>/dev/null | sha256sum | cut -d' ' -f1)\"; "
         "elif [ -e /workspace/tests ]; then printf 'OTHER 1\\n'; else printf 'ABSENT 1\\n'; fi"
     )
     assert cmd == expected, cmd
-    assert (
-        IB.resolve_path("../etc/passwd", "/workspace") == "/etc/passwd"
-    )  # normalised, never doubled
+    assert IB.resolve_path("../etc/passwd", "/workspace") == "/etc/passwd"
     assert IB.resolve_path("/abs", "/workspace") == "/abs"
-    q = IB.build_digest_command(["it's"], "/w")
+    q = IB.build_digest_command([("path", "it's")], "/w")
     assert "'/w/it'\"'\"'s'" in q  # shlex quoting of a quote
 
 
+def test_command_entry_is_one_argv_element_via_the_hooks_wrapper():
+    """The command enters the string ONLY as a single-quoted assignment and is referenced as "$_cmd" --
+    one argv element to `bash -c` under the hook exporter's exact wrapper. Never interpolated: every
+    shipped entry contains a quote character."""
+    entry = """printf '%s' "it's" '"q"' """
+    cmd = IB.build_digest_command([("cmd", entry)], "/workspace")
+    expected = (
+        "_cmd='printf '\"'\"'%s'\"'\"' \"it'\"'\"'s\" '\"'\"'\"q\"'\"'\"' '; "
+        'if _out="$(env -i PATH=/usr/bin:/bin:/usr/sbin:/sbin HOME=/nonexistent LC_ALL=C bash -c "$_cmd" </dev/null 2>/dev/null)"; then '
+        "printf '%s 0\\n' \"$(printf '%s' \"$_out\" | sha256sum | cut -d' ' -f1)\"; else printf 'FAIL 0\\n'; fi"
+    )
+    assert cmd == expected, cmd
+    assert (
+        IB.CMD_WRAPPER
+        == 'env -i PATH=/usr/bin:/bin:/usr/sbin:/sbin HOME=/nonexistent LC_ALL=C bash -c "$_cmd" </dev/null 2>/dev/null'
+    )
+    assert (
+        IB.PIN_SAFE_PATH == "/usr/bin:/bin:/usr/sbin:/sbin"
+    )  # the exporter's _PIN_SAFE_PATH, verbatim
+    # paths first, then commands: the index space both sides derive from the same function
+    tmax = {"protected_paths": ["/a", "b c"], "protected_cmds": ["true"]}
+    assert IB.protected_entries_of(tmax) == [
+        ("path", "/a"),
+        ("path", "b c"),
+        ("cmd", "true"),
+    ]
+
+
 def test_parse_maps_by_index_and_refuses_anything_incomplete():
-    paths = ["/a", "dir", "gone"]
-    out = f"{_D1} 0\n{_D2} 1\nABSENT 2\n"
+    paths = [("path", "/a"), ("path", "dir"), ("path", "gone"), ("cmd", "false")]
+    out = f"{_D1} 0\n{_D2} 1\nABSENT 2\nFAIL 3\n"
     assert IB.parse_digest_output(out, paths) == {
         "/a": _D1,
         "dir": _D2,
         "gone": "ABSENT",
+        "false": "FAIL",
     }
     assert (
-        IB.parse_digest_output(f"ABSENT 2\n{_D2} 1\n\n{_D1} 0\n", paths)["/a"] == _D1
+        IB.parse_digest_output(f"FAIL 3\nABSENT 2\n{_D2} 1\n\n{_D1} 0\n", paths)["/a"]
+        == _D1
     )  # order-free
     for bad, why in (
-        (f"{_D1} 0\n{_D2} 1\n", "missing line"),
-        (f"{_D1} 0\n{_D2} 1\nABSENT 2\n{_D3} 3\n", "unexpected index"),
-        (f"{_D1} 0\n{_D1} 0\nABSENT 2\n", "repeated index"),
-        (f"{_D1} 0\n 1\nABSENT 2\n", "empty digest (a failed subshell)"),
-        (f"{_D1} 0\n{_D2} 1\n{IB.TRUNCATION_MARKER}\nABSENT 2\n", "truncation marker"),
+        (f"{_D1} 0\n{_D2} 1\nABSENT 2\n", "missing line"),
+        (f"{_D1} 0\n{_D2} 1\nABSENT 2\nFAIL 3\n{_D3} 4\n", "unexpected index"),
+        (f"{_D1} 0\n{_D1} 0\nABSENT 2\nFAIL 3\n", "repeated index"),
+        (f"{_D1} 0\n 1\nABSENT 2\nFAIL 3\n", "empty digest (a failed subshell)"),
+        (
+            f"{_D1} 0\n{_D2} 1\n{IB.TRUNCATION_MARKER}\nABSENT 2\nFAIL 3\n",
+            "truncation marker",
+        ),
         ("garbage\n", "malformed"),
     ):
         try:
@@ -111,12 +144,24 @@ def test_protected_paths_of_validates():
     assert IB.protected_paths_of({}) == []
     assert IB.protected_paths_of({"protected_paths": ["/a", "b"]}) == ["/a", "b"]
     for bad in ("not-a-list", ["ok", ""], [1], "/a"):
-        try:
-            IB.protected_paths_of({"protected_paths": bad})
-        except IB.IntegrityHarnessError:
-            pass
-        else:
-            raise AssertionError(f"must refuse {bad!r}")
+        for key, fn in (
+            ("protected_paths", IB.protected_paths_of),
+            ("protected_cmds", IB.protected_cmds_of),
+        ):
+            try:
+                fn({key: bad})
+            except IB.IntegrityHarnessError:
+                pass
+            else:
+                raise AssertionError(f"must refuse {bad!r} for {key}")
+    try:
+        IB.protected_cmds_of(
+            {"protected_cmds": ["echo 1\necho 2"]}
+        )  # the hook's manifest is line-based
+    except IB.IntegrityHarnessError:
+        pass
+    else:
+        raise AssertionError("a newline inside a command entry must refuse")
 
 
 # ---------------------------------------------------------------- the rollouter half
@@ -152,7 +197,7 @@ def test_capture_returns_none_without_protected_paths_and_digests_with():
     )
     assert got == {"/a": _D1, "b": "ABSENT"}
     cmd, kw = ex.calls[0]
-    assert cmd == IB.build_digest_command(["/a", "b"], "/w")
+    assert cmd == IB.build_digest_command([("path", "/a"), ("path", "b")], "/w")
     assert kw == {"check": False, "timeout": 120}  # min(120, 900)
     ex = _Exec((0, f"{_D1} 0\n", ""))
     _run(
@@ -239,8 +284,9 @@ _TMAX = {
     "fixtures": {},
     "task_id": "task_000001_aaaaaaaa",
     "protected_paths": ["/app/pinned", "tests"],
+    "protected_cmds": ["sqlite3 /app/db 'select 1'"],
 }
-_BASE = {"/app/pinned": _D1, "tests": _D2}
+_BASE = {"/app/pinned": _D1, "tests": _D2, "sqlite3 /app/db 'select 1'": _D3}
 
 
 def _grade(sb, tmax=_TMAX, baseline=_BASE):
@@ -252,7 +298,7 @@ def _grade(sb, tmax=_TMAX, baseline=_BASE):
 
 
 def test_intact_paths_run_the_verifier_and_the_check_ran_as_root():
-    sb = _FakeSandbox([(0, f"{_D1} 0\n{_D2} 1\n", "")])
+    sb = _FakeSandbox([(0, f"{_D1} 0\n{_D2} 1\n{_D3} 2\n", "")])
     assert _grade(sb) == 1.0 and sb.tests_ran
     digest_calls = [c for c in sb.calls if "sha256sum" in c[0]]
     assert (
@@ -261,7 +307,7 @@ def test_intact_paths_run_the_verifier_and_the_check_ran_as_root():
         and digest_calls[0][2] == 120
     )
     assert digest_calls[0][0] == IB.build_digest_command(
-        ["/app/pinned", "tests"], "/workspace"
+        IB.protected_entries_of(_TMAX), "/workspace"
     )  # same builder
 
 
@@ -274,7 +320,9 @@ def test_one_changed_file_scores_zero_without_running_the_verifier():
     G.logger.addHandler(h)
     G.logger.setLevel(logging.INFO)
     try:
-        sb = _FakeSandbox([(0, f"{_D3} 0\n{_D2} 1\n", "")])  # /app/pinned changed
+        sb = _FakeSandbox(
+            [(0, f"{_D2} 0\n{_D2} 1\n{_D3} 2\n", "")]
+        )  # /app/pinned changed
         assert _grade(sb) == 0.0 and not sb.tests_ran
     finally:
         G.logger.removeHandler(h)
@@ -287,17 +335,34 @@ def test_one_changed_file_scores_zero_without_running_the_verifier():
         len(msgs) == 1 and "/app/pinned" in msgs[0] and "'tests'" not in msgs[0]
     ), msgs  # only the differing path is named
     # ABSENT at baseline, present at grade -> a difference too
-    sb = _FakeSandbox([(0, f"{_D1} 0\n{_D2} 1\n", "")])
+    sb = _FakeSandbox([(0, f"{_D1} 0\n{_D2} 1\n{_D3} 2\n", "")])
     assert (
-        _grade(sb, baseline={"/app/pinned": "ABSENT", "tests": _D2}) == 0.0
+        _grade(
+            sb,
+            baseline={
+                "/app/pinned": "ABSENT",
+                "tests": _D2,
+                "sqlite3 /app/db 'select 1'": _D3,
+            },
+        )
+        == 0.0
         and not sb.tests_ran
+    )
+    # a command that succeeded at baseline and FAILS at grade (or the reverse) is a difference; FAIL on both is equal
+    sb = _FakeSandbox([(0, f"{_D1} 0\n{_D2} 1\nFAIL 2\n", "")])
+    assert _grade(sb) == 0.0 and not sb.tests_ran
+    sb = _FakeSandbox([(0, f"{_D1} 0\n{_D2} 1\nFAIL 2\n", "")])
+    assert (
+        _grade(sb, baseline=dict(_BASE, **{"sqlite3 /app/db 'select 1'": "FAIL"}))
+        == 1.0
+        and sb.tests_ran
     )
 
 
 def test_missing_baseline_raises_and_harness_failures_void_the_episode():
     for sb, baseline, why in (
         (
-            _FakeSandbox([(0, f"{_D1} 0\n{_D2} 1\n", "")]),
+            _FakeSandbox([(0, f"{_D1} 0\n{_D2} 1\n{_D3} 2\n", "")]),
             None,
             "no baseline for a protected row",
         ),
@@ -320,14 +385,16 @@ def test_rows_without_protected_paths_keep_the_old_behaviour_byte_for_byte():
     """No protected paths -> no digest command runs, the baseline kwarg is ignored, and the pre_test
     block is consulted exactly as before (here: no pre_test, so straight to the verifier)."""
     sb = _FakeSandbox([])
-    tmax = {k: v for k, v in _TMAX.items() if k != "protected_paths"}
+    tmax = {
+        k: v for k, v in _TMAX.items() if k not in ("protected_paths", "protected_cmds")
+    }
     assert _grade(sb, tmax=tmax, baseline=None) == 1.0 and sb.tests_ran
     assert not any("sha256sum" in c[0] for c in sb.calls)
     assert (
         _grade(_FakeSandbox([]), tmax=tmax, baseline=_BASE) == 1.0
     )  # a stray baseline is inert
     # and a protected row never consults pre_test_sh: a check that would refuse is not even run
-    sb = _FakeSandbox([(0, f"{_D1} 0\n{_D2} 1\n", "")])
+    sb = _FakeSandbox([(0, f"{_D1} 0\n{_D2} 1\n{_D3} 2\n", "")])
     tmax = dict(
         _TMAX,
         pre_test_sh="exit 1",
@@ -335,6 +402,134 @@ def test_rows_without_protected_paths_keep_the_old_behaviour_byte_for_byte():
         pretest_episode_env_identity="image:x",
     )
     assert _grade(sb, tmax=tmax) == 1.0 and not any("exit 1" in c[0] for c in sb.calls)
+
+
+# ---------------------------------------------------------------- the arithmetic, in a real shell
+# The fake-exec tests never execute the string. These do, in the same `bash` the sandbox launches, and hold
+# the command digests to the hook exporter's arithmetic reproduced inline: env -i with the safe PATH, HOME
+# /nonexistent, LC_ALL=C, bash -c "$cmd", stdin closed, stderr discarded, $( )-captured (trailing newlines
+# stripped), printf '%s' | sha256sum. Skipped only if bash or sha256sum is missing, and says so.
+import hashlib
+import os
+import shutil
+import subprocess
+import tempfile
+
+
+def _real(entries, workdir="/workspace", env_extra=None):
+    if not (shutil.which("bash") and shutil.which("sha256sum")):
+        print("  (skipped: bash/sha256sum not available)")
+        return None
+    cmd = IB.build_digest_command(entries, workdir)
+    r = subprocess.run(
+        ["bash", "-c", cmd],
+        capture_output=True,
+        text=True,
+        env=dict(os.environ, **(env_extra or {})),
+        timeout=60,
+    )
+    assert r.returncode == 0, r.stderr[:200]
+    return IB.parse_digest_output(r.stdout, entries)
+
+
+def _hook_digest(cmd: str) -> str:
+    """The exporter's own arithmetic for a command entry, run independently of the builder."""
+    r = subprocess.run(
+        [
+            "env",
+            "-i",
+            "PATH=/usr/bin:/bin:/usr/sbin:/sbin",
+            "HOME=/nonexistent",
+            "LC_ALL=C",
+            "bash",
+            "-c",
+            cmd,
+        ],
+        stdin=subprocess.DEVNULL,
+        capture_output=True,
+        timeout=60,
+    )
+    assert r.returncode == 0
+    return hashlib.sha256(r.stdout.rstrip(b"\n")).hexdigest()
+
+
+def test_real_shell_stderr_is_discarded_and_trailing_newlines_are_stripped():
+    got = _real(
+        [
+            ("cmd", 'echo "hello world"; echo warning >&2'),
+            ("cmd", "printf 'a\\nb\\n\\n\\n'"),
+        ]
+    )
+    if got is None:
+        return
+    assert (
+        got['echo "hello world"; echo warning >&2']
+        == hashlib.sha256(b"hello world").hexdigest()
+    )  # stderr not in it
+    assert (
+        got["printf 'a\\nb\\n\\n\\n'"] == hashlib.sha256(b"a\nb").hexdigest()
+    )  # $( ) strips \n\n\n
+    for e in got:
+        assert got[e] == _hook_digest(e), e  # equals the exporter's arithmetic
+
+
+def test_real_shell_both_quotes_run_unchanged_and_a_failing_command_is_FAIL():
+    entry = """printf '%s' "it's" '"q"' """
+    got = _real([("cmd", entry), ("cmd", "false"), ("cmd", "exit 3")])
+    if got is None:
+        return
+    assert (
+        got[entry] == hashlib.sha256(b"""it's"q\"""").hexdigest() == _hook_digest(entry)
+    )
+    assert got["false"] == "FAIL" and got["exit 3"] == "FAIL"
+
+
+def test_real_shell_environment_is_part_of_the_value_and_the_caller_env_is_not():
+    """`env -i` resets everything, so the digest is the same under two different caller environments, and
+    the command sees the wrapper's HOME/LC_ALL rather than the caller's."""
+    entry = 'echo "$HOME:$LC_ALL:$FOO:$PATH"'
+    a = _real(
+        [("cmd", entry)],
+        env_extra={"FOO": "one", "LC_ALL": "C.UTF-8", "HOME": "/tmp/x"},
+    )
+    b = _real(
+        [("cmd", entry)], env_extra={"FOO": "two", "LC_ALL": "POSIX", "HOME": "/tmp/y"}
+    )
+    if a is None:
+        return
+    assert a == b
+    assert (
+        a[entry]
+        == hashlib.sha256(b"/nonexistent:C::/usr/bin:/bin:/usr/sbin:/sbin").hexdigest()
+    )
+
+
+def test_real_shell_paths_with_spaces_directories_absent_and_other():
+    d = pathlib.Path(tempfile.mkdtemp())
+    (d / "data dir").mkdir()
+    (d / "data dir" / "model.bin").write_bytes(b"\x00\x01weights")
+    w = d / "work"
+    (w / "tests").mkdir(parents=True)
+    (w / "tests" / "b.txt").write_text("b")
+    (w / "tests" / "a.txt").write_text("a")
+    os.mkfifo(d / "pipe")
+    entries = [
+        ("path", str(d / "data dir" / "model.bin")),
+        ("path", "tests"),
+        ("path", "gone"),
+        ("path", str(d / "pipe")),
+    ]
+    got = _real(entries, workdir=str(w))
+    if got is None:
+        return
+    assert got[entries[0][1]] == hashlib.sha256(b"\x00\x01weights").hexdigest()
+    assert (
+        len(got["tests"]) == 64
+        and got["gone"] == "ABSENT"
+        and got[str(d / "pipe")] == "OTHER"
+    )
+    (w / "tests" / "a.txt").write_text("A")
+    assert IB.differences(got, _real(entries, workdir=str(w))) == ["tests"]
 
 
 if __name__ == "__main__":
