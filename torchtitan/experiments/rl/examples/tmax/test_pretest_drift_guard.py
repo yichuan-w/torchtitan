@@ -16,6 +16,7 @@ Run: ``python3 test_pretest_drift_guard.py``.
 import hashlib
 import importlib.util
 import pathlib
+import sys
 import tempfile
 
 _HERE = pathlib.Path(__file__).resolve().parent
@@ -24,6 +25,18 @@ _spec = importlib.util.spec_from_file_location(
 )
 PREP = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(PREP)
+
+# prepare_rts_data does `from torchtitan...prepare_tmax_data import ...`; registering the already-loaded
+# module under that dotted name short-circuits the import machinery, so the seeds-layout adapter loads without
+# torchtitan/__init__ (and therefore without torch). Same trick evolution/pack_to_dataset.py uses.
+sys.modules.setdefault(
+    "torchtitan.experiments.rl.examples.tmax.prepare_tmax_data", PREP
+)
+_rts_spec = importlib.util.spec_from_file_location(
+    "prep_rts", _HERE / "prepare_rts_data.py"
+)
+RTS = importlib.util.module_from_spec(_rts_spec)
+_rts_spec.loader.exec_module(RTS)
 
 _IMG = "hamishi740/swerl-tmax-v3:2df1439e90a7"
 
@@ -307,6 +320,67 @@ def test_parquet_projection_is_optional():
         rows = PREP._read_parquet_rows(str(d))
         assert len(rows) == 1 and rows[0]["ground_truth"] == "task_1"
         assert rows[0].get("pre_test_sh") == expect
+
+
+def _seeds_package(dockerfile: bytes) -> str:
+    """A seeds-layout package as ops publishes it: instruction, verifier, one-line Dockerfile."""
+    d = pathlib.Path(tempfile.mkdtemp()) / "task_1"
+    (d / "tests").mkdir(parents=True)
+    (d / "environment").mkdir(parents=True)
+    (d / "instruction.md").write_bytes(b"do the thing\n")
+    (d / "tests" / "test.sh").write_bytes(b"echo 1 > /logs/verifier/reward.txt\n")
+    (d / "environment" / "Dockerfile").write_bytes(dockerfile)
+    return str(d)
+
+
+def test_rts_row_carries_the_hook_and_runs_it():
+    # The seeds loader path: the row must carry the check AND its identities must match, or the hook that fires
+    # on the tmax path would silently do nothing on this one.
+    pkg = _seeds_package(b"# setup.sh inlined\nFROM " + _IMG.encode() + b"\n")
+    row, why = RTS._to_row(pkg, pretest=("exit 0", "image:" + _IMG))
+    assert why == "ok" and row is not None
+    tm = row["metadata"]["tmax"]
+    assert tm["pre_test_sh"] == "exit 0" and tm["task_id"] == "task_1"
+    assert _would_run(tm["pretest_env_identity"], tm["pretest_episode_env_identity"])
+    # a package whose Dockerfile BUILDS is a different environment -> skip, never a false refusal
+    pkg2 = _seeds_package(b"FROM " + _IMG.encode() + b"\nRUN echo drift\n")
+    row2, _ = RTS._to_row(pkg2, pretest=("exit 0", "image:" + _IMG))
+    tm2 = row2["metadata"]["tmax"]
+    assert not _would_run(
+        tm2["pretest_env_identity"], tm2["pretest_episode_env_identity"]
+    )
+
+
+def test_rts_row_without_a_check_is_unchanged():
+    pkg = _seeds_package(b"FROM " + _IMG.encode() + b"\n")
+    row, why = RTS._to_row(pkg)
+    assert why == "ok"
+    tm = row["metadata"]["tmax"]
+    assert set(tm) == {"test_sh", "fixtures", "reward_path"}
+
+
+def test_rts_pretest_map_reads_optional_columns():
+    try:
+        import pandas as pd
+    except ImportError:  # pragma: no cover - environment without pandas
+        print("SKIP test_rts_pretest_map_reads_optional_columns (no pandas)")
+        return
+    d = pathlib.Path(tempfile.mkdtemp())
+    with_cols = d / "with.parquet"
+    pd.DataFrame(
+        {
+            "task_id": ["task_1", "task_2"],
+            "pre_test_sh": ["exit 0", ""],
+            "pre_test_env_identity": ["image:" + _IMG, ""],
+        }
+    ).to_parquet(with_cols)
+    m = RTS._load_pretest_map(str(with_cols))
+    assert m == {
+        "task_1": ("exit 0", "image:" + _IMG)
+    }  # the empty cell yields no entry
+    without = d / "without.parquet"
+    pd.DataFrame({"task_id": ["task_1"], "req_cpus": [2]}).to_parquet(without)
+    assert RTS._load_pretest_map(str(without)) == {}  # pre-hook dataset: no entries
 
 
 if __name__ == "__main__":

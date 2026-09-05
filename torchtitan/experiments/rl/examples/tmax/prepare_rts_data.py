@@ -54,7 +54,10 @@ import re
 import shlex
 import sys
 
-from torchtitan.experiments.rl.examples.tmax.prepare_tmax_data import _REWARD_PATH
+from torchtitan.experiments.rl.examples.tmax.prepare_tmax_data import (
+    _pretest_tmax_fields,
+    _REWARD_PATH,
+)
 
 # TerminalWorld/harbor ships a canary comment in instruction.md so a model trained
 # on the corpus can be detected. The dataset card asks consumers to keep it in the
@@ -366,11 +369,35 @@ def _load_resource_map(parquet_path: str) -> dict[str, dict[str, int]]:
     return out
 
 
+def _load_pretest_map(parquet_path: str) -> dict[str, tuple[str, str]]:
+    """Map task_id -> (pre_test_sh, pre_test_env_identity) from the dataset's own hook columns.
+
+    Same file as the resource columns and the same rule: the columns are OPTIONAL, an absent column or an empty
+    cell simply yields no entry and the task grades exactly as it does today. The hook travels with the data, so
+    a corpus that gains checks later needs no change here (see prepare_tmax_data._PRETEST_COLUMNS)."""
+    import pandas as pd  # local import: only needed with --metadata-parquet
+
+    df = pd.read_parquet(parquet_path)
+    if "pre_test_sh" not in df.columns:
+        return {}
+    id_col = "task_id" if "task_id" in df.columns else df.columns[0]
+    out: dict[str, tuple[str, str]] = {}
+    for _, row in df.iterrows():
+        tid = row.get(id_col)
+        script = row.get("pre_test_sh")
+        if not isinstance(tid, str) or not isinstance(script, str) or not script:
+            continue
+        stamp = row.get("pre_test_env_identity")
+        out[tid] = (script, stamp if isinstance(stamp, str) else "")
+    return out
+
+
 def _to_row(
     task_dir: str,
     *,
     inject_agent_runtime: bool = False,
     resources: dict[str, int] | None = None,
+    pretest: tuple[str, str] | None = None,
 ) -> tuple[dict | None, str]:
     """Build one output row, or ``(None, reason)`` when the task is filtered out."""
     task_id = os.path.basename(task_dir.rstrip("/"))
@@ -420,6 +447,7 @@ def _to_row(
     if os.path.exists(toml_path):
         try:
             import tomllib
+
             with open(toml_path, "rb") as f:
                 _toml = tomllib.load(f)
             env = _toml.get("environment", {})
@@ -462,6 +490,18 @@ def _to_row(
             "test_sh": test_sh,
             "fixtures": _grading_fixtures(task_dir),
             "reward_path": _REWARD_PATH,
+            # The pre-verify hook, when the dataset carries one for this task. The episode identity is computed
+            # from the bundle: a seeds-layout package whose Dockerfile is a bare single FROM resolves to
+            # "image:<base>" and matches an "image:<ref>" stamp, so the check fires on this path too; a
+            # Dockerfile that builds resolves to its sha and the check is skipped, as on the tmax path.
+            **_pretest_tmax_fields(
+                task_id,
+                task_dir,
+                "",
+                "",
+                pre_test_sh=(pretest or ("", ""))[0],
+                stamped_identity=(pretest or ("", ""))[1],
+            ),
         },
     }
     if build_context:
@@ -497,6 +537,7 @@ def build_rows(
     max_oracle_commands: int | None = None,
     inject_agent_runtime: bool = False,
     resource_map: dict[str, dict[str, int]] | None = None,
+    pretest_map: dict[str, tuple[str, str]] | None = None,
 ) -> tuple[list[dict], dict[str, int]]:
     """Convert every task dir under ``tasks_roots`` to a row, applying the filters.
 
@@ -520,6 +561,7 @@ def build_rows(
             d,
             inject_agent_runtime=inject_agent_runtime,
             resources=(resource_map or {}).get(task_id),
+            pretest=(pretest_map or {}).get(task_id),
         )
         if (
             row is not None
@@ -577,7 +619,8 @@ def main() -> None:
         help="dataset metadata/tasks.parquet -- read per-task req_cpus / "
         "req_memory_mb / est_disk_mb and emit daytona_cpu/mem_gb/disk_gb so each "
         "sandbox is sized to the task instead of the flat TT_DAYTONA_* defaults "
-        "(missing fields fall back to those defaults)",
+        "(missing fields fall back to those defaults), and the pre_test_sh / "
+        "pre_test_env_identity columns when the dataset carries them",
     )
     ap.add_argument(
         "--smoke-size",
@@ -592,6 +635,11 @@ def main() -> None:
     )
     if resource_map is not None:
         print(f"loaded per-task resources for {len(resource_map)} tasks")
+    pretest_map = (
+        _load_pretest_map(args.metadata_parquet) if args.metadata_parquet else None
+    )
+    if pretest_map:
+        print(f"loaded a pre_test check for {len(pretest_map)} tasks")
 
     rows, reasons = build_rows(
         args.tasks_root,
@@ -600,6 +648,7 @@ def main() -> None:
         max_oracle_commands=args.max_oracle_commands,
         inject_agent_runtime=args.inject_agent_runtime,
         resource_map=resource_map,
+        pretest_map=pretest_map,
     )
     if not rows:
         print(f"ERROR: produced 0 rows (filters: {reasons})", file=sys.stderr)
