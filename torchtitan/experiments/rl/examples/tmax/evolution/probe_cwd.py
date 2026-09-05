@@ -30,6 +30,7 @@ else:
     os.environ.setdefault("TT_DAYTONA_LABEL", "cwd_probe")
 
 import daytona_revalidate as dr  # noqa: E402
+from torchtitan.experiments.rl.examples.tmax import layout  # noqa: E402
 from torchtitan.experiments.rl.harness.agents.claude_code import boot_agent_sandbox  # noqa: E402
 
 LOCAL = Path(os.environ.get("MEASURE_LOCAL_BASE", "/scratch/al9080/terminal-rl/measure"))
@@ -68,9 +69,9 @@ async def probe(tid: str, md: dict, sem: asyncio.Semaphore) -> dict:
             return {**rec, "ok": False, "why": f"{type(e).__name__}: {str(e)[:200]}"}
 
 
-async def main_async(a: argparse.Namespace) -> None:
+async def main_async(a: argparse.Namespace, mix: Path) -> None:
     meta = {}
-    for line in open(a.mix):
+    for line in open(mix):
         if line.strip():
             m = json.loads(line)["metadata"]
             meta[m.get("instance_id")] = m
@@ -95,16 +96,16 @@ async def main_async(a: argparse.Namespace) -> None:
 def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("tasks", nargs="+")
-    ap.add_argument("--mix",
-                    default="/scratch/gpfs/TRIDAO/al9080/terminal-rl/data/mix/mix_live.jsonl")
+    ap.add_argument("--mix", default=None, help="default: $TRL_BASE/data/mix/live.jsonl")
     ap.add_argument("--out", default=str(LOCAL / "cwd_probe.jsonl"))
     ap.add_argument("--concurrency", type=int, default=6)
     ap.add_argument("--label", default="cwd_probe")
     a = ap.parse_args()
+    mix = Path(a.mix) if a.mix else layout.Root.from_env().mix.live
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(message)s",
                         handlers=[logging.StreamHandler(),
                                   logging.FileHandler(LOCAL / "cwd_probe.log")])
-    asyncio.run(main_async(a))
+    asyncio.run(main_async(a, mix))
 
 
 if __name__ == "__main__":

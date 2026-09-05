@@ -19,6 +19,8 @@ import json
 import math
 from pathlib import Path
 
+from torchtitan.experiments.rl.examples.tmax import layout
+
 HEADROOM = 1.3
 CPU_CAP, MEM_CAP, DISK_CAP = 4, 8, 10
 
@@ -34,10 +36,10 @@ def main() -> None:
                     help="one or more per-attempt files; both halves of the mix "
                          "are measured by the same tool, so they aggregate "
                          "together under the same rule")
-    ap.add_argument("--mix",
-                    default="/scratch/gpfs/TRIDAO/al9080/terminal-rl/data/mix/mix_live.jsonl")
+    ap.add_argument("--mix", default=None, help="default: $TRL_BASE/data/mix/live.jsonl")
     ap.add_argument("--out", default="")
     a = ap.parse_args()
+    mix = Path(a.mix) if a.mix else layout.Root.from_env().mix.live
 
     by_task: dict[str, list[dict]] = collections.defaultdict(list)
     for path in a.measurements:
@@ -90,7 +92,7 @@ def main() -> None:
         print(f"  {k}: {n} tasks")
 
     cur = {}
-    for line in open(a.mix):
+    for line in open(mix):
         if line.strip():
             md = json.loads(line).get("metadata") or {}
             if md.get("instance_id"):

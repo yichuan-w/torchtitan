@@ -8,15 +8,19 @@ dropping one from inside it would pull a new task in and invalidate every
 before/after comparison anchored on that set. This refuses to touch the tail.
 
 Removing a task is the last resort and the reason belongs in the record, so
---why is required and is written into the sidecar log next to the mix.
+--why is required and is written into the sidecar log next to the mix, with
+the mix version the removal published when the target is a root's live mix.
+
+--apply writes through layout.write_mix: on a root's live mix that publishes the
+next version, and the history is the backup.
 """
 from __future__ import annotations
 
 import argparse
 import json
-import shutil
-from datetime import datetime
 from pathlib import Path
+
+from torchtitan.experiments.rl.examples.tmax import layout
 
 HOLDOUT_N = 64
 
@@ -24,13 +28,11 @@ HOLDOUT_N = 64
 def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("task_ids", nargs="+")
-    ap.add_argument("--mix",
-                    default="/scratch/gpfs/TRIDAO/al9080/terminal-rl/data/mix/mix_live.jsonl")
+    ap.add_argument("--mix", default=None, help="default: $TRL_BASE/data/mix/live.jsonl")
     ap.add_argument("--why", required=True, help="why this task is being removed")
     ap.add_argument("--apply", action="store_true")
     a = ap.parse_args()
-
-    mix = Path(a.mix)
+    mix = Path(a.mix) if a.mix else layout.Root.from_env().mix.live
     lines = [l for l in mix.read_text().splitlines() if l.strip()]
     ids = [json.loads(l)["metadata"]["instance_id"] for l in lines]
     tail = set(ids[-HOLDOUT_N:])
@@ -54,17 +56,14 @@ def main() -> None:
         return
 
     keep = [l for l, t in zip(lines, ids) if t not in set(drop)]
-    stamp = f"{datetime.now():%Y%m%d-%H%M%S}"
-    bak = f"{a.mix}.bak-drop-{stamp}"
-    shutil.copy2(mix, bak)
-    mix.write_text("\n".join(keep) + "\n")
+    published = layout.write_mix(mix, keep)
     log = mix.parent / "removed_tasks.jsonl"
-    with open(log, "a") as f:
-        for t in drop:
-            f.write(json.dumps({"task_id": t, "removed_at": stamp,
-                                "why": a.why}, ensure_ascii=False) + "\n")
+    for t in drop:
+        layout.append_jsonl(log, {"task_id": t, "removed_at": layout.stamp(), "why": a.why,
+                                  "mix_version": published[0] if published else None})
     new_ids = [json.loads(l)["metadata"]["instance_id"] for l in keep]
-    print(f"{len(lines)} -> {len(keep)} rows; backup {bak}")
+    print(f"{len(lines)} -> {len(keep)} rows"
+          + (f"; published mix v{published[0]:04d}" if published else ""))
     print(f"holdout unchanged: {set(new_ids[-HOLDOUT_N:]) == tail}")
     print(f"reason logged to {log}")
 

@@ -51,7 +51,8 @@ import argparse
 import subprocess
 from pathlib import Path
 
-ROOT = Path("/scratch/gpfs/TRIDAO/al9080/terminal-rl/data/tw-extract/tasks")
+from torchtitan.experiments.rl.examples.tmax import layout
+
 ASSETS = Path(__file__).resolve().parent / "assets"
 
 # CentOS 7 is EOL and mirror.centos.org is retired. 52 of the corpus's 54
@@ -78,7 +79,6 @@ DELETE_FILES: dict[str, list[str]] = {
     # stops building it, and leaving it would read as still in use.
     "tw_10981": ["environment/startup.go"],
 }
-BACKUP = Path("/scratch/gpfs/TRIDAO/al9080/terminal-rl/archive/task-backups-20260901")
 
 # task -> [(relative path, old text, new text, why)]
 PATCHES: dict[str, list[tuple[str, str, str, str]]] = {
@@ -596,8 +596,9 @@ PATCHES: dict[str, list[tuple[str, str, str, str]]] = {
 }
 
 
-def apply_one(task: str, rel: str, old: str, new: str, why: str, write: bool) -> bool:
-    path = ROOT / task / rel
+def apply_one(tasks: Path, task: str, rel: str, old: str, new: str, why: str,
+              write: bool) -> bool:
+    path = tasks / task / rel
     if not path.exists():
         print(f"  {task}/{rel}: MISSING")
         return False
@@ -633,14 +634,16 @@ def main() -> None:
     ap.add_argument("--apply", action="store_true")
     ap.add_argument("--check", action="store_true", help="diff against the backup")
     a = ap.parse_args()
-    tasks = a.tasks or sorted(PATCHES)
-    for t in tasks:
+    root = layout.Root.from_env()
+    tasks = root.data / "sources" / "tw-extract" / "tasks"
+    backup = root.path / "archive" / "task-backups-20260901"
+    for t in a.tasks or sorted(PATCHES):
         print(f"== {t}")
         if a.check:
-            subprocess.run(["diff", "-ru", str(BACKUP / t), str(ROOT / t)])
+            subprocess.run(["diff", "-ru", str(backup / t), str(tasks / t)])
             continue
         for rel in DELETE_FILES.get(t, []):
-            victim = ROOT / t / rel
+            victim = tasks / t / rel
             if not victim.exists():
                 print(f"  {t}/{rel}: already gone")
             elif a.apply:
@@ -649,7 +652,7 @@ def main() -> None:
             else:
                 print(f"  {t}/{rel}: would remove")
         for rel, asset in NEW_FILES.get(t, {}).items():
-            dest = ROOT / t / rel
+            dest = tasks / t / rel
             src = ASSETS / asset
             if dest.exists() and dest.read_text() == src.read_text():
                 print(f"  {t}/{rel}: already in place")
@@ -659,7 +662,7 @@ def main() -> None:
             else:
                 print(f"  {t}/{rel}: would add from assets/{asset}")
         for rel, old, new, why in PATCHES.get(t, []):
-            apply_one(t, rel, old, new, why, a.apply)
+            apply_one(tasks, t, rel, old, new, why, a.apply)
     if not a.apply and not a.check:
         print("dry run -- pass --apply to write")
 

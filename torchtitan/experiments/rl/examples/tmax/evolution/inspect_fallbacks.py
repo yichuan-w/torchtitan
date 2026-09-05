@@ -19,11 +19,11 @@ import ast
 import json
 from pathlib import Path
 
-ROOT = Path("/scratch/gpfs/TRIDAO/al9080/terminal-rl/data/tw-extract/tasks")
+from torchtitan.experiments.rl.examples.tmax import layout
 
 
-def report(task: str) -> None:
-    tests = sorted((ROOT / task / "tests").glob("*.py"))
+def report(tasks: Path, task: str) -> None:
+    tests = sorted((tasks / task / "tests").glob("*.py"))
     if not tests:
         return
     src = "\n".join(p.read_text(errors="replace") for p in tests)
@@ -74,6 +74,7 @@ def main() -> None:
     ap.add_argument("--scan", default="/scratch/al9080/terminal-rl/measure/degenerate_scan.jsonl")
     ap.add_argument("tasks", nargs="*")
     a = ap.parse_args()
+    tasks = layout.Root.from_env().data / "sources" / "tw-extract" / "tasks"
     if a.tasks:
         todo = a.tasks
     else:
@@ -82,9 +83,9 @@ def main() -> None:
             for l in open(a.scan)
             if l.strip() and "fallback" in json.loads(l) and json.loads(l)["in_live_mix"]
         ]
-    print(f"{len(todo)} 道\n")
+    print(f"{len(todo)} tasks\n")
     for t in todo:
-        report(t)
+        report(tasks, t)
 
 
 if __name__ == "__main__":

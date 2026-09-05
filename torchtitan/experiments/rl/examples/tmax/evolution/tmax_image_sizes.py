@@ -20,6 +20,9 @@ import random
 import time
 import urllib.error
 import urllib.request
+from pathlib import Path
+
+from torchtitan.experiments.rl.examples.tmax import layout
 
 API = "https://hub.docker.com/v2/repositories/{repo}/tags/{tag}"
 
@@ -55,16 +58,16 @@ def size_of(image: str) -> tuple[str, int | None]:
 
 def main() -> None:
     ap = argparse.ArgumentParser()
-    ap.add_argument("--mix", default="/scratch/gpfs/TRIDAO/al9080/terminal-rl"
-                                     "/data/mix/mix_live.jsonl")
+    ap.add_argument("--mix", default=None, help="default: $TRL_BASE/data/mix/live.jsonl")
     ap.add_argument("--prefix", default="task_", help="id prefix selecting the rows")
     ap.add_argument("--expansion", type=float, default=2.5)
     ap.add_argument("--fleet-default", type=int, default=2, help="GiB")
     ap.add_argument("--workers", type=int, default=4)
     args = ap.parse_args()
+    mix = Path(args.mix) if args.mix else layout.Root.from_env().mix.live
 
     images = []
-    for line in open(args.mix):
+    for line in open(mix):
         if not line.strip():
             continue
         md = json.loads(line).get("metadata") or {}
