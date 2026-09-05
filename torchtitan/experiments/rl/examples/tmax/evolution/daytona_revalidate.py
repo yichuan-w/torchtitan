@@ -80,6 +80,7 @@ except ModuleNotFoundError as exc:  # pragma: no cover -- configuration, not log
         "copied out of the repository, set PYTHONPATH to a checkout instead. "
         f"({exc})"
     ) from exc
+from torchtitan.experiments.rl.examples.tmax import layout  # noqa: E402
 from torchtitan.experiments.rl.examples.tmax.grading import (  # noqa: E402
     grade_tmax,
     seed_workspace,
@@ -200,11 +201,23 @@ def starved(measured: dict, solve_exit: int | None, solve_timeout: int) -> str:
 
 async def probe(pkg: Path, shortcut: str | None, solve_timeout: int,
                 resources: dict | None = None,
-                require_paths: list[str] | None = None) -> dict:
-    row = pack.to_row(str(pkg))
+                require_paths: list[str] | None = None,
+                pretest: tuple[str, str] | None = None) -> dict:
+    # `pretest` is the row's pin hook; the adapter puts it on the grading
+    # payload beside this package's own environment identity, so grade_tmax
+    # below runs it, or skips it, exactly as a training rollout would.
+    row = pack.to_row(str(pkg), pretest=pretest)
     md = row["metadata"]
     tmax = md["tmax"]
     workdir = md.get("workdir") or "/workspace"
+    hook = None
+    if pretest:
+        stamped = tmax.get("pretest_env_identity") or ""
+        episode = tmax.get("pretest_episode_env_identity") or ""
+        hook = {"stamped": stamped, "episode": episode,
+                "runs": bool(stamped and episode and stamped == episode)}
+        log(f"pin hook: stamped={stamped or '?'} episode={episode or '?'} -> "
+            f"{'runs before the verifier' if hook['runs'] else 'skipped: environment moved'}")
     sol_dir = pkg / "solution"
     if shortcut is None and not (sol_dir / "solve.sh").exists():
         return {"ok": False, "stage": "no_solution",
@@ -263,13 +276,13 @@ async def probe(pkg: Path, shortcut: str | None, solve_timeout: int,
         why = starved(measured, code, solve_timeout) if reward < 1.0 else ""
         return {"ok": reward >= 1.0, "stage": "daytona_oracle",
                 "reward": reward, "solve_exit": code, "tail": tail,
-                "resources": box, "measured": measured,
+                "resources": box, "measured": measured, "pretest": hook,
                 "paths_checked": list(require_paths or []), "paths_missing": missing,
                 **({"starved": why, "why": f"reference solution ran out of {why} "
                                           f"in box {box}"} if why else {})}
     return {"ok": True, "stage": "daytona_shortcut",
             "passed": reward >= 1.0, "reward": reward, "tail": tail,
-            "resources": box, "paths_checked": list(require_paths or []),
+            "resources": box, "pretest": hook, "paths_checked": list(require_paths or []),
             "paths_missing": missing}
 
 
@@ -317,6 +330,9 @@ def main() -> None:
     ap.add_argument("--require-path", action="append", default=[],
                     help="report whether this path exists in the untouched "
                          "workspace (repeatable)")
+    ap.add_argument("--pretest-file", type=Path,
+                    help="the row's pin hook (a rewrite's pretest.json); graded "
+                         "with, as training does, before the verifier runs")
     args = ap.parse_args()
     log(f"harness: {_harness_provenance()}")
     try:
@@ -324,7 +340,9 @@ def main() -> None:
             probe(Path(args.package), args.shortcut, args.solve_timeout,
                   resources={"cpu": args.cpu, "mem_gb": args.mem_gb,
                              "disk_gb": args.disk_gb},
-                  require_paths=args.require_path))
+                  require_paths=args.require_path,
+                  pretest=(layout.read_pretest(args.pretest_file)
+                           if args.pretest_file else None)))
     except ValueError as e:
         # The package itself did not check out -- a missing harness file, a
         # malformed layout. Reporting it as a platform error is what made the

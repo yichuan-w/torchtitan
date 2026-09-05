@@ -89,7 +89,7 @@ def test_revalidate_records_paths_the_untouched_container_lacks(tmp_path, monkey
                       'assert open("/app/out.json").read()\nassert open("/usr/bin/curl")\n')
     calls = []
 
-    def fake_probe(w, shortcut=None, resources=None, require_paths=None):
+    def fake_probe(w, shortcut=None, resources=None, require_paths=None, pretest_file=None):
         calls.append((shortcut, list(require_paths or [])))
         if shortcut is None:
             return {"ok": True, "stage": "daytona_oracle", "reward": 1.0, "solve_exit": 0,
@@ -117,7 +117,7 @@ def test_revalidate_records_paths_the_untouched_container_lacks(tmp_path, monkey
 def test_revalidate_passes_when_every_unseen_path_is_a_precondition(tmp_path, monkeypatch) -> None:
     work, task = _pkg(tmp_path, "Do the thing.", 'assert open("/usr/bin/curl")\n')
 
-    def fake_probe(w, shortcut=None, resources=None, require_paths=None):
+    def fake_probe(w, shortcut=None, resources=None, require_paths=None, pretest_file=None):
         if shortcut is None:
             return {"ok": True, "stage": "daytona_oracle", "reward": 1.0, "solve_exit": 0,
                     "paths_checked": require_paths, "paths_missing": [],
@@ -274,7 +274,7 @@ def test_revalidate_records_names_the_task_never_states(tmp_path, monkeypatch) -
                       'report = json.load(open("/app/report.json"))\n'
                       'assert report["source_sha256"]\nassert report["input_records"] == 3\n')
 
-    def fake_probe(w, shortcut=None, resources=None, require_paths=None):
+    def fake_probe(w, shortcut=None, resources=None, require_paths=None, pretest_file=None):
         if shortcut is None:
             return {"ok": True, "stage": "daytona_oracle", "reward": 1.0, "solve_exit": 0,
                     "paths_checked": require_paths, "paths_missing": [],
@@ -313,7 +313,7 @@ def test_revalidate_sends_back_a_rewrite_that_jumped_too_far(tmp_path, monkeypat
                       'assert open("/app/report.txt").read()\n')
     task["solve_sh"] = "\n".join(f"step {i}" for i in range(30)) + "\n"     # seed: 1 line
 
-    def fake_probe(w, shortcut=None, resources=None, require_paths=None):
+    def fake_probe(w, shortcut=None, resources=None, require_paths=None, pretest_file=None):
         if shortcut is None:
             return {"ok": True, "stage": "daytona_oracle", "reward": 1.0, "solve_exit": 0,
                     "paths_checked": require_paths, "paths_missing": [],

@@ -68,14 +68,18 @@ RESOURCE_KEYS = ("cpu", "mem_gb", "disk_gb")
 
 def daytona_probe(work: Path, shortcut: str | None = None,
                   resources: dict | None = None,
-                  require_paths: list[str] | None = None) -> dict | None:
+                  require_paths: list[str] | None = None,
+                  pretest_file: Path | None = None) -> dict | None:
     """Run daytona_revalidate.py on this package; None when unconfigured.
 
     `resources` is the box to run it in: the size the row is provisioned at in
     training, so an oracle pass here is a pass where the task will be run. A
     key left None falls to the harness default for this process's env.
     `require_paths` come back in the verdict as `paths_missing`: the ones the
-    untouched workspace does not have.
+    untouched workspace does not have. `pretest_file` is the rewrite's
+    pretest.json, the row's pin hook: the probe grades with it, as training
+    does, so a solution that disturbs a pinned reference fails here and not
+    only in every rollout afterwards.
     """
     # Three different things used to collapse into one silent `return None`, and
     # the caller turns None into "neither docker nor Daytona is configured here".
@@ -111,6 +115,8 @@ def daytona_probe(work: Path, shortcut: str | None = None,
             cmd += [f"--{key.replace('_', '-')}", str(resources[key])]
     for p in require_paths or ():
         cmd += ["--require-path", p]
+    if pretest_file is not None:
+        cmd += ["--pretest-file", str(pretest_file)]
     # One retry, only for infra-shaped failures. The platform is measurably
     # flaky (DaytonaTimeout/BadGateway bursts), and a probe that fails for the
     # platform's sake discards a perfectly good retune: in one window 79
@@ -250,7 +256,8 @@ def _kind(task: dict) -> str:
 
 def revalidate(work: Path, image: str, tid: str, task: dict,
                orig: dict | None = None, changed: list[str] | None = None,
-               resources: dict | None = None, baseline=None) -> dict:
+               resources: dict | None = None, baseline=None,
+               pretest_file: Path | None = None) -> dict:
     """After an adjustment: still builds, still self-consistent, and the
     verifier still fails an untouched workspace. Building here checks the task
     is well-formed; it never runs the solver.
@@ -311,7 +318,8 @@ def revalidate(work: Path, image: str, tid: str, task: dict,
         step = (ts.violations(ts.size_of(orig["solve_sh"], orig["test_state_py"], _kind(orig)),
                               ts.size_of(task["solve_sh"], task["test_state_py"], _kind(task)))
                 if orig is not None else [])
-        dv = daytona_probe(work, resources=resources, require_paths=dark)
+        dv = daytona_probe(work, resources=resources, require_paths=dark,
+                           pretest_file=pretest_file)
         if dv is None:
             return {"ok": False, "stage": "no_docker",
                     "why": "structural change needs a build; neither docker "
@@ -340,7 +348,8 @@ def revalidate(work: Path, image: str, tid: str, task: dict,
             return {"ok": False, "stage": "step_size", "step": step, "why": ts.why(step),
                     "advice": advice, "solve_exit": dv.get("solve_exit"),
                     "measured": dv.get("measured"), "resources": dv.get("resources")}
-        null = daytona_probe(work, shortcut=":", resources=resources) or {}
+        null = daytona_probe(work, shortcut=":", resources=resources,
+                             pretest_file=pretest_file) or {}
         if null.get("passed"):
             return {"ok": False, "stage": "null_pass",
                     "why": "verifier passes on the untouched workspace"}
@@ -536,6 +545,12 @@ def process_one(rewrite: layout.RewriteDir, signal: dict, *, job: str,
         task["_seed_dir"] = str(seed_dir)
         task["_solved"], task["_attempts"] = solved, graded
         task["_resources"] = resources
+        # The row's pin hook, as the loop snapshotted it beside rewrite.json
+        # (None for a row without one). The agent's tool gets a copy under
+        # run/ to grade the way training does; the loop's probe reads the
+        # snapshot itself, which the session cannot reach.
+        task["_pretest"] = layout.read_pretest(rewrite.pretest)
+        pretest_file = rewrite.pretest if task["_pretest"] else None
         # The names the seed's verifier already depended on unseen, taken from
         # the input revision before anything here is rewritten.
         baseline = seed_literals(task, seed_dir)
@@ -616,7 +631,7 @@ def process_one(rewrite: layout.RewriteDir, signal: dict, *, job: str,
         box = _probe_box(new, resources)
         rec["resources"] = box
         v = revalidate(work, image, tid, new, orig=task, changed=changed,
-                       resources=box, baseline=baseline)
+                       resources=box, baseline=baseline, pretest_file=pretest_file)
         rec["revalidate"] = v
         _size_from_probe(rec, v, resources)
         if (
@@ -672,7 +687,8 @@ def process_one(rewrite: layout.RewriteDir, signal: dict, *, job: str,
                     rec["resources"] = box
                     changed = _changed(task, fixed)
                     v2 = revalidate(work, image, tid, fixed, orig=task, changed=changed,
-                                    resources=box, baseline=baseline)
+                                    resources=box, baseline=baseline,
+                                    pretest_file=pretest_file)
                     _size_from_probe(rec, v2, resources)
                     rec["oracle_repair"] = {"files": repaired + support, "ok": v2["ok"]}
                     v = v2

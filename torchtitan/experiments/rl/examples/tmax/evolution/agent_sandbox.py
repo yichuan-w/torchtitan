@@ -118,6 +118,21 @@ def _box(pkg: Path, at_max: bool) -> dict:
             "source": got.get("source") or "run/resources.json"}
 
 
+def _pretest_of(pkg: Path) -> tuple[str, str] | None:
+    """The row's pin hook, run/pretest.json, written by the harness before the
+    session the way run/resources.json is: (check script, the environment
+    identity its pins were captured against). None for a package driven by
+    hand or a row that carries no check; the container then grades with the
+    verifier alone, as training does for such a row."""
+    try:
+        got = json.loads((pkg / "run" / "pretest.json").read_text())
+    except (OSError, ValueError):
+        return None
+    if not isinstance(got, dict) or not got.get("pre_test_sh"):
+        return None
+    return str(got["pre_test_sh"]), str(got.get("pretest_env_identity") or "")
+
+
 def _box_str(box: dict) -> str:
     return (f"cpu={box.get('cpu')} mem_gb={box.get('mem_gb')} "
             f"disk_gb={box.get('disk_gb')}")
@@ -484,8 +499,12 @@ async def _serve(pkg: Path, sock: str, resources: dict | None = None) -> int:
     state = {**_read_state(pkg), "status": "booting", "sock": sock,
              "pid": os.getpid(), "started_at": _now()}
     _write_state(pkg, state)
+    # Read once at boot: the harness wrote it before the session, and the
+    # agent editing its copy would only mislead its own check, never the
+    # loop's probe, which reads the rewrite's own file.
+    pretest = _pretest_of(pkg)
     try:
-        row = pack.to_row(str(pkg))
+        row = pack.to_row(str(pkg), pretest=pretest)
     except Exception as e:  # noqa: BLE001 -- the package, not the platform
         log(f"package error: {type(e).__name__}: {e}")
         _write_state(pkg, {**state, "status": "failed",
@@ -500,6 +519,11 @@ async def _serve(pkg: Path, sock: str, resources: dict | None = None) -> int:
            **{k: v for k, v in (resources or {}).items() if v is not None}}
     log(f"boot sandbox for {md['instance_id']} box=[{_box_str(box)}] "
         f"(harness: {dr._harness_provenance()})")
+    if pretest:
+        tm = md["tmax"]
+        stamped, episode = tm.get("pretest_env_identity"), tm.get("pretest_episode_env_identity")
+        log(f"pin hook: stamped={stamped or '?'} episode={episode or '?'} -> "
+            f"{'runs before the verifier' if stamped and stamped == episode else 'skipped: environment moved'}")
     try:
         async with dr.boot_agent_sandbox(
             md.get("image") or "",
@@ -516,7 +540,7 @@ async def _serve(pkg: Path, sock: str, resources: dict | None = None) -> int:
             async def oracle(solve_timeout: int) -> dict:
                 # Re-read the package: the agent edits solution/ and tests/
                 # between calls and expects the current files to be judged.
-                tmax = pack.to_row(str(pkg))["metadata"]["tmax"]
+                tmax = pack.to_row(str(pkg), pretest=pretest)["metadata"]["tmax"]
                 sol_dir = pkg / "solution"
                 if not (sol_dir / "solve.sh").exists():
                     return {"ok": False, "error": "package ships no solution/solve.sh"}
@@ -547,7 +571,7 @@ async def _serve(pkg: Path, sock: str, resources: dict | None = None) -> int:
                 if op == "oracle":
                     return await oracle(int(req.get("solve_timeout") or SOLVE_TIMEOUT))
                 if op == "grade":
-                    tmax = pack.to_row(str(pkg))["metadata"]["tmax"]
+                    tmax = pack.to_row(str(pkg), pretest=pretest)["metadata"]["tmax"]
                     reward = await dr.grade_tmax(sb, tmax, workdir=workdir)
                     return {"ok": True, "reward": reward}
                 if op == "down":

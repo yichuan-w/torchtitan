@@ -64,6 +64,7 @@ $TRL_BASE/
 │       │                     task's first signal
 │       └── rewrites/<stamp>--<job>/          one handled signal (job = harder | easier)
 │           ├── rewrite.json      signal, input rev, status, verdicts, resources, result rev
+│           ├── pretest.json      the input row's pin hook (pre_test_sh + environment stamp); only when the row has one
 │           ├── package/          the working copy; renamed to r<N+1>/ when accepted
 │           │   └── traces/attempt-NN.jsonl   hardlinks to the run's rollout records
 │           └── sessions/<stamp>--<kind>/     one codex invocation (agent, repair, verifier, oracle)
@@ -187,6 +188,23 @@ task stays as it is: neither a success nor a failure of the pipeline, and
 left out of acceptance rates. A rejected or failed rewrite keeps its `package/`. On `accepted`, `package/` is renamed
 to `r<result_rev>/` after the harness files (`AGENTS.md`, `sandbox`, `run/`,
 `traces/`) are removed from it, so an accepted rewrite has no `package/`.
+
+### Pretest `tasks/<task>/rewrites/<stamp>--<job>/pretest.json`
+
+```json
+{"pre_test_sh": "set -u\n…", "pretest_env_identity": "image:hamishi740/swerl-tmax-v3:37a79d0fd9b9"}
+```
+
+The pin hook the input row carried (`metadata.tmax.pre_test_sh` and the
+environment identity its pins were captured against), snapshotted by the loop
+when the rewrite starts; absent for a row without one. A package holds no
+hook, so this file is what the loop's probe grades with
+(`daytona_revalidate.py --pretest-file`), and the harness copies it into the
+package as `run/pretest.json` for the agent's own `./sandbox check`. At the
+fold the hook returns to the row from the row it replaces, and the row
+builder derives the new package's environment identity beside the stamp: a
+rewrite that kept the environment keeps the check, one that rebuilt it is
+skipped by grading.
 
 ### Session `…/sessions/<stamp>--<kind>/session.json`
 

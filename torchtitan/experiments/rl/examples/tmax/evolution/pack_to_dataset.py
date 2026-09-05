@@ -10,6 +10,11 @@ a freshly prepared one. The loop replaces the row in the mix and publishes a
 new version through layout.MixDir; the CLI below builds a whole file from
 packages and, given a base, replaces rows in it.
 
+A package carries no pin hook: that lives on the row (``metadata.tmax``), so
+the caller hands it in as ``pretest`` and the adapter re-derives this
+package's environment identity beside it -- the seed's stamp travels, and a
+Dockerfile the rewrite changed shows up as a mismatch that grading skips.
+
 Usage:
   pack_to_dataset.py --evolved data/feedback-r1b --ids results/feedback_r1b_clean_ids.txt \\
       [--base rts_train.jsonl] --out rts_train_v2.jsonl
@@ -41,7 +46,11 @@ def _rts_to_row():
     import importlib.util
     import sys
 
-    root = next((c for c in _TT_CANDIDATES if c and os.path.isdir(
+    # TRL_TT is read here, not at import: the loop's launcher exports it
+    # before this module loads, but a caller that sets it afterwards (a test,
+    # a tool run by hand) has to be honoured too.
+    candidates = [os.environ.get("TRL_TT", ""), *_TT_CANDIDATES[1:]]
+    root = next((c for c in candidates if c and os.path.isdir(
         os.path.join(c, "torchtitan"))), None)
     if root is None:
         raise ModuleNotFoundError(
@@ -69,14 +78,18 @@ def _rts_to_row():
 
 
 def to_row(task_dir: str, *, task_id: str | None = None,
-           inject_agent_runtime: bool = True) -> dict:
+           inject_agent_runtime: bool = True,
+           pretest: tuple[str, str] | None = None) -> dict:
     """One package -> one data_path row, exactly as prepare_rts_data builds it
     (entrypoint, oracle_commands, tmux runtime injection included), so a folded
     row is indistinguishable from a freshly prepared one. A revision directory
     is named ``r<N>``, so the loop passes ``task_id``; a corpus directory is
-    named after its task and needs nothing."""
+    named after its task and needs nothing. ``pretest`` is the row's pin hook,
+    ``(pre_test_sh, pretest_env_identity)`` as the mix row or the dataset
+    carries it; None or an empty script adds nothing to the row."""
     row, reason = _rts_to_row()(task_dir, task_id=task_id,
-                                inject_agent_runtime=inject_agent_runtime)
+                                inject_agent_runtime=inject_agent_runtime,
+                                pretest=pretest)
     if row is None:
         raise ValueError(f"{task_dir}: {reason}")
     return row
