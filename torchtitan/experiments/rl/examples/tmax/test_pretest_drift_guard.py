@@ -90,7 +90,7 @@ def test_end_to_end_round0_runs_drift_skips():
     r0 = _fields(_bundle(None), _IMG)
     assert _would_run(r0["pretest_env_identity"], r0["pretest_episode_env_identity"])
     # evolved: the round rewrote a Dockerfile into the bundle -> "dockerfile:<sha>" != "image:<ref>" -> SKIP
-    ev = _fields(_bundle(b"FROM other\n"), _IMG)
+    ev = _fields(_bundle(b"FROM other\nRUN echo evolved\n"), _IMG)
     assert not _would_run(
         ev["pretest_env_identity"], ev["pretest_episode_env_identity"]
     )
@@ -135,11 +135,12 @@ def test_to_row_episode_identity_matches_stamp_under_default_prefix():
         tm["pretest_episode_env_identity"] == "image:" + _IMG
     )  # episode, unprefixed -> EQUAL
     assert tm["pretest_env_identity"] == tm["pretest_episode_env_identity"]
-    # a Dockerfile in the bundle overrides the image identity -> mismatch (would skip)
+    # a Dockerfile that BUILDS overrides the image identity -> mismatch (would skip). A bare single-FROM
+    # bundle does not: it builds nothing, so it keeps the image identity (test_single_from_... covers that).
     row2 = PREP._to_row(
         "task_1",
         _IMG,
-        _task_dir_with(dockerfile=b"FROM x\n"),
+        _task_dir_with(dockerfile=b"FROM x\nRUN echo hi\n"),
         PREP._DEFAULT_IMAGE_PREFIX,
         pre_test_sh="exit 0",
         stamped_identity="image:" + _IMG,
@@ -232,6 +233,57 @@ def test_stamp_is_carried_not_derived():
     assert not _would_run(
         tm["pretest_env_identity"], tm["pretest_episode_env_identity"]
     )  # -> SKIP, which is the whole point
+
+
+def test_single_from_dockerfile_is_the_image_identity():
+    # The published seeds-layout package carries a one-line "FROM <image>" beside the tests, with setup.sh in
+    # comments. It builds nothing, so the episode identity is that image and a stamp captured as "image:<ref>"
+    # still matches -- without this the adapter would skip every hook the moment it read the package directory.
+    img = _IMG.encode()
+    assert (
+        PREP._episode_env_identity(_bundle(b"FROM " + img + b"\n"), _IMG)
+        == "image:" + _IMG
+    )
+    commented = (
+        b"# setup.sh, inlined for the synthesis model\n#   apt-get install -y x\n\nFROM "
+        + img
+        + b"\n"
+    )
+    assert PREP._episode_env_identity(_bundle(commented), _IMG) == "image:" + _IMG
+    # anything that BUILDS keeps its own identity
+    for body in (
+        b"FROM x\nRUN echo hi\n",
+        b"FROM --platform=linux/amd64 x\n",
+        b"FROM x AS build\n",
+    ):
+        assert PREP._episode_env_identity(_bundle(body), _IMG).startswith("dockerfile:")
+    # the declared base wins over the row's image when they disagree, so an edited base still mismatches
+    other = "hamishi740/swerl-tmax-v3:other"
+    assert (
+        PREP._episode_env_identity(_bundle(b"FROM " + other.encode() + b"\n"), _IMG)
+        == "image:" + other
+    )
+    # and a registry prefix is stripped from the declared base too
+    assert (
+        PREP._episode_env_identity(
+            _bundle(b"FROM docker.io/" + img + b"\n"), _IMG, "docker.io/"
+        )
+        == "image:" + _IMG
+    )
+
+
+def test_seeds_layout_package_still_runs_its_hook():
+    # end to end: a row built from a seeds-layout dir (one-line Dockerfile present) must still RUN the check.
+    row = PREP._to_row(
+        "task_1",
+        _IMG,
+        _task_dir_with(dockerfile=b"FROM " + _IMG.encode() + b"\n"),
+        PREP._DEFAULT_IMAGE_PREFIX,
+        pre_test_sh="exit 0",
+        stamped_identity="image:" + _IMG,
+    )
+    tm = row["metadata"]["tmax"]
+    assert _would_run(tm["pretest_env_identity"], tm["pretest_episode_env_identity"])
 
 
 def test_parquet_projection_is_optional():

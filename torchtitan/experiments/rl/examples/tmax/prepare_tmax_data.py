@@ -85,9 +85,30 @@ _DEFAULT_WORKDIR = "/workspace"
 _PRETEST_COLUMNS = ("pre_test_sh", "pre_test_env_identity")
 
 
+def _sole_from_ref(dockerfile: bytes) -> str | None:
+    """The base ref of a Dockerfile that BUILDS NOTHING: exactly one instruction, a bare ``FROM <ref>``, with
+    every other line a comment or blank. Such a bundle boots that image unchanged, so its environment identity is
+    the image rather than the file's sha -- which is what lets a seeds-layout package (a one-line Dockerfile
+    beside the tests, the rest of the environment described in comments) still match a stamp captured as
+    "image:<ref>". Anything that actually builds -- a second instruction, ``--platform=``, a stage name -- has an
+    identity of its own and returns None."""
+    ref = None
+    for raw in dockerfile.decode("utf-8", "replace").splitlines():
+        line = raw.strip()
+        if not line or line.startswith("#"):
+            continue
+        parts = line.split()
+        if ref is not None or len(parts) != 2 or parts[0].upper() != "FROM":
+            return None
+        ref = parts[1]
+    return ref
+
+
 def _episode_env_identity(task_dir: str, image: str, image_prefix: str = "") -> str:
-    """This episode's environment identity: "dockerfile:<sha256>" when the bundle carries a Dockerfile
-    (environment/Dockerfile, then Dockerfile), else "image:<ref>" for the image the sample boots. Compared to
+    """This episode's environment identity: "dockerfile:<sha256>" when the bundle carries a Dockerfile that
+    BUILDS something (environment/Dockerfile, then Dockerfile), else "image:<ref>" -- for the image the sample
+    boots, or, when the bundle's Dockerfile is a bare single ``FROM``, for the base it declares (see
+    _sole_from_ref). Compared to
     the captured identity so a task whose environment drifted since capture skips the pin check. The image ref
     is normalised to the UNPREFIXED reference (a leading registry prefix such as "docker.io/" is stripped) so it
     matches env_stamp.env_identity, which is the image_map reference verbatim with no registry prefix."""
@@ -95,7 +116,12 @@ def _episode_env_identity(task_dir: str, image: str, image_prefix: str = "") -> 
         fp = os.path.join(task_dir, rel)
         if os.path.isfile(fp):
             with open(fp, "rb") as f:
-                return "dockerfile:" + hashlib.sha256(f.read()).hexdigest()
+                body = f.read()
+            sole = _sole_from_ref(body)
+            if sole is None:
+                return "dockerfile:" + hashlib.sha256(body).hexdigest()
+            image = sole  # a build-nothing bundle: the declared base IS the environment
+            break
     ref = image or ""
     if image_prefix and ref.startswith(image_prefix):
         ref = ref[len(image_prefix) :]
