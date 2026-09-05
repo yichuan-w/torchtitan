@@ -1204,6 +1204,164 @@ about 2.5 h before the shape of it was recognised.
 
 ---
 
+## 10e. Run `exp-tw-20260905`, launched 2026-09-05 05:47:43 EDT
+
+The first run on the layout/v2 tree (PR #62), and the first with a TF32 lm_head.
+Root `/scratch/gpfs/TRIDAO/al9080/terminal-rl/exp-tw-20260905`, run directory
+`runs/tmax-9b--20260905-094743Z` (also reachable as `runs/latest`). Launched by
+the same two systemd user units as `wd-20260904a`; measured 9 h with
+`NRestarts=0` on both.
+
+Placement is **2 trainer + 4 generator** on `RL_GPUS=6,7,1,2,5,4`, with
+`SWE_DP_SHARD=2` and `SWE_GEN_DP=4`. The four generators were there from the
+launch line, not added later.
+
+### What a step actually costs
+
+Read off `[trainer_loop] step N: <phase>` timestamps, steps 30-39. Median of the
+last eight complete steps:
+
+| segment | median | what it is |
+|---|---|---|
+| `awaiting training batch` -> microbatch 1 | 145 s (0 s on the last four steps) | waiting for the generators to fill a batch |
+| microbatch 1 -> `forward_backward done` | 411 s | the training compute |
+| `forward_backward done` -> `weights pushed` | 1-2 s | optimizer |
+| `weights pushed` -> `weights pulled` | **84 s** | four engines pulling 9B weights out of torchstore |
+| whole step (`begin` -> next `begin`) | **686 s** | |
+
+Two things follow.
+
+First, **do not read single-step wall-clock as a speed signal.** The batch size
+swings between 16 and 104 microbatches depending on how many groups
+`drop_zero_std` keeps, so the same machine produced a 231 s step and a 2193 s
+step on the same afternoon. The stable number is s/microbatch: 8.7-10.9 s here.
+
+Second, once the generators keep up (`awaiting` -> 0), **weight sync is the
+largest remaining fixed cost**: 84 s of every 686 s step, 12%, and it does not
+shrink with batch size. `optim done` -> `weights pushed` is 1-2 s, so essentially
+all of it is the pull side. Overlapping it with the next step's forward would be
+the next real win and is untouched -- it means changing the trainer's main loop,
+which is not something to do to a run that is up and stable.
+
+Throughput: 38 steps in 8 h 48 m = **4.3 steps/h** including the early
+batch-starved steps, **5.2 steps/h** once `awaiting` reached 0.
+
+### Hardening works, and the aggregate metric hides it
+
+`group_zero_std_frac` sat around 0.40-0.44 all run and looked flat. It is the
+wrong lens: it mixes tasks evolution has already hardened with tasks it has not
+touched. Pairing each task against itself, keyed on the `rev` field in
+`runs/*/rollouts/<task>/g<N>-r<M>.jsonl`:
+
+```
+                 16/16 solved   0/16 solved   has gradient
+before (r0)           86%            0%            13%      (n=143)
+after  (r>=1)         36%            3%            60%      (n=120)
+```
+
+100 tasks paired. Hardening converts roughly half the free wins into
+mixed-outcome groups, and buys that for 3% all-failed. That is the effect the
+aggregate number was averaging away, and it is the reason to keep the evolve
+loop running rather than treat the flat `zero_std` as evidence it does nothing.
+
+### One rung is not enough for a third of the corpus
+
+Same data, split by how many times a task has been hardened (all groups, not
+just the paired subset):
+
+```
+rev    draws   16/16   0/16   has gradient
+r0      1099     28%    12%       59%
+r1       223     34%     4%       61%
+r2        28     53%     3%       42%
+```
+
+**36-38% of post-hardening draws are still 16/16.** The r2 row says the obvious
+follow-up does not fix it either: the tasks that need a second rewrite are the
+ones the first rewrite failed to bite, and the second fares no better.
+
+The tunable is `evolution/task_size.py`:
+
+```python
+MIN_ADDED = 3         # at least 3 lines more than the seed
+MAX_ADDED = 8         # at most 8 -- "one requirement"
+MAX_ADDED_ASSERTS = 5
+```
+
+The verifier bounces any rewrite past `seed + MAX_ADDED`, and the comment there
+justifies the narrow band with "in this corpus the 0/16 share doubles once a task
+grows beyond one rung". The measurement above does not reproduce that yet: r1's
+all-failed share is 4%, *lower* than r0's 12%, so the band still has headroom on
+the hard side. Widening it (8 -> 12, asserts 5 -> 7) is the lever if the r2
+population grows and its 16/16 share stays near 50%. It was deliberately not
+changed mid-run: the constant is global, so moving it while the loop is folding
+makes the r0 and r1 populations incomparable afterwards.
+
+Corpus hardening coverage is not in the mix rows -- a row carries only
+`prompt`, `label`, `metadata`. Read it off the directory tree instead, taking the
+highest `rN` under `evolution/tasks/<id>/`:
+
+```
+r0 383   r1 213   r2 55   r3 12      => 280/663 = 42% hardened
+```
+
+### Generator load is deliberately uneven
+
+Engine 0 ran at `Running: 255-256` -- exactly `max_num_seqs` -- with 30-51
+queued, while the other three sat at 120-150 with an empty queue, for stretches
+of tens of minutes. This is not a routing bug. `routing/intra_generator_router.py`
+defaults to `StickySessionRoutingStrategy`: every request of one rollout session
+is pinned to the DP rank that served its first request, so the prefix cache is
+reused, and only new sessions consult the `LeastLoadedRoutingStrategy` fallback.
+Load is counted in requests at `reserve` time, so a session that lasts 58 turns
+and 3189 s keeps landing on the same rank however busy it becomes.
+
+The payoff is the prefix hit rate: 93-96% on all four engines. The cost is the
+skew, and the skew is harmless as long as `awaiting training batch` stays at 0 --
+the queue delays those rollouts, not the trainer. Switching to
+`LeastLoadedRoutingStrategy` would trade away exactly the thing the placement was
+chosen to protect. Watch `awaiting`, not `Waiting`.
+
+### Daytona loss rate
+
+124 sandbox losses in 8 h 48 m (`RuntimeError: daytona sandbox <id> is no longer
+available`, and `DaytonaTimeoutError`), arriving in bursts of 4-5 per ten-minute
+bucket separated by quiet hours. Over any trailing 300 rollouts `status=error`
+ran 0-3%. That is the platform's own flakiness and needs no action at this rate;
+a retry in `boot_agent_sandbox` is the response if it reaches ~10%.
+
+### Four monitoring readings that were wrong
+
+Every one of these produced a confident false statement before it was caught, so
+they are recorded as traps rather than as trivia.
+
+- **`find -name stderr.txt -newermt '-5 minutes'` never matched anything.** This
+  GNU find rejects the relative form, prints the accepted formats and exits; with
+  `2>/dev/null` on the pipe the count is silently 0 forever. The evolve watchdog
+  built on it would have declared "all sessions silent" on a healthy loop -- the
+  same false-hang call that once cost a batch of in-flight rewrites. Use
+  `-mmin -5`.
+- **`ledger.jsonl` has no `status` field** (624 rows, all `None`). Counting
+  pending from it returns 0. The counts live in `evolution/status.json`.
+- **`grep -c 'status=completed'` counts rollouts, not groups** -- 23055 against a
+  true 1398 groups, a 16x overstatement.
+- **Mix rows carry no `rev`/`generation` key**, so a hardening-coverage figure
+  computed from them reads 0%.
+
+### Two earlier claims in this runbook's lineage that do not hold
+
+- Adding a fourth generator was described as a live fix that took the prefix hit
+  rate from 4.1% back to 93-96%. Checking every log of `wd-20260904a`: that run
+  was `gen_dp=3` from start to finish and no fourth engine was ever added. The
+  4.1% was measured on the three-generator run and the 93-96% on this one, which
+  also changed the lm_head precision, `SWE_AC`, and the corpus. It is a
+  between-run difference with several variables moving, not an A/B.
+- "About 10 steps/hour" was quoted for this configuration. Measured: 4.3-5.2.
+  The high figure came from timing `forward_backward` and forgetting that
+  `awaiting training batch` is part of the step.
+
+---
+
 ## 10a. Open questions for the team
 
 Two values in the shared docs disagree with what this host measured. Neither is
