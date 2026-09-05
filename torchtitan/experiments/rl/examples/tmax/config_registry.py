@@ -800,6 +800,17 @@ def rl_grpo_qwen3_5_9b_tmax() -> Controller.Config:
             # job down with `OSError: [Errno 122] Disk quota exceeded` mid-save,
             # which also leaves a truncated checkpoint behind.
             keep_latest_k=int(os.environ.get("SWE_CKPT_KEEP", "3")),
+            # A save blocks the training loop: the framework default is
+            # async_mode="disabled", and the 9B's 109 GB of model plus optimizer
+            # state took 61-86 s per save on this box (measured over four runs
+            # on 2026-09-04/05), every SWE_CKPT_INTERVAL steps. "async" blocks
+            # only for the GPU-to-CPU copy and writes from a thread;
+            # "async_with_pinned_mem" blocks for under a second and holds the
+            # whole 109 GB in pinned host RAM, which is half of what the box has
+            # free. Left at the framework default until a run has measured the
+            # threaded mode against the same recipe -- a save that is still
+            # writing when the next one starts is worse than a blocking one.
+            async_mode=os.environ.get("SWE_CKPT_ASYNC", "disabled"),
             # SWE_CKPT_FOLDER: absolute path redirects checkpoint I/O off the
             # dump filesystem entirely (os.path.join drops the dump prefix for
             # absolute paths). Added when the shared GPFS fileset hit its quota

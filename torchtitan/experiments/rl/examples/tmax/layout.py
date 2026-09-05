@@ -350,6 +350,11 @@ class Run:
         return self.path / "checkpoints-held"
 
     @property
+    def weights(self) -> Path:
+        """Every checkpoint as bf16 HF weights, written by ckpt_export.py."""
+        return self.path / "weights"
+
+    @property
     def checkpoints_mirror(self) -> Path:
         """The newest complete step, copied to GPFS by ckpt_mirror.sh; one at a time."""
         return self.path / "checkpoints-mirror"
