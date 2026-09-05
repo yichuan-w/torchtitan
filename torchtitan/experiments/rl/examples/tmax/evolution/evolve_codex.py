@@ -859,6 +859,12 @@ the pipeline that built these tasks learned the hard way:
 - **Every COPY source must exist in the package.** A Dockerfile line referring to
   a file you did not write is the most common way a rewritten task is thrown
   away: it builds nowhere, and the failure arrives long after this session ended.
+- **What you add has to fit in the row.** The package is shipped to training as
+  one line of JSON: COPY sources together stay under 1 MiB, and files under
+  `tests/` are text and together stay under 1 MiB; a binary under `tests/` is
+  refused by name (`./sandbox up` tells you). A binary the environment needs is
+  a COPY source under `environment/` or is produced by a RUN; a large reference
+  the verifier needs is checked by hash, not shipped.
 - Preserve the seed's base image and installation style; make the smallest change
   the axis needs. An environment rewritten wholesale is a new task, not a harder
   one.
@@ -954,6 +960,12 @@ the pipeline that built these tasks learned the hard way:
 - **Every COPY source must exist in the package.** A Dockerfile line referring to
   a file you did not write is the most common way a rewritten task is thrown
   away: it builds nowhere, and the failure arrives long after this session ended.
+- **What you add has to fit in the row.** The package is shipped to training as
+  one line of JSON: COPY sources together stay under 1 MiB, and files under
+  `tests/` are text and together stay under 1 MiB; a binary under `tests/` is
+  refused by name (`./sandbox up` tells you). A binary the environment needs is
+  a COPY source under `environment/` or is produced by a RUN; a large reference
+  the verifier needs is checked by hash, not shipped.
 - Preserve the seed's base image and installation style; make the smallest change
   the axis needs. An environment rewritten wholesale is a new task, not a harder
   one.

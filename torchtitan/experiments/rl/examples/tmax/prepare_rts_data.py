@@ -101,9 +101,14 @@ _REJECT_PRIVILEGED = re.compile(
 )
 _COMMENT_LINE = re.compile(r"^\s*#.*$", re.M)
 
-# Byte ceiling for an inlined build context. The corpus is tiny here (p50 ~5 KB,
-# p90 ~15 KB) but a handful of tasks carry multi-MB fixtures that would bloat the
-# JSONL for no benefit.
+# Byte ceiling for what a row carries inline: the Dockerfile's COPY sources
+# (base64) and the grading fixtures under tests/ (text), each set bounded on its
+# own. The corpus is tiny here (p50 ~5 KB, p90 ~15 KB) but a handful of tasks
+# carry multi-MB fixtures that would bloat the JSONL for no benefit, and every
+# row is read whole at boot, at every hot reload and every loop round. The
+# evolution agent is told this number in its job prompt (evolve_codex
+# _HARDER_JOB / _HARDER_JOB_BLIND) and in agents/task_evolution.md; change the
+# three together.
 _MAX_CONTEXT_BYTES = 1 << 20
 
 _DEFAULT_WORKDIR = "/app"
@@ -308,23 +313,41 @@ def _oracle_commands(solve_sh: str) -> int:
     return count
 
 
-def _grading_fixtures(task_dir: str) -> dict[str, str]:
-    """``{relpath: content}`` for every text file under ``tests/`` except test.sh
-    (uploaded separately). grading.py maps ``tests/*`` -> ``/tests/*`` at grade time."""
+def _grading_fixtures(task_dir: str) -> tuple[dict[str, str], str | None]:
+    """``{relpath: content}`` for every file under ``tests/`` except test.sh
+    (uploaded separately), and the reason the package is refused, or None.
+    grading.py maps ``tests/*`` -> ``/tests/*`` at grade time.
+
+    The fixtures travel inside the row as text, so together they are held to
+    ``_MAX_CONTEXT_BYTES`` like the COPY sources, and a file that is not UTF-8
+    refuses the package by name. It used to be skipped: the verifier then found
+    it missing at grade time and the failure surfaced as the reference solution
+    not passing, two steps away from the file that caused it. A binary a task
+    needs belongs under ``environment/`` as a COPY source, or is produced by the
+    Dockerfile; a large reference is checked by hash rather than shipped.
+    """
     fixtures: dict[str, str] = {}
+    total = 0
     base = os.path.join(task_dir, "tests")
     for dirpath, _dirs, files in os.walk(base):
-        for fn in files:
+        for fn in sorted(files):
             abspath = os.path.join(dirpath, fn)
             rel = os.path.relpath(abspath, task_dir)
             if rel == os.path.join("tests", "test.sh"):
                 continue
             try:
-                with open(abspath, encoding="utf-8") as f:
-                    fixtures[rel] = f.read()
-            except (UnicodeDecodeError, OSError):
+                with open(abspath, "rb") as f:
+                    blob = f.read()
+                text = blob.decode("utf-8")
+            except UnicodeDecodeError:
+                return {}, f"tests_fixture_binary ({rel})"
+            except OSError:
                 continue
-    return fixtures
+            total += len(blob)
+            if total > _MAX_CONTEXT_BYTES:
+                return {}, "tests_fixtures_too_large"
+            fixtures[rel] = text
+    return fixtures, None
 
 
 # Per-task Daytona sizing floors. The dataset's declared/estimated numbers are
@@ -429,6 +452,9 @@ def _to_row(
         return None, "copy_source_missing"
     except ValueError:
         return None, "build_context_too_large"
+    fixtures, reason = _grading_fixtures(task_dir)
+    if reason:
+        return None, reason
     # After _build_context: the appended step has no COPY sources of its own, and a
     # trailing RUN in the final stage leaves WORKDIR/ENTRYPOINT/CMD untouched.
     if inject_agent_runtime:
@@ -495,7 +521,7 @@ def _to_row(
         "oracle_commands": oracle_commands,
         "tmax": {
             "test_sh": test_sh,
-            "fixtures": _grading_fixtures(task_dir),
+            "fixtures": fixtures,
             "reward_path": _REWARD_PATH,
             # The pre-verify hook, when the dataset carries one for this task. The episode identity is computed
             # from the bundle: a seeds-layout package whose Dockerfile is a bare single FROM resolves to
@@ -579,7 +605,10 @@ def build_rows(
             and row["metadata"]["oracle_commands"] > max_oracle_commands
         ):
             row, reason = None, "oracle_over_turn_budget"
-        reasons[reason] = reasons.get(reason, 0) + 1
+        # A reason may carry a detail after a space (the binary fixture's
+        # name); the tally is by the reason alone.
+        bucket = reason.split(" ", 1)[0]
+        reasons[bucket] = reasons.get(bucket, 0) + 1
         if row is not None:
             rows.append(row)
             if limit is not None and len(rows) >= limit:

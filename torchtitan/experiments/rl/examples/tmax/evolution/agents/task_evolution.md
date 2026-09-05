@@ -22,7 +22,10 @@ Your working directory is the task package itself.
 
 **You may edit any of them, and you may add new ones.** A file you create in the
 package travels back with it, so an axis that needs a fixture, a config or a data
-file is a normal thing to do rather than something to work around. `AGENTS.md`,
+file is a normal thing to do rather than something to work around. It travels as
+one line of JSON, so COPY sources together stay under 1 MiB, and files under
+`tests/` are text and together stay under 1 MiB; a binary under `tests/` is
+refused by name, and `./sandbox up` says so. `AGENTS.md`,
 `sandbox` and `traces/` are the harness and do not travel. Which files you
 *should* touch depends on the job in your prompt, and that prompt says so.
 

@@ -162,7 +162,10 @@ python -m torchtitan.experiments.rl.examples.tmax.prepare_rts_data \
 Rejected tasks, all measured rather than guessed: `needs_privileged` (692 -- an
 init system as PID 1, the docker socket, or `--privileged`), `copy_source_missing`
 (549 -- the corpus references a file it does not ship), `build_context_too_large`
-(112 -- over 1 MiB of COPY sources), `verifier_writes_no_reward` (1).
+(112 -- over 1 MiB of COPY sources), `verifier_writes_no_reward` (1). Two more
+apply to what sits under `tests/` beside the verifier, since those files ride in
+the row as text: `tests_fixtures_too_large` (over 1 MiB together) and
+`tests_fixture_binary` (a file that is not UTF-8; it used to be dropped silently).
 
 **Pick the pool to match the turn budget.** A rollout capped at `SWE_MAX_TURNS`
 turns cannot solve a task whose oracle needs more commands than that, and such
