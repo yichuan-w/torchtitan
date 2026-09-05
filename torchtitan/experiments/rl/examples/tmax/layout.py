@@ -176,6 +176,12 @@ class MixDir:
     def manifest_of(version_path: Path) -> Path:
         return version_path.with_name(version_path.name[: -len(".jsonl")] + ".manifest.json")
 
+    @staticmethod
+    def inputs_of(version_path: Path) -> Path:
+        """The build manifest of a version that came from outside (v1, the
+        seed): what the seed's builder pinned by sha256, copied in."""
+        return version_path.with_name(version_path.name[: -len(".jsonl")] + ".inputs.json")
+
     def versions(self) -> list[tuple[int, Path]]:
         """(version, file), ascending, from the history directory's names."""
         if not self.history.exists():
@@ -287,6 +293,11 @@ class Run:
     @property
     def launch_json(self) -> Path:
         return self.path / "launch.json"
+
+    @property
+    def launch_diff(self) -> Path:
+        """The checkout's uncommitted changes, present only when tt_commit is -dirty."""
+        return self.path / "launch.diff"
 
     @property
     def stdout_log(self) -> Path:

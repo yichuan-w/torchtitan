@@ -718,8 +718,36 @@ def rl_grpo_qwen3_5_9b_tmax() -> Controller.Config:
     # gets it. SWE_GDN_BI below sets it independently, and still wins.
     _prefix_cache_env = os.environ.get("SWE_GEN_PREFIX_CACHE", "")
     _prefix_cache = None if _prefix_cache_env == "" else _prefix_cache_env == "1"
+    # DP routing across the generator's engines. tmax DEFAULTS to
+    # StickySession(fallback=RoundRobin): deal new sessions out evenly BY COUNT so no
+    # single engine piles up. The upstream default (fallback=LeastLoaded) concentrated
+    # ~2x load on engine 0 -- reserved_load is per-turn (transient, ~0 between an
+    # agent's turns) but the sticky pin is per-session (persistent), so LeastLoaded's
+    # min() froze the frequent between-turn ties onto the lowest index. Measured on a
+    # 4-engine 9B run: engine 0 ran ~2.0x the others under LeastLoaded, ~1.2x under
+    # RoundRobin. The sticky pin is kept either way for prefix-cache reuse.
+    # SWE_DP_ROUTER=leastloaded restores the upstream LeastLoaded fallback for A/B.
+    _dp_router = config.generator.intra_generator_router
+    if os.environ.get("SWE_DP_ROUTER", "roundrobin").lower() not in (
+        "leastloaded",
+        "least",
+        "ll",
+    ):
+        from torchtitan.experiments.rl.routing.strategies import (
+            RoundRobinRoutingStrategy,
+            StickySessionRoutingStrategy,
+        )
+
+        _dp_router = dataclasses.replace(
+            _dp_router,
+            strategy=StickySessionRoutingStrategy.Config(
+                fallback_strategy=RoundRobinRoutingStrategy.Config()
+            ),
+        )
+
     config.generator = dataclasses.replace(
         config.generator,
+        intra_generator_router=_dp_router,
         sampling=dataclasses.replace(
             config.generator.sampling, max_tokens=_TMAX_9B_PER_TURN_TOKENS
         ),

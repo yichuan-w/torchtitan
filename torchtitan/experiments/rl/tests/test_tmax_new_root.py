@@ -24,6 +24,7 @@ def _seed(tmp_path: Path) -> Path:
         '{"label": "tw_1", "metadata": {"instance_id": "tw_1"}}\n'
         '{"label": "tw_2", "metadata": {"instance_id": "tw_2", "rev": 3}}\n'
     )
+    (tmp_path / "seed.manifest.json").write_text('{"inputs": {"tw-extract": "abc"}}\n')
     return mix
 
 
@@ -44,6 +45,12 @@ def test_create_publishes_v1_with_rev_zero_and_links_sources(tmp_path: Path) -> 
     assert (root.data / "sources" / "tw-extract").resolve() == src.resolve()
     exp = json.loads(root.experiment_json.read_text())
     assert exp["name"] == "root" and exp["seed_mix_version"] == 1 and exp["forked_from"] is None
+    # The seed's own build manifest is copied in beside v1, so the root never
+    # has to reach outside itself for where its rows came from.
+    inputs = root.path / exp["seed_mix"]["inputs"]
+    assert inputs == layout.MixDir.inputs_of(path)
+    assert json.loads(inputs.read_text()) == {"inputs": {"tw-extract": "abc"}}
+    assert exp["seed_mix"]["sha256"] == layout.sha256_file(tmp_path / "seed.jsonl")
     assert root.runs.is_dir() and root.evals.is_dir() and root.evolution.tasks.is_dir()
 
 
