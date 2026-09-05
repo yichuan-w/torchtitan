@@ -92,6 +92,7 @@ def _root_sh(cmd: str) -> str:
     q = shlex.quote(cmd)
     return f'if [ "$(id -u)" = 0 ]; then sh -c {q}; else sudo -n sh -c {q}; fi'
 
+
 # Two fixture classes with OPPOSITE timing (see seed_workspace / grade_tmax):
 #   environment/seeds/<rel> -- agent-facing INPUT files (the task's initial
 #     workspace state). Seeded to /workspace BEFORE the agent runs (upstream
@@ -257,6 +258,46 @@ async def grade_tmax(
         )
         return 0.0
 
+    # PRE-VERIFY (reaudit decision-1): run the task's exported pre_test integrity check ONCE as root, here between
+    # the sentinel confirmation and the verifier — the same single seam the anti-tamper reset uses. It re-hashes the
+    # spec's pinned references (assert-refuse; it never restores, so it cannot clobber an honest edit, and it never
+    # writes reward.txt — as a separate exec that write would be overwritten by test.sh; the short-circuit lives
+    # here). A nonzero exit means a pinned reference was mutated / deleted / a pinned command diverged, so the
+    # episode scores 0 WITHOUT running the verifier. Absent field ⇒ no-op (the whole corpus before this lands).
+    pre_test = tmax.get("pre_test_sh")
+    if pre_test:
+        # ENVIRONMENT-DRIFT GUARD (reaudit): tw_* task ids evolve IN PLACE across breeding rounds, so a task's
+        # environment can differ from the one its pins were captured against. The pins are keyed by task_id, so
+        # on a changed environment the assert-refuse would falsely refuse an HONEST episode. Run the pin check
+        # ONLY when this episode's environment identity equals the captured one; on any difference OR a missing
+        # identity, SKIP (no-op: reward path unchanged, grading falls through to test.sh) and log one line. The
+        # identities are carried in tmax by prepare_tmax_data (grade_tmax sees no image/Dockerfile of its own).
+        # Round 0: both are "image:<ref>" and match, so the block runs; an evolved task that rewrote its
+        # Dockerfile shows "dockerfile:<sha>" and mismatches, so it is skipped.
+        _stamped = tmax.get("pretest_env_identity") or ""
+        _episode = tmax.get("pretest_episode_env_identity") or ""
+        if _stamped and _episode and _stamped == _episode:
+            pt_rc, _pt_out, _pt_err = await sb.exec(
+                pre_test,
+                user="root",
+                check=False,
+                timeout=min(120, timeout),
+            )
+            if pt_rc != 0:
+                logger.info(
+                    "[tmax] pre_test integrity check failed (rc=%s); scoring 0 without running the verifier",
+                    pt_rc,
+                )
+                return 0.0
+        else:
+            logger.info(
+                "[tmax] pre_test SKIPPED for %s: environment changed since capture (stamped=%s episode=%s); "
+                "grading via test.sh without the pin check",
+                tmax.get("task_id", "?"),
+                _stamped or "?",
+                _episode or "?",
+            )
+
     # test.sh scripts assume they are invoked as `bash /tests/test.sh` (they use
     # $(dirname "$0") to find sibling fixtures). Run as root so /logs and any
     # system path is writable; the verifier is trusted dataset code.
@@ -269,8 +310,7 @@ async def grade_tmax(
     reward_txt = await sb.read_file(reward_path, user="root")
     if (reward_txt or "").strip() == nonce:
         logger.info(
-            "[tmax] verifier left the sentinel in place (never wrote %s); "
-            "scoring 0",
+            "[tmax] verifier left the sentinel in place (never wrote %s); " "scoring 0",
             reward_path,
         )
         return 0.0
@@ -332,9 +372,7 @@ def grade_tmax_daytona(
     reward_path = tmax.get("reward_path") or _DEFAULT_REWARD_PATH
 
     dirs = f"{_VERIFIER_DIR} {_TESTS_DIR} {workdir}"
-    sb.process.exec(
-        _root_sh(f"mkdir -p {dirs} && chmod 777 {dirs}"), timeout=60
-    )
+    sb.process.exec(_root_sh(f"mkdir -p {dirs} && chmod 777 {dirs}"), timeout=60)
     for rel, content in fixtures.items():
         dest = _grading_fixture_dest(rel)
         if dest is None:
