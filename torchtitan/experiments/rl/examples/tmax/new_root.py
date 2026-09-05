@@ -66,10 +66,18 @@ def create(base: Path, *, mix: Path | None, sources: list[Path], bin_dir: Path |
             sources = [p for p in (src.data / "sources").iterdir()] if (src.data / "sources").exists() else []
         bin_dir = bin_dir or (src.bin if src.bin.exists() else None)
     elif mix is not None:
-        seed_version, _ = root.mix.publish(_rows_with_rev(mix))
+        seed_version, version_path = root.mix.publish(_rows_with_rev(mix))
         manifest = mix.with_name(mix.name.removesuffix(".jsonl") + ".manifest.json")
         seed_mix = {"path": str(mix.resolve()), "sha256": layout.sha256_file(mix),
-                    "manifest": str(manifest.resolve()) if manifest.exists() else None}
+                    "inputs": None}
+        if manifest.exists():
+            # build_mix_v2 leaves the manifest that pins the seed's own inputs
+            # by sha256 beside the seed file. The seed file lives outside the
+            # root and may move; the manifest is small, so the root keeps its
+            # own copy beside v1 and never has to reach outside for it.
+            inputs = layout.MixDir.inputs_of(version_path)
+            shutil.copy2(manifest, inputs)
+            seed_mix["inputs"] = str(inputs.relative_to(root.path))
     else:
         raise SystemExit("give --mix or --fork-from")
     for s in sources:
