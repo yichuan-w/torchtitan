@@ -12,32 +12,34 @@ from __future__ import annotations
 
 import argparse
 import json
-import os
 from pathlib import Path
 
-ROOT = Path(os.environ.get("TRL_ROOT", "/scratch/gpfs/TRIDAO/al9080/terminal-rl"))
+from torchtitan.experiments.rl.examples.tmax import layout
 
 
 def main() -> None:
     ap = argparse.ArgumentParser()
-    ap.add_argument("--mix", default=str(ROOT / "data/mix/mix_live.jsonl"))
-    ap.add_argument("--ids", default=str(ROOT / "data/mix/train_ready_ids.txt"),
-                    help="restrict to these task ids, one per line")
+    ap.add_argument("--mix", default=None, help="default: $TRL_BASE/data/mix/live.jsonl")
+    ap.add_argument("--ids", default=None,
+                    help="restrict to these task ids, one per line; default: the TW "
+                         "dataset's metadata/train_ready_ids.txt under data/sources/tw-extract")
     ap.add_argument("--out", required=True)
     a = ap.parse_args()
+    root = layout.Root.from_env()
+    mix = Path(a.mix) if a.mix else root.mix.live
+    ids = Path(a.ids) if a.ids else (root.data / "sources" / "tw-extract" / "metadata"
+                                     / "train_ready_ids.txt")
 
-    wanted = None
-    if a.ids:
-        wanted = {x.strip() for x in Path(a.ids).read_text().splitlines() if x.strip()}
+    wanted = {x.strip() for x in ids.read_text().splitlines() if x.strip()}
 
-    rows, unsized, missing = [], [], set(wanted or ())
-    with open(a.mix) as fh:
+    rows, unsized, missing = [], [], set(wanted)
+    with open(mix) as fh:
         for line in fh:
             if not line.strip():
                 continue
             m = json.loads(line)["metadata"]
             tid = m["instance_id"]
-            if wanted is not None and tid not in wanted:
+            if tid not in wanted:
                 continue
             missing.discard(tid)
             cpu, mem, disk = (m.get("daytona_cpu"), m.get("daytona_mem_gb"),

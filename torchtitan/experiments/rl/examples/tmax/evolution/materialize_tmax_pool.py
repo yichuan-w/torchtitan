@@ -2,7 +2,8 @@
 """Materialize tmax mix tasks as task packages so the evolve loop can retune them.
 
 The evolution loop resolves a signal's task id to a package directory
-(instruction.md + environment/Dockerfile + tests/test.sh) under POOL_ROOTS;
+(instruction.md + environment/Dockerfile + tests/test.sh) under
+data/sources/<corpus>/tasks;
 tmax rows exist only as prepared jsonl rows, so their signals have always
 died as no_pool_dir. This writes one package per train-split tmax task,
 built purely from the row's own fields:
@@ -31,11 +32,10 @@ import argparse
 import hashlib
 import json
 import math
-import os
 import time
 from pathlib import Path
 
-ROOT = Path(os.environ.get("TRL_ROOT", "/scratch/gpfs/TRIDAO/al9080/terminal-rl"))
+from torchtitan.experiments.rl.examples.tmax import layout
 
 STUB_SOLVE = """#!/bin/bash
 # No reference solution ships with this corpus (Tmax-Tasks-Clean carries
@@ -58,17 +58,25 @@ def _sha(path: Path) -> str:
 
 def main() -> None:
     ap = argparse.ArgumentParser()
-    ap.add_argument("--train-parquet",
-                    default=str(ROOT / "data/tmax-clean/splits/train.parquet"))
-    ap.add_argument("--prepared", default=str(ROOT / "data/tmax_train.jsonl"))
-    ap.add_argument("--out-root", default=str(ROOT / "data/tmax-extract/tasks"))
+    ap.add_argument("--train-parquet", default=None,
+                    help="default: $TRL_BASE/data/sources/tmax-clean/splits/train.parquet")
+    ap.add_argument("--prepared", default=None,
+                    help="prepare_rts_data output; default: $TRL_BASE/data/tmax_train.jsonl")
+    ap.add_argument("--out-root", default=None,
+                    help="default: $TRL_BASE/data/sources/tmax-extract/tasks")
     ap.add_argument("--force", action="store_true",
                     help="rewrite packages that already exist")
     ap.add_argument("--apply", action="store_true")
     args = ap.parse_args()
+    root = layout.Root.from_env()
+    train_parquet = (Path(args.train_parquet) if args.train_parquet
+                     else root.data / "sources" / "tmax-clean" / "splits" / "train.parquet")
+    prepared = Path(args.prepared) if args.prepared else root.data / "tmax_train.jsonl"
+    out_root = (Path(args.out_root) if args.out_root
+                else root.data / "sources" / "tmax-extract" / "tasks")
 
     import pyarrow.parquet as pq
-    t = pq.read_table(args.train_parquet, columns=[
+    t = pq.read_table(train_parquet, columns=[
         "task_id", "peak_ram_mb", "peak_disk_mb"])
     want: dict[str, dict] = {}
     for i in range(t.num_rows):
@@ -77,9 +85,8 @@ def main() -> None:
             "peak_disk_mb": t.column("peak_disk_mb")[i].as_py(),
         }
 
-    out_root = Path(args.out_root)
     written, skipped, missing = [], [], []
-    for line in open(args.prepared):
+    for line in open(prepared):
         row = json.loads(line)
         md = row["metadata"]
         tid = md["instance_id"]
@@ -122,10 +129,8 @@ def main() -> None:
         "written": len(written), "skipped_existing": len(skipped),
         "problems": missing, "unresolved_ids": sorted(want),
         "inputs": {
-            "train_parquet": {"path": args.train_parquet,
-                              "sha": _sha(Path(args.train_parquet))},
-            "prepared": {"path": args.prepared,
-                         "sha": _sha(Path(args.prepared))},
+            "train_parquet": {"path": str(train_parquet), "sha": _sha(train_parquet)},
+            "prepared": {"path": str(prepared), "sha": _sha(prepared)},
         },
     }
     print(json.dumps({k: v for k, v in manifest.items() if k != "inputs"},

@@ -21,7 +21,7 @@ and calling ``register_agent("my_agent", my_agent)``; no rollouter changes.
 from __future__ import annotations
 
 from collections.abc import Awaitable, Callable
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -84,6 +84,20 @@ class AgentRun:
     finish_reason: str = "unknown"
     """How the loop ended: submit / hit_max_turns / hit_time_budget /
     stopped_early / error, or "unknown" when the harness does not track it."""
+
+    exec_trace: list[dict] = field(default_factory=list)
+    """Every sandbox command the harness ran, in order, as
+    ``{"t", "secs", "exit", "cmd"}`` (``cmd`` cut to 400 characters). A rollout's
+    wall time is dominated by what happens between generations, and the training
+    loop records only the total, so this is what tells a slow agent command from
+    a slow harness. The rollouter writes it into the rollout record's ``exec``.
+    Empty for harnesses that do not keep one."""
+
+    pane_path: str | None = None
+    """Where the harness's terminal transcript is INSIDE the sandbox, or None
+    when it keeps none. Reported rather than fetched: only the rollouter knows
+    whether this run collects transcripts and where they go, and the sandbox is
+    still up when the harness returns, so it can read the file then."""
 
 
 AgentFn = Callable[[AgentTask], Awaitable[AgentRun]]

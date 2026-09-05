@@ -2,7 +2,7 @@
 """Reconcile train_ready_ids.txt with the mix it is supposed to describe.
 
 The list and the mix are edited by different tools. drop_from_mix.py takes a row
-out of mix_live.jsonl and writes removed_tasks.jsonl; it does not touch the id
+out of the live mix and writes removed_tasks.jsonl; it does not touch the id
 list, so a dropped task stays on the list and walks back into the corpus at the
 next build_mix_v2.py run -- the drop undone by a rebuild, with nothing to say it
 happened. Repairs go the other way: a task fixed and verified is still off the
@@ -19,13 +19,11 @@ from __future__ import annotations
 
 import argparse
 import json
-import os
 import shutil
 import time
 from pathlib import Path
 
-ROOT = Path(os.environ.get("TRL_ROOT", "/scratch/gpfs/TRIDAO/al9080/terminal-rl"))
-MIX_DIR = ROOT / "data" / "mix"
+from torchtitan.experiments.rl.examples.tmax import layout
 
 
 def mix_ids(mix: Path) -> set[str]:
@@ -39,14 +37,18 @@ def mix_ids(mix: Path) -> set[str]:
 
 def main() -> None:
     ap = argparse.ArgumentParser()
-    ap.add_argument("--list", default=str(MIX_DIR / "train_ready_ids.txt"))
-    ap.add_argument("--mix", default=str(MIX_DIR / "mix_live.jsonl"))
+    ap.add_argument("--list", default=None,
+                    help="default: the TW dataset's metadata/train_ready_ids.txt under "
+                         "$TRL_BASE/data/sources/tw-extract")
+    ap.add_argument("--mix", default=None, help="default: $TRL_BASE/data/mix/live.jsonl")
     ap.add_argument("--add", nargs="*", default=[],
                     help="ids to readmit (a repaired task, verified)")
     ap.add_argument("--apply", action="store_true")
     a = ap.parse_args()
-
-    list_path, mix_path = Path(a.list), Path(a.mix)
+    root = layout.Root.from_env()
+    list_path = Path(a.list) if a.list else (root.data / "sources" / "tw-extract" / "metadata"
+                                             / "train_ready_ids.txt")
+    mix_path = Path(a.mix) if a.mix else root.mix.live
     ready = [ln.strip() for ln in list_path.read_text().splitlines() if ln.strip()]
     live = mix_ids(mix_path)
 

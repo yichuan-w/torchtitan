@@ -21,7 +21,8 @@ running trainer (SWE_DATA_HOT_RELOAD=1):
     the style is detected per row and reused. A diff of an applied run shows one
     inserted field per changed row and nothing else.
 
-Dry run by default; --apply backs the mix up first.
+Dry run by default. --apply writes through layout.write_mix: on a root's live
+mix that publishes the next version, and the history is the backup.
 """
 from __future__ import annotations
 
@@ -29,29 +30,27 @@ import argparse
 import collections
 import json
 import os
-import shutil
 import sys
-import time
 from pathlib import Path
 
 if sys.version_info < (3, 11):
     sys.exit("needs python3.11+ for tomllib (della: use `python3.11`)")
 import tomllib
 
-ROOT = Path(os.environ.get("TRL_ROOT", "/scratch/gpfs/TRIDAO/al9080/terminal-rl"))
+from torchtitan.experiments.rl.examples.tmax import layout
+
 HOLDOUT_N = int(os.environ.get("TMAX_HOLDOUT_N", "64"))
 
-# Same pools refold_repaired.find_package walks, plus the evolution output the
-# loop rewrites in place. All three agree wherever they overlap (518 of the 695
-# tw tasks exist in both tw-extract and retuned, with identical budgets), so the
-# order only decides which one answers, never what the answer is.
-_POOLS = ("data/tw-extract/tasks", "data/swe-extract/tasks", "evolution/retuned")
+# The corpora refold_repaired.find_package walks, under data/sources/. A task id
+# names one package, so the order only decides which corpus answers first,
+# never what the answer is.
+_POOLS = ("tw-extract", "swe-extract")
 
 
-def declared_timeout(task_id: str) -> float | None:
+def declared_timeout(root: layout.Root, task_id: str) -> float | None:
     """The task's own agent budget, or None if it declares none."""
     for pool in _POOLS:
-        toml = ROOT / pool / task_id / "task.toml"
+        toml = root.data / "sources" / pool / "tasks" / task_id / "task.toml"
         if not toml.exists():
             continue
         try:
@@ -76,7 +75,7 @@ def _ascii_style(row: dict, original: str) -> bool | None:
 
 def main() -> None:
     ap = argparse.ArgumentParser()
-    ap.add_argument("--mix", default=str(ROOT / "data/mix/mix_live.jsonl"))
+    ap.add_argument("--mix", default=None, help="default: $TRL_BASE/data/mix/live.jsonl")
     ap.add_argument("--holdout-n", type=int, default=HOLDOUT_N)
     ap.add_argument("--apply", action="store_true")
     ap.add_argument("--strip", action="store_true", help=(
@@ -89,8 +88,8 @@ def main() -> None:
         "training rows keep the launcher's SWE_TIME_BUDGET_SEC; declared "
         "budgets are for the TB-2.0 eval set, which prepare_tb2_data handles."))
     args = ap.parse_args()
-
-    mix = Path(args.mix)
+    root = layout.Root.from_env()
+    mix = Path(args.mix) if args.mix else root.mix.live
     lines = [l for l in mix.read_text().splitlines() if l.strip()]
     n_hold = args.holdout_n
     rotation, holdout = lines[:-n_hold], lines[-n_hold:]
@@ -122,10 +121,9 @@ def main() -> None:
         if not args.apply:
             print(f"dry run -- pass --apply to write ({changed} rows would change)")
             return
-        bak = f"{mix}.bak-strip-timeout-{time.strftime('%Y%m%d-%H%M%S')}"
-        shutil.copy2(mix, bak)
-        mix.write_text("\n".join(out + holdout) + "\n")
-        print(f"wrote {mix} ({changed} rows changed); backup {bak}")
+        published = layout.write_mix(mix, out + holdout)
+        print(f"wrote {mix} ({changed} rows changed)"
+              + (f"; published mix v{published[0]:04d}" if published else ""))
         check = [l for l in mix.read_text().splitlines() if l.strip()]
         assert len(check) == len(lines), "row count moved"
         assert check[-n_hold:] == holdout, "holdout no longer byte-identical"
@@ -141,7 +139,7 @@ def main() -> None:
             dist[row["metadata"]["agent_timeout_sec"]] += 1
             out.append(line)
             continue
-        ts = declared_timeout(tid)
+        ts = declared_timeout(root, tid)
         if ts is None:
             undeclared += 1
             dist[None] += 1
@@ -180,10 +178,9 @@ def main() -> None:
         print(f"dry run -- pass --apply to write ({changed} rows would change)")
         return
 
-    bak = f"{mix}.bak-agent-timeout-{time.strftime('%Y%m%d-%H%M%S')}"
-    shutil.copy2(mix, bak)
-    mix.write_text("\n".join(out + holdout) + "\n")
-    print(f"wrote {mix} ({changed} rows changed); backup {bak}")
+    published = layout.write_mix(mix, out + holdout)
+    print(f"wrote {mix} ({changed} rows changed)"
+          + (f"; published mix v{published[0]:04d}" if published else ""))
 
     check = [l for l in mix.read_text().splitlines() if l.strip()]
     assert len(check) == len(lines), f"row count moved {len(lines)} -> {len(check)}"

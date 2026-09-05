@@ -18,22 +18,27 @@ from __future__ import annotations
 import argparse
 import collections
 import json
+from pathlib import Path
 
-BASE = "/scratch/gpfs/TRIDAO/al9080/terminal-rl"
+from torchtitan.experiments.rl.examples.tmax import layout
 
 
 def main() -> None:
     ap = argparse.ArgumentParser()
-    ap.add_argument("--measured", default=f"{BASE}/results/disk_full.jsonl")
-    ap.add_argument("--mix", default=f"{BASE}/data/mix/mix_live.jsonl")
+    ap.add_argument("--measured", default=None,
+                    help="measure_disk.py output; default: $TRL_BASE/results/disk_full.jsonl")
+    ap.add_argument("--mix", default=None, help="default: $TRL_BASE/data/mix/live.jsonl")
     ap.add_argument("--fleet-default", type=int, default=2,
                     help="TT_DAYTONA_DISK_GB in the live env")
     ap.add_argument("--cap", type=int, default=10, help="platform per-sandbox cap")
     ap.add_argument("--list-gap", action="store_true")
     args = ap.parse_args()
+    root = layout.Root.from_env()
+    measured_path = Path(args.measured) if args.measured else root.path / "results" / "disk_full.jsonl"
+    mix = Path(args.mix) if args.mix else root.mix.live
 
     measured = {}
-    for line in open(args.measured):
+    for line in open(measured_path):
         line = line.strip()
         if not line:
             continue
@@ -42,7 +47,7 @@ def main() -> None:
             measured[r["task_id"]] = r
 
     rows = {}
-    for line in open(args.mix):
+    for line in open(mix):
         line = line.strip()
         if not line:
             continue

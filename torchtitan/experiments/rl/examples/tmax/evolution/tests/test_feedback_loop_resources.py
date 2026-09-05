@@ -4,7 +4,7 @@ own probe in the box the agent's check measured, and provisions the row from
 the probe's own counters (never below the seed)."""
 from __future__ import annotations
 
-import json
+import shutil
 import sys
 import types
 from pathlib import Path
@@ -12,6 +12,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 import feedback_loop as fb
+from torchtitan.experiments.rl.examples.tmax import layout
 
 
 FLOOR = {"cpu": 1, "mem_gb": 2, "disk_gb": 2, "source": "row"}
@@ -84,22 +85,26 @@ def test_daytona_probe_runs_in_the_box_it_is_given(tmp_path, monkeypatch) -> Non
 
 def test_process_one_probes_in_the_agents_box_and_sizes_from_its_own_reading(
         tmp_path, monkeypatch) -> None:
-    src = tmp_path / "src"
+    root = layout.Root(tmp_path / "root")
+    monkeypatch.setenv("TRL_BASE", str(root.path))
     task = {"instruction": "do the thing\n", "dockerfile": "FROM scratch\n",
             "solve_sh": "#!/bin/sh\n", "test_state_py": "assert True\n"}
+    r0 = root.evolution.task("task-a").rev(0)
     for key, rel in fb.ev.file_map(task).items():
-        (src / rel).parent.mkdir(parents=True, exist_ok=True)
-        (src / rel).write_text(task[key])
-    out_root = tmp_path / "retuned"
+        (r0 / rel).parent.mkdir(parents=True, exist_ok=True)
+        (r0 / rel).write_text(task[key])
+    rw = root.evolution.task("task-a").rewrite("harder")
+    rw.path.mkdir(parents=True)
+    shutil.copytree(r0, rw.package)
     seen = {}
 
-    def fake_evolve_agentic(agent_task, job, **kwargs):
+    def fake_evolve_agentic(rewrite, agent_task, job, **kwargs):
         seen["agent_task"] = agent_task
         # The agent's own check said 3000 MB: enough to raise the box to 4 GiB.
         return {**agent_task, "instruction": "do the harder thing\n",
                 "_measured": {"mem_peak_mb": 3000, "df_used_mb": 800, "cpu_seconds": 50},
-                "_box": BOX, "_at_max": False,
-                "_agent_validated": True, "_extra_files": {}}
+                "_box": BOX, "_at_max": False, "_agent_validated": True,
+                "_support_changed": [], "_operator": "op", "_family": "fam"}
 
     def fake_revalidate(work, image, tid, new, orig=None, changed=None, resources=None,
                         baseline=None):
@@ -115,28 +120,30 @@ def test_process_one_probes_in_the_agents_box_and_sizes_from_its_own_reading(
                                     CYBER_RETRIES=2)
     monkeypatch.setitem(sys.modules, "evolve_codex", fake_ec)
     monkeypatch.setenv("SWE_RETUNE_AGENT", "codex")
-    monkeypatch.setattr(fb.ev, "load", lambda _work: dict(task))
-    monkeypatch.setattr(fb.ev, "history_from_pool", lambda _dirs: ({}, {}))
     monkeypatch.setattr(fb.llm, "operator_shortlist",
                         lambda _task, _uo, _uf: [("fam", "op", "definition")])
     monkeypatch.setattr(fb, "revalidate", fake_revalidate)
     monkeypatch.setattr(fb.shutil, "which", lambda _name: None)
 
-    rec = fb.process_one({"task_id": "task-a", "solved": 16, "graded": 16,
-                          "attempts": []}, src, out_root, resources=FLOOR)
+    rec = fb.process_one(rw, {"task": "task-a", "rev": 0, "run": "r", "group": 1,
+                              "direction": "harder", "solved": 16, "total": 16,
+                              "attempts": []},
+                         job="harder", seed_dir=r0, resources=FLOOR)
 
-    assert rec["status"] == "ok", rec
+    assert rec["status"] == "accepted", rec
     assert seen["agent_task"]["_resources"] == FLOOR
+    assert seen["agent_task"]["_seed_dir"] == str(r0)
     # The agent's reading picked the probe's box: 3000 MB * 1.3 -> 4 GiB.
     box = seen["probe_box"]
     assert (box["cpu"], box["mem_gb"], box["disk_gb"]) == (1, 4, 2)
     assert box["source"] == "measured:agent_check"
     # The row is sized from the probe's reading, not the agent's: 1200 MB * 1.3
-    # -> 2 GiB, which is the seed's size.
+    # -> 2 GiB, which is the seed's size. It travels in the record; nothing is
+    # left beside the package for the fold to find.
     size = rec["resources"]
     assert (size["cpu"], size["mem_gb"], size["disk_gb"]) == (1, 2, 2)
     assert size["source"] == "measured:loop_probe"
     assert size["box"] == {"cpu": 1, "mem_gb": 4, "disk_gb": 2}
-    on_disk = json.loads((out_root / "task-a" / ".resources.json").read_text())
-    assert (on_disk["cpu"], on_disk["mem_gb"], on_disk["disk_gb"]) == (1, 2, 2)
-    assert on_disk["measured"]["mem_peak_mb"] == 1200
+    assert size["measured"]["mem_peak_mb"] == 1200
+    assert not (rw.package / ".resources.json").exists()
+    assert rec["agent_validated"] is True

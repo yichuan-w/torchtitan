@@ -66,9 +66,10 @@ _DEFAULT_DATA = os.environ.get("SWE_PROMPT_DATA", "")
 # the original holdout split so curriculum selection cannot contaminate eval.
 _INCLUDE_IDS = os.environ.get("SWE_INCLUDE_PROMPTS", "")
 
-# Optional zero-std skip source (SWE_ZERO_STD_DIR output from a prior run): every
-# instance_id in it is dropped at dataset load so all-pass / all-fail prompts (no
-# learning signal) are not sampled again. Empty = keep all rows.
+# Optional skip source: a prior run's signals/ directory (one <task>--g<group>.json
+# per training group with zero reward variance, see LAYOUT.md) or a JSONL/bare-id
+# file. Every task id in it is dropped at dataset load so all-pass / all-fail
+# prompts (no learning signal) are not sampled again. Empty = keep all rows.
 _SKIP_IDS = os.environ.get("SWE_SKIP_PROMPTS", "")
 
 # Terminal-Bench 2.0 eval (rl_grpo_qwen3_5_9b_tmax_tb2_eval): the TB-2.0 JSONL
@@ -581,8 +582,8 @@ def rl_grpo_qwen3_5_9b_tmax() -> Controller.Config:
     config.async_loop = dataclasses.replace(
         config.async_loop,
         # Total optimizer steps. Swe base = 100; SWE_TRAIN_STEPS raises it (e.g. 500
-        # for a long "wash" run that streams zero-std prompt annotations to
-        # SWE_ZERO_STD_LOG for a later SWE_SKIP_PROMPTS pass).
+        # for a long "wash" run whose zero-variance groups land in the run's
+        # signals/, fed back as SWE_SKIP_PROMPTS to a later pass).
         num_training_steps=int(os.environ.get("SWE_TRAIN_STEPS", "100")),
         num_groups_per_train_step=num_groups_per_train_step,
         group_size=group_size,

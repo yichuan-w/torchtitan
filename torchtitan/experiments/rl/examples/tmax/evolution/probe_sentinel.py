@@ -33,6 +33,7 @@ else:
     os.environ.setdefault("TT_DAYTONA_LABEL", "sentinel_probe")
 
 import daytona_revalidate as dr  # noqa: E402
+from torchtitan.experiments.rl.examples.tmax import layout  # noqa: E402
 from torchtitan.experiments.rl.harness.agents.claude_code import boot_agent_sandbox  # noqa: E402
 
 LOCAL = Path(os.environ.get("MEASURE_LOCAL_BASE", "/scratch/al9080/terminal-rl/measure"))
@@ -73,7 +74,7 @@ async def probe(tid: str, cpu: int, mem: int, disk: int,
             return {**rec, "ok": False, "why": f"{type(e).__name__}: {str(e)[:200]}"}
 
 
-async def main_async(a: argparse.Namespace) -> None:
+async def main_async(a: argparse.Namespace, mix: Path) -> None:
     sizes = {}
     for line in open(a.sizing):
         if line.strip():
@@ -83,7 +84,7 @@ async def main_async(a: argparse.Namespace) -> None:
     # directory, so resolving through the pool would skip 400 tasks whose
     # images can be just as noisy.
     meta = {}
-    for line in open(a.mix):
+    for line in open(mix):
         if line.strip():
             m = json.loads(line)["metadata"]
             meta[m.get("instance_id")] = m
@@ -96,7 +97,7 @@ async def main_async(a: argparse.Namespace) -> None:
     todo = [t for t in sorted(sizes) if t not in done and t in meta]
     if a.limit:
         todo = todo[: a.limit]
-    log.info("%d 题待测", len(todo))
+    log.info("%d tasks to probe", len(todo))
     sem = asyncio.Semaphore(a.concurrency)
     lock = asyncio.Lock()
     n = [0]
@@ -113,7 +114,7 @@ async def main_async(a: argparse.Namespace) -> None:
                 f.write(json.dumps(r) + "\n")
             n[0] += 1
             if r.get("ok") and not r.get("clean"):
-                log.warning("[%d/%d] %s 脏: %r", n[0], len(todo), t, r.get("got", "")[:120])
+                log.warning("[%d/%d] %s dirty: %r", n[0], len(todo), t, r.get("got", "")[:120])
             elif n[0] % 50 == 0:
                 log.info("[%d/%d] ...", n[0], len(todo))
 
@@ -123,8 +124,7 @@ async def main_async(a: argparse.Namespace) -> None:
 def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--sizing", default=str(LOCAL / "sizing_both_v3.jsonl"))
-    ap.add_argument("--mix",
-                    default="/scratch/gpfs/TRIDAO/al9080/terminal-rl/data/mix/mix_live.jsonl")
+    ap.add_argument("--mix", default=None, help="default: $TRL_BASE/data/mix/live.jsonl")
     ap.add_argument("--out", default=str(LOCAL / "sentinel_probe.jsonl"))
     ap.add_argument("--concurrency", type=int, default=48)
     # Tasks carrying a dockerfile are built server-side on first boot, and at
@@ -136,10 +136,11 @@ def main() -> None:
     ap.add_argument("--overwrite", action="store_true")
     ap.add_argument("--label", default="sentinel_probe")
     a = ap.parse_args()
+    mix = Path(a.mix) if a.mix else layout.Root.from_env().mix.live
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s",
                         handlers=[logging.StreamHandler(),
                                   logging.FileHandler(LOCAL / "sentinel_probe.log")])
-    asyncio.run(main_async(a))
+    asyncio.run(main_async(a, mix))
 
 
 if __name__ == "__main__":

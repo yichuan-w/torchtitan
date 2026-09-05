@@ -11,15 +11,18 @@ so this one only applies what that one decided.
 Rows with no entry keep what they have. The held-out tail is left alone by
 default: resizing it changes what validation runs, which is a separate decision
 from sizing the training rotation.
+
+--apply writes through layout.write_mix: on a root's live mix that publishes the
+next version, and the history is the backup.
 """
 from __future__ import annotations
 
 import argparse
 import collections
 import json
-import shutil
-from datetime import datetime
 from pathlib import Path
+
+from torchtitan.experiments.rl.examples.tmax import layout
 
 CPU_CAP, MEM_CAP, DISK_CAP = 4, 8, 10
 
@@ -28,11 +31,12 @@ def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--sizing", default="/scratch/al9080/terminal-rl/measure/sizing_v2.jsonl",
                     help="derive_sizing.py output; task_id, cpu, mem_gb, disk_gb")
-    ap.add_argument("--mix", default="/scratch/gpfs/TRIDAO/al9080/terminal-rl/data/mix/mix_live.jsonl")
+    ap.add_argument("--mix", default=None, help="default: $TRL_BASE/data/mix/live.jsonl")
     ap.add_argument("--holdout-n", type=int, default=64)
     ap.add_argument("--include-holdout", action="store_true")
     ap.add_argument("--apply", action="store_true")
     a = ap.parse_args()
+    mix = Path(a.mix) if a.mix else layout.Root.from_env().mix.live
 
     want = {}
     for line in open(a.sizing):
@@ -41,7 +45,7 @@ def main() -> None:
             want[r["task_id"]] = (min(r["cpu"], CPU_CAP), min(r["mem_gb"], MEM_CAP),
                                   min(r["disk_gb"], DISK_CAP))
 
-    lines = [l for l in Path(a.mix).read_text().splitlines() if l.strip()]
+    lines = [l for l in mix.read_text().splitlines() if l.strip()]
     n = len(lines)
     editable = n if a.include_holdout else n - a.holdout_n
     out, stats = [], collections.Counter()
@@ -76,10 +80,9 @@ def main() -> None:
     if not a.apply:
         print(f"dry run -- {stats['changed']} rows would change")
         return
-    bak = f"{a.mix}.bak-audit-{datetime.now():%Y%m%d-%H%M%S}"
-    shutil.copy2(a.mix, bak)
-    Path(a.mix).write_text("\n".join(out) + "\n")
-    print(f"wrote {a.mix} ({stats['changed']} changed); backup {bak}")
+    published = layout.write_mix(mix, out)
+    print(f"wrote {mix} ({stats['changed']} changed)"
+          + (f"; published mix v{published[0]:04d}" if published else ""))
 
 
 if __name__ == "__main__":

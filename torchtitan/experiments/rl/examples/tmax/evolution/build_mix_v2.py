@@ -7,8 +7,8 @@ experiment start. This builds a fresh mix from first sources only:
 
   TW side    metadata/train_ready_ids.txt (669) -- the seed-cleanliness
              standard (oracle-passed, no infra errors, correct metadata).
-             Rows are packed fresh from the SEED pool (data/tw-extract/tasks),
-             never from evolution output. Measured per-task disk overrides
+             Rows are packed fresh from the SEED pool
+             (data/sources/tw-extract/tasks), never from evolution output. Measured per-task disk overrides
              (results/disk_full.jsonl, real-block-usage semantics) are applied
              to these seed rows only, capped at Daytona's 10GB.
 
@@ -19,10 +19,13 @@ experiment start. This builds a fresh mix from first sources only:
              measured peaks when above fleet defaults.
 
 Output: rows shuffled with a fixed seed; the LAST --holdout-n rows are the
-held-out validation slice (same convention as take7). A manifest records
-counts, input digests and any id that failed to resolve. Run on della.
+held-out validation slice (same convention as take7). A manifest,
+`<out stem>.manifest.json` beside the output (the name new_root.py looks for
+and records in experiment.json), pins counts, input digests and any id that
+failed to resolve. The output is a seed file for `new_root.py --mix`, written
+through layout.write_mix; it is not a root's live mix. Run on della.
 
-    python3.11 build_mix_v2.py --out $ROOT/data/mix/mix_v2.jsonl [--apply]
+    python3.11 build_mix_v2.py --out mix_v2.jsonl [--apply]
 """
 from __future__ import annotations
 
@@ -30,13 +33,15 @@ import argparse
 import hashlib
 import json
 import math
-import os
 import random
 import sys
 import time
 from pathlib import Path
 
-ROOT = Path(os.environ.get("TRL_ROOT", "/scratch/gpfs/TRIDAO/al9080/terminal-rl"))
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import pack_to_dataset as pack  # noqa: E402
+from torchtitan.experiments.rl.examples.tmax import layout  # noqa: E402
+
 DISK_CAP_GB = 10
 FLEET_MEM_GB, FLEET_DISK_GB = 2, 2
 
@@ -56,11 +61,9 @@ def _sha(path: Path) -> str:
     return h.hexdigest()[:16]
 
 
-def tw_rows(ids_path: Path, disk_results: Path,
-            tasks_parquet: Path) -> tuple[list[dict], list[str]]:
-    sys.path.insert(0, str(ROOT / "evolve-onhost/scripts"))
+def tw_rows(ids_path: Path, disk_results: Path, tasks_parquet: Path,
+            seed_pool: Path) -> tuple[list[dict], list[str]]:
     import pyarrow.parquet as pq  # noqa: PLC0415
-    import solve_daytona as sd  # noqa: PLC0415 -- della-side import
 
     # The dataset's own per-task metadata is the source of truth
     # (metadata/tasks.parquet: req_cpus / req_memory_mb / est_disk_mb /
@@ -89,7 +92,6 @@ def tw_rows(ids_path: Path, disk_results: Path,
                     max(int(r["recommend_daytona_gb"]), 1), DISK_CAP_GB)
 
     rows, missing = [], []
-    seed_pool = ROOT / "data/tw-extract/tasks"
     for tid in (l.strip() for l in open(ids_path)):
         if not tid:
             continue
@@ -98,7 +100,7 @@ def tw_rows(ids_path: Path, disk_results: Path,
             missing.append(tid)
             continue
         try:
-            row = sd.pack.to_row(str(src))
+            row = pack.to_row(str(src))
         except Exception as e:  # noqa: BLE001
             missing.append(f"{tid} (pack: {type(e).__name__})")
             continue
@@ -164,21 +166,38 @@ def tmax_rows(parquet: Path, prepared: Path) -> tuple[list[dict], list[str]]:
 
 def main() -> None:
     ap = argparse.ArgumentParser()
-    ap.add_argument("--tw-ids", default=str(ROOT / "data/mix/train_ready_ids.txt"))
-    ap.add_argument("--tmax-parquet",
-                    default=str(ROOT / "data/tmax-clean/splits/train.parquet"))
-    ap.add_argument("--tmax-prepared", default=str(ROOT / "data/tmax_train.jsonl"))
-    ap.add_argument("--disk-results", default=str(ROOT / "results/disk_full.jsonl"))
-    ap.add_argument("--tasks-parquet",
-                    default=str(ROOT / "data/mix/tasks.parquet"))
-    ap.add_argument("--out", default=str(ROOT / "data/mix/mix_v2.jsonl"))
+    ap.add_argument("--tw-ids", default=None,
+                    help="default: the TW dataset's metadata/train_ready_ids.txt under "
+                         "$TRL_BASE/data/sources/tw-extract")
+    ap.add_argument("--tmax-parquet", default=None,
+                    help="default: $TRL_BASE/data/sources/tmax-clean/splits/train.parquet")
+    ap.add_argument("--tmax-prepared", default=None,
+                    help="prepare_rts_data output; default: $TRL_BASE/data/tmax_train.jsonl")
+    ap.add_argument("--disk-results", default=None,
+                    help="measure_disk.py output; default: $TRL_BASE/results/disk_full.jsonl")
+    ap.add_argument("--tasks-parquet", default=None,
+                    help="default: the TW dataset's metadata/tasks.parquet under "
+                         "$TRL_BASE/data/sources/tw-extract")
+    ap.add_argument("--out", required=True, type=Path,
+                    help="the seed file for new_root.py --mix")
     ap.add_argument("--holdout-n", type=int, default=64)
     ap.add_argument("--seed", type=int, default=1208)
     ap.add_argument("--apply", action="store_true")
     args = ap.parse_args()
+    root = layout.Root.from_env()
+    tw_src = root.data / "sources" / "tw-extract"
+    tw_ids = Path(args.tw_ids) if args.tw_ids else tw_src / "metadata" / "train_ready_ids.txt"
+    tasks_parquet = (Path(args.tasks_parquet) if args.tasks_parquet
+                     else tw_src / "metadata" / "tasks.parquet")
+    tmax_parquet = (Path(args.tmax_parquet) if args.tmax_parquet
+                    else root.data / "sources" / "tmax-clean" / "splits" / "train.parquet")
+    tmax_prepared = (Path(args.tmax_prepared) if args.tmax_prepared
+                     else root.data / "tmax_train.jsonl")
+    disk_results = (Path(args.disk_results) if args.disk_results
+                    else root.path / "results" / "disk_full.jsonl")
 
-    tw, tw_missing = tw_rows(Path(args.tw_ids), Path(args.disk_results), Path(args.tasks_parquet))
-    tm, tm_missing = tmax_rows(Path(args.tmax_parquet), Path(args.tmax_prepared))
+    tw, tw_missing = tw_rows(tw_ids, disk_results, tasks_parquet, tw_src / "tasks")
+    tm, tm_missing = tmax_rows(tmax_parquet, tmax_prepared)
     rows = tw + tm
     rng = random.Random(args.seed)
     rng.shuffle(rows)
@@ -189,22 +208,18 @@ def main() -> None:
         "tmax_rows": len(tm), "tmax_missing_prepared": tm_missing,
         "total": len(rows), "holdout_n": args.holdout_n, "shuffle_seed": args.seed,
         "inputs": {
-            "tw_ids": {"path": args.tw_ids, "sha": _sha(Path(args.tw_ids))},
-            "tasks_parquet": {"path": args.tasks_parquet,
-                              "sha": _sha(Path(args.tasks_parquet))},
-            "tmax_parquet": {"path": args.tmax_parquet,
-                             "sha": _sha(Path(args.tmax_parquet))},
-            "tmax_prepared": {"path": args.tmax_prepared,
-                              "sha": _sha(Path(args.tmax_prepared))},
+            "tw_ids": {"path": str(tw_ids), "sha": _sha(tw_ids)},
+            "tasks_parquet": {"path": str(tasks_parquet), "sha": _sha(tasks_parquet)},
+            "tmax_parquet": {"path": str(tmax_parquet), "sha": _sha(tmax_parquet)},
+            "tmax_prepared": {"path": str(tmax_prepared), "sha": _sha(tmax_prepared)},
             # The measured-disk file decides every TW daytona_disk_gb override.
             # Left unpinned, a build that silently ran without it is
             # indistinguishable afterwards from one that used it: the rows just
             # carry no disk override, which also happens when nothing measured
             # over the fleet default.
             "disk_results": {
-                "path": args.disk_results,
-                "sha": (_sha(Path(args.disk_results))
-                        if Path(args.disk_results).exists() else None),
+                "path": str(disk_results),
+                "sha": _sha(disk_results) if disk_results.exists() else None,
             },
         },
     }
@@ -216,14 +231,12 @@ def main() -> None:
     if not args.apply:
         print("dry run -- pass --apply to write")
         return
-    out = Path(args.out)
+    out = args.out
     out.parent.mkdir(parents=True, exist_ok=True)
-    with open(out, "w") as f:
-        for r in rows:
-            f.write(json.dumps(r) + "\n")
-    with open(str(out) + ".manifest.json", "w") as f:
-        json.dump(manifest, f, indent=2)
-    print(f"wrote {out} ({len(rows)} rows) + manifest")
+    layout.write_mix(out, [json.dumps(r) for r in rows])
+    manifest_path = layout.MixDir.manifest_of(out)
+    layout.write_json_atomic(manifest_path, manifest)
+    print(f"wrote {out} ({len(rows)} rows) + {manifest_path.name}")
 
 
 if __name__ == "__main__":

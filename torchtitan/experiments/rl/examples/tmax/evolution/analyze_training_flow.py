@@ -1,10 +1,14 @@
 #!/usr/bin/env python3
 """Inspect the exact task/revision flow through asynchronous RL training.
 
-The training controller writes append-only lifecycle events; evolve_ondella
-writes append-only retune/fold events. This tool joins them without modifying
-either source. Its four views answer: what trained in a step, what happened to a
+The training controller writes append-only lifecycle events under the run's
+trainer directory; the evolve loop writes each task's lineage and the ledger
+under the experiment root. This tool joins them without modifying either
+source. Its four views answer: what trained in a step, what happened to a
 task, whether lifecycle invariants hold, and how data/evolution moved overall.
+
+    analyze_training_flow.py [--root $TRL_BASE] [--run <name>] summary
+    analyze_training_flow.py step <train_step> | task <task_id> | audit
 """
 
 from __future__ import annotations
@@ -13,19 +17,22 @@ import argparse
 import json
 import os
 import statistics
+import sys
 from collections import Counter, defaultdict
 from pathlib import Path
 from typing import Any, Iterable
 
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+import layout  # noqa: E402
 
-DEFAULT_EVENTS = Path(
-    os.environ.get(
-        "TRAINING_LINEAGE_EVENTS",
-        "outputs/rl/training_lineage/events.jsonl",
-    )
-)
-DEFAULT_EVOLUTION_EVENTS = os.environ.get("SWE_EVOLUTION_LINEAGE", "")
 _STAGES = ("admitted", "claimed", "finalized", "selected", "packed", "trained")
+
+
+def controller_events(run: layout.Run) -> Path:
+    """The controller's TrainingLineageRecorder writes
+    ``<dump_folder>/training_lineage/events.jsonl``; the launcher points
+    ``dump_folder`` at the run's ``trainer/``."""
+    return run.trainer / "training_lineage" / "events.jsonl"
 
 
 def load_jsonl(path: Path | None) -> tuple[list[dict[str, Any]], list[str]]:
@@ -50,6 +57,28 @@ def load_jsonl(path: Path | None) -> tuple[list[dict[str, Any]], list[str]]:
             record["_source_line"] = line_number
             records.append(record)
     return records, errors
+
+
+def load_lineage(evo: layout.Evolution) -> list[dict[str, Any]]:
+    """Every task's lineage lines, tagged with the task id and a
+    ``time_unix_ns`` from the stamp so they sort with the controller's events.
+    A ``rewrite`` line carries what its rewrite.json says (operator, arm,
+    verdicts, result revision): the lineage is the index, rewrite.json the
+    record."""
+    out: list[dict[str, Any]] = []
+    for task in evo.task_dirs():
+        for event in layout.read_jsonl(task.lineage):
+            record = {"task_id": task.task_id,
+                      "time_unix_ns": int(layout.parse_stamp(event["stamp"]) * 10**9), **event}
+            if event.get("event") == "rewrite" and event.get("rewrite"):
+                try:
+                    meta = json.loads((task.path / event["rewrite"] / "rewrite.json").read_text())
+                except (OSError, ValueError):
+                    meta = {}
+                record.update({k: meta[k] for k in ("operator", "arm", "verdicts", "result_rev")
+                               if k in meta})
+            out.append(record)
+    return out
 
 
 def _time_ns(record: dict[str, Any]) -> int:
@@ -100,13 +129,11 @@ def step_view(events: list[dict[str, Any]], train_step: int) -> dict[str, Any]:
 
 def task_view(
     events: list[dict[str, Any]],
-    evolution_events: list[dict[str, Any]],
+    lineage: list[dict[str, Any]],
     task_id: str,
 ) -> dict[str, Any]:
     timeline = [event for event in events if event.get("task_id") == task_id]
-    timeline.extend(
-        event for event in evolution_events if event.get("task_id") == task_id
-    )
+    timeline.extend(event for event in lineage if event.get("task_id") == task_id)
     for event in events:
         if event.get("event") != "hot_reload":
             continue
@@ -180,7 +207,9 @@ def _number_summary(values: list[float]) -> dict[str, float | int | None]:
 
 
 def summary_view(
-    events: list[dict[str, Any]], evolution_events: list[dict[str, Any]]
+    events: list[dict[str, Any]],
+    lineage: list[dict[str, Any]],
+    ledger: list[dict[str, Any]],
 ) -> dict[str, Any]:
     admitted = [event for event in events if event.get("event") == "admitted"]
     trained = [event for event in events if event.get("event") == "trained"]
@@ -210,6 +239,7 @@ def summary_view(
         terminal = terminal_by_occurrence.get(str(event.get("occurrence_id")), "pending")
         durations[terminal].append(float(duration))
 
+    folds = [event for event in lineage if event.get("event") == "fold"]
     activations = []
     for transition in _reload_transitions(events):
         task_id = str(transition["task_id"])
@@ -237,20 +267,22 @@ def summary_view(
             and _time_ns(event) >= observed_ns
             for event in events
         )
-        folds = [
+        # The controller names a row by content hash and the loop by revision
+        # number; the join is the task and the clock. The latest fold of the
+        # task at or before the reload is the one the reload picked up.
+        task_folds = [
             event
-            for event in evolution_events
-            if event.get("event") == "folded"
-            and event.get("task_id") == task_id
-            and event.get("sample_revision") == new_revision
-            and _time_ns(event) <= observed_ns
+            for event in folds
+            if event.get("task_id") == task_id and _time_ns(event) <= observed_ns
         ]
-        latest_fold = max(folds, key=_time_ns) if folds else None
+        latest_fold = max(task_folds, key=_time_ns) if task_folds else None
         activations.append(
             {
                 "task_id": task_id,
                 "previous_sample_revision": old_revision,
                 "sample_revision": new_revision,
+                "fold_to_rev": latest_fold.get("to_rev") if latest_fold else None,
+                "fold_mix_version": latest_fold.get("mix_version") if latest_fold else None,
                 "fold_to_reload_sec": (
                     (observed_ns - _time_ns(latest_fold)) / 1e9
                     if latest_fold
@@ -270,6 +302,10 @@ def summary_view(
             }
         )
 
+    signal_outcomes: dict[str, Counter] = defaultdict(Counter)
+    for entry in ledger:
+        signal_outcomes[str(entry.get("direction"))][str(entry.get("outcome"))] += 1
+
     return {
         "counts": {
             "admitted_occurrences": len(admitted),
@@ -278,10 +314,9 @@ def summary_view(
             "trained_groups": len(trained),
             "dropped_groups": len(dropped),
             "hot_reloads": sum(event.get("event") == "hot_reload" for event in events),
-            "retunes_finished": sum(
-                event.get("event") == "retune_finished" for event in evolution_events
-            ),
-            "folds": sum(event.get("event") == "folded" for event in evolution_events),
+            "rewrites": sum(event.get("event") == "rewrite" for event in lineage),
+            "folds": len(folds),
+            "signals": len(ledger),
         },
         "drop_reasons": dict(Counter(str(event.get("reason")) for event in dropped)),
         "solve_classes_selected": dict(
@@ -291,17 +326,16 @@ def summary_view(
                 if event.get("event") == "selected"
             )
         ),
-        "evolution_signal_outcomes": dict(
+        "rewrite_statuses": dict(
             Counter(
-                "all_failed"
-                if event.get("solved") == 0
-                else "all_solved"
-                if event.get("solved") == event.get("total")
-                else "other"
-                for event in evolution_events
-                if event.get("event") == "retune_finished"
+                str(event.get("status"))
+                for event in lineage
+                if event.get("event") == "rewrite"
             )
         ),
+        "signal_outcomes": {
+            direction: dict(counts) for direction, counts in sorted(signal_outcomes.items())
+        },
         "rollout_duration_by_terminal_state": {
             state: _duration_summary(values) for state, values in sorted(durations.items())
         },
@@ -408,13 +442,11 @@ def audit_view(
 
 
 def build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--events", type=Path, default=DEFAULT_EVENTS)
-    parser.add_argument(
-        "--evolution-events",
-        type=Path,
-        default=Path(DEFAULT_EVOLUTION_EVENTS) if DEFAULT_EVOLUTION_EVENTS else None,
-    )
+    parser = argparse.ArgumentParser(description=__doc__,
+                                     formatter_class=argparse.RawDescriptionHelpFormatter)
+    parser.add_argument("--root", type=Path, default=os.environ.get("TRL_BASE"),
+                        help="experiment root (default: $TRL_BASE)")
+    parser.add_argument("--run", help="run name under runs/ (default: runs/latest)")
     commands = parser.add_subparsers(dest="command", required=True)
     commands.add_parser("summary")
     step = commands.add_parser("step")
@@ -426,17 +458,23 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def main() -> int:
-    args = build_parser().parse_args()
-    events, event_errors = load_jsonl(args.events)
-    evolution_events, evolution_errors = load_jsonl(args.evolution_events)
+    parser = build_parser()
+    args = parser.parse_args()
+    if args.root is None:
+        parser.error("--root or TRL_BASE names the experiment root")
+    root = layout.Root(args.root)
+    run = root.run(args.run) if args.run else layout.Run(root.latest.resolve())
+    events, event_errors = load_jsonl(controller_events(run))
+    lineage = load_lineage(root.evolution)
+    ledger = layout.read_jsonl(root.evolution.ledger)
     if args.command == "summary":
-        result = summary_view(events, evolution_events)
+        result = summary_view(events, lineage, ledger)
     elif args.command == "step":
         result = step_view(events, args.train_step)
     elif args.command == "task":
-        result = task_view(events, evolution_events, args.task_id)
+        result = task_view(events, lineage, args.task_id)
     else:
-        result = audit_view(events, [*event_errors, *evolution_errors])
+        result = audit_view(events, event_errors)
     print(json.dumps(result, indent=2, sort_keys=True, ensure_ascii=False))
     return 1 if args.command == "audit" and not result["ok"] else 0
 

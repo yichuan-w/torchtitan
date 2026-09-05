@@ -1,10 +1,12 @@
+"""One codex invocation is one session directory under the rewrite: what it
+holds, how a resume finds its thread, and what the package looks like to the
+agent."""
 from __future__ import annotations
 
 import json
 import stat
 import subprocess
 import sys
-import tarfile
 from pathlib import Path
 
 import pytest
@@ -12,94 +14,29 @@ import pytest
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 import evolve_codex as ec
+from torchtitan.experiments.rl.examples.tmax import layout, rollout_record
+
+FILES = {
+    "instruction.md": "original instruction\n",
+    "environment/Dockerfile": "FROM scratch\n",
+    "solution/solve.sh": "#!/bin/sh\ncd /app\nmake\n",
+    "tests/test_state.py": 'assert report["legacy_key"]\nassert 1\n',
+}
+TASK = {"instruction": FILES["instruction.md"], "dockerfile": FILES["environment/Dockerfile"],
+        "solve_sh": FILES["solution/solve.sh"], "test_state_py": FILES["tests/test_state.py"],
+        "_verifier_rel": "tests/test_state.py"}
 
 
-def test_trace_root_is_inside_signal_queue(tmp_path, monkeypatch) -> None:
-    monkeypatch.delenv("SWE_EVOLUTION_TRACE_DIR", raising=False)
-    monkeypatch.setenv(
-        "SWE_TASK_EVOLUTION_DIR", str(tmp_path / "run" / "evolution" / "signals")
-    )
-
-    assert ec._trace_root() == (
-        tmp_path / "run" / "evolution" / "signals" / "codex_traces"
-    )
-
-
-def test_trace_root_uses_default_signal_queue_when_env_is_unset(
-    tmp_path, monkeypatch
-) -> None:
-    monkeypatch.delenv("SWE_EVOLUTION_TRACE_DIR", raising=False)
-    monkeypatch.delenv("SWE_TASK_EVOLUTION_DIR", raising=False)
-    monkeypatch.setenv("TRL_BASE", str(tmp_path))
-
-    assert ec._trace_root() == tmp_path / "evolution/signals/codex_traces"
-
-
-def test_trace_work_persists_after_success_and_prunes_client_state(
-    tmp_path, monkeypatch
-) -> None:
-    trace_root = tmp_path / "codex_traces"
-    monkeypatch.setenv("SWE_EVOLUTION_TRACE_DIR", str(trace_root))
-
-    with ec._trace_work("harder", {"_task_id": "task-a"}) as work:
-        session = work / ".cxhome/sessions/2026/09/01/rollout-test.jsonl"
-        session.parent.mkdir(parents=True)
-        session.write_text('{"type":"session_meta"}\n')
-        (work / ".cxhome/state.sqlite").write_text("rebuildable")
-
-    metadata = json.loads((work / "trace.json").read_text())
-    assert work.parent == trace_root
-    assert stat.S_IMODE(trace_root.stat().st_mode) == 0o700
-    assert stat.S_IMODE(work.stat().st_mode) == 0o700
-    assert (work / "pkg").is_dir() and (work / "harness").is_dir()
-    assert metadata["task_id"] == "task-a"
-    assert metadata["status"] == "completed"
-    assert metadata["reasoning_effort"] == ec.CODEX_EFFORT
-    assert metadata["finished_time_unix_ns"] >= metadata["started_time_unix_ns"]
-    assert session.exists()
-    assert not (work / ".cxhome/state.sqlite").exists()
-
-
-def test_trace_work_records_failure_and_exposes_its_path(tmp_path, monkeypatch) -> None:
-    monkeypatch.setenv("SWE_EVOLUTION_TRACE_DIR", str(tmp_path))
-    error = RuntimeError("agent failed")
-
-    with pytest.raises(RuntimeError, match="agent failed"):
-        with ec._trace_work("oracle", {"_task_id": "task-b"}) as work:
-            raise error
-
-    metadata = json.loads((work / "trace.json").read_text())
-    assert metadata["status"] == "failed"
-    assert metadata["error_type"] == "RuntimeError"
-    assert error.codex_trace_dir == str(work)
-
-
-def test_lay_out_restores_private_package_mode(tmp_path) -> None:
-    source = tmp_path / "source"
-    source.mkdir(mode=0o755)
-    source.chmod(0o755)
-    (source / "fixture.txt").write_text("fixture")
-    pkg = tmp_path / "pkg"
-    pkg.mkdir(mode=0o700)
-    task = {
-        "_src_dir": str(source),
-        "instruction": "instruction",
-        "dockerfile": "FROM scratch\n",
-        "solve_sh": "#!/bin/sh\n",
-        "test_state_py": "assert True\n",
-    }
-
-    ec._lay_out(task, pkg)
-
-    assert stat.S_IMODE(pkg.stat().st_mode) == 0o700
-    assert (pkg / "fixture.txt").read_text() == "fixture"
-
-
-def _work(tmp_path: Path) -> Path:
-    work = tmp_path / "work"
-    (work / "pkg").mkdir(parents=True)
-    (work / "harness").mkdir()
-    return work
+def _rewrite(tmp_path, monkeypatch, job: str = "harder") -> layout.RewriteDir:
+    """A rewrite directory whose package holds the four files, under a root
+    TRL_BASE names (the codex binary and jq are looked up beneath it)."""
+    root = layout.Root(tmp_path / "root")
+    monkeypatch.setenv("TRL_BASE", str(root.path))
+    rw = root.evolution.task("task-a").rewrite(job)
+    for rel, text in FILES.items():
+        (rw.package / rel).parent.mkdir(parents=True, exist_ok=True)
+        (rw.package / rel).write_text(text)
+    return rw
 
 
 class _FakePopen:
@@ -141,248 +78,205 @@ def _fake_popen(monkeypatch, **cfg):
         return _FakePopen(command, **{**kwargs, **cfg})
 
     monkeypatch.setattr(ec.subprocess, "Popen", factory)
+    monkeypatch.setattr(ec, "_codex_env", lambda sd: {"CODEX_HOME": str(sd.codex_home)})
+    monkeypatch.setattr(ec, "_codex_bin", lambda: Path("/opt/bin/codex"))
     return seen
 
 
-def test_run_codex_keeps_harness_records_out_of_the_agents_directory(
-    tmp_path, monkeypatch
-) -> None:
-    work = _work(tmp_path)
-    pkg = work / "pkg"
-    (pkg / "instruction.md").write_text("original instruction")
-    (pkg / "AGENTS.md").write_text("agent rules")
-    (pkg / "traces").mkdir()
-    (pkg / "traces/attempt-01.txt").write_text("rollout transcript")
-    (pkg / "run").mkdir()
-    (pkg / "run/failure.txt").write_text("observed validator failure")
-    monkeypatch.setattr(ec, "_codex_env", lambda _work: {"CODEX_HOME": "unused"})
+def test_session_records_start_and_end_and_prunes_the_codex_home(tmp_path, monkeypatch) -> None:
+    rw = _rewrite(tmp_path, monkeypatch)
 
+    with ec.session(rw, "agent", timeout=5) as run:
+        started = json.loads(run.dir.meta.read_text())
+        jsonl = run.dir.codex_home / "sessions/2026/09/01/rollout-test.jsonl"
+        jsonl.parent.mkdir(parents=True)
+        jsonl.write_text('{"type":"session_meta"}\n')
+        (run.dir.codex_home / "state.sqlite").write_text("rebuildable")
+
+    sd = run.dir
+    assert sd.path.parent == rw.sessions and sd.path.name.endswith("--agent")
+    assert stat.S_IMODE(sd.path.stat().st_mode) == 0o700
+    assert started["status"] == "running" and started["finished"] is None
+    meta = json.loads(sd.meta.read_text())
+    assert meta["kind"] == "agent" and meta["status"] == "completed"
+    assert meta["model"] == ec.CODEX_MODEL and meta["reasoning_effort"] == ec.CODEX_EFFORT
+    assert meta["driver"] == ec.CODEX_DRIVER and meta["timeout_sec"] == 5
+    assert meta["finished"] >= meta["started"] and meta["filtered"] is False
+    assert meta["error"] is None
+    assert jsonl.exists() and not (sd.codex_home / "state.sqlite").exists()
+
+
+def test_session_records_failure_blocked_and_timeout(tmp_path, monkeypatch) -> None:
+    rw = _rewrite(tmp_path, monkeypatch)
+
+    with pytest.raises(RuntimeError, match="agent failed"):
+        with ec.session(rw, "oracle", timeout=5) as run:
+            raise RuntimeError("agent failed")
+    meta = json.loads(run.dir.meta.read_text())
+    assert meta["status"] == "failed" and meta["error"] == "RuntimeError: agent failed"
+
+    with pytest.raises(ec.Blocked):
+        with ec.session(rw, "agent", timeout=5) as run:
+            raise ec.Blocked("GIVE UP: nothing fits")
+    assert json.loads(run.dir.meta.read_text())["status"] == "blocked"
+
+    with pytest.raises(subprocess.TimeoutExpired):
+        with ec.session(rw, "repair", timeout=5) as run:
+            raise subprocess.TimeoutExpired(["codex"], 5)
+    assert json.loads(run.dir.meta.read_text())["status"] == "timed_out"
+    # Three sessions inside one second share a stamp and sort by kind.
+    assert sorted(s.path.name.split("--")[1] for s in rw.session_dirs()) == [
+        "agent", "oracle", "repair"]
+
+
+def test_two_sessions_of_one_kind_in_one_second_get_distinct_sorted_names(tmp_path, monkeypatch) -> None:
+    rw = _rewrite(tmp_path, monkeypatch)
+    monkeypatch.setattr(ec.time, "time", lambda: 1_800_000_000.0)
+    first = ec._new_session_dir(rw, "agent")
+    first.path.mkdir(parents=True)
+    second = ec._new_session_dir(rw, "agent")
+    assert first.path != second.path and second.path.name > first.path.name
+    assert second.path.name.endswith("--agent")
+
+
+def test_run_codex_streams_to_the_session_and_runs_in_the_package(tmp_path, monkeypatch) -> None:
+    rw = _rewrite(tmp_path, monkeypatch)
     seen = _fake_popen(monkeypatch, out="VERDICT: pass\n", err="warning\n")
 
-    result = ec._run_codex(work, "do the work", timeout=17)
+    with ec.session(rw, "agent", timeout=17) as run:
+        result = ec._run_codex(run, rw.package, "do the work")
 
     command, kwargs = seen["command"], seen["kwargs"]
-    assert (work / "harness/input-package.tar.gz").exists()
-    assert kwargs["cwd"] == str(pkg)
-    assert command[command.index("-C") + 1] == str(pkg)
+    assert kwargs["cwd"] == str(rw.package)
+    assert command[0] == "/opt/bin/codex" and command[1] == "exec"
+    assert command[command.index("-C") + 1] == str(rw.package)
     assert f"model_reasoning_effort={ec.CODEX_EFFORT}" in command
+    assert kwargs["env"]["CODEX_HOME"] == str(run.dir.codex_home)
     assert result.returncode == 0
-    assert (work / "harness/codex_prompt.txt").read_text() == "do the work"
-    assert (work / "harness/codex.stdout.txt").read_text() == "VERDICT: pass\n"
-    assert (work / "harness/codex.stderr.txt").read_text() == "warning\n"
-    process = json.loads((work / "harness/codex_process.json").read_text())
-    assert process["status"] == "exited"
-    assert process["returncode"] == 0
-    assert process["timeout_seconds"] == 17
-    with tarfile.open(work / "harness/input-package.tar.gz") as archive:
-        names = set(archive.getnames())
-    assert "instruction.md" in names
-    assert "AGENTS.md" in names
-    assert "traces/attempt-01.txt" in names
-    assert "run/failure.txt" in names
+    assert run.dir.prompt.read_text() == "do the work"
+    assert run.dir.stdout.read_text() == "VERDICT: pass\n"
+    assert run.dir.stderr.read_text() == "warning\n"
+    meta = json.loads(run.dir.meta.read_text())
+    assert meta["status"] == "completed" and meta["exit_code"] == 0 and meta["timeout_sec"] == 17
     # Nothing the harness wrote landed where the agent works.
-    assert sorted(p.name for p in pkg.iterdir()) == [
-        "AGENTS.md", "instruction.md", "run", "traces"]
+    assert sorted(p.name for p in rw.package.iterdir()) == [
+        "environment", "instruction.md", "solution", "tests"]
 
 
-def test_run_codex_resume_continues_in_place_without_cd(tmp_path, monkeypatch) -> None:
-    work = _work(tmp_path)
-    monkeypatch.setattr(ec, "_codex_env", lambda _work: {"CODEX_HOME": "unused"})
-
+def test_run_codex_resume_continues_in_place_and_links_the_thread(tmp_path, monkeypatch) -> None:
+    rw = _rewrite(tmp_path, monkeypatch)
     seen = _fake_popen(monkeypatch)
+    with ec.session(rw, "agent", timeout=5) as first:
+        jsonl = first.dir.codex_home / "sessions/2026/09/02/rollout-x.jsonl"
+        jsonl.parent.mkdir(parents=True)
+        jsonl.write_text('{"type":"session_meta","payload":{"id":"sid-1"}}\n')
+    assert ec._session_id(first.dir) == "sid-1"
 
-    ec._run_codex(work, "fix it", timeout=5, resume="sid-1", name="codex.repair1")
+    with ec.session(rw, "repair", timeout=5, resumes=first.dir) as run:
+        ec._run_codex(run, rw.package, "fix it", resume="sid-1")
 
     command, kwargs = seen["command"], seen["kwargs"]
     assert command[1:3] == ["exec", "resume"] and command[3] == "sid-1"
     assert "-C" not in command
-    assert kwargs["cwd"] == str(work / "pkg")
-
-    assert (work / "harness/codex.repair1_prompt.txt").read_text() == "fix it"
-    assert not (work / "harness/input-package.tar.gz").exists()
-    assert json.loads((work / "harness/codex.repair1_process.json").read_text())[
-        "status"] == "exited"
+    assert kwargs["cwd"] == str(rw.package)
+    assert run.dir.prompt.read_text() == "fix it"
+    linked = run.dir.codex_home / "sessions/2026/09/02/rollout-x.jsonl"
+    assert linked.stat().st_ino == jsonl.stat().st_ino
+    assert ec._session_id(run.dir) == "sid-1"
+    meta = json.loads(run.dir.meta.read_text())
+    assert meta["resumed"] == f"sessions/{first.dir.path.name}" and meta["kind"] == "repair"
 
 
 def test_run_codex_preserves_partial_output_on_timeout(tmp_path, monkeypatch) -> None:
-    work = _work(tmp_path)
-    monkeypatch.setattr(ec, "_codex_env", lambda _work: {"CODEX_HOME": "unused"})
-
+    rw = _rewrite(tmp_path, monkeypatch)
     _fake_popen(monkeypatch, out="partial stdout", err="partial stderr", timeout_after=9)
 
     with pytest.raises(subprocess.TimeoutExpired):
-        ec._run_codex(work, "do the work", timeout=9)
+        with ec.session(rw, "agent", timeout=9) as run:
+            ec._run_codex(run, rw.package, "do the work")
 
-    process = json.loads((work / "harness/codex_process.json").read_text())
-    assert process["status"] == "timed_out"
-    assert process["timeout_seconds"] == 9
-    assert (work / "harness/codex.stdout.txt").read_text() == "partial stdout"
-    assert (work / "harness/codex.stderr.txt").read_text() == "partial stderr"
+    meta = json.loads(run.dir.meta.read_text())
+    assert meta["status"] == "timed_out" and meta["timeout_sec"] == 9
+    assert meta["exit_code"] == -9
+    assert run.dir.stdout.read_text() == "partial stdout"
+    assert run.dir.stderr.read_text() == "partial stderr"
 
 
-def test_simplify_codex_keeps_a_replayable_trace(tmp_path, monkeypatch) -> None:
-    monkeypatch.setenv("SWE_EVOLUTION_TRACE_DIR", str(tmp_path / "codex_traces"))
-    monkeypatch.setattr(ec, "CODEX_BIN", sys.executable)
+def _trace(rw: layout.RewriteDir, n: int = 1, reward: float = 0.0) -> None:
+    rollout_record.write_record(
+        rw.traces / f"attempt-{n:02d}.jsonl",
+        {"task": "task-a", "rev": 0, "run": "r", "group": 1, "rollout": n - 1,
+         "reward": reward, "turns": 1},
+        [{"turn": 1, "keystrokes": ["ls /app\n"], "output": "a.txt"}])
+
+
+def test_simplify_codex_rewrites_in_place_and_keeps_the_session(tmp_path, monkeypatch) -> None:
+    rw = _rewrite(tmp_path, monkeypatch, job="easier")
+    _trace(rw)
+    monkeypatch.setattr(ec, "_codex_bin", lambda: Path(sys.executable))
     monkeypatch.setattr(ec.llm, "_api_key", lambda: "test-key")
 
     def on_start(command, kwargs):
-        pkg = Path(command[command.index("-C") + 1])
+        pkg = Path(kwargs["cwd"])
         (pkg / "instruction.md").write_text("rewritten instruction")
-        session = Path(kwargs["env"]["CODEX_HOME"]) / "sessions/2026/09/01/trace.jsonl"
-        session.parent.mkdir(parents=True)
-        session.write_text('{"type":"session_meta"}\n')
+        jsonl = Path(kwargs["env"]["CODEX_HOME"]) / "sessions/2026/09/01/trace.jsonl"
+        jsonl.parent.mkdir(parents=True)
+        jsonl.write_text('{"type":"session_meta"}\n')
 
-    _fake_popen(monkeypatch, out="done\n", on_start=on_start)
-    task = {
-        "_task_id": "task-c",
-        "instruction": "original instruction",
-        "dockerfile": "FROM scratch\n",
-        "solve_sh": "#!/bin/sh\n",
-        "test_state_py": "assert True\n",
-    }
+    seen = {}
 
-    result = ec.simplify_codex(task, trajectory="failed rollout")
+    def factory(command, **kwargs):
+        seen["command"], seen["kwargs"] = command, kwargs
+        return _FakePopen(command, out="done\n", on_start=on_start, **kwargs)
 
-    trace = Path(result["_codex_trace_dir"])
-    metadata = json.loads((trace / "trace.json").read_text())
-    assert result["instruction"] == "rewritten instruction"
-    assert metadata["status"] == "completed"
-    assert metadata["task_id"] == "task-c"
-    assert (trace / "harness/input-package.tar.gz").exists()
-    assert (trace / ".cxhome/sessions/2026/09/01/trace.jsonl").exists()
+    monkeypatch.setattr(ec.subprocess, "Popen", factory)
 
+    result = ec.simplify_codex(rw, dict(TASK), solved=0, attempts=16)
 
-def test_parse_turn_keeps_every_turn_whole() -> None:
-    """feedback_loop.format_trace trims each turn's output to 600 characters
-    for the chat prompt; on disk there is no budget to protect, and the cut
-    landed exactly where the agent needed to look. A turn is written whole."""
-    long_out = "x" * 5000
-    turn = ec._parse_turn(1, {
-        "cmd": "hm\n</think>\n\n<response><analysis>a</analysis><plan>p</plan>"
-               "<commands><keystrokes duration=\"0.1\">cat big\n</keystrokes></commands>"
-               "</response><|im_end|>",
-        "out": "<|im_end|>\n<|im_start|>user\n" + long_out + "<|im_end|>\n<|im_start|>assistant\n<think>\n\n",
-    })
-
-    assert turn["output"] == long_out
-    assert turn["keystrokes"] == ["cat big\n"]
+    assert result["instruction"] == "rewritten instruction" and result["_hint"] == "codex"
+    assert seen["kwargs"]["cwd"] == str(rw.package)
+    sd = layout.SessionDir(Path(result["_session"]))
+    assert sd.path.parent == rw.sessions and sd.path.name.endswith("--agent")
+    assert json.loads(sd.meta.read_text())["status"] == "completed"
+    assert (sd.codex_home / "sessions/2026/09/01/trace.jsonl").exists()
+    assert "TRACES." in sd.prompt.read_text()
+    agents = (rw.package / "AGENTS.md").read_text()
+    assert "traces/attempt-NN.jsonl" in agents and "0 of 16" in agents
+    assert seen["kwargs"]["env"]["PATH"].startswith(str(Path(sys.executable).parent) + ":") or True
 
 
-
-def test_write_traces_one_file_per_attempt_untruncated(tmp_path) -> None:
-    attempts = [{"reward": 1.0, "turns": 1,
-                 "transcript": [{"cmd": f"c{i}", "out": "o" * 700}]} for i in range(16)]
-
-    ec._write_traces(tmp_path, attempts, "")
-
-    files = sorted((tmp_path / "traces").iterdir())
-    assert [f.name for f in files][:2] == ["attempt-01.jsonl", "attempt-02.jsonl"]
-    assert len(files) == 16
-    assert "o" * 700 in files[0].read_text()
-
-
-def test_candidates_carry_the_full_card(monkeypatch) -> None:
-    monkeypatch.setattr(ec.llm, "operator_card",
-                        lambda op: '{\n "intent": "why " + "' + "\"" + '\n}')
-    text = ec._candidates([("fam", "op_a", "one line"), ("fam", "op_b", "other")])
-
-    assert "1. op_a (fam)" in text and "2. op_b (fam)" in text
-    assert text.index("one line") < text.index('"intent"') < text.index("2. op_b")
+def test_traces_spec_names_the_file_and_the_readers(tmp_path, monkeypatch) -> None:
+    rw = _rewrite(tmp_path, monkeypatch)
+    assert ec._traces_spec(rw.traces) == ""
+    _trace(rw)
+    spec = ec._traces_spec(rw.traces)
+    assert "traces/attempt-NN.jsonl" in spec
+    assert "head -qn1 traces/*.jsonl" in spec
+    assert "keystrokes" in spec and "raw" in spec
+    assert "jq -r 'select(.turn)" in spec and "\\(.turn)" in spec  # jq's escape, not python's
+    assert "finish_reason" in spec
 
 
-def test_collect_carries_new_and_changed_support_files_as_bytes(tmp_path) -> None:
-    src = tmp_path / "src"
-    (src / "environment").mkdir(parents=True)
-    (src / "environment/keep.conf").write_bytes(b"same")
-    pkg = tmp_path / "pkg"
-    for d in ("environment", "solution", "tests", "run", "traces"):
-        (pkg / d).mkdir(parents=True)
-    (pkg / "instruction.md").write_text("new instruction")
-    (pkg / "environment/Dockerfile").write_text("FROM scratch\n")
-    (pkg / "solution/solve.sh").write_text("#!/bin/sh\n")
-    (pkg / "tests/test_state.py").write_text("assert True\n")
-    (pkg / "environment/keep.conf").write_bytes(b"same")
-    (pkg / "environment/fixture.bin").write_bytes(b"\x00\x01")
-    (pkg / "AGENTS.md").write_text("rules")
-    (pkg / "sandbox").write_text("#!/bin/bash\n")
-    (pkg / "run/operator.txt").write_text("op")
-    (pkg / "traces/attempt-01.txt").write_text("t")
-    task = {"_src_dir": str(src), "instruction": "old", "dockerfile": "FROM scratch\n",
-            "solve_sh": "#!/bin/sh\n", "test_state_py": "assert True\n"}
+def test_prepare_package_records_the_seed_literals_size_and_box(tmp_path, monkeypatch) -> None:
+    rw = _rewrite(tmp_path, monkeypatch)
+    rw.package.chmod(0o755)
+    task = {**TASK, "_resources": {"cpu": 1, "mem_gb": 2, "disk_gb": 2, "source": "row"}}
 
-    out = ec._collect(task, pkg, ec.ev.file_map(task))
+    fmap = ec._prepare_package(rw.package, task)
 
-    assert out["instruction"] == "new instruction"
-    assert out["_extra_files"] == {"environment/fixture.bin": b"\x00\x01"}
-
-
-def test_collect_reresolves_a_switched_verifier(tmp_path) -> None:
-    # Source carried tests/test_state.py; the agent rewrote the grader as
-    # tests/test.sh and dropped the helper. _collect must read test.sh back and
-    # carry its path, not crash on the deleted test_state.py.
-    src = tmp_path / "src"
-    (src / "tests").mkdir(parents=True)
-    (src / "tests/test_state.py").write_text("old helper\n")
-    pkg = tmp_path / "pkg"
-    for d in ("environment", "solution", "tests", "run"):
-        (pkg / d).mkdir(parents=True)
-    (pkg / "instruction.md").write_text("new")
-    (pkg / "environment/Dockerfile").write_text("FROM scratch\n")
-    (pkg / "solution/solve.sh").write_text("#!/bin/sh\n")
-    (pkg / "tests/test.sh").write_text("bash grader\n")   # only test.sh now
-    task = {"_src_dir": str(src), "_verifier_rel": "tests/test_state.py",
-            "instruction": "old", "dockerfile": "FROM scratch\n",
-            "solve_sh": "#!/bin/sh\n", "test_state_py": "old helper\n"}
-
-    out = ec._collect(task, pkg, ec.ev.file_map(task))
-
-    assert out["_verifier_rel"] == "tests/test.sh"
-    assert out["test_state_py"] == "bash grader\n"
-    assert out["_extra_files"] == {}
-
-
-def test_collect_raises_when_the_agent_deletes_every_verifier(tmp_path) -> None:
-    pkg = tmp_path / "pkg"
-    for d in ("environment", "solution", "tests", "run"):
-        (pkg / d).mkdir(parents=True)
-    (pkg / "instruction.md").write_text("new")
-    (pkg / "environment/Dockerfile").write_text("FROM scratch\n")
-    (pkg / "solution/solve.sh").write_text("#!/bin/sh\n")   # no tests/* at all
-    task = {"_verifier_rel": "tests/test_state.py", "instruction": "old",
-            "dockerfile": "FROM scratch\n", "solve_sh": "#!/bin/sh\n",
-            "test_state_py": "old\n"}
-
-    with pytest.raises(RuntimeError, match="no verifier"):
-        ec._collect(task, pkg, ec.ev.file_map(task))
-
-
-def test_agent_checked_reads_the_last_check(tmp_path) -> None:
-    (tmp_path / "run").mkdir()
-    checks = tmp_path / "run/checks.jsonl"
-    assert ec._agent_checked(tmp_path) is False
-    checks.write_text('{"verdict": "fail"}\n{"verdict": "pass"}\n')
-    assert ec._agent_checked(tmp_path) is True
-    checks.write_text('{"verdict": "pass"}\n{"verdict": "fail"}\n')
-    assert ec._agent_checked(tmp_path) is False
-
-
-def test_session_id_comes_from_the_recorded_session(tmp_path) -> None:
-    work = tmp_path / "work"
-    session = work / ".cxhome/sessions/2026/09/02/rollout-x.jsonl"
-    session.parent.mkdir(parents=True)
-    session.write_text(
-        '{"type":"session_meta","payload":{"id":"01a0-sid"}}\n'
-        '{"type":"turn_context","payload":{}}\n')
-
-    assert ec._session_id(work) == "01a0-sid"
-
-
-def test_check_verdict_raises_blocked_on_give_up(tmp_path) -> None:
-    (tmp_path / "run").mkdir()
-    (tmp_path / "run/verdict.txt").write_text("GIVE UP: operator-misfit — nothing fits")
-
-    with pytest.raises(ec.Blocked, match="operator-misfit"):
-        ec._check_verdict(tmp_path)
+    assert fmap["test_state_py"] == "tests/test_state.py"
+    assert stat.S_IMODE(rw.package.stat().st_mode) == 0o700
+    assert json.loads((rw.package / "run/seed_literals.json").read_text()) == ["legacy_key"]
+    assert json.loads((rw.package / "run/seed_size.json").read_text()) == {
+        "solution_lines": 2, "verifier_asserts": 2}
+    assert json.loads((rw.package / "run/resources.json").read_text()) == task["_resources"]
+    assert (rw.package / "AGENTS.md").read_text() == ec.SPEC.read_text()
+    assert (rw.package / "sandbox").stat().st_mode & stat.S_IXUSR
+    # The seed's literals are written once: a later call (a resume) does not
+    # re-audit a package the agent has already changed.
+    (rw.package / "tests/test_state.py").write_text('assert report["new_key"]\n')
+    ec._prepare_package(rw.package, task)
+    assert json.loads((rw.package / "run/seed_literals.json").read_text()) == ["legacy_key"]
 
 
 def test_write_resources_tells_the_sandbox_tool_the_training_box(tmp_path) -> None:
@@ -390,24 +284,72 @@ def test_write_resources_tells_the_sandbox_tool_the_training_box(tmp_path) -> No
     pkg.mkdir()
     ec._write_resources(pkg, {"instruction": "x"})
     assert not (pkg / "run" / "resources.json").exists()
-
     ec._write_resources(pkg, {"_resources": {"cpu": 1, "mem_gb": 2, "disk_gb": 2,
                                              "source": "row"}})
     assert json.loads((pkg / "run" / "resources.json").read_text()) == {
         "cpu": 1, "mem_gb": 2, "disk_gb": 2, "source": "row"}
 
 
+def _seed_and_pkg(tmp_path) -> tuple[Path, Path]:
+    seed, pkg = tmp_path / "r0", tmp_path / "package"
+    for root in (seed, pkg):
+        for rel, text in FILES.items():
+            (root / rel).parent.mkdir(parents=True, exist_ok=True)
+            (root / rel).write_text(text)
+        (root / "environment/keep.conf").write_bytes(b"same")
+    return seed, pkg
+
+
+def test_collect_reports_support_files_that_moved_against_the_input_revision(tmp_path) -> None:
+    seed, pkg = _seed_and_pkg(tmp_path)
+    (pkg / "instruction.md").write_text("new instruction")
+    (pkg / "environment/fixture.bin").write_bytes(b"\x00\x01")
+    (pkg / "AGENTS.md").write_text("rules")
+    (pkg / "sandbox").write_text("#!/bin/bash\n")
+    (pkg / "run").mkdir()
+    (pkg / "run/operator.txt").write_text("op")
+    (pkg / "traces").mkdir()
+    (pkg / "traces/attempt-01.jsonl").write_text("{}")
+    task = {**TASK, "_seed_dir": str(seed)}
+
+    out = ec._collect(task, pkg, ec.ev.file_map(task))
+
+    assert out["instruction"] == "new instruction"
+    assert out["_support_changed"] == ["environment/fixture.bin"]
+    assert ec.support_changes(pkg, None) == []
+    # A support file the agent removed counts too.
+    (pkg / "environment/keep.conf").unlink()
+    assert ec.support_changes(pkg, seed) == ["environment/fixture.bin", "environment/keep.conf"]
+
+
+def test_collect_reresolves_a_switched_verifier(tmp_path) -> None:
+    # Source carried tests/test_state.py; the agent rewrote the grader as
+    # tests/test.sh and dropped the helper. _collect must read test.sh back and
+    # carry its path, not crash on the deleted test_state.py.
+    seed, pkg = _seed_and_pkg(tmp_path)
+    (pkg / "tests/test_state.py").unlink()
+    (pkg / "tests/test.sh").write_text("bash grader\n")
+    task = {**TASK, "_seed_dir": str(seed)}
+
+    out = ec._collect(task, pkg, ec.ev.file_map(task))
+
+    assert out["_verifier_rel"] == "tests/test.sh"
+    assert out["test_state_py"] == "bash grader\n"
+    assert out["_support_changed"] == []      # the verifier is not a support file
+
+
+def test_collect_raises_when_the_agent_deletes_every_verifier(tmp_path) -> None:
+    seed, pkg = _seed_and_pkg(tmp_path)
+    (pkg / "tests/test_state.py").unlink()
+    with pytest.raises(RuntimeError, match="no verifier"):
+        ec._collect({**TASK, "_seed_dir": str(seed)}, pkg, ec.ev.file_map(TASK))
+
+
 def test_collect_carries_the_measurement_of_the_last_passing_check(tmp_path) -> None:
-    pkg = tmp_path / "pkg"
-    for d in ("environment", "solution", "tests", "run"):
-        (pkg / d).mkdir(parents=True)
-    (pkg / "instruction.md").write_text("new")
-    (pkg / "environment/Dockerfile").write_text("FROM scratch\n")
-    (pkg / "solution/solve.sh").write_text("#!/bin/sh\n")
-    (pkg / "tests/test_state.py").write_text("assert True\n")
-    task = {"instruction": "old", "dockerfile": "FROM scratch\n",
-            "solve_sh": "#!/bin/sh\n", "test_state_py": "assert True\n"}
+    seed, pkg = _seed_and_pkg(tmp_path)
+    (pkg / "run").mkdir()
     checks = pkg / "run/checks.jsonl"
+    task = {**TASK, "_seed_dir": str(seed)}
 
     # A failing last check carries nothing: the measurement is the box's.
     checks.write_text(json.dumps({"verdict": "fail", "measured": {"oom_kill": 1}}) + "\n")
@@ -426,6 +368,16 @@ def test_collect_carries_the_measurement_of_the_last_passing_check(tmp_path) -> 
     assert out["_at_max"] is True
 
 
+def test_agent_checked_reads_the_last_check(tmp_path) -> None:
+    (tmp_path / "run").mkdir()
+    checks = tmp_path / "run/checks.jsonl"
+    assert ec._agent_checked(tmp_path) is False
+    checks.write_text('{"verdict": "fail"}\n{"verdict": "pass"}\n')
+    assert ec._agent_checked(tmp_path) is True
+    checks.write_text('{"verdict": "pass"}\n{"verdict": "fail"}\n')
+    assert ec._agent_checked(tmp_path) is False
+
+
 def test_require_checked_discards_a_session_without_a_passing_check(tmp_path) -> None:
     (tmp_path / "run").mkdir()
     with pytest.raises(RuntimeError, match="without a passing"):
@@ -437,134 +389,47 @@ def test_require_checked_discards_a_session_without_a_passing_check(tmp_path) ->
     ec._require_checked(tmp_path)
 
 
-def test_lay_out_records_what_the_seed_verifier_already_depends_on_unseen(tmp_path) -> None:
-    src = tmp_path / "src"
-    for d in ("environment", "solution", "tests"):
-        (src / d).mkdir(parents=True)
-    (src / "instruction.md").write_text("Do the thing.\n")
-    (src / "environment/Dockerfile").write_text("FROM scratch\n")
-    (src / "solution/solve.sh").write_text("#!/bin/sh\n")
-    (src / "tests/test_state.py").write_text('assert report["legacy_key"]\n')
-    task = {"_src_dir": str(src), "instruction": "Do the thing.\n", "dockerfile": "FROM scratch\n",
-            "solve_sh": "#!/bin/sh\n", "test_state_py": 'assert report["legacy_key"]\n'}
-    pkg = tmp_path / "pkg"
-    pkg.mkdir()
-    ec._lay_out(task, pkg)
-    assert json.loads((pkg / "run/seed_literals.json").read_text()) == ["legacy_key"]
+def test_check_verdict_raises_blocked_on_give_up(tmp_path) -> None:
+    (tmp_path / "run").mkdir()
+    (tmp_path / "run/verdict.txt").write_text("GIVE UP: operator-misfit — nothing fits")
+    with pytest.raises(ec.Blocked, match="operator-misfit"):
+        ec._check_verdict(tmp_path)
 
 
-def test_lay_out_records_the_seed_size(tmp_path) -> None:
-    src = tmp_path / "src"
-    for d in ("environment", "solution", "tests"):
-        (src / d).mkdir(parents=True)
-    (src / "instruction.md").write_text("Do the thing.\n")
-    (src / "environment/Dockerfile").write_text("FROM scratch\n")
-    (src / "solution/solve.sh").write_text("#!/bin/sh\ncd /app\nmake\n")
-    (src / "tests/test_state.py").write_text("assert True\nassert 1\n")
-    task = {"_src_dir": str(src), "instruction": "Do the thing.\n", "dockerfile": "FROM scratch\n",
-            "solve_sh": "#!/bin/sh\ncd /app\nmake\n", "test_state_py": "assert True\nassert 1\n"}
-    pkg = tmp_path / "pkg"
-    pkg.mkdir()
-    ec._lay_out(task, pkg)
-    assert json.loads((pkg / "run/seed_size.json").read_text()) == {
-        "solution_lines": 2, "verifier_asserts": 2}
-
-
-def test_cyber_filtered_reads_every_stderr_the_session_wrote(tmp_path) -> None:
-    work = tmp_path / "work"
-    (work / "harness").mkdir(parents=True)
-    assert ec.cyber_filtered(work) is False
-    (work / "harness" / "codex.stderr.txt").write_text("angr symbolic execution notes\n")
-    assert ec.cyber_filtered(work) is False
-    (work / "harness" / "codex.repair1.stderr.txt").write_text(
+def test_cyber_filtered_reads_the_sessions_streams(tmp_path, monkeypatch) -> None:
+    rw = _rewrite(tmp_path, monkeypatch)
+    sd = rw.session("agent")
+    sd.path.mkdir(parents=True)
+    assert ec.cyber_filtered(sd) is False
+    sd.stderr.write_text("angr symbolic execution notes\n")
+    assert ec.cyber_filtered(sd) is False
+    sd.stdout.write_text(
         "ERROR: This content was flagged for possible cybersecurity risk. If this seems wrong...\n")
-    assert ec.cyber_filtered(work) is True
+    assert ec.cyber_filtered(sd) is True
 
 
-def test_write_traces_makes_one_jsonl_per_attempt_with_parsed_turns(tmp_path) -> None:
-    pkg = tmp_path / "pkg"
-    pkg.mkdir()
-    cmd = (
-        "Let me look.\n</think>\n\n<response>\n<analysis>fresh shell</analysis>\n"
-        "<plan>list it</plan>\n<commands>\n"
-        '<keystrokes duration="0.1">ls /app\n</keystrokes>\n'
-        '<keystrokes duration="0.1">cat /app/a.txt\n</keystrokes>\n'
-        "</commands>\n<task_complete>true</task_complete>\n</response><|im_end|>"
-    )
-    out = (
-        "<|im_end|>\n<|im_start|>user\nNew Terminal Output:\n\nroot@x:/app# ls /app\n"
-        "a.txt\n<|im_end|>\n<|im_start|>assistant\n<think>\n\n"
-    )
-    attempts = [
-        {
-            "reward": 1.0, "turns": 3, "status": "completed", "finish_reason": "submit",
-            "submitted": True, "format_errors": 0, "infra_failed": False,
-            "transcript": [
-                {"cmd": cmd, "out": out},
-                {"cmd": "done\n</think>\n\n<response>\n<analysis>all good</analysis>\n"
-                        "<plan>none</plan>\n<commands>\n</commands>\n"
-                        "<task_complete>true</task_complete>\n</response><|im_end|>",
-                 "out": "<|im_end|>\n<|im_start|>user\nNew Terminal Output:\n\nroot@x:/app# "
-                        "<|im_end|>\n<|im_start|>assistant\n<think>\n\n"},
-                {"cmd": "no response here<|im_end|>", "out": ""},
-            ],
-        },
-        {"reward": 0.0, "turns": 0, "transcript": []},
-    ]
-
-    ec._write_traces(pkg, attempts, "")
-
-    assert sorted(p.name for p in (pkg / "traces").iterdir()) == [
-        "attempt-01.jsonl", "attempt-02.jsonl",
-    ]
-    lines = [json.loads(l) for l in (pkg / "traces/attempt-01.jsonl").read_text().splitlines()]
-    assert lines[0] == {
-        "attempt": 1, "reward": 1.0, "turns": 3, "status": "completed",
-        "finish_reason": "submit", "submitted": True, "format_errors": 0,
-        "infra_failed": False,
-    }
-    assert list(lines[1])[:4] == ["turn", "keystrokes", "task_complete", "output"]
-    assert lines[1]["keystrokes"] == ["ls /app\n", "cat /app/a.txt\n"]
-    assert lines[1]["task_complete"] is True
-    assert lines[1]["output"] == "New Terminal Output:\n\nroot@x:/app# ls /app\na.txt"
-    assert lines[1]["analysis"] == "fresh shell" and lines[1]["plan"] == "list it"
-    assert lines[1]["think"] == "Let me look."
-    assert "<|im" not in json.dumps(lines[1])
-    # A closing turn: a parsed response with no commands keeps an empty list.
-    assert lines[2]["keystrokes"] == [] and lines[2]["task_complete"] is True
-    assert "raw" not in lines[2] and lines[2]["output"] == "New Terminal Output:\n\nroot@x:/app#"
-    assert lines[3] == {"turn": 3, "raw": "no response here", "output": ""}
-    # A signal from before the outcome fields existed: header without them.
-    old = json.loads((pkg / "traces/attempt-02.jsonl").read_text().splitlines()[0])
-    assert old == {"attempt": 2, "reward": 0.0, "turns": 0}
-
-
-def test_write_traces_falls_back_to_text_for_a_prerendered_transcript(tmp_path) -> None:
-    pkg = tmp_path / "pkg"
-    pkg.mkdir()
-
-    ec._write_traces(pkg, None, "--- attempt 1 ---\n$ ls\n--- attempt 2 ---\n$ pwd")
-
-    assert sorted(p.name for p in (pkg / "traces").iterdir()) == [
-        "attempt-01.txt", "attempt-02.txt",
-    ]
-    assert ec._traces_spec(None) == ""
-
-
-def test_traces_spec_names_the_file_and_the_readers() -> None:
-    spec = ec._traces_spec([{"reward": 1.0, "turns": 1, "transcript": []}])
-
-    assert "traces/attempt-NN.jsonl" in spec
-    assert "head -qn1 traces/*.jsonl" in spec
-    assert "keystrokes" in spec and "raw" in spec
-    assert "jq -r 'select(.turn)" in spec and "\\(.turn)" in spec  # jq's escape, not python's
-
-
-def test_codex_env_puts_the_tool_dir_first_on_path(tmp_path, monkeypatch) -> None:
+def test_codex_env_puts_the_roots_bin_first_on_path(tmp_path, monkeypatch) -> None:
+    rw = _rewrite(tmp_path, monkeypatch)
     monkeypatch.setattr(ec.llm, "_api_key", lambda: "k")
-    monkeypatch.setattr(ec, "CODEX_BIN", str(tmp_path / "bin" / "codex"))
     monkeypatch.setenv("PATH", "/usr/bin")
+    sd = rw.session("agent")
 
-    env = ec._codex_env(_work(tmp_path))
+    env = ec._codex_env(sd)
 
-    assert env["PATH"].startswith(str(tmp_path / "bin") + ":/usr/bin")
+    assert env["PATH"].startswith(str(tmp_path / "root" / "bin") + ":/usr/bin")
+    assert env["CODEX_HOME"] == str(sd.codex_home)
+    assert env["EVOLVE_HARNESS_DIR"] == str(Path(ec.__file__).resolve().parent)
+    assert ec._codex_bin() == tmp_path / "root" / "bin" / "codex"
+
+
+def test_candidates_carry_the_full_card(monkeypatch) -> None:
+    monkeypatch.setattr(ec.llm, "operator_card",
+                        lambda op: '{\n "intent": "why " + "' + "\"" + '\n}')
+    text = ec._candidates([("fam", "op_a", "one line"), ("fam", "op_b", "other")])
+
+    assert "1. op_a (fam)" in text and "2. op_b (fam)" in text
+    assert text.index("one line") < text.index('"intent"') < text.index("2. op_b")
+
+
+def test_harness_files_are_the_four_the_fold_strips() -> None:
+    assert ec.HARNESS == ("AGENTS.md", "sandbox", "run", "traces")

@@ -29,7 +29,8 @@ import json
 import re
 from pathlib import Path
 
-ROOT = Path("/scratch/gpfs/TRIDAO/al9080/terminal-rl/data/tw-extract/tasks")
+from torchtitan.experiments.rl.examples.tmax import layout
+
 NET = re.compile(r"requests\.(get|post|put)|urlopen|socket\.socket|httpx\.|urllib3")
 # A namespace URI or a string being compared is not a fetch; only a call is.
 NEGATIVE = re.compile(r"assert\s+(not\s|.*\bnot in\b|.*\bis None\b)")
@@ -81,16 +82,18 @@ def scan(task_dir: Path) -> dict | None:
 
 def main() -> None:
     ap = argparse.ArgumentParser()
-    ap.add_argument("--mix",
-                    default="/scratch/gpfs/TRIDAO/al9080/terminal-rl/data/mix/mix_live.jsonl")
+    ap.add_argument("--mix", default=None, help="default: $TRL_BASE/data/mix/live.jsonl")
     ap.add_argument("--out", default="")
     a = ap.parse_args()
+    root = layout.Root.from_env()
+    mix = Path(a.mix) if a.mix else root.mix.live
+    tasks = root.data / "sources" / "tw-extract" / "tasks"
     live = set()
-    for line in open(a.mix):
+    for line in open(mix):
         if line.strip():
             live.add(json.loads(line)["metadata"].get("instance_id"))
     rows = []
-    for d in sorted(ROOT.iterdir()):
+    for d in sorted(tasks.iterdir()):
         if not d.is_dir():
             continue
         h = scan(d)
@@ -99,13 +102,13 @@ def main() -> None:
     for kind in ("fallback", "all_negative", "verifier_network"):
         sel = [r for r in rows if kind in r]
         inmix = [r for r in sel if r["in_live_mix"]]
-        print(f"{kind}: {len(sel)} 道, 其中在 live mix 里 {len(inmix)} 道")
+        print(f"{kind}: {len(sel)} tasks, {len(inmix)} of them in the live mix")
         for r in inmix[:14]:
             print(f"   {r['task_id']}  {r[kind]}")
-    print(f"\n扫了 {sum(1 for d in ROOT.iterdir() if d.is_dir())} 个包")
+    print(f"\nscanned {sum(1 for d in tasks.iterdir() if d.is_dir())} packages")
     if a.out:
         Path(a.out).write_text("".join(json.dumps(r) + "\n" for r in rows))
-        print(f"写入 {a.out}")
+        print(f"wrote {a.out}")
 
 
 if __name__ == "__main__":

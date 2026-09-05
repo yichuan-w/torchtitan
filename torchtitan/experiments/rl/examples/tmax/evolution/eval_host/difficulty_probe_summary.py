@@ -4,7 +4,7 @@
     difficulty_probe_summary.py <run-dir>
 
 The eval recipe writes every validation trial to
-<run-dir>/outputs/rl/validation_traces/step-0/index.json (one record per
+<run-dir>/trainer/validation_traces/step-0/index.json (one record per
 trial: task, state, reward, turns, finish reason) with the trace itself
 beside it. This reads that index, writes <run-dir>/summary.json and prints
 one line per task: passes/k and how the failures ended. 0/k is too hard for
@@ -27,7 +27,7 @@ def _get(row: dict, *names, default=None):
 
 def main() -> None:
     run = Path(sys.argv[1])
-    steps = sorted((run / "outputs" / "rl" / "validation_traces").glob("step-*"))
+    steps = sorted((run / "trainer" / "validation_traces").glob("step-*"))
     if not steps:
         print(f"no validation traces under {run}", file=sys.stderr)
         sys.exit(1)

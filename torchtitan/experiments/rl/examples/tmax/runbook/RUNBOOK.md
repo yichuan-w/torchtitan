@@ -3,8 +3,9 @@
 How to bring up the terminal-agent RL stack from zero on a fresh 8x B300 host.
 
 Everything here is the configuration that ran on `della-tridao`, copied from the
-run's own dump rather than retyped: paths, versions and numbers are the real
-ones. Where your machine differs (paths, credentials) substitute your own.
+run's own directory (`runs/<run>/launch.json`) rather than retyped: paths,
+versions and numbers are the real ones. Where your machine differs (paths,
+credentials) substitute your own.
 
 **Code version.** Everything below is `yichuan-w/torchtitan`, branch
 `yichuan/qwen35-port-cotrain` -- the collaboration's single canonical branch.
@@ -24,6 +25,11 @@ TTL), all default-compatible.
 | `uv.lock` | a real, resolving lock (`uv lock --check` passes) |
 | `rltrain.env` | every tuned value the live run had set |
 | `launch_9b.sh` | the launcher, runs as-is |
+| `profiles/<name>.env` | whose checkout (`TRL_TT`) and experiment root (`TRL_BASE`) a launch uses; one file per person |
+
+Where a run's files live under the root, and the format of each, is
+[`../LAYOUT.md`](../LAYOUT.md); this document points there rather than
+repeating it.
 
 **How to read the confidence markers.** Statements are either *verified* (read
 off the running system or executed here) or *not verified* (marked inline, and
@@ -97,37 +103,59 @@ uv pip install --python "$TRL_VENV/bin/python" \
     --index-strategy unsafe-best-match \
     --extra-index-url https://download.pytorch.org/whl/nightly/cu130
 
-# 3. Model and data.
+# 3. Model and data. The root is created from the seed mix, which becomes
+#    data/mix/history/v0001--<stamp>.jsonl with live.jsonl a hardlink to it.
 hf download Qwen/Qwen3.5-9B --local-dir "$TRL_MODEL"
-mkdir -p "$TRL_BASE/data/mix"
 # ... build the task JSONL, see section 4 ...
+"$TRL_VENV/bin/python" "$TRL_TT/torchtitan/experiments/rl/examples/tmax/new_root.py" \
+    --base "$TRL_BASE" --mix /path/to/mix.jsonl --sources /path/to/tw-extract \
+    --bin /path/to/bin --purpose "..."          # bin holds codex and jq
 
 # 4. Credentials, then launch.
 export DAYTONA_API_KEY=...        # your key; never commit it
 cd "$TRL_TT/torchtitan/experiments/rl/examples/tmax/runbook"
+./launch_9b.sh --dry-run          # lays the run out and starts nothing: read it first
 ./launch_9b.sh
 ```
 
-`launch_9b.sh` reads `rltrain.env` from the same directory, refuses a GPU layout
-the allocator cannot honour, and execs:
+`launch_9b.sh` reads the profile and `rltrain.env` from its own directory,
+refuses a GPU list that does not match `SWE_DP_SHARD + SWE_GEN_DP`, makes
+`$TRL_BASE/runs/tmax-9b--<stamp>/` and exports it as `TRL_RUN_DIR`, tees
+everything from there on into its `stdout.log`, links `checkpoints` to the
+host-local checkpoint directory, hardlinks the mix version it loads into
+`inputs/mix.jsonl`, writes `launch.json` (profile, commit, mix version and
+sha256, GPUs, resume source, the whole `SWE_*` / `TMAX_*` / `TT_DAYTONA_*`
+environment), points `runs/latest` at the run, and execs:
 
 ```
 python -m torchtitan.experiments.rl.train \
     --module torchtitan.experiments.rl.examples.tmax \
     --config rl_grpo_qwen3_5_9b_tmax \
     --num-generators 1 \
+    --dump_folder $TRL_RUN_DIR/trainer \
     --hf_assets_path $TRL_MODEL
 ```
 
 Anything exported before the script wins over `rltrain.env`, so a one-off change
-needs no edit: `RL_DATA=/path/other.jsonl ./launch_9b.sh`.
+needs no edit: `RL_DATA=/path/other.jsonl ./launch_9b.sh` (a file that is not
+the served mix is copied into `inputs/` and the run records no mix version).
+`--dry-run` does everything up to the exec and prints the run directory.
+`RL_RESUME_FROM=<run>` makes a new run directory whose `checkpoints` link is the
+named run's, so the trainer resumes from its newest `step-*` and `launch.json`
+records `resumed_from` and `checkpoint_step`; the launcher refuses when there is
+nothing there to resume, and refuses an `RL_RESUME_DUMP` in the environment
+outright, naming `RL_RESUME_FROM` in the message. The first launch in a root
+writes `experiment.json` if `new_root.py` has not, with an empty `purpose` to
+fill in.
 
 To run it under systemd the way we do, `EnvironmentFile=` the same `rltrain.env`
 and `ExecStart=` the same script. Our unit uses `Restart=always` with
 `RestartSec=30`: a trainer NCCL abort exits with code 0, which `on-failure` read
 as a clean stop and left the service down. With `always` a crash resumes from
-the latest checkpoint, and reaching the step limit restarts too -- stop the unit
-explicitly when a run is meant to end.
+the latest checkpoint (`RL_RESUME_FROM` in the unit's environment names the run
+whose checkpoints the chain shares; every restart is a new directory under
+`runs/`), and reaching the step limit restarts too -- stop the unit explicitly
+when a run is meant to end.
 
 ### What the first ten minutes look like
 
@@ -361,14 +389,15 @@ pipeline with no error.
 
 ### The take8 mix is reproducible (mix_v2)
 
-`mix_live.jsonl` for take8 started as `mix_v2.jsonl`, built in one shot by
-`build_mix_v2.py` (source of truth: the `terminalworld-seeds` repo; deployed
-copy under `$TRL_BASE/evolve-onhost/scripts/`) — 668 TerminalWorld rows plus
+The take8 root's seed version, `data/mix/history/v0001--<stamp>.jsonl`, is
+`mix_v2`, built in one shot by `build_mix_v2.py` (in `examples/tmax/evolution/`;
+source of truth is the `terminalworld-seeds` repo): 668 TerminalWorld rows plus
 400 TMax rows, shuffled with seed 1208, the last 64 rows after that shuffle
-being the holdout:
+being the holdout, published as version 1 by `new_root.py --mix`:
 
 ```bash
-python3.11 build_mix_v2.py --out $TRL_BASE/data/mix/mix_v2.jsonl --apply
+python3.11 build_mix_v2.py --out mix_v2.jsonl --apply
+python new_root.py --base $TRL_BASE --mix mix_v2.jsonl --sources ... --bin ...
 ```
 
 Per-row sandbox sizing comes from first sources only: `tasks.parquet`
@@ -388,11 +417,13 @@ the same rows. The prepared TMax rows (`data/tmax_train.jsonl`, 14,601 rows)
 are `prepare_rts_data` output over the TMax task pool; the mix joins the 400
 `train`-split ids against it.
 
-After launch the file diverges from `mix_v2.jsonl` by exactly one mechanism:
-the evolution loop's replace-only folds. Every fold is one commit in the
-`$TRL_BASE/evolution` git repository (retuned task tree plus a
-`mix_snapshot.jsonl`), so any intermediate state of the live mix is a
-checkout, and the full lineage from `mix_v2` to now is the `git log`.
+After launch the mix moves by exactly one mechanism: the evolution loop's
+replace-only folds. Every fold publishes the next
+`data/mix/history/v<N>--<stamp>.jsonl` with a manifest (`parent_version`,
+`sha256`, `rows`) and relinks `live.jsonl` to it, and the `fold` line in the
+task's `evolution/tasks/<task>/lineage.jsonl` says which revision entered which
+`mix_version`; so any intermediate state of the mix is a file in `history/`, and
+the full lineage from version 1 to now is the manifests' `parent_version` chain.
 
 ### The holdout
 
@@ -408,7 +439,7 @@ samples = (samples[-config.holdout_n:] if config.split == "validation"
 ```
 
 The live file is 1,068 rows: 1,004 in rotation plus the 64-row holdout tail
-(verified: `wc -l mix_live.jsonl` = 1068).
+(verified: `wc -l data/mix/live.jsonl` = 1068).
 
 Two consequences worth internalising:
 
@@ -488,8 +519,9 @@ which is why the code logs the failing command separately.
 
 Because the injected preinstall is non-fatal, a build where it failed looks
 identical to one where it worked. The rollouter therefore runs one cheap
-`command -v tmux` per rollout and records misses under
-`$(dirname $SWE_TASK_EVOLUTION_DIR)/no_tmux/`. Treat that list as "where to look
+`command -v tmux` per rollout and appends each miss to
+`runs/<run>/advisories/no_tmux.jsonl` (`infra_quarantine.jsonl` beside it is
+the list of groups that actually died at zero turns). Treat that list as "where to look
 first", not as a verdict: on the first pass 78 tasks landed there while none of
 them actually died, so filtering on it would have dropped 78 healthy tasks.
 
@@ -525,7 +557,7 @@ nothing, so sizing the fleet from the env values alone mis-states it by whatever
 fraction of the corpus carries its own overrides, and that fraction moves every
 time the mix is rebuilt. Measure it, do not assume it.
 
-Measured on the live 1068-row `mix_live.jsonl` (2026-08-30): 60 rows declare
+Measured on the live 1068-row mix (2026-08-30): 60 rows declare
 `daytona_cpu`, 109 declare `daytona_mem_gb`, 58 declare `daytona_disk_gb`. The
 remaining ~95% take the env values, giving data-weighted averages of **1.08
 vCPU, 2.23 GiB memory and 2.08 GiB disk** per sandbox. A live snapshot the same
@@ -570,12 +602,28 @@ commit, non-test files). Listed here are the ones that affect a tmax 9B run. The
 value column is what the reference run used; where it differs from the code
 default, both are shown.
 
+### Where things go
+
+Paths are conventions of the root, not settings ([`../LAYOUT.md`](../LAYOUT.md));
+these are the variables that touch them.
+
+| variable | ours | code default | controls |
+|---|---|---|---|
+| `TRL_PROFILE` | `andy` | none; the launcher refuses | which `profiles/<name>.env` supplies `TRL_TT` and `TRL_BASE`. |
+| `TRL_BASE` | from the profile | none | the experiment root: `data/`, `runs/`, `evolution/`, `evals/`, `logs/`, `bin/`. |
+| `TRL_RUN_DIR` | set by the launcher | unset | the run directory; the trainer writes only under it. |
+| `RL_RESUME_FROM` | unset | unset | a run name or directory whose checkpoints the new run resumes. |
+| `RL_DATA` | unset | unset | a mix file other than `data/mix/live.jsonl`; copied into the run, which then has no mix version. |
+| `SWE_ROLLOUT_RECORDS` | `1` | `1` | one JSONL per rollout under `runs/<run>/rollouts/`. |
+| `SWE_EVOLUTION_SIGNALS` | `1` | `1` | one JSON per zero-variance group under `runs/<run>/signals/`; what the loop reads. |
+| `TMAX_PANE_DUMP` | unset | `0` | `1` writes the tmux pane transcript beside each rollout record. |
+
 ### Must be set — no usable default
 
 | variable | note |
 |---|---|
 | `DAYTONA_API_KEY` | every rollout. Hard-checked. |
-| `SWE_PROMPT_DATA` | training JSONL. Defaults to `""`, and the dataset raises on an empty path. |
+| `SWE_PROMPT_DATA` | training JSONL. The launcher sets it to `$TRL_BASE/data/mix/live.jsonl` (or `RL_DATA`); the code default is `""`, and the dataset raises on an empty path. |
 | `LOCAL_RANK` | `os.environ['LOCAL_RANK']`, no fallback — set by the launcher/Monarch, not by you. |
 
 ### Correctness — these change what the run *is*
@@ -653,11 +701,13 @@ real variable.
 ## 7. The evolution loop
 
 Optional. A plain RL run works with it entirely absent, and nothing in the
-training tree imports anything from it — the coupling is one directory of JSON
-files plus one JSONL path. But it is what the reference run was doing, so it is
+training tree imports anything from it. The coupling is the run's `signals/`
+and `rollouts/`, which the loop reads, `evolution/status.json`, which the
+trainer reads, and `data/mix/live.jsonl`, which the loop publishes and the
+trainer hot-reloads. But it is what the reference run was doing, so it is
 documented in full. Source is vendored in this repo at
-`examples/tmax/evolution/` (16 files). The modules import each other by bare
-module name, so they must stay flat in that directory.
+`examples/tmax/evolution/`. The modules import each other by bare module name,
+so they must stay flat in that directory.
 
 ### What it does
 
@@ -667,20 +717,22 @@ those prompts, the loop rewrites them — too hard gets easier, too easy gets
 harder — and folds the rewrite back into the live training file.
 
 1. **Signal.** After scoring a group, the trainer checks
-   `statistics.pstdev(rewards) == 0`. If so it writes one JSON file per task to
-   `$SWE_TASK_EVOLUTION_DIR`, named `<instance_id>.json`, carrying `task_id`,
-   `solved`, `total`, a `direction` of `"harder"` or `"easier"`, and the per-turn
-   transcript. One file per task, write-once — that is what survives a FUSE mount
-   and pooled worker processes.
+   `statistics.pstdev(rewards) == 0`. If so it writes one JSON file per group to
+   `runs/<run>/signals/`, named `<task>--g<group>.json`, carrying the task, its
+   `rev`, `solved`, `total`, a `direction` of `"harder"` or `"easier"`, and the
+   paths of the group's rollout records under `runs/<run>/rollouts/`, which hold
+   the per-turn transcripts. One file per group, written as `.incoming` and
+   renamed in, which is what survives a FUSE mount and pooled worker processes.
+   `SWE_EVOLUTION_SIGNALS=0` switches it off.
 2. **Retune.** `evolve_ondella.py` picks signals up, and routes: all-fail →
    simplify the instruction only, never the verifier; all-pass → a structural
    change to one operator, one rung above **the version the mix is serving**.
-   That version is kept in `evolution/parents/<task_id>/` with its revision and
-   rung recorded beside it; a rewrite starts from it, and from the seed only
-   when there is none or when the recorded revision no longer matches the live
-   row (the mix was rebuilt, the family dropped, a later fold rejected). Before
-   this the source was always the seed, so a task needing three rungs rebuilt
-   rung one every time it signalled and never climbed.
+   That version is `evolution/tasks/<task>/r<rev>/`: the signal's `rev` is the
+   `metadata.rev` of the row the group ran on, `r0` is the seed, and every
+   accepted rewrite adds the next `r<N>/`. The rewrite starts from `r<rev>` and
+   records it as `input_rev` in its `rewrite.json`. Starting from the seed
+   instead would rebuild rung one every time a task needing three rungs
+   signalled, and the task would never climb.
 3. **Revalidate.** A structural change must be rebuilt and its reference solution
    re-run before it is trusted. On a host with no Docker that happens in Daytona
    — two probes in two fresh sandboxes (oracle, then a shortcut/cheat check).
@@ -720,17 +772,21 @@ harder — and folds the rewrite back into the live training file.
    measurement, and the training signal is the final word.
    A simplify takes an instruction-only fast path with no build and no sandbox,
    which is why the loop is cheap on the direction that dominates.
-4. **Fold.** Accepted rewrites are written back into the mix atomically
-   (temp file, then `os.replace`), **replace-only**: a label not already in the
-   file is skipped, because a new row lands at the end and would shift the
-   holdout tail. The folded row carries the size from step 3 in its `daytona_*`
-   keys (`.resources.json` beside the retuned package says where it came from),
-   and the `folded` lineage event records it with its source.
+4. **Fold.** Accepted rewrites are written back into the mix as the next
+   version (`data/mix/history/v<N>--<stamp>.jsonl` with its manifest, then
+   `live.jsonl` relinked to it in one rename), **replace-only**: a label not
+   already in the file is skipped, because a new row lands at the end and would
+   shift the holdout tail. The folded row carries its new `metadata.rev` and the
+   size from step 3 in its `daytona_*` keys (`resources` in the rewrite's
+   `rewrite.json` says where it came from), and the `fold` line in the task's
+   `lineage.jsonl` records the revision and the `mix_version` it entered.
 5. **Reload.** With `SWE_DATA_HOT_RELOAD=1` the trainer re-reads the file on
    mtime change (rate-limited to one stat per 20s). Same-id rows are swapped in
    place so a resumed checkpoint's ordering still points at the same tasks.
    Validation stays pinned to the boot-time file. A malformed reload is logged
-   and ignored, never fatal.
+   and ignored, never fatal. Each boot and each reload appends a line to
+   `runs/<run>/trainer/mix_versions.jsonl` (stamp, version, sha256, step), so
+   the run says which version it trained on and from which step.
 
 6. **Probe, before a change to the loop reaches a run.** A rewrite's difficulty
    is measured, not judged: `eval_host/difficulty_probe.sh <rows.jsonl>
@@ -752,8 +808,9 @@ harder — and folds the rewrite back into the live training file.
 | `SWE_RETUNE_AGENT` | `codex` | `chat` (default) does single API calls. `codex` runs an agent session under `agents/task_evolution.md`, capped at 25 tool calls / 600s, with a private `CODEX_HOME` so a stray token cannot win. Falls back to `chat` on failure. |
 | `SWE_VERIFIER_AUTHOR` | `blind` | `blind` (default): a second Codex session that never sees the reference solution writes the verifier from the instruction and the container, and the harness runs the check where the two meet. `same`: the session that wrote the solution writes the verifier too. Blind costs about 2.3x the per-task loop time (paired round 2026-09-04: median 430 s to 974 s) and buys verifiers that cannot depend on a name only the solution knows. |
 | `SWE_OPERATOR_DIVERSITY` | `freq` | Which spreading terms the operator score applies in evolution: `family+freq` (family balance across the pool plus per-operator damping; synthesis's default), `freq` (default: per-operator damping only), `off` (local fit only). Family balance was what moved a rewrite out of its seed's kind of work; `pool_diversity.py` is how the trade is read. |
-| `SWE_EVOLVE_SIMPLIFY` | `0` | **off.** Default is on. |
+| `SWE_EVOLVE_SIMPLIFY` | `0` | **off.** Default is on. A 0/k signal arriving while it is off gets a `deferred` ledger line and is replayed when it is turned on. |
 | `SWE_SIMPLIFY_HINT` | `vague` | `specific` bakes where-to-look hints into hundreds of instructions and the holdout experiment showed the policy learns hint-following that does not transfer. |
+| `TRL_BASE` | the root | where the loop reads (`runs/*/signals/`, `runs/*/rollouts/`) and writes (`evolution/`, `data/mix/`); the profile's value unless exported. |
 | `TRL_TT` | the checkout | the packer imports the training side's own row builder rather than mirroring the schema, so it fails loudly without this. |
 
 **Why simplify is off** is worth quoting, because it is a real finding rather
@@ -770,7 +827,8 @@ off, the too-hard tail freezes instead of being loosened.
 
 ```bash
 cd "$TRL_TT/torchtitan/experiments/rl/examples/tmax/evolution"
-set -a; . ../runbook/profiles/andy.env; set +a   # TRL_BASE, TRL_TT, signals dir; or yichuan.env
+export TRL_PROFILE=andy                                   # or yichuan
+set -a; . ../runbook/profiles/$TRL_PROFILE.env; set +a    # TRL_BASE, TRL_TT
 export OPENAI_API_KEY=...  DAYTONA_API_KEY=...
 export SWE_RETUNE_AGENT=codex SWE_EVOLVE_SIMPLIFY=0 SWE_SIMPLIFY_HINT=vague
 
@@ -780,22 +838,26 @@ python evolve_ondella.py --once --workers 16
 python evolve_ondella.py --interval 120 --workers 16
 ```
 
-Safe dry run — writes elsewhere and leaves the live mix alone:
+The loop takes no paths: it reads `$TRL_BASE/runs/*/signals/`, writes
+`$TRL_BASE/evolution/` and publishes into `$TRL_BASE/data/mix/`. Safe dry runs,
+which handle and publish nothing:
 
 ```bash
-python evolve_ondella.py --once --only <task_id> \
-    --mix-out /tmp/mix_test.jsonl --keep-signal
+python evolve_ondella.py --once --only <task_id> --dry        # that task's pending signals
+python evolve_ondella.py --signal <run>/<task_id>--g<N>       # one handled signal, again
 ```
 
-Restart with `restart_evolve.sh`, not Ctrl-C: an interrupt gets absorbed
-mid-round and you end up with two instances. Verify with
-`pgrep -cf evolve_ondella` — it should print `1`. The loop's credentials live
-only in its own process environment, which is why the restart script carries them
-across from the process it replaces.
+On della the unit is started and restarted by one command,
+`restart_evolve.sh [workers] [interval]`, which builds the loop's environment
+from the profile and root through `della/evolveloop_env.sh` and snapshots it to
+`evolution/loop.env`; [`../evolution/RUNBOOK.md`](../evolution/RUNBOOK.md) has
+that. Restart with it, not Ctrl-C: an interrupt gets absorbed mid-round and you
+end up with two instances. Verify with `pgrep -cf evolve_ondella` — it should
+print `1`.
 
 ### Reading its log
 
-`$TRL_BASE/logs/evolve_ondella.log`. Normal lines:
+`$TRL_BASE/evolution/loop.log`. Normal lines:
 
 ```
 INFO  tw_385269 solved=16/16 -> evolve (revalidate_shortcut_failed, arm=agent_harder)
@@ -808,6 +870,12 @@ the work, so the task needs hardening — that is the loop working, not an error
 `no signals` means the trainer has not produced any zero-variance groups since
 the last round, which is common: the loop is signal-starved, and roughly 89% of
 rounds carry 8 signals or fewer.
+
+The structured view is `evolution/ledger.jsonl` (one line per signal seen, with
+its outcome and the rewrite it produced), `evolution/status.json` (the counts,
+rebuilt every round; what the trainer puts on W&B as `evolution/*`) and each
+rewrite's `rewrite.json` under `evolution/tasks/<task>/rewrites/`, with the
+codex sessions beside it.
 
 Cost, derived from the code: an all-fail simplify is 1 model call and no sandbox.
 An all-pass evolve is roughly 9-11 calls at high reasoning effort plus two
@@ -858,12 +926,17 @@ The per-step confirmation line is:
 32 matches `SWE_NUM_GROUPS_PER_TRAIN_STEP`. A number consistently below it means
 the buffer is not keeping up.
 
-**Checkpoints** land in `<run dir>/outputs/rl/checkpoint/step-<N>` — relative to
-the launcher's working directory, which is why the script `cd`s into the dump
-directory first. 98 GiB each, verified.
+**Checkpoints** land in `runs/<run>/checkpoints/step-<N>`; `checkpoints` is the
+launcher's symlink to the host-local checkpoint directory, so the run directory
+alone says where they are. 98 GiB each, verified. Scoring one on TB-2.0
+(`data/evalsets/tb2_eval.jsonl`) is `evolution/della/tb2_eval_local.sh`, or
+`evolution/della/eval_watcher.sh` for every new step of a run; either writes
+`evals/<stamp>--<run>-step<N>/` with its own `launch.json`, `stdout.log` and
+`trainer/`.
 
 **W&B** gets the metrics under `WANDB_PROJECT`; the run URL is printed during
-boot.
+boot. `wandb/` is written under the run directory, and the trainer's own
+structured logs, metrics and profiles under `runs/<run>/trainer/`.
 
 ---
 
@@ -891,7 +964,7 @@ admits a gap.
   training venv resolves is unconfirmed. Given that harbor owns the tmux
   behaviour described in section 5, this is the most likely source of a silent
   behavioural difference between your run and ours.
-- **Checkpoint resume was not exercised.** `RL_RESUME_DUMP` is wired through the
+- **Checkpoint resume was not exercised.** `RL_RESUME_FROM` is wired through the
   launcher and the systemd unit restarts automatically, but no resume was
   performed during this work.
 - **Evolution cost figures are derived from the code paths**, not from a billing

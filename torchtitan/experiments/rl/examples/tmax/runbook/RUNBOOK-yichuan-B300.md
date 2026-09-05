@@ -190,51 +190,16 @@ Two consequences:
    buys queueing, not throughput. Their count moves; re-measure before blaming
    the code:
 
-3. **TODO: keep `mix_live.jsonl` in sync with the upstream measured disk.**
-   The claim above that "every row in this corpus declares 10 GiB" does not hold
-   for `data/mix/mix_live.jsonl` as generated: 864 of its 1067 rows declared
-   `daytona_disk_gb: 1`. Rows provisioned at 1 GiB die at session create with
-   `no space left on device` (`mkdir /root/.daytona/sessions/<id>`), which is
-   deterministic -- `max_attempts: 6` never reaches attempt 2, and the whole
-   group of 16 is lost. Measured over a 15k-rollout run: 65 such events across
-   30 tasks, two of which (`tw_177860`, `tw_680933`) lost all 16 rollouts each.
-
-   The fix is not to guess sizes and not to push anything upstream. The Clean
-   dataset already carries them: `andylizf/TerminalWorld-Seeds-Clean`, file
-   `metadata/measured_disk.csv`, from its 2026-08-30 "measured real-block disk
-   usage for 759 tasks (full Daytona build campaign)" commit. Column
-   `recommend_daytona_gb` is the number to take. Against it, 513 of the 667
-   overlapping rows in our local copy were UNDER-provisioned (510 of them
-   1 GiB where the measurement says 2 GiB) -- our copy predates that campaign.
-
-   Sync on every data rebuild, raising only (the measurement covers build-time
-   occupancy; a task that downloads at runtime can need more):
-
-```python
-import json, pandas as pd
-from huggingface_hub import hf_hub_download
-md = pd.read_csv(hf_hub_download(
-    "andylizf/TerminalWorld-Seeds-Clean", "metadata/measured_disk.csv",
-    repo_type="dataset"))
-rec = {str(k): int(v) for k, v in zip(md.task_id, md.recommend_daytona_gb)
-       if pd.notna(v)}
-out = []
-for line in open("data/mix/mix_live.jsonl"):
-    if not line.strip():
-        continue
-    row = json.loads(line)
-    meta = row.get("metadata") or {}
-    want, cur = rec.get(str(meta.get("instance_id"))), meta.get("daytona_disk_gb")
-    if want is not None and cur is not None and cur < want:
-        meta["daytona_disk_gb"] = want
-    out.append(json.dumps(row, ensure_ascii=False))
-open("data/mix/mix_live.jsonl", "w").write("\n".join(out) + "\n")
-```
-
-   Applied 2026-08-31: 513 rows raised. Still unresolved -- 352 rows remain at
-   1 GiB and 83 declare nothing, because only 667 of the 1067 rows appear in the
-   measured table at all. Those are the next ones to blow up.
-
+3. **Row-level fixes go through a published version, never into the live file.**
+   The generated mix declared `daytona_disk_gb: 1` on 864 of 1067 rows while the
+   corpus documents 10 GiB, and rows provisioned at 1 GiB die at session
+   bring-up. Fix the rows in the seed file before `new_root.py --mix` publishes
+   it, or publish a corrected version through `layout.write_mix` (the loop's own
+   folds use the same path); `data/mix/live.jsonl` is a hardlink to a history
+   version and is never edited in place.
+   Applied 2026-08-31 on the generated mix: 513 rows raised; 352 rows stayed at
+   1 GiB and 83 declared nothing, because only 667 of the 1067 rows appear in
+   the measured table at all. Those are the next ones to blow up.
 
 ```bash
 source /ssd1/k3/yichuan/rltrain.secrets.env
@@ -450,16 +415,18 @@ was still writing.
 
 ---
 
-## 9c. `TMAX_EXEC_TRACE_DIR`: timing every sandbox command
+## 9c. The rollout record's `exec` list: timing every sandbox command
 
-Set it to a directory and every command the agent drives is appended to
-`<group=N_rollout=M>.jsonl` as one record:
+Every command the agent drives is one entry in the `exec` list on line 1 of the
+rollout's record, `runs/<run>/rollouts/<task>/g<group>-r<idx>.jsonl` (format in
+[`../LAYOUT.md`](../LAYOUT.md)); `head -qn1 runs/<run>/rollouts/*/*.jsonl | jq -c '.exec[]'`
+is the whole capture as one stream:
 
 ```json
 {"t": 1788074975.512, "secs": 0.92, "exit": 0, "cmd": "tmux send-keys -t terminus-2 -- 'ruby /app/solution.rb\n'"}
 ```
 
-Unset, it costs nothing (the writer returns before touching the filesystem).
+`SWE_ROLLOUT_RECORDS=0` turns the record off.
 Every sandbox command passes through the same `exec`, so the trace captures the
 `tmux send-keys` that carries the agent's own command text, the `capture-pane`
 that reads the screen back, and the `has-session` liveness probe. `t` is the
@@ -573,14 +540,15 @@ before trusting either.
 2. **Stop paying for tasks the model has learned.** At an 85% solve rate, 69% of
    groups produce no gradient. Their tokens are skipped, but the ROLLOUTS are
    not: 512 sandboxes are booted and graded per step so ~130 can teach
-   something. Fix with the evolution loop, or offline: run with
-   `SWE_ZERO_STD_DIR` set, then feed that directory back as `SWE_SKIP_PROMPTS`.
+   something. Fix with the evolution loop, or offline: build a skip list from a
+   run's signals (`jq -r .task runs/<run>/signals/*.json | sort -u`) and feed it
+   back as `SWE_SKIP_PROMPTS`.
 3. **Fix the routing imbalance** -- 5 of 6 engines idle at 8% KV.
 4. **The 60% of rollout wall time that is the agent's own commands.** Not an
    infrastructure problem; it needs a shorter path to the answer (fewer turns)
-   or tasks with shorter commands. `SWE_ROLLOUT_DUMP_DIR` is the only way to see
-   what is actually being run, including the `min_timeout_sec` the model asks
-   for.
+   or tasks with shorter commands. The rollout records under
+   `runs/<run>/rollouts/` are the only way to see what is actually being run,
+   including the `min_timeout_sec` the model asks for.
 5. **GPU split.** The trainer is 5-8 min of a 12-15 min step now, so moving GPUs
    to it is no longer negligible -- but item 1 changes the balance first.
 
@@ -633,8 +601,7 @@ SWE_LOSS_CHUNKS=8
 SWE_CKPT_INTERVAL=5
 SWE_CKPT_KEEP=8
 
-# no evolution, no inline validation
-# SWE_TASK_EVOLUTION_DIR unset
+# no evolution loop against this root, no inline validation
 SWE_DATA_HOT_RELOAD=0
 SWE_VAL_SAMPLES=0
 ```
@@ -654,13 +621,12 @@ numbers below are from those measurements, not from a recipe.
 
 ### What made this run different
 
-**A private workdir, because two loops on one host ate each other's work.**
-`evolve_ondella.py` derives `signals/`, `consumed/`, `retuned/`, `junk/`,
-`deferred_easier/`, the lineage git, `POOL_ROOTS` and the default mix from one
-env var, `TRL_BASE`. Left at its default, every loop on the host shares all of
-them: on 2026-09-01 two were running and consuming signals out of the same
-directory. Separately, other tooling rewrote the shared `data/mix/mix_live.jsonl`
-nine times during a single 13-hour run (`.bak-audit-*`, `.bak-overcap-*`,
+**A private root, because two loops on one host ate each other's work.**
+`evolve_ondella.py` derives everything it reads and writes
+([`../LAYOUT.md`](../LAYOUT.md)) from one env var, `TRL_BASE`. Left at its
+default, every loop on the host shares all of it: on 2026-09-01 two were running
+and handling signals out of the same root. Separately, other tooling rewrote the
+shared `data/mix/live.jsonl` nine times during a single 13-hour run (`.bak-audit-*`, `.bak-overcap-*`,
 `.bak-busybox-*`, `.bak-evolved-*`), and each rewrite tripped
 `SWE_DATA_HOT_RELOAD` and invalidated the prefix cache -- the hit rate cycled
 92% -> 43-58% every 15-20 minutes. Pointing `TRL_BASE` at a per-run directory
@@ -670,19 +636,21 @@ Building one is three steps and about 5 MB:
 
 ```bash
 W=/scratch/gpfs/TRIDAO/al9080/terminal-rl/workdirs/wd-<stamp>
-mkdir -p $W/data/tw-extract/tasks $W/data/mix $W/evolution/signals $W/logs $W/runs $W/meta
+mkdir -p $W/data/sources/tw-extract/tasks
 
 # 1. packages: the published shard, filtered by the published id list
 curl -sL "https://huggingface.co/datasets/andylizf/TerminalWorld-Seeds-Clean/resolve/main/data/tasks-00000.tar" -o t.tar
 tar -xf t.tar -C /tmp/hf                      # 1353 complete packages
-while read -r t; do cp -a /tmp/hf/tasks/$t $W/data/tw-extract/tasks/$t; done < train_ready_ids.txt
+while read -r t; do cp -a /tmp/hf/tasks/$t $W/data/sources/tw-extract/tasks/$t; done < train_ready_ids.txt
 
 # 2. pack to rows
 TRL_BASE=$W python .../evolution/pack_to_dataset.py \
-    --evolved $W/data/tw-extract/tasks --out $W/data/mix/mix_live.jsonl
+    --evolved $W/data/sources/tw-extract/tasks --out seed.jsonl
 
 # 3. strip the canary from what the model reads; size from the measurements
-#    (see below)
+#    (see below); then the rows become the root's version 1
+python .../tmax/new_root.py --base $W --mix seed.jsonl \
+    --bin /scratch/gpfs/TRIDAO/al9080/terminal-rl/bin --purpose "TW only, evolution on"
 ```
 
 **TerminalWorld only, 663 rows.** `metadata/train_ready_ids.txt` is the
@@ -789,8 +757,8 @@ simplify only has to leave `solve.sh` passing, while an evolve has to survive a
 rebuilt verifier and a cheat probe. Watch `rollout_reward/_mean` against the
 fixed holdout -- the on-mix rate climbing while the fixed eval stays flat is the
 signature of a mix getting easier rather than a policy getting better. Turning
-the branch off does not discard the backlog: 0/k signals move to
-`evolution/deferred_easier/` and replay when it is turned back on.
+the branch off does not discard the backlog: 0/k signals get a `deferred` line
+in `evolution/ledger.jsonl` and replay when it is turned back on.
 
 ### Placing the meshes
 
@@ -816,13 +784,12 @@ Only the lines that differ from section 10 or that the evolution loop needs. The
 rest is unchanged.
 
 ```
-# per-run root: signals/, consumed/, retuned/, junk/, deferred_easier/, the
-# lineage git, POOL_ROOTS and runs/ all hang off this
+# per-run root: runs/, evolution/ and data/mix/ all hang off this (LAYOUT.md)
 TRL_BASE=/scratch/gpfs/TRIDAO/al9080/terminal-rl/workdirs/wd-20260902-tw
 
-# TerminalWorld only, 663 rows, canary stripped, sized from measured_resources
-SWE_PROMPT_DATA=$TRL_BASE/data/mix/mix_live.jsonl
-SWE_TASK_EVOLUTION_DIR=$TRL_BASE/evolution/signals
+# TerminalWorld only, 663 rows, canary stripped, sized from measured_resources;
+# the signals go under each run, nothing to point anywhere
+SWE_PROMPT_DATA=$TRL_BASE/data/mix/live.jsonl
 SWE_DATA_HOT_RELOAD=1
 
 # placement: trainer 2,0 | generators 6,1,4
@@ -862,10 +829,6 @@ SWE_LMHEAD_TF32X3=1
 SWE_LOSS_CHUNKS=8
 SWE_LR=3e-6
 SWE_PROFILE_MICROBATCHES=0
-
-# per-sandbox exec timings, per run (a stale value here silently interleaves
-# two runs' traces under one directory: group ids collide and the later write wins)
-TMAX_EXEC_TRACE_DIR=$TRL_BASE/exec-traces
 ```
 
 The evolution loop runs as its own process against the same root, so restarting
@@ -873,8 +836,7 @@ it costs no rollouts:
 
 ```bash
 TRL_BASE=$W TRL_TT=... PYTHONPATH=... \
-  python .../evolution/evolve_ondella.py --interval 120 --workers 16 \
-         --log $W/logs/evolve.log
+  python .../evolution/evolve_ondella.py --interval 120 --workers 16   # logs to $W/evolution/loop.log
 ```
 
 ### Not established
@@ -943,22 +905,22 @@ direction without the trajectory -- `ev.evolve` and `llm.synthesize` take no
 `trajectory` argument. Same corpus, same day: chat gave TerminalWorld 47% and
 tmax 2%; codex gave 63% and 60%. `SWE_EVOLVE_SIMPLIFY=0` because the ratchet only
 turns one way and this run wants to measure the harder direction alone; 0/k
-signals accumulate in `evolution/deferred_easier/` and replay if it is turned back
-on. The arm needs `/scratch/gpfs/TRIDAO/al9080/terminal-rl/bin/codex` (258 MB), with `jq`
-beside it for reading traces, and falls back to the chat operator on any exception, silently -- check for
+signals get a `deferred` line in `evolution/ledger.jsonl` and replay if it is turned back
+on. The arm needs `$TRL_BASE/bin/codex` (258 MB), with `jq`
+beside it for reading the rollout records, and falls back to the chat operator on any exception, silently -- check for
 `arm=agent_harder` in the evolve log to confirm which one actually ran.
 
-**Both dumps on.** `SWE_ROLLOUT_DUMP_DIR` for the full decoded trajectory per
-rollout, `SWE_PROFILE_MICROBATCHES=2` for a fresh trace under a known env.
+**Both records on.** `SWE_ROLLOUT_RECORDS=1` (the default) for the full decoded
+trajectory per rollout under `runs/<run>/rollouts/`, `SWE_PROFILE_MICROBATCHES=2`
+for a fresh trace under a known env.
 
 ### The env
 
 ```
 TRL_BASE=/scratch/gpfs/TRIDAO/al9080/terminal-rl/workdirs/wd-20260902b
-SWE_PROMPT_DATA=$TRL_BASE/data/mix/mix_live.jsonl        # 663 TW rows
-SWE_TASK_EVOLUTION_DIR=$TRL_BASE/evolution/signals
-SWE_ROLLOUT_DUMP_DIR=$TRL_BASE/rollout-dumps   # any value turns it on; launch_9b.sh writes under runs/<run>/rollout-dumps/
-TMAX_EXEC_TRACE_DIR=$TRL_BASE/exec-traces      # same: runs/<run>/exec-traces/
+SWE_PROMPT_DATA=$TRL_BASE/data/mix/live.jsonl        # 663 TW rows
+SWE_ROLLOUT_RECORDS=1                                # runs/<run>/rollouts/, the default
+SWE_EVOLUTION_SIGNALS=1                              # runs/<run>/signals/, the default
 SWE_DATA_HOT_RELOAD=1
 
 RL_GPUS=2,0,6,1,4          # trainer 2,0 | generators 6,1,4
@@ -997,8 +959,7 @@ Evolution runs as its own process against the same root:
 
 ```
 TRL_BASE=$W SWE_RETUNE_AGENT=codex SWE_EVOLVE_SIMPLIFY=0 \
-  python .../evolution/evolve_ondella.py --interval 120 --workers 16 \
-         --log $W/logs/evolve.log
+  python .../evolution/evolve_ondella.py --interval 120 --workers 16   # logs to $W/evolution/loop.log
 ```
 
 ### Building the mix, verified

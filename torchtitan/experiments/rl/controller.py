@@ -1778,38 +1778,48 @@ class Controller(Configurable):
         logger.info("=" * 60)
 
     def _evolution_metrics(self) -> list[m.Metric]:
-        """Online task-evolution counters for wandb, read from the evolve loop's stats
-        file on the shared mount (evolution_stats.json, written by evolve_ondella each
-        round). Empty when the feature is off (SWE_TASK_EVOLUTION_DIR unset) or no round
-        has completed yet. NoReduce: these are cumulative gauges, not per-token
-        reductions, so they are exempt from the loss-metric suffix rule."""
+        """Online task-evolution counters for wandb, read from the evolve loop's
+        ``evolution/status.json`` under ``TRL_BASE`` (LAYOUT.md), which the loop
+        rebuilds from its ledger at the end of every round. Empty when no experiment
+        root is set (no loop can be running) or the loop has not written a status
+        yet. NoReduce: these are cumulative gauges, not per-token reductions, so
+        they are exempt from the loss-metric suffix rule."""
         import json
 
-        sig_dir = os.environ.get("SWE_TASK_EVOLUTION_DIR")
-        if not sig_dir:
-            return []
-        stats_path = os.path.join(os.path.dirname(sig_dir), "evolution_stats.json")
+        # Local import: the layout is a tmax convention and this file is shared
+        # with every other example; nothing else here depends on it.
+        from torchtitan.experiments.rl.examples.tmax import layout
+
         try:
-            with open(stats_path) as f:
-                s = json.load(f)
+            status_path = layout.Root.from_env().evolution.status
+        except RuntimeError:
+            return []
+        try:
+            s = json.loads(status_path.read_text())
         except (OSError, ValueError):
             return []
-        counts = s.get("counts", {}) or {}
-        revalidate_failed = sum(
-            v for k, v in counts.items() if k.startswith("revalidate_")
-        )
+        rejected = s.get("rejected") or {}
         return [
-            m.Metric("evolution/rounds", m.NoReduce(float(s.get("rounds", 0)))),
-            m.Metric("evolution/folded_total", m.NoReduce(float(s.get("folded", 0)))),
-            m.Metric("evolution/retuned_total", m.NoReduce(float(s.get("retuned", 0)))),
             m.Metric(
-                "evolution/pending_signals", m.NoReduce(float(s.get("pending", 0)))
+                "evolution/pending_signals", m.NoReduce(float(s.get("pending") or 0))
             ),
             m.Metric(
-                "evolution/revalidate_failed_total",
-                m.NoReduce(float(revalidate_failed)),
+                "evolution/handled_total", m.NoReduce(float(s.get("handled") or 0))
             ),
-            m.Metric("evolution/kept_total", m.NoReduce(float(counts.get("kept", 0)))),
+            m.Metric(
+                "evolution/accepted_total", m.NoReduce(float(s.get("accepted") or 0))
+            ),
+            m.Metric(
+                "evolution/rejected_total",
+                m.NoReduce(float(sum(rejected.values()))),
+            ),
+            m.Metric(
+                "evolution/blocked_total", m.NoReduce(float(s.get("blocked") or 0))
+            ),
+            m.Metric("evolution/kept_total", m.NoReduce(float(s.get("kept") or 0))),
+            m.Metric(
+                "evolution/mix_version", m.NoReduce(float(s.get("mix_version") or 0))
+            ),
         ]
 
     async def _data_input_loop(self, group_buffer: RolloutGroupWorkBuffer) -> None:

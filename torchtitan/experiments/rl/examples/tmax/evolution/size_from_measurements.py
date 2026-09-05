@@ -15,6 +15,9 @@ Sources: TW disk from measure_disk.py (real block usage after a server-side
 build); TMax ram/disk from Fzz1/Tmax-Tasks-Clean, whose peak_ram_mb is
 env-inclusive, i.e. what must actually be provisioned. TW cpu/memory have never
 been measured, only declared in each task.toml, so they are left as they are.
+
+--apply writes through layout.write_mix: on a root's live mix that publishes the
+next version, and the history is the backup.
 """
 from __future__ import annotations
 
@@ -22,11 +25,10 @@ import argparse
 import collections
 import json
 import math
-import shutil
-from datetime import datetime
 from pathlib import Path
 
-BASE = Path("/scratch/gpfs/TRIDAO/al9080/terminal-rl")
+from torchtitan.experiments.rl.examples.tmax import layout
+
 HEADROOM = 1.3
 MEM_CAP, DISK_CAP = 8, 10
 
@@ -39,17 +41,24 @@ def gib(mb: float | None, cap: int) -> int | None:
 
 def main() -> None:
     ap = argparse.ArgumentParser()
-    ap.add_argument("--mix", default=str(BASE / "data/mix/mix_live.jsonl"))
-    ap.add_argument("--tw-disk", default=str(BASE / "results/disk_full.jsonl"))
-    ap.add_argument("--tmax", default=str(BASE / "data/tmax-clean/splits/train.parquet"))
+    ap.add_argument("--mix", default=None, help="default: $TRL_BASE/data/mix/live.jsonl")
+    ap.add_argument("--tw-disk", default=None,
+                    help="measure_disk.py output; default: $TRL_BASE/results/disk_full.jsonl")
+    ap.add_argument("--tmax", default=None,
+                    help="default: $TRL_BASE/data/sources/tmax-clean/splits/train.parquet")
     ap.add_argument("--holdout-n", type=int, default=64)
     ap.add_argument("--include-holdout", action="store_true",
                     help="also resize the held-out tail (changes what validation runs)")
     ap.add_argument("--apply", action="store_true")
     args = ap.parse_args()
+    root = layout.Root.from_env()
+    mix = Path(args.mix) if args.mix else root.mix.live
+    tw_disk = Path(args.tw_disk) if args.tw_disk else root.path / "results" / "disk_full.jsonl"
+    tmax = (Path(args.tmax) if args.tmax
+            else root.data / "sources" / "tmax-clean" / "splits" / "train.parquet")
 
     tw = {}
-    for line in open(args.tw_disk):
+    for line in open(tw_disk):
         if line.strip():
             r = json.loads(line)
             if r.get("built"):
@@ -57,9 +66,9 @@ def main() -> None:
 
     import pyarrow.parquet as pq  # noqa: PLC0415
     tm = {r["task_id"]: r
-          for r in pq.read_table(args.tmax).to_pylist()}
+          for r in pq.read_table(tmax).to_pylist()}
 
-    lines = [l for l in Path(args.mix).read_text().splitlines() if l.strip()]
+    lines = [l for l in mix.read_text().splitlines() if l.strip()]
     n = len(lines)
     editable = n if args.include_holdout else n - args.holdout_n
 
@@ -104,10 +113,9 @@ def main() -> None:
     if not args.apply:
         print(f"dry run -- {stats['changed']} rows would change")
         return
-    bak = f"{args.mix}.bak-measured-{datetime.now():%Y%m%d-%H%M%S}"
-    shutil.copy2(args.mix, bak)
-    Path(args.mix).write_text("\n".join(out) + "\n")
-    print(f"wrote {args.mix} ({stats['changed']} changed); backup {bak}")
+    published = layout.write_mix(mix, out)
+    print(f"wrote {mix} ({stats['changed']} changed)"
+          + (f"; published mix v{published[0]:04d}" if published else ""))
 
 
 if __name__ == "__main__":
