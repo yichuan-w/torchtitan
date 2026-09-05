@@ -302,7 +302,10 @@ queue. The local disk is one box with no backup, so `ckpt_mirror.sh` (run
 from a timer) keeps the newest complete step of `runs/latest` in
 `checkpoints-mirror/step-<N>` on GPFS and drops the previous mirror when a
 newer step is complete: one checkpoint of quota buys a run that survives the
-box. None of the three directories is written by the trainer.
+box; `launch_9b.sh` starts that timer for the root it launches in, so a run
+carries its own copy without anyone remembering to arrange one
+(`TRL_CKPT_MIRROR=0` turns it off). None of the three directories is written
+by the trainer.
 
 ## Experiments and runs
 
