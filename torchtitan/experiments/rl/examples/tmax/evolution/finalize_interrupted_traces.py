@@ -1,99 +1,70 @@
 #!/usr/bin/env python3
-"""Finalize Codex trace records left with status ``running`` after loop shutdown."""
+"""Mark the sessions and rewrites a stopped loop left `running`.
+
+restart_evolve.sh stops the loop's whole process group, so every codex
+session alive at that moment died with it and every rewrite waiting on one
+never reached its verdict. Their records still say `running`, which reads as
+live. This walks tasks/*/rewrites/*/ under the root, and writes `interrupted`
+into every session.json and rewrite.json that says `running`, with when it
+was observed and which loop pid was stopped. Nothing else is touched: a
+record that already finished says what it says.
+
+    finalize_interrupted_traces.py --stopped-loop-pid <pid>     (TRL_BASE set)
+"""
 from __future__ import annotations
 
 import argparse
 import json
-import os
-import shutil
-import stat
-import time
+import sys
 from pathlib import Path
 
-
-def _write_json_atomic(path: Path, value: dict) -> None:
-    incoming = path.with_suffix(path.suffix + ".incoming")
-    mode = stat.S_IMODE(path.stat().st_mode)
-    incoming.write_text(json.dumps(value, ensure_ascii=False, sort_keys=True) + "\n")
-    incoming.chmod(mode)
-    os.replace(incoming, path)
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from torchtitan.experiments.rl.examples.tmax import layout  # noqa: E402
 
 
-def finalize_interrupted_traces(
-    root: Path,
-    *,
-    stopped_loop_pid: int,
-    started_before_unix_ns: int | None = None,
-) -> dict[str, int]:
-    """Back up and mark running traces older than the optional cutoff as interrupted."""
+def _mark(path: Path, *, stopped_loop_pid: int, observed: str) -> str:
+    """'marked', 'skipped' or raises."""
+    record = json.loads(path.read_text())
+    if record.get("status") != "running":
+        return "skipped"
+    record.update({
+        "status": "interrupted",
+        "finished": observed,
+        "error": f"evolve loop process group stopped (pid {stopped_loop_pid})",
+        "stopped_loop_pid": stopped_loop_pid,
+    })
+    layout.write_json_atomic(path, record)
+    return "marked"
+
+
+def finalize_interrupted(root: layout.Root, *, stopped_loop_pid: int) -> dict[str, int]:
     counts = {"marked": 0, "skipped": 0, "failed": 0}
-    if not root.is_dir():
-        return counts
-
-    for trace_path in sorted(root.glob("codex-*/trace.json")):
-        try:
-            record = json.loads(trace_path.read_text())
-            if record.get("status") != "running":
-                counts["skipped"] += 1
-                continue
-            started = int(record.get("started_time_unix_ns") or 0)
-            if started_before_unix_ns is not None and started >= started_before_unix_ns:
-                counts["skipped"] += 1
-                continue
-
-            backup = trace_path.with_name("trace.pre-finalize.json")
-            if not backup.exists():
-                shutil.copy2(trace_path, backup)
-            observed = time.time_ns()
-            record.update(
-                {
-                    "status": "interrupted",
-                    "finished_time_unix_ns": observed,
-                    "finished_time_source": "restart_observation",
-                    "interruption_reason": "evolve_loop_process_group_stopped",
-                    "stopped_loop_pid": stopped_loop_pid,
-                }
-            )
-            _write_json_atomic(trace_path, record)
-            counts["marked"] += 1
-            print(
-                json.dumps(
-                    {
-                        "time_unix_ns": observed,
-                        "outcome": "marked_interrupted",
-                        "task_id": record.get("task_id"),
-                        "trace_dir": str(trace_path.parent),
-                    },
-                    sort_keys=True,
-                )
-            )
-        except (OSError, ValueError, TypeError, json.JSONDecodeError) as exc:
-            counts["failed"] += 1
-            print(
-                json.dumps(
-                    {
-                        "time_unix_ns": time.time_ns(),
-                        "outcome": "finalize_failed",
-                        "trace_file": str(trace_path),
-                        "error": f"{type(exc).__name__}: {exc}",
-                    },
-                    sort_keys=True,
-                )
-            )
+    observed = layout.stamp()
+    for task in root.evolution.task_dirs():
+        for rewrite in task.rewrite_dirs():
+            records = [s.meta for s in rewrite.session_dirs()] + [rewrite.meta]
+            for path in records:
+                if not path.exists():
+                    continue
+                try:
+                    outcome = _mark(path, stopped_loop_pid=stopped_loop_pid, observed=observed)
+                except (OSError, ValueError, TypeError) as exc:
+                    counts["failed"] += 1
+                    print(json.dumps({"outcome": "finalize_failed", "file": str(path),
+                                      "error": f"{type(exc).__name__}: {exc}"}, sort_keys=True))
+                    continue
+                counts[outcome] += 1
+                if outcome == "marked":
+                    print(json.dumps({"outcome": "marked_interrupted", "task": task.task_id,
+                                      "file": str(path.relative_to(root.path))}, sort_keys=True))
     return counts
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser()
-    parser.add_argument("root", type=Path)
+    parser = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     parser.add_argument("--stopped-loop-pid", required=True, type=int)
-    parser.add_argument("--started-before-unix-ns", type=int)
     args = parser.parse_args()
-    counts = finalize_interrupted_traces(
-        args.root,
-        stopped_loop_pid=args.stopped_loop_pid,
-        started_before_unix_ns=args.started_before_unix_ns,
-    )
+    counts = finalize_interrupted(layout.Root.from_env(), stopped_loop_pid=args.stopped_loop_pid)
     print(json.dumps({"outcome": "finalize_summary", **counts}, sort_keys=True))
     return int(counts["failed"] > 0)
 

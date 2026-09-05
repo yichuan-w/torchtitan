@@ -1,67 +1,47 @@
 from __future__ import annotations
 
 import json
-import stat
 import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 import finalize_interrupted_traces as fit
+from torchtitan.experiments.rl.examples.tmax import layout
 
 
-def _write_trace(root: Path, name: str, *, status: str, started: int) -> Path:
-    path = root / name / "trace.json"
-    path.parent.mkdir(parents=True)
-    path.write_text(
-        json.dumps(
-            {
-                "status": status,
-                "task_id": name,
-                "started_time_unix_ns": started,
-                "finished_time_unix_ns": None,
-            }
-        )
-        + "\n"
-    )
-    path.chmod(0o600)
-    return path
+def _rewrite(root: layout.Root, stamp_: str, *, status: str,
+             sessions: dict[str, str]) -> layout.RewriteDir:
+    rw = root.evolution.task("tw_a").rewrite("harder", stamp_)
+    layout.write_json_atomic(rw.meta, {"task": "tw_a", "status": status, "finished": None})
+    for kind, st in sessions.items():
+        sd = rw.session(kind, stamp_)
+        layout.write_json_atomic(sd.meta, {"kind": kind, "status": st, "finished": None})
+    return rw
 
 
-def test_finalize_backs_up_and_marks_only_running_traces(tmp_path) -> None:
-    running = _write_trace(tmp_path, "codex-harder-a", status="running", started=10)
-    completed = _write_trace(
-        tmp_path, "codex-harder-b", status="completed", started=20
-    )
-    original = running.read_text()
+def test_finalize_marks_only_running_sessions_and_rewrites(tmp_path) -> None:
+    root = layout.Root(tmp_path / "root")
+    live = _rewrite(root, "20260904-100000Z", status="running",
+                    sessions={"agent": "completed", "repair": "running"})
+    done = _rewrite(root, "20260904-090000Z", status="rejected", sessions={"agent": "completed"})
 
-    counts = fit.finalize_interrupted_traces(tmp_path, stopped_loop_pid=123)
+    counts = fit.finalize_interrupted(root, stopped_loop_pid=123)
 
-    record = json.loads(running.read_text())
-    assert counts == {"marked": 1, "skipped": 1, "failed": 0}
-    assert record["status"] == "interrupted"
-    assert record["finished_time_source"] == "restart_observation"
-    assert record["stopped_loop_pid"] == 123
-    assert running.with_name("trace.pre-finalize.json").read_text() == original
-    assert stat.S_IMODE(running.stat().st_mode) == 0o600
-    assert json.loads(completed.read_text())["status"] == "completed"
-    assert not completed.with_name("trace.pre-finalize.json").exists()
+    assert counts == {"marked": 2, "skipped": 3, "failed": 0}
+    meta = json.loads(live.meta.read_text())
+    assert meta["status"] == "interrupted" and meta["stopped_loop_pid"] == 123
+    assert meta["finished"] and "pid 123" in meta["error"]
+    by_kind = {s.path.name.split("--")[1]: json.loads(s.meta.read_text())
+               for s in live.session_dirs()}
+    assert by_kind["repair"]["status"] == "interrupted" and by_kind["repair"]["finished"]
+    assert by_kind["agent"]["status"] == "completed" and by_kind["agent"]["finished"] is None
+    assert json.loads(done.meta.read_text())["status"] == "rejected"
 
-    assert fit.finalize_interrupted_traces(tmp_path, stopped_loop_pid=123) == {
-        "marked": 0,
-        "skipped": 2,
-        "failed": 0,
-    }
+    assert fit.finalize_interrupted(root, stopped_loop_pid=123) == {
+        "marked": 0, "skipped": 5, "failed": 0}
 
 
-def test_finalize_respects_started_before_cutoff(tmp_path) -> None:
-    older = _write_trace(tmp_path, "codex-harder-old", status="running", started=10)
-    newer = _write_trace(tmp_path, "codex-harder-new", status="running", started=30)
-
-    counts = fit.finalize_interrupted_traces(
-        tmp_path, stopped_loop_pid=456, started_before_unix_ns=20
-    )
-
-    assert counts == {"marked": 1, "skipped": 1, "failed": 0}
-    assert json.loads(older.read_text())["status"] == "interrupted"
-    assert json.loads(newer.read_text())["status"] == "running"
+def test_finalize_over_an_empty_root_is_nothing(tmp_path) -> None:
+    assert fit.finalize_interrupted(layout.Root(tmp_path / "root"), stopped_loop_pid=1) == {
+        "marked": 0, "skipped": 0, "failed": 0}
