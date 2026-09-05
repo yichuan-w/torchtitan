@@ -800,17 +800,20 @@ def rl_grpo_qwen3_5_9b_tmax() -> Controller.Config:
             # job down with `OSError: [Errno 122] Disk quota exceeded` mid-save,
             # which also leaves a truncated checkpoint behind.
             keep_latest_k=int(os.environ.get("SWE_CKPT_KEEP", "3")),
-            # A save blocks the training loop: the framework default is
-            # async_mode="disabled", and the 9B's 109 GB of model plus optimizer
-            # state took 61-86 s per save on this box (measured over four runs
-            # on 2026-09-04/05), every SWE_CKPT_INTERVAL steps.
-            #
-            # "async" is the mode to reach for: the loop blocks only for the
-            # GPU-to-CPU copy and a background thread writes, and the next
+            # A save blocked the training loop for 61-86 s, measured over four
+            # runs on this box (2026-09-04/05), every SWE_CKPT_INTERVAL steps:
+            # the framework default async_mode is "disabled" and the 9B writes
+            # 109 GB of model plus optimizer state. "async" blocks only for the
+            # GPU-to-CPU copy and writes from a background thread, and the next
             # save waits on the previous one (maybe_wait_for_saving), so the
             # writes cannot pile up. Its cost is GIL contention while that
-            # thread runs -- on a published 1.3B benchmark the step time stayed
-            # ~50% above baseline for the duration of the background write.
+            # thread runs: on a published 1.3B benchmark the step time stayed
+            # ~50% above baseline for the duration of the background write,
+            # which is the trade this recipe wants at 45 minutes between saves.
+            # A kill during the write leaves a step directory with no
+            # .metadata, which _find_load_step already refuses, so the failure
+            # is a lost checkpoint and never a resume from a torn one -- the
+            # same failure a kill during a synchronous write produces.
             #
             # "async_with_pinned_mem" is NOT safe on this stack as it stands.
             # It hands back a staging future that has to be awaited after
@@ -819,7 +822,7 @@ def rl_grpo_qwen3_5_9b_tmax() -> Controller.Config:
             # trainer calls maybe_wait_for_staging() for that, and this RL
             # trainer (actors/trainer.py, save_checkpoint) does not. It also
             # pins the whole 109 GB for the life of the job.
-            async_mode=os.environ.get("SWE_CKPT_ASYNC", "disabled"),
+            async_mode=os.environ.get("SWE_CKPT_ASYNC", "async"),
             # SWE_CKPT_FOLDER: absolute path redirects checkpoint I/O off the
             # dump filesystem entirely (os.path.join drops the dump prefix for
             # absolute paths). Added when the shared GPFS fileset hit its quota

@@ -273,7 +273,7 @@ Everything below is read from the environment in `config_registry.py` /
 | `TMAX_FORMAT_ERROR_FEEDBACK` | 0 | 0 = break on the first turn with no `bash` call (reference behavior) |
 | `SWE_VAL_SAMPLES` / `SWE_VAL_INTERVAL` | 32 / 20 | Held-out validation size and cadence; `SWE_VAL_SAMPLES=0` turns it off |
 | `SWE_CKPT_INTERVAL` / `SWE_CKPT_KEEP` | 20 / 3 | Save every N steps, keep the last K on the host's local disk. One save is 109 GB and blocks the loop for 61-86 s |
-| `SWE_CKPT_ASYNC` | `disabled` | `async` writes from a thread after the GPU-to-CPU copy, which is the one to try; `async_with_pinned_mem` needs a staging wait this trainer does not call, so it can copy weights the optimizer has already changed |
+| `SWE_CKPT_ASYNC` | `async` | The loop blocks only for the GPU-to-CPU copy and a thread writes the 109 GB (a synchronous save blocked it for 61-86 s). `disabled` restores that; `async_with_pinned_mem` needs a staging wait this trainer does not call, so it can copy weights the optimizer has already changed |
 | `TRL_CKPT_MIRROR` / `TRL_CKPT_EXPORT` | 1 / 1 | The two timers `launch_9b.sh` starts for the root: the newest full checkpoint copied to `runs/<run>/checkpoints-mirror/`, and every step exported as bf16 weights to `runs/<run>/weights/`. `0` turns one off |
 | `TRL_RUN_DIR` | set by `launch_9b.sh` | The run directory. Rollout records, signals and advisories are written under it; the format of each is in `LAYOUT.md` |
 | `SWE_ROLLOUT_RECORDS` | 1 | One JSONL per rollout under `$TRL_RUN_DIR/rollouts/<task>/`: the rollout (reward, finish reason, sandbox, per-command `exec` timings) on line 1, then one line per turn with the decoded keystrokes, terminal output and reasoning (what the model actually trained on). `0` turns it off |
