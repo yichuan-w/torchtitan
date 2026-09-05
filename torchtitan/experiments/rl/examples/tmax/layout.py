@@ -350,6 +350,11 @@ class Run:
         return self.path / "checkpoints-held"
 
     @property
+    def checkpoints_mirror(self) -> Path:
+        """The newest complete step, copied to GPFS by ckpt_mirror.sh; one at a time."""
+        return self.path / "checkpoints-mirror"
+
+    @property
     def checkpoints_staged(self) -> Path:
         """GPFS copies of steps for eval nodes; eval_watcher.sh owns them."""
         return self.path / "checkpoints-staged"
