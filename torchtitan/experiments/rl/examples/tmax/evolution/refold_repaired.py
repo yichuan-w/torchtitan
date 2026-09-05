@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Return repaired task packages to the live mix WITHOUT disturbing the holdout.
 
-The last `holdout_n` rows of mix_live.jsonl (file order) are the training
+The last `holdout_n` rows of the live mix (file order) are the training
 harness's held-out validation slice -- training serves rows[:-holdout_n] and the
 frozen 64-task eval set is exactly that tail. Appending a new row therefore
 pushes one task out of the holdout and pulls a new one in, which silently
@@ -13,34 +13,37 @@ loop's own fold only ever replaces existing ids, so it is not affected by this;
 this script exists for the case the loop does not cover -- a task that was
 purged from the mix, repaired, and is now coming back.
 
-Dry run by default; --apply backs up the mix first.
+Dry run by default. --apply writes through layout.write_mix: on a root's live
+mix that publishes the next version, and the history is the backup.
 """
 from __future__ import annotations
 
 import argparse
 import json
 import os
-import shutil
 import sys
-import time
 from pathlib import Path
 
-ROOT = Path(os.environ.get("TRL_ROOT", "/scratch/gpfs/TRIDAO/al9080/terminal-rl"))
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import pack_to_dataset as pack  # noqa: E402
+from torchtitan.experiments.rl.examples.tmax import layout  # noqa: E402
+
 HOLDOUT_N = int(os.environ.get("TMAX_HOLDOUT_N", "64"))
-sys.path.insert(0, str(ROOT / "evolve-onhost" / "scripts"))
 
 
-def find_package(task_id: str) -> Path | None:
+def find_package(root: layout.Root, task_id: str) -> Path | None:
     for pool in ("tw-extract", "swe-extract"):
-        cand = ROOT / "data" / pool / "tasks" / task_id
+        cand = root.data / "sources" / pool / "tasks" / task_id
         if cand.exists():
             return cand
     return None
 
 
 # Written onto a row after it is folded, and not recoverable from the package.
+# ``rev`` is the loop's: a signal names the rev it saw and the loop drops one
+# about a rev the task has moved past, so a replaced row keeps its number.
 _CARRIED_FIELDS = ("daytona_cpu", "daytona_mem_gb", "daytona_disk_gb",
-                   "terminal_domain")
+                   "terminal_domain", "rev")
 
 
 def partial_reference(pkg: Path) -> bool:
@@ -65,12 +68,11 @@ def main() -> None:
                     help="also replace a row inside the holdout window, in place. "
                          "Changes the frozen validation set: only pass it as a "
                          "deliberate, recorded act.")
-    ap.add_argument("--mix", default=str(ROOT / "data/mix/mix_live.jsonl"))
+    ap.add_argument("--mix", default=None, help="default: $TRL_BASE/data/mix/live.jsonl")
     args = ap.parse_args()
+    root = layout.Root.from_env()
+    mix = Path(args.mix) if args.mix else root.mix.live
 
-    import pack_to_dataset as pack
-
-    mix = Path(args.mix)
     lines = [l for l in mix.read_text().splitlines() if l.strip()]
     labels = [json.loads(l)["label"] for l in lines]
     existing = {json.loads(l)["label"]: json.loads(l) for l in lines}
@@ -79,7 +81,7 @@ def main() -> None:
 
     built: list[tuple[str, str]] = []
     for tid in args.task_ids:
-        pkg = find_package(tid)
+        pkg = find_package(root, tid)
         if pkg is None:
             print(f"  {tid}: NO PACKAGE FOUND -- skipped")
             continue
@@ -102,6 +104,8 @@ def main() -> None:
             for field in _CARRIED_FIELDS:
                 if field in prev["metadata"] and field not in row["metadata"]:
                     row["metadata"][field] = prev["metadata"][field]
+        # A task entering fresh is at its seed revision, as new_root.py stamps it.
+        row["metadata"].setdefault("rev", 0)
         # Say where the row will LAND, not how it was built. The holdout is the
         # tail of the file and is skipped unless --replace-holdout is passed, so
         # a task that lives there is otherwise inserted before it, leaving the
@@ -144,18 +148,14 @@ def main() -> None:
     out.extend(inserted)
     out.extend(new_tail)                        # same length, same order
 
-    backup = f"{mix}.bak-refold-{time.strftime('%Y%m%d-%H%M')}"
-    shutil.copy2(mix, backup)
-    tmp = str(mix) + ".incoming"
-    with open(tmp, "w") as f:
-        f.write("\n".join(out) + "\n")
-    os.replace(tmp, mix)
+    published = layout.write_mix(mix, out)
 
-    after = [json.loads(l)["label"] for l in Path(mix).read_text().splitlines() if l.strip()]
+    after = [json.loads(l)["label"] for l in mix.read_text().splitlines() if l.strip()]
     print(f"rows {len(lines)} -> {len(after)} (replaced {replaced}, inserted {len(inserted)})")
     print(f"holdout membership unchanged: "
           f"{after[-HOLDOUT_N:] == labels[-HOLDOUT_N:]}")
-    print(f"backup: {backup}")
+    if published:
+        print(f"published mix v{published[0]:04d}")
 
 
 if __name__ == "__main__":

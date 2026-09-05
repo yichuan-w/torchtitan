@@ -9,23 +9,24 @@ scheduled (one live task burned 448 builds in a single training boot before this
 was found).
 
 Two places carry a copy and BOTH must be fixed: the source package
-(`data/*-extract/tasks/<id>/environment/Dockerfile`, used by future folds) and
-the live training row (`metadata.dockerfile` in mix_live.jsonl, used right now;
-training hot-reloads the file, so the fix takes effect without a restart).
+(`data/sources/*-extract/tasks/<id>/environment/Dockerfile`, used by future
+folds) and the live training row (`metadata.dockerfile` in the live mix, used
+right now; training hot-reloads the file, so the fix takes effect without a
+restart).
 
-Default is a dry run. Pass --apply to write, which backs up mix_live.jsonl and
-each edited Dockerfile first.
+Default is a dry run. Pass --apply to write: each edited Dockerfile is backed up
+beside itself first, and the mix goes through layout.write_mix, which on a
+root's live mix publishes the next version -- the history is the backup.
 """
 from __future__ import annotations
 
 import argparse
 import json
-import os
 import shutil
-import time
 from pathlib import Path
 
-ROOT = Path(os.environ.get("TRL_ROOT", "/scratch/gpfs/TRIDAO/al9080/terminal-rl"))
+from torchtitan.experiments.rl.examples.tmax import layout
+
 POOLS = ("tw-extract", "swe-extract")
 
 
@@ -60,12 +61,14 @@ def dockerfile_of(task_dir: Path) -> Path | None:
 def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--apply", action="store_true", help="write changes (default: dry run)")
-    ap.add_argument("--mix", default=str(ROOT / "data/mix/mix_live.jsonl"))
+    ap.add_argument("--mix", default=None, help="default: $TRL_BASE/data/mix/live.jsonl")
     args = ap.parse_args()
+    root = layout.Root.from_env()
+    mix = Path(args.mix) if args.mix else root.mix.live
 
     pkg_fixed = []
     for pool in POOLS:
-        for task_dir in sorted((ROOT / "data" / pool / "tasks").glob("*/")):
+        for task_dir in sorted((root.data / "sources" / pool / "tasks").glob("*/")):
             df = dockerfile_of(task_dir)
             if df is None:
                 continue
@@ -83,7 +86,6 @@ def main() -> None:
     if len(pkg_fixed) > 15:
         print(f"    ... {len(pkg_fixed) - 15} more")
 
-    mix = Path(args.mix)
     rows = [json.loads(l) for l in mix.read_text().splitlines() if l.strip()]
     live_fixed = []
     for r in rows:
@@ -100,14 +102,9 @@ def main() -> None:
         print(f"    {tid} ({n} lines)")
 
     if args.apply and live_fixed:
-        backup = f"{mix}.bak-inrun-{time.strftime('%Y%m%d-%H%M')}"
-        shutil.copy2(mix, backup)
-        tmp = str(mix) + ".tmp"
-        with open(tmp, "w") as f:
-            for r in rows:
-                f.write(json.dumps(r, ensure_ascii=False) + "\n")
-        os.replace(tmp, mix)
-        print(f"mix rewritten ({len(rows)} rows preserved); backup at {backup}")
+        published = layout.write_mix(mix, [json.dumps(r, ensure_ascii=False) for r in rows])
+        print(f"mix rewritten ({len(rows)} rows preserved)"
+              + (f"; published mix v{published[0]:04d}" if published else ""))
     elif not args.apply:
         print("dry run -- pass --apply to write")
 

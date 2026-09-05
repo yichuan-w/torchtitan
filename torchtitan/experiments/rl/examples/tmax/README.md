@@ -12,8 +12,10 @@ loop. It shares the sandbox / adapter / grading machinery with
 harness architecture; this one covers what tmax changes and how to run it.
 
 The from-zero reproduction guide for the 9B TerminalWorld run, environment lock
-included, is in [`runbook/RUNBOOK.md`](runbook/RUNBOOK.md). The collaboration's
-branch rules are in [`.claude/CLAUDE.md`](../../../../../.claude/CLAUDE.md).
+included, is in [`runbook/RUNBOOK.md`](runbook/RUNBOOK.md). Where everything a
+run and the evolve loop write lives under the experiment root, and the file
+formats, is [`LAYOUT.md`](LAYOUT.md). The collaboration's branch rules are in
+[`.claude/CLAUDE.md`](../../../../../.claude/CLAUDE.md).
 
 ## How a rollout works
 
@@ -54,6 +56,9 @@ Two tmax-specific points:
 - `data.py` / `env.py` -- `TMaxDataset` (train/holdout split) and the token env
 - `vanillux_loop.py`, `vanillux_prompts.py` -- the agent loop and its verbatim prompts
 - `rollouter.py` -- sandbox boot, sibling scheduling, grading, reward stamping
+- `layout.py`, `rollout_record.py` -- the paths under an experiment root and the
+  rollout record format; `LAYOUT.md` is the contract they implement, and nothing
+  else under `tmax/` spells a path
 - `grading.py`, `rubric.py` -- `bash /tests/test.sh` -> `reward.txt` -> `RewardTMax`
 - `config_registry.py` -- the recipes (below)
 - `local_smoke.py` -- sandbox boot + grade path only, no training stack
@@ -114,9 +119,10 @@ python -m torchtitan.experiments.rl.examples.tmax.prepare_tb2_data \
 > but 10 rebuilt images, 4 timeout corrections and 27 tasks with fixed instructions /
 > tests / solutions / environments. The 2.1 builder also ships the 7 binary grading fixtures that
 > `prepare_tb2_data.py` silently dropped (those tasks could not score above 0 on the
-> old file) and emits per-task `daytona_cpu/mem_gb/disk_gb`. Set
-> `TMAX_EVAL_TIMEOUT_SEC=1800` for a full-suite eval -- two tasks declare an 1800s
-> verifier budget and the grader applies one global value. Both JSONLs feed the same
+> old file) and emits per-task `daytona_cpu/mem_gb/disk_gb`. Each row also carries its
+> declared `verifier_timeout_sec` (360s to 12000s across the 89) and the rollouter
+> grades on it, floored at `TMAX_EVAL_TIMEOUT_SEC`, so nothing needs setting for a
+> full-suite eval. Both JSONLs feed the same
 > `SWE_TB2_DATA` / `SWE_TB2_VAL_DATA` path; a 2.0 number and a 2.1 number are not
 > directly comparable.
 
@@ -215,6 +221,15 @@ python -m torchtitan.experiments.rl.train \
     --hf_assets_path /path/to/Qwen3.5-9B
 ```
 
+On della the process is started by `TRL_PROFILE=<name> ./launch_9b.sh` in
+`runbook/`: it creates `$TRL_BASE/runs/tmax-9b--<stamp>/`, writes `launch.json`
+there, hardlinks the mix it loads into `inputs/mix.jsonl`, points `runs/latest`
+at it and exports the directory as `TRL_RUN_DIR`; the trainer writes only under
+it (stdout, checkpoints link, rollout records, signals, advisories: `LAYOUT.md`).
+`--dry-run` creates all of that and exits before the trainer starts, and
+`RL_RESUME_FROM=<run>` makes a new run directory that resumes that run's
+checkpoints. The runbook has the rest.
+
 Inline Terminal-Bench 2.0 as the periodic validation (instead of a tmax holdout
 slice), on its own generator so training does not stall:
 
@@ -254,8 +269,11 @@ Everything below is read from the environment in `config_registry.py` /
 | `TMAX_EXEC_TIMEOUT_SEC` | 120 | Per-command timeout; a foreground server can otherwise burn the budget |
 | `TMAX_FORMAT_ERROR_FEEDBACK` | 0 | 0 = break on the first turn with no `bash` call (reference behavior) |
 | `SWE_VAL_SAMPLES` / `SWE_VAL_INTERVAL` | 32 / 20 | Held-out validation size and cadence; `SWE_VAL_SAMPLES=0` turns it off |
-| `SWE_ROLLOUT_DUMP_DIR` | unset | Per-rollout decoded completions + reward (what the model actually trained on). Any value turns it on; `launch_9b.sh` writes the files under the run's own `rollout-dumps/` |
-| `SWE_ZERO_STD_DIR` | unset | Log all-pass / all-fail prompts, to feed back as `SWE_SKIP_PROMPTS` |
+| `TRL_RUN_DIR` | set by `launch_9b.sh` | The run directory. Rollout records, signals and advisories are written under it; the format of each is in `LAYOUT.md` |
+| `SWE_ROLLOUT_RECORDS` | 1 | One JSONL per rollout under `$TRL_RUN_DIR/rollouts/<task>/`: the rollout (reward, finish reason, sandbox, per-command `exec` timings) on line 1, then one line per turn with the decoded keystrokes, terminal output and reasoning (what the model actually trained on). `0` turns it off |
+| `SWE_EVOLUTION_SIGNALS` | 1 | One `$TRL_RUN_DIR/signals/<task>--g<group>.json` per all-pass / all-fail group, referencing the group's rollout records; what the evolve loop reads. `0` turns it off |
+| `TMAX_PANE_DUMP` | 0 | `1` writes the tmux pane transcript beside each rollout record |
+| `SWE_SKIP_PROMPTS` | unset | A file of task ids, one per line, dropped at dataset load. Build it from a run's signals: `jq -r .task $TRL_RUN_DIR/signals/*.json \| sort -u` |
 | `TT_ROLLOUT_LOG_LEVEL` | INFO | `DEBUG` adds one line per agent turn (prompt len, max_tokens, finish reason) |
 
 ## Reading the metrics
@@ -270,6 +288,13 @@ Everything below is read from the environment in `config_registry.py` /
 - `bit_wise/logprob_diff/{abs_mean,max}` is generator-vs-trainer logprob drift.
   It is exactly 0 on prefill but not on GDN decode (chunk-parallel training vs
   recurrent decoding); a large `max` is what `SWE_DPPO_RATIO_CAP` guards against.
+- `evolution/pending_signals`, `evolution/handled_total`,
+  `evolution/accepted_total`, `evolution/rejected_total`,
+  `evolution/blocked_total`, `evolution/kept_total` and `evolution/mix_version`
+  are the evolve loop as the trainer sees it, read from
+  `$TRL_BASE/evolution/status.json`. `mix_version` is the version the loop last
+  published; `trainer/mix_versions.jsonl` in the run directory says which one
+  the trainer loaded, at boot and at every hot reload.
 
 ## Gotchas
 

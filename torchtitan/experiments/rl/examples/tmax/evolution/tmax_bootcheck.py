@@ -7,11 +7,14 @@ Per row: create a sandbox from the row's image at the row's declared sizing
 images were validated only on someone else's harness.
 """
 import asyncio, json, os, sys, time
-sys.path.insert(0, "/scratch/gpfs/TRIDAO/al9080/terminal-rl/evolve-onhost/scripts")
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).resolve().parent))
 import solve_daytona as sd
+from torchtitan.experiments.rl.examples.tmax import layout
 
-MIX = "/scratch/gpfs/TRIDAO/al9080/terminal-rl/data/mix/mix_live.jsonl"
-OUT = "/scratch/gpfs/TRIDAO/al9080/terminal-rl/results/tmax_bootcheck.jsonl"
+ROOT = layout.Root.from_env()
+MIX = ROOT.mix.live
+OUT = ROOT.path / "results" / "tmax_bootcheck.jsonl"
 
 async def one(md, sem):
     tid = md["instance_id"]
@@ -43,6 +46,7 @@ async def main():
                 rows.append(md)
     print(f"boot-checking {len(rows)} image rows (done {len(done)})", flush=True)
     sem = asyncio.Semaphore(200)
+    OUT.parent.mkdir(parents=True, exist_ok=True)
     with open(OUT, "a") as f:
         for coro in asyncio.as_completed([one(md, sem) for md in rows]):
             r = await coro

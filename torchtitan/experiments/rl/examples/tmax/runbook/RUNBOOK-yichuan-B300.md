@@ -190,51 +190,16 @@ Two consequences:
    buys queueing, not throughput. Their count moves; re-measure before blaming
    the code:
 
-3. **TODO: keep `mix_live.jsonl` in sync with the upstream measured disk.**
-   The claim above that "every row in this corpus declares 10 GiB" does not hold
-   for `data/mix/mix_live.jsonl` as generated: 864 of its 1067 rows declared
-   `daytona_disk_gb: 1`. Rows provisioned at 1 GiB die at session create with
-   `no space left on device` (`mkdir /root/.daytona/sessions/<id>`), which is
-   deterministic -- `max_attempts: 6` never reaches attempt 2, and the whole
-   group of 16 is lost. Measured over a 15k-rollout run: 65 such events across
-   30 tasks, two of which (`tw_177860`, `tw_680933`) lost all 16 rollouts each.
-
-   The fix is not to guess sizes and not to push anything upstream. The Clean
-   dataset already carries them: `andylizf/TerminalWorld-Seeds-Clean`, file
-   `metadata/measured_disk.csv`, from its 2026-08-30 "measured real-block disk
-   usage for 759 tasks (full Daytona build campaign)" commit. Column
-   `recommend_daytona_gb` is the number to take. Against it, 513 of the 667
-   overlapping rows in our local copy were UNDER-provisioned (510 of them
-   1 GiB where the measurement says 2 GiB) -- our copy predates that campaign.
-
-   Sync on every data rebuild, raising only (the measurement covers build-time
-   occupancy; a task that downloads at runtime can need more):
-
-```python
-import json, pandas as pd
-from huggingface_hub import hf_hub_download
-md = pd.read_csv(hf_hub_download(
-    "andylizf/TerminalWorld-Seeds-Clean", "metadata/measured_disk.csv",
-    repo_type="dataset"))
-rec = {str(k): int(v) for k, v in zip(md.task_id, md.recommend_daytona_gb)
-       if pd.notna(v)}
-out = []
-for line in open("data/mix/mix_live.jsonl"):
-    if not line.strip():
-        continue
-    row = json.loads(line)
-    meta = row.get("metadata") or {}
-    want, cur = rec.get(str(meta.get("instance_id"))), meta.get("daytona_disk_gb")
-    if want is not None and cur is not None and cur < want:
-        meta["daytona_disk_gb"] = want
-    out.append(json.dumps(row, ensure_ascii=False))
-open("data/mix/mix_live.jsonl", "w").write("\n".join(out) + "\n")
-```
-
-   Applied 2026-08-31: 513 rows raised. Still unresolved -- 352 rows remain at
-   1 GiB and 83 declare nothing, because only 667 of the 1067 rows appear in the
-   measured table at all. Those are the next ones to blow up.
-
+3. **Row-level fixes go through a published version, never into the live file.**
+   The generated mix declared `daytona_disk_gb: 1` on 864 of 1067 rows while the
+   corpus documents 10 GiB, and rows provisioned at 1 GiB die at session
+   bring-up. Fix the rows in the seed file before `new_root.py --mix` publishes
+   it, or publish a corrected version through `layout.write_mix` (the loop's own
+   folds use the same path); `data/mix/live.jsonl` is a hardlink to a history
+   version and is never edited in place.
+   Applied 2026-08-31 on the generated mix: 513 rows raised; 352 rows stayed at
+   1 GiB and 83 declared nothing, because only 667 of the 1067 rows appear in
+   the measured table at all. Those are the next ones to blow up.
 
 ```bash
 source /ssd1/k3/yichuan/rltrain.secrets.env
@@ -450,16 +415,18 @@ was still writing.
 
 ---
 
-## 9c. `TMAX_EXEC_TRACE_DIR`: timing every sandbox command
+## 9c. The rollout record's `exec` list: timing every sandbox command
 
-Set it to a directory and every command the agent drives is appended to
-`<group=N_rollout=M>.jsonl` as one record:
+Every command the agent drives is one entry in the `exec` list on line 1 of the
+rollout's record, `runs/<run>/rollouts/<task>/g<group>-r<idx>.jsonl` (format in
+[`../LAYOUT.md`](../LAYOUT.md)); `head -qn1 runs/<run>/rollouts/*/*.jsonl | jq -c '.exec[]'`
+is the whole capture as one stream:
 
 ```json
 {"t": 1788074975.512, "secs": 0.92, "exit": 0, "cmd": "tmux send-keys -t terminus-2 -- 'ruby /app/solution.rb\n'"}
 ```
 
-Unset, it costs nothing (the writer returns before touching the filesystem).
+`SWE_ROLLOUT_RECORDS=0` turns the record off.
 Every sandbox command passes through the same `exec`, so the trace captures the
 `tmux send-keys` that carries the agent's own command text, the `capture-pane`
 that reads the screen back, and the `has-session` liveness probe. `t` is the
@@ -573,14 +540,15 @@ before trusting either.
 2. **Stop paying for tasks the model has learned.** At an 85% solve rate, 69% of
    groups produce no gradient. Their tokens are skipped, but the ROLLOUTS are
    not: 512 sandboxes are booted and graded per step so ~130 can teach
-   something. Fix with the evolution loop, or offline: run with
-   `SWE_ZERO_STD_DIR` set, then feed that directory back as `SWE_SKIP_PROMPTS`.
+   something. Fix with the evolution loop, or offline: build a skip list from a
+   run's signals (`jq -r .task runs/<run>/signals/*.json | sort -u`) and feed it
+   back as `SWE_SKIP_PROMPTS`.
 3. **Fix the routing imbalance** -- 5 of 6 engines idle at 8% KV.
 4. **The 60% of rollout wall time that is the agent's own commands.** Not an
    infrastructure problem; it needs a shorter path to the answer (fewer turns)
-   or tasks with shorter commands. `SWE_ROLLOUT_DUMP_DIR` is the only way to see
-   what is actually being run, including the `min_timeout_sec` the model asks
-   for.
+   or tasks with shorter commands. The rollout records under
+   `runs/<run>/rollouts/` are the only way to see what is actually being run,
+   including the `min_timeout_sec` the model asks for.
 5. **GPU split.** The trainer is 5-8 min of a 12-15 min step now, so moving GPUs
    to it is no longer negligible -- but item 1 changes the balance first.
 
@@ -633,8 +601,7 @@ SWE_LOSS_CHUNKS=8
 SWE_CKPT_INTERVAL=5
 SWE_CKPT_KEEP=8
 
-# no evolution, no inline validation
-# SWE_TASK_EVOLUTION_DIR unset
+# no evolution loop against this root, no inline validation
 SWE_DATA_HOT_RELOAD=0
 SWE_VAL_SAMPLES=0
 ```
@@ -654,13 +621,12 @@ numbers below are from those measurements, not from a recipe.
 
 ### What made this run different
 
-**A private workdir, because two loops on one host ate each other's work.**
-`evolve_ondella.py` derives `signals/`, `consumed/`, `retuned/`, `junk/`,
-`deferred_easier/`, the lineage git, `POOL_ROOTS` and the default mix from one
-env var, `TRL_BASE`. Left at its default, every loop on the host shares all of
-them: on 2026-09-01 two were running and consuming signals out of the same
-directory. Separately, other tooling rewrote the shared `data/mix/mix_live.jsonl`
-nine times during a single 13-hour run (`.bak-audit-*`, `.bak-overcap-*`,
+**A private root, because two loops on one host ate each other's work.**
+`evolve_ondella.py` derives everything it reads and writes
+([`../LAYOUT.md`](../LAYOUT.md)) from one env var, `TRL_BASE`. Left at its
+default, every loop on the host shares all of it: on 2026-09-01 two were running
+and handling signals out of the same root. Separately, other tooling rewrote the
+shared `data/mix/live.jsonl` nine times during a single 13-hour run (`.bak-audit-*`, `.bak-overcap-*`,
 `.bak-busybox-*`, `.bak-evolved-*`), and each rewrite tripped
 `SWE_DATA_HOT_RELOAD` and invalidated the prefix cache -- the hit rate cycled
 92% -> 43-58% every 15-20 minutes. Pointing `TRL_BASE` at a per-run directory
@@ -670,19 +636,21 @@ Building one is three steps and about 5 MB:
 
 ```bash
 W=/scratch/gpfs/TRIDAO/al9080/terminal-rl/workdirs/wd-<stamp>
-mkdir -p $W/data/tw-extract/tasks $W/data/mix $W/evolution/signals $W/logs $W/runs $W/meta
+mkdir -p $W/data/sources/tw-extract/tasks
 
 # 1. packages: the published shard, filtered by the published id list
 curl -sL "https://huggingface.co/datasets/andylizf/TerminalWorld-Seeds-Clean/resolve/main/data/tasks-00000.tar" -o t.tar
 tar -xf t.tar -C /tmp/hf                      # 1353 complete packages
-while read -r t; do cp -a /tmp/hf/tasks/$t $W/data/tw-extract/tasks/$t; done < train_ready_ids.txt
+while read -r t; do cp -a /tmp/hf/tasks/$t $W/data/sources/tw-extract/tasks/$t; done < train_ready_ids.txt
 
 # 2. pack to rows
 TRL_BASE=$W python .../evolution/pack_to_dataset.py \
-    --evolved $W/data/tw-extract/tasks --out $W/data/mix/mix_live.jsonl
+    --evolved $W/data/sources/tw-extract/tasks --out seed.jsonl
 
 # 3. strip the canary from what the model reads; size from the measurements
-#    (see below)
+#    (see below); then the rows become the root's version 1
+python .../tmax/new_root.py --base $W --mix seed.jsonl \
+    --bin /scratch/gpfs/TRIDAO/al9080/terminal-rl/bin --purpose "TW only, evolution on"
 ```
 
 **TerminalWorld only, 663 rows.** `metadata/train_ready_ids.txt` is the
@@ -789,8 +757,8 @@ simplify only has to leave `solve.sh` passing, while an evolve has to survive a
 rebuilt verifier and a cheat probe. Watch `rollout_reward/_mean` against the
 fixed holdout -- the on-mix rate climbing while the fixed eval stays flat is the
 signature of a mix getting easier rather than a policy getting better. Turning
-the branch off does not discard the backlog: 0/k signals move to
-`evolution/deferred_easier/` and replay when it is turned back on.
+the branch off does not discard the backlog: 0/k signals get a `deferred` line
+in `evolution/ledger.jsonl` and replay when it is turned back on.
 
 ### Placing the meshes
 
@@ -816,13 +784,12 @@ Only the lines that differ from section 10 or that the evolution loop needs. The
 rest is unchanged.
 
 ```
-# per-run root: signals/, consumed/, retuned/, junk/, deferred_easier/, the
-# lineage git, POOL_ROOTS and runs/ all hang off this
+# per-run root: runs/, evolution/ and data/mix/ all hang off this (LAYOUT.md)
 TRL_BASE=/scratch/gpfs/TRIDAO/al9080/terminal-rl/workdirs/wd-20260902-tw
 
-# TerminalWorld only, 663 rows, canary stripped, sized from measured_resources
-SWE_PROMPT_DATA=$TRL_BASE/data/mix/mix_live.jsonl
-SWE_TASK_EVOLUTION_DIR=$TRL_BASE/evolution/signals
+# TerminalWorld only, 663 rows, canary stripped, sized from measured_resources;
+# the signals go under each run, nothing to point anywhere
+SWE_PROMPT_DATA=$TRL_BASE/data/mix/live.jsonl
 SWE_DATA_HOT_RELOAD=1
 
 # placement: trainer 2,0 | generators 6,1,4
@@ -862,10 +829,6 @@ SWE_LMHEAD_TF32X3=1
 SWE_LOSS_CHUNKS=8
 SWE_LR=3e-6
 SWE_PROFILE_MICROBATCHES=0
-
-# per-sandbox exec timings, per run (a stale value here silently interleaves
-# two runs' traces under one directory: group ids collide and the later write wins)
-TMAX_EXEC_TRACE_DIR=$TRL_BASE/exec-traces
 ```
 
 The evolution loop runs as its own process against the same root, so restarting
@@ -873,8 +836,7 @@ it costs no rollouts:
 
 ```bash
 TRL_BASE=$W TRL_TT=... PYTHONPATH=... \
-  python .../evolution/evolve_ondella.py --interval 120 --workers 16 \
-         --log $W/logs/evolve.log
+  python .../evolution/evolve_ondella.py --interval 120 --workers 16   # logs to $W/evolution/loop.log
 ```
 
 ### Not established
@@ -943,22 +905,22 @@ direction without the trajectory -- `ev.evolve` and `llm.synthesize` take no
 `trajectory` argument. Same corpus, same day: chat gave TerminalWorld 47% and
 tmax 2%; codex gave 63% and 60%. `SWE_EVOLVE_SIMPLIFY=0` because the ratchet only
 turns one way and this run wants to measure the harder direction alone; 0/k
-signals accumulate in `evolution/deferred_easier/` and replay if it is turned back
-on. The arm needs `/scratch/gpfs/TRIDAO/al9080/terminal-rl/bin/codex` (258 MB)
-and falls back to the chat operator on any exception, silently -- check for
+signals get a `deferred` line in `evolution/ledger.jsonl` and replay if it is turned back
+on. The arm needs `$TRL_BASE/bin/codex` (258 MB), with `jq`
+beside it for reading the rollout records, and falls back to the chat operator on any exception, silently -- check for
 `arm=agent_harder` in the evolve log to confirm which one actually ran.
 
-**Both dumps on.** `SWE_ROLLOUT_DUMP_DIR` for the full decoded trajectory per
-rollout, `SWE_PROFILE_MICROBATCHES=2` for a fresh trace under a known env.
+**Both records on.** `SWE_ROLLOUT_RECORDS=1` (the default) for the full decoded
+trajectory per rollout under `runs/<run>/rollouts/`, `SWE_PROFILE_MICROBATCHES=2`
+for a fresh trace under a known env.
 
 ### The env
 
 ```
 TRL_BASE=/scratch/gpfs/TRIDAO/al9080/terminal-rl/workdirs/wd-20260902b
-SWE_PROMPT_DATA=$TRL_BASE/data/mix/mix_live.jsonl        # 663 TW rows
-SWE_TASK_EVOLUTION_DIR=$TRL_BASE/evolution/signals
-SWE_ROLLOUT_DUMP_DIR=$TRL_BASE/rollout-dumps   # any value turns it on; launch_9b.sh writes under runs/<run>/rollout-dumps/
-TMAX_EXEC_TRACE_DIR=$TRL_BASE/exec-traces      # same: runs/<run>/exec-traces/
+SWE_PROMPT_DATA=$TRL_BASE/data/mix/live.jsonl        # 663 TW rows
+SWE_ROLLOUT_RECORDS=1                                # runs/<run>/rollouts/, the default
+SWE_EVOLUTION_SIGNALS=1                              # runs/<run>/signals/, the default
 SWE_DATA_HOT_RELOAD=1
 
 RL_GPUS=2,0,6,1,4          # trainer 2,0 | generators 6,1,4
@@ -997,8 +959,7 @@ Evolution runs as its own process against the same root:
 
 ```
 TRL_BASE=$W SWE_RETUNE_AGENT=codex SWE_EVOLVE_SIMPLIFY=0 \
-  python .../evolution/evolve_ondella.py --interval 120 --workers 16 \
-         --log $W/logs/evolve.log
+  python .../evolution/evolve_ondella.py --interval 120 --workers 16   # logs to $W/evolution/loop.log
 ```
 
 ### Building the mix, verified
@@ -1021,6 +982,383 @@ canary remaining 0, `daytona_*` null on 0 rows, id set equal to
 | `arm=agent_harder` in evolve log | present | codex fell back to chat silently |
 | `bit_wise/*`, `loss/ratio_mean` | stable | trainer/generator divergence (relevant if TF32 is turned on) |
 | step interval | vs 16.6 min on the 09-01 run | the fp32 baseline costs ~12 s of a 42 s microbatch |
+
+---
+
+## 10d. Run tag `wd-20260904a`, launched 2026-09-04 04:07:32
+
+A clean restart from the 663-row base corpus with the one-rung `step_size` gate
+(PR #39) in place from step 0. Every value below is read back from
+`/proc/<pid>/environ` of the live trainer, not from the file it was written in.
+
+### Why it was restarted, and the one thing that had to change
+
+The 2026-09-03 run and its evolve loop were both SIGKILLed at 03:29:35, within
+three seconds of each other. There was no kernel OOM (`dmesg` carries no
+oom-kill), no CUDA OOM in the log, and the watchdog's own log was empty: both
+processes had been started with `nohup ... &` from a CLI session and went away
+with its process group. `nohup` blocks SIGHUP, not a process-group SIGKILL.
+
+So this run is launched by **systemd user units**, not by a shell:
+
+```
+~/.config/systemd/user/tmax-trainer.service   ExecStart=$W/bin/svc_train.sh
+~/.config/systemd/user/tmax-evolve.service    ExecStart=$W/bin/svc_evolve.sh
+Restart=always  RestartSec=60  StartLimitIntervalSec=0
+```
+
+`loginctl show-user` reports `Linger=yes`, so the units survive logout. Both are
+`enable`d, so they come back after a reboot. Measured: 15 h uptime with
+`NRestarts=0` on the trainer across two CLI sessions ending, where the previous
+launch method lost the run at the first one.
+
+`svc_train.sh` pins `RL_RESUME_DUMP` to whatever `launch_9b.sh` stamped the first
+time. Without that pin a restart stamps a *new* dump directory, finds no `step-*`
+under it, and silently begins again from the HF weights -- which is invisible in
+the metrics. The launch line is the check: `[launch] resuming from .../step-N`
+against `[launch] fresh start: initial weights from ...`.
+
+### Placement: 2+3 on the five least-contended cards
+
+Measured 2026-09-04 04:00 with every one of our own processes stopped, so the
+numbers below are other people's:
+
+| GPU | foreign MiB | SMACT (30 samples) | |
+|---|---|---|---|
+| 0 | 270867 | 0.0078 | two `serve_policy`, unusable |
+| 1 | 1822 | 0.0002 | -> generator |
+| 2 | 1766 | 0.0002 | -> generator |
+| 3 | 21036 | 0.0010 | left to its tenants |
+| 4 | 19555 | 0.0000 | left to its tenant |
+| 5 | 3417 | 0.0000 | -> generator (two pollers) |
+| 6 | 5 | 0.0000 | -> trainer |
+| 7 | 7 | 0.0000 | -> trainer |
+
+6 and 7 are the only two cards with nothing on them, so FSDP takes them: it is
+synchronous, and a straggler shard costs the whole step. The three generators are
+independent, so they take 1, 2 and 5. Card 5's two pollers report 92-100% in
+nvidia-smi's `utilization.gpu` and 0.000 in DCGM SMACT -- duty cycle, not
+occupancy; do not size against the former.
+
+`SWE_DP_SHARD=2` rather than 3: at dp_shard=3 a step measured ~9.6 min against
+~14.7 min to fill 32 groups, so the trainer idled a third of the time. At 2 the
+step is 11-14 min, matched to generation, with a card moved to where the
+throughput is.
+
+### The env
+
+```
+TRL_PROFILE=yichuan
+TRL_TT=/scratch/gpfs/TRIDAO/al9080/andy-rl-tb/torchtitan          # 6d7277f9
+TRL_BASE=/scratch/gpfs/TRIDAO/al9080/terminal-rl/workdirs/wd-20260904a
+TRL_MODEL=/scratch/gpfs/TRIDAO/al9080/models/Qwen3.5-9B
+SWE_PROMPT_DATA=$TRL_BASE/data/mix/mix_live.jsonl                 # 663 TW rows, base
+SWE_TASK_EVOLUTION_DIR=$TRL_BASE/evolution/signals
+SWE_ROLLOUT_DUMP_DIR=$TRL_BASE/rollout-dumps
+TMAX_EXEC_TRACE_DIR=$TRL_BASE/exec-traces
+SWE_CKPT_FOLDER=/scratch/al9080/terminal-rl/ckpt/tmax-9b-20260904-040732
+
+RL_GPUS=6,7,1,2,5            CUDA_VISIBLE_DEVICES=6,7,1,2,5
+SWE_DP_SHARD=2               SWE_GEN_DP=3
+SWE_AC=full
+SWE_GEN_BACKEND=vllm_native  SWE_GEN_VLLM_DEFAULT_COMPILE=1
+SWE_GEN_PREFIX_CACHE=1       SWE_GPU_MEM_LIMIT=0.85
+SWE_MAX_NUM_SEQS=256         SWE_MAX_CONTEXT_LEN=63488
+SWE_DISABLE_CUSTOM_ALL_REDUCE=1
+
+SWE_GROUP_SIZE=16            SWE_NUM_GROUPS_PER_TRAIN_STEP=32
+SWE_MAX_ACTIVE_GROUPS=160    SWE_INITIAL_ACTIVE_GROUPS=64
+SWE_ROLLOUT_CONCURRENCY=1536 SWE_NUM_ROLLOUT_WORKERS=16
+SWE_TIME_BUDGET_SEC=3600     SWE_AGENT_TIMEOUT_FLOOR_SEC=900
+TMAX_AGENT=terminus          TMAX_TERMINUS_MAX_TURNS=120
+TMAX_EXEC_TIMEOUT_SEC=120
+
+SWE_LR=3e-6                  SWE_LOSS_CHUNKS=8
+SWE_TRAIN_STEPS=150          SWE_DROP_ZERO_STD=0
+SWE_CKPT_INTERVAL=3          SWE_CKPT_KEEP=3
+SWE_DATA_HOT_RELOAD=1
+SWE_VAL_SAMPLES=0            SWE_VAL_INTERVAL=20   SWE_NUM_EVAL_GENERATORS=0
+SWE_PROFILE_MICROBATCHES=3   SWE_PROFILE_SKIP=5
+
+SWE_LMHEAD_TF32 and SWE_LMHEAD_TF32X3 are both unset (= 0). See below.
+
+TT_DAYTONA_CPU=1  TT_DAYTONA_MEM_GB=2  TT_DAYTONA_DISK_GB=2  TT_DAYTONA_MAX_MEM_GB=8
+TT_DAYTONA_CREATE_CONCURRENCY=128  TT_DAYTONA_CREATE_RETRIES=8
+TT_DAYTONA_EPHEMERAL=1  TT_DAYTONA_AUTO_DELETE_MIN=15  TT_DAYTONA_HEARTBEAT_SEC=180
+TT_DAYTONA_LABEL=new_titan_swe_r2e
+WANDB_PROJECT=terminal-agent-rl                       # run zjd05wdj
+```
+
+Evolution: `SWE_RETUNE_AGENT=codex`, `SWE_EVOLVE_SIMPLIFY=0`,
+`evolve_ondella.py --interval 120 --workers 16`.
+
+### The corpus is the base one, verified three ways
+
+`mix_live.jsonl` was rebuilt rather than inherited, because the 2026-09-03 run's
+copy carried 195 already-hardened rows. Checks against the untouched base:
+
+```
+663 rows                                     = base row count
+0 rows differ in metadata.tmax               = no hardened verifier/fixtures
+195 rows differ from wd-20260903d            = none of its hardening carried over
+```
+
+`metadata.tmax` is the only thing evolution rewrites, so 0 there is the check that
+matters. Two rows the predecessor had hardened (`tw_100135`, `tw_197232`) were
+reverted. A 605-row difference against an older base file is a leading newline in
+`prompt`, not evolution.
+
+### The profile, and the one lever that is left
+
+`SWE_PROFILE_MICROBATCHES=3` wrote a trace at step 1. Read on 2026-09-04, at
+12-13 s per microbatch (the uncontended rate), 3 microbatches, 34.33 s of kernels:
+
+| | lm_head fp32 SIMT | model GEMM (TC) | elementwise | other | NCCL | reduce | copy | total |
+|---|---|---|---|---|---|---|---|---|
+| `rl_loss_fn` | **17.30s** | 0.00s | 0.20s | 0.01s | 0.06s | 0.24s | 0.01s | 17.82s |
+| `rl_model_backward` | 0.00s | 5.32s | 4.29s | 1.46s | 0.86s | 0.40s | 0.12s | 12.45s |
+| `rl_model_forward` | 0.00s | 1.65s | 1.73s | 0.29s | 0.14s | 0.11s | 0.11s | 4.02s |
+
+The matrix is block-diagonal: `rl_loss_fn` is 97% one kernel, and that kernel
+appears nowhere else. The GPU has kernels resident 99.4% of the window, so this is
+not launch overhead, not the input pipeline, and not communication (NCCL is 3.2%).
+
+`cutlass3x_sm100_simt_sgemm_f32_f32_f32_f32_f32`, 72 launches (8 loss chunks x
+{forward, dgrad, wgrad} x 3 microbatches), ~240 ms each. SIMT = CUDA cores. Per
+microbatch the lm_head is 2 x 65536 x 4096 x 248320 x 3 = 400 TFLOP in 5.94 s =
+67 TFLOP/s, about 84% of the B300's non-tensor-core fp32 ceiling -- the kernel is
+near the hardware limit; the hardware path is the cost. Of 3744 GEMM launches in
+the step only these 72 are fp32; everything else is bf16 on tensor cores.
+
+So an operator carrying ~11% of the step's FLOPs takes ~50% of its time.
+
+**Re-measured 2026-09-04 on this host (`evolution/bench_lmhead_tf32.py --iters 5`,
+[8192,4096] x [4096,248320], forward plus both backward matmuls):**
+
+```
+                      fwd+bwd        out      grad_x     grad_w
+ieee_fp32            3673.6 ms   0.0e+00    0.0e+00    0.0e+00
+plain_tf32            312.6 ms   7.3e-06    6.2e-04    2.1e-04
+old_tf32x3_fwd_only  2547.8 ms   7.3e-06    0.0e+00    0.0e+00
+new_tf32x3_fwd_bwd    535.9 ms   7.3e-06    1.3e-05    9.6e-06
+```
+
+This corrects the reasoning in 10c on one point. **The forward error is 7.3e-6 on
+all three TF32 paths, plain TF32 included.** Both lm_head operands are upcast from
+bf16 (the decoder-norm output, the FSDP-all-gathered weight), and bf16's 8-bit
+significand is exactly representable in TF32's 11, so truncating them is a no-op;
+the 7.3e-6 is accumulation order against the CUDA-core kernel, not lost precision.
+The logits -- and therefore the DPPO importance ratio, whose `old` term comes from
+the generator -- are affected identically by both paths. That argument does not
+separate them.
+
+What separates them is backward, where `grad_out` is genuine fp32: plain TF32
+truncates it (6.2e-4 / 2.1e-4), the split path reconstructs it (1.3e-5 / 9.6e-6).
+
+At the step level, with lm_head at 50.4%, Amdahl caps both: TF32x3 gives ~1.68x,
+plain TF32 ~1.91x. Plain buys 14% more step time for 20-50x the gradient error and
+does it through a process-wide `torch.backends.cuda.matmul.fp32_precision` that
+would silently catch any fp32 matmul added later; `_LinearTF32` is scoped to
+`CastLinear`. Neither is on in this run, which is the fp32 baseline. Turn on
+TF32x3 first, and only while watching `bit_wise/logprob_diff/abs_mean` (1.6-1.8e-2
+here), `debug/vllm_local_kl_k3_mean` (1.0-1.1e-3), `loss/ratio_mean` (1.00000x)
+and `grad_norm`.
+
+### What it measured, 15 h in
+
+```
+step 53, 2098 groups, epoch ~3.0, no restarts, 0 CUDA OOM, 0 SupervisionError
+microbatch 12.0-12.8 s     step 11-14 min (50-65 microbatches)
+group classes              full 28% / partial 61% / not_solve 11%
+stale_dropped              313 of 2098 (15%), flat for hours once warm
+prefix hit rate            92-97%
+evolution                  542 folds, 535 hardened, 210 deferred, 7 agent_failed (1.0%)
+```
+
+Hardened tasks, redrawn after the fold (205 samples, group id greater than the
+signal's trigger group):
+
+```
+partial_solve  84%      not_solve 16%      full_solve 0%
+```
+
+Against the 2026-09-03 run without the `step_size` gate, whose hardened tasks came
+back `not_solve` 46% of the time. No hardened task has returned 16/16 -- across
+310 tasks the pre-hardening draw was 16/16 in 71.1% of 655 draws, and 0.0% of 213
+draws after.
+
+### Contention is invisible in SMACT and in memory
+
+Between roughly 11:49 and 16:40 the step rate doubled, 12.5 -> 25 s per microbatch,
+and recovered on its own. Two tenants had arrived on the trainer's cards
+(`zl3193`, 120 GiB on GPU6, 14:42-16:40; another on 6 and 7 before it). Neither
+was visible in the two things being watched: DCGM SMACT on a shared card *includes
+the other tenant's* work, so GPU6 read 0.78-0.89 throughout, and our own
+allocator's cached segments hid the memory (both cards read 258 GiB whether the
+121 GiB belonged to us or to someone else -- our real footprint is 137 GiB).
+
+The only direct signal is the step rate itself. Sample the microbatch counter over
+a fixed window and compare against the 12-13 s baseline; list the non-self PIDs on
+the trainer's cards in the same breath. Five hours of half-speed training cost
+about 2.5 h before the shape of it was recognised.
+
+---
+
+## 10e. Run `exp-tw-20260905`, launched 2026-09-05 05:47:43 EDT
+
+The first run on the layout/v2 tree (PR #62), and the first with a TF32 lm_head.
+Root `/scratch/gpfs/TRIDAO/al9080/terminal-rl/exp-tw-20260905`, run directory
+`runs/tmax-9b--20260905-094743Z` (also reachable as `runs/latest`). Launched by
+the same two systemd user units as `wd-20260904a`; measured 9 h with
+`NRestarts=0` on both.
+
+Placement is **2 trainer + 4 generator** on `RL_GPUS=6,7,1,2,5,4`, with
+`SWE_DP_SHARD=2` and `SWE_GEN_DP=4`. The four generators were there from the
+launch line, not added later.
+
+### What a step actually costs
+
+Read off `[trainer_loop] step N: <phase>` timestamps, steps 30-39. Median of the
+last eight complete steps:
+
+| segment | median | what it is |
+|---|---|---|
+| `awaiting training batch` -> microbatch 1 | 145 s (0 s on the last four steps) | waiting for the generators to fill a batch |
+| microbatch 1 -> `forward_backward done` | 411 s | the training compute |
+| `forward_backward done` -> `weights pushed` | 1-2 s | optimizer |
+| `weights pushed` -> `weights pulled` | **84 s** | four engines pulling 9B weights out of torchstore |
+| whole step (`begin` -> next `begin`) | **686 s** | |
+
+Two things follow.
+
+First, **do not read single-step wall-clock as a speed signal.** The batch size
+swings between 16 and 104 microbatches depending on how many groups
+`drop_zero_std` keeps, so the same machine produced a 231 s step and a 2193 s
+step on the same afternoon. The stable number is s/microbatch: 8.7-10.9 s here.
+
+Second, once the generators keep up (`awaiting` -> 0), **weight sync is the
+largest remaining fixed cost**: 84 s of every 686 s step, 12%, and it does not
+shrink with batch size. `optim done` -> `weights pushed` is 1-2 s, so essentially
+all of it is the pull side. Overlapping it with the next step's forward would be
+the next real win and is untouched -- it means changing the trainer's main loop,
+which is not something to do to a run that is up and stable.
+
+Throughput: 38 steps in 8 h 48 m = **4.3 steps/h** including the early
+batch-starved steps, **5.2 steps/h** once `awaiting` reached 0.
+
+### Hardening works, and the aggregate metric hides it
+
+`group_zero_std_frac` sat around 0.40-0.44 all run and looked flat. It is the
+wrong lens: it mixes tasks evolution has already hardened with tasks it has not
+touched. Pairing each task against itself, keyed on the `rev` field in
+`runs/*/rollouts/<task>/g<N>-r<M>.jsonl`:
+
+```
+                 16/16 solved   0/16 solved   has gradient
+before (r0)           86%            0%            13%      (n=143)
+after  (r>=1)         36%            3%            60%      (n=120)
+```
+
+100 tasks paired. Hardening converts roughly half the free wins into
+mixed-outcome groups, and buys that for 3% all-failed. That is the effect the
+aggregate number was averaging away, and it is the reason to keep the evolve
+loop running rather than treat the flat `zero_std` as evidence it does nothing.
+
+### One rung is not enough for a third of the corpus
+
+Same data, split by how many times a task has been hardened (all groups, not
+just the paired subset):
+
+```
+rev    draws   16/16   0/16   has gradient
+r0      1099     28%    12%       59%
+r1       223     34%     4%       61%
+r2        28     53%     3%       42%
+```
+
+**36-38% of post-hardening draws are still 16/16.** The r2 row says the obvious
+follow-up does not fix it either: the tasks that need a second rewrite are the
+ones the first rewrite failed to bite, and the second fares no better.
+
+The tunable is `evolution/task_size.py`:
+
+```python
+MIN_ADDED = 3         # at least 3 lines more than the seed
+MAX_ADDED = 8         # at most 8 -- "one requirement"
+MAX_ADDED_ASSERTS = 5
+```
+
+The verifier bounces any rewrite past `seed + MAX_ADDED`, and the comment there
+justifies the narrow band with "in this corpus the 0/16 share doubles once a task
+grows beyond one rung". The measurement above does not reproduce that yet: r1's
+all-failed share is 4%, *lower* than r0's 12%, so the band still has headroom on
+the hard side. Widening it (8 -> 12, asserts 5 -> 7) is the lever if the r2
+population grows and its 16/16 share stays near 50%. It was deliberately not
+changed mid-run: the constant is global, so moving it while the loop is folding
+makes the r0 and r1 populations incomparable afterwards.
+
+Corpus hardening coverage is not in the mix rows -- a row carries only
+`prompt`, `label`, `metadata`. Read it off the directory tree instead, taking the
+highest `rN` under `evolution/tasks/<id>/`:
+
+```
+r0 383   r1 213   r2 55   r3 12      => 280/663 = 42% hardened
+```
+
+### Generator load is deliberately uneven
+
+Engine 0 ran at `Running: 255-256` -- exactly `max_num_seqs` -- with 30-51
+queued, while the other three sat at 120-150 with an empty queue, for stretches
+of tens of minutes. This is not a routing bug. `routing/intra_generator_router.py`
+defaults to `StickySessionRoutingStrategy`: every request of one rollout session
+is pinned to the DP rank that served its first request, so the prefix cache is
+reused, and only new sessions consult the `LeastLoadedRoutingStrategy` fallback.
+Load is counted in requests at `reserve` time, so a session that lasts 58 turns
+and 3189 s keeps landing on the same rank however busy it becomes.
+
+The payoff is the prefix hit rate: 93-96% on all four engines. The cost is the
+skew, and the skew is harmless as long as `awaiting training batch` stays at 0 --
+the queue delays those rollouts, not the trainer. Switching to
+`LeastLoadedRoutingStrategy` would trade away exactly the thing the placement was
+chosen to protect. Watch `awaiting`, not `Waiting`.
+
+### Daytona loss rate
+
+124 sandbox losses in 8 h 48 m (`RuntimeError: daytona sandbox <id> is no longer
+available`, and `DaytonaTimeoutError`), arriving in bursts of 4-5 per ten-minute
+bucket separated by quiet hours. Over any trailing 300 rollouts `status=error`
+ran 0-3%. That is the platform's own flakiness and needs no action at this rate;
+a retry in `boot_agent_sandbox` is the response if it reaches ~10%.
+
+### Four monitoring readings that were wrong
+
+Every one of these produced a confident false statement before it was caught, so
+they are recorded as traps rather than as trivia.
+
+- **`find -name stderr.txt -newermt '-5 minutes'` never matched anything.** This
+  GNU find rejects the relative form, prints the accepted formats and exits; with
+  `2>/dev/null` on the pipe the count is silently 0 forever. The evolve watchdog
+  built on it would have declared "all sessions silent" on a healthy loop -- the
+  same false-hang call that once cost a batch of in-flight rewrites. Use
+  `-mmin -5`.
+- **`ledger.jsonl` has no `status` field** (624 rows, all `None`). Counting
+  pending from it returns 0. The counts live in `evolution/status.json`.
+- **`grep -c 'status=completed'` counts rollouts, not groups** -- 23055 against a
+  true 1398 groups, a 16x overstatement.
+- **Mix rows carry no `rev`/`generation` key**, so a hardening-coverage figure
+  computed from them reads 0%.
+
+### Two earlier claims in this runbook's lineage that do not hold
+
+- Adding a fourth generator was described as a live fix that took the prefix hit
+  rate from 4.1% back to 93-96%. Checking every log of `wd-20260904a`: that run
+  was `gen_dp=3` from start to finish and no fourth engine was ever added. The
+  4.1% was measured on the three-generator run and the 93-96% on this one, which
+  also changed the lm_head precision, `SWE_AC`, and the corpus. It is a
+  between-run difference with several variables moving, not an A/B.
+- "About 10 steps/hour" was quoted for this configuration. Measured: 4.3-5.2.
+  The high figure came from timing `forward_backward` and forgetting that
+  `awaiting training batch` is part of the step.
 
 ---
 

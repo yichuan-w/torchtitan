@@ -72,6 +72,11 @@ class _FakeConfig:
     num_generators = 1
     num_eval_generators = 0
 
+    # main() asks the config for the eval mesh's width; the stubbed
+    # _compute_generator_world_size ignores what it returns.
+    def eval_generator_parallelism(self):
+        return None
+
     @property
     def __class__(self):
         # main() does `assert isinstance(config, Controller.Config)`. Reporting

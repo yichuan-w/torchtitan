@@ -27,19 +27,19 @@ The dataset is an endless, seeded stream of frozen ``TMaxSample``s, mirroring
 
 from __future__ import annotations
 
-import glob
 import json
 import logging
 import os
 import random
-import re
 import threading
 import time
 import uuid
 from collections.abc import Iterator
 from dataclasses import dataclass, field, replace
+from pathlib import Path
 
 from torchtitan.config import Configurable
+from torchtitan.experiments.rl.examples.tmax import layout
 from torchtitan.experiments.rl.training_lineage import canonical_json, content_revision
 from torchtitan.experiments.rl.types import SampleLineage
 
@@ -80,6 +80,14 @@ class TMaxSample:
     Harbor states this per task, not per benchmark. None for corpora that do not
     declare one, in which case the rollouter falls back to its configured default."""
 
+    verifier_timeout_sec: float | None = None
+    """The task's own wall-clock budget for the GRADER (Harbor ``[verifier].timeout_sec``).
+
+    Stated per task like ``agent_timeout_sec``, and for the same reason: a task whose
+    test suite compiles a renderer needs a different budget than one that greps a log.
+    TB-2.1 declares 360s to 12000s across its 89 tasks. None for corpora that declare
+    nothing, in which case the rollouter uses its configured default."""
+
     daytona_cpu: int | None = None
     """Optional per-task Daytona vCPU allocation. None = TT_DAYTONA_CPU default."""
 
@@ -98,9 +106,13 @@ class TMaxSample:
     tmax: dict = field(default_factory=dict)
     """Grading payload: ``test_sh``, ``fixtures`` ({relpath: content}), ``reward_path``."""
 
+    rev: int = 0
+    """Which revision of the task this row is (``metadata.rev``): 0 is the seed,
+    and each accepted rewrite folded into the mix raises it. Travels into every
+    rollout record and signal, so a verdict names the revision it was reached on."""
+
     lineage: SampleLineage | None = field(default=None, compare=False)
     """Per-yield identity; excluded from equality because it is not task content."""
-
 
 
 def _parse_sample_row(row: dict) -> TMaxSample:
@@ -140,6 +152,7 @@ def _parse_sample_row(row: dict) -> TMaxSample:
         build_context=build_context,
         entrypoint=md.get("entrypoint"),
         agent_timeout_sec=md.get("agent_timeout_sec"),
+        verifier_timeout_sec=md.get("verifier_timeout_sec"),
         daytona_cpu=daytona_resources["daytona_cpu"],
         daytona_mem_gb=daytona_resources["daytona_mem_gb"],
         daytona_disk_gb=daytona_resources["daytona_disk_gb"],
@@ -147,6 +160,7 @@ def _parse_sample_row(row: dict) -> TMaxSample:
         problem_statement=md.get("problem_statement")
         or _coerce_prompt(row.get("prompt")),
         tmax=tmax,
+        rev=int(md.get("rev") or 0),
     )
 
 
@@ -198,10 +212,11 @@ class TMaxDataset(Configurable):
         seeded order within the selected split. Empty = keep all rows."""
 
         skip_ids_path: str = ""
-        """Optional zero-std annotation source (``SWE_ZERO_STD_DIR`` output from a prior
-        run): a directory of ``<instance_id>.json`` files, or a single JSONL/bare-id file.
-        Every ``instance_id`` in it is dropped at load, so prompts that gave no learning
-        signal (all-pass or all-fail groups) are not sampled again. Empty = keep all rows."""
+        """Optional skip source: a run's ``signals/`` directory (one
+        ``<task>--g<group>.json`` per training group with zero reward variance, see
+        LAYOUT.md), or a single JSONL/bare-id file. Every task id in it is dropped at
+        load, so prompts that gave no learning signal (all-pass or all-fail groups)
+        are not sampled again. Empty = keep all rows."""
 
         initial_skip_samples: int = 0
         """Consume this many samples before the first sample is returned.
@@ -311,28 +326,33 @@ class TMaxDataset(Configurable):
         self._stream_id = uuid.uuid4().hex
         self._pending_lineage_events: list[dict] = []
         # True online task evolution: when SWE_DATA_HOT_RELOAD=1 and this is the
-        # train split, an atomic replacement of data_path (write temp + mv) is
-        # picked up mid-run - same-id rows are swapped in place (indices, shuffle
-        # order and checkpoint state all stay valid), new ids are appended to the
-        # tail of the current epoch. Rows are parsed by the same _parse_sample_row
-        # as boot; a malformed reload file is logged and IGNORED, never fatal.
-        # Validation stays pinned to the boot-time file (holdout stability).
+        # train split, a republished data_path (a new hardlink or file renamed
+        # over the name) is picked up mid-run - same-id rows are swapped in place
+        # (indices, shuffle order and checkpoint state all stay valid), new ids
+        # are appended to the tail of the current epoch. Rows are parsed by the
+        # same _parse_sample_row as boot; a malformed reload file is logged and
+        # IGNORED, never fatal. Validation stays pinned to the boot-time file
+        # (holdout stability).
         self._hot_reload = (
             os.environ.get("SWE_DATA_HOT_RELOAD", "0") == "1"
             and config.split == "train"
         )
         self._data_path = config.data_path
         self._holdout_n = config.holdout_n
-        try:
-            self._data_mtime = os.stat(config.data_path).st_mtime_ns
-        except OSError:
-            self._data_mtime = 0
-        # Highest already-loaded evolve mix version (<stem>.v<N>.jsonl). 0 = only the
-        # boot-time base file seen. Versioned files are how the evolve loop publishes an
-        # update that a REMOTE host sees (a new filename appears on the shared mount);
-        # a rewrite of the same base name only flips mtime, which a remote FUSE client
-        # caches. See _reload_source.
-        self._data_version = 0
+        self._split = config.split
+        self._data_ino, self._data_mtime = self._source_id()
+        # The mix directory this file is served from, when it is the live link of
+        # one (LAYOUT.md: data/mix/live.jsonl is a hardlink to the current history
+        # version). That is the only place a version number comes from; a file
+        # anywhere else has none.
+        live = Path(config.data_path)
+        mix = layout.MixDir(live.parent)
+        self._mix = mix if live.name == mix.live.name else None
+        self._mix_version = self._resolve_version()
+        # The boot line of trainer/mix_versions.jsonl is written on the first
+        # draw, not here: every rollout worker builds this dataset too and never
+        # draws from it, and the controller's is the one whose mix the run trains on.
+        self._boot_recorded = False
         self._reload_lock = threading.Lock()
         self._last_reload_check = time.monotonic()
         if config.initial_skip_samples < 0:
@@ -352,6 +372,9 @@ class TMaxDataset(Configurable):
         return self
 
     def __next__(self) -> TMaxSample:
+        if not self._boot_recorded:
+            self._boot_recorded = True
+            self._record_mix_version("boot")
         if self._hot_reload:
             self._maybe_reload()
         if self._pos >= len(self._order):
@@ -381,69 +404,82 @@ class TMaxDataset(Configurable):
         self._pending_lineage_events = []
         return events
 
-    def _latest_versioned(self) -> tuple[str | None, int]:
-        """Newest ``<stem>.v<N>.jsonl`` beside data_path, keyed by integer N.
+    def _source_id(self) -> tuple[int, int]:
+        """(inode, mtime_ns) of data_path, or (0, 0) when it cannot be read.
 
-        These are the evolve loop's write-once mix versions (SWE_MIX_VERSIONED). A new
-        filename appearing is visible across hosts on the shared FUSE mount, unlike an
-        mtime bump on a rewritten same-name file. (None, 0) when none exist."""
-        base = self._data_path
-        stem = base[:-6] if base.endswith(".jsonl") else base
-        best_path, best_n = None, 0
+        The mix directory publishes a version by renaming a fresh hardlink over
+        ``live.jsonl`` (``layout.MixDir.publish``), so the inode moves on every
+        version while the name stays; the mtime covers a file rewritten in place.
+        Either changing means new content."""
         try:
-            candidates = glob.glob(f"{stem}.v*.jsonl")
+            st = os.stat(self._data_path)
         except OSError:
-            return None, 0
-        for path in candidates:
-            match = re.search(r"\.v(\d+)\.jsonl$", path)
-            if match:
-                n = int(match.group(1))
-                if n > best_n:
-                    best_n, best_path = n, path
-        return best_path, best_n
+            return 0, 0
+        return st.st_ino, st.st_mtime_ns
 
-    def _reload_source(self) -> tuple[str | None, int | None, int | None]:
-        """(path, version, mtime) to reload from, or (None, None, None) if unchanged.
+    def _resolve_version(self) -> int | None:
+        """The mix version data_path currently is, by inode against the history
+        directory (``MixDir.live_version``); None for a file outside a mix dir."""
+        if self._mix is None:
+            return None
+        found = self._mix.live_version()
+        return found[0] if found else None
 
-        Prefers the evolve loop's write-once versioned files (cross-host reliable).
-        Falls back to an mtime change on the base data_path for the single-host case
-        (evolve + training on one node, same FUSE client) and stays a no-op when no
-        file has changed (evolution off = static dataset). ``version`` is set for the
-        versioned path, ``mtime`` for the base path; the caller tracks whichever."""
-        latest, version = self._latest_versioned()
-        if latest is not None and version > self._data_version:
-            return latest, version, None
+    def _record_mix_version(
+        self, event: str, *, replaced: int = 0, appended: int = 0, retired: int = 0
+    ) -> None:
+        """One line in the run's ``trainer/mix_versions.jsonl`` per boot and per
+        hot reload: which mix version this dataset serves, by version number and
+        by the file's sha256, so a step can be tied to the rows behind it. Only
+        the train split of a file served from a mix directory, and only under a
+        run directory: the holdout validation slice reads the same file and a
+        benchmark or smoke-test file has no version to record."""
+        run = layout.Run.from_env()
+        if run is None or self._mix is None or self._split != "train":
+            return
         try:
-            mtime = os.stat(self._data_path).st_mtime_ns
-        except OSError:
-            return None, None, None
-        if mtime != self._data_mtime:
-            return self._data_path, None, mtime
-        return None, None, None
+            layout.append_jsonl(
+                run.mix_versions,
+                {
+                    "stamp": layout.stamp(),
+                    "event": event,
+                    "version": self._mix_version,
+                    "sha256": layout.sha256_file(Path(self._data_path)),
+                    "replaced": replaced,
+                    "appended": appended,
+                    "retired": retired,
+                },
+            )
+        except OSError as e:
+            logger.warning("TMaxDataset: mix_versions line not written (%s)", e)
 
     def _maybe_reload(self, min_interval_sec: float = 20.0) -> None:
-        """Swap in a replaced/new-version data file without disturbing sampler state.
+        """Swap in a republished data file without disturbing sampler state.
 
         Rate-limited; the whole reload is best-effort. Same-id rows replace their
         TMaxSample in place so every index in _order (and in a restored checkpoint
         order) still points at the same task, now re-tuned. New ids append to _samples
         and join the tail of the current epoch; the next epoch shuffle mixes them in
         fully. Ids absent from the new file are dropped from _order (their sample
-        stays, unreferenced, so indices never shift). The source is a versioned mix
-        file (cross-host) or the base data_path (single-host) -- see _reload_source."""
+        stays, unreferenced, so indices never shift).
+
+        A change is a new inode or mtime on data_path itself (see _source_id). A
+        ``<stem>.v<N>.jsonl`` scan used to sit here for a remote FUSE client that
+        cached same-name mtimes across hosts; the trainer and the loop now share
+        one host and one filesystem, and the version is read off the mix
+        directory instead of a filename."""
         now = time.monotonic()
         if now - self._last_reload_check < min_interval_sec:
             return
         self._last_reload_check = now
-        src, version, mtime = self._reload_source()
-        if src is None:
+        ino, mtime = self._source_id()
+        if (ino, mtime) == (self._data_ino, self._data_mtime):
             return
         with self._reload_lock:
-            # Re-check under the lock: another thread may already have this version.
-            if version is not None and version <= self._data_version:
+            # Re-check under the lock: another thread may already have this file.
+            if (ino, mtime) == (self._data_ino, self._data_mtime):
                 return
-            if version is None and mtime == self._data_mtime:
-                return
+            src = self._data_path
             try:
                 fresh, fresh_revisions, fresh_mix_revision = _load_samples(src)
                 if self._holdout_n > 0:
@@ -457,11 +493,8 @@ class TMaxDataset(Configurable):
                     raise ValueError(f"reloaded mix {src} has no train rows")
             except (OSError, ValueError, json.JSONDecodeError) as e:
                 logger.warning("TMaxDataset: hot reload skipped (%s)", e)
-                # Mark this source seen so a broken file is not retried every interval.
-                if version is not None:
-                    self._data_version = version
-                else:
-                    self._data_mtime = mtime
+                # Mark this file seen so a broken one is not retried every interval.
+                self._data_ino, self._data_mtime = ino, mtime
                 return
             previous_mix_revision = self._mix_revision
             previous_live_indices = set(self._order)
@@ -516,20 +549,22 @@ class TMaxDataset(Configurable):
                     )
             before = len(self._order)
             self._order = [
-                i for i in self._order
-                if self._samples[i].instance_id in live_ids
+                i for i in self._order if self._samples[i].instance_id in live_ids
             ]
             self._pos = min(self._pos, len(self._order))
             self._mix_revision = fresh_mix_revision
-            if version is not None:
-                self._data_version = version
-            else:
-                self._data_mtime = mtime
+            self._data_ino, self._data_mtime = ino, mtime
+            version = self._resolve_version()
+            self._mix_version = version
             logger.info(
                 "TMaxDataset: hot reload - %d replaced, %d appended, %d retired "
-                "(%d in rotation) from %s",
-                replaced, appended, before - len(self._order),
-                len(self._order), os.path.basename(src),
+                "(%d in rotation) from %s version %s",
+                replaced,
+                appended,
+                before - len(self._order),
+                len(self._order),
+                os.path.basename(src),
+                version,
             )
             self._pending_lineage_events.append(
                 {
@@ -546,6 +581,12 @@ class TMaxDataset(Configurable):
                     "retired": before - len(self._order),
                     "changes": changes,
                 }
+            )
+            self._record_mix_version(
+                "hot_reload",
+                replaced=replaced,
+                appended=appended,
+                retired=before - len(self._order),
             )
 
     def state_dict(self) -> dict:
@@ -568,26 +609,25 @@ class TMaxDataset(Configurable):
 
 
 def _load_instance_ids(path: str, *, missing_ok: bool) -> set[str]:
-    """Read instance IDs from a directory, JSONL file, or bare-ID file.
+    """Read task ids from a run's ``signals/`` directory, a JSONL file, or a
+    bare-id file.
 
-    A directory follows the ``SWE_ZERO_STD_DIR`` format: one
-    ``<instance_id>.json`` file per zero-std prompt, ``{"instance_id": ...}``) or a
-    single FILE (JSONL rows ``{"instance_id": ...}`` or a bare ``instance_id`` per
-    line). Optional skip sources may be missing on a first run; explicit include
-    sources fail closed.
+    A directory is a run's ``signals/`` (LAYOUT.md): one ``<task>--g<group>.json``
+    per training group with zero reward variance, so the task id is the name up
+    to the last ``--g`` and a listing is enough, no file is opened. Ids read back
+    as ``layout.safe`` wrote them, which is the id itself for every corpus in use
+    (``tw_*``, ``task_*``). A FILE holds JSONL rows ``{"instance_id": ...}`` or a
+    bare id per line. Optional skip sources may be missing on a first run;
+    explicit include sources fail closed.
     """
     ids: set[str] = set()
     if os.path.isdir(path):
         for name in os.listdir(path):
             if not name.endswith(".json"):
                 continue
-            try:
-                with open(os.path.join(path, name)) as f:
-                    iid = (json.load(f) or {}).get("instance_id")
-            except (OSError, json.JSONDecodeError):
-                continue
-            if iid:
-                ids.add(iid)
+            task, sep, _group = name[: -len(".json")].rpartition("--g")
+            if sep and task:
+                ids.add(task)
         return ids
     try:
         with open(path) as f:

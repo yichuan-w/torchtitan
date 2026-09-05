@@ -161,6 +161,7 @@ def spawn_proc_mesh(
     *,
     num_generators: int = 1,
     num_eval_generators: int = 0,
+    per_eval_generator_world_size: int | None = None,
 ) -> tuple[ProcMesh, list[ProcMesh], list[ProcMesh]]:
     """Spawn the trainer, generator, and eval-generator proc meshes.
 
@@ -173,19 +174,27 @@ def spawn_proc_mesh(
             GPU ranges.
         num_generators: Number of generator proc meshes to spawn.
         num_eval_generators: Number of generator proc meshes reserved for
-            validation. Each is sized like a training generator but stays out of
-            the training router, so a validation pass runs on its own GPUs.
+            validation. Each stays out of the training router, so a validation
+            pass runs on its own GPUs.
+        per_eval_generator_world_size: GPU procs for each eval generator. None
+            sizes them like a training generator. A dedicated eval generator is
+            idle between passes, so a smaller one (1 GPU) buys the validation
+            curve without taking a training generator's worth of the box.
 
     Returns:
         The ``(trainer_mesh, generator_meshes, eval_generator_meshes)`` proc meshes.
     """
+    if per_eval_generator_world_size is None:
+        per_eval_generator_world_size = per_generator_world_size
     total_generator_gpus = (
-        num_generators + num_eval_generators
-    ) * per_generator_world_size
+        num_generators * per_generator_world_size
+        + num_eval_generators * per_eval_generator_world_size
+    )
     total_gpus = trainer_world_size + total_generator_gpus
     logger.info(
-        f"{num_generators} generator(s) + {num_eval_generators} eval generator(s) * "
-        f"{per_generator_world_size} GPUs + "
+        f"{num_generators} generator(s) * {per_generator_world_size} GPUs + "
+        f"{num_eval_generators} eval generator(s) * "
+        f"{per_eval_generator_world_size} GPUs + "
         f"{trainer_world_size} trainer GPUs = {total_gpus} total"
     )
 
@@ -219,7 +228,7 @@ def spawn_proc_mesh(
         eval_generator_meshes = [
             _spawn_proc_mesh(
                 gen_host_mesh,
-                per_generator_world_size,
+                per_eval_generator_world_size,
                 gpus_per_node,
                 role="eval_generator",
             )
@@ -243,8 +252,8 @@ def spawn_proc_mesh(
         ]
         eval_generator_meshes = [
             host_mesh.spawn_procs(
-                per_host={"gpus": per_generator_world_size},
-                bootstrap=provisioner.allocate(per_generator_world_size),
+                per_host={"gpus": per_eval_generator_world_size},
+                bootstrap=provisioner.allocate(per_eval_generator_world_size),
             )
             for _ in range(num_eval_generators)
         ]
@@ -315,6 +324,9 @@ async def main():
             host_meshes=None,
             num_generators=config.num_generators,
             num_eval_generators=config.num_eval_generators,
+            per_eval_generator_world_size=_compute_generator_world_size(
+                config.eval_generator_parallelism()
+            ),
         )
         await rl_trainer.setup_async(
             trainer_mesh=trainer_mesh,

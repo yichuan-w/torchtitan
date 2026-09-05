@@ -20,21 +20,24 @@ verifier depends on a name the task never states -- the agent is told then,
 in the turn it is already in.
 
 Run as a script, the way `codex exec` was, so the loop's contract is
-unchanged (a process, a return code, the same files under `harness/`). It
+unchanged (a process, a return code, files under the session directory). It
 needs the `openai-codex` SDK, which lives in its own virtualenv rather than
 the training one: `TRL_SDK_PY` names that interpreter.
 
-    codex_session.py --work <trace dir> --prompt-file F [--timeout S]
-                     [--name codex] [--model M] [--effort E] [--resume THREAD]
+    codex_session.py --pkg <package> --codex-home <session>/codex
+                     --events <session>/events.jsonl --prompt-file F
+                     [--timeout S] [--model M] [--effort E] [--resume THREAD]
 
-It owns two files and no others, so the caller keeps writing the streams the
-way it does for `codex exec`:
+evolve_codex passes one session directory's paths (LAYOUT.md): the package
+is the agent's cwd, `--codex-home` the CLI's private home for this
+invocation, `--events` where the protocol events go. It owns two files and no
+others, so the caller keeps writing the streams the way it does for `codex exec`:
 
-    harness/<name>.events.jsonl   one line per protocol event, as it happens
-    harness/<name>_session.json   thread id, turn status, the steers it sent
+    <events>                one line per protocol event, as it happens
+    <events dir>/sdk.json   thread id, turn status, the steers it sent
 
 The agent's final message goes to stdout and anything that went wrong to
-stderr, which the caller streams to <name>.stdout.txt / <name>.stderr.txt.
+stderr, which the caller streams to stdout.txt / stderr.txt.
 """
 from __future__ import annotations
 
@@ -130,25 +133,21 @@ NOISY = ("item/agentMessage/delta", "item/reasoning/summaryTextDelta",
          "item/reasoning/summaryPartAdded", "thread/tokenUsage/updated")
 
 
-def run(work: Path, prompt: str, *, timeout: int, name: str, model: str,
-        effort: str, resume: str | None) -> dict:
+def run(pkg: Path, codex_home: Path, events_path: Path, prompt: str, *, timeout: int,
+        model: str, effort: str, resume: str | None) -> dict:
     from openai_codex import Codex                    # noqa: PLC0415 -- optional dep
     from openai_codex.client import CodexConfig       # noqa: PLC0415
 
-    harness = work / "harness"
-    harness.mkdir(parents=True, exist_ok=True)
-    pkg = work / "pkg"
-    events_path = harness / f"{name}.events.jsonl"
-
-    env = {**os.environ, "CODEX_HOME": str(work / ".cxhome")}
-    (work / ".cxhome").mkdir(exist_ok=True)
+    codex_home.mkdir(parents=True, exist_ok=True)
+    events_path.parent.mkdir(parents=True, exist_ok=True)
+    env = {**os.environ, "CODEX_HOME": str(codex_home)}
     overrides = tuple(os.environ.get("EVOLVE_CODEX_OVERRIDES", "").split("\n")) if \
         os.environ.get("EVOLVE_CODEX_OVERRIDES") else ()
     cfg = CodexConfig(codex_bin=os.environ.get("CODEX_BIN"), cwd=str(pkg), env=env,
                       config_overrides=tuple(o for o in overrides if o))
 
     watcher = PackageWatcher(pkg)
-    record = {"schema_version": 1, "status": "exited", "name": name,
+    record = {"schema_version": 1, "status": "exited",
               "started_time_unix_ns": time.time_ns(), "returncode": 0,
               "timeout_seconds": timeout, "steers": [], "model": model}
     deadline = time.time() + timeout
@@ -198,7 +197,7 @@ def run(work: Path, prompt: str, *, timeout: int, name: str, model: str,
                 break
         message = getattr(turn, "final_response", None) or ""
     record["finished_time_unix_ns"] = time.time_ns()
-    (harness / f"{name}_session.json").write_text(json.dumps(record, indent=1) + "\n")
+    (events_path.parent / "sdk.json").write_text(json.dumps(record, indent=1) + "\n")
     if message:
         print(message, flush=True)
     for sent in record["steers"]:
@@ -208,18 +207,19 @@ def run(work: Path, prompt: str, *, timeout: int, name: str, model: str,
 
 def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
-    ap.add_argument("--work", required=True)
+    ap.add_argument("--pkg", required=True, help="the package: the agent's cwd")
+    ap.add_argument("--codex-home", required=True, help="this session's private CODEX_HOME")
+    ap.add_argument("--events", required=True, help="where the protocol events go, one per line")
     ap.add_argument("--prompt-file", required=True)
     ap.add_argument("--timeout", type=int, default=2400)
-    ap.add_argument("--name", default="codex")
     ap.add_argument("--model", default=os.environ.get("SYNTH_MODEL", "gpt-5.6"))
     ap.add_argument("--effort", default=os.environ.get("CODEX_EFFORT", "high"))
     ap.add_argument("--resume", default=None, help="continue this thread id")
     args = ap.parse_args()
     try:
-        record = run(Path(args.work), Path(args.prompt_file).read_text(),
-                     timeout=args.timeout, name=args.name, model=args.model,
-                     effort=args.effort, resume=args.resume)
+        record = run(Path(args.pkg), Path(args.codex_home), Path(args.events),
+                     Path(args.prompt_file).read_text(), timeout=args.timeout,
+                     model=args.model, effort=args.effort, resume=args.resume)
     except Exception as exc:  # noqa: BLE001 -- the caller reads stderr and the code
         print(f"{type(exc).__name__}: {exc}", file=sys.stderr, flush=True)
         sys.exit(1)

@@ -4,12 +4,14 @@
 The analysis keeps three instruments separate:
 
 * exact online training-group outcomes from the source W&B training runs;
-* accepted and rejected evolution rounds from the evolution git lineage;
+* the loop's own records under the experiment root: one round per mix
+  version in ``data/mix/history/``, folds and rewrites from
+  ``evolution/tasks/``, signals from ``evolution/ledger.jsonl``;
 * fixed TB-2.0 evaluation summaries already stored in W&B.
 
-``rollout_samples.jsonl`` is still hashed and audited, but it is not used to
-estimate group rates: take8 stores only the rollouts packed into minibatches,
-not all 16 members of each generated group.
+The runs' rollout records are hashed and audited for completeness, but not
+used to estimate group rates: a record carries no policy version, and the
+per-policy curves are the online metrics.
 
 The generated JSONL contains the complete derived records plus hashes and exact
 locations of every input. Passing ``--upload`` publishes the same records to a
@@ -20,95 +22,70 @@ history.
 from __future__ import annotations
 
 import argparse
-import ast
 import collections
 import datetime as dt
 import hashlib
 import json
 import logging
 import math
-import subprocess
+import os
+import sys
 from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+import layout  # noqa: E402
+import rollout_record  # noqa: E402
+
 LOG = logging.getLogger("publish_evolve_analysis")
+REWRITE_STATUSES = ("accepted", "rejected", "blocked", "failed", "kept")
+SIGNAL_OUTCOMES = ("handled", "deferred", "junk")
 
 
-def file_sha256(path: Path) -> str:
-    digest = hashlib.sha256()
-    with path.open("rb") as handle:
-        for block in iter(lambda: handle.read(1024 * 1024), b""):
-            digest.update(block)
-    return digest.hexdigest()
+def _iso(stamp: str) -> str:
+    return dt.datetime.fromtimestamp(layout.parse_stamp(stamp), tz=dt.UTC).isoformat()
 
 
-def value_sha256(value: object) -> str:
-    """Hash one JSON value with a stable serialization."""
-    payload = json.dumps(
-        value,
-        ensure_ascii=False,
-        sort_keys=True,
-        separators=(",", ":"),
-    )
-    return hashlib.sha256(payload.encode()).hexdigest()
-
-
-def parse_iso(value: str) -> dt.datetime:
-    parsed = dt.datetime.fromisoformat(value)
-    if parsed.tzinfo is None:
-        raise ValueError(f"timestamp must include a UTC offset: {value}")
-    return parsed
-
-
-def audit_rollout_samples(samples_path: Path, expected_group_size: int) -> dict:
-    """Describe the persisted sample subset without treating it as full groups."""
+def audit_rollouts(run: layout.Run, expected_group_size: int) -> dict:
+    """Describe one run's rollout records: whether every group is whole, and a
+    digest over the rollout headers so the input is pinned by content."""
     malformed = 0
-    total_records = 0
-    validation_records = 0
-    scored_records = 0
-    group_sizes: collections.Counter = collections.Counter()
-    rollout_ids: collections.Counter = collections.Counter()
     statuses: collections.Counter = collections.Counter()
-
-    with samples_path.open() as handle:
-        for line in handle:
-            try:
-                record = json.loads(line)
-            except json.JSONDecodeError:
-                malformed += 1
-                continue
-            total_records += 1
-            if record.get("is_validation"):
-                validation_records += 1
-                continue
-            group_id = record.get("group_id")
-            rollout_id = record.get("rollout_id")
-            if group_id is None or rollout_id is None or int(group_id) < 0:
-                continue
-            group_id, rollout_id = int(group_id), int(rollout_id)
-            group_sizes[group_id] += 1
-            rollout_ids[rollout_id] += 1
-            statuses[str(record.get("status"))] += 1
-            reward = record.get("reward")
-            if isinstance(reward, (int, float)) and math.isfinite(float(reward)):
-                scored_records += 1
-
+    group_sizes: collections.Counter = collections.Counter()
+    infra_failed = 0
+    scored = 0
+    digest = hashlib.sha256()
+    for path in sorted(run.rollouts.glob("*/g*-r*.jsonl")) if run.rollouts.exists() else []:
+        try:
+            header, _turns = rollout_record.read_record(path)
+        except (OSError, ValueError):
+            malformed += 1
+            continue
+        digest.update(path.relative_to(run.path).as_posix().encode())
+        digest.update(json.dumps(header, sort_keys=True, ensure_ascii=False).encode())
+        group_sizes[int(header["group"])] += 1
+        statuses[str(header.get("status"))] += 1
+        infra_failed += bool(header.get("infra_failed"))
+        reward = header.get("reward")
+        if isinstance(reward, (int, float)) and math.isfinite(float(reward)):
+            scored += 1
     size_histogram = collections.Counter(group_sizes.values())
-    complete_groups = size_histogram.get(expected_group_size, 0)
+    complete = size_histogram.get(expected_group_size, 0)
     return {
-        "malformed_lines": malformed,
-        "total_records": total_records,
-        "validation_records": validation_records,
-        "scored_records": scored_records,
-        "unique_group_ids": len(group_sizes),
+        "run": run.name,
+        "malformed_records": malformed,
+        "records": sum(group_sizes.values()),
+        "scored_records": scored,
+        "infra_failed_records": infra_failed,
+        "groups": len(group_sizes),
         "expected_group_size": expected_group_size,
-        "complete_groups": complete_groups,
-        "partial_groups": len(group_sizes) - complete_groups,
-        "persisted_group_size_histogram": dict(sorted(size_histogram.items())),
-        "rollout_id_counts": dict(sorted(rollout_ids.items())),
+        "complete_groups": complete,
+        "partial_groups": len(group_sizes) - complete,
+        "group_size_histogram": dict(sorted(size_histogram.items())),
         "status_counts": dict(sorted(statuses.items())),
-        "population_complete": complete_groups == len(group_sizes),
+        "population_complete": complete == len(group_sizes),
+        "records_sha256": digest.hexdigest(),
         "analysis_use": (
-            "provenance and persistence audit only; online W&B metrics are used "
+            "provenance and completeness audit only; online W&B metrics are used "
             "for training solve and group-fraction curves"
         ),
     }
@@ -206,151 +183,180 @@ def load_training_metrics(
     return selected, diagnostics
 
 
-def git_output(repo: Path, *args: str) -> str:
-    return subprocess.check_output(
-        ["git", "-C", str(repo), *args], text=True, stderr=subprocess.PIPE
-    )
+def _revs_of(version_file: Path) -> dict[str, int]:
+    """instance_id -> metadata.rev for one mix version; the seed is rev 0."""
+    revs = {}
+    with open(version_file, encoding="utf-8") as f:
+        for line in f:
+            if line.strip():
+                md = json.loads(line)["metadata"]
+                revs[md["instance_id"]] = int(md.get("rev", 0))
+    return revs
 
 
-def snapshot_rows(repo: Path, ref: str) -> dict[str, dict]:
-    raw = git_output(repo, "show", f"{ref}:mix_snapshot.jsonl")
-    rows = {}
-    for line in raw.splitlines():
-        if not line.strip():
-            continue
-        row = json.loads(line)
-        rows[row["metadata"]["instance_id"]] = row
-    return rows
+def _folds_by_version(evo: layout.Evolution) -> dict[int, list[dict]]:
+    folds: dict[int, list[dict]] = collections.defaultdict(list)
+    for task in evo.task_dirs():
+        for event in layout.read_jsonl(task.lineage):
+            if event.get("event") == "fold":
+                folds[int(event["mix_version"])].append({"task": task.task_id, **event})
+    return folds
+
+
+def _finished_rewrites(evo: layout.Evolution) -> list[tuple[float, str, dict]]:
+    """(finished epoch, task, rewrite.json) for every rewrite that finished,
+    oldest first. A rewrite still running has no ``finished`` and is not here."""
+    out = []
+    for task in evo.task_dirs():
+        for rw in task.rewrite_dirs():
+            try:
+                meta = json.loads(rw.meta.read_text())
+            except (OSError, ValueError):
+                continue
+            if meta.get("finished"):
+                out.append((layout.parse_stamp(meta["finished"]), task.task_id, meta))
+    return sorted(out, key=lambda t: t[0])
+
+
+def _rewrite_counts(metas: list[dict]) -> dict:
+    by_status = collections.Counter(m.get("status") for m in metas)
+    by_job: dict[str, collections.Counter] = collections.defaultdict(collections.Counter)
+    for m in metas:
+        by_job[str(m.get("job"))][str(m.get("status"))] += 1
+    harder = by_job.get("harder", collections.Counter())
+    decided = sum(harder[s] for s in ("accepted", "rejected", "blocked", "failed"))
+    return {
+        "rewrites": {s: by_status[s] for s in REWRITE_STATUSES},
+        "rewrites_by_job": {job: dict(c) for job, c in sorted(by_job.items())},
+        "harder_attempted": decided,
+        "harder_accept_rate": harder["accepted"] / decided if decided else None,
+    }
+
+
+def _signal_counts(entries: list[dict]) -> dict:
+    by_outcome = collections.Counter(e.get("outcome") for e in entries)
+    by_direction: dict[str, collections.Counter] = collections.defaultdict(collections.Counter)
+    for e in entries:
+        by_direction[str(e.get("direction"))][str(e.get("outcome"))] += 1
+    return {
+        "signals": {o: by_outcome[o] for o in SIGNAL_OUTCOMES},
+        "signals_by_direction": {d: dict(c) for d, c in sorted(by_direction.items())},
+    }
 
 
 def load_evolution_metrics(
-    repo: Path, run_start: dt.datetime, run_end: dt.datetime
+    root: layout.Root, start: float, end: float
 ) -> tuple[list[dict], dict]:
-    fmt = "%H%x09%ct%x09%s"
-    raw = git_output(
-        repo,
-        "log",
-        "--reverse",
-        f"--since={run_start.isoformat()}",
-        f"--until={run_end.isoformat()}",
-        f"--format={fmt}",
-        "--grep=^round:",
-    )
+    """One round per mix version the loop published inside [start, end].
+
+    A round's rewrites and signals are the ones that finished between the
+    previous version's stamp and this one's; its folds are the lineage lines
+    that name this version. The row diff between the version and its parent
+    is checked against those fold lines: the two are written by one loop in
+    one round, and an analysis published on a disagreement would be wrong.
+    """
+    evo = root.evolution
+    folds = _folds_by_version(evo)
+    rewrites = _finished_rewrites(evo)
+    ledger = [e for e in layout.read_jsonl(evo.ledger) if start <= layout.parse_stamp(e["stamp"]) <= end]
+    versions = []
+    for version, path in root.mix.versions():
+        manifest = json.loads(layout.MixDir.manifest_of(path).read_text())
+        if manifest.get("parent_version") is None:
+            continue  # the seed version is nobody's round
+        if start <= layout.parse_stamp(manifest["stamp"]) <= end:
+            versions.append((version, path, manifest))
+
+    by_version = {v: p for v, p in root.mix.versions()}
+    revs_cache: dict[int, dict[str, int]] = {}
+
+    def revs(version: int) -> dict[str, int]:
+        if version not in revs_cache:
+            revs_cache[version] = _revs_of(by_version[version])
+        return revs_cache[version]
+
     rounds = []
-    aggregate: collections.Counter = collections.Counter()
     changed_counts: collections.Counter = collections.Counter()
     folded_cumulative = 0
-    for index, line in enumerate(raw.splitlines(), start=1):
-        commit, epoch, message = line.split("\t", 2)
-        result = ast.literal_eval(message.split("round: ", 1)[1])
-        counts = result.get("counts", {}) or {}
-        current = snapshot_rows(repo, commit)
-        parent = snapshot_rows(repo, commit + "^")
+    window_start = start
+    for index, (version, path, manifest) in enumerate(versions, start=1):
+        at = layout.parse_stamp(manifest["stamp"])
+        in_window = [m for t, _task, m in rewrites if window_start < t <= at]
+        signals = [e for e in ledger if window_start < layout.parse_stamp(e["stamp"]) <= at]
+        these = sorted(folds.get(version, []), key=lambda f: f["task"])
+        current, parent = revs(version), revs(manifest["parent_version"])
         changed = sorted(
-            task_id
-            for task_id in current.keys() & parent.keys()
-            if current[task_id] != parent[task_id]
+            task for task in current.keys() & parent.keys() if current[task] != parent[task]
         )
-        task_changes = [
-            {
-                "task_id": task_id,
-                "source_sample_revision": value_sha256(parent[task_id]),
-                "folded_sample_revision": value_sha256(current[task_id]),
-            }
-            for task_id in changed
-        ]
-        expected = int(result.get("folded", 0))
-        if len(changed) != expected:
+        if changed != sorted(f["task"] for f in these):
             raise RuntimeError(
-                f"{commit[:8]} says folded={expected}, but {len(changed)} mix rows changed"
+                f"mix v{version}: lineage folds {sorted(f['task'] for f in these)} "
+                f"but rows whose rev changed are {changed}"
             )
         changed_counts.update(changed)
-        folded_cumulative += expected
-        failed = sum(
-            int(value) for key, value in counts.items() if key.startswith("revalidate_")
+        folded_cumulative += len(these)
+        rounds.append(
+            {
+                "round": index,
+                "version": version,
+                "parent_version": manifest["parent_version"],
+                "stamp": manifest["stamp"],
+                "timestamp": _iso(manifest["stamp"]),
+                "elapsed_hours": (at - start) / 3600,
+                "sha256": manifest["sha256"],
+                "rows": manifest["rows"],
+                **_signal_counts(signals),
+                **_rewrite_counts(in_window),
+                "folded": len(these),
+                "folded_cumulative": folded_cumulative,
+                "changed_task_ids": changed,
+                "task_changes": [
+                    {
+                        "task": f["task"],
+                        "from_rev": f["from_rev"],
+                        "to_rev": f["to_rev"],
+                        "rewrite": f.get("rewrite"),
+                    }
+                    for f in these
+                ],
+            }
         )
-        attempted = int(counts.get("ok", 0)) + failed
-        timestamp = dt.datetime.fromtimestamp(int(epoch), tz=dt.UTC)
-        record = {
-            "round": index,
-            "commit": commit,
-            "timestamp": timestamp.isoformat(),
-            "elapsed_hours": (timestamp - run_start.astimezone(dt.UTC)).total_seconds()
-            / 3600,
-            "processed": int(result.get("processed", 0)),
-            "retuned": int(result.get("retuned", 0)),
-            "folded": expected,
-            "folded_cumulative": folded_cumulative,
-            "accepted_harder": int(counts.get("ok", 0)),
-            "kept": int(counts.get("kept", 0)),
-            "revalidate_failed": failed,
-            "harder_accept_rate": int(counts.get("ok", 0)) / attempted
-            if attempted
-            else None,
-            "deferred_easier": int(counts.get("deferred_easier", 0)),
-            "no_pool_dir": int(counts.get("no_pool_dir", 0)),
-            "unaccounted": int(result.get("processed", 0))
-            - sum(map(int, counts.values())),
-            "changed_task_ids": changed,
-            "task_changes": task_changes,
-            "counts": counts,
-        }
-        rounds.append(record)
-        for key in ("processed", "retuned", "folded"):
-            aggregate[key] += int(result.get(key, 0))
-        aggregate.update({key: int(value) for key, value in counts.items()})
+        window_start = at
 
-    revalidate_failed = sum(
-        value for key, value in aggregate.items() if key.startswith("revalidate_")
-    )
-    attempted = aggregate["ok"] + revalidate_failed
+    all_rewrites = [m for t, _task, m in rewrites if start <= t <= end]
     summary = {
         "rounds": len(rounds),
-        **dict(aggregate),
-        "revalidate_failed": revalidate_failed,
-        "harder_attempted": attempted,
-        "harder_accept_rate": aggregate["ok"] / attempted if attempted else None,
+        **_signal_counts(ledger),
+        **_rewrite_counts(all_rewrites),
+        "folded": folded_cumulative,
         "unique_changed_tasks": len(changed_counts),
         "repeated_tasks": sum(value > 1 for value in changed_counts.values()),
         "repeat_folds": sum(value - 1 for value in changed_counts.values()),
-        "unaccounted": aggregate["processed"]
-        - sum(
-            value
-            for key, value in aggregate.items()
-            if key not in {"processed", "retuned", "folded"}
-            and key != "revalidate_failed"
-            and key != "harder_attempted"
-        ),
     }
     return rounds, summary
 
 
 def evolution_trace_rows(rounds: list[dict]) -> list[dict]:
-    """Flatten reconstructed rounds into downloadable round and fold events."""
+    """Flatten rounds into downloadable round and fold events."""
     rows = []
     for round_row in rounds:
         common = {
-            "schema_version": 1,
+            "schema_version": 2,
             "round": round_row["round"],
+            "version": round_row["version"],
             "timestamp": round_row["timestamp"],
             "elapsed_hours": round_row["elapsed_hours"],
-            "commit": round_row["commit"],
         }
         rows.append(
             {
                 **common,
                 "record_type": "evolution_round",
-                "processed": round_row["processed"],
-                "retuned": round_row["retuned"],
+                "signals": round_row["signals"],
+                "rewrites": round_row["rewrites"],
+                "harder_attempted": round_row["harder_attempted"],
+                "harder_accept_rate": round_row["harder_accept_rate"],
                 "folded": round_row["folded"],
                 "folded_cumulative": round_row["folded_cumulative"],
-                "accepted_harder": round_row["accepted_harder"],
-                "kept": round_row["kept"],
-                "revalidate_failed": round_row["revalidate_failed"],
-                "deferred_easier": round_row["deferred_easier"],
-                "no_pool_dir": round_row["no_pool_dir"],
-                "unaccounted": round_row["unaccounted"],
-                "counts": round_row["counts"],
                 "changed_task_ids": round_row["changed_task_ids"],
             }
         )
@@ -461,7 +467,8 @@ def publish(
     import wandb
     from wandb.errors import CommError
 
-    run_id = f"take8-evolve-{digest[:10]}"
+    experiment = result["inputs"]["experiment"]
+    run_id = f"{experiment}-evolve-{digest[:10]}"
     path = f"{entity}/{project}/{run_id}"
     try:
         existing = wandb.Api().run(path)
@@ -470,11 +477,10 @@ def publish(
     except CommError:
         pass
 
-    private_config_keys = {"dump", "rollout_samples", "evolution_repo"}
+    # The root is a path on the training host; everything else in inputs is
+    # a name or a hash.
     public_config = {
-        key: value
-        for key, value in result["inputs"].items()
-        if key not in private_config_keys
+        key: value for key, value in result["inputs"].items() if key != "root"
     }
     run = wandb.init(
         entity=entity,
@@ -482,8 +488,8 @@ def publish(
         id=run_id,
         name=name,
         job_type="analysis",
-        group="take8",
-        tags=["take8", "evolveloop", "offline-analysis"],
+        group=experiment,
+        tags=[experiment, "evolveloop", "offline-analysis"],
         config=public_config,
         notes=result["analysis_text"],
         resume="never",
@@ -520,13 +526,12 @@ def publish(
         run.log(
             {
                 "elapsed_hours": row["elapsed_hours"],
+                "evolution/mix_version": row["version"],
                 "evolution/folded": row["folded"],
                 "evolution/folded_cumulative": row["folded_cumulative"],
-                "evolution/accepted_harder": row["accepted_harder"],
-                "evolution/revalidate_failed": row["revalidate_failed"],
+                **{f"evolution/{s}": row["rewrites"][s] for s in REWRITE_STATUSES},
                 "evolution/harder_accept_rate": row["harder_accept_rate"],
-                "evolution/deferred_easier": row["deferred_easier"],
-                "evolution/no_pool_dir": row["no_pool_dir"],
+                **{f"evolution/signals_{o}": row["signals"][o] for o in SIGNAL_OUTCOMES},
             }
         )
     for row in result["eval_by_checkpoint"]:
@@ -589,32 +594,28 @@ def publish(
     evolution_table = wandb.Table(
         columns=[
             "round",
+            "version",
             "timestamp",
             "elapsed_hours",
-            "processed",
+            "signals_handled",
+            "signals_deferred",
             "folded",
             "folded_cumulative",
-            "accepted_harder",
-            "revalidate_failed",
-            "deferred_easier",
-            "no_pool_dir",
+            *REWRITE_STATUSES,
             "harder_accept_rate",
-            "commit",
         ],
         data=[
             [
                 row["round"],
+                row["version"],
                 row["timestamp"],
                 row["elapsed_hours"],
-                row["processed"],
+                row["signals"]["handled"],
+                row["signals"]["deferred"],
                 row["folded"],
                 row["folded_cumulative"],
-                row["accepted_harder"],
-                row["revalidate_failed"],
-                row["deferred_easier"],
-                row["no_pool_dir"],
+                *(row["rewrites"][s] for s in REWRITE_STATUSES),
                 row["harder_accept_rate"],
-                row["commit"],
             ]
             for row in result["evolution_rounds"]
         ],
@@ -622,22 +623,24 @@ def publish(
     evolution_task_trace = wandb.Table(
         columns=[
             "round",
+            "version",
             "timestamp",
             "elapsed_hours",
-            "task_id",
-            "source_sample_revision",
-            "folded_sample_revision",
-            "commit",
+            "task",
+            "from_rev",
+            "to_rev",
+            "rewrite",
         ],
         data=[
             [
                 row["round"],
+                row["version"],
                 row["timestamp"],
                 row["elapsed_hours"],
-                row["task_id"],
-                row["source_sample_revision"],
-                row["folded_sample_revision"],
-                row["commit"],
+                row["task"],
+                row["from_rev"],
+                row["to_rev"],
+                row["rewrite"],
             ]
             for row in result["evolution_task_trace"]
         ],
@@ -651,14 +654,14 @@ def publish(
         }
     )
     artifact = wandb.Artifact(
-        name=f"take8-evolution-trace-{digest[:10]}",
+        name=f"{experiment}-evolution-trace-{digest[:10]}",
         type="evolution-trace",
         description=(
-            "Reconstructed take8 evolution rounds and accepted task folds. "
-            "Each fold includes the source and folded sample revisions."
+            f"Evolution rounds (mix versions) and accepted task folds of {experiment}. "
+            "Each fold names the task, the revision it left and entered, and the rewrite."
         ),
         metadata={
-            "schema_version": 1,
+            "schema_version": 2,
             "rounds": len(result["evolution_rounds"]),
             "folds": len(result["evolution_task_trace"]),
         },
@@ -691,10 +694,14 @@ def configure_logging(path: Path) -> None:
 
 def main() -> None:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--dump", type=Path, required=True)
-    parser.add_argument("--evolution-repo", type=Path, required=True)
-    parser.add_argument("--run-start", required=True)
-    parser.add_argument("--run-end", required=True)
+    parser.add_argument("--root", type=Path, default=os.environ.get("TRL_BASE"),
+                        help="experiment root (default: $TRL_BASE)")
+    parser.add_argument("--run", action="append", default=[], metavar="NAME",
+                        help="run directories to audit and to date the window from "
+                             "(default: every run under the root)")
+    parser.add_argument("--run-start", metavar="STAMP",
+                        help="window start (default: the earliest run's launch.json started)")
+    parser.add_argument("--run-end", metavar="STAMP", help="window end (default: now)")
     parser.add_argument("--group-size", type=int, default=16)
     parser.add_argument("--entity", required=True)
     parser.add_argument("--project", default="terminal-agent-rl")
@@ -702,26 +709,35 @@ def main() -> None:
         "--eval-run", action="append", default=[], metavar="STEP=RUN_ID"
     )
     parser.add_argument("--train-run", action="append", default=[], metavar="RUN_ID")
-    parser.add_argument("--name", default="take8-evolveloop-analysis")
-    parser.add_argument("--output-dir", type=Path, default=Path("results"))
-    parser.add_argument("--log-dir", type=Path, default=Path("logs"))
+    parser.add_argument("--name", help="W&B run name (default: <experiment>-evolveloop-analysis)")
     parser.add_argument("--upload", action="store_true")
     args = parser.parse_args()
+    if args.root is None:
+        parser.error("--root or TRL_BASE names the experiment root")
 
-    timestamp = dt.datetime.now(dt.UTC).strftime("%Y%m%dT%H%M%SZ")
-    configure_logging(args.log_dir / f"evolveloop_analysis_{timestamp}.jsonl")
-    samples = args.dump / "outputs/rl/rollout_samples.jsonl"
-    if not samples.is_file():
-        raise FileNotFoundError(samples)
-    run_start, run_end = parse_iso(args.run_start), parse_iso(args.run_end)
-    if run_end <= run_start:
+    root = layout.Root(args.root)
+    experiment = json.loads(root.experiment_json.read_text())["name"]
+    # One invocation, one directory: the log, the analysis and the trace. The
+    # W&B run id is the content address, so a rerun on unchanged inputs finds
+    # its run instead of making a second one.
+    out_dir = root.logs / f"publish_evolve_analysis--{layout.stamp()}"
+    configure_logging(out_dir / "analysis.log")
+    runs = [root.run(name) for name in args.run] or root.run_dirs()
+    if not runs:
+        raise FileNotFoundError(f"no runs under {root.runs}")
+    launches = {run.name: json.loads(run.launch_json.read_text()) for run in runs}
+    run_start = args.run_start or min(l["started"] for l in launches.values())
+    run_end = args.run_end or layout.stamp()
+    if layout.parse_stamp(run_end) <= layout.parse_stamp(run_start):
         raise ValueError("--run-end must be after --run-start")
 
-    LOG.info("auditing persisted rollout samples in %s", samples)
-    sample_diagnostics = audit_rollout_samples(samples, args.group_size)
-    LOG.info("reading evolution lineage from %s", args.evolution_repo)
+    audits = []
+    for run in runs:
+        LOG.info("auditing rollout records in %s", run.rollouts)
+        audits.append(audit_rollouts(run, args.group_size))
+    LOG.info("reading evolution records under %s", root.evolution.path)
     evolution, evolution_summary = load_evolution_metrics(
-        args.evolution_repo, run_start, run_end
+        root, layout.parse_stamp(run_start), layout.parse_stamp(run_end)
     )
     eval_specs = parse_eval_specs(args.eval_run)
     if len(eval_specs) < 2:
@@ -740,17 +756,21 @@ def main() -> None:
     early = window_summary(training, policies[:window_size])
     late = window_summary(training, policies[-window_size:])
     inputs = {
-        "analysis_schema": 3,
-        "analysis_script_sha256": file_sha256(Path(__file__)),
-        "dump": str(args.dump),
-        "rollout_samples": str(samples),
-        "rollout_samples_sha256": file_sha256(samples),
-        "rollout_samples_bytes": samples.stat().st_size,
+        "analysis_schema": 4,
+        "analysis_script_sha256": layout.sha256_file(Path(__file__)),
+        "root": str(root.path),
+        "experiment": experiment,
+        "runs": [run.name for run in runs],
+        "launches": {
+            name: {k: l.get(k) for k in ("tt_commit", "mix_version", "mix_sha256", "resumed_from")}
+            for name, l in launches.items()
+        },
+        "rollout_records": {a["run"]: {"records": a["records"], "sha256": a["records_sha256"]}
+                            for a in audits},
         "expected_group_size": args.group_size,
-        "evolution_repo": str(args.evolution_repo),
-        "evolution_window_commits": [row["commit"] for row in evolution],
-        "run_start": run_start.isoformat(),
-        "run_end": run_end.isoformat(),
+        "mix_versions": [row["version"] for row in evolution],
+        "run_start": run_start,
+        "run_end": run_end,
         "entity": args.entity,
         "project": args.project,
         "train_runs": args.train_run,
@@ -781,23 +801,19 @@ def main() -> None:
         "analysis/all_pass_group_frac_delta": late["all_pass_group_frac"]
         - early["all_pass_group_frac"],
         "analysis/evolution_rounds": evolution_summary["rounds"],
-        "analysis/evolution_folded": evolution_summary.get("folded", 0),
+        "analysis/evolution_folded": evolution_summary["folded"],
         "analysis/evolution_unique_changed_tasks": evolution_summary[
             "unique_changed_tasks"
         ],
         "analysis/evolution_harder_attempted": evolution_summary["harder_attempted"],
-        "analysis/evolution_harder_accepted": evolution_summary.get("ok", 0),
         "analysis/evolution_harder_accept_rate": evolution_summary[
             "harder_accept_rate"
         ],
-        "analysis/evolution_revalidate_failed": evolution_summary["revalidate_failed"],
-        "analysis/evolution_deferred_easier": evolution_summary.get(
-            "deferred_easier", 0
-        ),
-        "analysis/evolution_no_pool_dir": evolution_summary.get("no_pool_dir", 0),
-        "analysis/evolution_unaccounted": evolution_summary["unaccounted"],
-        "analysis/persisted_complete_groups": sample_diagnostics["complete_groups"],
-        "analysis/persisted_partial_groups": sample_diagnostics["partial_groups"],
+        **{f"analysis/evolution_{s}": evolution_summary["rewrites"][s] for s in REWRITE_STATUSES},
+        **{f"analysis/evolution_signals_{o}": evolution_summary["signals"][o]
+           for o in SIGNAL_OUTCOMES},
+        "analysis/rollout_complete_groups": sum(a["complete_groups"] for a in audits),
+        "analysis/rollout_partial_groups": sum(a["partial_groups"] for a in audits),
         "analysis/eval_base_solve_rate": evaluations[0]["trial_solve_rate"],
         "analysis/eval_final_solve_rate": evaluations[-1]["trial_solve_rate"],
         "analysis/eval_solve_rate_delta": evaluations[-1]["trial_solve_rate"]
@@ -815,38 +831,35 @@ def main() -> None:
             "analysis/eval_best_pass_at_5": best_pass["pass_at_5"],
         }
     )
-    causal_limit = (
-        "Historical evolution signals do not record a source task-version hash, "
-        "policy version, or emission timestamp. Aggregate loop effects are "
-        "measurable, but a per-task before/after causal solve rate is not "
-        "reconstructable from take8."
-    )
+    # Signed deltas, no verdict: the numbers are the same whichever way they
+    # went, and the reader draws the conclusion.
     analysis_text = (
-        "Across the first versus last five train steps, online solve rate fell "
-        f"{(early['solve_rate'] - late['solve_rate']) * 100:.2f} points and the "
-        "all-pass fraction fell "
-        f"{(early['all_pass_group_frac'] - late['all_pass_group_frac']) * 100:.2f} "
-        "points, while gradient-bearing groups rose "
-        f"{(late['gradient_group_frac'] - early['gradient_group_frac']) * 100:.2f} "
-        f"points. Together with {evolution_summary.get('folded', 0)} accepted "
-        "folds, this is consistent with a harder, less-trivial training stream. "
-        "The fixed eval ended only "
-        f"{(evaluations[-1]['trial_solve_rate'] - evaluations[0]['trial_solve_rate']) * 100:.2f} "
-        "points above base and pass@5 was unchanged, so take8 does not show a "
-        "durable held-out generalization gain. " + causal_limit
+        f"{experiment}: between the first and last {window_size} train steps the online "
+        f"solve rate moved {(late['solve_rate'] - early['solve_rate']) * 100:+.2f} points, "
+        "the all-pass fraction "
+        f"{(late['all_pass_group_frac'] - early['all_pass_group_frac']) * 100:+.2f} points, "
+        "and gradient-bearing groups "
+        f"{(late['gradient_group_frac'] - early['gradient_group_frac']) * 100:+.2f} points. "
+        f"The loop published {evolution_summary['rounds']} mix versions folding "
+        f"{evolution_summary['folded']} revisions into "
+        f"{evolution_summary['unique_changed_tasks']} tasks "
+        f"({evolution_summary['rewrites']['accepted']} accepted of "
+        f"{evolution_summary['harder_attempted']} harder rewrites decided). "
+        "The fixed eval moved "
+        f"{(evaluations[-1]['trial_solve_rate'] - evaluations[0]['trial_solve_rate']) * 100:+.2f} "
+        f"points from base and pass@5 {evaluations[-1]['pass_at_5'] - evaluations[0]['pass_at_5']:+.3f}."
     )
     conclusion["analysis/conclusion"] = analysis_text
-    conclusion["analysis/causal_limit"] = causal_limit
     task_trace = [
         row
         for row in evolution_trace_rows(evolution)
         if row["record_type"] == "evolution_fold"
     ]
     result = {
-        "schema_version": 2,
+        "schema_version": 3,
         "generated_at": dt.datetime.now(dt.UTC).isoformat(),
         "inputs": inputs,
-        "sample_diagnostics": sample_diagnostics,
+        "rollout_audits": audits,
         "training_diagnostics": training_diagnostics,
         "training_by_policy": training,
         "training_windows": {"early": early, "late": late},
@@ -856,22 +869,13 @@ def main() -> None:
         "eval_by_checkpoint": evaluations,
         "conclusion_metrics": conclusion,
         "analysis_text": analysis_text,
-        "causal_limit": causal_limit,
     }
     digest = hashlib.sha256(
         json.dumps(result["inputs"], sort_keys=True).encode()
     ).hexdigest()
-    args.output_dir.mkdir(parents=True, exist_ok=True)
-    output = args.output_dir / f"evolveloop_take8_analysis_{digest[:12]}.jsonl"
-    payload = json.dumps(result, sort_keys=True) + "\n"
-    if output.exists():
-        existing = json.loads(output.read_text())
-        if existing.get("inputs") != result["inputs"]:
-            raise RuntimeError(f"content-address collision at {output}")
-        result = existing
-    else:
-        output.write_text(payload)
-    trace_output = args.output_dir / f"evolution_trace_take8_{digest[:12]}.jsonl"
+    output = out_dir / f"{experiment}_analysis_{digest[:12]}.jsonl"
+    output.write_text(json.dumps(result, sort_keys=True) + "\n")
+    trace_output = out_dir / f"{experiment}_evolution_trace_{digest[:12]}.jsonl"
     write_evolution_trace(trace_output, result["evolution_rounds"])
     LOG.info("analysis written to %s", output)
     LOG.info("evolution trace written to %s", trace_output)
@@ -895,7 +899,6 @@ def main() -> None:
                     }
                     for row in evaluations
                 ],
-                "causal_limit": result["causal_limit"],
             },
             indent=2,
         )
@@ -905,7 +908,7 @@ def main() -> None:
             result,
             args.entity,
             args.project,
-            args.name,
+            args.name or f"{experiment}-evolveloop-analysis",
             digest,
             trace_output,
         )

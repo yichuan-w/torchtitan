@@ -12,26 +12,36 @@ import inspect
 import json
 import math
 import os
+import re
 import shlex
 import subprocess
 import time
 from pathlib import Path
+from types import SimpleNamespace
 from typing import Any
 from unittest.mock import AsyncMock, Mock
 
 import pytest
 
-from torchtitan.experiments.rl.examples.tmax import vanillux_loop
+from torchtitan.experiments.rl.examples.tmax import (
+    layout,
+    rollout_record,
+    vanillux_loop,
+)
 from torchtitan.experiments.rl.examples.tmax.data import TMaxSample
 from torchtitan.experiments.rl.examples.tmax.rollouter import (
     _finish_reason_metrics,
+    _note_image_without_tmux,
     _sandbox_issue_metrics,
     _SandboxRolloutDiagnostics,
+    _write_rollout_record,
     TMaxRollouter,
 )
-from torchtitan.experiments.rl.harness import SandboxIssue
+from torchtitan.experiments.rl.harness import CapturedTurn
 from torchtitan.experiments.rl.observability.metrics import Mean
 from torchtitan.experiments.rl.rollout.types import Rollout, RolloutStatus
+
+_STAMP = re.compile(r"^\d{8}-\d{6}Z$")
 
 
 _RUN_BASH = vanillux_loop._run_bash
@@ -339,8 +349,11 @@ def test_sandbox_issue_metrics_count_events_and_affected_rollouts() -> None:
     }
 
 
-def _run_group_with_one_infra_failure(group_id: int):
+def _run_group_with_one_infra_failure(monkeypatch: pytest.MonkeyPatch, group_id: int):
     """Two siblings, the second an infrastructure failure, scored 1.0 / 0.0."""
+    # No run directory: the group-level signal writer has nowhere to write and
+    # returns before it reads the placeholder sample.
+    monkeypatch.delenv("TRL_RUN_DIR", raising=False)
     rollouter = object.__new__(TMaxRollouter)
     rollouter._ensure_adapter = AsyncMock(return_value=object())
     rollouter._read_ctrf = False
@@ -381,7 +394,6 @@ def _run_group_with_one_infra_failure(group_id: int):
 
     rollouter.score_group = AsyncMock(side_effect=score_group)
     rollouter.advantage_estimator = Mock(return_value=[0.5, -0.5])
-    rollouter._maybe_annotate_zero_std = Mock()
 
     group = asyncio.run(
         rollouter.run_group_rollouts(
@@ -396,7 +408,9 @@ def _run_group_with_one_infra_failure(group_id: int):
     return rollouter, group
 
 
-def test_infra_failure_is_unscored_not_a_zero_in_a_training_group() -> None:
+def test_infra_failure_is_unscored_not_a_zero_in_a_training_group(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     """An infrastructure failure is not a verdict, so it must not become one.
 
     It used to be held at 0.0 to match Open-Instruct, on the reasoning that such a
@@ -405,14 +419,13 @@ def test_infra_failure_is_unscored_not_a_zero_in_a_training_group() -> None:
     and centered advantage then trains those turns away from behavior no verdict
     established was wrong. NaN says "unscored" so the baseline skips it.
     """
-    rollouter, group = _run_group_with_one_infra_failure(group_id=7)
+    rollouter, group = _run_group_with_one_infra_failure(monkeypatch, group_id=7)
 
     rewards = [rollout.reward for rollout in group.rollouts]
     assert rewards[0] == 1.0
     assert math.isnan(rewards[1])
     rollouter.score_group.assert_awaited_once()
     rollouter.advantage_estimator.assert_called_once()
-    rollouter._maybe_annotate_zero_std.assert_called_once()
     metric_values = {
         metric.key: metric.value.value
         for metric in group.metrics
@@ -424,48 +437,196 @@ def test_infra_failure_is_unscored_not_a_zero_in_a_training_group() -> None:
     }
 
 
-def test_validation_keeps_an_infra_failure_at_zero() -> None:
+def test_validation_keeps_an_infra_failure_at_zero(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     """Validation groups carry negative ids. avg@k is defined over attempts, so a NaN
     there would move the denominator and stop the number being comparable to the
     published one -- and index.json cannot encode a NaN at all."""
-    _rollouter, group = _run_group_with_one_infra_failure(group_id=-3)
+    _rollouter, group = _run_group_with_one_infra_failure(monkeypatch, group_id=-3)
 
     assert [rollout.reward for rollout in group.rollouts] == [1.0, 0.0]
 
 
-def test_rollout_dump_writes_machine_readable_sandbox_issues(
-    monkeypatch: pytest.MonkeyPatch, tmp_path
-) -> None:
-    monkeypatch.setenv("SWE_ROLLOUT_DUMP_DIR", str(tmp_path))
-    sample = TMaxSample(
-        instance_id="task-123",
+def _sample(instance_id: str = "task-123", rev: int = 0) -> TMaxSample:
+    return TMaxSample(
+        instance_id=instance_id,
         image="example/image",
         workdir="/workspace",
         problem_statement="test",
+        rev=rev,
     )
-    issue = SandboxIssue(
-        provider="daytona",
-        kind="session_disk_exhausted",
-        phase="session_create",
-        recovered=False,
-        error_type="RuntimeError",
-        message="no space left on device",
-        sandbox_id="sandbox-abc",
-        session_id="session-def",
-    )
-    diagnostics = _SandboxRolloutDiagnostics(
+
+
+def _run_dir(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> layout.Run:
+    run = layout.Run(tmp_path / "runs" / "tmax-9b--20260904-181500Z")
+    monkeypatch.setenv("TRL_RUN_DIR", str(run.path))
+    return run
+
+
+def _diagnostics(**overrides) -> _SandboxRolloutDiagnostics:
+    kwargs = dict(
         sandbox_id="sandbox-abc",
         disk_gb=6,
-        issue_counts={"session_disk_exhausted": 1},
-        issues=(issue,),
+        issue_counts={},
+        issues=(),
         num_dropped_details=0,
     )
-    rollouter = object.__new__(TMaxRollouter)
+    kwargs.update(overrides)
+    return _SandboxRolloutDiagnostics(**kwargs)
 
-    rollouter._maybe_dump_trace(
-        rollout_id="group=1/rollout=2",
-        group_id=1,
-        sample=sample,
+
+def _captured(prompt_token_ids, completion_token_ids, *, extends_previous):
+    return CapturedTurn(
+        prompt_token_ids=prompt_token_ids,
+        completion_token_ids=completion_token_ids,
+        completion_logprobs=[0.0] * len(completion_token_ids),
+        min_policy_version=0,
+        max_policy_version=0,
+        finish_reason="stop",
+        extends_previous=extends_previous,
+    )
+
+
+class _CharTokenizer:
+    """One token per character, so a test can spell the stream it expects."""
+
+    def decode(self, ids, skip_special_tokens=False):
+        assert skip_special_tokens is False, "the record keeps the chat markers"
+        return "".join(chr(i) for i in ids)
+
+
+def _ids(text: str) -> list[int]:
+    return [ord(c) for c in text]
+
+
+def test_rollout_record_is_one_header_line_then_one_line_per_turn(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """The record header is LAYOUT.md's, key for key and in its order; the turns
+    are decoded from the captured tokens, the reply to each from the next
+    prompt's extension."""
+    run = _run_dir(monkeypatch, tmp_path)
+    prompt = _ids("task<think>\n")
+    completion_1 = _ids(
+        "t</think><response><commands><keystrokes>ls\n</keystrokes></commands>"
+        "</response><|im_end|>"
+    )
+    reply_1 = _ids(
+        "\n<|im_start|>user\nout<|im_end|>\n<|im_start|>assistant\n<think>\n"
+    )
+    completion_2 = _ids(
+        "d</think><response><commands></commands>"
+        "<task_complete>true</task_complete></response>"
+    )
+    captured = [
+        _captured(prompt, completion_1, extends_previous=False),
+        _captured(prompt + completion_1 + reply_1, completion_2, extends_previous=True),
+    ]
+    exec_trace = [{"t": 1725474121.1, "secs": 0.4, "exit": 0, "cmd": "tmux send-keys"}]
+
+    rel = _write_rollout_record(
+        run,
+        sample=_sample(rev=2),
+        group_id=713,
+        rollout_idx=13,
+        captured=captured,
+        renderer=SimpleNamespace(_tokenizer=_CharTokenizer()),
+        status="completed",
+        reward=1.0,
+        submitted=True,
+        fmt_errors=0,
+        error_msg="",
+        finish_reason="submit",
+        sandbox_diagnostics=_diagnostics(issue_counts={"session_disk_exhausted": 1}),
+        exec_trace=exec_trace,
+        secs=412.34,
+        budget_sec=1800,
+        started="20260904-182201Z",
+    )
+
+    assert rel == "rollouts/task-123/g713-r13.jsonl"
+    header, turns = rollout_record.read_record(run.path / rel)
+    assert list(header) == [
+        "task",
+        "rev",
+        "run",
+        "group",
+        "rollout",
+        "reward",
+        "status",
+        "finish_reason",
+        "submitted",
+        "format_errors",
+        "infra_failed",
+        "error",
+        "sandbox",
+        "secs",
+        "budget_sec",
+        "turns",
+        "started",
+        "exec",
+    ]
+    assert header == {
+        "task": "task-123",
+        "rev": 2,
+        "run": "tmax-9b--20260904-181500Z",
+        "group": 713,
+        "rollout": 13,
+        "reward": 1.0,
+        "status": "completed",
+        "finish_reason": "submit",
+        "submitted": True,
+        "format_errors": 0,
+        "infra_failed": False,
+        "error": "",
+        "sandbox": {
+            "id": "sandbox-abc",
+            "disk_gb": 6,
+            "issues": {"session_disk_exhausted": 1},
+            "dropped_details": 0,
+        },
+        "secs": 412.3,
+        "budget_sec": 1800,
+        "turns": 2,
+        "started": "20260904-182201Z",
+        "exec": exec_trace,
+    }
+    assert turns == [
+        {"turn": 1, "keystrokes": ["ls\n"], "output": "out", "think": "t"},
+        {
+            "turn": 2,
+            "keystrokes": [],
+            "task_complete": True,
+            "output": "",
+            "think": "d",
+        },
+    ]
+    # Renamed into place: no .incoming left beside it.
+    assert list((run.rollouts / "task-123").iterdir()) == [run.path / rel]
+
+
+@pytest.mark.parametrize(
+    "group_id, records, expect",
+    [(-1, "1", False), (5, "0", False), (5, "1", True)],
+)
+def test_rollout_record_skips_validation_groups_and_honors_the_switch(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    group_id: int,
+    records: str,
+    expect: bool,
+) -> None:
+    """Validation rollouts belong to the controller's validation report; a file
+    under rollouts/ would read as a training rollout of a task never trained on."""
+    run = _run_dir(monkeypatch, tmp_path)
+    monkeypatch.setenv("SWE_ROLLOUT_RECORDS", records)
+
+    rel = _write_rollout_record(
+        run,
+        sample=_sample(),
+        group_id=group_id,
+        rollout_idx=0,
         captured=[],
         renderer=object(),
         status="completed",
@@ -474,139 +635,48 @@ def test_rollout_dump_writes_machine_readable_sandbox_issues(
         fmt_errors=0,
         error_msg="",
         finish_reason="hit_max_turns",
-        sandbox_diagnostics=diagnostics,
+        sandbox_diagnostics=_diagnostics(),
+        exec_trace=[],
+        secs=1.0,
+        budget_sec=10,
+        started="20260904-182201Z",
     )
 
-    trace = (tmp_path / "group=1_rollout=2.txt").read_text()
-    assert "finish_reason  : hit_max_turns" in trace
-    assert "sandbox_id     : sandbox-abc" in trace
-    payload = json.loads((tmp_path / "group=1_rollout=2.sandbox.json").read_text())
-    assert payload["instance_id"] == "task-123"
-    assert payload["disk_gb"] == 6
-    assert payload["issue_counts"] == {"session_disk_exhausted": 1}
-    assert payload["issues"] == [
-        {
-            "attempt": None,
-            "command_id": "",
-            "error_type": "RuntimeError",
-            "exit_code": None,
-            "kind": "session_disk_exhausted",
-            "max_attempts": None,
-            "message": "no space left on device",
-            "phase": "session_create",
-            "provider": "daytona",
-            "recovered": False,
-            "sandbox_id": "sandbox-abc",
-            "session_id": "session-def",
-        }
-    ]
+    assert (rel is not None) is expect
+    assert run.rollouts.exists() is expect
 
 
-def test_validation_groups_skip_the_training_rollout_dump(
-    monkeypatch: pytest.MonkeyPatch, tmp_path
+def test_no_tmux_probe_appends_one_advisory_line_per_hit(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
-    """Validation rollouts get the controller's per-pass report, not this dump."""
-    monkeypatch.setenv("SWE_ROLLOUT_DUMP_DIR", str(tmp_path))
+    run = _run_dir(monkeypatch, tmp_path)
+
+    _note_image_without_tmux(_sample("task-notmux"), group_id=3, rollout_idx=1)
+    _note_image_without_tmux(_sample("task-notmux"), group_id=3, rollout_idx=2)
+
+    lines = layout.read_jsonl(run.advisory("no_tmux"))
+    assert [
+        (l["task"], l["image"], l["reason"], l["group"], l["rollout"]) for l in lines
+    ] == [
+        ("task-notmux", "example/image", "no_tmux_in_image", 3, 1),
+        ("task-notmux", "example/image", "no_tmux_in_image", 3, 2),
+    ]
+    assert all(_STAMP.match(l["stamp"]) for l in lines)
+
+
+def test_without_a_run_dir_nothing_is_written(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    monkeypatch.delenv("TRL_RUN_DIR", raising=False)
+    monkeypatch.chdir(tmp_path)
     rollouter = object.__new__(TMaxRollouter)
 
-    rollouter._maybe_dump_trace(
-        rollout_id="group=-1/rollout=0",
-        group_id=-1,
-        sample=TMaxSample(
-            instance_id="task-123",
-            image="example/image",
-            workdir="/workspace",
-            problem_statement="test",
-        ),
-        captured=[],
-        renderer=object(),
-        status="completed",
-        reward=0.0,
-        finish_reason="submit",
-        sandbox_diagnostics=_SandboxRolloutDiagnostics(
-            sandbox_id="sandbox-abc",
-            disk_gb=6,
-            issue_counts={},
-            issues=(),
-            num_dropped_details=0,
-        ),
+    rollouter._maybe_emit_evolution_signal(
+        _sample(), [_rollout(1, 0, 1.0), _rollout(1, 1, 1.0)]
     )
+    _note_image_without_tmux(_sample(), group_id=1, rollout_idx=0)
 
     assert list(tmp_path.iterdir()) == []
-
-
-@pytest.mark.parametrize(
-    "group_id, expect_annotation",
-    [(7, True), (-1, False)],
-)
-def test_zero_std_annotation_skips_validation_groups(
-    monkeypatch: pytest.MonkeyPatch, tmp_path, group_id: int, expect_annotation: bool
-) -> None:
-    """Held-out / benchmark prompts must not land in the training skip list."""
-    monkeypatch.setenv("SWE_ZERO_STD_DIR", str(tmp_path))
-    rollouter = object.__new__(TMaxRollouter)
-    sample = TMaxSample(
-        instance_id="task-123",
-        image="example/image",
-        workdir="/workspace",
-        problem_statement="test",
-    )
-    rollouts = [
-        Rollout(
-            group_id=group_id,
-            rollout_id=idx,
-            status=RolloutStatus.COMPLETED,
-            reward=0.0,
-        )
-        for idx in range(2)
-    ]
-
-    rollouter._maybe_annotate_zero_std(sample, rollouts)
-
-    assert (tmp_path / "task-123.json").exists() is expect_annotation
-
-
-@pytest.mark.parametrize(
-    "rewards, expect_annotation",
-    [
-        ([0.0, 0.0, math.nan], True),
-        ([0.0, 1.0, math.nan], False),
-        ([math.nan, math.nan], False),
-    ],
-)
-def test_zero_std_annotation_ignores_unscored_rollouts(
-    monkeypatch: pytest.MonkeyPatch,
-    tmp_path: Path,
-    rewards: list[float],
-    expect_annotation: bool,
-) -> None:
-    monkeypatch.setenv("SWE_ZERO_STD_DIR", str(tmp_path))
-    rollouter = object.__new__(TMaxRollouter)
-    sample = TMaxSample(
-        instance_id="task-123",
-        image="example/image",
-        workdir="/workspace",
-        problem_statement="test",
-    )
-    rollouts = [
-        Rollout(
-            group_id=7,
-            rollout_id=idx,
-            status=RolloutStatus.COMPLETED,
-            reward=reward,
-        )
-        for idx, reward in enumerate(rewards)
-    ]
-
-    rollouter._maybe_annotate_zero_std(sample, rollouts)
-
-    annotation = tmp_path / "task-123.json"
-    assert annotation.exists() is expect_annotation
-    if expect_annotation:
-        assert json.loads(annotation.read_text()) == {
-            "instance_id": "task-123",
-            "reward": 0.0,
-        }
 
 
 def test_rollout_carries_its_finish_reason_and_format_errors() -> None:
@@ -631,7 +701,13 @@ def test_rollout_carries_its_finish_reason_and_format_errors() -> None:
     assert rollout.diagnostics["format_errors"] == 1
     # The keys TMaxRollouter._run_agent_rollout populates.
     source = inspect.getsource(TMaxRollouter._run_agent_rollout)
-    for key in ("finish_reason", "format_errors", "submitted", "infra_failed"):
+    for key in (
+        "finish_reason",
+        "format_errors",
+        "submitted",
+        "infra_failed",
+        "record",
+    ):
         assert f'"{key}"' in source, f"{key} no longer recorded on the Rollout"
 
 
@@ -674,131 +750,158 @@ def test_worker_info_logging_reaches_a_handler_without_duplicating(
         root.setLevel(saved[3])
 
 
-
-
-def test_evolution_signal_written_with_direction_and_transcript(
-    monkeypatch: pytest.MonkeyPatch, tmp_path
-) -> None:
-    """SWE_TASK_EVOLUTION_DIR gets a fuller signal than the drop annotation: the
-    direction to move an all-pass group (harder) and each attempt's transcript."""
-    monkeypatch.delenv("SWE_ZERO_STD_DIR", raising=False)
-    monkeypatch.setenv("SWE_TASK_EVOLUTION_DIR", str(tmp_path))
-    rollouter = object.__new__(TMaxRollouter)
-    sample = TMaxSample(
-        instance_id="task-abc",  # noqa: evolution signal test
-        image="example/image",
-        workdir="/workspace",
-        problem_statement="test",
-    )
-    rollouts = [
-        Rollout(
-            group_id=1,
-            rollout_id=idx,
-            status=RolloutStatus.COMPLETED,
-            reward=1.0,
-            turns=[],
-        )
-        for idx in range(3)
-    ]
-
-    rollouter._maybe_emit_evolution_signal(sample, rollouts)
-
-    signal_paths = list(tmp_path.glob("task-abc--*.json"))
-    assert len(signal_paths) == 1
-    import json as _json
-
-    signal = _json.loads(signal_paths[0].read_text())
-    assert signal["task_id"] == "task-abc"
-    assert signal["solved"] == 3 and signal["total"] == 3
-    assert signal["direction"] == "harder"
-    assert len(signal["attempts"]) == 3
-
-
-def test_in_band_group_writes_no_evolution_signal(
-    monkeypatch: pytest.MonkeyPatch, tmp_path
-) -> None:
-    """A group with reward variance still trains; it is not a candidate to evolve."""
-    monkeypatch.setenv("SWE_TASK_EVOLUTION_DIR", str(tmp_path))
-    rollouter = object.__new__(TMaxRollouter)
-    sample = TMaxSample(
-        instance_id="task-band",
-        image="example/image",
-        workdir="/workspace",
-        problem_statement="test",
-    )
-    rollouts = [
-        Rollout(group_id=1, rollout_id=0, status=RolloutStatus.COMPLETED, reward=1.0),
-        Rollout(group_id=1, rollout_id=1, status=RolloutStatus.COMPLETED, reward=0.0),
-    ]
-
-    rollouter._maybe_emit_evolution_signal(sample, rollouts)
-
-    assert not list(tmp_path.glob("task-band--*.json"))
-
-
-def test_evolution_signal_transcript_is_whole_and_says_how_the_attempt_ended() -> None:
-    """The per-attempt transcript is the decoded token stream, uncut: a cap on
-    the completion lands on the ``<commands>`` block at its end, which is the
-    part a reader needs. The attempt also carries the loop's outcome fields."""
-    from types import SimpleNamespace
-
-    from torchtitan.experiments.rl.rollout.types import RolloutTurn
-    from torchtitan.experiments.rl.types import RolloutTurnID
-
-    class _Tok:
-        def decode(self, ids, skip_special_tokens=False):
-            return "".join({1: "p", 2: "c", 3: "o"}[i] for i in ids)
-
-    prompt_1 = [1] * 10
-    completion_1 = [2] * 6000  # longer than the 4000-char cap this used to have
-    terminal_1 = [3] * 5000
-    turns = [
-        RolloutTurn(
-            rollout_id=RolloutTurnID(group_id=1, rollout_id=0, turn_id=0),
-            prompt_token_ids=prompt_1,
-            completion_token_ids=completion_1,
-            completion_logprobs=[0.0] * len(completion_1),
-        ),
-        RolloutTurn(
-            rollout_id=RolloutTurnID(group_id=1, rollout_id=0, turn_id=1),
-            prompt_token_ids=prompt_1 + completion_1 + terminal_1,
-            completion_token_ids=[2] * 5,
-            completion_logprobs=[0.0] * 5,
-        ),
-    ]
-    rollout = Rollout(
-        group_id=1,
-        rollout_id=0,
+def _rollout(
+    group_id: int, idx: int, reward: float, *, turns: int = 1, record: bool = True
+) -> Rollout:
+    """A scored sibling as run_group_rollouts hands it to the signal writer: the
+    rubric reward on it and, when its record was written, that record's path."""
+    return Rollout(
+        group_id=group_id,
+        rollout_id=idx,
         status=RolloutStatus.COMPLETED,
-        reward=1.0,
-        turns=turns,
+        reward=reward,
+        turns=[Mock()] * turns,
         diagnostics={
-            "finish_reason": "submit",
-            "submitted": True,
-            "format_errors": 0,
-            "infra_failed": False,
-            "ctrf": None,
+            "record": f"rollouts/task-123/g{group_id}-r{idx}.jsonl" if record else None
         },
     )
-    sample = TMaxSample(
-        instance_id="task-whole",
-        image="example/image",
-        workdir="/workspace",
-        problem_statement="test",
-    )
+
+
+def test_evolution_signal_names_the_sibling_records_and_the_direction(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """An all-pass group is a `harder` signal: one JSON under the run's signals/,
+    naming the siblings' rollout records relative to the run, renamed into place."""
+    run = _run_dir(monkeypatch, tmp_path)
     rollouter = object.__new__(TMaxRollouter)
+    rollouts = [_rollout(713, idx, 1.0) for idx in range(3)]
 
-    signal = rollouter._evolution_signal(
-        sample, [rollout], [1.0], SimpleNamespace(tokenizer=_Tok())
-    )
+    rollouter._maybe_emit_evolution_signal(_sample("task-123", rev=2), rollouts)
 
-    (attempt,) = signal["attempts"]
-    assert attempt["transcript"][0]["cmd"] == "c" * 6000
-    assert attempt["transcript"][0]["out"] == "o" * 5000
-    assert attempt["transcript"][1]["cmd"] == "c" * 5
-    assert attempt["status"] == "completed"
-    assert attempt["finish_reason"] == "submit"
-    assert attempt["submitted"] is True
-    assert attempt["format_errors"] == 0
-    assert attempt["infra_failed"] is False
-    assert "ctrf" not in attempt
+    (path,) = run.signal_files()
+    assert path == run.signal("task-123", 713)
+    signal = json.loads(path.read_text())
+    assert _STAMP.match(signal["created"])
+    assert signal == {
+        "task": "task-123",
+        "rev": 2,
+        "run": "tmax-9b--20260904-181500Z",
+        "group": 713,
+        "direction": "harder",
+        "solved": 3,
+        "total": 3,
+        "created": signal["created"],
+        "attempts": [
+            "rollouts/task-123/g713-r0.jsonl",
+            "rollouts/task-123/g713-r1.jsonl",
+            "rollouts/task-123/g713-r2.jsonl",
+        ],
+    }
+    assert not list(run.signals.glob("*.incoming"))
+
+
+@pytest.mark.parametrize(
+    "rewards, group_id, signals",
+    [
+        # Reward variance: the group still trains, nothing to evolve.
+        ([1.0, 0.0], 1, "1"),
+        # Validation prompts are never trained, so never evolved.
+        ([0.0, 0.0], -1, "1"),
+        # Switched off.
+        ([0.0, 0.0], 1, "0"),
+    ],
+)
+def test_no_signal_for_in_band_validation_or_switched_off_groups(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    rewards: list[float],
+    group_id: int,
+    signals: str,
+) -> None:
+    run = _run_dir(monkeypatch, tmp_path)
+    monkeypatch.setenv("SWE_EVOLUTION_SIGNALS", signals)
+    rollouter = object.__new__(TMaxRollouter)
+    rollouts = [_rollout(group_id, idx, r) for idx, r in enumerate(rewards)]
+
+    rollouter._maybe_emit_evolution_signal(_sample(), rollouts)
+
+    assert run.signal_files() == []
+    assert not run.advisories.exists()
+
+
+@pytest.mark.parametrize(
+    "rewards, expect_direction",
+    [
+        ([0.0, 0.0, math.nan], "easier"),
+        ([0.0, 1.0, math.nan], None),
+        ([math.nan, math.nan], None),
+        ([1.0, 1.0], "harder"),
+    ],
+)
+def test_zero_variance_is_judged_over_scored_siblings_only(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    rewards: list[float],
+    expect_direction: str | None,
+) -> None:
+    """An infra-failed sibling carries NaN, which is no verdict: it neither makes a
+    group mixed nor counts as an attempt, and pstdev would raise on it."""
+    run = _run_dir(monkeypatch, tmp_path)
+    rollouter = object.__new__(TMaxRollouter)
+    rollouts = [_rollout(4, idx, r) for idx, r in enumerate(rewards)]
+
+    rollouter._maybe_emit_evolution_signal(_sample(), rollouts)
+
+    files = run.signal_files()
+    if expect_direction is None:
+        assert files == []
+        return
+    (path,) = files
+    signal = json.loads(path.read_text())
+    scored = [idx for idx, r in enumerate(rewards) if not math.isnan(r)]
+    assert signal["direction"] == expect_direction
+    assert signal["total"] == len(scored)
+    assert signal["solved"] == (len(scored) if expect_direction == "harder" else 0)
+    assert signal["attempts"] == [
+        f"rollouts/task-123/g4-r{idx}.jsonl" for idx in scored
+    ]
+
+
+def test_all_fail_group_with_zero_turns_is_a_quarantine_advisory_not_a_signal(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """No attempt took a turn: that measured the infrastructure, not the task. A
+    signal would drive an unearned simplify; the advisory keeps the finding."""
+    run = _run_dir(monkeypatch, tmp_path)
+    rollouter = object.__new__(TMaxRollouter)
+    rollouts = [_rollout(9, idx, 0.0, turns=0) for idx in range(16)]
+
+    rollouter._maybe_emit_evolution_signal(_sample("task-dead"), rollouts)
+
+    assert run.signal_files() == []
+    (line,) = layout.read_jsonl(run.advisory("infra_quarantine"))
+    assert _STAMP.match(line["stamp"])
+    assert line == {
+        "stamp": line["stamp"],
+        "task": "task-dead",
+        "image": "example/image",
+        "reason": "all_fail_zero_turns",
+        "group": 9,
+        "rollouts_lost": 16,
+    }
+
+
+def test_signal_lists_only_records_that_were_written(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """With SWE_ROLLOUT_RECORDS=0 the siblings have no record; the signal still
+    carries the verdict and names no file that does not exist."""
+    run = _run_dir(monkeypatch, tmp_path)
+    rollouter = object.__new__(TMaxRollouter)
+    rollouts = [_rollout(2, idx, 1.0, record=False) for idx in range(2)]
+
+    rollouter._maybe_emit_evolution_signal(_sample(), rollouts)
+
+    (path,) = run.signal_files()
+    signal = json.loads(path.read_text())
+    assert (signal["solved"], signal["total"], signal["attempts"]) == (2, 2, [])

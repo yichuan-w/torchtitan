@@ -48,7 +48,6 @@ behavior (e.g. to A/B fidelity against published numbers).
 
 from __future__ import annotations
 
-import json
 import logging
 import os
 import re
@@ -305,41 +304,17 @@ class _CountingParser:
 # the beginning, which is the half that says what led up to a flood.
 _PANE_CAP_BYTES = 8 * 1024 * 1024
 
-# The second half. Nothing reads that transcript: `terminus_2.pane` appears
-# exactly once in harbor, in the line that writes it, and we do not fetch it
-# either. Meanwhile the rollout dump has a slot for each turn's messages and
-# this harness never fills them -- 89,091 turns from one run carry no prompt,
-# completion or environment message at all. So a rollout's only record of what
-# the model actually did is written inside the sandbox and thrown away with it.
-#
-# Setting this collects it. It is off by default because it is not free: a run
-# of 22,000 rollouts fetching up to 8 MiB each is tens of gigabytes, so turn it
-# on for a run you intend to audit rather than for all of them.
-_PANE_DUMP_DIR_ENV = "TMAX_PANE_DUMP_DIR"
-
-
-def _pane_dump_path(session_id: str) -> Path | None:
-    """Where this session's terminal transcript is saved, or None when off."""
-    root = os.environ.get(_PANE_DUMP_DIR_ENV, "")
-    if not root:
-        return None
-    safe = (session_id or "unknown").replace("/", "_")
-    return Path(root) / f"{safe}.pane"
-
-
-def _exec_trace_path(session_id: str) -> Path | None:
-    """Per-session JSONL for the sandbox exec trace, or None when tracing is off.
-
-    ``TMAX_EXEC_TRACE_DIR`` turns it on. A rollout's wall time is dominated by
-    what happens between generations -- the training loop records only the
-    total, and the rollout dump records only the transcript -- so without this
-    there is no way to tell a slow agent command from a slow harness.
-    """
-    root = os.environ.get("TMAX_EXEC_TRACE_DIR", "")
-    if not root:
-        return None
-    safe = (session_id or "unknown").replace("/", "_")
-    return Path(root) / f"{safe}.jsonl"
+# The second half is the rollouter's. Nothing in harbor reads that transcript:
+# `terminus_2.pane` appears exactly once there, in the line that writes it. Yet
+# it is the only record of what the model actually typed and what came back --
+# this harness carries its command in Terminus-2's XML, not in a message, so
+# the captured turns hold no readable text of their own (89,091 turns from one
+# run carry no prompt, completion or environment message at all). So the pane's
+# in-sandbox path is reported on ``AgentRun.pane_path``; the rollouter, which
+# owns the run directory and knows whether ``TMAX_PANE_DUMP=1`` asked for
+# transcripts, reads it while the sandbox is still up and files it beside the
+# rollout record. Off by default because a run of 22,000 rollouts fetching up
+# to 8 MiB each is tens of gigabytes: turn it on for a run you mean to audit.
 
 
 class _SandboxEnvironment:
@@ -351,7 +326,6 @@ class _SandboxEnvironment:
         *,
         agent_dir: Path,
         user: str = "root",
-        trace_session_id: str = "",
     ) -> None:
         self._sandbox = sandbox
         self.default_user = user
@@ -361,8 +335,10 @@ class _SandboxEnvironment:
         self.environment_dir = agent_dir
         self.environment_name = "titan-sandbox"
         self.session_id = ""
-        # Names the exec-trace file; empty disables it (see _exec_trace_path).
-        self._trace_session_id = trace_session_id
+        # Every sandbox command this session ran, in order; returned on the
+        # AgentRun and written into the rollout record's ``exec`` (see
+        # _trace_exec). A few hundred small dicts per rollout at most.
+        self.exec_trace: list[dict] = []
         # Set when Terminus-2 starts its pane, so the transcript can be fetched
         # before the sandbox goes away. None until then.
         self.pane_path: str | None = None
@@ -426,28 +402,24 @@ class _SandboxEnvironment:
         return command.replace(f"'cat > {path}'", f"'{bounded}'", 1)
 
     def _trace_exec(self, command: str, started_at: float, exit_code: int) -> None:
-        """Append one exec to the session's trace. Best-effort; never raises.
+        """Keep one exec in the session's trace.
 
         Every sandbox command the agent drives passes through ``exec``, including
         the ``tmux send-keys`` that carries the agent's own command text and the
         ``tmux wait done`` that blocks for its runtime -- so a trace of both
-        attributes a slow turn to the command that caused it.
+        attributes a slow turn to the command that caused it. A rollout's wall
+        time is dominated by what happens between generations, and the training
+        loop records only the total, so without this there is no way to tell a
+        slow agent command from a slow harness.
         """
-        path = _exec_trace_path(self._trace_session_id)
-        if path is None:
-            return
-        try:
-            path.parent.mkdir(parents=True, exist_ok=True)
-            record = {
+        self.exec_trace.append(
+            {
                 "t": round(started_at, 3),
                 "secs": round(time.time() - started_at, 3),
                 "exit": exit_code,
                 "cmd": command[:400],
             }
-            with open(path, "a") as f:
-                f.write(json.dumps(record) + "\n")
-        except Exception:
-            logger.debug("exec trace write failed", exc_info=True)
+        )
 
     async def upload_file(self, source_path: Path | str, target_path: str) -> None:
         with open(source_path, "rb") as f:
@@ -525,9 +497,7 @@ async def terminus_agent(task: AgentTask) -> AgentRun:
     # reward of 0 rather than a graded attempt.
     deadline = time.monotonic() + task.time_budget_sec if task.time_budget_sec else None
     with tempfile.TemporaryDirectory(prefix="tt-terminus-") as logs_dir:
-        env = _SandboxEnvironment(
-            task.sandbox, agent_dir=Path(logs_dir), trace_session_id=task.session_id
-        )
+        env = _SandboxEnvironment(task.sandbox, agent_dir=Path(logs_dir))
         try:
             max_episodes = task.max_turns or _DEFAULT_MAX_TURNS
             agent = Terminus2(
@@ -606,24 +576,6 @@ async def terminus_agent(task: AgentTask) -> AgentRun:
             turns = _episodes(agent)
             finish_reason = "error"
         finally:
-            # Collect the transcript before the sandbox goes, when a run has
-            # asked for it. This is the only record of what the model actually
-            # typed and what came back: the rollout dump keeps a slot per turn
-            # for the messages and this harness never fills it.
-            dump_to = _pane_dump_path(task.session_id)
-            if dump_to is not None and env.pane_path:
-                try:
-                    text = await task.sandbox.read_file(env.pane_path, user="root")
-                    dump_to.parent.mkdir(parents=True, exist_ok=True)
-                    dump_to.write_text(text or "", errors="replace")
-                except Exception as e:  # noqa: BLE001 -- never fail a graded rollout
-                    logger.warning(
-                        "[terminus] session=%s: could not collect %s: %s: %s",
-                        task.session_id,
-                        env.pane_path,
-                        type(e).__name__,
-                        str(e)[:200],
-                    )
             if parser is not None:
                 format_errors = parser.format_errors
             if llm is not None and llm.subagent_calls:
@@ -642,6 +594,10 @@ async def terminus_agent(task: AgentTask) -> AgentRun:
         submitted=submitted,
         format_errors=format_errors,
         finish_reason=finish_reason,
+        exec_trace=env.exec_trace,
+        # The pane lives in the sandbox, which is still up when this returns;
+        # the rollouter reads it if this run collects transcripts.
+        pane_path=env.pane_path,
     )
 
 

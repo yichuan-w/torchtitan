@@ -12,8 +12,13 @@
 #   * sampling is the TRAINING rollout's, not TB-2.0's published defaults, so
 #     a pass rate here predicts the k/k or 0/k signal the trainer would emit;
 #   * the time budget and per-sandbox fleet defaults are the trainer's;
-#   * rollout dumps are kept, so difficulty_probe_summary.py can say per task
-#     how many of k passed and how the failures ended.
+#   * the probe's directory is exported as TRL_RUN_DIR, so whatever the
+#     trainer records per rollout (LAYOUT.md: rollouts/, advisories/) lands
+#     beside tasks.jsonl instead of wherever the environment pointed. The
+#     pass itself is a validation pass, and validation groups write no
+#     rollout records by contract; difficulty_probe_summary.py reads the
+#     controller's validation trace report to say per task how many of k
+#     passed and how the failures ended.
 #
 # Output: results/probe-<label>-<stamp>/summary.json and a table on stdout.
 set -uo pipefail
@@ -71,7 +76,7 @@ TS=$(date +%Y%m%d-%H%M%S)
 LABEL=$(basename "$TASKS" .jsonl)-$MODEL-k$K
 RUN=$W/results/probe-$LABEL-$TS
 mkdir -p "$RUN"
-export SWE_ROLLOUT_DUMP_DIR=$RUN/rollout-dumps TMAX_EXEC_TRACE_DIR=$RUN/exec-traces
+export TRL_RUN_DIR=$RUN
 cp "$TASKS" "$RUN/tasks.jsonl"
 LOG=$RUN/probe.log
 {

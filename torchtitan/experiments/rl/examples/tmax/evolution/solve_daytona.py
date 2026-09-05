@@ -44,10 +44,11 @@ from torchtitan.experiments.rl.examples.tmax.grading import (  # noqa: E402
 )
 
 BASE = Path(os.environ.get("TRL_BASE", "/scratch/gpfs/TRIDAO/al9080/terminal-rl"))
-# Extra pool roots (colon-separated) searched FIRST -- e.g. evolution/retuned so
-# the difficulty of a re-tuned package can be measured, not just the seed's.
+# Extra pool roots (colon-separated) searched FIRST. A revision under
+# tasks/<task>/r<N>/ is not in any pool; pass it to solve_task as ``src``.
 _EXTRA = [Path(p) for p in os.environ.get("TRL_EXTRA_POOL", "").split(":") if p]
-POOL_ROOTS = _EXTRA + [BASE / "data/tw-extract/tasks", BASE / "data/swe-extract/tasks"]
+POOL_ROOTS = _EXTRA + [BASE / "data/sources" / c / "tasks"
+                       for c in ("tw-extract", "swe-extract", "tmax-extract")]
 AGENT_CMD_TIMEOUT = int(os.environ.get("SOLVE_CMD_TIMEOUT", "180"))
 
 log = logging.getLogger("solve_daytona")
@@ -203,13 +204,17 @@ async def attempt(row: dict, idx: int, max_turns: int,
 
 
 async def solve_task(tid: str, attempts: int, max_turns: int,
-                     sem: asyncio.Semaphore, agent: str = "chat") -> dict:
+                     sem: asyncio.Semaphore, agent: str = "chat",
+                     src: Path | None = None) -> dict:
+    """Solve one task ``attempts`` times. ``src`` names the package directory
+    (a revision under ``tasks/<task>/r<N>/``, say); without it the task is
+    looked up by id in the source corpora."""
     rec: dict = {"task_id": tid, "t_start": time.time()}
-    src = resolve_src(tid)
+    src = src or resolve_src(tid)
     if src is None:
         return {**rec, "status": "no_pool_dir"}
     try:
-        row = pack.to_row(str(src))
+        row = pack.to_row(str(src), task_id=tid)
     except Exception as e:  # noqa: BLE001
         return {**rec, "status": "row_error", "why": str(e)[:250]}
     rec["instruction"] = row["metadata"]["problem_statement"]

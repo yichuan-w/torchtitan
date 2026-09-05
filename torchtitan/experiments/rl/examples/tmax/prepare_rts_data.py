@@ -397,12 +397,17 @@ def _load_pretest_map(parquet_path: str) -> dict[str, tuple[str, str]]:
 def _to_row(
     task_dir: str,
     *,
+    task_id: str | None = None,
     inject_agent_runtime: bool = False,
     resources: dict[str, int] | None = None,
     pretest: tuple[str, str] | None = None,
 ) -> tuple[dict | None, str]:
-    """Build one output row, or ``(None, reason)`` when the task is filtered out."""
-    task_id = os.path.basename(task_dir.rstrip("/"))
+    """Build one output row, or ``(None, reason)`` when the task is filtered out.
+
+    ``task_id`` defaults to the directory's name, which is the id in a corpus
+    tree; a revision directory (``tasks/<task>/r3/``) passes the id explicitly.
+    """
+    task_id = task_id or os.path.basename(task_dir.rstrip("/"))
     paths = {
         "instruction": os.path.join(task_dir, "instruction.md"),
         "test_sh": os.path.join(task_dir, "tests", "test.sh"),

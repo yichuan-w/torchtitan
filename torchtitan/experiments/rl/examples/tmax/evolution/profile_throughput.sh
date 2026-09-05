@@ -32,10 +32,10 @@ print(f'  prefix hit{hit:>10.1f} %')
 "
 
 # --- loop side: what the engines actually buy us ---
-a=$(bash ~/check_all.sh 2>&1 | grep -oE "DONE=[0-9]+" | cut -d= -f2)
+a=$(grep -ac status=completed "${RUN:-${TRL_BASE:?}/runs/latest}/stdout.log")
 s0=$(date +%s)
 sleep "$W"
-b=$(bash ~/check_all.sh 2>&1 | grep -oE "DONE=[0-9]+" | cut -d= -f2)
+b=$(grep -ac status=completed "${RUN:-${TRL_BASE:?}/runs/latest}/stdout.log")
 s1=$(date +%s)
 $PY -c "
 d=$b-$a; dt=$s1-$s0; r=d*60/dt

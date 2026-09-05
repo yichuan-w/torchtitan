@@ -133,11 +133,11 @@ from torchtitan.experiments.rl.rollout import RolloutGroup
 from torchtitan.experiments.rl.rollout.rollouter import Rollouter
 from torchtitan.experiments.rl.rollout.types import GenerateFn, is_scored
 from torchtitan.experiments.rl.rollout_recorder import RolloutSampleRecorder
-from torchtitan.experiments.rl.training_lineage import TrainingLineageRecorder
 from torchtitan.experiments.rl.routing.inter_generator_router import (
     InterGeneratorRouter,
 )
 from torchtitan.experiments.rl.routing.types import RoutingContext
+from torchtitan.experiments.rl.training_lineage import TrainingLineageRecorder
 from torchtitan.experiments.rl.types import Completion, TrainingBatch
 from torchtitan.observability import structured_logger as sl
 from torchtitan.protocols.model_spec import ModelSpec
@@ -465,6 +465,21 @@ class Controller(Configurable):
         training moves on (see ``ValidationConfig.run_async``).
         """
 
+        eval_generator_data_parallel_degree: int = 0
+        """Engines per eval generator, when it should not be sized like a training one.
+
+        0 (default) gives an eval generator the training generator's
+        ``generator.parallelism``, which is what "sized like a training one" above
+        means. A dedicated eval generator is idle between passes, so paying a full
+        training-generator's GPUs for it is the wrong trade on a single host: set
+        this to 1 to run the validation pass on one engine (one GPU at TP 1) and
+        leave the rest of the box to rollout collection. The pass then takes longer,
+        which is why the in-flight skip in ``_start_async_validation`` exists -- a
+        pass slower than ``validation.interval`` thins the eval curve rather than
+        stalling training. Tensor-parallel degree is the training generator's either
+        way: a model that needs TP to fit still needs it here.
+        """
+
         num_eval_rollout_workers: int = 0
         """CPU RolloutWorker processes dedicated to validation group rollouts.
 
@@ -533,6 +548,24 @@ class Controller(Configurable):
                 raise ValueError(
                     "eval_rollout_concurrency must be non-negative, got "
                     f"{self.eval_rollout_concurrency}"
+                )
+            if self.eval_generator_data_parallel_degree < 0:
+                raise ValueError(
+                    "eval_generator_data_parallel_degree must be non-negative, got "
+                    f"{self.eval_generator_data_parallel_degree}"
+                )
+            if (
+                self.eval_generator_data_parallel_degree > 0
+                and self.num_eval_generators == 0
+            ):
+                # Not an error: it costs nothing, and refusing to boot over an unused
+                # knob would be worse. But it is silent otherwise, and the GPU count
+                # the launcher was given is the thing that ends up wrong.
+                logger.warning(
+                    "eval_generator_data_parallel_degree=%d has no effect with "
+                    "num_eval_generators=0; validation runs on the training "
+                    "generators.",
+                    self.eval_generator_data_parallel_degree,
                 )
             if self.torchstore_reset_interval != 0:
                 raise ValueError(
@@ -633,6 +666,21 @@ class Controller(Configurable):
                         "of mixed prefill+decode batches (#3709). Use FULL_DECODE_ONLY "
                         "or FULL_AND_PIECEWISE."
                     )
+
+        def eval_generator_parallelism(self):
+            """Parallelism for ONE eval generator.
+
+            The single place the eval mesh's size is decided, because two callers ask:
+            ``train.py`` sizes the proc mesh from it before any actor exists, and
+            ``setup_async`` builds the engine config from it. Deriving it twice is how
+            a mesh ends up a different width than the engine spawned onto it.
+            """
+            if not self.eval_generator_data_parallel_degree:
+                return self.generator.parallelism
+            return replace(
+                self.generator.parallelism,
+                data_parallel_degree=self.eval_generator_data_parallel_degree,
+            )
 
     def __init__(self, config: Config):
         self.config = config
@@ -948,6 +996,10 @@ class Controller(Configurable):
                 gpu_memory_limit=float(
                     os.environ.get("SWE_EVAL_GPU_MEMORY_LIMIT", "0.7")
                 ),
+                parallelism=config.eval_generator_parallelism(),
+            )
+            eval_generator_dp_degree = max(
+                eval_generator_config.parallelism.data_parallel_degree, 1
             )
             eval_generators = []
             for idx, eval_mesh in enumerate(eval_generator_meshes):
@@ -968,7 +1020,10 @@ class Controller(Configurable):
                         or min(
                             math.ceil(
                                 num_validation_rollouts
-                                / (len(eval_generator_meshes) * generator_dp_degree)
+                                / (
+                                    len(eval_generator_meshes)
+                                    * eval_generator_dp_degree
+                                )
                             ),
                             512,
                         ),
@@ -1723,38 +1778,48 @@ class Controller(Configurable):
         logger.info("=" * 60)
 
     def _evolution_metrics(self) -> list[m.Metric]:
-        """Online task-evolution counters for wandb, read from the evolve loop's stats
-        file on the shared mount (evolution_stats.json, written by evolve_ondella each
-        round). Empty when the feature is off (SWE_TASK_EVOLUTION_DIR unset) or no round
-        has completed yet. NoReduce: these are cumulative gauges, not per-token
-        reductions, so they are exempt from the loss-metric suffix rule."""
+        """Online task-evolution counters for wandb, read from the evolve loop's
+        ``evolution/status.json`` under ``TRL_BASE`` (LAYOUT.md), which the loop
+        rebuilds from its ledger at the end of every round. Empty when no experiment
+        root is set (no loop can be running) or the loop has not written a status
+        yet. NoReduce: these are cumulative gauges, not per-token reductions, so
+        they are exempt from the loss-metric suffix rule."""
         import json
 
-        sig_dir = os.environ.get("SWE_TASK_EVOLUTION_DIR")
-        if not sig_dir:
-            return []
-        stats_path = os.path.join(os.path.dirname(sig_dir), "evolution_stats.json")
+        # Local import: the layout is a tmax convention and this file is shared
+        # with every other example; nothing else here depends on it.
+        from torchtitan.experiments.rl.examples.tmax import layout
+
         try:
-            with open(stats_path) as f:
-                s = json.load(f)
+            status_path = layout.Root.from_env().evolution.status
+        except RuntimeError:
+            return []
+        try:
+            s = json.loads(status_path.read_text())
         except (OSError, ValueError):
             return []
-        counts = s.get("counts", {}) or {}
-        revalidate_failed = sum(
-            v for k, v in counts.items() if k.startswith("revalidate_")
-        )
+        rejected = s.get("rejected") or {}
         return [
-            m.Metric("evolution/rounds", m.NoReduce(float(s.get("rounds", 0)))),
-            m.Metric("evolution/folded_total", m.NoReduce(float(s.get("folded", 0)))),
-            m.Metric("evolution/retuned_total", m.NoReduce(float(s.get("retuned", 0)))),
             m.Metric(
-                "evolution/pending_signals", m.NoReduce(float(s.get("pending", 0)))
+                "evolution/pending_signals", m.NoReduce(float(s.get("pending") or 0))
             ),
             m.Metric(
-                "evolution/revalidate_failed_total",
-                m.NoReduce(float(revalidate_failed)),
+                "evolution/handled_total", m.NoReduce(float(s.get("handled") or 0))
             ),
-            m.Metric("evolution/kept_total", m.NoReduce(float(counts.get("kept", 0)))),
+            m.Metric(
+                "evolution/accepted_total", m.NoReduce(float(s.get("accepted") or 0))
+            ),
+            m.Metric(
+                "evolution/rejected_total",
+                m.NoReduce(float(sum(rejected.values()))),
+            ),
+            m.Metric(
+                "evolution/blocked_total", m.NoReduce(float(s.get("blocked") or 0))
+            ),
+            m.Metric("evolution/kept_total", m.NoReduce(float(s.get("kept") or 0))),
+            m.Metric(
+                "evolution/mix_version", m.NoReduce(float(s.get("mix_version") or 0))
+            ),
         ]
 
     async def _data_input_loop(self, group_buffer: RolloutGroupWorkBuffer) -> None:
@@ -1993,9 +2058,7 @@ class Controller(Configurable):
                 )
 
             if not training_sample_group.training_samples:
-                drop_metrics = {
-                    metric.key for metric in training_sample_group.metrics
-                }
+                drop_metrics = {metric.key for metric in training_sample_group.metrics}
                 drop_reason = next(
                     (
                         reason

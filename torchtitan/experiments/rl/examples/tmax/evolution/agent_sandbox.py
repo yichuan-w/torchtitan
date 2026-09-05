@@ -413,25 +413,26 @@ def cmd_check(pkg: Path, solve_timeout: int, at_max: bool = False) -> int:
     # verdict because the caller enforces the same rule.
     names = _names_audit(pkg)
     step = _step_audit(pkg)
-    ok = oracle_ok and not names and not step
+    # The names audit is advice: it is printed and recorded, and the verdict
+    # does not turn on it. Its precision was never measured before it gated,
+    # and when it was (wd-20260904a, 464 rewrites) everything it flagged was a
+    # false positive. The size rule is the gate; it was measured first.
+    ok = oracle_ok and not step
     _append_check(pkg, {"time": _now(), "verdict": "pass" if ok else "fail",
-                        "stage": ("dark_literals" if oracle_ok and names else
-                                  "step_size" if oracle_ok and step else "oracle"),
+                        "stage": "step_size" if oracle_ok and step else "oracle",
                         "reward": reward,
                         "solve_exit": r.get("solve_exit"), "null_reward": null_reward,
                         "resources": box, "at_max": at_max,
                         "measured": r.get("measured"), "starved": starved,
                         "dark_literals": names, "step_size": step,
                         "elapsed_s": round(time.time() - started)})
-    if oracle_ok and (names or step):
-        stage = "dark_literals" if names else "step_size"
-        print(f"VERDICT: fail   stage={stage}   reward={reward}   "
+    if oracle_ok and step:
+        print(f"VERDICT: fail   stage=step_size   reward={reward}   "
               f"took={time.time() - started:.0f}s   box=[{_box_str(box)}]")
         print(f"measured: {_measured_str(r.get('measured'))}")
+        print("The reference solution passes, but " + ts.why(step))
         if names:
-            print("The reference solution passes, but " + vl.why(names))
-        if step:
-            print(("Also: " if names else "The reference solution passes, but ") + ts.why(step))
+            print("Also worth a look, not a failure: " + vl.why(names))
         return 1
     print(f"VERDICT: {'pass' if ok else 'fail'}   reward={reward}   "
           f"solve_exit={r.get('solve_exit')}   null_reward={null_reward}   "
