@@ -50,7 +50,9 @@ $TRL_BASE/
 │       ├── trainer/              structured logs, metrics, profiling
 │       │   └── mix_versions.jsonl   one line per boot or hot reload: stamp, event, version, sha256, replaced, appended, retired
 │       │                              (which step ran on which version: join the stamp with the structured logs' step times)
-│       ├── checkpoints -> <local disk>/ckpt/tmax-9b--<stamp>
+│       ├── checkpoints -> <local disk>/ckpt/tmax-9b--<stamp>   rolled by SWE_CKPT_KEEP
+│       ├── checkpoints-held/step-<N>/   hardlinks of a step kept past the rotation (cp -al from checkpoints/)
+│       ├── checkpoints-staged/step-<N>/ a GPFS copy for eval nodes, made and pruned by eval_watcher.sh
 │       ├── rollouts/<task>/g<group>-r<idx>.jsonl   one file per rollout (format below)
 │       │                     …/g<group>-r<idx>.pane    the terminal transcript, when TMAX_PANE_DUMP=1
 │       ├── signals/<task>--g<group>.json           one per zero-variance training group
@@ -283,6 +285,19 @@ the next version and moves the link.
  "seed_mix": {"path": "/…/mix_tw_20260904.jsonl", "sha256": "…", "inputs": "data/mix/history/v0001--<stamp>.inputs.json"},
  "forked_from": null}
 ```
+
+## Checkpoints
+
+The trainer writes checkpoints to the host-local disk and keeps the last
+`SWE_CKPT_KEEP` steps; `runs/<run>/checkpoints` links there, and a resume
+chain shares one such directory. A step that has to outlive the rotation (one
+an eval is queued on, one worth comparing later) is held as hardlinks:
+`cp -al checkpoints/step-<N> checkpoints-held/step-<N>` costs no bytes and
+keeps the inodes alive when the trainer unlinks its copy, so the space is
+freed only when the held copy is removed. A copy that eval nodes can read
+(they see GPFS only) is `checkpoints-staged/step-<N>`, which
+`eval_watcher.sh` makes before submitting and prunes when the job leaves the
+queue. Neither directory is written by the trainer.
 
 ## Experiments and runs
 

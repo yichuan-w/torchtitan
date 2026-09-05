@@ -345,6 +345,16 @@ class Run:
         return self.path / "checkpoints"
 
     @property
+    def checkpoints_held(self) -> Path:
+        """Steps kept past the trainer's rotation, as hardlinks of checkpoints/<step>."""
+        return self.path / "checkpoints-held"
+
+    @property
+    def checkpoints_staged(self) -> Path:
+        """GPFS copies of steps for eval nodes; eval_watcher.sh owns them."""
+        return self.path / "checkpoints-staged"
+
+    @property
     def rollouts(self) -> Path:
         return self.path / "rollouts"
 
