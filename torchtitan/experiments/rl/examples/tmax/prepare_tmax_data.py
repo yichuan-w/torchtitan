@@ -73,40 +73,16 @@ _FIXTURE_ROOTS = ("environment/seeds", "tests")
 _WORKDIR_CANDIDATES = ("/home/user", "/app", "/workspace")
 _DEFAULT_WORKDIR = "/workspace"
 
-# PRE-VERIFY (reaudit decision-1): an optional per-task pre_test integrity check exported by
-# tools/pretest_export.py (a JSONL of {task_id, pre_test_sh, ...}). When present it is carried into
-# tmax["pre_test_sh"] and grading.py runs it once, as root, before test.sh (assert-refuse over the spec's pinned
-# references). Absent file / unknown task ⇒ omitted ⇒ grading is a no-op, so this is safe on the whole corpus.
-_PRETEST_EXPORT_PATH = os.environ.get(
-    "TMAX_PRETEST_EXPORT",
-    "/data/users/zekaili/fangzhou/tb_check/reaudit_398/repairs/pretest_export.jsonl",
-)
-_PRETEST_BY_ID: dict[str, dict] | None = None
-
-
-def _pretest_for(task_id: str) -> dict:
-    """Exported pre_test fields for a task: {} when there is no export / no entry, else
-    {"pre_test_sh", "env_kind", "env_identity"} -- the captured environment identity for the drift guard."""
-    global _PRETEST_BY_ID
-    if _PRETEST_BY_ID is None:
-        _PRETEST_BY_ID = {}
-        try:
-            with open(_PRETEST_EXPORT_PATH, encoding="utf-8") as fh:
-                for ln in fh:
-                    ln = ln.strip()
-                    if not ln:
-                        continue
-                    row = json.loads(ln)
-                    pt = row.get("pre_test_sh") or ""
-                    if pt:
-                        _PRETEST_BY_ID[row["task_id"]] = {
-                            "pre_test_sh": pt,
-                            "env_kind": row.get("env_kind") or "image",
-                            "env_identity": row.get("env_identity") or "",
-                        }
-        except (OSError, ValueError):
-            _PRETEST_BY_ID = {}
-    return _PRETEST_BY_ID.get(task_id, {})
+# PRE-VERIFY (reaudit decision-1): an optional per-task pre_test integrity check that TRAVELS WITH THE DATASET.
+# The parquet carries one column per field: ``pre_test_sh`` (the assert-refuse script, "" for a task with no
+# check) and ``pre_test_env_identity`` (the environment its pins were captured against, already composed as
+# "<env_kind>:<ref>", "" when absent). A non-empty script is carried into tmax["pre_test_sh"] and grading.py runs
+# it once, as root, before test.sh. An empty cell -- or a dataset published before these columns existed -- is
+# omitted, so grading is a no-op and this is safe on the whole corpus.
+#
+# Nothing outside the row is consulted. Publishing hook data for more tasks is a dataset change and needs no
+# file, no env var and no code change on the training host.
+_PRETEST_COLUMNS = ("pre_test_sh", "pre_test_env_identity")
 
 
 def _episode_env_identity(task_dir: str, image: str, image_prefix: str = "") -> str:
@@ -127,20 +103,29 @@ def _episode_env_identity(task_dir: str, image: str, image_prefix: str = "") -> 
 
 
 def _pretest_tmax_fields(
-    task_id: str, task_dir: str, image: str, image_prefix: str = ""
+    task_id: str,
+    task_dir: str,
+    image: str,
+    image_prefix: str = "",
+    *,
+    pre_test_sh: str = "",
+    stamped_identity: str = "",
 ) -> dict:
-    """tmax fields for the pre-verify hook: {} when the task has no exported pre_test. Otherwise the check plus
-    the drift-guard identities grading.py compares -- the captured identity (from the export stamp) and this
-    episode's identity (computed here) -- and task_id for the skip log. `image` must be the UNPREFIXED reference
-    (the registry prefix is not part of env_stamp.env_identity)."""
-    fields = _pretest_for(task_id)
-    if not fields.get("pre_test_sh"):
+    """tmax fields for the pre-verify hook: {} when the row carries no pre_test. Otherwise the check plus the
+    drift-guard identities grading.py compares -- the captured identity (the row's ``pre_test_env_identity``,
+    verbatim) and this episode's identity (computed here) -- and task_id for the skip log. `image` must be the
+    UNPREFIXED reference (the registry prefix is not part of env_stamp.env_identity).
+
+    ``stamped_identity`` must come FROM THE DATASET and never be derived from this row's own image: the episode
+    identity below is computed from that same image, so a derived stamp would be equal to it by construction and
+    the guard could never fire -- it would assert a task's pins against an environment rebuilt after they were
+    captured (refusing an honest episode) instead of skipping the check."""
+    if not pre_test_sh:
         return {}
-    stamped = f"{fields.get('env_kind') or 'image'}:{fields.get('env_identity') or ''}"
     return {
-        "pre_test_sh": fields["pre_test_sh"],
+        "pre_test_sh": pre_test_sh,
         "task_id": task_id,
-        "pretest_env_identity": stamped,
+        "pretest_env_identity": stamped_identity,
         "pretest_episode_env_identity": _episode_env_identity(
             task_dir, image, image_prefix
         ),
@@ -192,7 +177,9 @@ def _find_task_dir(extracted_root: str, task_id: str) -> str | None:
 
 
 def _read_parquet_rows(snap_dir: str) -> list[dict]:
-    """Read the parquet's task rows (env_config + ground_truth) with pyarrow."""
+    """Read the parquet's task rows with pyarrow: env_config + ground_truth, plus the pre_test columns on a
+    dataset that carries them. Those two are OPTIONAL and are intersected with each file's own schema -- pyarrow
+    raises on a projected column that does not exist, and a dataset published before the hook must still read."""
     import glob
 
     import pyarrow.parquet as pq
@@ -202,7 +189,10 @@ def _read_parquet_rows(snap_dir: str) -> list[dict]:
         raise FileNotFoundError(f"no parquet found under {snap_dir}/data")
     rows: list[dict] = []
     for p in paths:
-        tbl = pq.read_table(p, columns=["ground_truth", "env_config"])
+        present = set(pq.ParquetFile(p).schema_arrow.names)
+        cols = ["ground_truth", "env_config"]
+        cols += [c for c in _PRETEST_COLUMNS if c in present]
+        tbl = pq.read_table(p, columns=cols)
         rows.extend(tbl.to_pylist())
     return rows
 
@@ -242,8 +232,19 @@ def _collect_fixtures(task_dir: str) -> dict[str, str]:
     return fixtures
 
 
-def _to_row(task_id: str, image: str, task_dir: str, image_prefix: str) -> dict | None:
-    """Build one output row from a task's parquet entry + extracted dir."""
+def _to_row(
+    task_id: str,
+    image: str,
+    task_dir: str,
+    image_prefix: str,
+    *,
+    pre_test_sh: str = "",
+    stamped_identity: str = "",
+) -> dict | None:
+    """Build one output row from a task's parquet entry + extracted dir.
+
+    ``pre_test_sh`` / ``stamped_identity`` are the row's own pre_test cells; both default to "" so a caller
+    without them (row_from_local_dir, a pre-hook dataset) produces exactly the row it produced before."""
     instr_path = os.path.join(task_dir, "instruction.md")
     test_path = os.path.join(task_dir, "tests", "test.sh")
     if not (os.path.exists(instr_path) and os.path.exists(test_path)):
@@ -275,7 +276,14 @@ def _to_row(task_id: str, image: str, task_dir: str, image_prefix: str) -> dict 
                 "reward_path": _REWARD_PATH,
                 # episode identity from the UNPREFIXED ref (env_stamp.env_identity carries no registry prefix);
                 # image_prefix is passed so an already-prefixed source ref is normalised too.
-                **_pretest_tmax_fields(task_id, task_dir, raw_image, image_prefix),
+                **_pretest_tmax_fields(
+                    task_id,
+                    task_dir,
+                    raw_image,
+                    image_prefix,
+                    pre_test_sh=pre_test_sh,
+                    stamped_identity=stamped_identity,
+                ),
             },
         },
     }
@@ -318,7 +326,14 @@ def build_rows(
         task_dir = _find_task_dir(extracted, task_id)
         if task_dir is None:
             continue
-        row = _to_row(task_id, image, task_dir, image_prefix)
+        row = _to_row(
+            task_id,
+            image,
+            task_dir,
+            image_prefix,
+            pre_test_sh=pr.get("pre_test_sh") or "",
+            stamped_identity=pr.get("pre_test_env_identity") or "",
+        )
         if row is not None:
             out.append(row)
         if limit is not None and len(out) >= limit:
@@ -326,12 +341,17 @@ def build_rows(
     return out
 
 
-def selfcheck_env_identities(rows: list[dict]) -> tuple[int, int]:
+def selfcheck_env_identities(rows: list[dict]) -> tuple[int, int, int]:
     """Guard against a corpus-wide silent skip: among rows that carry a pre_test and both drift-guard
-    identities, count how many MATCH (stamped == episode). Returns (matched, stamped_total). Raises when there
-    is at least one stamped row and NONE match -- that means every task would skip the pin check from round 0
-    (e.g. a registry-prefix mismatch), which must fail loudly at prep time rather than silently disable the hook."""
-    matched = total = 0
+    identities, count how many MATCH (stamped == episode). Returns (matched, stamped_total, unstamped). Raises
+    when there is at least one stamped row and NONE match -- that means every task would skip the pin check from
+    round 0 (e.g. a registry-prefix mismatch), which must fail loudly at prep time rather than silently disable
+    the hook.
+
+    ``unstamped`` counts rows that carry a script but no usable identity pair: their check can never run, since
+    grading.py requires both. That is a dataset defect (an empty ``pre_test_env_identity`` cell) rather than a
+    drift, so it is reported rather than raised -- the caller prints it."""
+    matched = total = unstamped = 0
     for r in rows:
         tm = (r.get("metadata") or {}).get("tmax") or {}
         if not tm.get("pre_test_sh"):
@@ -339,6 +359,7 @@ def selfcheck_env_identities(rows: list[dict]) -> tuple[int, int]:
         st = tm.get("pretest_env_identity") or ""
         ep = tm.get("pretest_episode_env_identity") or ""
         if not (st and ep):
+            unstamped += 1
             continue
         total += 1
         if st == ep:
@@ -349,7 +370,7 @@ def selfcheck_env_identities(rows: list[dict]) -> tuple[int, int]:
             "pre-verify pin check would be skipped corpus-wide from round 0 (likely a registry-prefix mismatch "
             "between env_stamp.env_identity and the booted image ref). Refusing to write the dataset."
         )
-    return matched, total
+    return matched, total, unstamped
 
 
 def _write_jsonl(rows: list[dict], path: str) -> None:
@@ -386,12 +407,18 @@ def main() -> None:
     if not rows:
         print("ERROR: produced 0 rows", file=sys.stderr)
         sys.exit(1)
-    _sc_matched, _sc_total = selfcheck_env_identities(
+    _sc_matched, _sc_total, _sc_unstamped = selfcheck_env_identities(
         rows
     )  # raises on a corpus-wide identity mismatch
     if _sc_total:
         print(
             f"env-identity self-check: {_sc_matched}/{_sc_total} stamped rows match their episode identity"
+        )
+    if _sc_unstamped:
+        print(
+            f"WARNING: {_sc_unstamped} row(s) carry pre_test_sh with no usable env identity -- their pin "
+            "check can never run; the dataset's pre_test_env_identity column is empty for them",
+            file=sys.stderr,
         )
     _write_jsonl(rows, args.out)
     print(f"wrote {len(rows)} tmax tasks -> {args.out}")
