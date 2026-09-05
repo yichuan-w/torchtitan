@@ -55,6 +55,16 @@ Knobs read from env (the launcher sets these; see ``submit_swe_tmax_9b.sh``):
                                       that same report AS the reward. It travels as
                                       a config field so a run records what its
                                       reward meant.
+  ``SWE_ROLLOUT_RECORDS``             write every training rollout to the run's
+                                      ``rollouts/`` (default 1)
+  ``SWE_EVOLUTION_SIGNALS``           write a zero-variance training group to the
+                                      run's ``signals/`` (default 1)
+  ``TMAX_PANE_DUMP``                  =1 files the Terminus terminal transcript
+                                      beside the rollout record (default off:
+                                      up to 8 MiB per rollout)
+
+The three above write under ``TRL_RUN_DIR`` (``layout.Run``) and nowhere else;
+with it unset they write nothing. LAYOUT.md is the contract for what they write.
 """
 
 from __future__ import annotations
@@ -69,12 +79,13 @@ import os
 import statistics
 import time
 from collections.abc import Mapping
-from dataclasses import asdict, dataclass, field
+from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
 from renderers import Message, Renderer
 
 from torchtitan.experiments.rl.environment import TokenEnv
+from torchtitan.experiments.rl.examples.tmax import layout, rollout_record
 from torchtitan.experiments.rl.examples.tmax.data import TMaxDataset, TMaxSample
 from torchtitan.experiments.rl.examples.tmax.env import TMaxEnv
 from torchtitan.experiments.rl.examples.tmax.grading import (
@@ -422,8 +433,31 @@ _ENTRYPOINT_SETTLE_SEC = 2.0
 _ENTRYPOINT_LOG = "/tmp/.titan_entrypoint.log"
 
 
-def _note_image_without_tmux(sample) -> None:
-    """Record an image that reached a running sandbox without tmux in it.
+_RUN_DIR_UNSET_LOGGED = False
+
+
+def _run_dir() -> layout.Run | None:
+    """The run directory this process writes under, or None when the launcher
+    exported no ``TRL_RUN_DIR`` (a smoke test, a bare ``python -m``). None means
+    every writer in this module writes nothing. Said once, at INFO: a run that
+    silently produces no records is indistinguishable from one whose records
+    were lost."""
+    global _RUN_DIR_UNSET_LOGGED
+    run = layout.Run.from_env()
+    if run is None and not _RUN_DIR_UNSET_LOGGED:
+        _RUN_DIR_UNSET_LOGGED = True
+        logger.info(
+            "[tmax] TRL_RUN_DIR is unset: rollout records, evolution signals, "
+            "advisories and pane dumps are off"
+        )
+    return run
+
+
+def _note_image_without_tmux(
+    sample: TMaxSample, *, group_id: int, rollout_idx: int
+) -> None:
+    """Record an image that reached a running sandbox without tmux in it: one
+    line in the run's ``no_tmux`` advisory.
 
     The injected preinstall ends in `|| echo ... (non-fatal)`, so a build where it
     failed is indistinguishable from one where it worked, and the consequence shows
@@ -442,34 +476,131 @@ def _note_image_without_tmux(sample) -> None:
     pool.** Terminus usually installs tmux successfully at runtime; an image
     without it is only fatal when the runtime install ALSO fails, which needs
     both no package and no compiler. Measured on the first pass: 78 tasks landed
-    here while `infra_quarantine/` -- the list of groups that actually died at
+    here while the infra-quarantine list -- the groups that actually died at
     zero turns -- held none of them. Filtering on this one would drop 78 healthy
-    tasks. `infra_quarantine/` is the list with a verdict behind it; this one
-    says where to look first when a group does die.
+    tasks. ``infra_quarantine`` is the advisory with a verdict behind it; this
+    one says where to look first when a group does die. One line per probe that
+    failed, so the count of a task's lines is how often it has come up.
     """
-    root = os.environ.get("SWE_TASK_EVOLUTION_DIR", "")
-    if not root:
+    run = _run_dir()
+    if run is None:
         return
     try:
-        d = os.path.join(os.path.dirname(root), "no_tmux")
-        os.makedirs(d, exist_ok=True)
-        f = os.path.join(d, f"{sample.instance_id.replace('/', '_')}.json")
-        seen = 0
-        if os.path.exists(f):
-            with open(f) as fh:
-                seen = int(json.load(fh).get("occurrences", 0))
-        with open(f, "w") as fh:
-            json.dump(
-                {
-                    "instance_id": sample.instance_id,
-                    "image": sample.image,
-                    "occurrences": seen + 1,
-                    "last_seen": time.time(),
-                },
-                fh,
-            )
-    except Exception as e:  # noqa: BLE001 -- bookkeeping must not kill a rollout
-        logger.warning(f"[tmax] no-tmux record failed for {sample.instance_id}: {e}")
+        layout.append_jsonl(
+            run.advisory("no_tmux"),
+            {
+                "stamp": layout.stamp(),
+                "task": sample.instance_id,
+                "image": sample.image,
+                "reason": "no_tmux_in_image",
+                "group": group_id,
+                "rollout": rollout_idx,
+            },
+        )
+    except OSError as e:
+        logger.warning(f"[tmax] no-tmux advisory failed for {sample.instance_id}: {e}")
+
+
+def _write_rollout_record(
+    run: layout.Run,
+    *,
+    sample: TMaxSample,
+    group_id: int,
+    rollout_idx: int,
+    captured: list[CapturedTurn],
+    renderer: Renderer,
+    status: str,
+    reward: float,
+    submitted: bool,
+    fmt_errors: int,
+    error_msg: str,
+    finish_reason: str,
+    sandbox_diagnostics: _SandboxRolloutDiagnostics,
+    exec_trace: list[dict],
+    secs: float,
+    budget_sec: int,
+    started: str,
+) -> str | None:
+    """Write one training rollout as ``rollouts/<task>/g<group>-r<idx>.jsonl``
+    and return that path relative to the run, or None when nothing was written.
+
+    Line 1 is the outcome and its cost; every later line is one turn, decoded
+    from the captured tokens (``rollout_record.turns_from_tokens``) rather than
+    from parsed messages. The Terminus harness carries its command in XML and
+    leaves the message content empty, so a message-based dump held nothing
+    readable for 89,091 turns of one run; the token stream is also exactly what
+    was trained on. Whole turns, uncut: a cap on the completion lands on the
+    ``<commands>`` block at its end, which is the part a reader needs, and the
+    stream is bounded upstream by the per-turn generation limit and Terminus's
+    terminal window (at most 34k and 10k characters per turn over 300 dumps).
+
+    ``reward`` is the verifier's verdict before the rubric's shaping; ``turns``
+    counts the turn lines that follow, one per adapter round trip. Validation
+    groups (negative ids) write nothing: their prompts are a held-out or
+    benchmark set the controller's validation report already owns, and a file
+    here would read as a training rollout of a task never trained on.
+    ``SWE_ROLLOUT_RECORDS=0`` switches the file off. Best-effort: a failed write
+    is a warning, never a failed rollout.
+    """
+    if group_id < 0 or os.environ.get("SWE_ROLLOUT_RECORDS", "1") != "1":
+        return None
+    path = run.rollout_record(sample.instance_id, group_id, rollout_idx)
+    try:
+        tokenizer = getattr(renderer, "tokenizer", None) or getattr(
+            renderer, "_tokenizer", None
+        )
+
+        def decode(ids: list[int]) -> str:
+            if tokenizer is None or not ids:
+                return ""
+            return tokenizer.decode(list(ids), skip_special_tokens=False)
+
+        turns = rollout_record.turns_from_tokens(captured, decode)
+        header = {
+            "task": sample.instance_id,
+            "rev": sample.rev,
+            "run": run.name,
+            "group": group_id,
+            "rollout": rollout_idx,
+            "reward": float(reward),
+            "status": status,
+            "finish_reason": finish_reason,
+            "submitted": bool(submitted),
+            "format_errors": int(fmt_errors),
+            "infra_failed": sandbox_diagnostics.infra_failed,
+            "error": error_msg,
+            "sandbox": {
+                "id": sandbox_diagnostics.sandbox_id,
+                "disk_gb": sandbox_diagnostics.disk_gb,
+                "issues": dict(sandbox_diagnostics.issue_counts),
+                "dropped_details": sandbox_diagnostics.num_dropped_details,
+            },
+            "secs": round(secs, 1),
+            "budget_sec": int(budget_sec),
+            "turns": len(turns),
+            "started": started,
+            "exec": list(exec_trace),
+        }
+        rollout_record.write_record(path, header, turns)
+    except Exception as e:  # noqa: BLE001 -- a lost record must not fail a graded rollout
+        logger.warning(f"[tmax] rollout record failed for {path}: {e}")
+        return None
+    return path.relative_to(run.path).as_posix()
+
+
+def _write_pane(
+    run: layout.Run, sample: TMaxSample, group_id: int, rollout_idx: int, text: str
+) -> None:
+    """File the Terminus terminal transcript beside the rollout record, as
+    ``g<group>-r<idx>.pane`` in the same task directory (``TMAX_PANE_DUMP=1``).
+    It is the screen as the model saw it, up to the 8 MiB the harness caps the
+    pane at; the turn lines hold the same exchange as XML and reply text."""
+    path = run.pane(sample.instance_id, group_id, rollout_idx)
+    try:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(text, errors="replace")
+    except OSError as e:
+        logger.warning(f"[tmax] pane dump failed for {path}: {e}")
 
 
 async def _start_entrypoint(sb: Sandbox, command: str, *, workdir: str) -> None:
@@ -841,46 +972,8 @@ class TMaxRollouter(Rollouter):
         advantages = self.advantage_estimator(group)
         for rollout, advantage in zip(group.rollouts, advantages, strict=True):
             rollout.advantage = advantage
-        self._maybe_annotate_zero_std(sample, rollouts)
-        self._maybe_emit_evolution_signal(sample, rollouts, renderer)
+        self._maybe_emit_evolution_signal(sample, rollouts)
         return group
-
-    def _maybe_annotate_zero_std(
-        self, sample: TMaxSample, rollouts: list[Rollout]
-    ) -> None:
-        """Record this prompt's ``instance_id`` under ``SWE_ZERO_STD_DIR`` when its
-        group has zero reward variance (all-pass or all-fail = no learning signal, so
-        it is dropped by ``drop_zero_std_reward_groups``). A later run points
-        ``TMaxDataset.skip_ids_path`` at the same dir to stop sampling these prompts.
-
-        Writes ONE small file per prompt (``<instance_id>.json``), mirroring the
-        rollout-trace dump: a write-once-per-file pattern is the one that persists on
-        the manifold (oilfs) FUSE mount and is safe across the pooled RolloutWorker
-        processes -- unlike appending to a single shared file, which object-store FUSE
-        does not handle reliably. Re-encountering a prompt just overwrites its file
-        (natural dedup). Best-effort; never raises into the rollout.
-        """
-        dump_dir = os.environ.get("SWE_ZERO_STD_DIR", "")
-        if not dump_dir:
-            return
-        # Validation groups carry negative ids (see Controller). Their prompts are a
-        # held-out or benchmark set, never sampled for training, so annotating them
-        # would only pollute the skip list a later training run reads.
-        if rollouts and rollouts[0].group_id < 0:
-            return
-        # An infrastructure failure carries NaN to mean "no verdict". Match the
-        # advantage estimator and sample builder by taking variance only over the
-        # scored survivors; statistics.pstdev raises on NaN under Python 3.12.
-        rewards = [r.reward for r in rollouts if is_scored(r)]
-        if len(rewards) < 2 or statistics.pstdev(rewards) != 0.0:
-            return
-        try:
-            os.makedirs(dump_dir, exist_ok=True)
-            safe = sample.instance_id.replace("/", "_")
-            with open(os.path.join(dump_dir, f"{safe}.json"), "w") as f:
-                json.dump({"instance_id": sample.instance_id, "reward": rewards[0]}, f)
-        except OSError as e:
-            logger.warning(f"[tmax] zero-std annotate failed for {dump_dir}: {e}")
 
     def _guard_for(self, budget_sec: int, verifier_sec: int | None = None) -> int:
         """Whole-rollout wall-clock guard for an agent budget: + verifier + boot.
@@ -945,102 +1038,92 @@ class TMaxRollouter(Rollouter):
         return max(int(declared), self._eval_timeout_sec)
 
     def _maybe_emit_evolution_signal(
-        self, sample: TMaxSample, rollouts: list[Rollout], renderer=None
+        self, sample: TMaxSample, rollouts: list[Rollout]
     ) -> None:
-        """Hand a no-signal group to a data-side task factory to be re-tuned to the
-        policy, instead of shed. This is the online half of recursive task synthesis,
-        and it is a first-class step, not a rider on the drop annotation: every group
-        the policy has moved past -- all-fail (0/k) or all-pass (k/k) -- is evolved,
-        0/k made easier and k/k made harder, and returned to the pool. Both directions
-        always; a group with any reward variance is already producing signal and is
-        left untouched.
+        """Hand a no-signal group to the evolve loop to be re-tuned to the policy,
+        instead of shed. This is the online half of recursive task synthesis:
+        every group the policy has moved past -- all-fail (0/k) or all-pass
+        (k/k) -- is evolved, 0/k made easier and k/k made harder, and returned to
+        the pool. Both directions always; a group with any reward variance is
+        already producing signal and is left untouched.
 
-        Independent of ``_maybe_annotate_zero_std``: dropping sheds the prompt, this
-        re-tunes it, and a run enables either or both via its own env var. Same
-        write-once-per-file pattern (safe on the oilfs FUSE mount and across pooled
-        RolloutWorker processes). Best-effort; never raises into the rollout.
+        The signal is one small JSON under the run's ``signals/`` that names the
+        scored siblings' rollout records; those are already on disk, each
+        written by this same process when its rollout finished, and the loop
+        hardlinks them into the rewrite's package. Written beside the directory
+        as ``.incoming`` and renamed in (``layout.write_json_atomic``): the loop
+        treats any ``*.json`` there as pending work and returns from its wait
+        the moment one appears, and a file it could open half-written was
+        re-read at millisecond cadence for its whole 60 s grace window, each
+        miss logged. ``SWE_EVOLUTION_SIGNALS=0`` switches the signal off; the
+        infra-quarantine advisory below is written either way. Best-effort;
+        never raises into the rollout.
         """
-        dump_dir = os.environ.get("SWE_TASK_EVOLUTION_DIR", "")
-        if not dump_dir:
+        run = _run_dir()
+        if run is None:
             return
         if rollouts and rollouts[0].group_id < 0:  # validation prompts, never trained
             return
-        # is_scored (not "is not None"): an infra-failed sibling carries a NaN
-        # reward, and statistics.pstdev raises on NaN under Python 3.12. Matches
-        # _maybe_annotate_zero_std, so the same groups are annotated and evolved.
         try:
-            rewards = [r.reward for r in rollouts if is_scored(r)]
+            # is_scored (not "is not None"): an infra-failed sibling carries a NaN
+            # reward, and statistics.pstdev raises on NaN under Python 3.12.
+            scored = [r for r in rollouts if is_scored(r)]
+            rewards = [r.reward for r in scored]
             if len(rewards) < 2 or statistics.pstdev(rewards) != 0.0:
                 return
-            # An all-fail group in which no attempt ever took a turn is an
-            # infrastructure failure (agent import error, sandbox never up),
-            # not a verdict on the task -- emitting it would drive an unearned
-            # simplify. One real turn anywhere is enough to call it measured.
+            group_id = rollouts[0].group_id
             if rewards[0] == 0 and not any(len(r.turns) for r in rollouts):
+                # An all-fail group in which no attempt ever took a turn measured
+                # the infrastructure (agent import error, sandbox never up), not
+                # the task; a signal would drive an unearned simplify. One real
+                # turn anywhere is enough to call it measured. Suppressing the
+                # signal is right, but returning silently used to throw the
+                # finding away with it: the task stays in the pool and destroys
+                # a whole group every time it is drawn, and the only trace was
+                # one warning in a log nobody greps. One advisory line per such
+                # group instead, where a filter can read it.
                 logger.warning(
                     f"[tmax] evolution signal suppressed for "
                     f"{sample.instance_id}: all-fail group with zero turns"
                 )
-                # Suppressing the signal is right -- this measured the
-                # infrastructure, not the task -- but returning here used to throw
-                # the finding away with it. The task stays in the pool and destroys
-                # a whole group every time it is drawn, and the only trace is one
-                # warning in a log nobody greps. Record it where a filter can read
-                # it: one file per task, rewritten each time, so the count says how
-                # often it has happened and the pool can be masked against the
-                # directory listing.
-                try:
-                    qdir = os.path.join(os.path.dirname(dump_dir), "infra_quarantine")
-                    os.makedirs(qdir, exist_ok=True)
-                    qf = os.path.join(
-                        qdir, f"{sample.instance_id.replace('/', '_')}.json"
-                    )
-                    seen = 0
-                    if os.path.exists(qf):
-                        with open(qf) as fh:
-                            seen = int(json.load(fh).get("occurrences", 0))
-                    with open(qf, "w") as fh:
-                        json.dump(
-                            {
-                                "instance_id": sample.instance_id,
-                                "reason": "all_fail_zero_turns",
-                                "occurrences": seen + 1,
-                                "rollouts_lost": seen * len(rollouts) + len(rollouts),
-                                "image": sample.image,
-                                "last_seen": time.time(),
-                            },
-                            fh,
-                        )
-                except Exception as e:  # noqa: BLE001 -- never kill a rollout over bookkeeping
-                    logger.warning(f"[tmax] infra quarantine write failed: {e}")
+                layout.append_jsonl(
+                    run.advisory("infra_quarantine"),
+                    {
+                        "stamp": layout.stamp(),
+                        "task": sample.instance_id,
+                        "image": sample.image,
+                        "reason": "all_fail_zero_turns",
+                        "group": group_id,
+                        "rollouts_lost": len(rollouts),
+                    },
+                )
                 return
-            os.makedirs(dump_dir, exist_ok=True)
-            safe = sample.instance_id.replace("/", "_")
-            occurrence = (
-                sample.lineage.occurrence_id
-                if sample.lineage is not None
-                else f"group-{rollouts[0].group_id if rollouts else 'unknown'}"
+            if os.environ.get("SWE_EVOLUTION_SIGNALS", "1") != "1":
+                return
+            passed = rewards[0] > 0
+            layout.write_json_atomic(
+                run.signal(sample.instance_id, group_id),
+                {
+                    "task": sample.instance_id,
+                    "rev": sample.rev,
+                    "run": run.name,
+                    "group": group_id,
+                    "direction": "harder" if passed else "easier",
+                    "solved": len(rewards) if passed else 0,
+                    "total": len(rewards),
+                    "created": layout.stamp(),
+                    # The scored siblings' records in rollout order: the attempts
+                    # the verdict is over, so len(attempts) == total while
+                    # records are on. An infra-failed sibling's record exists
+                    # but is not an attempt at the task.
+                    "attempts": [
+                        r.diagnostics["record"]
+                        for r in scored
+                        if r.diagnostics.get("record")
+                    ],
+                },
             )
-            safe_occurrence = occurrence.replace("/", "_").replace(":", "_")
-            # One immutable file per occurrence. A per-task filename silently
-            # overwrote an earlier pending signal when the same task repeated.
-            #
-            # Built in full and written beside the queue before it is renamed
-            # in: the consumer treats any *.json here as pending work and
-            # returns from its wait the moment one appears, so a file opened
-            # before the transcripts were decoded showed up empty and was
-            # re-read at millisecond cadence for its whole 60 s grace window,
-            # each miss logged. `.incoming` does not match the consumer's glob.
-            final = os.path.join(dump_dir, f"{safe}--{safe_occurrence}.json")
-            incoming = final + ".incoming"
-            signal = self._evolution_signal(sample, rollouts, rewards, renderer)
-            with open(incoming, "x") as f:
-                json.dump(signal, f)
-            if os.path.exists(final):
-                os.unlink(incoming)
-                raise FileExistsError(final)
-            os.replace(incoming, final)
-        except Exception as e:  # noqa: BLE001 -- token decode etc. must not kill rollout
+        except Exception as e:  # noqa: BLE001 -- bookkeeping must not kill a rollout
             logger.warning(
                 f"[tmax] evolution signal failed for {sample.instance_id}: {e}"
             )
@@ -1060,109 +1143,6 @@ class TMaxRollouter(Rollouter):
             return str(content or "")
         return "" if message is None else str(message)
 
-    def _rollout_transcript(self, rollout, tokenizer) -> list[dict]:
-        """Per-turn {cmd, out} decoded from TOKENS, not from parsed Messages.
-
-        The terminus agent carries its command in ``tool_calls`` and leaves
-        ``completion_message.content`` empty, so ``_message_text`` recovered
-        nothing (every cmd/out was ""). The reliable text is the token stream:
-        a turn's completion is the model's action (``<tool_call>`` and all), and
-        the tool_response is the next turn's prompt delta -- the same TITO
-        reconstruction the SWE_ROLLOUT_DUMP_DIR trace uses. Whole turns, not a
-        per-turn cut: the completion ends with the ``<commands>`` block, so the
-        4000-character cap this used to apply took the command itself out of
-        98% of the turns it touched -- 1-2% of turns, but 29% of the attempts
-        in all-pass signals and 63% in all-fail ones (wd-20260904a, 400
-        signals each). The stream is bounded upstream anyway, by the
-        generator's per-turn completion limit and Terminus's terminal window:
-        at most 34k and 10k characters per turn over 300 dumps. Best-effort:
-        on any failure the caller falls back to the message-parse path.
-        """
-
-        def dec(ids):
-            if tokenizer is None or not ids:
-                return ""
-            return tokenizer.decode(list(ids), skip_special_tokens=False)
-
-        turns = rollout.turns
-        out = []
-        for i, tn in enumerate(turns):
-            cmd = dec(getattr(tn, "completion_token_ids", None))
-            resp = ""
-            if i + 1 < len(turns):
-                cur = list(getattr(tn, "prompt_token_ids", []) or []) + list(
-                    getattr(tn, "completion_token_ids", []) or []
-                )
-                nxt = list(getattr(turns[i + 1], "prompt_token_ids", []) or [])
-                if nxt[: len(cur)] == cur:
-                    resp = dec(nxt[len(cur) :])
-            out.append({"cmd": cmd, "out": resp})
-        return out
-
-    def _evolution_signal(
-        self,
-        sample: TMaxSample,
-        rollouts: list[Rollout],
-        rewards: list[float],
-        renderer=None,
-    ) -> dict:
-        """What a zero-std group hands the data side: which way to move the task and
-        the per-attempt command transcript a hint is read from. Same shape a solver
-        rollout carries, so training rollouts and a standalone solve pass feed one
-        pipeline. all-pass -> harder, all-fail -> easier (the group is zero-std, so
-        every reward is the same and one of them decides the direction).
-
-        Transcript is decoded from tokens (see ``_rollout_transcript``); a parsed-
-        message fallback keeps the old shape if decoding is unavailable.
-
-        Each attempt also says how it ended: ``status``, plus the loop's
-        ``finish_reason``, ``submitted``, ``format_errors`` and ``infra_failed``
-        from ``Rollout.diagnostics`` -- the facts the SWE_ROLLOUT_DUMP_DIR header
-        carries -- so a reader can tell a submit from a budget stop or a parse
-        failure without decoding the transcript."""
-        passed = rewards[0] > 0
-        tokenizer = None
-        if renderer is not None:
-            tokenizer = getattr(renderer, "tokenizer", None) or getattr(
-                renderer, "_tokenizer", None
-            )
-
-        def transcript(r):
-            try:
-                if tokenizer is not None:
-                    return self._rollout_transcript(r, tokenizer)
-            except Exception:  # noqa: BLE001 -- never break signal emission
-                pass
-            return [
-                {
-                    "cmd": self._message_text(turn.completion_message),
-                    "out": "\n".join(self._message_text(m) for m in turn.env_messages),
-                }
-                for turn in r.turns
-            ]
-
-        outcome_keys = ("finish_reason", "submitted", "format_errors", "infra_failed")
-        return {
-            "event": "signal_created",
-            "created_time_unix_ns": time.time_ns(),
-            "task_id": sample.instance_id,
-            "source_group_id": rollouts[0].group_id if rollouts else None,
-            "source_lineage": asdict(sample.lineage) if sample.lineage else None,
-            "solved": len(rewards) if passed else 0,
-            "total": len(rewards),
-            "direction": "harder" if passed else "easier",
-            "attempts": [
-                {
-                    "reward": r.reward,
-                    "turns": len(r.turns),
-                    "status": str(r.status),
-                    **{k: r.diagnostics[k] for k in outcome_keys if k in r.diagnostics},
-                    "transcript": transcript(r),
-                }
-                for r in rollouts
-                if r.reward is not None
-            ],
-        }
 
     async def _run_agent_rollout(
         self,
@@ -1201,6 +1181,8 @@ class TMaxRollouter(Rollouter):
         # returned (it sets its own reason on the normal path).
         finish_reason = "error"
         agent_turns = 0
+        exec_trace: list[dict] = []
+        pane_text: str | None = None
         infra_failed = False
         # Per-test verifier breakdown; stays None unless the rollout was graded with
         # the CTRF read enabled and the task wrote a parsable report.
@@ -1223,6 +1205,14 @@ class TMaxRollouter(Rollouter):
         budget_sec = self._agent_budget_sec(sample)
         verifier_sec = self._verifier_budget_sec(sample)
         started_at = time.monotonic()
+        started_wall = time.time()
+        # Where this rollout's record goes; None writes nothing (said once).
+        run = _run_dir()
+        collect_pane = (
+            run is not None
+            and group_id >= 0
+            and os.environ.get("TMAX_PANE_DUMP", "0") == "1"
+        )
         await self._rollout_gate.acquire_sibling((group_id, rollout_idx))
         try:
             # open_session is inside the try so a failure still releases the slot.
@@ -1278,7 +1268,9 @@ class TMaxRollouter(Rollouter):
                             "command -v tmux >/dev/null 2>&1", check=False
                         )
                         if _rc != 0:
-                            _note_image_without_tmux(sample)
+                            _note_image_without_tmux(
+                                sample, group_id=group_id, rollout_idx=rollout_idx
+                            )
                     except Exception:  # noqa: BLE001 -- never fail a rollout on this
                         pass
                     agent_run = await get_agent(self._agent_name)(
@@ -1303,6 +1295,19 @@ class TMaxRollouter(Rollouter):
                     # left after empty completions are dropped -- so a trajectory that
                     # spun out its turn budget on empty replies reads as a short one.
                     agent_turns = agent_run.turns
+                    exec_trace = agent_run.exec_trace
+                    if collect_pane and agent_run.pane_path:
+                        # The transcript lives in the sandbox, which goes away
+                        # with this block; its loss must not fail a graded rollout.
+                        try:
+                            pane_text = (
+                                await root_sb.read_file(agent_run.pane_path) or ""
+                            )
+                        except Exception as e:  # noqa: BLE001
+                            logger.warning(
+                                f"[tmax] {rollout_id}: could not collect "
+                                f"{agent_run.pane_path}: {type(e).__name__}: {e}"
+                            )
                     # tmax runs the verifier only on the submit marker; a rollout that
                     # never submits scores 0 (matches SWERLVanilluxSandboxEnv). No
                     # git_diff: grade the agent's OWN sandbox in place. ``None`` means
@@ -1485,20 +1490,29 @@ class TMaxRollouter(Rollouter):
             time.monotonic() - started_at,
             budget_sec,
         )
-        self._maybe_dump_trace(
-            rollout_id=rollout_id,
-            group_id=group_id,
-            sample=sample,
-            captured=captured,
-            renderer=renderer,
-            status=str(status),
-            reward=reward,
-            submitted=submitted,
-            fmt_errors=fmt_errors,
-            error_msg=error_msg,
-            finish_reason=finish_reason,
-            sandbox_diagnostics=diagnostics,
-        )
+        record = None
+        if run is not None:
+            record = _write_rollout_record(
+                run,
+                sample=sample,
+                group_id=group_id,
+                rollout_idx=rollout_idx,
+                captured=captured,
+                renderer=renderer,
+                status=str(status),
+                reward=reward,
+                submitted=submitted,
+                fmt_errors=fmt_errors,
+                error_msg=error_msg,
+                finish_reason=finish_reason,
+                sandbox_diagnostics=diagnostics,
+                exec_trace=exec_trace,
+                secs=time.monotonic() - started_at,
+                budget_sec=budget_sec,
+                started=layout.stamp(started_wall),
+            )
+            if pane_text is not None:
+                _write_pane(run, sample, group_id, rollout_idx, pane_text)
         return (
             Rollout(
                 group_id=group_id,
@@ -1518,6 +1532,9 @@ class TMaxRollouter(Rollouter):
                     "ctrf": ctrf,
                     "sparse_reward": sparse_reward,
                     "dense_fallback": dense_fallback,
+                    # Relative to the run directory, so the group-level signal
+                    # can list its siblings' records; None when none was written.
+                    "record": record,
                 },
             ),
             submitted,
@@ -1525,143 +1542,3 @@ class TMaxRollouter(Rollouter):
             finish_reason,
             diagnostics,
         )
-
-    def _maybe_dump_trace(
-        self,
-        *,
-        rollout_id: str,
-        group_id: int,
-        sample: TMaxSample,
-        captured: list,
-        renderer: Renderer,
-        status: str,
-        reward: float,
-        submitted: bool = False,
-        fmt_errors: int = 0,
-        error_msg: str = "",
-        finish_reason: str = "",
-        sandbox_diagnostics: _SandboxRolloutDiagnostics,
-    ) -> None:
-        """Write a human-readable per-rollout training trace when
-        ``SWE_ROLLOUT_DUMP_DIR`` is set. Format mirrors the open-instruct diagnostic
-        trace: a summary header (reward / finish / submitted / num tool calls /
-        response length) followed by the FULL decoded trajectory with the model's
-        actions (``<tool_call>``) and the sandbox outputs (``<tool_response>``)
-        interleaved -- reconstructed from the TITO-bridged prompts (turn N+1's prompt
-        is turn N's prompt+completion + the new tool_response, so the growing prefix
-        recovers each turn's sandbox output). Best-effort; never raises."""
-        dump_dir = os.environ.get("SWE_ROLLOUT_DUMP_DIR", "")
-        if not dump_dir:
-            return
-        # Validation groups (negative ids) get the controller's per-pass trace
-        # report instead; dumping them here too would duplicate every transcript
-        # into the training dump dir.
-        if group_id < 0:
-            return
-        try:
-            tokenizer = getattr(renderer, "tokenizer", None) or getattr(
-                renderer, "_tokenizer", None
-            )
-
-            def _decode(ids: list[int]) -> str:
-                if tokenizer is None or not ids:
-                    return ""
-                return tokenizer.decode(ids, skip_special_tokens=False)
-
-            # Reconstruct the full interleaved token stream. TITO invariant: each turn's
-            # prompt extends the previous prompt+completion, so appending each
-            # completion and then the next prompt's delta recovers the whole
-            # system+task+<tool_call>+<tool_response>+... conversation. A branch
-            # (extends_previous False, e.g. compaction) resets to that turn's fresh
-            # prompt (rare for tmax vanillux; noted inline).
-            full_ids: list[int] = list(captured[0].prompt_token_ids) if captured else []
-            branch_turns: list[int] = []
-            for i, ct in enumerate(captured):
-                full_ids += list(ct.completion_token_ids)
-                if i + 1 < len(captured):
-                    nxt = list(captured[i + 1].prompt_token_ids)
-                    if nxt[: len(full_ids)] == full_ids:
-                        full_ids += nxt[len(full_ids) :]  # tool_response delta
-                    else:
-                        branch_turns.append(i + 1)
-                        full_ids = nxt  # history rewrite -> fresh render
-            full_text = _decode(full_ids)
-
-            response_len = sum(len(ct.completion_token_ids) for ct in captured)
-            num_tool_calls = full_text.count("<tool_call>")
-            last_model_finish = captured[-1].finish_reason if captured else None
-            any_length_finish = any(ct.finish_reason == "length" for ct in captured)
-            outcome = "SUCCESS" if reward and reward > 0 else "FAIL"
-
-            header = (
-                "=" * 90
-                + f"\nTMAX-9B rollout trace  ({outcome}, reward={reward})\n"
-                + "=" * 90
-                + f"\ninstance_id    : {sample.instance_id}"
-                + f"\nimage          : {sample.image}"
-                + f"\nrollout_id     : {rollout_id}"
-                + f"\nstatus         : {status}   submitted: {submitted}"
-                + f"\nreward         : {reward}"
-                + f"\nfinish_reason  : {finish_reason}"
-                + f"\nmodel finish   : {last_model_finish}   any length-cap turn: {any_length_finish}"
-                + f"\nsandbox_id     : {sandbox_diagnostics.sandbox_id}"
-                + f"\nsandbox disk   : {sandbox_diagnostics.disk_gb} GiB"
-                + f"\ninfra failed   : {sandbox_diagnostics.infra_failed}"
-                + "\nsandbox issues : "
-                + json.dumps(sandbox_diagnostics.issue_counts, sort_keys=True)
-                + f" (details dropped={sandbox_diagnostics.num_dropped_details})"
-                + f"\nnum turns      : {len(captured)}   num tool calls: {num_tool_calls}"
-                + f"\nresponse length: {response_len} tokens (model-generated, all turns)"
-                + f"\nformat_errors  : {fmt_errors}"
-                + (f"\nerror          : {error_msg}" if error_msg else "")
-                + (
-                    f"\nNOTE branch/re-render at turns {branch_turns} (TITO not continued)"
-                    if branch_turns
-                    else ""
-                )
-                + "\n"
-                + "=" * 90
-                + "\nAGENT TRAJECTORY (decoded; <tool_call>=model action, "
-                + "<tool_response>=sandbox output)\n"
-                + "=" * 90
-                + "\n"
-            )
-
-            os.makedirs(dump_dir, exist_ok=True)
-            safe = rollout_id.replace("/", "_")
-            path = os.path.join(dump_dir, f"{safe}.txt")
-            with open(path, "w") as f:
-                f.write(header)
-                f.write(full_text)
-                f.write("\n")
-            logger.info("[tmax] rollout trace dumped: %s", path)
-            if sandbox_diagnostics.issue_counts:
-                issue_path = os.path.join(dump_dir, f"{safe}.sandbox.json")
-                with open(issue_path, "w") as f:
-                    json.dump(
-                        {
-                            "instance_id": sample.instance_id,
-                            "image": sample.image,
-                            "rollout_id": rollout_id,
-                            "sandbox_id": sandbox_diagnostics.sandbox_id,
-                            "disk_gb": sandbox_diagnostics.disk_gb,
-                            "status": status,
-                            "submitted": submitted,
-                            "reward": reward,
-                            "finish_reason": finish_reason,
-                            "infra_failed": sandbox_diagnostics.infra_failed,
-                            "error": error_msg,
-                            "issue_counts": sandbox_diagnostics.issue_counts,
-                            "num_dropped_details": (
-                                sandbox_diagnostics.num_dropped_details
-                            ),
-                            "issues": [
-                                asdict(issue) for issue in sandbox_diagnostics.issues
-                            ],
-                        },
-                        f,
-                        sort_keys=True,
-                    )
-                logger.info("[tmax] sandbox issue trace dumped: %s", issue_path)
-        except Exception as e:
-            logger.warning("[tmax] rollout trace dump failed: %s", e)

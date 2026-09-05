@@ -1,14 +1,14 @@
 #!/usr/bin/env python3
-"""Fold evolved tasks back into the training data_path — the loop's last hop.
+"""A task package as one training row.
 
-feedback_loop outputs four-file packages; TMaxDataset reads a jsonl whose rows
-are {prompt, label, metadata:{instance_id, dockerfile, workdir,
-problem_statement, tmax:{test_sh, fixtures, reward_path}, build_context}}. This
-converts each evolved package to that row — mirroring
-prepare_rts_data._to_row — and, given a base data_path, replaces the row with
-the same instance_id, writing a new versioned jsonl the next training round
-loads. Rows not evolved this round pass through unchanged. Without --base it just
-emits a fresh data_path from the evolved packages.
+TMaxDataset reads a jsonl whose rows are {prompt, label, metadata:{instance_id,
+rev, dockerfile, workdir, problem_statement, tmax:{test_sh, fixtures,
+reward_path}, build_context}}. ``to_row`` converts one package directory (a
+corpus task or an accepted revision ``tasks/<task>/r<N>/``) to that row,
+mirroring prepare_rts_data._to_row, so a folded row is indistinguishable from
+a freshly prepared one. The loop replaces the row in the mix and publishes a
+new version through layout.MixDir; the CLI below builds a whole file from
+packages and, given a base, replaces rows in it.
 
 Usage:
   pack_to_dataset.py --evolved data/feedback-r1b --ids results/feedback_r1b_clean_ids.txt \\
@@ -68,11 +68,14 @@ def _rts_to_row():
     return sys.modules[f"{base}.prepare_rts_data"]._to_row
 
 
-def to_row(task_dir: str, *, inject_agent_runtime: bool = True) -> dict:
+def to_row(task_dir: str, *, task_id: str | None = None,
+           inject_agent_runtime: bool = True) -> dict:
     """One package -> one data_path row, exactly as prepare_rts_data builds it
     (entrypoint, oracle_commands, tmux runtime injection included), so a folded
-    row is indistinguishable from a freshly prepared one."""
-    row, reason = _rts_to_row()(task_dir,
+    row is indistinguishable from a freshly prepared one. A revision directory
+    is named ``r<N>``, so the loop passes ``task_id``; a corpus directory is
+    named after its task and needs nothing."""
+    row, reason = _rts_to_row()(task_dir, task_id=task_id,
                                 inject_agent_runtime=inject_agent_runtime)
     if row is None:
         raise ValueError(f"{task_dir}: {reason}")
