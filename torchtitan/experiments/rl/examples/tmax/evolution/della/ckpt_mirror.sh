@@ -17,6 +17,8 @@
 #       -E TRL_BASE=$TRL_BASE bash $EVO/della/ckpt_mirror.sh
 #
 # Runs are sequential in a root, so mirroring runs/latest follows the chain.
+# launch_9b.sh starts exactly this timer for the root it launches in; run it by
+# hand for a root nothing has launched in lately, or to mirror a chosen run.
 set -uo pipefail
 : "${TRL_BASE:?the experiment root}"
 RUN=$(readlink -f "${1:-$TRL_BASE/runs/latest}")

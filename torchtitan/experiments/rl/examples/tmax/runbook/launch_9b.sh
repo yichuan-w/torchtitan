@@ -283,11 +283,44 @@ print(f"[launch] mix version={mix_version} sha256={mix_sha256[:12]} inputs/mix.j
 PY
 
 echo "[launch] profile=$TRL_PROFILE tt=$TRL_TT@$TT_COMMIT data=$SWE_PROMPT_DATA gpus=$CUDA_VISIBLE_DEVICES ckpt=$SWE_CKPT_FOLDER"
+# One copy of the newest checkpoint off this box, on a timer for the whole root.
+# The checkpoints go to the host's local RAID0: no redundancy, no backup, and a
+# drive takes every step of every run with it. The timer follows runs/latest, so
+# one unit serves a resume chain; it is (re)started here rather than left to a
+# person because the copy nobody remembers to start is the one that is missing
+# when it is wanted. Best-effort: a timer that will not start must not stop a
+# training run. TRL_CKPT_MIRROR=0 turns it off.
+start_ckpt_mirror() {
+    local unit="ckpt-mirror-$(basename "$TRL_BASE")"
+    local script="$HERE/../evolution/della/ckpt_mirror.sh"
+    if [ "${TRL_CKPT_MIRROR:-1}" != 1 ]; then
+        echo "[launch] checkpoint mirror off (TRL_CKPT_MIRROR=$TRL_CKPT_MIRROR)"
+        return 0
+    fi
+    if ! command -v systemd-run >/dev/null 2>&1; then
+        echo "[launch] no systemd-run here; start the checkpoint mirror yourself:" >&2
+        echo "[launch]   TRL_BASE=$TRL_BASE bash $script" >&2
+        return 0
+    fi
+    systemctl --user stop "$unit.timer" "$unit.service" 2>/dev/null
+    systemctl --user reset-failed "$unit.timer" "$unit.service" 2>/dev/null
+    if systemd-run --user --unit="$unit" --collect --on-calendar='*:0/15' \
+        --timer-property=AccuracySec=1min -E TRL_BASE="$TRL_BASE" \
+        bash "$script" >/dev/null 2>&1; then
+        echo "[launch] checkpoint mirror: $unit every 15 min -> runs/<run>/checkpoints-mirror"
+    else
+        echo "[launch] WARNING: could not start $unit; this run has no copy off the box" >&2
+    fi
+}
+
 if [ "$DRY_RUN" = 1 ]; then
     echo "[launch] dry run: laid out and recorded, trainer not started"
+    echo "[launch] dry run: would start ckpt-mirror-$(basename "$TRL_BASE") every 15 min"
     echo "$RUN"
     exit 0
 fi
+
+start_ckpt_mirror
 
 # W&B writes wandb/ under the CWD, so run from the run directory. The trainer's
 # own output (structured logs, metrics, profiles, validation traces) is told
