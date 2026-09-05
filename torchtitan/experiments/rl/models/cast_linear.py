@@ -157,7 +157,15 @@ class _LinearTF32(torch.autograd.Function):
     def forward(ctx, x, weight, x_exact: bool, w_exact: bool):
         ctx.save_for_backward(x, weight)
         ctx.exact = (x_exact, w_exact)
-        return _mm_fp32_on_tensor_cores(x, weight.t(), x_exact, w_exact)
+        # Flatten to [tokens, hidden] the way backward already does. _tf32_mm
+        # reads the reduction width off a.shape[1]; on a [batch, seq, hidden]
+        # activation that is the sequence length, so a 3-D input took the
+        # split-K branch and addmm_ rejected it ("mat1 must be a matrix, got
+        # 3-D tensor"). tmax's chunked loss passes exactly that shape.
+        out = _mm_fp32_on_tensor_cores(
+            x.reshape(-1, x.shape[-1]), weight.t(), x_exact, w_exact
+        )
+        return out.reshape(*x.shape[:-1], out.shape[-1])
 
     @staticmethod
     def backward(ctx, grad_out):
@@ -184,7 +192,10 @@ def _linear_tf32x3(x, weight, bias, x_exact: bool, w_exact: bool):
     if torch.is_grad_enabled():
         out = _LinearTF32.apply(x, weight, x_exact, w_exact)
     else:
-        out = _mm_fp32_on_tensor_cores(x, weight.t(), x_exact, w_exact)
+        flat = _mm_fp32_on_tensor_cores(
+            x.reshape(-1, x.shape[-1]), weight.t(), x_exact, w_exact
+        )
+        out = flat.reshape(*x.shape[:-1], flat.shape[-1])
     return out if bias is None else out + bias
 
 
