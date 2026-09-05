@@ -102,6 +102,9 @@ EXPECT_ROWS = 456
 MEMBER_ROOT = "tasks"
 
 _HOOK_COLUMNS = ("pre_test_sh", "pre_test_env_identity")
+# OPTIONAL column: a JSON list of the task's protected paths. Empty cell (or the column absent, as in the
+# first published cut) means the row carries no integrity baseline and grades exactly as before.
+_PROTECTED_COLUMN = "protected_paths"
 _NEEDED_COLUMNS = (
     "task_id",
     "member_prefix",
@@ -181,6 +184,31 @@ def load_split(parquet_path: str) -> list[dict]:
     if len(set(ids)) != len(ids):
         raise RefuseError("split has duplicate task_id values")
     return rows
+
+
+def protected_paths_map(rows: list[dict]) -> dict[str, list[str]]:
+    """{task_id: [paths]} for every row whose ``protected_paths`` cell is a non-empty JSON list. An empty
+    cell or an absent column contributes nothing -- the key is then ABSENT from the row, never an empty
+    list. A cell that is present but not a JSON list of non-empty strings refuses by task id: a malformed
+    list must not read as "no protected paths"."""
+    out: dict[str, list[str]] = {}
+    for r in rows:
+        raw = r.get(_PROTECTED_COLUMN)
+        if raw is None or not str(raw).strip():
+            continue
+        try:
+            paths = json.loads(raw)
+        except ValueError:
+            raise RefuseError(f"{r['task_id']}: protected_paths is not JSON") from None
+        if not isinstance(paths, list) or not all(
+            isinstance(p, str) and p.strip() for p in paths
+        ):
+            raise RefuseError(
+                f"{r['task_id']}: protected_paths must be a JSON list of non-empty strings"
+            )
+        if paths:
+            out[r["task_id"]] = paths
+    return out
 
 
 def assert_hook_pairing(rows: list[dict]) -> int:
@@ -285,6 +313,7 @@ def to_row(
     inject_agent_runtime: bool = False,
     resources: dict[str, int] | None = None,
     pretest: tuple[str, str] | None = None,
+    protected_paths: list[str] | None = None,
 ) -> tuple[dict | None, str]:
     """One trainer row, or ``(None, reason)`` when filtered. Same helpers, same keys, same order
     and same conditions as ``prepare_rts_data._to_row`` AS THE TRAINER RUNS IT (the branch this
@@ -383,6 +412,10 @@ def to_row(
             ),
         },
     }
+    if protected_paths:
+        # INTEGRITY BASELINE: the paths the harness digests after setup and re-checks before the verifier.
+        # Carried only when non-empty; grading reads tmax["protected_paths"] and consults nothing else.
+        metadata["tmax"]["protected_paths"] = list(protected_paths)
     if build_context:
         metadata["build_context"] = build_context
     if daytona_mem_gb:
@@ -416,6 +449,7 @@ def build_rows(
         for r in rows
         if (r.get("pre_test_sh") or "").strip()
     }
+    protected = protected_paths_map(rows)
     ids = sorted(r["task_id"] for r in rows)
     random.Random(seed).shuffle(ids)
     out: list[dict] = []
@@ -426,6 +460,7 @@ def build_rows(
             inject_agent_runtime=inject_agent_runtime,
             resources=resource_map.get(tid),
             pretest=pretest_map.get(tid),
+            protected_paths=protected.get(tid),
         )
         if (
             row is not None
@@ -497,6 +532,10 @@ def prepare(
     return {
         "rows": len(built),
         "hooked": hooked,
+        "protected": sum(
+            1 for r in built if r["metadata"]["tmax"].get("protected_paths")
+        ),
+        "protected_column_present": any(_PROTECTED_COLUMN in r for r in rows),
         "stamped_matched": matched,
         "stamped_total": stamped,
         "reasons": reasons,
@@ -582,7 +621,14 @@ def main() -> None:
     print(
         f"wrote {summary['rows']} reaudit tasks -> {args.out}  "
         f"(hooked {summary['hooked']}, env-identity self-check "
-        f"{summary['stamped_matched']}/{summary['stamped_total']} stamped rows match)"
+        f"{summary['stamped_matched']}/{summary['stamped_total']} stamped rows match; "
+        f"protected paths on {summary['protected']} row(s)"
+        + (
+            ""
+            if summary["protected_column_present"]
+            else " -- column absent from this split"
+        )
+        + ")"
     )
     for reason, n in sorted(summary["reasons"].items(), key=lambda kv: -kv[1]):
         print(f"  {reason:32s} {n}")

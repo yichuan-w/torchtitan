@@ -32,7 +32,13 @@ import os
 import posixpath
 import shlex
 import uuid
+from functools import partial
 from typing import TYPE_CHECKING
+
+from torchtitan.experiments.rl.examples.tmax.integrity_baseline import (
+    integrity_differences,
+    protected_paths_of,
+)
 
 if TYPE_CHECKING:
     # Type-only so this module imports WITHOUT the torchtitan/vLLM stack -- the
@@ -214,6 +220,7 @@ async def grade_tmax(
     *,
     workdir: str,
     timeout_sec: int | None = None,
+    baseline_digests: dict[str, str] | None = None,
 ) -> float:
     """Grade a tmax task in the (already-run) sandbox ``sb`` and return reward.
 
@@ -264,8 +271,31 @@ async def grade_tmax(
     # writes reward.txt — as a separate exec that write would be overwritten by test.sh; the short-circuit lives
     # here). A nonzero exit means a pinned reference was mutated / deleted / a pinned command diverged, so the
     # episode scores 0 WITHOUT running the verifier. Absent field ⇒ no-op (the whole corpus before this lands).
+    # INTEGRITY BASELINE (reaudit): for a row that names protected paths, the rollouter digested them
+    # right after setup and handed the digests in as ``baseline_digests``; re-digest the same paths with
+    # the same command now and score 0 on any difference, before the verifier runs. Nothing is stamped in
+    # the data and nothing is captured at prep. A row with protected paths and no baseline is a harness
+    # bug, so it raises (void episode) rather than skipping. Such rows do not consult pre_test_sh below.
+    _protected = protected_paths_of(tmax)
+    if _protected:
+        _differing = await integrity_differences(
+            partial(sb.exec, user="root"),
+            tmax,
+            baseline_digests,
+            workdir=workdir,
+            timeout=timeout,
+        )
+        if _differing:
+            logger.info(
+                "[tmax] integrity baseline difference for %s in %d protected path(s): %s; scoring 0",
+                tmax.get("task_id", "?"),
+                len(_differing),
+                _differing,
+            )
+            return 0.0
+
     pre_test = tmax.get("pre_test_sh")
-    if pre_test:
+    if pre_test and not _protected:
         # ENVIRONMENT-DRIFT GUARD (reaudit): tw_* task ids evolve IN PLACE across breeding rounds, so a task's
         # environment can differ from the one its pins were captured against. The pins are keyed by task_id, so
         # on a changed environment the assert-refuse would falsely refuse an HONEST episode. Run the pin check

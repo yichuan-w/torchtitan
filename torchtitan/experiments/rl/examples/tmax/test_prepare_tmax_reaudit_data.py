@@ -98,7 +98,10 @@ def _fixture(
     tamper: str | None = None,
     drop_pkg: str | None = None,
     binary_fixture: str | None = None,
+    protected: dict[str, str] | None = None,
 ):
+    """``protected`` = {task_id: the protected_paths CELL text}; when given, the 25th column is written for
+    every row ("" where unspecified). When None the column is absent, as in the first published cut."""
     """(parquet_path, tar_path, workdir). rows_spec: (task_id, pre_test_sh, pre_test_env_identity)."""
     import pyarrow as pa
     import pyarrow.parquet as pq
@@ -149,12 +152,18 @@ def _fixture(
                     "pre_test_env_identity": idn,
                 }
             )
-    table = pa.table({c: [r[c] for r in rows] for c in _COLUMNS})
+    cols = list(_COLUMNS)
+    if protected is not None:
+        cols.append("protected_paths")
+        for r in rows:
+            r["protected_paths"] = protected.get(r["task_id"], "")
+    table = pa.table({c: [r[c] for r in rows] for c in cols})
     pq_path = d / "reaudit.parquet"
     pq.write_table(table, pq_path)
     return str(pq_path), str(tar_path), str(d / "work")
 
 
+PROTECTED = ["/app/pinned", "tests"]  # one absolute, one relative to workdir
 HOOKED = ("task_000001_aaaaaaaa", _PRE_TEST.decode(), _IDENTITY)
 UNHOOKED = ("task_000002_bbbbbbbb", "", "")
 BROKEN = ("task_000003_cccccccc", _PRE_TEST.decode(), "")  # a script with no identity
@@ -162,7 +171,7 @@ BROKEN = ("task_000003_cccccccc", _PRE_TEST.decode(), "")  # a script with no id
 
 def _prepare(spec, **kw):
     """(summary, rows, work_dir) for a fixture built from ``spec``; fixture kwargs are tamper/drop_pkg."""
-    _fx = ("tamper", "drop_pkg", "binary_fixture")
+    _fx = ("tamper", "drop_pkg", "binary_fixture", "protected")
     pq_path, tar_path, work = _fixture(
         spec, **{k: v for k, v in kw.items() if k in _fx}
     )
@@ -221,14 +230,17 @@ def test_rows_are_one_to_one_with_prepare_rts_data_outside_the_hook():
     """The reference oracle: the same extracted package through prepare_rts_data's own row builder
     (unmodified) must give the same row. This is what pins the one-to-one claim instead of asserting it.
 
-    EXACTLY SEVEN keys are excluded from the equality, and each is then asserted on its own against a
+    EXACTLY EIGHT keys are excluded from the equality, and each is then asserted on its own against a
     fixture-derived expectation, so the exclusion narrows the oracle without leaving anything unchecked:
       tmax.pre_test_sh, tmax.pretest_env_identity, tmax.pretest_episode_env_identity, tmax.task_id
           -- the four fields _pretest_tmax_fields adds for a HOOKED task; the pre-8 _to_row never calls
              it, so the reference row cannot carry them (and for an unhooked task neither row does);
       metadata.daytona_cpu, metadata.daytona_mem_gb, metadata.daytona_disk_gb
           -- sizing from the split's req_cpus / req_memory_mb / est_disk_mb via _load_resource_map; the
-             reference _to_row is called with no resources, so it emits none of them.
+             reference _to_row is called with no resources, so it emits none of them;
+      tmax.protected_paths
+          -- the integrity-baseline paths from the split's protected_paths column; prepare_rts_data has
+             no such input, so the reference row never carries it.
     Everything else -- prompt, label, instance_id, image, dockerfile, workdir, problem_statement,
     oracle_commands, tmax.test_sh, tmax.fixtures, tmax.reward_path, and any build_context / entrypoint /
     toml-derived key -- must be byte-equal."""
@@ -238,6 +250,7 @@ def test_rows_are_one_to_one_with_prepare_rts_data_outside_the_hook():
         "pretest_episode_env_identity",
         "task_id",
     )
+    _PROTECTED_KEY = "protected_paths"  # the eighth excluded key; asserted below
     _SIZING_KEYS = ("daytona_cpu", "daytona_mem_gb", "daytona_disk_gb")
     # the fixture's split columns (see _fixture) through prepare_rts_data's own clamping rule
     import math
@@ -247,7 +260,9 @@ def test_rows_are_one_to_one_with_prepare_rts_data_outside_the_hook():
         "daytona_mem_gb": max(RTS._DAYTONA_MEM_GB_FLOOR, math.ceil(2048.0 / 1024)),
         "daytona_disk_gb": max(RTS._DAYTONA_DISK_GB_FLOOR, math.ceil(1024.0 / 1024)),
     }
-    summary, rows, work = _prepare([HOOKED, UNHOOKED], seed=7)
+    summary, rows, work = _prepare(
+        [HOOKED, UNHOOKED], seed=7, protected={HOOKED[0]: json.dumps(PROTECTED)}
+    )
     work = pathlib.Path(work)
     hooked_ids = {HOOKED[0]}
     for r in rows:
@@ -260,6 +275,7 @@ def test_rows_are_one_to_one_with_prepare_rts_data_outside_the_hook():
             for k in _HOOK_KEYS
             if k in ours["metadata"]["tmax"]
         }
+        popped_protected = ours["metadata"]["tmax"].pop(_PROTECTED_KEY, None)
         popped_sizing = {
             k: ours["metadata"].pop(k) for k in _SIZING_KEYS if k in ours["metadata"]
         }
@@ -285,6 +301,17 @@ def test_rows_are_one_to_one_with_prepare_rts_data_outside_the_hook():
                 popped_hook == {}
             ), popped_hook  # an unhooked task has none of the four
         assert popped_sizing == _expect_sizing, (tid, popped_sizing)
+        assert (
+            _PROTECTED_KEY not in ref["metadata"]["tmax"]
+        ), tid  # the oracle never carries it
+        if tid in hooked_ids:
+            assert (
+                popped_protected == PROTECTED
+            ), popped_protected  # the fixture's list, verbatim
+        else:
+            assert (
+                popped_protected is None
+            ), popped_protected  # absent, not an empty list
 
 
 def test_a_broken_hook_pair_refuses_the_whole_run():
@@ -338,6 +365,34 @@ def test_a_non_utf8_fixture_refuses_the_package_by_name_as_prepare_rts_data_does
     R.verify_and_extract(tar_path, R.load_split(pq_path), work)
     row, reason = RTS._to_row(str(pathlib.Path(work) / "tasks" / UNHOOKED[0]))
     assert row is None and reason.startswith("tests_fixture_binary"), reason
+
+
+def test_protected_paths_pass_through_on_a_three_row_fixture():
+    """hooked with paths -> the list lands in tmax; unhooked -> no key; an EMPTY cell -> no key (absent, never an
+    empty list). And with the column absent altogether -- today's published cut -- no row carries the key."""
+    third = ("task_000005_eeeeeeee", "", "")
+    summary, rows, _w = _prepare(
+        [HOOKED, UNHOOKED, third],
+        protected={HOOKED[0]: json.dumps(PROTECTED), third[0]: ""},
+    )
+    by = {r["label"]: r["metadata"]["tmax"] for r in rows}
+    assert by[HOOKED[0]]["protected_paths"] == PROTECTED
+    assert (
+        "protected_paths" not in by[UNHOOKED[0]]
+        and "protected_paths" not in by[third[0]]
+    )
+    assert summary["protected"] == 1 and summary["protected_column_present"] is True
+    summary, rows, _w = _prepare([HOOKED, UNHOOKED])  # column absent
+    assert not any("protected_paths" in r["metadata"]["tmax"] for r in rows)
+    assert summary["protected"] == 0 and summary["protected_column_present"] is False
+    # a cell that is present but not a JSON list of non-empty strings refuses by id
+    for bad in ('"not-a-list"', '["ok", ""]', "{oops"):
+        try:
+            _prepare([HOOKED, UNHOOKED], protected={UNHOOKED[0]: bad})
+        except R.RefuseError as e:
+            assert UNHOOKED[0] in str(e), e
+        else:
+            raise AssertionError(f"malformed protected_paths must refuse: {bad!r}")
 
 
 def test_row_count_guard_and_limit():

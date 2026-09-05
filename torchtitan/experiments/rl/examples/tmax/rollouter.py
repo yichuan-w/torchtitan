@@ -94,6 +94,9 @@ from torchtitan.experiments.rl.examples.tmax.grading import (
     read_ctrf_report,
     seed_workspace,
 )
+from torchtitan.experiments.rl.examples.tmax.integrity_baseline import (
+    capture_integrity_baseline,
+)
 from torchtitan.experiments.rl.examples.tmax.rubric import RewardTMax, TMAX_REWARD_KEY
 from torchtitan.experiments.rl.examples.tmax.vanillux_loop import (  # noqa: F401 -- registers the default agent
     vanillux_agent,
@@ -1176,6 +1179,7 @@ class TMaxRollouter(Rollouter):
         reward = 0.0
         error_msg = ""
         submitted = False
+        baseline_digests: dict[str, str] | None = None
         fmt_errors = 0  # total format errors this rollout (from run_vanillux_loop)
         # Default for the timeout/exception paths where run_vanillux_loop never
         # returned (it sets its own reason on the normal path).
@@ -1263,6 +1267,16 @@ class TMaxRollouter(Rollouter):
                     # seed-bearing tasks are unsolvable (inputs absent during rollout).
                     # Grading fixtures (tests/*) are uploaded later by grade_tmax.
                     await seed_workspace(root_sb, sample.tmax)
+                    # INTEGRITY BASELINE (reaudit): digest the row's protected paths NOW -- after setup,
+                    # before the agent's first action -- and keep the digests harness-side for grade_tmax
+                    # to re-measure. A row without protected paths gets None and grades exactly as before.
+                    # A failure here is the harness's, not the policy's: it raises and voids the episode.
+                    baseline_digests = await capture_integrity_baseline(
+                        root_sb.exec,
+                        sample.tmax,
+                        workdir=sample.workdir,
+                        timeout=verifier_sec or 120,
+                    )
                     try:
                         _rc, _o, _e = await root_sb.exec(
                             "command -v tmux >/dev/null 2>&1", check=False
@@ -1319,6 +1333,7 @@ class TMaxRollouter(Rollouter):
                             sample.tmax,
                             workdir=sample.workdir,
                             timeout_sec=verifier_sec,
+                            baseline_digests=baseline_digests,
                         )
                         sparse_reward = reward
                         # Read the verifier's second output (the per-test CTRF
