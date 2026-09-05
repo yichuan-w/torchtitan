@@ -290,37 +290,52 @@ echo "[launch] profile=$TRL_PROFILE tt=$TRL_TT@$TT_COMMIT data=$SWE_PROMPT_DATA 
 # person because the copy nobody remembers to start is the one that is missing
 # when it is wanted. Best-effort: a timer that will not start must not stop a
 # training run. TRL_CKPT_MIRROR=0 turns it off.
-start_ckpt_mirror() {
-    local unit="ckpt-mirror-$(basename "$TRL_BASE")"
-    local script="$HERE/../evolution/della/ckpt_mirror.sh"
-    if [ "${TRL_CKPT_MIRROR:-1}" != 1 ]; then
-        echo "[launch] checkpoint mirror off (TRL_CKPT_MIRROR=$TRL_CKPT_MIRROR)"
-        return 0
-    fi
-    if ! command -v systemd-run >/dev/null 2>&1; then
-        echo "[launch] no systemd-run here; start the checkpoint mirror yourself:" >&2
-        echo "[launch]   TRL_BASE=$TRL_BASE bash $script" >&2
-        return 0
-    fi
+# A timer per root, restarted on every launch so it follows the current root and
+# recovers one that died. Arguments: unit suffix, the command, what it produces.
+start_timer() {
+    local unit="$1-$(basename "$TRL_BASE")" cmd="$2" what="$3"
     systemctl --user stop "$unit.timer" "$unit.service" 2>/dev/null
     systemctl --user reset-failed "$unit.timer" "$unit.service" 2>/dev/null
     if systemd-run --user --unit="$unit" --collect --on-calendar='*:0/15' \
-        --timer-property=AccuracySec=1min -E TRL_BASE="$TRL_BASE" \
-        bash "$script" >/dev/null 2>&1; then
-        echo "[launch] checkpoint mirror: $unit every 15 min -> runs/<run>/checkpoints-mirror"
+        --timer-property=AccuracySec=1min \
+        -E TRL_BASE="$TRL_BASE" -E TRL_TT="$TRL_TT" -E TRL_MODEL="$TRL_MODEL" \
+        -E PYTHONPATH="$TRL_TT" $cmd >/dev/null 2>&1; then
+        echo "[launch] $unit every 15 min -> $what"
     else
-        echo "[launch] WARNING: could not start $unit; this run has no copy off the box" >&2
+        echo "[launch] WARNING: could not start $unit; this run has no $what" >&2
+    fi
+}
+
+start_ckpt_timers() {
+    if ! command -v systemd-run >/dev/null 2>&1; then
+        echo "[launch] no systemd-run here; run these yourself for a copy off the box:" >&2
+        echo "[launch]   TRL_BASE=$TRL_BASE bash $HERE/../evolution/della/ckpt_mirror.sh" >&2
+        echo "[launch]   TRL_BASE=$TRL_BASE TRL_MODEL=$TRL_MODEL $TRL_VENV/bin/python $HERE/../evolution/della/ckpt_export.py" >&2
+        return 0
+    fi
+    if [ "${TRL_CKPT_MIRROR:-1}" = 1 ]; then
+        start_timer ckpt-mirror "bash $HERE/../evolution/della/ckpt_mirror.sh" \
+            "runs/<run>/checkpoints-mirror (newest full checkpoint, off this box)"
+    else
+        echo "[launch] checkpoint mirror off (TRL_CKPT_MIRROR=$TRL_CKPT_MIRROR)"
+    fi
+    if [ "${TRL_CKPT_EXPORT:-1}" = 1 ]; then
+        start_timer ckpt-export \
+            "$TRL_VENV/bin/python $HERE/../evolution/della/ckpt_export.py" \
+            "runs/<run>/weights (every step as bf16 weights)"
+    else
+        echo "[launch] checkpoint export off (TRL_CKPT_EXPORT=$TRL_CKPT_EXPORT)"
     fi
 }
 
 if [ "$DRY_RUN" = 1 ]; then
     echo "[launch] dry run: laid out and recorded, trainer not started"
-    echo "[launch] dry run: would start ckpt-mirror-$(basename "$TRL_BASE") every 15 min"
+    echo "[launch] dry run: would start ckpt-mirror-$(basename "$TRL_BASE") and ckpt-export-$(basename "$TRL_BASE")"
     echo "$RUN"
     exit 0
 fi
 
-start_ckpt_mirror
+start_ckpt_timers
 
 # W&B writes wandb/ under the CWD, so run from the run directory. The trainer's
 # own output (structured logs, metrics, profiles, validation traces) is told

@@ -54,6 +54,7 @@ $TRL_BASE/
 │       ├── checkpoints-held/step-<N>/   hardlinks of a step kept past the rotation (cp -al from checkpoints/)
 │       ├── checkpoints-staged/step-<N>/ a GPFS copy for eval nodes, made and pruned by eval_watcher.sh
 │       ├── checkpoints-mirror/step-<N>/ the newest complete step, copied to GPFS by ckpt_mirror.sh; one at a time
+│       ├── weights/step-<N>/    every step as bf16 HF safetensors (18 GB), written by ckpt_export.py
 │       ├── rollouts/<task>/g<group>-r<idx>.jsonl   one file per rollout (format below)
 │       │                     …/g<group>-r<idx>.pane    the terminal transcript, when TMAX_PANE_DUMP=1
 │       ├── signals/<task>--g<group>.json           one per zero-variance training group
@@ -304,8 +305,16 @@ from a timer) keeps the newest complete step of `runs/latest` in
 newer step is complete: one checkpoint of quota buys a run that survives the
 box; `launch_9b.sh` starts that timer for the root it launches in, so a run
 carries its own copy without anyone remembering to arrange one
-(`TRL_CKPT_MIRROR=0` turns it off). None of the three directories is written
-by the trainer.
+(`TRL_CKPT_MIRROR=0` turns it off).
+
+Ninety of a checkpoint's 109 GB is optimizer state, which only a resume reads.
+Everything a step is wanted for afterwards -- evaluating it, comparing two,
+publishing one -- needs the weights alone, so `ckpt_export.py` writes each
+complete step to `weights/step-<N>/` as bf16 Hugging Face safetensors with the
+base model's config and tokenizer beside them: 18 GB a step and 93 s of CPU, and every step
+is kept, where keeping the full states would be 109 GB each. The launcher
+starts that timer too (`TRL_CKPT_EXPORT=0` turns it off). None of these
+directories is written by the trainer.
 
 ## Experiments and runs
 
