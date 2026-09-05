@@ -25,8 +25,9 @@ RUN = "tmax-9b--20260904-181500Z"
 VERDICTS = {"oracle": "pass", "dark_paths": [], "dark_literals": [], "step": []}
 
 
-def _root(tmp_path, monkeypatch) -> layout.Root:
-    """A root with one seed task in the tw-extract corpus and a mix at v1."""
+def _root(tmp_path, monkeypatch, tmax: dict | None = None) -> layout.Root:
+    """A root with one seed task in the tw-extract corpus and a mix at v1.
+    `tmax` is the row's grading payload, for a row that carries a pin hook."""
     base = tmp_path / "root"
     monkeypatch.setenv("TRL_BASE", str(base))
     monkeypatch.setattr(od, "SIMPLIFY_ENABLED", True)
@@ -39,7 +40,8 @@ def _root(tmp_path, monkeypatch) -> layout.Root:
     (seed / "instruction.md.bak-1").write_text("pre-canary text\n")
     row = {"prompt": SEED["instruction.md"], "label": "tw_a",
            "metadata": {"instance_id": "tw_a", "rev": 0, "daytona_cpu": 1,
-                        "daytona_mem_gb": 2, "daytona_disk_gb": 2}}
+                        "daytona_mem_gb": 2, "daytona_disk_gb": 2,
+                        **({"tmax": tmax} if tmax else {})}}
     root.mix.publish([json.dumps(row)])
     return root
 
@@ -65,10 +67,18 @@ def _signal(root: layout.Root, *, run: str = RUN, task: str = "tw_a", group: int
     return layout.signal_id(run, task, group)
 
 
-def _stub(monkeypatch, status: str = "accepted", **extra) -> list[dict]:
+class _Seen(list):
+    """The process_one calls, in order; `.rows` is what the fold asked the row
+    builder for."""
+
+    rows: list[dict]
+
+
+def _stub(monkeypatch, status: str = "accepted", **extra) -> _Seen:
     """process_one as the loop sees it: edits the package the way an agent
     would (plus the harness files), returns the record."""
-    seen: list[dict] = []
+    seen = _Seen()
+    seen.rows = []
 
     def fake(rewrite, signal, *, job, seed_dir, resources=None, history=None):
         seen.append({"rewrite": rewrite, "signal": signal, "job": job, "seed_dir": seed_dir,
@@ -86,13 +96,18 @@ def _stub(monkeypatch, status: str = "accepted", **extra) -> list[dict]:
 
     monkeypatch.setattr(od.fb, "process_one", fake)
 
-    def to_row(d, *, task_id=None, inject_agent_runtime=True):
+    def to_row(d, *, task_id=None, inject_agent_runtime=True, pretest=None):
         # As pack.to_row: the identity is the caller's, since the directory
-        # is `package` here and `r<N>` once renamed.
+        # is `package` here and `r<N>` once renamed; the hook is the caller's
+        # too, and lands on the row's grading payload.
         tid = task_id or Path(d).name
         text = (Path(d) / "instruction.md").read_text()
+        seen.rows.append({"dir": d, "pretest": pretest})
+        tmax = {"test_sh": "echo 1\n"}
+        if pretest and pretest[0]:
+            tmax.update({"pre_test_sh": pretest[0], "pretest_env_identity": pretest[1]})
         return {"prompt": text, "label": tid,
-                "metadata": {"instance_id": tid, "problem_statement": text}}
+                "metadata": {"instance_id": tid, "problem_statement": text, "tmax": tmax}}
 
     monkeypatch.setattr(od.pack, "to_row", to_row)
     return seen
@@ -414,3 +429,40 @@ def test_strip_harness_leaves_the_package(tmp_path) -> None:
     od.strip_harness(pkg)
     assert sorted(str(p.relative_to(pkg)) for p in pkg.rglob("*") if p.is_file()) == [
         "environment/fixture.csv", "instruction.md"]
+
+
+HOOK = "set -u\nexit 0\n"
+STAMP = "image:hamishi740/swerl-tmax-v3:37a79d0fd9b9"
+
+
+def test_round_carries_the_rows_pin_hook_through_the_rewrite_and_the_fold(
+        tmp_path, monkeypatch) -> None:
+    root = _root(tmp_path, monkeypatch, tmax={"test_sh": "echo 1\n", "pre_test_sh": HOOK,
+                                              "pretest_env_identity": STAMP})
+    _signal(root)
+    seen = _stub(monkeypatch)
+
+    r = od.run_round(root, workers=1)
+
+    assert (r["handled"], r["accepted"], r["mix_version"]) == (1, 1, 2), r
+    rw = root.evolution.task("tw_a").rewrite_dirs()[0]
+    # The loop snapshots the row's hook beside rewrite.json, outside package/,
+    # where the probe reads it and the agent cannot edit it.
+    assert layout.read_pretest(rw.pretest) == (HOOK, STAMP)
+    # The fold hands the same hook to the row builder, which re-derives this
+    # package's environment identity; the row keeps grading with the pins.
+    assert [r["pretest"] for r in seen.rows] == [(HOOK, STAMP)]
+    tm = json.loads(root.mix.live.read_text())["metadata"]["tmax"]
+    assert tm["pre_test_sh"] == HOOK and tm["pretest_env_identity"] == STAMP
+
+
+def test_a_row_without_a_hook_folds_without_one(tmp_path, monkeypatch) -> None:
+    root = _root(tmp_path, monkeypatch)
+    _signal(root)
+    seen = _stub(monkeypatch)
+
+    assert od.run_round(root, workers=1)["accepted"] == 1
+    rw = root.evolution.task("tw_a").rewrite_dirs()[0]
+    assert not rw.pretest.exists()
+    assert [r["pretest"] for r in seen.rows] == [None]
+    assert "pre_test_sh" not in json.loads(root.mix.live.read_text())["metadata"]["tmax"]

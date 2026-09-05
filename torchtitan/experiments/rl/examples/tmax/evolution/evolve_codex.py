@@ -418,6 +418,23 @@ def _write_resources(pkg: Path, task: dict) -> None:
     (pkg / "run" / "resources.json").write_text(json.dumps(res, sort_keys=True) + "\n")
 
 
+def _write_pretest(pkg: Path, task: dict) -> None:
+    """Tell the sandbox tool the row's pin hook, so `./sandbox check` grades
+    the way training does: pins first, verifier second.
+
+    `_pretest` is what the loop read off the row into the rewrite's
+    pretest.json. This copy under run/ is the agent's, like resources.json:
+    it feeds the agent's own check and is stripped at the fold, while the
+    loop's probe reads the rewrite's file, which the session cannot reach. A
+    task without a hook writes nothing and the tool grades with the verifier
+    alone.
+    """
+    hook = task.get("_pretest")
+    if not hook or not hook[0]:
+        return
+    layout.write_pretest(pkg / "run" / "pretest.json", *hook)
+
+
 def _prepare_package(pkg: Path, task: dict) -> dict:
     """The package as the loop left it, plus what the agent needs: the seed's
     literals and size for `./sandbox check`, the training box, the role file
@@ -429,6 +446,7 @@ def _prepare_package(pkg: Path, task: dict) -> dict:
     fmap = ev.file_map(task)
     _write_seed_literals(pkg, fmap["test_state_py"])
     _write_resources(pkg, task)
+    _write_pretest(pkg, task)
     shutil.copy2(SPEC, pkg / "AGENTS.md")
     shutil.copy2(SANDBOX, pkg / "sandbox")
     os.chmod(pkg / "sandbox", 0o755)
@@ -1282,6 +1300,7 @@ def _resume_blind(rewrite: layout.RewriteDir, task: dict, observed: str,
     pkg = rewrite.package
     fmap = ev.file_map(task)
     _write_resources(pkg, task)
+    _write_pretest(pkg, task)
     fmap["test_state_py"] = _blind_repair(rewrite, vsession, fmap, observed, exit_code)
     text = _harness_check(pkg, name=f"check.resume{time.time_ns() % 100000}")
     if not _agent_checked(pkg):
@@ -1317,6 +1336,7 @@ def resume_agentic(rewrite: layout.RewriteDir, task: dict, observed: str,
     fmap = ev.file_map(task)
     (pkg / "run").mkdir(exist_ok=True)
     _write_resources(pkg, task)
+    _write_pretest(pkg, task)
     (pkg / "run" / "failure.txt").write_text(observed or "(no output captured)")
     for stale in ("verdict.txt", "checks.jsonl"):
         (pkg / "run" / stale).unlink(missing_ok=True)

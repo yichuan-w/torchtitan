@@ -79,6 +79,27 @@ def link_or_copy(src: Path, dst: Path) -> None:
         shutil.copy2(src, dst)
 
 
+def write_pretest(path: Path, pre_test_sh: str, env_identity: str) -> None:
+    """The pin hook a mix row carries, as ``pretest.json``: the check script
+    grading runs before the verifier, and the environment identity its pins
+    were captured against (the drift guard compares it to the package's)."""
+    write_json_atomic(path, {"pre_test_sh": pre_test_sh,
+                             "pretest_env_identity": env_identity})
+
+
+def read_pretest(path: Path) -> tuple[str, str] | None:
+    """``(pre_test_sh, pretest_env_identity)`` from a ``pretest.json``, or None
+    when there is no file, no readable JSON, or no script. A row without a
+    check has nothing to run, and every caller treats the three alike."""
+    try:
+        got = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return None
+    if not isinstance(got, dict) or not got.get("pre_test_sh"):
+        return None
+    return str(got["pre_test_sh"]), str(got.get("pretest_env_identity") or "")
+
+
 def sha256_file(path: Path) -> str:
     h = hashlib.sha256()
     with open(path, "rb") as f:
@@ -443,6 +464,14 @@ class RewriteDir:
     @property
     def meta(self) -> Path:
         return self.path / "rewrite.json"
+
+    @property
+    def pretest(self) -> Path:
+        """The input row's pin hook, snapshotted by the loop when the rewrite
+        starts (``write_pretest``); absent for a row that carries none. Beside
+        ``rewrite.json`` and outside ``package/``, where the probe reads it and
+        the agent's session cannot edit it."""
+        return self.path / "pretest.json"
 
     @property
     def package(self) -> Path:

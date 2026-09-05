@@ -354,6 +354,8 @@ Where it leaves things, all under `$TRL_BASE` and all specified in
   with `job` `harder` or `easier`. `rewrite.json` says which signal, which input revision,
   the status (`accepted`, `rejected`, `blocked`, `failed`, `kept`), the verdicts (oracle,
   `dark_paths`, `dark_literals`, `step`), the measured resources and the result revision.
+  `pretest.json` beside it is the row's pin hook, when the row carries one: the loop's
+  probe and the agent's `./sandbox check` grade with it, as training does.
   `package/` is the agent's working copy, with the run's rollout records hardlinked in as
   `traces/attempt-NN.jsonl` and `run/sandbox.log` and `run/checks.jsonl` holding the
   container's log and the agent's own verdicts; on `accepted` it is renamed to `r<N+1>/`

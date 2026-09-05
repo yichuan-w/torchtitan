@@ -20,11 +20,13 @@ A round:
      is no longer the task's measured a policy input that is gone; both get a
      `superseded` line and the reason.
   3. handle, concurrently across tasks: copy r<rev> to the rewrite's
-     package/, hardlink the rollout records under package/traces/, run
+     package/, hardlink the rollout records under package/traces/, snapshot
+     the row's pin hook as pretest.json beside rewrite.json, run
      feedback_loop.process_one there, record the verdict in rewrite.json.
   4. fold: for every accepted rewrite, strip the harness files, rename
-     package/ to r<N+1>/, rebuild the row and publish one new mix version for
-     the round. Then the lineage lines, then the ledger line, last.
+     package/ to r<N+1>/, rebuild the row (the replaced row's hook and size
+     carried across) and publish one new mix version for the round. Then the
+     lineage lines, then the ledger line, last.
   5. rebuild status.json from the ledger and every task's files, and commit
      the records (never packages, sessions or traces) to the audit repo.
 
@@ -106,19 +108,37 @@ ROW_KEYS = {"cpu": "daytona_cpu", "mem_gb": "daytona_mem_gb",
             "disk_gb": "daytona_disk_gb"}
 
 
-def declared_resources(mix: Path) -> dict[str, dict]:
-    """Per row of the mix, the daytona_* it declares, keyed by instance id."""
-    out: dict[str, dict] = {}
+def read_declared(mix: Path) -> tuple[dict[str, dict], dict[str, tuple[str, str]]]:
+    """One pass over the mix: per row, the daytona_* it declares and the pin
+    hook it carries (metadata.tmax.pre_test_sh with its environment stamp),
+    both keyed by instance id. The hook is read here because a package
+    carries none: the row is its only home, and the fold rebuilds the row from
+    the package."""
+    resources: dict[str, dict] = {}
+    pretests: dict[str, tuple[str, str]] = {}
     if not mix.exists():
-        return out
+        return resources, pretests
     for ln in open(mix):
         if not ln.strip():
             continue
         md = json.loads(ln).get("metadata") or {}
         iid = md.get("instance_id")
-        if iid:
-            out[iid] = {k: md[rk] for k, rk in ROW_KEYS.items() if rk in md}
-    return out
+        if not iid:
+            continue
+        resources[iid] = {k: md[rk] for k, rk in ROW_KEYS.items() if rk in md}
+        hook = row_pretest(md)
+        if hook:
+            pretests[iid] = hook
+    return resources, pretests
+
+
+def row_pretest(md: dict) -> tuple[str, str] | None:
+    """A row's pin hook as ``(pre_test_sh, pretest_env_identity)``, None when
+    it carries no check."""
+    tm = md.get("tmax") or {}
+    if not tm.get("pre_test_sh"):
+        return None
+    return str(tm["pre_test_sh"]), str(tm.get("pretest_env_identity") or "")
 
 
 def training_box(tid: str, declared: dict[str, dict] | None) -> dict:
@@ -381,13 +401,19 @@ def _compact_resources(p: dict | None) -> dict | None:
 
 
 def handle(root: layout.Root, sig: Signal, *, declared: dict[str, dict],
-           history: tuple[dict, dict], dry: bool = False) -> dict:
+           history: tuple[dict, dict], dry: bool = False,
+           pretests: dict[str, tuple[str, str]] | None = None) -> dict:
     """One signal, one rewrite directory, one verdict in rewrite.json.
 
     An accepted rewrite stays `running` on disk until the fold renames its
     package: the rewrite is not done until the revision exists, and a loop
     that dies in between leaves a record finalize_interrupted_traces marks
     rather than an `accepted` with no revision behind it.
+
+    `pretests` is the pin hook per row of the mix (read_declared). The task's,
+    when it has one, is snapshotted as the rewrite's pretest.json before
+    process_one runs: the agent's tool and the loop's probe both grade with
+    it, the way training does.
     """
     d = sig.data
     tid, rev = str(d["task"]), int(d["rev"])
@@ -409,6 +435,9 @@ def handle(root: layout.Root, sig: Signal, *, declared: dict[str, dict],
     if dry:
         meta["dry"] = True
     layout.write_json_atomic(rewrite.meta, meta)
+    hook = (pretests or {}).get(tid)
+    if hook:
+        layout.write_pretest(rewrite.pretest, *hook)
     try:
         shutil.copytree(src, rewrite.package)
         run_dir = root.run(str(d["run"])).path
@@ -492,6 +521,12 @@ def fold(root: layout.Root, accepted: list[dict]) -> int | None:
     1 CPU against a measured 2, a task starved into reading as too hard.
     Without a measurement the replaced row's values carry across.
 
+    The replaced row's pin hook carries across the same way, and for the
+    same reason: it lives on the row, not in the package. The row builder
+    re-derives the new package's environment identity beside the seed's
+    stamp, so a rewrite that kept the environment keeps the check and one
+    that rebuilt it is skipped by grading, as the guard intends.
+
     A task no longer in the mix is not re-added: it was taken out
     deliberately, and a new label lands at the END of the file, which
     rotates the held-out slice. Replace only.
@@ -520,15 +555,17 @@ def fold(root: layout.Root, accepted: list[dict]) -> int | None:
             # signal per task per round. A revision is never overwritten.
             _finish(h, "failed", stage="fold", reason=f"{target.name} already exists")
             continue
+        old_md = json.loads(rows[tid])["metadata"]
         try:
             strip_harness(rewrite.package)
             # The directory is `package` now and `r<N>` once renamed, so the
-            # row's identity is passed rather than read off the name.
-            row = pack.to_row(str(rewrite.package), task_id=tid)
+            # row's identity is passed rather than read off the name; so is
+            # the hook, which the package never held.
+            row = pack.to_row(str(rewrite.package), task_id=tid,
+                              pretest=row_pretest(old_md))
         except Exception as e:  # noqa: BLE001 -- one malformed package, not the round
             _finish(h, "failed", stage="fold", reason=f"{type(e).__name__}: {e}")
             continue
-        old_md = json.loads(rows[tid])["metadata"]
         sized = meta.get("resources") or {}
         for key, rk in ROW_KEYS.items():
             if sized.get(key) is not None:
@@ -743,14 +780,16 @@ def run_round(root: layout.Root, *, only: str | None = None, limit: int | None =
     if not todo:
         return result
 
-    # What box training gives each task, from the mix the trainer reads, and
-    # which axes the accepted rewrites already used. Read once per round: the
-    # mix is 12 MB on GPFS and the rewrite records are one small file each.
-    declared = declared_resources(root.mix.live)
+    # What box training gives each task and which pin hook it grades under,
+    # from the mix the trainer reads, and which axes the accepted rewrites
+    # already used. Read once per round: the mix is 12 MB on GPFS and the
+    # rewrite records are one small file each.
+    declared, pretests = read_declared(root.mix.live)
     history = operator_history(root)
     handled: list[dict] = []
     with ThreadPoolExecutor(max_workers=workers) as ex:
-        futs = {ex.submit(handle, root, s, declared=declared, history=history, dry=dry): s
+        futs = {ex.submit(handle, root, s, declared=declared, history=history, dry=dry,
+                          pretests=pretests): s
                 for s in todo}
         for fut in as_completed(futs):
             s = futs[fut]

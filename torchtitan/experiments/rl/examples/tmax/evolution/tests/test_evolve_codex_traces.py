@@ -433,3 +433,15 @@ def test_candidates_carry_the_full_card(monkeypatch) -> None:
 
 def test_harness_files_are_the_four_the_fold_strips() -> None:
     assert ec.HARNESS == ("AGENTS.md", "sandbox", "run", "traces")
+
+
+def test_write_pretest_tells_the_sandbox_tool_the_hook(tmp_path) -> None:
+    pkg = tmp_path / "pkg"
+    pkg.mkdir()
+    ec._write_pretest(pkg, {"instruction": "x"})
+    assert not (pkg / "run" / "pretest.json").exists()
+    ec._write_pretest(pkg, {"_pretest": None})
+    assert not (pkg / "run" / "pretest.json").exists()
+    ec._write_pretest(pkg, {"_pretest": ("set -u\nexit 0\n", "image:a/b:c")})
+    assert json.loads((pkg / "run" / "pretest.json").read_text()) == {
+        "pre_test_sh": "set -u\nexit 0\n", "pretest_env_identity": "image:a/b:c"}
