@@ -33,8 +33,8 @@ _TT_CANDIDATES = [
 ]
 
 
-def _rts_to_row():
-    """Import the training side's own row adapter.
+def _rts_module():
+    """Import the training side's own row adapter module.
 
     This module used to carry a hand-written mirror of prepare_rts_data._to_row.
     The mirror drifted: it dropped ``entrypoint`` (tasks whose environment is a
@@ -74,7 +74,18 @@ def _rts_to_row():
         mod = importlib.util.module_from_spec(spec)
         sys.modules[dotted] = mod
         spec.loader.exec_module(mod)
-    return sys.modules[f"{base}.prepare_rts_data"]._to_row
+    return sys.modules[f"{base}.prepare_rts_data"]
+
+
+def _rts_to_row():
+    return _rts_module()._to_row
+
+
+def fixture_ceiling() -> int:
+    """How many bytes a package's COPY sources, and separately its tests/
+    fixtures, may add up to before the adapter refuses it. One number, owned by
+    prepare_rts_data; read from there so nothing here can drift from it."""
+    return _rts_module()._MAX_CONTEXT_BYTES
 
 
 def to_row(task_dir: str, *, task_id: str | None = None,
