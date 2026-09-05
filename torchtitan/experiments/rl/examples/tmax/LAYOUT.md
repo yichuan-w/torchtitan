@@ -53,6 +53,7 @@ $TRL_BASE/
 │       ├── checkpoints -> <local disk>/ckpt/tmax-9b--<stamp>   rolled by SWE_CKPT_KEEP
 │       ├── checkpoints-held/step-<N>/   hardlinks of a step kept past the rotation (cp -al from checkpoints/)
 │       ├── checkpoints-staged/step-<N>/ a GPFS copy for eval nodes, made and pruned by eval_watcher.sh
+│       ├── checkpoints-mirror/step-<N>/ the newest complete step, copied to GPFS by ckpt_mirror.sh; one at a time
 │       ├── rollouts/<task>/g<group>-r<idx>.jsonl   one file per rollout (format below)
 │       │                     …/g<group>-r<idx>.pane    the terminal transcript, when TMAX_PANE_DUMP=1
 │       ├── signals/<task>--g<group>.json           one per zero-variance training group
@@ -297,7 +298,11 @@ keeps the inodes alive when the trainer unlinks its copy, so the space is
 freed only when the held copy is removed. A copy that eval nodes can read
 (they see GPFS only) is `checkpoints-staged/step-<N>`, which
 `eval_watcher.sh` makes before submitting and prunes when the job leaves the
-queue. Neither directory is written by the trainer.
+queue. The local disk is one box with no backup, so `ckpt_mirror.sh` (run
+from a timer) keeps the newest complete step of `runs/latest` in
+`checkpoints-mirror/step-<N>` on GPFS and drops the previous mirror when a
+newer step is complete: one checkpoint of quota buys a run that survives the
+box. None of the three directories is written by the trainer.
 
 ## Experiments and runs
 
