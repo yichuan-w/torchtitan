@@ -80,7 +80,8 @@ touch "$TEST_STATE/evolve-experiment"
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text("{}\n")
     config = tmp_path / "run.env"
-    config.write_text(f"""TRL_PROFILE=test
+    config.write_text(
+        f"""TRL_PROFILE=test
 TRL_BASE={root}
 TRL_VENV={tmp_path}/venv
 TRL_MODEL={tmp_path}/model
@@ -91,7 +92,8 @@ SWE_VAL_SAMPLES=89
 SWE_TB2_VAL_K=5
 SWE_NUM_EVAL_GENERATORS=1
 SWE_EVAL_GEN_DP=1
-""")
+"""
+    )
     state = tmp_path / "state"
     state.mkdir()
     trace = tmp_path / "trace"
