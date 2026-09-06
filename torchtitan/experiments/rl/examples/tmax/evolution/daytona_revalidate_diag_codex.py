@@ -83,6 +83,9 @@ from torchtitan.experiments.rl.examples.tmax.grading import (  # noqa: E402
     grade_tmax,
     seed_workspace,
 )
+from torchtitan.experiments.rl.examples.tmax.integrity_baseline import (  # noqa: E402
+    capture_baseline,
+)
 
 
 class _Root:
@@ -152,9 +155,12 @@ async def probe(pkg: Path, shortcut: str | None, solve_timeout: int) -> dict:
             cmd = f"cd {workdir} && bash /solution/solve.sh"
         else:
             cmd = f"cd {workdir} && {shortcut}"
+        # INTEGRITY BASELINE: the state the run starts from (solution/ in, nothing
+        # run yet), as daytona_revalidate takes it; None without protected entries.
+        baseline = await capture_baseline(sb, tmax, workdir=workdir, timeout=120)
         code, out, err = await sb.exec(cmd, check=False, timeout=solve_timeout)
         log(f"run exit={code}")
-        reward = await grade_tmax(sb, tmax, workdir=workdir)
+        reward = await grade_tmax(sb, tmax, workdir=workdir, baseline_digests=baseline)
         ctrf = await sb.read_file("/logs/verifier/ctrf.json", user="root")
     tail = (out + "\n" + err)[-400:]
     if shortcut is None:

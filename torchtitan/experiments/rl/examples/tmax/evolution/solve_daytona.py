@@ -38,6 +38,9 @@ import daytona_revalidate as dr         # noqa: E402  (_Root, _start_entrypoint)
 from torchtitan.experiments.rl.harness.agents.claude_code import (  # noqa: E402
     boot_agent_sandbox,
 )
+from torchtitan.experiments.rl.examples.tmax.integrity_baseline import (  # noqa: E402
+    capture_baseline,
+)
 from torchtitan.experiments.rl.examples.tmax.grading import (  # noqa: E402
     grade_tmax,
     seed_workspace,
@@ -172,12 +175,16 @@ async def attempt(row: dict, idx: int, max_turns: int,
             if md.get("entrypoint"):
                 await dr._start_entrypoint(sb, md["entrypoint"], workdir=workdir)
             await seed_workspace(sb, tmax)
+            # INTEGRITY BASELINE: after setup, before the agent's first action --
+            # the rollouter's seam -- for the codex and the chat agent alike.
+            baseline = await capture_baseline(sb, tmax, workdir=workdir, timeout=120)
             if agent == "codex":
                 a = await _codex_attempt(sb, md, workdir,
                                          budget=max_turns * AGENT_CMD_TIMEOUT)
                 if a.get("reward") is None:
                     return {**a, "t": round(time.time() - t0, 1)}
-                a["reward"] = await grade_tmax(sb, tmax, workdir=workdir)
+                a["reward"] = await grade_tmax(sb, tmax, workdir=workdir,
+                                               baseline_digests=baseline)
                 a["t"] = round(time.time() - t0, 1)
                 return a
             for turn in range(max_turns):
@@ -193,7 +200,7 @@ async def attempt(row: dict, idx: int, max_turns: int,
                     cmd,
                     check=False, timeout=AGENT_CMD_TIMEOUT)
                 history.append((cmd, f"exit={rc}\n{(out + err)[-2000:]}"))
-            reward = await grade_tmax(sb, tmax, workdir=workdir)
+            reward = await grade_tmax(sb, tmax, workdir=workdir, baseline_digests=baseline)
         return {"reward": reward, "turns": len(history),
                 "transcript": [{"cmd": c, "out": o[:800]} for c, o in history],
                 "t": round(time.time() - t0, 1)}

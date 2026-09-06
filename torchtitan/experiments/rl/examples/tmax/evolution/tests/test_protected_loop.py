@@ -223,6 +223,10 @@ class _FakeSandbox:
     async def write_file(self, dest, _content, **_kw):
         self.events.append(("write_file", dest))
 
+    async def read_file(self, path, **_kw):
+        self.events.append(("read_file", path))
+        return ""
+
 
 def _fake_revalidator(events: list) -> types.ModuleType:
     """daytona_revalidate as agent_sandbox._serve imports it, without Daytona: the boot yields a
@@ -470,3 +474,137 @@ def test_revalidator_without_lists_keeps_the_stamp_hook_and_passes_no_baseline(
     assert (
         _probe(pkg, monkeypatch, events)["pretest"] is None
     )  # no hook, no lists: as before
+
+
+# ---------------------------------------------------------------- the other graders in the loop
+# Every other grade_tmax call site under evolution/: each holds a root sandbox after its seed
+# step and before whatever acts on it, so each takes the baseline there and hands it to
+# grading. The fakes below replace the module's OWN names (boot, seed, grader, capture); the
+# module's real code runs in between.
+def _wire(
+    monkeypatch,
+    module,
+    events: list,
+    names=("boot_agent_sandbox", "seed_workspace", "grade_tmax", "capture_baseline"),
+):
+    fake = _fake_revalidator(events)
+    for name in names:
+        monkeypatch.setattr(module, name, getattr(fake, name))
+
+
+def _captured_then_graded(
+    events: list, *, before: str, after: str, n_entries: int
+) -> None:
+    """One capture, strictly between the ``before`` event and the ``after`` event, and the
+    object it returned is the one grade_tmax received."""
+    kinds = [e[0] for e in events]
+    assert (
+        kinds.count("capture_baseline") == 1 and kinds.count("grade_tmax") == 1
+    ), kinds
+    cap = kinds.index("capture_baseline")
+    assert (
+        kinds.index(before) < cap < kinds.index(after) < kinds.index("grade_tmax")
+    ), kinds
+    assert events[cap][1] == n_entries and events[cap][3] == 120
+    graded = events[kinds.index("grade_tmax")]
+    assert graded[2] is events[cap][4]
+    if n_entries == 0:
+        assert graded[2] is None
+
+
+def test_diag_codex_probe_takes_the_baseline_before_the_run(
+    tmp_path, monkeypatch
+) -> None:
+    import daytona_revalidate_diag_codex as dg
+
+    for name, lists in (("a", {"paths": PATHS, "cmds": CMDS}), ("b", None)):
+        pkg = _package(tmp_path, name, lists)
+        events: list = []
+        _wire(monkeypatch, dg, events)
+        verdict = asyncio.run(dg.probe(pkg, None, 5))
+        assert verdict["ok"] and verdict["reward"] == 1.0
+        _captured_then_graded(
+            events, before="write_file", after="exec", n_entries=4 if lists else 0
+        )
+        assert events[[e[0] for e in events].index("exec")][1].endswith(
+            "bash /solution/solve.sh"
+        )
+
+
+def test_oom_probe_takes_the_baseline_before_the_run(tmp_path, monkeypatch) -> None:
+    import probe_oom_suspects as pom
+
+    for name, lists in (("a", {"paths": PATHS, "cmds": CMDS}), ("b", None)):
+        pkg = _package(tmp_path, name, lists)
+        events: list = []
+        monkeypatch.setattr(pom.sd, "resolve_src", lambda _tid, _p=pkg: _p)
+        _wire(monkeypatch, pom, events)
+        rec = asyncio.run(pom.probe("task_x", 1, 2, 2, 5))
+        assert rec["reward"] == 1.0, rec
+        _captured_then_graded(
+            events, before="write_file", after="exec", n_entries=4 if lists else 0
+        )
+        execs = [e[1] for e in events if e[0] == "exec"]
+        assert (
+            execs[0].endswith("bash /solution/solve.sh") and execs[1] == pom.READ
+        )  # counters read before grading
+
+
+def test_solver_chat_agent_takes_the_baseline_before_its_first_command(
+    tmp_path, monkeypatch
+) -> None:
+    import solve_daytona as sd
+
+    for name, lists in (("a", {"paths": PATHS, "cmds": CMDS}), ("b", None)):
+        row = pack.to_row(str(_package(tmp_path, name, lists)))
+        events: list = []
+        _wire(monkeypatch, sd, events)
+        turns = iter(["echo hi", "DONE"])
+        monkeypatch.setattr(sd.llm, "agent_step", lambda _i, _h: next(turns))
+        got = asyncio.run(sd.attempt(row, 0, 3, agent="chat"))
+        assert (got["reward"], got["turns"]) == (1.0, 1), got
+        _captured_then_graded(
+            events, before="seed_workspace", after="exec", n_entries=4 if lists else 0
+        )
+        assert [e[1] for e in events if e[0] == "exec"] == ["echo hi"]
+
+
+def test_solver_codex_agent_takes_the_baseline_before_codex_runs(
+    tmp_path, monkeypatch
+) -> None:
+    import solve_daytona as sd
+
+    for name, lists in (("a", {"paths": PATHS, "cmds": CMDS}), ("b", None)):
+        row = pack.to_row(str(_package(tmp_path, name, lists)))
+        events: list = []
+        _wire(monkeypatch, sd, events)
+
+        async def codex(_sb, _md, _workdir, *, budget):
+            events.append(("codex", budget))
+            return {"reward": "pending_grade", "turns": None, "codex_exit": 0}
+
+        monkeypatch.setattr(sd, "_codex_attempt", codex)
+        got = asyncio.run(sd.attempt(row, 0, 2, agent="codex"))
+        assert got["reward"] == 1.0 and got["codex_exit"] == 0, got
+        _captured_then_graded(
+            events, before="seed_workspace", after="codex", n_entries=4 if lists else 0
+        )
+
+
+def test_provisioning_verifier_takes_the_baseline_before_the_run(
+    tmp_path, monkeypatch
+) -> None:
+    import verify_provisioning as vp
+
+    for name, lists in (("a", {"paths": PATHS, "cmds": CMDS}), ("b", None)):
+        pkg = _package(tmp_path, name, lists)
+        events: list = []
+        monkeypatch.setattr(vp.sd, "resolve_src", lambda _tid, _p=pkg: _p)
+        _wire(monkeypatch, vp, events)
+        rec = asyncio.run(vp.verify("task_x", 1, 2, 2, asyncio.Semaphore(1), 5))
+        assert rec["reward"] == 1.0, rec
+        _captured_then_graded(
+            events, before="write_file", after="exec", n_entries=4 if lists else 0
+        )
+        execs = [e[1] for e in events if e[0] == "exec"]
+        assert execs[0] == "bash /solution/solve.sh" and execs[1] == vp.CGROUP_READ

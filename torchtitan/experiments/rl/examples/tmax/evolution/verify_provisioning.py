@@ -50,6 +50,7 @@ else:
 import daytona_revalidate as dr  # noqa: E402
 import solve_daytona as sd
 from torchtitan.experiments.rl.examples.tmax.grading import grade_tmax, seed_workspace
+from torchtitan.experiments.rl.examples.tmax.integrity_baseline import capture_baseline
 from torchtitan.experiments.rl.harness.agents.claude_code import boot_agent_sandbox
 
 CODEX_RAM, CODEX_DISK = 359.5, 357.0
@@ -154,6 +155,9 @@ async def verify(tid: str, cpu: int, mem: int, disk: int,
                 # full marks to an empty rollout. tw_158378 is one -- `prm list`
                 # alone scores 1.0 there -- and the sweep is how you find the
                 # rest instead of guessing at how many.
+                # INTEGRITY BASELINE: solution/ in, nothing run yet; the grade
+                # below re-digests it, as training does.
+                baseline = await capture_baseline(sb, tmax, workdir=workdir, timeout=120)
                 code, out, err = await sb.exec(
                     cmd or "bash /solution/solve.sh",
                     check=False, timeout=timeout)
@@ -168,7 +172,7 @@ async def verify(tid: str, cpu: int, mem: int, disk: int,
                         if x.isdigit()]
                 usec = next((int(x) for x in (parts[2] if len(parts) > 2 else "").split()
                              if x.isdigit()), None)
-                reward = await grade_tmax(sb, tmax, workdir=workdir)
+                reward = await grade_tmax(sb, tmax, workdir=workdir, baseline_digests=baseline)
                 # What the box had left when everything was done.
                 _, dfout, _ = await sb.exec(
                     "df -B1 --output=size,used / | tail -1", check=False, timeout=60)
