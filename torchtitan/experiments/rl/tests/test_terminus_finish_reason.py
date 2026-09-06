@@ -413,6 +413,57 @@ def test_running_out_of_budget_is_reported_as_such(monkeypatch):
     )
 
 
+def test_budget_cancels_an_in_flight_episode(monkeypatch):
+    import torchtitan.experiments.rl.harness.agents.terminus as terminus
+
+    cancelled = []
+
+    async def pending(self, *_args):
+        self._n_episodes = 3
+        try:
+            await asyncio.wait_for(asyncio.Future(), timeout=0.05)
+        finally:
+            cancelled.append(True)
+
+    monkeypatch.setattr(_FakeTerminus2, "run", pending)
+    # The existing helper supplies a 60-second budget. Advance only the harness
+    # clock after setup, leaving the event loop clock alone.
+    ticks = iter([0.0, 60.0])
+    monkeypatch.setattr(
+        terminus, "time", types.SimpleNamespace(monotonic=lambda: next(ticks))
+    )
+    run = _run(monkeypatch, max_turns=10, episodes=3, pending_completion=False)
+    assert cancelled == [True]
+    assert (run.finish_reason, run.submitted, run.turns) == (
+        "hit_time_budget",
+        False,
+        3,
+    )
+
+
+def test_external_cancellation_is_not_agent_exhaustion(monkeypatch, caplog):
+    with pytest.raises(asyncio.CancelledError):
+        _run(
+            monkeypatch,
+            max_turns=10,
+            episodes=2,
+            pending_completion=False,
+            raises=asyncio.CancelledError(),
+        )
+    assert "cancelled stage=run episodes=2" in caplog.text
+
+
+def test_underlying_timeout_is_not_agent_exhaustion(monkeypatch):
+    run = _run(
+        monkeypatch,
+        max_turns=10,
+        episodes=2,
+        pending_completion=False,
+        raises=TimeoutError("sandbox transport"),
+    )
+    assert run.finish_reason == "error"
+
+
 # --------------------------------------------------------------------------
 # The truncation seam. Terminus-2 handles a turn cut off at max_tokens INSIDE its
 # LLM call -- salvage a complete action from the truncated text, else re-ask for a
