@@ -133,40 +133,31 @@ systemctl --user stop "train-$(basename "$TRL_BASE")" "evolve-$(basename "$TRL_B
 Evaluation is part of the trainer process. Stopping the trainer stops its
 evaluation too. The longer [RUNBOOK.md](RUNBOOK.md) covers tuning and debugging.
 
-## Watch rewards while tasks evolve
+## Watch accuracy while tasks evolve
 
-The shared defaults enable `RL_OBSERVE_REWARDS=1`. Each real launch starts a
-separate CPU observer, which updates a companion W&B run every five minutes.
-The companion is named `observe-<training-run-id>` in the training run's project.
-The trainer's metrics and history remain owned by the trainer.
-Set `RL_OBSERVE_REWARDS=0` in the run config to disable the companion.
+The runbook starts one W&B companion named `accuracy-<training-run-id>`, in the
+training run's project. Open its single `Accuracy` panel. It updates every five
+minutes without restarting training.
 
-Open the companion run's workspace and look for these panels:
+The default view compares the first and latest results on the same unchanged
+tasks. The slope and percentage-point label show the change directly. Both ends
+use the same task IDs and sample hashes; infrastructure failures and missing
+scores are excluded. The participating tasks can change between updates, so
+compare the two points within a snapshot. These are training tasks; fixed TB
+pass@5 remains the measure of generalization.
 
-| Question | Panel | How to read it |
-| --- | --- | --- |
-| Are the same unchanged training tasks improving? | `paired/comparison` | First versus latest observation, restricted to identical task IDs and sample hashes across different epochs. Both bars use the same tasks. |
-| How are original task versions doing through training? | `seed_only/by_policy` | Accuracy and mean reward for r0 groups, including their history before a later rewrite. The sampled task mix can differ between points. |
-| What happened to one task through its rewrites? | `lineage/explorer` | Type a task ID, select it, and press Show. Points and the table give revision, policy, successes, scored attempts, and infrastructure failures. |
-| Which individual observations produced the plots? | `lineage/groups` | Filter the task column to inspect the underlying group records. |
-| Is the observer current? | `observer/snapshot_unix`, `observer/groups` | The timestamp advances each poll; the group count advances when new groups finish. |
+To inspect one task and its rewrites, enter its task ID in the same panel and click Show.
+Each point names its task revision. A change across revisions also reflects a
+changed problem. The policy label is the version at group start, not an exact
+single-policy evaluation. Click All unchanged tasks to return to the overview.
 
-Accuracy counts positive rewards as successes, matching the controller, and divides
-by scored attempts. Reward is the mean
-of those scored rewards; the two coincide when rewards are binary. Infrastructure
-failures and missing/nonfinite rewards are excluded, and their counts remain visible.
-The paired cohort contains tasks not yet replaced by an evolved version in the training mix at each snapshot;
-it can change as more tasks evolve. Compare its two bars within a snapshot.
-The paired panel appears after unchanged tasks have observations in multiple epochs.
-This is training performance on a selected cohort, not held-out generalization.
+The observer is enabled by `RL_OBSERVE_REWARDS=1` in the shared defaults. Set it
+to 0 in the run config to disable it. Logs, input caches, snapshots, and the W&B
+URL (`wandb.json`) stay under `runs/<run>/observer/`. It stops after W&B reports
+that the training run ended.
 
-The policy axis records the generator version at group claim. An asynchronous
-rollout can span subsequent weight updates, so this is not an exact single-policy
-evaluation. For fixed benchmark progress, use the training run's
-`validation/pass_at_k/mean` (TB pass@5) against `validation/policy_version`.
-
-To attach the observer to an already running experiment, run this from your
-checkout using your own output directory. The source root is read-only:
+For an existing run, attach the observer from your checkout with an output
+directory you own:
 
 ```bash
 "$TRL_VENV/bin/python" torchtitan/experiments/rl/examples/tmax/evolution/observe_rewards.py \
@@ -174,14 +165,6 @@ checkout using your own output directory. The source root is read-only:
   --out /absolute/path/to/observer-output --upload --watch
 ```
 
-The source W&B URL is read from the trainer's startup log; `--source-wandb
-ENTITY/PROJECT/RUN_ID` supplies it explicitly. Omit `--upload --watch` for a
-single local snapshot. Keep the output directory when restarting: completed
-groups reload from its cache, and W&B resumes the same companion run. Independent
-snapshot directories retain the rows, folds, and aggregate results; group cache
-files retain the full input headers and lifecycle events.
-
-For launches through the example config, logs and snapshots are in
-`runs/<run>/observer/`, and `wandb.json` contains the companion URL. The observer
-stops after its final upload when W&B reports that the source run ended. To stop
-only the observer manually, use `systemctl --user stop observe-<run-directory-name>`.
+Keep that output directory when restarting to reuse the cached inputs. Omit
+`--upload --watch` for one local snapshot. Stop only the observer with
+`systemctl --user stop observe-<run-directory-name>`.

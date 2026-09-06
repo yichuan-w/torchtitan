@@ -1,35 +1,41 @@
 <!doctype html>
-<html lang="en"><meta charset="utf-8"><title>Task lineage rewards</title>
+<html lang="en"><meta charset="utf-8"><title>Accuracy</title>
 <style>
-body{font:14px system-ui,sans-serif;margin:20px;color:#182235;background:#fff}label{display:block;margin:12px 0}input{padding:8px;width:300px}svg{width:100%;max-width:900px;height:260px}table{border-collapse:collapse;width:100%}th,td{text-align:left;padding:7px;border-bottom:1px solid #ddd}p{max-width:900px;color:#4b5563}button{padding:7px}
+body{font:16px system-ui,sans-serif;margin:24px;color:#182235;background:white}p{max-width:850px;color:#526071;line-height:1.5}input{padding:8px;width:300px}button{padding:8px}svg{width:100%;max-width:900px;height:300px}#change{font-size:28px;font-weight:650;margin:18px 0 4px}small{color:#64748b}table{border-collapse:collapse;width:100%;max-width:900px}td{padding:8px;border-bottom:1px solid #ddd}
 </style>
-<h2>Task lineage: solve rate and reward</h2>
-<p>Select one task to follow its original and rewritten versions. Each point is a finalized rollout group. The x-axis is the policy version when the group was claimed; a rollout may span later weight updates.</p>
-<label>Task <input id="task" list="tasks"><datalist id="tasks"></datalist><button id="show">Show</button></label>
-<p id="count"></p><svg id="chart" viewBox="0 0 900 260" role="img" aria-label="Accuracy and reward by policy at group claim"></svg>
-<p>Blue: solve rate. Orange: mean reward. For binary rewards they coincide. Revision changes also change the problem; a lower rate after a rewrite does not alone imply a worse model. Infrastructure failures and missing or nonfinite rewards are excluded.</p>
-<table><thead><tr><th>Revision</th><th>Policy at claim</th><th>Epoch</th><th>Solved / scored</th><th>Reward</th><th>Infra failures</th><th>Group</th></tr></thead><tbody id="detail"></tbody></table>
+<h2>Accuracy on unchanged tasks</h2>
+<p id="explanation"></p>
+<label>View <input id="task" list="tasks" placeholder="All unchanged tasks"><datalist id="tasks"></datalist></label>
+<button id="show">Show</button> <button id="all">All unchanged tasks</button>
+<div id="change"></div><p id="count"></p>
+<svg id="chart" viewBox="0 0 900 300" role="img" aria-label="Accuracy change"></svg>
+<table id="detail"></table>
+<p id="note"></p><small id="updated"></small>
 <script>
-const rows=__ROWS__;
-const ids=[...new Set(rows.map(r=>r.task))].sort();
+const rows=__ROWS__, summary=__SUMMARY__;
 const input=document.getElementById('task');
-for(const id of ids){const o=document.createElement('option');o.value=id;document.getElementById('tasks').appendChild(o)}
-input.value=ids.find(id=>new Set(rows.filter(r=>r.task===id).map(r=>r.rev)).size>1)||ids[0]||'';
+for(const id of [...new Set(rows.map(r=>r.task))].sort()){const o=document.createElement('option');o.value=id;document.getElementById('tasks').appendChild(o)}
+const pct=v=>(100*v).toFixed(1)+'%';
 function draw(){
- const selected=rows.filter(r=>r.task===input.value).sort((a,b)=>a.policy_at_claim-b.policy_at_claim||a.group-b.group);
- document.getElementById('count').textContent=`${selected.length} groups; ${selected.reduce((n,r)=>n+r.scored,0)} scored attempts. Revision r0 is the original task.`;
- const detail=document.getElementById('detail');detail.replaceChildren();
- for(const r of selected){const tr=document.createElement('tr');for(const value of [`r${r.rev}`,r.policy_at_claim,r.epoch,`${r.solved} / ${r.scored}`,r.reward===null?'unscored':r.reward.toFixed(4),r.infra,r.group]){const td=document.createElement('td');td.textContent=value;tr.appendChild(td)}detail.appendChild(tr)}
+ const overview=!input.value;
+ const chosen=overview?[]:rows.filter(r=>r.task===input.value).sort((a,b)=>a.group-b.group);
+ const points=overview?[{label:'First observation',...summary.baseline},{label:'Latest observation',...summary.current}]:chosen.map(r=>({...r,label:`Policy ${r.policy_at_claim} · r${r.rev}`}));
+ const scored=points.filter(r=>r.accuracy!==null);
+ const delta=scored.length>1?(scored.at(-1).accuracy-scored[0].accuracy)*100:null;
+ document.querySelector('h2').textContent=overview?'Accuracy on unchanged tasks':input.value;
+ document.getElementById('explanation').textContent=overview?'To see whether the model improved, compare its first and latest results on the same unchanged tasks.':'Follow this task through training. r0 is the original task; r1, r2, … are rewritten versions.';
+ document.getElementById('change').textContent=delta===null?'Waiting for repeated observations':`${delta>=0?'+':''}${delta.toFixed(1)} percentage points`;
+ document.getElementById('count').textContent=overview?`${summary.baseline.tasks} identical tasks in both observations. Accuracy = successful attempts / scored attempts.`:`${chosen.length} observations. Each point shows successful attempts / scored attempts.`;
+ document.getElementById('note').textContent=overview?'Tasks enter or leave this comparison as observations arrive or tasks are rewritten. Compare the two points in this snapshot. These are training tasks; use fixed TB evaluation to judge generalization. Infrastructure failures and missing scores are excluded.':'A change between different task versions also reflects a changed problem. The policy label gives the model version at group start; asynchronous rollouts can span later model updates. Infrastructure failures and missing scores are excluded.';
+ document.getElementById('updated').textContent=`Updated ${summary.updated} · refreshes every five minutes`;
  const svg=document.getElementById('chart');svg.replaceChildren();
  const add=(tag,attrs,text)=>{const el=document.createElementNS('http://www.w3.org/2000/svg',tag);for(const[k,v]of Object.entries(attrs))el.setAttribute(k,v);if(text!==undefined)el.textContent=text;svg.appendChild(el);return el};
- const lo=Math.min(...selected.map(r=>r.policy_at_claim),0),hi=Math.max(...selected.map(r=>r.policy_at_claim),1);
- const x=v=>55+(v-lo)/(hi-lo)*790,y=v=>210-v*180;
- for(const v of [0,.25,.5,.75,1]){add('line',{x1:55,x2:845,y1:y(v),y2:y(v),stroke:'#ddd'});add('text',{x:10,y:y(v)+4,fill:'#555'},`${v*100}%`)}
- for(const field of ['reward','accuracy']){
- const valid=selected.filter(r=>r[field]!==null);add('polyline',{points:valid.map(r=>`${x(r.policy_at_claim)},${y(r[field])}`).join(' '),fill:'none',stroke:field==='accuracy'?'#2563eb':'#ea580c','stroke-width':field==='accuracy'?2:5});
- for(const r of valid){const c=add('circle',{cx:x(r.policy_at_claim),cy:y(r[field]),r:4,fill:field==='accuracy'?'#2563eb':'#ea580c'});const t=document.createElementNS('http://www.w3.org/2000/svg','title');t.textContent=`r${r.rev}: ${field}=${r[field].toFixed(4)}, ${r.solved}/${r.scored}, policy ${r.policy_at_claim}`;c.appendChild(t)}
- }
- for(const r of selected){add('text',{x:x(r.policy_at_claim),y:230,'text-anchor':'middle',fill:'#555'},`${r.policy_at_claim} (r${r.rev})`)}
+ const x=i=>110+i/Math.max(points.length-1,1)*640,y=v=>225-v*180;
+ for(const v of [0,.25,.5,.75,1]){add('line',{x1:60,x2:820,y1:y(v),y2:y(v),stroke:'#e2e8f0'});add('text',{x:10,y:y(v)+4,fill:'#64748b'},pct(v))}
+ add('polyline',{points:points.map((r,i)=>r.accuracy===null?null:`${x(i)},${y(r.accuracy)}`).filter(Boolean).join(' '),fill:'none',stroke:'#2563eb','stroke-width':3});
+ points.forEach((r,i)=>{if(r.accuracy===null)return;const c=add('circle',{cx:x(i),cy:y(r.accuracy),r:6,fill:'#2563eb'});const t=document.createElementNS('http://www.w3.org/2000/svg','title');t.textContent=`${r.label}: ${r.solved}/${r.scored}`;c.appendChild(t);add('text',{x:x(i),y:y(r.accuracy)-15,'text-anchor':'middle',fill:'#182235'},pct(r.accuracy));add('text',{x:x(i),y:255,'text-anchor':'middle',fill:'#64748b'},r.label)});
+ const table=document.getElementById('detail');table.replaceChildren();
+ for(const r of points){const tr=document.createElement('tr');for(const value of [r.label,`${r.solved} / ${r.scored}`,r.accuracy===null?'No scored attempts':pct(r.accuracy)]){const td=document.createElement('td');td.textContent=value;tr.appendChild(td)}table.appendChild(tr)}
 }
-input.addEventListener('change',draw);document.getElementById('show').addEventListener('click',draw);draw();
+input.addEventListener('change',draw);document.getElementById('show').addEventListener('click',draw);document.getElementById('all').addEventListener('click',()=>{input.value='';draw()});draw();
 </script></html>
