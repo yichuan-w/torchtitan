@@ -48,6 +48,7 @@ behavior (e.g. to A/B fidelity against published numbers).
 
 from __future__ import annotations
 
+import asyncio
 import logging
 import os
 import re
@@ -491,6 +492,7 @@ async def terminus_agent(task: AgentTask) -> AgentRun:
     agent = None
     parser: _CountingParser | None = None
     llm: _AdapterLLM | None = None
+    stage = "initialize"
     # Same contract the vanillux loop honors: stop at a turn boundary once the
     # rollout's wall clock is spent. Without it Terminus-2 runs until the
     # rollouter's outer guard kills it, which lands as an infra failure and a
@@ -537,8 +539,22 @@ async def terminus_agent(task: AgentTask) -> AgentRun:
             context = AgentContext()
             # tmux bring-up rides on DaytonaSandbox's own session-create retry;
             # no retry loop here.
+            stage = "setup"
+            logger.info("[terminus] session=%s stage=%s start", task.session_id, stage)
             await agent.setup(env)
-            await agent.run(task.instruction, env, context)
+            stage = "run"
+            logger.info("[terminus] session=%s stage=%s start", task.session_id, stage)
+            # A check before the next LLM call cannot interrupt a pending call or
+            # terminal command. Enforce the remaining budget here so those waits
+            # end as agent exhaustion, before the whole-rollout guard fires.
+            remaining = max(0.0, deadline - time.monotonic()) if deadline else None
+            async with asyncio.timeout(remaining) as agent_timeout:
+                try:
+                    await agent.run(task.instruction, env, context)
+                except asyncio.CancelledError:
+                    if not agent_timeout.expired():
+                        raise
+                    raise _TimeBudgetExhausted("agent execution budget spent") from None
             turns = _episodes(agent)
             # Terminus-2's loop has THREE exits, and only one of them is a submit:
             # it runs the episodes out; it returns early on a confirmed
@@ -564,6 +580,14 @@ async def terminus_agent(task: AgentTask) -> AgentRun:
             # not the task, is what stopped the agent.
             turns = _episodes(agent)
             finish_reason = "hit_context_limit"
+        except asyncio.CancelledError:
+            logger.warning(
+                "[terminus] session=%s cancelled stage=%s episodes=%d",
+                task.session_id,
+                stage,
+                _episodes(agent),
+            )
+            raise
         except Exception as e:
             logger.warning(
                 "[terminus] session=%s failed: %s: %s",
