@@ -1,9 +1,16 @@
 #!/usr/bin/env python3
+# Copyright (c) Meta Platforms, Inc. and affiliates.
+# All rights reserved.
+#
+# This source code is licensed under the BSD-style license found in the
+# LICENSE file in the root directory of this source tree.
+
 """Stage repairs for two seed tasks; never modify the source packages.
 
 Run with --tasks-dir pointing at the published packages and --output at a new
 directory. Validate the staged packages on Daytona before publishing them.
 """
+
 from __future__ import annotations
 
 import argparse
@@ -45,7 +52,7 @@ education, project and skills content in the PDF.
 The conversion must go through a LaTeX intermediate: save it at `/app/cv.tex`
 and compile it to a valid, text-readable PDF. Leave the source HTML unchanged.
 """
-CV_TESTS = '''
+CV_TESTS = """
 
 def normalized(text):
     import re
@@ -81,7 +88,7 @@ def test_latex_intermediate():
     assert "\\\\begin{document}" in source
     assert "\\\\end{document}" in source
     assert "Dataset Inspector" in source
-'''
+"""
 
 
 def main():
@@ -111,30 +118,57 @@ def main():
             docker.write_text(text[:start] + block + text[end:])
         else:
             assert "WORKDIR /app" in text
-            docker.write_text(text.replace("WORKDIR /app", "COPY source-cv.html /app/source-cv.html\n\nWORKDIR /app"))
+            docker.write_text(
+                text.replace(
+                    "WORKDIR /app",
+                    "COPY source-cv.html /app/source-cv.html\n\nWORKDIR /app",
+                )
+            )
             (target / "environment/source-cv.html").write_text(CV_HTML)
             instruction = target / "instruction.md"
             header = instruction.read_text().split("\n\n", 1)[0]
             instruction.write_text(header + "\n" + CV_INSTRUCTION)
             solve = target / "solution/solve.sh"
-            solve.write_text(solve.read_text().replace(
-                "https://p18kout.github.io/online-cv/", "/app/source-cv.html"))
+            solve.write_text(
+                solve.read_text().replace(
+                    "https://p18kout.github.io/online-cv/", "/app/source-cv.html"
+                )
+            )
             tests = target / "tests/test_state.py"
             tests.write_text(tests.read_text() + CV_TESTS)
-            (target / "tests/protected_paths.json").write_text(json.dumps(
-                {"paths": ["/app/source-cv.html"], "cmds": []}) + "\n")
+            (target / "tests/protected_paths.json").write_text(
+                json.dumps({"paths": ["/app/source-cv.html"], "cmds": []}) + "\n"
+            )
         for file in sorted(target.rglob("*")):
             if not file.is_file():
                 continue
             rel = file.relative_to(target)
             before = source / rel
             new_hash = hashlib.sha256(file.read_bytes()).hexdigest()
-            old_hash = hashlib.sha256(before.read_bytes()).hexdigest() if before.exists() else None
+            old_hash = (
+                hashlib.sha256(before.read_bytes()).hexdigest()
+                if before.exists()
+                else None
+            )
             if new_hash != old_hash:
-                records.append({"task_id": task_id, "path": str(rel),
-                                "before_sha256": old_hash, "after_sha256": new_hash})
-        print(json.dumps({"timestamp": datetime.now(timezone.utc).isoformat(),
-                          "task_id": task_id, "status": "staged"}), flush=True)
+                records.append(
+                    {
+                        "task_id": task_id,
+                        "path": str(rel),
+                        "before_sha256": old_hash,
+                        "after_sha256": new_hash,
+                    }
+                )
+        print(
+            json.dumps(
+                {
+                    "timestamp": datetime.now(timezone.utc).isoformat(),
+                    "task_id": task_id,
+                    "status": "staged",
+                }
+            ),
+            flush=True,
+        )
     (args.output / "changes.json").write_text(json.dumps(records, indent=2) + "\n")
 
 
