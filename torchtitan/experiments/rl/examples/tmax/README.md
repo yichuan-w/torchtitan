@@ -1,5 +1,8 @@
 # tmax terminal-agent RL (Qwen3.5-9B GDN)
 
+For the combined TerminalWorld + TMax training, TB 2.1 evaluation, and evolution
+workflow, start with the [short run guide](runbook/README.md).
+
 Post-train a Qwen model as a **terminal agent** on the AI2 tmax corpus: each task
 boots its own container, the policy drives a single-`bash`-tool agent loop until it
 submits, and the task's own verifier script produces a binary reward that feeds

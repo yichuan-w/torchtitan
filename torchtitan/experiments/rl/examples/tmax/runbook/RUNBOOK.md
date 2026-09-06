@@ -1,5 +1,9 @@
 # TerminalWorld 9B RL — reproduction runbook
 
+For the current combined training/evaluation/evolution entry point and when data
+needs rebuilding, use [README.md](README.md). This document holds the detailed
+environment, tuning, and debugging notes.
+
 How to bring up the terminal-agent RL stack from zero on a fresh 8x B300 host.
 
 Everything here is the configuration that ran on `della-tridao`, copied from the
