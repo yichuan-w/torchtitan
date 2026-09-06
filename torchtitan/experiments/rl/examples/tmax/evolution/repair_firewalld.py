@@ -31,7 +31,8 @@ def main() -> None:
     shutil.copytree(args.tasks_dir / target.name, target)
     instruction = target / "instruction.md"
     old = instruction.read_text()
-    canary = old[old.index("# BENCHMARK DATA") :]
+    marker = old.find("# BENCHMARK DATA")
+    canary = old[marker:] if marker >= 0 else ""
     instruction.write_text(INSTRUCTION + canary)
     print(target)
 
