@@ -251,7 +251,9 @@ def main() -> None:
     print(f"packages {'pinned' if a.apply else 'to pin'}: {len(pinned)}")
 
     if a.mix:
-        from torchtitan.experiments.rl.examples.tmax import layout
+        from pack_to_dataset import _tmax_modules
+
+        layout = _tmax_modules("layout")
 
         rows = [json.loads(l) for l in a.mix.read_text().splitlines() if l.strip()]
         want = set(pinned) | set(a.ids or [])

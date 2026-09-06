@@ -1,4 +1,10 @@
 #!/usr/bin/env python3
+# Copyright (c) Meta Platforms, Inc. and affiliates.
+# All rights reserved.
+#
+# This source code is licensed under the BSD-style license found in the
+# LICENSE file in the root directory of this source tree.
+
 """Remove a task from the live mix, without disturbing the held-out tail.
 
 The last `holdout_n` rows are the frozen validation slice, and training serves
@@ -20,7 +26,9 @@ import argparse
 import json
 from pathlib import Path
 
-from torchtitan.experiments.rl.examples.tmax import layout
+from pack_to_dataset import _tmax_modules
+
+layout = _tmax_modules("layout")
 
 HOLDOUT_N = 64
 
@@ -28,7 +36,9 @@ HOLDOUT_N = 64
 def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("task_ids", nargs="+")
-    ap.add_argument("--mix", default=None, help="default: $TRL_BASE/data/mix/live.jsonl")
+    ap.add_argument(
+        "--mix", default=None, help="default: $TRL_BASE/data/mix/live.jsonl"
+    )
     ap.add_argument("--why", required=True, help="why this task is being removed")
     ap.add_argument("--apply", action="store_true")
     a = ap.parse_args()
@@ -43,8 +53,10 @@ def main() -> None:
         if t not in ids:
             print(f"  {t}: not in the mix")
         elif t in tail:
-            print(f"  {t}: IN THE HOLDOUT -- refusing; removing it would swap in a "
-                  f"new validation task")
+            print(
+                f"  {t}: IN THE HOLDOUT -- refusing; removing it would swap in a "
+                f"new validation task"
+            )
         else:
             drop.append(t)
             print(f"  {t}: row {ids.index(t)}, will be removed")
@@ -59,11 +71,20 @@ def main() -> None:
     published = layout.write_mix(mix, keep)
     log = mix.parent / "removed_tasks.jsonl"
     for t in drop:
-        layout.append_jsonl(log, {"task_id": t, "removed_at": layout.stamp(), "why": a.why,
-                                  "mix_version": published[0] if published else None})
+        layout.append_jsonl(
+            log,
+            {
+                "task_id": t,
+                "removed_at": layout.stamp(),
+                "why": a.why,
+                "mix_version": published[0] if published else None,
+            },
+        )
     new_ids = [json.loads(l)["metadata"]["instance_id"] for l in keep]
-    print(f"{len(lines)} -> {len(keep)} rows"
-          + (f"; published mix v{published[0]:04d}" if published else ""))
+    print(
+        f"{len(lines)} -> {len(keep)} rows"
+        + (f"; published mix v{published[0]:04d}" if published else "")
+    )
     print(f"holdout unchanged: {set(new_ids[-HOLDOUT_N:]) == tail}")
     print(f"reason logged to {log}")
 
