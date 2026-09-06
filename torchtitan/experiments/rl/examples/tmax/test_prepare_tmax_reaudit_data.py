@@ -38,6 +38,7 @@ def _load(name: str):
 
 PREP = _load("prepare_tmax_data")
 RTS = _load("prepare_rts_data")
+_load("integrity_baseline")  # the script imports tmax_protected_fields from it
 R = _load("prepare_tmax_reaudit_data")
 
 _REF = "hamishi740/swerl-tmax-v3:0123456789ab"

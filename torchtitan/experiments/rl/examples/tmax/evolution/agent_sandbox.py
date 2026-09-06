@@ -17,8 +17,15 @@ of those and timed out. This hands the agent the container itself.
     ./sandbox exec 'CMD'    run CMD inside, as root, from the image's workdir;
                             --timeout N (default 120 s); exits with CMD's code
     ./sandbox oracle        copy solution/ in, run solve.sh, grade with the
-                            package's verifier; prints the reward
-    ./sandbox grade         grade the current state without running anything
+                            package's verifier; prints the reward. A package
+                            with protected paths/commands (tests/
+                            protected_paths.json, or the lists its row
+                            carries) is digested right before solve.sh runs
+                            and re-digested before the verifier; a difference
+                            grades 0
+    ./sandbox grade         grade the current state without running anything;
+                            protected entries are held to the digests taken
+                            at up
     ./sandbox reset         down, then up: a fresh container from the current
                             Dockerfile (--max as for up)
     ./sandbox check         reset; grade, which must FAIL (a verifier that
@@ -46,7 +53,9 @@ socket cannot be bound on the GPFS mount the package lives on; nothing durable
 is written there.
 
 oracle and grade re-read the package every time, so an edited verifier or
-solution is picked up without a reset; an edited Dockerfile needs `reset`.
+solution is picked up without a reset; an edited Dockerfile needs `reset`, and
+so does an edited tests/protected_paths.json: grade refuses until the baseline
+is retaken at up.
 Every check's verdict is appended to run/checks.jsonl, which the caller reads
 to learn whether the agent ever saw its own rewrite pass, and what the
 reference solution cost when it did: that measurement, not a number anyone
@@ -519,7 +528,13 @@ async def _serve(pkg: Path, sock: str, resources: dict | None = None) -> int:
            **{k: v for k, v in (resources or {}).items() if v is not None}}
     log(f"boot sandbox for {md['instance_id']} box=[{_box_str(box)}] "
         f"(harness: {dr._harness_provenance()})")
-    if pretest:
+    n_paths = len(dr.protected_paths_of(md["tmax"]))
+    n_cmds = len(dr.protected_cmds_of(md["tmax"]))
+    if n_paths or n_cmds:
+        # A row with protected entries grades by the integrity baseline and
+        # never consults the pin hook.
+        log(f"integrity baseline: {n_paths} paths, {n_cmds} cmds")
+    elif pretest:
         tm = md["tmax"]
         stamped, episode = tm.get("pretest_env_identity"), tm.get("pretest_episode_env_identity")
         log(f"pin hook: stamped={stamped or '?'} episode={episode or '?'} -> "
@@ -536,6 +551,13 @@ async def _serve(pkg: Path, sock: str, resources: dict | None = None) -> int:
             if md.get("entrypoint"):
                 await dr._start_entrypoint(sb, md["entrypoint"], workdir=workdir)
             await dr.seed_workspace(sb, md["tmax"])
+            # INTEGRITY BASELINE for `grade`: the state as booted, before any
+            # request is served -- what a training episode's agent starts
+            # from. None for a package without protected entries. The lists
+            # are the boot-time ones; `grade` refuses if they change.
+            boot_entries = dr.protected_entries_of(md["tmax"])
+            boot_baseline = await dr.capture_baseline(
+                sb, md["tmax"], workdir=workdir, timeout=EXEC_TIMEOUT)
 
             async def oracle(solve_timeout: int) -> dict:
                 # Re-read the package: the agent edits solution/ and tests/
@@ -548,13 +570,19 @@ async def _serve(pkg: Path, sock: str, resources: dict | None = None) -> int:
                     if f.is_file():
                         await sb.write_file(f"/solution/{f.relative_to(sol_dir)}",
                                             f.read_text(errors="replace"))
+                # INTEGRITY BASELINE for the oracle: the state the reference
+                # solution starts from, taken after solution/ is in and before
+                # it runs, with the lists as the package declares them now.
+                baseline = await dr.capture_baseline(
+                    sb, tmax, workdir=workdir, timeout=EXEC_TIMEOUT)
                 t0 = time.time()
                 code, out, err = await sb.exec("bash /solution/solve.sh", check=False,
                                                timeout=solve_timeout)
                 # Before grading, which starts processes of its own.
                 measured = await dr.measure(sb, time.time() - t0,
                                             tail=(out or "") + (err or ""))
-                reward = await dr.grade_tmax(sb, tmax, workdir=workdir)
+                reward = await dr.grade_tmax(sb, tmax, workdir=workdir,
+                                             baseline_digests=baseline)
                 return {"ok": True, "solve_exit": code, "reward": reward,
                         "measured": measured, "resources": box,
                         "tail": (out + "\n" + err)[-4000:]}
@@ -572,7 +600,12 @@ async def _serve(pkg: Path, sock: str, resources: dict | None = None) -> int:
                     return await oracle(int(req.get("solve_timeout") or SOLVE_TIMEOUT))
                 if op == "grade":
                     tmax = pack.to_row(str(pkg), pretest=pretest)["metadata"]["tmax"]
-                    reward = await dr.grade_tmax(sb, tmax, workdir=workdir)
+                    if dr.protected_entries_of(tmax) != boot_entries:
+                        return {"ok": False,
+                                "error": "the protected lists changed since up; "
+                                         "run ./sandbox reset to take a fresh baseline"}
+                    reward = await dr.grade_tmax(sb, tmax, workdir=workdir,
+                                                 baseline_digests=boot_baseline)
                     return {"ok": True, "reward": reward}
                 if op == "down":
                     stop.set()

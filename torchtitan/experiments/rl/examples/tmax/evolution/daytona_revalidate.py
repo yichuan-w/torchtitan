@@ -85,6 +85,11 @@ from torchtitan.experiments.rl.examples.tmax.grading import (  # noqa: E402
     grade_tmax,
     seed_workspace,
 )
+from torchtitan.experiments.rl.examples.tmax.integrity_baseline import (  # noqa: E402
+    capture_baseline,
+    protected_cmds_of,
+    protected_paths_of,
+)
 
 
 class _Root:
@@ -211,10 +216,16 @@ async def probe(pkg: Path, shortcut: str | None, solve_timeout: int,
     tmax = md["tmax"]
     workdir = md.get("workdir") or "/workspace"
     hook = None
-    if pretest:
+    n_paths, n_cmds = len(protected_paths_of(tmax)), len(protected_cmds_of(tmax))
+    if n_paths or n_cmds:
+        # A row with protected entries grades by the integrity baseline (taken
+        # below, right before the run) and never consults the pin hook.
+        hook = {"mode": "baseline", "paths": n_paths, "cmds": n_cmds}
+        log(f"integrity baseline: {n_paths} paths, {n_cmds} cmds")
+    elif pretest:
         stamped = tmax.get("pretest_env_identity") or ""
         episode = tmax.get("pretest_episode_env_identity") or ""
-        hook = {"stamped": stamped, "episode": episode,
+        hook = {"mode": "stamp", "stamped": stamped, "episode": episode,
                 "runs": bool(stamped and episode and stamped == episode)}
         log(f"pin hook: stamped={stamped or '?'} episode={episode or '?'} -> "
             f"{'runs before the verifier' if hook['runs'] else 'skipped: environment moved'}")
@@ -266,11 +277,15 @@ async def probe(pkg: Path, shortcut: str | None, solve_timeout: int,
             cmd = "bash /solution/solve.sh"
         else:
             cmd = shortcut
+        # INTEGRITY BASELINE: the state the run starts from -- solution/ in,
+        # nothing run yet -- for the oracle and the shortcut probe alike; the
+        # verifier re-digests and a difference grades 0. None without entries.
+        baseline = await capture_baseline(sb, tmax, workdir=workdir, timeout=120)
         t0 = time.time()
         code, out, err = await sb.exec(cmd, check=False, timeout=solve_timeout)
         log(f"run exit={code}")
         measured = await measure(sb, time.time() - t0, tail=(out or "") + (err or ""))
-        reward = await grade_tmax(sb, tmax, workdir=workdir)
+        reward = await grade_tmax(sb, tmax, workdir=workdir, baseline_digests=baseline)
     tail = (out + "\n" + err)[-400:]
     if shortcut is None:
         why = starved(measured, code, solve_timeout) if reward < 1.0 else ""

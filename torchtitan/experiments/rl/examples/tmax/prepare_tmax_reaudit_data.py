@@ -70,6 +70,9 @@ import sys
 import tarfile
 import tempfile
 
+from torchtitan.experiments.rl.examples.tmax.integrity_baseline import (
+    tmax_protected_fields,
+)
 from torchtitan.experiments.rl.examples.tmax.prepare_rts_data import (
     _AGENT_RUNTIME_BLOCK,
     _build_context,
@@ -438,13 +441,10 @@ def to_row(
             ),
         },
     }
-    if protected_paths:
-        # INTEGRITY BASELINE: the paths the harness digests after setup and re-checks before the verifier.
-        # Carried only when non-empty; grading reads tmax["protected_paths"] and consults nothing else.
-        metadata["tmax"]["protected_paths"] = list(protected_paths)
-    if protected_cmds:
-        # ...and the commands whose OUTPUT is protected, digested with the hook's own environment wrapper.
-        metadata["tmax"]["protected_cmds"] = list(protected_cmds)
+    # INTEGRITY BASELINE: the paths the harness digests after setup and re-checks before the verifier,
+    # and the commands whose OUTPUT is protected. The keys' shape (present only when non-empty) comes
+    # from the one helper every row producer uses, so a loop-folded row and this row agree.
+    metadata["tmax"].update(tmax_protected_fields(protected_paths, protected_cmds))
     if build_context:
         metadata["build_context"] = build_context
     if daytona_mem_gb:

@@ -236,13 +236,63 @@ def test_rollouter_captures_at_the_seam_and_hands_the_baseline_to_grading():
     src = (_HERE / "rollouter.py").read_text()
     init = src.index("baseline_digests: dict[str, str] | None = None")
     seed = src.index("await seed_workspace(root_sb, sample.tmax)")
-    cap = src.index("baseline_digests = await capture_integrity_baseline(")
+    cap = src.index("baseline_digests = await capture_baseline(")
     tmux = src.index('"command -v tmux >/dev/null 2>&1"')
     grade = src.index("reward = await grade_tmax(")
     passed = src.index("baseline_digests=baseline_digests,")
     assert src.index("submitted = False") < init < seed < cap < tmux < grade < passed
-    assert "root_sb.exec," in src[cap : cap + 200]  # the root wrapper's exec
+    assert (
+        "root_sb," in src[cap : cap + 200]
+    )  # the root wrapper itself; the helper calls its exec
+    assert "root_sb.exec" not in src[cap : cap + 200]
     assert not re.search(r"sandbox\.baseline|sample\.baseline|setattr\(.*baseline", src)
+
+
+def test_tmax_protected_fields_builds_only_non_empty_validated_keys():
+    """Every producer of a row (the dataset prep, the loop's packer) builds the keys here: each
+    present only when its list is non-empty, in digest order, validated like the readers do."""
+    assert IB.tmax_protected_fields(None, None) == {}
+    assert IB.tmax_protected_fields([], []) == {}
+    assert IB.tmax_protected_fields(["/a", "b c"], None) == {
+        "protected_paths": ["/a", "b c"]
+    }
+    got = IB.tmax_protected_fields(["/a"], ["printf '%s' \"x\""])
+    assert list(got) == ["protected_paths", "protected_cmds"]
+    assert got["protected_cmds"] == ["printf '%s' \"x\""]
+    for paths, cmds in (
+        ("/a", None),
+        ([""], None),
+        ([1], None),
+        (None, ["a\nb"]),
+        (None, "cmd"),
+    ):
+        try:
+            IB.tmax_protected_fields(paths, cmds)
+        except IB.IntegrityHarnessError:
+            pass
+        else:
+            raise AssertionError(f"must refuse {paths!r}, {cmds!r}")
+
+
+def test_capture_baseline_drives_the_sandboxs_own_exec():
+    """The sandbox-object form every seam calls: it runs the same string through ``sb.exec``
+    (root already forced by the wrapper the caller hands in) with the capped timeout."""
+    calls = []
+
+    class SB:
+        async def exec(self, cmd, *, check, timeout):
+            calls.append((cmd, check, timeout))
+            return 0, f"{_D1} 0\n", ""
+
+    got = asyncio.run(
+        IB.capture_baseline(
+            SB(), {"protected_paths": ["/a"]}, workdir="/w", timeout=300
+        )
+    )
+    assert got == {"/a": _D1}
+    assert calls == [(IB.build_digest_command([("path", "/a")], "/w"), False, 120)]
+    assert asyncio.run(IB.capture_baseline(SB(), {}, workdir="/w", timeout=5)) is None
+    assert len(calls) == 1  # nothing runs for a row without entries
 
 
 # ---------------------------------------------------------------- the grading half, end to end

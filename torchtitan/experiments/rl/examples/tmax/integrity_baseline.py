@@ -223,6 +223,23 @@ def differences(baseline: dict[str, str], current: dict[str, str]) -> list[str]:
     return [k for k in keys if baseline.get(k) != current.get(k)]
 
 
+def tmax_protected_fields(
+    paths: list[str] | None, cmds: list[str] | None
+) -> dict[str, list[str]]:
+    """The ``tmax`` keys for a row's protected lists, validated: ``protected_paths`` then
+    ``protected_cmds``, each present only when its list is non-empty (never an empty list),
+    each a list of non-empty strings, no newline inside a command. Every producer of a row --
+    the dataset prep, the loop's packer -- builds the keys HERE, so a folded row and a prepared
+    row cannot disagree on the shape grading reads. A malformed list raises
+    ``IntegrityHarnessError``; the caller refuses the row by id."""
+    fields: dict[str, list[str]] = {}
+    if paths:
+        fields["protected_paths"] = protected_paths_of({"protected_paths": paths})
+    if cmds:
+        fields["protected_cmds"] = protected_cmds_of({"protected_cmds": cmds})
+    return fields
+
+
 async def capture_integrity_baseline(
     exec_fn: ExecFn, tmax: dict, *, workdir: str, timeout: int
 ) -> dict[str, str] | None:
@@ -232,6 +249,18 @@ async def capture_integrity_baseline(
     if not entries:
         return None
     return await compute_digests(exec_fn, entries, workdir=workdir, timeout=timeout)
+
+
+async def capture_baseline(
+    sb, tmax: dict, *, workdir: str, timeout: int
+) -> dict[str, str] | None:
+    """``capture_integrity_baseline`` over a sandbox object. The rollouter's root sandbox and
+    the loop's ``_Root`` wrapper both expose an ``exec`` that already runs as root; every seam
+    (training rollout, the loop's sandbox tool, the loop's revalidator) calls THIS, so the
+    digests are taken one way everywhere."""
+    return await capture_integrity_baseline(
+        sb.exec, tmax, workdir=workdir, timeout=timeout
+    )
 
 
 async def integrity_differences(

@@ -95,7 +95,7 @@ from torchtitan.experiments.rl.examples.tmax.grading import (
     seed_workspace,
 )
 from torchtitan.experiments.rl.examples.tmax.integrity_baseline import (
-    capture_integrity_baseline,
+    capture_baseline,
 )
 from torchtitan.experiments.rl.examples.tmax.rubric import RewardTMax, TMAX_REWARD_KEY
 from torchtitan.experiments.rl.examples.tmax.vanillux_loop import (  # noqa: F401 -- registers the default agent
@@ -1271,8 +1271,8 @@ class TMaxRollouter(Rollouter):
                     # before the agent's first action -- and keep the digests harness-side for grade_tmax
                     # to re-measure. A row without protected paths gets None and grades exactly as before.
                     # A failure here is the harness's, not the policy's: it raises and voids the episode.
-                    baseline_digests = await capture_integrity_baseline(
-                        root_sb.exec,
+                    baseline_digests = await capture_baseline(
+                        root_sb,
                         sample.tmax,
                         workdir=sample.workdir,
                         timeout=verifier_sec or 120,
