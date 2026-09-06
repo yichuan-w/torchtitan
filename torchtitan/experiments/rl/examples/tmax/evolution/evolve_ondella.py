@@ -108,7 +108,7 @@ ROW_KEYS = {"cpu": "daytona_cpu", "mem_gb": "daytona_mem_gb",
             "disk_gb": "daytona_disk_gb"}
 
 
-def read_declared(mix: Path) -> tuple[dict[str, dict], dict[str, tuple[str, str]]]:
+def read_declared(mix: Path) -> tuple[dict[str, dict], dict[str, tuple[str, str]], dict[str, "pack.Protected"]]:
     """One pass over the mix: per row, the daytona_* it declares and the pin
     hook it carries (metadata.tmax.pre_test_sh with its environment stamp),
     both keyed by instance id. The hook is read here because a package
