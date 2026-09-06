@@ -279,6 +279,22 @@ def test_prepare_package_records_the_seed_literals_size_and_box(tmp_path, monkey
     assert json.loads((rw.package / "run/seed_literals.json").read_text()) == ["legacy_key"]
 
 
+def test_prepare_package_tells_the_author_how_to_protect_paths_and_commands(tmp_path, monkeypatch) -> None:
+    """The role the authoring agent reads (AGENTS.md, copied from the spec) names the
+    mechanism for a variant's protected lists: tests/protected_paths.json, digested by the
+    harness before and after the episode."""
+    rw = _rewrite(tmp_path, monkeypatch)
+    rw.package.chmod(0o755)
+    task = {**TASK, "_resources": {"cpu": 1, "mem_gb": 2, "disk_gb": 2, "source": "row"}}
+
+    ec._prepare_package(rw.package, task)
+
+    agents = (rw.package / "AGENTS.md").read_text()
+    assert "tests/protected_paths.json" in agents
+    assert '{"paths": [...], "cmds": [...]}' in agents
+    assert agents.count("tests/protected_paths.json") == 1  # one sentence, once
+
+
 def test_write_resources_tells_the_sandbox_tool_the_training_box(tmp_path) -> None:
     pkg = tmp_path / "pkg"
     pkg.mkdir()

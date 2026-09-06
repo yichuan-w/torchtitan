@@ -157,9 +157,11 @@ def tmax_rows(tasks: Path, reaudit_parquet: Path, peaks_parquet: Path | None
 
     `tasks` holds the packages (data/sources/tmax-extract/tasks, the loop's
     r0 source), so a seed row and a folded row are one adapter over the same
-    bytes. `reaudit_parquet` names the tasks and carries the domain and the
+    bytes. `reaudit_parquet` names the tasks and carries the domain, the
     pin hook, which goes on the row through pack.to_row beside this package's
-    own environment identity. `peaks_parquet` (the reaudit_full split) carries
+    own environment identity, and the protected lists (`protected_paths` /
+    `protected_cmds`, JSON-list cells; older parquets carry neither and the
+    rows then carry no lists). `peaks_parquet` (the reaudit_full split) carries
     the measured peaks; None sizes nothing. Returns (rows, ids with no
     package).
     """
@@ -170,6 +172,8 @@ def tmax_rows(tasks: Path, reaudit_parquet: Path, peaks_parquet: Path | None
     domain = _column(t, "terminal_domain")
     hook_sh = _column(t, "pre_test_sh")
     hook_env = _column(t, "pre_test_env_identity")
+    prot_paths = _column(t, "protected_paths")
+    prot_cmds = _column(t, "protected_cmds")
 
     peaks: dict[str, dict] = {}
     if peaks_parquet is not None:
@@ -191,7 +195,12 @@ def tmax_rows(tasks: Path, reaudit_parquet: Path, peaks_parquet: Path | None
             continue
         hook = (str(hook_sh[i]), str(hook_env[i] or "")) if hook_sh[i] else None
         try:
-            row = pack.to_row(str(src), pretest=hook)
+            protected = pack.Protected.from_cells(prot_paths[i], prot_cmds[i])
+        except ValueError as e:
+            missing.append(f"{tid} (protected: {e})")
+            continue
+        try:
+            row = pack.to_row(str(src), pretest=hook, protected=protected)
         except Exception as e:  # noqa: BLE001
             missing.append(f"{tid} (pack: {type(e).__name__})")
             continue

@@ -32,7 +32,15 @@ import os
 import posixpath
 import shlex
 import uuid
+from functools import partial
 from typing import TYPE_CHECKING
+
+from torchtitan.experiments.rl.examples.tmax.integrity_baseline import (
+    capture_baseline_sync,
+    integrity_differences,
+    integrity_differences_sync,
+    protected_entries_of,
+)
 
 if TYPE_CHECKING:
     # Type-only so this module imports WITHOUT the torchtitan/vLLM stack -- the
@@ -214,6 +222,7 @@ async def grade_tmax(
     *,
     workdir: str,
     timeout_sec: int | None = None,
+    baseline_digests: dict[str, str] | None = None,
 ) -> float:
     """Grade a tmax task in the (already-run) sandbox ``sb`` and return reward.
 
@@ -264,8 +273,32 @@ async def grade_tmax(
     # writes reward.txt — as a separate exec that write would be overwritten by test.sh; the short-circuit lives
     # here). A nonzero exit means a pinned reference was mutated / deleted / a pinned command diverged, so the
     # episode scores 0 WITHOUT running the verifier. Absent field ⇒ no-op (the whole corpus before this lands).
+    # INTEGRITY BASELINE (reaudit): for a row that names protected paths and/or protected commands, the
+    # rollouter digested them right after setup and handed the digests in as ``baseline_digests``;
+    # re-digest the same entries with the same string now and score 0 on any difference, before the
+    # verifier runs. Nothing is stamped in the data and nothing is captured at prep. A row with protected
+    # entries and no baseline is a harness bug, so it raises (void episode) rather than skipping. Such
+    # rows do not consult pre_test_sh below.
+    _protected = protected_entries_of(tmax)
+    if _protected:
+        _differing = await integrity_differences(
+            partial(sb.exec, user="root"),
+            tmax,
+            baseline_digests,
+            workdir=workdir,
+            timeout=timeout,
+        )
+        if _differing:
+            logger.info(
+                "[tmax] integrity baseline difference for %s in %d protected entr(y/ies): %s; scoring 0",
+                tmax.get("task_id", "?"),
+                len(_differing),
+                _differing,
+            )
+            return 0.0
+
     pre_test = tmax.get("pre_test_sh")
-    if pre_test:
+    if pre_test and not _protected:
         # ENVIRONMENT-DRIFT GUARD (reaudit): tw_* task ids evolve IN PLACE across breeding rounds, so a task's
         # environment can differ from the one its pins were captured against. The pins are keyed by task_id, so
         # on a changed environment the assert-refuse would falsely refuse an HONEST episode. Run the pin check
@@ -352,19 +385,46 @@ def seed_workspace_daytona(sb, tmax: dict, *, dest: str = _SEEDS_DEST) -> None:
         sb.fs.upload_file(content.encode("utf-8"), path)
 
 
+def _daytona_exec(sb):
+    """The raw SDK's ``process.exec`` as the ``(rc, stdout, stderr)`` exec the integrity
+    baseline runs its one digest string through -- as root, like every other seam."""
+
+    def run(cmd: str, *, timeout: int) -> tuple[int, str, str]:
+        r = sb.process.exec(_root_sh(cmd), timeout=timeout)
+        return getattr(r, "exit_code", 1), getattr(r, "result", "") or "", ""
+
+    return run
+
+
+def capture_baseline_daytona(
+    sb, tmax: dict, *, workdir: str, timeout_sec: int | None = None
+) -> dict[str, str] | None:
+    """The rollouter's seam for a RAW ``daytona`` Sandbox: digest the row's protected entries
+    after the seeds are in and before anything acts (``local_smoke``), so
+    ``grade_tmax_daytona`` can re-measure. None for a row without entries."""
+    timeout = timeout_sec if timeout_sec is not None else _eval_timeout_sec()
+    return capture_baseline_sync(
+        _daytona_exec(sb), tmax, workdir=workdir, timeout=timeout
+    )
+
+
 def grade_tmax_daytona(
     sb,
     tmax: dict,
     *,
     workdir: str,
     timeout_sec: int | None = None,
+    baseline_digests: dict[str, str] | None = None,
 ) -> float:
     """Same steps as ``grade_tmax`` but against a RAW ``daytona`` Sandbox.
 
     Uses the daytona SDK's sync API directly (``sb.process.exec`` /
     ``sb.fs.upload_file``) so the grading logic can be exercised in a standalone
     script without importing the full torchtitan/vLLM training stack. Seeds are
-    placed separately by ``seed_workspace_daytona`` before the agent runs.
+    placed separately by ``seed_workspace_daytona`` before the agent runs, and
+    a protected row's baseline by ``capture_baseline_daytona`` -- the same rule
+    as ``grade_tmax``: no baseline for a protected row raises, a difference
+    scores 0 before the verifier runs, identical proceeds.
     """
     timeout = timeout_sec if timeout_sec is not None else _eval_timeout_sec()
     test_sh = tmax.get("test_sh") or ""
@@ -389,6 +449,26 @@ def grade_tmax_daytona(
     sentinel = (r.result if getattr(r, "exit_code", 1) == 0 else "").strip()
     if sentinel != nonce:
         return 0.0
+
+    # INTEGRITY BASELINE: the same seam as grade_tmax (after the sentinel, before the
+    # verifier), the same string through the SDK's exec, the same judgement.
+    _protected = protected_entries_of(tmax)
+    if _protected:
+        _differing = integrity_differences_sync(
+            _daytona_exec(sb),
+            tmax,
+            baseline_digests,
+            workdir=workdir,
+            timeout=timeout,
+        )
+        if _differing:
+            logger.info(
+                "[tmax] integrity baseline difference for %s in %d protected entr(y/ies): %s; scoring 0",
+                tmax.get("task_id", "?"),
+                len(_differing),
+                _differing,
+            )
+            return 0.0
 
     sb.process.exec(
         _root_sh(f"chmod +x {_TEST_SH}; bash {_TEST_SH}"),

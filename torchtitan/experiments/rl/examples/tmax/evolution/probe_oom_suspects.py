@@ -36,6 +36,7 @@ else:
 import daytona_revalidate as dr  # noqa: E402
 import solve_daytona as sd  # noqa: E402
 from torchtitan.experiments.rl.examples.tmax.grading import grade_tmax, seed_workspace  # noqa: E402
+from torchtitan.experiments.rl.examples.tmax.integrity_baseline import capture_baseline  # noqa: E402
 from torchtitan.experiments.rl.harness.agents.claude_code import boot_agent_sandbox  # noqa: E402
 from verify_provisioning import recommend  # noqa: E402
 
@@ -82,13 +83,16 @@ async def probe(tid: str, cpu: int, mem: int, disk: int, timeout: int,
             # image, so it hands out full marks for an empty rollout and the
             # task teaches the policy nothing.
             cmdline = cmd or "bash /solution/solve.sh"
+            # INTEGRITY BASELINE: taken with solution/ in and nothing run yet, so
+            # the grade below re-digests exactly what training would.
+            baseline = await capture_baseline(sb, tmax, workdir=workdir, timeout=120)
             code, out, err = await sb.exec(f"cd {workdir} && {cmdline}",
                                            check=False, timeout=timeout)
             solve_secs = round(time.time() - t0, 1)
             # Read the counters before grading, which runs more processes and
             # could itself trip a kill and muddy the attribution.
             _, ev, _ = await sb.exec(READ, check=False, timeout=60)
-            reward = await grade_tmax(sb, tmax, workdir=workdir)
+            reward = await grade_tmax(sb, tmax, workdir=workdir, baseline_digests=baseline)
             events, _, peaks = (ev or "").partition("|")
             kv = dict(zip(events.split()[::2], events.split()[1::2]))
             nums = [int(x) for x in peaks.split() if x.isdigit()]
