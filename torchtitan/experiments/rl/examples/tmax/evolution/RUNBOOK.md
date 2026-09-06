@@ -217,6 +217,13 @@ path arguments. It reads `runs/*/signals/` and the rollout records they referenc
 its own state under `evolution/` (`loop.log`, `loop.lock`, `loop.env`, `ledger.jsonl`,
 `status.json`, `tasks/`) and publishes new mix versions under `data/mix/`.
 
+Repeated signals reuse the last completed rewrite decision when task ID, revision,
+direction, solved count, and total count match. Run IDs, timestamps, and rollout
+paths do not make feedback new. The ledger records reused signals with the original
+rewrite reference; training continues normally. Changed feedback starts a new
+attempt. Failed or interrupted executions remain retryable, and explicit `--signal`
+replay bypasses reuse.
+
 One script starts it and restarts it:
 
 ```bash
