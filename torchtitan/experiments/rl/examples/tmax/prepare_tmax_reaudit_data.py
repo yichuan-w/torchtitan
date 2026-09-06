@@ -95,14 +95,14 @@ from torchtitan.experiments.rl.examples.tmax.prepare_tmax_data import (
 )
 
 HF_REPO = "Fzz1/Tmax-Tasks-Clean"
-HF_REVISION = "0153e06a4e851eb84e54e7bb373eb818423a0e0d"  # main moves; the split does not. The 26-column publish on top of 9783e1c043a8
+HF_REVISION = "6a48f98d22874299836a6dc5c85ce8ac89fc1323"  # main moves; the split does not. The 26-column publish on top of 0153e06a4e85
 HF_PARQUET = "splits/reaudit.parquet"
 HF_TAR = "data/tasks-reaudit-00000.tar"
-# sha256 of the published bytes at HF_REVISION (the split builder's own publish record). BOTH moved in
-# this publish: 453 packages, three ids dropped, and every solution/solve.sh re-rendered.
-PARQUET_SHA256 = "30308f4c4da55476557a6d714279ae152d63e6fe0c0f389ca288130faf64549a"
-TAR_SHA256 = "d3c03856de42302741dc9320d7a3c0fd4239da01f5e2399c1cc2077017d458c4"
-EXPECT_ROWS = 453
+# sha256 of the published bytes at HF_REVISION (the split builder's own publish record). Both moved again
+# in this publish: 451 packages, two further ids dropped (five cumulative) on the user's choice A.
+PARQUET_SHA256 = "af62a8954eeed152b2d543364c8ecb0e07fecd90278f1111ac244a7b9f7aa10f"
+TAR_SHA256 = "75e290b6e869cc78e0584811d4c5157cd7ae8b36c4cca1ad460742dec38d6242"
+EXPECT_ROWS = 451
 EXPECT_COLUMNS = 26
 MEMBER_ROOT = "tasks"
 
