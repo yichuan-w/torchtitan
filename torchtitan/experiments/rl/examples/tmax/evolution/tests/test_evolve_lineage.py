@@ -1,3 +1,9 @@
+# Copyright (c) Meta Platforms, Inc. and affiliates.
+# All rights reserved.
+#
+# This source code is licensed under the BSD-style license found in the
+# LICENSE file in the root directory of this source tree.
+
 """The loop over one experiment root: discovery through the ledger, r0 from
 the source corpus, one rewrite directory per handled signal, acceptance as a
 renamed revision and a new mix version, and status.json rebuilt from files."""
@@ -38,17 +44,33 @@ def _root(tmp_path, monkeypatch, tmax: dict | None = None) -> layout.Root:
         (seed / rel).parent.mkdir(parents=True, exist_ok=True)
         (seed / rel).write_text(text)
     (seed / "instruction.md.bak-1").write_text("pre-canary text\n")
-    row = {"prompt": SEED["instruction.md"], "label": "tw_a",
-           "metadata": {"instance_id": "tw_a", "rev": 0, "daytona_cpu": 1,
-                        "daytona_mem_gb": 2, "daytona_disk_gb": 2,
-                        **({"tmax": tmax} if tmax else {})}}
+    row = {
+        "prompt": SEED["instruction.md"],
+        "label": "tw_a",
+        "metadata": {
+            "instance_id": "tw_a",
+            "rev": 0,
+            "daytona_cpu": 1,
+            "daytona_mem_gb": 2,
+            "daytona_disk_gb": 2,
+            **({"tmax": tmax} if tmax else {}),
+        },
+    }
     root.mix.publish([json.dumps(row)])
     return root
 
 
-def _signal(root: layout.Root, *, run: str = RUN, task: str = "tw_a", group: int = 7,
-            rev: int = 0, direction: str = "harder", created: str = "20260904-183012Z",
-            n: int = 2) -> str:
+def _signal(
+    root: layout.Root,
+    *,
+    run: str = RUN,
+    task: str = "tw_a",
+    group: int = 7,
+    rev: int = 0,
+    direction: str = "harder",
+    created: str = "20260904-183012Z",
+    n: int = 2,
+) -> str:
     """A run with `n` rollout records and the signal that names them; returns
     the signal id."""
     r = root.run(run)
@@ -56,14 +78,34 @@ def _signal(root: layout.Root, *, run: str = RUN, task: str = "tw_a", group: int
     for i in range(n):
         p = r.rollout_record(task, group, i)
         rollout_record.write_record(
-            p, {"task": task, "rev": rev, "run": run, "group": group, "rollout": i,
-                "reward": 1.0 if direction == "harder" else 0.0, "turns": 1},
-            [{"turn": 1, "keystrokes": ["ls /app\n"], "output": ""}])
+            p,
+            {
+                "task": task,
+                "rev": rev,
+                "run": run,
+                "group": group,
+                "rollout": i,
+                "reward": 1.0 if direction == "harder" else 0.0,
+                "turns": 1,
+            },
+            [{"turn": 1, "keystrokes": ["ls /app\n"], "output": ""}],
+        )
         attempts.append(str(p.relative_to(r.path)))
     solved = n if direction == "harder" else 0
-    layout.write_json_atomic(r.signal(task, group), {
-        "task": task, "rev": rev, "run": run, "group": group, "direction": direction,
-        "solved": solved, "total": n, "created": created, "attempts": attempts})
+    layout.write_json_atomic(
+        r.signal(task, group),
+        {
+            "task": task,
+            "rev": rev,
+            "run": run,
+            "group": group,
+            "direction": direction,
+            "solved": solved,
+            "total": n,
+            "created": created,
+            "attempts": attempts,
+        },
+    )
     return layout.signal_id(run, task, group)
 
 
@@ -81,22 +123,42 @@ def _stub(monkeypatch, status: str = "accepted", **extra) -> _Seen:
     seen.rows = []
 
     def fake(rewrite, signal, *, job, seed_dir, resources=None, history=None):
-        seen.append({"rewrite": rewrite, "signal": signal, "job": job, "seed_dir": seed_dir,
-                     "resources": resources, "history": history})
+        seen.append(
+            {
+                "rewrite": rewrite,
+                "signal": signal,
+                "job": job,
+                "seed_dir": seed_dir,
+                "resources": resources,
+                "history": history,
+            }
+        )
         (rewrite.package / "instruction.md").write_text("harder\n")
         (rewrite.package / "AGENTS.md").write_text("role")
         (rewrite.package / "run").mkdir(exist_ok=True)
         (rewrite.package / "run" / "checks.jsonl").write_text('{"verdict": "pass"}\n')
-        rec = {"status": status, "stage": "daytona_oracle", "operator": "container_build_alignment",
-               "verdicts": VERDICTS,
-               "resources": {"cpu": 2, "mem_gb": 4, "disk_gb": 2, "source": "measured:loop_probe",
-                             "measured": {"mem_peak_mb": 3000}, "floor": {}}}
+        rec = {
+            "status": status,
+            "stage": "daytona_oracle",
+            "operator": "container_build_alignment",
+            "verdicts": VERDICTS,
+            "resources": {
+                "cpu": 2,
+                "mem_gb": 4,
+                "disk_gb": 2,
+                "source": "measured:loop_probe",
+                "measured": {"mem_peak_mb": 3000},
+                "floor": {},
+            },
+        }
         rec.update(extra)
         return rec
 
     monkeypatch.setattr(od.fb, "process_one", fake)
 
-    def to_row(d, *, task_id=None, inject_agent_runtime=True, pretest=None, protected=None):
+    def to_row(
+        d, *, task_id=None, inject_agent_runtime=True, pretest=None, protected=None
+    ):
         # As pack.to_row: the identity is the caller's, since the directory
         # is `package` here and `r<N>` once renamed; the hook is the caller's
         # too, and lands on the row's grading payload; so are the protected
@@ -112,8 +174,11 @@ def _stub(monkeypatch, status: str = "accepted", **extra) -> _Seen:
                 tmax["protected_paths"] = list(protected.paths)
             if protected.cmds:
                 tmax["protected_cmds"] = list(protected.cmds)
-        return {"prompt": text, "label": tid,
-                "metadata": {"instance_id": tid, "problem_statement": text, "tmax": tmax}}
+        return {
+            "prompt": text,
+            "label": tid,
+            "metadata": {"instance_id": tid, "problem_statement": text, "tmax": tmax},
+        }
 
     monkeypatch.setattr(od.pack, "to_row", to_row)
     return seen
@@ -123,7 +188,9 @@ def _ledger(root: layout.Root) -> list[dict]:
     return layout.read_jsonl(root.evolution.ledger)
 
 
-def test_round_materializes_r0_handles_the_signal_and_folds_r1(tmp_path, monkeypatch) -> None:
+def test_round_materializes_r0_handles_the_signal_and_folds_r1(
+    tmp_path, monkeypatch
+) -> None:
     root = _root(tmp_path, monkeypatch)
     sid = _signal(root)
     seen = _stub(monkeypatch)
@@ -163,9 +230,15 @@ def test_round_materializes_r0_handles_the_signal_and_folds_r1(tmp_path, monkeyp
     assert manifest["parent_version"] == 1 and manifest["rows"] == 1
     row = json.loads(root.mix.live.read_text())
     assert row["label"] == "tw_a" and row["metadata"]["instance_id"] == "tw_a"
-    assert row["metadata"]["rev"] == 1 and row["metadata"]["problem_statement"] == "harder\n"
-    assert (row["metadata"]["daytona_cpu"], row["metadata"]["daytona_mem_gb"],
-            row["metadata"]["daytona_disk_gb"]) == (2, 4, 2)
+    assert (
+        row["metadata"]["rev"] == 1
+        and row["metadata"]["problem_statement"] == "harder\n"
+    )
+    assert (
+        row["metadata"]["daytona_cpu"],
+        row["metadata"]["daytona_mem_gb"],
+        row["metadata"]["daytona_disk_gb"],
+    ) == (2, 4, 2)
     # Lineage: a fold line and a rewrite index line.
     events = layout.read_jsonl(task.lineage)
     fold = next(e for e in events if e["event"] == "fold")
@@ -178,8 +251,13 @@ def test_round_materializes_r0_handles_the_signal_and_folds_r1(tmp_path, monkeyp
     assert len(lines) == 1
     assert lines[0]["signal"] == sid and lines[0]["outcome"] == "handled"
     assert lines[0]["rewrite"] == f"tasks/tw_a/rewrites/{rw.path.name}"
-    assert (lines[0]["task"], lines[0]["rev"], lines[0]["run"], lines[0]["group"],
-            lines[0]["direction"]) == ("tw_a", 0, RUN, 7, "harder")
+    assert (
+        lines[0]["task"],
+        lines[0]["rev"],
+        lines[0]["run"],
+        lines[0]["group"],
+        lines[0]["direction"],
+    ) == ("tw_a", 0, RUN, 7, "harder")
     # The signal file was never touched.
     assert root.run(RUN).signal("tw_a", 7).exists()
     # status.json from the files.
@@ -193,7 +271,9 @@ def test_round_materializes_r0_handles_the_signal_and_folds_r1(tmp_path, monkeyp
     assert len(seen) == 1
 
 
-def test_rejected_rewrite_keeps_its_package_and_its_hardlinked_traces(tmp_path, monkeypatch) -> None:
+def test_rejected_rewrite_keeps_its_package_and_its_hardlinked_traces(
+    tmp_path, monkeypatch
+) -> None:
     root = _root(tmp_path, monkeypatch)
     _signal(root)
     _stub(monkeypatch, status="rejected", stage="step_size", reason="one rung")
@@ -208,7 +288,9 @@ def test_rejected_rewrite_keeps_its_package_and_its_hardlinked_traces(tmp_path, 
     run = root.run(RUN)
     for i in (1, 2):
         linked = rw.traces / f"attempt-{i:02d}.jsonl"
-        assert linked.stat().st_ino == run.rollout_record("tw_a", 7, i - 1).stat().st_ino
+        assert (
+            linked.stat().st_ino == run.rollout_record("tw_a", 7, i - 1).stat().st_ino
+        )
     meta = json.loads(rw.meta.read_text())
     assert meta["status"] == "rejected" and meta["stage"] == "step_size"
     assert meta["reason"] == "one rung" and meta["finished"]
@@ -219,7 +301,9 @@ def test_rejected_rewrite_keeps_its_package_and_its_hardlinked_traces(tmp_path, 
     assert status["rejected"] == {"step_size": 1} and status["accepted"] == 0
 
 
-def test_an_unreadable_signal_is_junk_once_it_is_old_enough(tmp_path, monkeypatch) -> None:
+def test_an_unreadable_signal_is_junk_once_it_is_old_enough(
+    tmp_path, monkeypatch
+) -> None:
     root = _root(tmp_path, monkeypatch)
     run = root.run("tmax-9b--20260904-190000Z")
     stale = run.signal("tw_a", 3)
@@ -241,9 +325,9 @@ def test_an_unreadable_signal_is_junk_once_it_is_old_enough(tmp_path, monkeypatc
     assert lines[layout.signal_id(run.name, "tw_a", 3)]["group"] == 3
     assert lines[layout.signal_id(run.name, "tw_a", 5)]["outcome"] == "junk"
     assert "lacks" in lines[layout.signal_id(run.name, "tw_a", 5)]["reason"]
-    assert layout.signal_id(run.name, "tw_a", 4) not in lines      # fresh: retried later
+    assert layout.signal_id(run.name, "tw_a", 4) not in lines  # fresh: retried later
     assert seen == []
-    assert stale.exists() and fresh.exists()                        # nothing moved
+    assert stale.exists() and fresh.exists()  # nothing moved
     assert od.rebuild_status(root)["junk"] == 2
 
 
@@ -261,7 +345,9 @@ def test_a_task_without_a_seed_is_junk(tmp_path, monkeypatch) -> None:
     assert not root.evolution.task("nope").rev(0).exists()
 
 
-def test_easier_is_deferred_while_the_switch_is_off_and_replayed_when_on(tmp_path, monkeypatch) -> None:
+def test_easier_is_deferred_while_the_switch_is_off_and_replayed_when_on(
+    tmp_path, monkeypatch
+) -> None:
     root = _root(tmp_path, monkeypatch)
     sid = _signal(root, direction="easier")
     seen = _stub(monkeypatch)
@@ -287,7 +373,9 @@ def test_easier_is_deferred_while_the_switch_is_off_and_replayed_when_on(tmp_pat
     assert status["deferred"] == 0 and status["handled"] == 1
 
 
-def test_one_signal_per_task_the_newest_at_the_current_rev(tmp_path, monkeypatch) -> None:
+def test_one_signal_per_task_the_newest_at_the_current_rev(
+    tmp_path, monkeypatch
+) -> None:
     root = _root(tmp_path, monkeypatch)
     older = _signal(root, group=7, created="20260904-183012Z")
     newer = _signal(root, group=8, created="20260904-183500Z")
@@ -301,7 +389,10 @@ def test_one_signal_per_task_the_newest_at_the_current_rev(tmp_path, monkeypatch
     lines = {l["signal"]: l for l in _ledger(root)}
     assert lines[newer]["outcome"] == "handled"
     assert lines[older]["outcome"] == "superseded" and newer in lines[older]["reason"]
-    assert lines[stale]["outcome"] == "superseded" and "current rev 0" in lines[stale]["reason"]
+    assert (
+        lines[stale]["outcome"] == "superseded"
+        and "current rev 0" in lines[stale]["reason"]
+    )
     # The task is at r1 now; a late signal about rev 0 is superseded too.
     late = _signal(root, group=10, rev=0, created="20260904-190000Z")
     od.run_round(root, workers=1)
@@ -331,7 +422,9 @@ def test_unchanged_late_signal_reuses_completed_decision(tmp_path, monkeypatch) 
     assert od.run_round(root, workers=1)["reused"] == 0
 
 
-def test_changed_feedback_runs_again_and_rejection_is_reused(tmp_path, monkeypatch) -> None:
+def test_changed_feedback_runs_again_and_rejection_is_reused(
+    tmp_path, monkeypatch
+) -> None:
     root = _root(tmp_path, monkeypatch)
     _signal(root)
     seen = _stub(monkeypatch, status="rejected")
@@ -375,7 +468,9 @@ def test_explicit_replay_bypasses_reuse(tmp_path, monkeypatch) -> None:
     assert len(seen) == 2
 
 
-def test_limit_leaves_the_rest_pending_rather_than_superseded(tmp_path, monkeypatch) -> None:
+def test_limit_leaves_the_rest_pending_rather_than_superseded(
+    tmp_path, monkeypatch
+) -> None:
     root = _root(tmp_path, monkeypatch)
     seed_b = root.data / "sources" / "tw-extract" / "tasks" / "tw_b"
     for rel, text in SEED.items():
@@ -407,7 +502,11 @@ def test_dry_round_writes_only_the_rewrite_directory(tmp_path, monkeypatch) -> N
     task = root.evolution.task("tw_a")
     rw = task.rewrite_dirs()[0]
     meta = json.loads(rw.meta.read_text())
-    assert meta["dry"] is True and meta["status"] == "accepted" and meta["result_rev"] is None
+    assert (
+        meta["dry"] is True
+        and meta["status"] == "accepted"
+        and meta["result_rev"] is None
+    )
     assert rw.package.is_dir() and (rw.traces / "attempt-01.jsonl").exists()
     assert not task.rev(1).exists()
     assert not root.evolution.ledger.exists() and not task.lineage.exists()
@@ -431,7 +530,9 @@ def test_replay_handles_a_closed_signal_dry(tmp_path, monkeypatch) -> None:
     rewrites = root.evolution.task("tw_a").rewrite_dirs()
     assert len(rewrites) == 2
     replay = json.loads(rewrites[-1].meta.read_text())
-    assert replay["dry"] is True and replay["signal"] == sid and replay["input_rev"] == 0
+    assert (
+        replay["dry"] is True and replay["signal"] == sid and replay["input_rev"] == 0
+    )
     assert seen[1]["seed_dir"] == root.evolution.task("tw_a").rev(0)
     assert len(_ledger(root)) == 1 and root.mix.live_version()[0] == 2
 
@@ -440,17 +541,29 @@ def test_operator_history_counts_accepted_rewrites_only(tmp_path, monkeypatch) -
     root = _root(tmp_path, monkeypatch)
     task = root.evolution.task("tw_a")
     for stamp_, status, extra in (
-            ("20260904-100000Z", "accepted", {}),
-            ("20260904-110000Z", "rejected", {}),
-            ("20260904-120000Z", "accepted", {"dry": True})):
+        ("20260904-100000Z", "accepted", {}),
+        ("20260904-110000Z", "rejected", {}),
+        ("20260904-120000Z", "accepted", {"dry": True}),
+    ):
         rw = task.rewrite("harder", stamp_)
-        layout.write_json_atomic(rw.meta, {"task": "tw_a", "status": status,
-                                           "operator": "container_build_alignment", **extra})
-    assert od.operator_history(root) == ({"container_build_alignment": 1},
-                                         {"environment_runtime_substrate": 1})
+        layout.write_json_atomic(
+            rw.meta,
+            {
+                "task": "tw_a",
+                "status": status,
+                "operator": "container_build_alignment",
+                **extra,
+            },
+        )
+    assert od.operator_history(root) == (
+        {"container_build_alignment": 1},
+        {"environment_runtime_substrate": 1},
+    )
 
 
-def test_lineage_snapshot_commits_records_and_never_packages_or_sessions(tmp_path, monkeypatch) -> None:
+def test_lineage_snapshot_commits_records_and_never_packages_or_sessions(
+    tmp_path, monkeypatch
+) -> None:
     root = _root(tmp_path, monkeypatch)
     _signal(root)
     _stub(monkeypatch, status="rejected", stage="oracle", reason="boom")
@@ -467,9 +580,14 @@ def test_lineage_snapshot_commits_records_and_never_packages_or_sessions(tmp_pat
     git_dir = root.evolution.path / ".git"
     tracked = subprocess.run(
         ["git", f"--git-dir={git_dir}", f"--work-tree={root.path}", "ls-files"],
-        cwd=root.path, check=True, capture_output=True, text=True).stdout.splitlines()
+        cwd=root.path,
+        check=True,
+        capture_output=True,
+        text=True,
+    ).stdout.splitlines()
     assert set(tracked) == {
-        "evolution/ledger.jsonl", "evolution/status.json",
+        "evolution/ledger.jsonl",
+        "evolution/status.json",
         "evolution/tasks/tw_a/lineage.jsonl",
         f"evolution/tasks/tw_a/rewrites/{rw.path.name}/rewrite.json",
         str(root.mix.manifest_of(root.mix.live_version()[1]).relative_to(root.path)),
@@ -481,26 +599,46 @@ def test_lineage_snapshot_commits_records_and_never_packages_or_sessions(tmp_pat
 def test_training_box_reads_the_row_then_the_fleet_default(monkeypatch) -> None:
     monkeypatch.setattr(od, "FLEET", {"cpu": None, "mem_gb": None, "disk_gb": None})
     assert od.training_box("t", {"t": {"cpu": 1, "mem_gb": 2, "disk_gb": 2}}) == {
-        "cpu": 1, "mem_gb": 2, "disk_gb": 2, "source": "row"}
+        "cpu": 1,
+        "mem_gb": 2,
+        "disk_gb": 2,
+        "source": "row",
+    }
     # A row declaring nothing, with no fleet default in the env: the harness
     # default applies, and the source says so rather than inventing a number.
-    assert od.training_box("t", {}) == {"cpu": None, "mem_gb": None, "disk_gb": None,
-                                        "source": "harness_default"}
+    assert od.training_box("t", {}) == {
+        "cpu": None,
+        "mem_gb": None,
+        "disk_gb": None,
+        "source": "harness_default",
+    }
     monkeypatch.setattr(od, "FLEET", {"cpu": 1, "mem_gb": 2, "disk_gb": 2})
     assert od.training_box("t", {"t": {"mem_gb": 4}}) == {
-        "cpu": 1, "mem_gb": 4, "disk_gb": 2, "source": "row+fleet_default"}
+        "cpu": 1,
+        "mem_gb": 4,
+        "disk_gb": 2,
+        "source": "row+fleet_default",
+    }
 
 
 def test_strip_harness_leaves_the_package(tmp_path) -> None:
     pkg = tmp_path / "package"
-    for rel in ("instruction.md", "AGENTS.md", "sandbox", "run/checks.jsonl",
-                "traces/attempt-01.jsonl", "environment/fixture.csv",
-                "tests/__pycache__/x.pyc"):
+    for rel in (
+        "instruction.md",
+        "AGENTS.md",
+        "sandbox",
+        "run/checks.jsonl",
+        "traces/attempt-01.jsonl",
+        "environment/fixture.csv",
+        "tests/__pycache__/x.pyc",
+    ):
         (pkg / rel).parent.mkdir(parents=True, exist_ok=True)
         (pkg / rel).write_text("x")
     od.strip_harness(pkg)
     assert sorted(str(p.relative_to(pkg)) for p in pkg.rglob("*") if p.is_file()) == [
-        "environment/fixture.csv", "instruction.md"]
+        "environment/fixture.csv",
+        "instruction.md",
+    ]
 
 
 HOOK = "set -u\nexit 0\n"
@@ -508,9 +646,17 @@ STAMP = "image:hamishi740/swerl-tmax-v3:37a79d0fd9b9"
 
 
 def test_round_carries_the_rows_pin_hook_through_the_rewrite_and_the_fold(
-        tmp_path, monkeypatch) -> None:
-    root = _root(tmp_path, monkeypatch, tmax={"test_sh": "echo 1\n", "pre_test_sh": HOOK,
-                                              "pretest_env_identity": STAMP})
+    tmp_path, monkeypatch
+) -> None:
+    root = _root(
+        tmp_path,
+        monkeypatch,
+        tmax={
+            "test_sh": "echo 1\n",
+            "pre_test_sh": HOOK,
+            "pretest_env_identity": STAMP,
+        },
+    )
     _signal(root)
     seen = _stub(monkeypatch)
 
@@ -537,23 +683,29 @@ def test_a_row_without_a_hook_folds_without_one(tmp_path, monkeypatch) -> None:
     rw = root.evolution.task("tw_a").rewrite_dirs()[0]
     assert not rw.pretest.exists()
     assert [r["pretest"] for r in seen.rows] == [None]
-    assert [r["protected"] for r in seen.rows] == [None]  # no lists on the row: none passed
+    assert [r["protected"] for r in seen.rows] == [
+        None
+    ]  # no lists on the row: none passed
     tm = json.loads(root.mix.live.read_text())["metadata"]["tmax"]
     assert not {"pre_test_sh", "protected_paths", "protected_cmds"} & set(tm)
 
 
 PATHS = ["/app/pinned", "/app/data dir/model.bin", "tests"]
-CMDS = ['sqlite3 /app/db "select count(*) from t where n=\'x\'"']
+CMDS = ["sqlite3 /app/db \"select count(*) from t where n='x'\""]
 
 
 def test_fold_carries_the_rows_protected_lists_when_the_package_ships_none(
-        tmp_path, monkeypatch) -> None:
+    tmp_path, monkeypatch
+) -> None:
     """The mix row a rewrite descends from carries protected lists; the rewrite's
     package ships no tests/protected_paths.json. The fold hands the row's lists to
     the row builder (which lets a package file override them), so the folded
     revision keeps grading by the same baseline -- the hole the loop PR closes."""
-    root = _root(tmp_path, monkeypatch, tmax={"test_sh": "echo 1\n",
-                                              "protected_paths": PATHS, "protected_cmds": CMDS})
+    root = _root(
+        tmp_path,
+        monkeypatch,
+        tmax={"test_sh": "echo 1\n", "protected_paths": PATHS, "protected_cmds": CMDS},
+    )
     _signal(root)
     seen = _stub(monkeypatch)
 
@@ -561,11 +713,18 @@ def test_fold_carries_the_rows_protected_lists_when_the_package_ships_none(
 
     assert (r["handled"], r["accepted"], r["mix_version"]) == (1, 1, 2), r
     rw = root.evolution.task("tw_a").rewrite_dirs()[0]
-    assert not (root.evolution.task("tw_a").rev(1) / "tests" / "protected_paths.json").exists()
+    assert not (
+        root.evolution.task("tw_a").rev(1) / "tests" / "protected_paths.json"
+    ).exists()
     # No hook on this row, but the lists travel in the same snapshot: the hook readers see
     # None, the list reader sees the parent's lists (what the probe and the tool validate with).
     assert layout.read_pretest(rw.pretest) is None
-    assert layout.read_protected_lists(rw.pretest) == {"protected_paths": PATHS, "protected_cmds": CMDS}
-    assert [r["protected"] for r in seen.rows] == [od.pack.Protected(PATHS, CMDS)]  # as LISTS
+    assert layout.read_protected_lists(rw.pretest) == {
+        "protected_paths": PATHS,
+        "protected_cmds": CMDS,
+    }
+    assert [r["protected"] for r in seen.rows] == [
+        od.pack.Protected(PATHS, CMDS)
+    ]  # as LISTS
     tm = json.loads(root.mix.live.read_text())["metadata"]["tmax"]
     assert tm["protected_paths"] == PATHS and tm["protected_cmds"] == CMDS

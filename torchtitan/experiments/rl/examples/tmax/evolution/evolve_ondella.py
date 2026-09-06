@@ -1,4 +1,10 @@
 #!/usr/bin/env python3
+# Copyright (c) Meta Platforms, Inc. and affiliates.
+# All rights reserved.
+#
+# This source code is licensed under the BSD-style license found in the
+# LICENSE file in the root directory of this source tree.
+
 """The evolve loop: signals under runs/*/signals -> one rewrite each -> the mix.
 
 The trainer writes one signal per zero-variance group into its run directory:
@@ -55,15 +61,15 @@ import subprocess
 import sys
 import threading
 import time
-from concurrent.futures import ThreadPoolExecutor, as_completed
+from concurrent.futures import as_completed, ThreadPoolExecutor
 from dataclasses import dataclass
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-import evolve_codex as ec       # noqa: E402
-import feedback_loop as fb      # noqa: E402
+import evolve_codex as ec  # noqa: E402
+import feedback_loop as fb  # noqa: E402
 import pack_to_dataset as pack  # noqa: E402
-import synth_operators as ops   # noqa: E402
+import synth_operators as ops  # noqa: E402
 from torchtitan.experiments.rl.examples.tmax import layout  # noqa: E402
 
 log = logging.getLogger("evolve")
@@ -78,15 +84,28 @@ log = logging.getLogger("evolve")
 # being loosened, and the only signals that move a task are the ones asking
 # for more difficulty. A deferred signal is replayed when the switch turns on.
 SIMPLIFY_ENABLED = os.environ.get("SWE_EVOLVE_SIMPLIFY", "1").lower() not in (
-    "0", "false", "no")
+    "0",
+    "false",
+    "no",
+)
 # Where a seed package comes from, under $TRL_BASE/data/sources/<corpus>/tasks.
 SOURCE_CORPORA = ("swe-extract", "tw-extract", "tmax-extract")
 # What a seed copy leaves behind: backups of the pre-canary-strip instruction
 # are not part of the task and would show the agent text the pool deliberately
 # removed; the other two are records of an older loop's, not the package's.
-SEED_IGNORE = shutil.ignore_patterns("*.bak-*", ".provenance.json", ".resources.json",
-                                     "__pycache__", ".git")
-SIGNAL_KEYS = ("task", "rev", "run", "group", "direction", "solved", "total", "attempts")
+SEED_IGNORE = shutil.ignore_patterns(
+    "*.bak-*", ".provenance.json", ".resources.json", "__pycache__", ".git"
+)
+SIGNAL_KEYS = (
+    "task",
+    "rev",
+    "run",
+    "group",
+    "direction",
+    "solved",
+    "total",
+    "attempts",
+)
 # An unreadable signal younger than this may still be being written; LAYOUT
 # has the trainer rename it into place, so this is belt and braces.
 FRESH_SEC = 60
@@ -103,13 +122,21 @@ def _env_int(name: str) -> int | None:
 # across; main() logs what it resolved to. On the live mix every row declares
 # all three (663/663 on wd-20260903b), so this is the fallback for a rebuilt
 # mix, not the common path.
-FLEET = {"cpu": _env_int("TT_DAYTONA_CPU"), "mem_gb": _env_int("TT_DAYTONA_MEM_GB"),
-         "disk_gb": _env_int("TT_DAYTONA_DISK_GB")}
-ROW_KEYS = {"cpu": "daytona_cpu", "mem_gb": "daytona_mem_gb",
-            "disk_gb": "daytona_disk_gb"}
+FLEET = {
+    "cpu": _env_int("TT_DAYTONA_CPU"),
+    "mem_gb": _env_int("TT_DAYTONA_MEM_GB"),
+    "disk_gb": _env_int("TT_DAYTONA_DISK_GB"),
+}
+ROW_KEYS = {
+    "cpu": "daytona_cpu",
+    "mem_gb": "daytona_mem_gb",
+    "disk_gb": "daytona_disk_gb",
+}
 
 
-def read_declared(mix: Path) -> tuple[dict[str, dict], dict[str, tuple[str, str]], dict[str, "pack.Protected"]]:
+def read_declared(
+    mix: Path,
+) -> tuple[dict[str, dict], dict[str, tuple[str, str]], dict[str, "pack.Protected"]]:
     """One pass over the mix: per row, the daytona_* it declares and the pin
     hook it carries (metadata.tmax.pre_test_sh with its environment stamp),
     both keyed by instance id. The hook is read here because a package
@@ -234,17 +261,24 @@ def acquire_singleton(lock_path: Path) -> int:
             f"{LOCK_STALE_SEC}s and this start will go through."
         )
     os.ftruncate(fd, 0)
-    os.write(fd, (f"host={host} pid={os.getpid()} "
-                  f"started={time.strftime('%Y-%m-%dT%H:%M:%S%z')} "
-                  f"argv={' '.join(sys.argv)}\n").encode())
-    threading.Thread(target=_heartbeat, args=(fd,), daemon=True,
-                     name="evolve-lock-heartbeat").start()
+    os.write(
+        fd,
+        (
+            f"host={host} pid={os.getpid()} "
+            f"started={time.strftime('%Y-%m-%dT%H:%M:%S%z')} "
+            f"argv={' '.join(sys.argv)}\n"
+        ).encode(),
+    )
+    threading.Thread(
+        target=_heartbeat, args=(fd,), daemon=True, name="evolve-lock-heartbeat"
+    ).start()
     return fd
 
 
 # --------------------------------------------------------------------------
 # Discovery: the ledger is the loop's memory
 # --------------------------------------------------------------------------
+
 
 @dataclass
 class Signal:
@@ -271,7 +305,7 @@ class Signal:
         return int(tail) if tail.isdigit() else None
 
 
-class NoSeed(Exception):
+class NoSeed(Exception):  # noqa: N818 - Preserve the existing exception name.
     """The task has no r0 and no source corpus carries it."""
 
 
@@ -285,7 +319,9 @@ def load_ledger(root: layout.Root) -> dict[str, dict]:
     return latest
 
 
-def _pending(root: layout.Root, ledger: dict[str, dict]) -> list[tuple[layout.Run, Path, str]]:
+def _pending(
+    root: layout.Root, ledger: dict[str, dict]
+) -> list[tuple[layout.Run, Path, str]]:
     """Every signal file the ledger does not close: no line at all, or a
     latest line of `deferred` while the easier direction is on. The id is
     the run and the file's stem, which is what layout.signal_id spells."""
@@ -336,8 +372,9 @@ def discover(root: layout.Root, ledger: dict[str, dict]) -> list[Signal]:
     return found
 
 
-def choose(root: layout.Root, signals: list[Signal]
-           ) -> tuple[list[Signal], list[tuple[Signal, str, Signal | None]]]:
+def choose(
+    root: layout.Root, signals: list[Signal]
+) -> tuple[list[Signal], list[tuple[Signal, str, Signal | None]]]:
     """One signal per task: the newest whose rev is the task's current one.
 
     Returns the picks and the rest as (signal, why, the pick it yields to);
@@ -356,7 +393,13 @@ def choose(root: layout.Root, signals: list[Signal]
             if s is pick:
                 continue
             if int(s.data["rev"]) != current:
-                rest.append((s, f"rev {s.data['rev']} is not the task's current rev {current}", None))
+                rest.append(
+                    (
+                        s,
+                        f"rev {s.data['rev']} is not the task's current rev {current}",
+                        None,
+                    )
+                )
             else:
                 rest.append((s, f"newer signal {pick.sid} covers rev {current}", pick))
         if pick is not None:
@@ -368,6 +411,7 @@ def choose(root: layout.Root, signals: list[Signal]
 # Handling one signal
 # --------------------------------------------------------------------------
 
+
 def materialize_r0(root: layout.Root, task: layout.TaskDir, tid: str) -> Path:
     """r0 is the seed package, copied once from whichever corpus carries it.
     Copied whole into r0.incoming and renamed, so a crash mid-copy cannot
@@ -377,8 +421,10 @@ def materialize_r0(root: layout.Root, task: layout.TaskDir, tid: str) -> Path:
         if (src / "instruction.md").exists():
             break
     else:
-        raise NoSeed(f"no seed package for {tid} under data/sources/"
-                     f"{{{','.join(SOURCE_CORPORA)}}}/tasks")
+        raise NoSeed(
+            f"no seed package for {tid} under data/sources/"
+            f"{{{','.join(SOURCE_CORPORA)}}}/tasks"
+        )
     dest = task.rev(0)
     incoming = dest.with_name("r0.incoming")
     shutil.rmtree(incoming, ignore_errors=True)
@@ -401,14 +447,23 @@ def _compact_resources(p: dict | None) -> dict | None:
     """The provisioned size as rewrite.json and the row carry it."""
     if not p:
         return None
-    return {**{k: p.get(k) for k in ROW_KEYS}, "source": p.get("source"),
-            "measured": p.get("measured")}
+    return {
+        **{k: p.get(k) for k in ROW_KEYS},
+        "source": p.get("source"),
+        "measured": p.get("measured"),
+    }
 
 
-def handle(root: layout.Root, sig: Signal, *, declared: dict[str, dict],
-           history: tuple[dict, dict], dry: bool = False,
-           pretests: dict[str, tuple[str, str]] | None = None,
-           protecteds: dict | None = None) -> dict:
+def handle(
+    root: layout.Root,
+    sig: Signal,
+    *,
+    declared: dict[str, dict],
+    history: tuple[dict, dict],
+    dry: bool = False,
+    pretests: dict[str, tuple[str, str]] | None = None,
+    protecteds: dict | None = None,
+) -> dict:
     """One signal, one rewrite directory, one verdict in rewrite.json.
 
     An accepted rewrite stays `running` on disk until the fold renames its
@@ -428,15 +483,26 @@ def handle(root: layout.Root, sig: Signal, *, declared: dict[str, dict],
     src = task.rev(rev)
     if not src.exists():
         if rev != 0:
-            raise NoSeed(f"r{rev} does not exist under {task.path.relative_to(root.path)}")
+            raise NoSeed(
+                f"r{rev} does not exist under {task.path.relative_to(root.path)}"
+            )
         src = materialize_r0(root, task, tid)
     rewrite = _new_rewrite_dir(task, job)
     rewrite.path.mkdir(parents=True)
     meta = {
-        "task": tid, "job": job, "signal": sig.sid, "input_rev": rev,
-        "started": layout.stamp(), "finished": None, "status": "running",
-        "operator": None, "arm": os.environ.get("SWE_RETUNE_AGENT", "chat"),
-        "verdicts": None, "resources": None, "result_rev": None, "sessions": [],
+        "task": tid,
+        "job": job,
+        "signal": sig.sid,
+        "input_rev": rev,
+        "started": layout.stamp(),
+        "finished": None,
+        "status": "running",
+        "operator": None,
+        "arm": os.environ.get("SWE_RETUNE_AGENT", "chat"),
+        "verdicts": None,
+        "resources": None,
+        "result_rev": None,
+        "sessions": [],
     }
     if dry:
         meta["dry"] = True
@@ -447,20 +513,46 @@ def handle(root: layout.Root, sig: Signal, *, declared: dict[str, dict],
         # The snapshot beside rewrite.json: the hook AND the row's protected
         # lists, so the probe, the sandbox tool and the fold all see the same
         # inherited lists (a package file, if the agent writes one, overrides).
-        layout.write_pretest(rewrite.pretest, *(hook or ("", "")),
-                             protected_paths=lists.paths if lists else None,
-                             protected_cmds=lists.cmds if lists else None)
+        layout.write_pretest(
+            rewrite.pretest,
+            *(hook or ("", "")),
+            protected_paths=lists.paths if lists else None,
+            protected_cmds=lists.cmds if lists else None,
+        )
     try:
         shutil.copytree(src, rewrite.package)
         run_dir = root.run(str(d["run"])).path
         for i, rel in enumerate(d["attempts"], 1):
-            layout.link_or_copy(run_dir / rel, rewrite.traces / f"attempt-{i:02d}.jsonl")
-        rec = fb.process_one(rewrite, d, job=job, seed_dir=src,
-                             resources=training_box(tid, declared), history=history)
+            layout.link_or_copy(
+                run_dir / rel, rewrite.traces / f"attempt-{i:02d}.jsonl"
+            )
+        rec = fb.process_one(
+            rewrite,
+            d,
+            job=job,
+            seed_dir=src,
+            resources=training_box(tid, declared),
+            history=history,
+        )
     except Exception as e:  # noqa: BLE001 -- the rewrite records its own failure
-        rec = {"status": "failed", "stage": "setup", "reason": f"{type(e).__name__}: {e}"[:300]}
-    for key in ("operator", "family", "hint", "stage", "reason", "verdicts", "changed",
-                "oracle_repair", "agent_validated", "cyber_filtered", "usage"):
+        rec = {
+            "status": "failed",
+            "stage": "setup",
+            "reason": f"{type(e).__name__}: {e}"[:300],
+        }
+    for key in (
+        "operator",
+        "family",
+        "hint",
+        "stage",
+        "reason",
+        "verdicts",
+        "changed",
+        "oracle_repair",
+        "agent_validated",
+        "cyber_filtered",
+        "usage",
+    ):
         if key in rec:
             meta[key] = rec[key]
     meta["resources"] = _compact_resources(rec.get("resources"))
@@ -493,11 +585,20 @@ def _rewrite_ref(root: layout.Root, rewrite: layout.RewriteDir) -> str:
 
 def _ledger_line(root: layout.Root, sig: Signal, outcome: str, **extra) -> None:
     d = sig.data or {}
-    layout.append_jsonl(root.evolution.ledger, {
-        "stamp": layout.stamp(), "signal": sig.sid, "task": sig.task,
-        "rev": d.get("rev"), "run": sig.run.name, "group": sig.group,
-        "direction": d.get("direction"), "outcome": outcome, **extra,
-    })
+    layout.append_jsonl(
+        root.evolution.ledger,
+        {
+            "stamp": layout.stamp(),
+            "signal": sig.sid,
+            "task": sig.task,
+            "rev": d.get("rev"),
+            "run": sig.run.name,
+            "group": sig.group,
+            "direction": d.get("direction"),
+            "outcome": outcome,
+            **extra,
+        },
+    )
 
 
 def _close(root: layout.Root, h: dict, *, dry: bool) -> None:
@@ -507,22 +608,37 @@ def _close(root: layout.Root, h: dict, *, dry: bool) -> None:
         return
     rewrite, meta = h["rewrite"], h["meta"]
     task = root.evolution.task(meta["task"])
-    layout.append_jsonl(task.lineage, {
-        "stamp": layout.stamp(), "event": "rewrite", "rewrite": f"rewrites/{rewrite.path.name}",
-        "job": meta["job"], "input_rev": meta["input_rev"], "status": meta["status"],
-    })
+    layout.append_jsonl(
+        task.lineage,
+        {
+            "stamp": layout.stamp(),
+            "event": "rewrite",
+            "rewrite": f"rewrites/{rewrite.path.name}",
+            "job": meta["job"],
+            "input_rev": meta["input_rev"],
+            "status": meta["status"],
+        },
+    )
     _ledger_line(root, h["signal"], "handled", rewrite=_rewrite_ref(root, rewrite))
 
 
 def _finish(h: dict, status: str, *, stage: str, reason: str) -> None:
     meta = h["meta"]
-    meta.update({"status": status, "stage": stage, "reason": reason[:300],
-                 "finished": layout.stamp()})
+    meta.update(
+        {
+            "status": status,
+            "stage": stage,
+            "reason": reason[:300],
+            "finished": layout.stamp(),
+        }
+    )
     layout.write_json_atomic(h["rewrite"].meta, meta)
     h["status"] = status
 
 
-def reusable_rewrite(root: layout.Root, sig: Signal, ledger: dict[str, dict]) -> str | None:
+def reusable_rewrite(
+    root: layout.Root, sig: Signal, ledger: dict[str, dict]
+) -> str | None:
     """Reuse the last decision for unchanged feedback, never an execution failure.
 
     New rollout paths and timestamps are expected on every draw. They do not
@@ -530,9 +646,11 @@ def reusable_rewrite(root: layout.Root, sig: Signal, ledger: dict[str, dict]) ->
     """
     keys = ("task", "rev", "direction", "solved", "total")
     for previous in reversed(list(ledger.values())):
-        if (previous.get("outcome") != "handled"
-                or previous.get("task") != sig.task
-                or previous.get("rev") != sig.data["rev"]):
+        if (
+            previous.get("outcome") != "handled"
+            or previous.get("task") != sig.task
+            or previous.get("rev") != sig.data["rev"]
+        ):
             continue
         run, stem = previous["signal"].split("/", 1)
         data, _ = read_signal(root.run(run).signals / f"{stem}.json")
@@ -541,7 +659,9 @@ def reusable_rewrite(root: layout.Root, sig: Signal, ledger: dict[str, dict]) ->
         reference = previous.get("rewrite")
         if not reference:
             return None
-        meta = json.loads((root.evolution.path / reference / "rewrite.json").read_text())
+        meta = json.loads(
+            (root.evolution.path / reference / "rewrite.json").read_text()
+        )
         if meta.get("status") in {"accepted", "rejected", "kept", "blocked"}:
             return reference
         return None
@@ -601,9 +721,12 @@ def fold(root: layout.Root, accepted: list[dict]) -> int | None:
             # the hook, which the package never held, and so are the row's
             # protected lists -- unless the package ships its own
             # tests/protected_paths.json, which pack.to_row lets override them.
-            row = pack.to_row(str(rewrite.package), task_id=tid,
-                              pretest=row_pretest(old_md),
-                              protected=pack.Protected.from_tmax(old_md.get("tmax") or {}))
+            row = pack.to_row(
+                str(rewrite.package),
+                task_id=tid,
+                pretest=row_pretest(old_md),
+                protected=pack.Protected.from_tmax(old_md.get("tmax") or {}),
+            )
         except Exception as e:  # noqa: BLE001 -- one malformed package, not the round
             _finish(h, "failed", stage="fold", reason=f"{type(e).__name__}: {e}")
             continue
@@ -616,31 +739,52 @@ def fold(root: layout.Root, accepted: list[dict]) -> int | None:
         row["metadata"]["rev"] = n + 1
         os.rename(rewrite.package, target)
         rows[tid] = json.dumps(row, ensure_ascii=False)
-        folded.append((h, n + 1, {rk: row["metadata"].get(rk) for rk in ROW_KEYS.values()}))
+        folded.append(
+            (h, n + 1, {rk: row["metadata"].get(rk) for rk in ROW_KEYS.values()})
+        )
     if not folded:
         return None
     version, path = mix.publish([rows[iid] for iid in order])
     for h, to_rev, res in folded:
         meta, rewrite = h["meta"], h["rewrite"]
-        meta.update({"status": "accepted", "result_rev": to_rev, "finished": layout.stamp()})
+        meta.update(
+            {"status": "accepted", "result_rev": to_rev, "finished": layout.stamp()}
+        )
         layout.write_json_atomic(rewrite.meta, meta)
         h["status"] = "accepted"
-        layout.append_jsonl(root.evolution.task(meta["task"]).lineage, {
-            "stamp": layout.stamp(), "event": "fold", "from_rev": meta["input_rev"],
-            "to_rev": to_rev, "mix_version": version,
-            "rewrite": f"rewrites/{rewrite.path.name}",
-        })
-        log.info("fold %s: r%d -> r%d, %s (%s)", meta["task"], meta["input_rev"], to_rev,
-                 " ".join(f"{k}={v}" for k, v in res.items()),
-                 (meta.get("resources") or {}).get("source") or "inherited")
-    log.info("published mix v%04d (%d rows, %d folded) -> %s",
-             version, len(order), len(folded), path.name)
+        layout.append_jsonl(
+            root.evolution.task(meta["task"]).lineage,
+            {
+                "stamp": layout.stamp(),
+                "event": "fold",
+                "from_rev": meta["input_rev"],
+                "to_rev": to_rev,
+                "mix_version": version,
+                "rewrite": f"rewrites/{rewrite.path.name}",
+            },
+        )
+        log.info(
+            "fold %s: r%d -> r%d, %s (%s)",
+            meta["task"],
+            meta["input_rev"],
+            to_rev,
+            " ".join(f"{k}={v}" for k, v in res.items()),
+            (meta.get("resources") or {}).get("source") or "inherited",
+        )
+    log.info(
+        "published mix v%04d (%d rows, %d folded) -> %s",
+        version,
+        len(order),
+        len(folded),
+        path.name,
+    )
     return version
 
 
 # --------------------------------------------------------------------------
 # What the loop rebuilds from its files
 # --------------------------------------------------------------------------
+
 
 def _rewrite_metas(root: layout.Root):
     for task in root.evolution.task_dirs():
@@ -683,7 +827,9 @@ def rebuild_status(root: layout.Root) -> dict:
     ledger = load_ledger(root)
     by_outcome: dict[str, int] = {}
     for line in ledger.values():
-        by_outcome[line.get("outcome", "?")] = by_outcome.get(line.get("outcome", "?"), 0) + 1
+        by_outcome[line.get("outcome", "?")] = (
+            by_outcome.get(line.get("outcome", "?"), 0) + 1
+        )
     rewrites = {"running": 0, "accepted": 0, "blocked": 0, "failed": 0, "kept": 0}
     rejected: dict[str, int] = {}
     for _task, _rw, meta in _rewrite_metas(root):
@@ -741,12 +887,26 @@ def _snapshot_lineage(root: layout.Root, note: str) -> None:
         paths += ev.glob("tasks/*/lineage.jsonl")
         paths += ev.glob("tasks/*/rewrites/*/rewrite.json")
         paths += root.mix.history.glob("*.manifest.json")
-        spec = "\n".join(str(p.relative_to(root.path)) for p in paths if p.exists()) + "\n"
+        spec = (
+            "\n".join(str(p.relative_to(root.path)) for p in paths if p.exists()) + "\n"
+        )
         subprocess.run(base + ["add", "--pathspec-from-file=-"], input=spec, **run)
         r = subprocess.run(
-            base + ["-c", "user.email=evolve@terminal-rl", "-c", "user.name=evolve-loop",
-                    "commit", "-q", "-m", note],
-            cwd=str(root.path), capture_output=True, text=True)
+            base
+            + [
+                "-c",
+                "user.email=evolve@terminal-rl",
+                "-c",
+                "user.name=evolve-loop",
+                "commit",
+                "-q",
+                "-m",
+                note,
+            ],
+            cwd=str(root.path),
+            capture_output=True,
+            text=True,
+        )
         if r.returncode == 0:
             log.info("lineage snapshot committed: %s", note)
     except Exception as e:  # noqa: BLE001 -- never fail a round on archiving
@@ -756,6 +916,7 @@ def _snapshot_lineage(root: layout.Root, note: str) -> None:
 # --------------------------------------------------------------------------
 # A round
 # --------------------------------------------------------------------------
+
 
 def _replay_signal(root: layout.Root, sid: str) -> Signal:
     """The one signal `--signal` names, ledger or no ledger."""
@@ -770,14 +931,29 @@ def _replay_signal(root: layout.Root, sid: str) -> Signal:
     return Signal(run, path, sid, data, None)
 
 
-def run_round(root: layout.Root, *, only: str | None = None, limit: int | None = None,
-              workers: int = 8, dry: bool = False, signal: str | None = None) -> dict:
+def run_round(
+    root: layout.Root,
+    *,
+    only: str | None = None,
+    limit: int | None = None,
+    workers: int = 8,
+    dry: bool = False,
+    signal: str | None = None,
+) -> dict:
     ledger = load_ledger(root)
     # A replay is inspection: it must not fold a rewrite of a revision the
     # task has moved past, or close a signal the ledger already closed.
     dry = dry or bool(signal)
-    result: dict = {"handled": 0, "accepted": 0, "deferred": 0, "junk": 0,
-                    "superseded": 0, "reused": 0, "counts": {}, "mix_version": None}
+    result: dict = {
+        "handled": 0,
+        "accepted": 0,
+        "deferred": 0,
+        "junk": 0,
+        "superseded": 0,
+        "reused": 0,
+        "counts": {},
+        "mix_version": None,
+    }
     if signal:
         picks, rest = [_replay_signal(root, signal)], []
         found: list[Signal] = []
@@ -838,9 +1014,19 @@ def run_round(root: layout.Root, *, only: str | None = None, limit: int | None =
     history = operator_history(root)
     handled: list[dict] = []
     with ThreadPoolExecutor(max_workers=workers) as ex:
-        futs = {ex.submit(handle, root, s, declared=declared, history=history, dry=dry,
-                          pretests=pretests, protecteds=protecteds): s
-                for s in todo}
+        futs = {
+            ex.submit(
+                handle,
+                root,
+                s,
+                declared=declared,
+                history=history,
+                dry=dry,
+                pretests=pretests,
+                protecteds=protecteds,
+            ): s
+            for s in todo
+        }
         for fut in as_completed(futs):
             s = futs[fut]
             try:
@@ -852,14 +1038,24 @@ def run_round(root: layout.Root, *, only: str | None = None, limit: int | None =
                     _ledger_line(root, s, "junk", reason=str(e)[:200])
                 continue
             except Exception as e:  # noqa: BLE001 -- one signal, not the round
-                log.exception("%s: handling failed before a rewrite existed: %s", s.sid, e)
+                log.exception(
+                    "%s: handling failed before a rewrite existed: %s", s.sid, e
+                )
                 continue
             meta = h["meta"]
-            log.info("%s %s r%s %s %s/%s -> %s (%s%s) %s", meta["task"], s.sid,
-                     meta["input_rev"], meta["job"], s.data.get("solved"),
-                     s.data.get("total"), h["status"], meta.get("stage") or "-",
-                     f": {meta['reason'][:200]}" if meta.get("reason") else "",
-                     _rewrite_ref(root, h["rewrite"]))
+            log.info(
+                "%s %s r%s %s %s/%s -> %s (%s%s) %s",
+                meta["task"],
+                s.sid,
+                meta["input_rev"],
+                meta["job"],
+                s.data.get("solved"),
+                s.data.get("total"),
+                h["status"],
+                meta.get("stage") or "-",
+                f": {meta['reason'][:200]}" if meta.get("reason") else "",
+                _rewrite_ref(root, h["rewrite"]),
+            )
             handled.append(h)
             if h["status"] != "accepted":
                 _close(root, h, dry=dry)
@@ -899,54 +1095,88 @@ def _wait_for_signals(root: layout.Root, max_wait: int, tick: float = 5.0) -> No
 def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--once", action="store_true", help="one round then exit")
-    ap.add_argument("--interval", type=int, default=120,
-                    help="seconds between rounds when looping")
+    ap.add_argument(
+        "--interval", type=int, default=120, help="seconds between rounds when looping"
+    )
     ap.add_argument("--only", help="handle only this task's signals (dev)")
     ap.add_argument("--limit", type=int, help="cap tasks handled per round (dev)")
-    ap.add_argument("--workers", type=int, default=8,
-                    help="concurrent rewrites per round")
-    ap.add_argument("--dry", action="store_true",
-                    help="handle, but publish no mix version and write no ledger or "
-                         "lineage line; everything lands under the rewrite directory. "
-                         "Implies --once")
-    ap.add_argument("--signal", metavar="RUN/TASK--gN",
-                    help="replay this signal whether or not the ledger closed it; "
-                         "implies --dry")
+    ap.add_argument(
+        "--workers", type=int, default=8, help="concurrent rewrites per round"
+    )
+    ap.add_argument(
+        "--dry",
+        action="store_true",
+        help="handle, but publish no mix version and write no ledger or "
+        "lineage line; everything lands under the rewrite directory. "
+        "Implies --once",
+    )
+    ap.add_argument(
+        "--signal",
+        metavar="RUN/TASK--gN",
+        help="replay this signal whether or not the ledger closed it; " "implies --dry",
+    )
     args = ap.parse_args()
     root = layout.Root.from_env()
     # Before the log file is even opened: a refused second instance must not
     # write "loop up" into the log the first one owns.
-    _lock_fd = acquire_singleton(root.evolution.loop_lock)  # noqa: F841 -- held for the process lifetime
+    _lock_fd = acquire_singleton(
+        root.evolution.loop_lock
+    )  # noqa: F841 -- held for the process lifetime
 
     logging.basicConfig(
-        level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s",
+        level=logging.INFO,
+        format="%(asctime)s %(levelname)s %(message)s",
         # FileHandler only. The unit launches the loop with `>> loop.log 2>&1`
         # for stray prints and tracebacks; a StreamHandler here would write
         # every record to the same file a second time.
-        handlers=[logging.FileHandler(root.evolution.loop_log)])
+        handlers=[logging.FileHandler(root.evolution.loop_log)],
+    )
     # A row declaring no daytona_* is boxed at this size, here and (if the
     # trainer's env agrees) in training. None means the harness default 2/4/6,
     # which is not what the trainer runs at unless its env says so too.
-    log.info("fleet default for rows declaring no daytona_*: cpu=%s mem_gb=%s "
-             "disk_gb=%s (from TT_DAYTONA_CPU/MEM_GB/DISK_GB; None = harness "
-             "default 2/4/6)", FLEET["cpu"], FLEET["mem_gb"], FLEET["disk_gb"])
+    log.info(
+        "fleet default for rows declaring no daytona_*: cpu=%s mem_gb=%s "
+        "disk_gb=%s (from TT_DAYTONA_CPU/MEM_GB/DISK_GB; None = harness "
+        "default 2/4/6)",
+        FLEET["cpu"],
+        FLEET["mem_gb"],
+        FLEET["disk_gb"],
+    )
 
     dry = args.dry or bool(args.signal)
     if args.once or args.only or dry:
-        r = run_round(root, only=args.only, limit=args.limit, workers=args.workers,
-                      dry=dry, signal=args.signal)
+        r = run_round(
+            root,
+            only=args.only,
+            limit=args.limit,
+            workers=args.workers,
+            dry=dry,
+            signal=args.signal,
+        )
         log.info("round done%s: %s", " (dry)" if dry else "", r)
         if not dry:
             rebuild_status(root)
             if r.get("handled") or r.get("reused"):
                 _snapshot_lineage(root, f"once: {r}")
         return
-    log.info("evolve loop up: pid=%d root=%s interval=%ds workers=%d simplify=%s",
-             os.getpid(), root.path, args.interval, args.workers, SIMPLIFY_ENABLED)
+    log.info(
+        "evolve loop up: pid=%d root=%s interval=%ds workers=%d simplify=%s",
+        os.getpid(),
+        root.path,
+        args.interval,
+        args.workers,
+        SIMPLIFY_ENABLED,
+    )
     while True:
         try:
             r = run_round(root, workers=args.workers)
-            if r.get("handled") or r.get("junk") or r.get("deferred") or r.get("superseded") or r.get("reused"):
+            if (
+                r.get("handled")
+                or r.get("junk")
+                or r.get("deferred")
+                or r.get("superseded")
+                or r.get("reused")
+            ):
                 log.info("round: %s", r)
             rebuild_status(root)
             if r.get("handled") or r.get("reused"):
