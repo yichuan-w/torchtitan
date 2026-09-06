@@ -67,8 +67,7 @@ def aggregate(rows: list[dict]) -> dict:
 
 
 def summarize(rows: list[dict], folded: set[str]) -> dict:
-    # The seed-only series keeps r0 observations even after that task evolves.
-    # The paired series instead fixes both task identity and sample hash at this snapshot.
+    # Compare identical tasks and sample hashes within this snapshot.
     seed = [row for row in rows if row["rev"] == 0]
     stable = [row for row in seed if row["task"] not in folded]
     by_task = collections.defaultdict(list)
@@ -80,21 +79,10 @@ def summarize(rows: list[dict], folded: set[str]) -> dict:
         task_rows.sort(key=lambda row: row["group"])
         if len(task_rows) > 1 and task_rows[0]["epoch"] != task_rows[-1]["epoch"]:
             pairs.append({"first": task_rows[0], "latest": task_rows[-1]})
-    policies = sorted({row["policy_at_claim"] for row in seed})
     return {
-        "all": aggregate(rows),
-        "seed_only": aggregate(seed),
-        "never_rewritten": aggregate(stable),
-        "paired_first": aggregate([pair["first"] for pair in pairs]),
-        "paired_latest": aggregate([pair["latest"] for pair in pairs]),
+        "baseline": aggregate([pair["first"] for pair in pairs]),
+        "current": aggregate([pair["latest"] for pair in pairs]),
         "pairs": pairs,
-        "seed_by_policy": [
-            {
-                "policy_at_claim": policy,
-                **aggregate([r for r in seed if r["policy_at_claim"] == policy]),
-            }
-            for policy in policies
-        ],
     }
 
 
@@ -208,76 +196,17 @@ def collect(
 def publish(wb, rows: list[dict], result: dict, snapshot: Path) -> None:
     import wandb
 
-    columns = [
-        "task",
-        "rev",
-        "group",
-        "epoch",
-        "policy_at_claim",
-        "sample_revision",
-        "scored",
-        "solved",
-        "infra",
-        "accuracy",
-        "reward",
-    ]
     table_rows = [
-        dict(
-            row,
-            accuracy=row["solved"] / row["scored"] if row["scored"] else None,
-            reward=row["reward_sum"] / row["scored"] if row["scored"] else None,
-        )
+        dict(row, accuracy=row["solved"] / row["scored"] if row["scored"] else None)
         for row in rows
     ]
-    table = wandb.Table(
-        columns=columns, data=[[row[key] for key in columns] for row in table_rows]
-    )
-    chart = wandb.plot.line_series(
-        xs=[row["policy_at_claim"] for row in result["seed_by_policy"]],
-        ys=[
-            [row[key] for row in result["seed_by_policy"]]
-            for key in ("accuracy", "reward")
-        ],
-        keys=["accuracy", "reward"],
-        title="Original task versions: accuracy and reward",
-        xname="Policy at group claim",
-    )
     template = Path(__file__).with_name("reward_lineage.html").read_text()
     page = template.replace("__ROWS__", json.dumps(table_rows).replace("<", "\\u003c"))
-    (snapshot / "lineage.html").write_text(page)
-    payload = {
-        "observer/snapshot_unix": time.time(),
-        "observer/groups": len(rows),
-        "seed_only/by_policy": chart,
-        "lineage/groups": table,
-        "lineage/explorer": wandb.Html(page, inject=False),
-    }
-    if result["paired_first"]["scored"] and result["paired_latest"]["scored"]:
-        comparison = wandb.Table(
-            columns=["observation", "accuracy"],
-            data=[
-                [name, result[key]["accuracy"]]
-                for name, key in (
-                    ("First", "paired_first"),
-                    ("Latest", "paired_latest"),
-                )
-            ],
-        )
-        payload["paired/comparison"] = wandb.plot.bar(
-            comparison,
-            "observation",
-            "accuracy",
-            title="Same unchanged tasks: first vs latest solve rate",
-        )
-    for category in ("seed_only", "never_rewritten", "paired_first", "paired_latest"):
-        payload.update(
-            {
-                f"{category}/{key}": value
-                for key, value in result[category].items()
-                if value is not None
-            }
-        )
-    wb.log(payload)
+    display = {key: result[key] for key in ("baseline", "current")}
+    display["updated"] = dt.datetime.now(dt.timezone.utc).isoformat(timespec="seconds")
+    page = page.replace("__SUMMARY__", json.dumps(display))
+    (snapshot / "accuracy.html").write_text(page)
+    wb.log({"Accuracy": wandb.Html(page, inject=False)})
     LOG.info("published snapshot=%s groups=%s url=%s", snapshot.name, len(rows), wb.url)
 
 
@@ -331,8 +260,8 @@ def main() -> None:
         wb = wandb.init(
             entity=entity,
             project=project,
-            id=f"observe-{source_id}",
-            name=f"observe-{source_id}",
+            id=f"accuracy-{source_id}",
+            name=f"accuracy-{source_id}",
             job_type="reward-observer",
             group=source_id,
             dir=str(args.out),
@@ -354,15 +283,6 @@ def main() -> None:
                 x_save_requirements=False,
             ),
         )
-        wb.define_metric("observer/snapshot_unix")
-        for category in (
-            "seed_only",
-            "never_rewritten",
-            "paired_first",
-            "paired_latest",
-            "observer",
-        ):
-            wb.define_metric(f"{category}/*", step_metric="observer/snapshot_unix")
         layout.write_json_atomic(args.out / "wandb.json", {"url": wb.url, "id": wb.id})
     try:
         while True:

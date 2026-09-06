@@ -8,9 +8,12 @@
 
 import importlib.util
 import json
+import sys
 import tempfile
 import unittest
 from pathlib import Path
+from types import SimpleNamespace
+from unittest.mock import patch
 
 SCRIPT = Path(__file__).parents[1] / "examples/tmax/evolution/observe_rewards.py"
 spec = importlib.util.spec_from_file_location("observe_rewards", SCRIPT)
@@ -35,6 +38,22 @@ def row(task="a", rev=0, epoch=0, group=0, scored=4, solved=2, revision="same"):
 
 
 class RewardObserverTest(unittest.TestCase):
+    def test_publishes_one_panel_without_individual_metrics(self):
+        entries = []
+        wb = SimpleNamespace(log=entries.append, url="test")
+        rows = [row(), row(epoch=1, group=10, solved=3)]
+        with tempfile.TemporaryDirectory() as directory:
+            with patch.dict(
+                sys.modules,
+                {"wandb": SimpleNamespace(Html=lambda page, **kwargs: page)},
+            ):
+                observer.publish(
+                    wb, rows, observer.summarize(rows, set()), Path(directory)
+                )
+            self.assertEqual(set(entries[0]), {"Accuracy"})
+            self.assertNotIn("__SUMMARY__", entries[0]["Accuracy"])
+            self.assertNotIn("paired_first", entries[0]["Accuracy"])
+
     def test_pairs_require_same_task_hash_and_different_epoch(self):
         result = observer.summarize(
             [
@@ -47,17 +66,16 @@ class RewardObserverTest(unittest.TestCase):
             ],
             set(),
         )
-        self.assertEqual(result["paired_first"]["tasks"], 1)
-        self.assertEqual(result["paired_first"]["accuracy"], 0.5)
-        self.assertEqual(result["paired_latest"]["accuracy"], 0.75)
+        self.assertEqual(result["baseline"]["tasks"], 1)
+        self.assertEqual(result["baseline"]["accuracy"], 0.5)
+        self.assertEqual(result["current"]["accuracy"], 0.75)
 
     def test_rewritten_task_keeps_original_history_but_leaves_paired_cohort(self):
         result = observer.summarize(
             [row(), row(epoch=1, group=10), row(rev=1, group=20)], {"a"}
         )
-        self.assertEqual(result["seed_only"]["groups"], 2)
-        self.assertEqual(result["never_rewritten"]["groups"], 0)
-        self.assertIsNone(result["paired_latest"]["accuracy"])
+        self.assertEqual(result["baseline"]["groups"], 0)
+        self.assertIsNone(result["current"]["accuracy"])
 
     def test_aggregation_weights_attempts_and_preserves_nonbinary_reward(self):
         first = row(scored=1, solved=1)
