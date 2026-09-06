@@ -334,20 +334,36 @@ async def grade_tmax(
     # test.sh scripts assume they are invoked as `bash /tests/test.sh` (they use
     # $(dirname "$0") to find sibling fixtures). Run as root so /logs and any
     # system path is writable; the verifier is trusted dataset code.
-    await sb.exec(
+    rc, out, err = await sb.exec(
         f"chmod +x {shlex.quote(_TEST_SH)}; bash {shlex.quote(_TEST_SH)}",
         user="root",
         check=False,
         timeout=timeout,
     )
+    # The verifier's exit and output are the only record of why an episode
+    # scored below 1: reward.txt holds the number and nothing else. Kept for
+    # a failed episode so a reference solution that fails can be read from
+    # the log instead of re-run in a fresh sandbox.
+    verifier_tail = ((out or "") + (err or ""))[-400:]
     reward_txt = await sb.read_file(reward_path, user="root")
     if (reward_txt or "").strip() == nonce:
         logger.info(
-            "[tmax] verifier left the sentinel in place (never wrote %s); " "scoring 0",
+            "[tmax] verifier left the sentinel in place (never wrote %s; "
+            "exit %s; tail %r); scoring 0",
             reward_path,
+            rc,
+            verifier_tail,
         )
         return 0.0
     reward = _parse_reward(reward_txt)
+    if reward < 1.0:
+        logger.info(
+            "[tmax] verifier for %s exited %s with reward=%.2f; tail %r",
+            tmax.get("task_id", "?"),
+            rc,
+            reward,
+            verifier_tail,
+        )
     logger.info("[tmax] graded reward=%.2f (reward_path=%s)", reward, reward_path)
     return reward
 

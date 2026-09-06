@@ -86,6 +86,11 @@ def test_seed_sizing_preserves_revisions_holdout_and_history(tmp_path):
     assert updated[1:] == rows[1:]
     assert original.read_bytes() == original_bytes
     assert mix.live_version()[0] == 2
+    # Applying the same sizing again changes no row, so no version is added.
+    subprocess.run(
+        command + ["--apply"], env=environment, check=True, capture_output=True
+    )
+    assert mix.live_version()[0] == 2
 
 
 def test_mix_tools_help_does_not_import_training_runtime():

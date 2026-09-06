@@ -116,6 +116,11 @@ def main() -> None:
     if not a.apply:
         print(f"dry run -- {stats['changed']} rows would change")
         return
+    if not stats["changed"]:
+        # A root's live mix publishes on every write, so writing unchanged
+        # rows would add a version identical to its parent.
+        print("nothing changed -- not writing")
+        return
     published = layout.write_mix(mix, out)
     print(
         f"wrote {mix} ({stats['changed']} changed)"
