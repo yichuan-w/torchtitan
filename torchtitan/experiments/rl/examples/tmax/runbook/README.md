@@ -135,10 +135,11 @@ evaluation too. The longer [RUNBOOK.md](RUNBOOK.md) covers tuning and debugging.
 
 ## Watch rewards while tasks evolve
 
-The example config enables `RL_OBSERVE_REWARDS=1`. Each real launch starts a
+The shared defaults enable `RL_OBSERVE_REWARDS=1`. Each real launch starts a
 separate CPU observer, which updates a companion W&B run every five minutes.
 The companion is named `observe-<training-run-id>` in the training run's project.
 The trainer's metrics and history remain owned by the trainer.
+Set `RL_OBSERVE_REWARDS=0` in the run config to disable the companion.
 
 Open the companion run's workspace and look for these panels:
 
@@ -150,11 +151,13 @@ Open the companion run's workspace and look for these panels:
 | Which individual observations produced the plots? | `lineage/groups` | Filter the task column to inspect the underlying group records. |
 | Is the observer current? | `observer/snapshot_unix`, `observer/groups` | The timestamp advances each poll; the group count advances when new groups finish. |
 
-Accuracy is successful attempts divided by scored attempts. Reward is the mean
+Accuracy counts positive rewards as successes, matching the controller, and divides
+by scored attempts. Reward is the mean
 of those scored rewards; the two coincide when rewards are binary. Infrastructure
 failures and missing/nonfinite rewards are excluded, and their counts remain visible.
 The paired cohort contains tasks not yet replaced by an evolved version in the training mix at each snapshot;
 it can change as more tasks evolve. Compare its two bars within a snapshot.
+The paired panel appears after unchanged tasks have observations in multiple epochs.
 This is training performance on a selected cohort, not held-out generalization.
 
 The policy axis records the generator version at group claim. An asynchronous
