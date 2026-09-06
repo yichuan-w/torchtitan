@@ -9,7 +9,6 @@ from __future__ import annotations
 import json
 import os
 import runpy
-import sys
 from pathlib import Path
 
 import pytest
@@ -52,7 +51,7 @@ def test_create_publishes_v1_with_rev_zero_and_links_sources(tmp_path: Path) -> 
 
     version, path = root.mix.live_version()
     assert version == 1 and path.name.startswith("v0001--")
-    rows = [json.loads(l) for l in root.mix.live.read_text().splitlines()]
+    rows = [json.loads(line) for line in root.mix.live.read_text().splitlines()]
     assert [r["metadata"]["rev"] for r in rows] == [0, 3]  # a row's own rev is kept
     manifest = json.loads(layout.MixDir.manifest_of(path).read_text())
     assert (
