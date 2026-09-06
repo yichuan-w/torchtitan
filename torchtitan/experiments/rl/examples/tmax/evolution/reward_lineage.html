@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="en"><meta charset="utf-8"><title>Task lineage rewards</title>
+<style>
+body{font:14px system-ui,sans-serif;margin:20px;color:#182235;background:#fff}label{display:block;margin:12px 0}input{padding:8px;width:300px}svg{width:100%;max-width:900px;height:260px}table{border-collapse:collapse;width:100%}th,td{text-align:left;padding:7px;border-bottom:1px solid #ddd}p{max-width:900px;color:#4b5563}button{padding:7px}
+</style>
+<h2>Task lineage: solve rate and reward</h2>
+<p>Select one task to follow its original and rewritten versions. Each point is a finalized rollout group. The x-axis is the policy version when the group was claimed; a rollout may span later weight updates.</p>
+<label>Task <input id="task" list="tasks"><datalist id="tasks"></datalist><button id="show">Show</button></label>
+<p id="count"></p><svg id="chart" viewBox="0 0 900 260" role="img" aria-label="Accuracy and reward by policy at group claim"></svg>
+<p>Blue: solve rate. Orange: mean reward. For binary rewards they coincide. Revision changes also change the problem; a lower rate after a rewrite does not alone imply a worse model. Infrastructure failures and missing or nonfinite rewards are excluded.</p>
+<table><thead><tr><th>Revision</th><th>Policy at claim</th><th>Epoch</th><th>Solved / scored</th><th>Reward</th><th>Infra failures</th><th>Group</th></tr></thead><tbody id="detail"></tbody></table>
+<script>
+const rows=__ROWS__;
+const ids=[...new Set(rows.map(r=>r.task))].sort();
+const input=document.getElementById('task');
+for(const id of ids){const o=document.createElement('option');o.value=id;document.getElementById('tasks').appendChild(o)}
+input.value=ids.find(id=>new Set(rows.filter(r=>r.task===id).map(r=>r.rev)).size>1)||ids[0]||'';
+function draw(){
+ const selected=rows.filter(r=>r.task===input.value).sort((a,b)=>a.policy_at_claim-b.policy_at_claim||a.group-b.group);
+ document.getElementById('count').textContent=`${selected.length} groups; ${selected.reduce((n,r)=>n+r.scored,0)} scored attempts. Revision r0 is the original task.`;
+ const detail=document.getElementById('detail');detail.replaceChildren();
+ for(const r of selected){const tr=document.createElement('tr');for(const value of [`r${r.rev}`,r.policy_at_claim,r.epoch,`${r.solved} / ${r.scored}`,r.reward===null?'unscored':r.reward.toFixed(4),r.infra,r.group]){const td=document.createElement('td');td.textContent=value;tr.appendChild(td)}detail.appendChild(tr)}
+ const svg=document.getElementById('chart');svg.replaceChildren();
+ const add=(tag,attrs,text)=>{const el=document.createElementNS('http://www.w3.org/2000/svg',tag);for(const[k,v]of Object.entries(attrs))el.setAttribute(k,v);if(text!==undefined)el.textContent=text;svg.appendChild(el);return el};
+ const lo=Math.min(...selected.map(r=>r.policy_at_claim),0),hi=Math.max(...selected.map(r=>r.policy_at_claim),1);
+ const x=v=>55+(v-lo)/(hi-lo)*790,y=v=>210-v*180;
+ for(const v of [0,.25,.5,.75,1]){add('line',{x1:55,x2:845,y1:y(v),y2:y(v),stroke:'#ddd'});add('text',{x:10,y:y(v)+4,fill:'#555'},`${v*100}%`)}
+ for(const field of ['reward','accuracy']){
+ const valid=selected.filter(r=>r[field]!==null);add('polyline',{points:valid.map(r=>`${x(r.policy_at_claim)},${y(r[field])}`).join(' '),fill:'none',stroke:field==='accuracy'?'#2563eb':'#ea580c','stroke-width':field==='accuracy'?2:5});
+ for(const r of valid){const c=add('circle',{cx:x(r.policy_at_claim),cy:y(r[field]),r:4,fill:field==='accuracy'?'#2563eb':'#ea580c'});const t=document.createElementNS('http://www.w3.org/2000/svg','title');t.textContent=`r${r.rev}: ${field}=${r[field].toFixed(4)}, ${r.solved}/${r.scored}, policy ${r.policy_at_claim}`;c.appendChild(t)}
+ }
+ for(const r of selected){add('text',{x:x(r.policy_at_claim),y:230,'text-anchor':'middle',fill:'#555'},`${r.policy_at_claim} (r${r.rev})`)}
+}
+input.addEventListener('change',draw);document.getElementById('show').addEventListener('click',draw);draw();
+</script></html>

@@ -348,6 +348,18 @@ fi
 
 start_ckpt_timers
 
+if [ "${RL_OBSERVE_REWARDS:-0}" = 1 ]; then
+    # A separate W&B run avoids concurrent writers to the trainer's history.
+    # Startup can precede the trainer's URL; systemd retries until it is logged.
+    systemd-run --user --unit="observe-$(basename "$RUN")" --collect \
+        --working-directory="$TRL_TT" -p Restart=on-failure -p RestartSec=30 \
+        -p StartLimitIntervalSec=0 -p Nice=15 \
+        "$TRL_VENV/bin/python" "$HERE/../evolution/observe_rewards.py" \
+        --root "$TRL_BASE" --run "$(basename "$RUN")" --out "$RUN/observer" \
+        --watch --upload
+    echo "[launch] reward observer: $RUN/observer/observe.log"
+fi
+
 # W&B writes wandb/ under the CWD, so run from the run directory. The trainer's
 # own output (structured logs, metrics, profiles, validation traces) is told
 # where to go explicitly: --dump_folder is Controller.Config.dump_folder, whose
