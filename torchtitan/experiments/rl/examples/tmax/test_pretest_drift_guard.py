@@ -13,6 +13,7 @@ when the two identities are equal, else skips. Pure/offline -- no sandbox, no to
 prepare_tmax_data (stdlib-only at module level) and mirrors grading.py's run/skip condition.
 Run: ``python3 test_pretest_drift_guard.py``.
 """
+import base64
 import hashlib
 import importlib.util
 import pathlib
@@ -420,6 +421,71 @@ def test_rts_main_wires_the_selfcheck_guard():
         raise AssertionError("expected RuntimeError on a corpus-wide mismatch")
     except RuntimeError:
         pass
+
+
+def test_oracle_commands_counts_a_replay_by_its_recorded_commands_not_its_wrapper():
+    """The same solution in two shapes must measure the same difficulty.
+
+    oracle_commands gates rows through --max-oracle-commands, and it is read off the solution TEXT. A flat
+    script is one command per line. gold_rollout's form-B replay is a fixed preamble plus one `_gr '<b64>'`
+    line per recorded command, so reading it line by line measures the wrapper: the preamble inflates a short
+    solution, and a payload that chained three operations deflates to one. Counting invocations gives the
+    number of commands the rollout issued, which is what the measure approximates.
+    """
+    commands = ["echo one", "mkdir -p /tmp/x", "cp a b"]
+    flat = "#!/bin/bash\n" + "\n\n".join(commands) + "\n"
+    payloads = [base64.b64encode(c.encode()).decode() for c in commands]
+    harness = (
+        "#!/usr/bin/env bash\n_gr_run=0; _gr_nz=0\n_GR_ST=$(mktemp -d)\n"
+        '_gr(){ _gr_run=$((_gr_run+1)); bash -c \'eval "$1"\' _ "$1"; return 0; }\n'
+        + "".join(f"_gr '{b}'\n" for b in payloads)
+        + "exit 0\n"
+    )
+
+    assert RTS._oracle_commands(flat) == len(
+        commands
+    )  # a flat script counts as it always did
+    assert RTS._oracle_commands(harness) == len(
+        commands
+    )  # the recorded commands, not the wrapper
+    # chains live INSIDE one payload, so they are one command, as they were for the agent that ran them
+    chained = ["a && b && c", "d; e"]
+    h2 = (
+        "#!/usr/bin/env bash\n_gr(){ :; }\n"  # the writer's marker: this is a replay
+        + "".join(f"_gr '{base64.b64encode(c.encode()).decode()}'\n" for c in chained)
+        + "exit 0\n"
+    )
+    assert RTS._oracle_commands(h2) == 2
+    assert RTS._oracle_commands(flat.replace("echo one", "a && b")) == len(commands) + 1
+    assert RTS._oracle_commands("") == 0
+
+    # An EMPTY replay is a recorded shape ("did not run"), not a script to read line by line: the form is
+    # recognised by the writer's own _gr() definition, so it counts zero rather than counting the wrapper.
+    empty = "#!/usr/bin/env bash\n_gr_run=0\n_gr(){ :; }\nexit 0\n"
+    assert RTS._oracle_commands(empty) == 0
+
+    # A drifted writer must not undercount in silence. The loose pattern is the widest thing that is still an
+    # invocation, so EVERY shape below refuses -- including the three a `starts with _gr ' and ends with '`
+    # rule would also have missed. The guard does not depend on having guessed the drift correctly.
+    for name, line in (
+        ("indented", f"  _gr '{payloads[1]}'"),
+        ("trailing comment", f"_gr '{payloads[1]}'  # note"),
+        ("double quotes", f'_gr "{payloads[1]}"'),
+        ("unquoted variable", "_gr $payload"),
+        ("wrapped payload", f"_gr '{payloads[1][:4]}\\\n{payloads[1][4:]}'"),
+    ):
+        drifted = harness.replace(f"_gr '{payloads[1]}'", line)
+        try:
+            RTS._oracle_commands(drifted)
+        except RTS.OracleCommandsFormError as e:
+            assert "drifted" in str(e) and "`_gr` line(s)" in str(e), (name, e)
+        else:
+            raise AssertionError(
+                f"{name}: a _gr line the counter cannot read must refuse, not undercount"
+            )
+
+    # the refusal is typed, so a caller can name the row rather than surfacing a bare traceback
+    assert issubclass(RTS.OracleCommandsFormError, ValueError)
 
 
 if __name__ == "__main__":

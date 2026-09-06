@@ -85,6 +85,7 @@ from torchtitan.experiments.rl.examples.tmax.prepare_rts_data import (
     _strip_canary,
     _strip_comments,
     _workdir_from_dockerfile,
+    OracleCommandsFormError,
 )
 from torchtitan.experiments.rl.examples.tmax.prepare_tmax_data import (
     _DEFAULT_IMAGE_PREFIX,
@@ -432,7 +433,14 @@ def to_row(
     oracle_commands = 0
     if os.path.exists(solve_path):
         with open(solve_path, encoding="utf-8", errors="replace") as f:
-            oracle_commands = _oracle_commands(f.read())
+            try:
+                oracle_commands = _oracle_commands(f.read())
+            except OracleCommandsFormError as e:
+                # The shipped solution IS the replay for these rows, so a `_gr` line the counter cannot read
+                # means the artefact drifted from its writer. Refuse the run BY NAME here rather than filter
+                # the row: a silently missing task would surface only as the row-count guard, one step away
+                # from the file that caused it.
+                raise RefuseError(f"{task_id}: {e}") from None
 
     # The fixtures travel inside the row as text, so a tests/ file that is not UTF-8 or a set that exceeds
     # the context cap REFUSES the package by name rather than being skipped (prepare_rts_data's rule; the
