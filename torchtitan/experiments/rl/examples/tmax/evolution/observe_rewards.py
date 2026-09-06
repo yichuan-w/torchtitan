@@ -344,6 +344,7 @@ def main() -> None:
                 "cohort": "same task and sample hash, never folded by snapshot time",
             },
             settings=wandb.Settings(
+                console="off",
                 disable_code=True,
                 disable_git=True,
                 disable_job_creation=True,
@@ -377,7 +378,15 @@ def main() -> None:
             snapshot.mkdir(parents=True)
             layout.write_json_atomic(
                 snapshot / "result.json",
-                {"inputs": config, "rows": rows, "folds": folds, "summary": result},
+                {
+                    "inputs": config,
+                    "observer_sha256": hashlib.sha256(
+                        Path(__file__).read_bytes()
+                    ).hexdigest(),
+                    "rows": rows,
+                    "folds": folds,
+                    "summary": result,
+                },
             )
             if wb is not None:
                 publish(wb, rows, result, snapshot)
@@ -389,6 +398,14 @@ def main() -> None:
             )
             if not args.watch:
                 break
+            if wb is not None:
+                import wandb
+
+                state = wandb.Api().run(args.source_wandb).state
+                LOG.info("source state=%s", state)
+                if state in {"finished", "failed", "crashed", "killed"}:
+                    LOG.info("source ended; final snapshot published")
+                    break
             time.sleep(args.interval)
     finally:
         if wb is not None:
