@@ -1,0 +1,854 @@
+[
+ {
+  "ref": "almalinux:8",
+  "created": "2026-09-02",
+  "os": "almalinux:8.10",
+  "how": "first layer /etc/os-release"
+ },
+ {
+  "ref": "almalinux:9",
+  "created": "2026-09-02",
+  "os": "almalinux:9.8",
+  "how": "first layer /etc/os-release"
+ },
+ {
+  "ref": "alpine:3.18",
+  "created": "2025-02-14",
+  "os": "alpine:3.18.12",
+  "how": "first layer /etc/os-release"
+ },
+ {
+  "ref": "alpine:3.19",
+  "created": "2025-10-08",
+  "os": "alpine:3.19.9",
+  "how": "first layer /etc/os-release"
+ },
+ {
+  "ref": "archlinux:latest",
+  "created": "2026-08-31",
+  "os": "arch:?",
+  "how": "first layer /etc/os-release"
+ },
+ {
+  "ref": "busybox:latest",
+  "created": "2026-05-13",
+  "os": "?",
+  "how": "config"
+ },
+ {
+  "ref": "centos:7",
+  "created": "2021-09-15",
+  "os": "centos:7",
+  "how": "first layer /etc/os-release"
+ },
+ {
+  "ref": "centos:8",
+  "created": "2021-09-15",
+  "os": "centos:8",
+  "how": "first layer /etc/os-release"
+ },
+ {
+  "ref": "clojure:temurin-21-tools-deps",
+  "os": "debian:bookworm",
+  "how": "same digest as temurin-21-tools-deps-bookworm"
+ },
+ {
+  "ref": "coblox/libbitcoin-explorer:latest",
+  "created": "2019-06-26",
+  "os": "ubuntu:bionic",
+  "how": "first layer /etc/os-release"
+ },
+ {
+  "ref": "continuumio/miniconda3:23.10.0-1",
+  "created": "2023-11-16",
+  "os": "debian:bullseye",
+  "how": "first layer /etc/os-release"
+ },
+ {
+  "ref": "continuumio/miniconda3:23.5.2-0",
+  "created": "2023-07-18",
+  "os": "debian:bullseye",
+  "how": "first layer /etc/os-release"
+ },
+ {
+  "ref": "continuumio/miniconda3:24.9.2-0",
+  "created": "2024-10-24",
+  "os": "debian:bookworm",
+  "how": "first layer /etc/os-release"
+ },
+ {
+  "ref": "continuumio/miniconda3:latest",
+  "created": "2026-08-28",
+  "os": "debian:trixie",
+  "how": "config"
+ },
+ {
+  "ref": "debian:11",
+  "created": "2026-08-24",
+  "os": "debian:bullseye",
+  "how": "config"
+ },
+ {
+  "ref": "debian:12",
+  "created": "2026-08-24",
+  "os": "debian:bookworm",
+  "how": "config"
+ },
+ {
+  "ref": "debian:12-slim",
+  "created": "2026-08-24",
+  "os": "debian:bookworm",
+  "how": "config"
+ },
+ {
+  "ref": "debian:9",
+  "created": "2022-06-23",
+  "os": "debian:stretch",
+  "how": "first layer /etc/os-release"
+ },
+ {
+  "ref": "debian:bookworm",
+  "os": "debian:bookworm",
+  "how": "tag names it"
+ },
+ {
+  "ref": "debian:bookworm-slim",
+  "os": "debian:bookworm",
+  "how": "tag names it"
+ },
+ {
+  "ref": "debian:bullseye",
+  "os": "debian:bullseye",
+  "how": "tag names it"
+ },
+ {
+  "ref": "debian:bullseye-slim",
+  "os": "debian:bullseye",
+  "how": "tag names it"
+ },
+ {
+  "ref": "debian:buster",
+  "os": "debian:buster",
+  "how": "tag names it"
+ },
+ {
+  "ref": "debian:jessie",
+  "os": "debian:jessie",
+  "how": "tag names it"
+ },
+ {
+  "ref": "debian:stretch-slim",
+  "os": "debian:stretch",
+  "how": "tag names it"
+ },
+ {
+  "ref": "docker.m.daocloud.io/library/ubuntu:22.04",
+  "error": "HTTPError: HTTP Error 401: Unauthorized"
+ },
+ {
+  "ref": "eclipse-temurin:11-jdk-jammy",
+  "os": "ubuntu:22.04",
+  "how": "tag names it"
+ },
+ {
+  "ref": "eclipse-temurin:18-jdk-jammy",
+  "os": "ubuntu:22.04",
+  "how": "tag names it"
+ },
+ {
+  "ref": "eclipse-temurin:25-jdk-noble",
+  "os": "ubuntu:24.04",
+  "how": "tag names it"
+ },
+ {
+  "ref": "eclipse-temurin:8-jdk",
+  "created": "2026-08-21",
+  "os": "ubuntu:resolute",
+  "how": "first layer /etc/os-release"
+ },
+ {
+  "ref": "eclipse-temurin:8-jdk-focal",
+  "os": "ubuntu:20.04",
+  "how": "tag names it"
+ },
+ {
+  "ref": "eclipse-temurin:8-jdk-jammy",
+  "os": "ubuntu:22.04",
+  "how": "tag names it"
+ },
+ {
+  "ref": "eclipse-temurin:8-jre-jammy",
+  "os": "ubuntu:22.04",
+  "how": "tag names it"
+ },
+ {
+  "ref": "elixir:1.14",
+  "created": "2023-05-23",
+  "os": "debian:bookworm",
+  "how": "config"
+ },
+ {
+  "ref": "elixir:1.14.5-otp-25",
+  "created": "2023-05-24",
+  "os": "debian:bullseye",
+  "how": "config"
+ },
+ {
+  "ref": "elixir:1.16",
+  "created": "2026-08-25",
+  "os": "debian:bookworm",
+  "how": "config"
+ },
+ {
+  "ref": "elixir:1.16-slim",
+  "created": "2026-08-25",
+  "os": "debian:bookworm",
+  "how": "config"
+ },
+ {
+  "ref": "emscripten/emsdk:3.1.44",
+  "created": "2023-07-25",
+  "os": "ubuntu:22.04",
+  "how": "config"
+ },
+ {
+  "ref": "erlang:19",
+  "created": "2022-06-23",
+  "os": "debian:stretch",
+  "how": "first layer /etc/os-release"
+ },
+ {
+  "ref": "erlang:24",
+  "created": "2026-08-25",
+  "os": "debian:bullseye",
+  "how": "config"
+ },
+ {
+  "ref": "erlang:26-slim",
+  "created": "2026-08-25",
+  "os": "debian:bookworm",
+  "how": "config"
+ },
+ {
+  "ref": "fastly/lucet:latest",
+  "created": "2019-08-06",
+  "os": "ubuntu:xenial",
+  "how": "first layer /etc/os-release"
+ },
+ {
+  "ref": "fedora:29",
+  "created": "2019-03-12",
+  "os": "fedora:29",
+  "how": "first layer /etc/os-release"
+ },
+ {
+  "ref": "fedora:33",
+  "created": "2021-11-29",
+  "os": "fedora:33",
+  "how": "first layer /etc/os-release"
+ },
+ {
+  "ref": "fedora:39",
+  "created": "2024-10-31",
+  "os": "fedora:39",
+  "how": "first layer /etc/os-release"
+ },
+ {
+  "ref": "fedora:40",
+  "created": "2025-01-19",
+  "os": "fedora:40",
+  "how": "first layer /etc/os-release"
+ },
+ {
+  "ref": "fedora:41",
+  "created": "2025-12-04",
+  "os": "fedora:41",
+  "how": "first layer /etc/os-release"
+ },
+ {
+  "ref": "fedora:latest",
+  "created": "2026-08-26",
+  "os": "fedora:44",
+  "how": "first layer /etc/os-release"
+ },
+ {
+  "ref": "fluxrm/flux-core:focal-v0.48.0",
+  "os": "ubuntu:20.04",
+  "how": "tag names it"
+ },
+ {
+  "ref": "golang:1.10-stretch",
+  "os": "debian:stretch",
+  "how": "tag names it"
+ },
+ {
+  "ref": "golang:1.13-buster",
+  "os": "debian:buster",
+  "how": "tag names it"
+ },
+ {
+  "ref": "golang:1.16-bullseye",
+  "os": "debian:bullseye",
+  "how": "tag names it"
+ },
+ {
+  "ref": "golang:1.17-bullseye",
+  "os": "debian:bullseye",
+  "how": "tag names it"
+ },
+ {
+  "ref": "golang:1.18",
+  "created": "2023-01-11",
+  "os": "debian:bullseye",
+  "how": "first layer /etc/os-release"
+ },
+ {
+  "ref": "golang:1.19-bullseye",
+  "os": "debian:bullseye",
+  "how": "tag names it"
+ },
+ {
+  "ref": "golang:1.21-alpine",
+  "os": "alpine:?",
+  "how": "tag names it"
+ },
+ {
+  "ref": "golang:1.21-bookworm",
+  "os": "debian:bookworm",
+  "how": "tag names it"
+ },
+ {
+  "ref": "golang:1.21-bullseye",
+  "os": "debian:bullseye",
+  "how": "tag names it"
+ },
+ {
+  "ref": "golang:1.22-bullseye",
+  "os": "debian:bullseye",
+  "how": "tag names it"
+ },
+ {
+  "ref": "golang:1.23-bookworm",
+  "os": "debian:bookworm",
+  "how": "tag names it"
+ },
+ {
+  "ref": "golang:1.25-bookworm",
+  "os": "debian:bookworm",
+  "how": "tag names it"
+ },
+ {
+  "ref": "golang:1.8.3",
+  "os": "debian:jessie",
+  "how": "same digest as 1.8.3-jessie"
+ },
+ {
+  "ref": "google/cloud-sdk:514.0.0",
+  "created": "2025-03-11",
+  "os": "debian:bookworm",
+  "how": "config"
+ },
+ {
+  "ref": "google/cloud-sdk:slim",
+  "created": "2026-09-01",
+  "os": "debian:trixie",
+  "how": "config"
+ },
+ {
+  "ref": "haskell:9.4.8",
+  "os": "debian:buster",
+  "how": "same digest as 9.4.8-buster"
+ },
+ {
+  "ref": "julia:0.6.4",
+  "created": "2018-07-27",
+  "os": "debian:9",
+  "how": "first layer /etc/os-release"
+ },
+ {
+  "ref": "julia:1.0",
+  "created": "2021-12-02",
+  "os": "debian:bullseye",
+  "how": "first layer /etc/os-release"
+ },
+ {
+  "ref": "julia:1.10",
+  "created": "2026-08-25",
+  "os": "debian:trixie",
+  "how": "config"
+ },
+ {
+  "ref": "julia:1.10-bookworm",
+  "os": "debian:bookworm",
+  "how": "tag names it"
+ },
+ {
+  "ref": "julia:1.6",
+  "created": "2024-05-23",
+  "os": "debian:bookworm",
+  "how": "first layer /etc/os-release"
+ },
+ {
+  "ref": "julia:1.9",
+  "created": "2023-11-14",
+  "os": "debian:bookworm",
+  "how": "first layer /etc/os-release"
+ },
+ {
+  "ref": "kalilinux/kali-rolling",
+  "created": "2026-08-30",
+  "os": "kali:kali-rolling",
+  "how": "first layer /etc/os-release"
+ },
+ {
+  "ref": "maven:3.9-eclipse-temurin-11",
+  "os": "ubuntu:24.04",
+  "how": "same digest as 3.9-eclipse-temurin-11-noble"
+ },
+ {
+  "ref": "metacall/core:latest",
+  "created": "2026-07-23",
+  "os": "debian:trixie",
+  "how": "config"
+ },
+ {
+  "ref": "mongo:3.2",
+  "created": "2018-11-16",
+  "os": "debian:8",
+  "how": "first layer /etc/os-release"
+ },
+ {
+  "ref": "mongo:4.4",
+  "created": "2025-12-29",
+  "os": "ubuntu:20.04",
+  "how": "config"
+ },
+ {
+  "ref": "nixos/nix:2.18.1",
+  "created": "1970-01-01",
+  "os": "?",
+  "how": "config"
+ },
+ {
+  "ref": "node:12-bullseye",
+  "os": "debian:bullseye",
+  "how": "tag names it"
+ },
+ {
+  "ref": "node:14",
+  "os": "debian:buster",
+  "how": "same digest as 14-buster"
+ },
+ {
+  "ref": "node:14-bullseye",
+  "os": "debian:bullseye",
+  "how": "tag names it"
+ },
+ {
+  "ref": "node:14.18.2-bullseye",
+  "os": "debian:bullseye",
+  "how": "tag names it"
+ },
+ {
+  "ref": "node:14.4.0",
+  "os": "debian:stretch",
+  "how": "same digest as 14.4.0-stretch"
+ },
+ {
+  "ref": "node:16",
+  "os": "debian:buster",
+  "how": "same digest as 16-buster"
+ },
+ {
+  "ref": "node:16-bullseye",
+  "os": "debian:bullseye",
+  "how": "tag names it"
+ },
+ {
+  "ref": "node:18",
+  "os": "debian:bookworm",
+  "how": "same digest as 18-bookworm"
+ },
+ {
+  "ref": "node:18-bookworm",
+  "os": "debian:bookworm",
+  "how": "tag names it"
+ },
+ {
+  "ref": "node:18-bookworm-slim",
+  "os": "debian:bookworm",
+  "how": "tag names it"
+ },
+ {
+  "ref": "node:18-bullseye",
+  "os": "debian:bullseye",
+  "how": "tag names it"
+ },
+ {
+  "ref": "node:18-bullseye-slim",
+  "os": "debian:bullseye",
+  "how": "tag names it"
+ },
+ {
+  "ref": "node:18-slim",
+  "created": "2025-03-27",
+  "os": "debian:bookworm",
+  "how": "config"
+ },
+ {
+  "ref": "node:20",
+  "os": "debian:bookworm",
+  "how": "same digest as 20-bookworm"
+ },
+ {
+  "ref": "node:20-alpine",
+  "os": "alpine:?",
+  "how": "tag names it"
+ },
+ {
+  "ref": "node:20-bullseye",
+  "os": "debian:bullseye",
+  "how": "tag names it"
+ },
+ {
+  "ref": "node:20-slim",
+  "created": "2026-04-22",
+  "os": "debian:bookworm",
+  "how": "config"
+ },
+ {
+  "ref": "node:22",
+  "os": "debian:bookworm",
+  "how": "same digest as 22-bookworm"
+ },
+ {
+  "ref": "node:8",
+  "os": "debian:stretch",
+  "how": "same digest as 8-stretch"
+ },
+ {
+  "ref": "node:8.11.3",
+  "os": "debian:jessie",
+  "how": "same digest as 8.11.3-jessie"
+ },
+ {
+  "ref": "node:9",
+  "os": "debian:jessie",
+  "how": "same digest as 9-jessie"
+ },
+ {
+  "ref": "node:lts",
+  "os": "debian:bookworm",
+  "how": "same digest as lts-bookworm"
+ },
+ {
+  "ref": "nvcr.io/nvidia/cuda:10.2-devel-centos7",
+  "created": "2022-12-15",
+  "os": "centos:7",
+  "how": "first layer /etc/os-release"
+ },
+ {
+  "ref": "pandare/panda:latest",
+  "created": "2026-06-09",
+  "os": "ubuntu:jammy",
+  "how": "first layer /etc/os-release"
+ },
+ {
+  "ref": "php:7.1-cli",
+  "os": "debian:buster",
+  "how": "same digest as 7.1-cli-buster"
+ },
+ {
+  "ref": "php:7.4-cli",
+  "os": "debian:bullseye",
+  "how": "same digest as 7.4-cli-bullseye"
+ },
+ {
+  "ref": "php:8.1-apache",
+  "os": "debian:trixie",
+  "how": "same digest as 8.1-apache-trixie"
+ },
+ {
+  "ref": "php:8.1-cli",
+  "os": "debian:trixie",
+  "how": "same digest as 8.1-cli-trixie"
+ },
+ {
+  "ref": "php:8.2-cli",
+  "os": "debian:trixie",
+  "how": "same digest as 8.2-cli-trixie"
+ },
+ {
+  "ref": "php:8.3-cli",
+  "os": "debian:trixie",
+  "how": "same digest as 8.3-cli-trixie"
+ },
+ {
+  "ref": "python:2.7",
+  "created": "2020-04-20",
+  "os": "debian:buster",
+  "how": "first layer /etc/os-release"
+ },
+ {
+  "ref": "python:2.7-slim",
+  "os": "debian:buster",
+  "how": "same digest as 2.7-slim-buster"
+ },
+ {
+  "ref": "python:2.7-slim-buster",
+  "os": "debian:buster",
+  "how": "tag names it"
+ },
+ {
+  "ref": "python:3-slim",
+  "os": "debian:trixie",
+  "how": "same digest as 3-slim-trixie"
+ },
+ {
+  "ref": "python:3.10",
+  "os": "debian:trixie",
+  "how": "same digest as 3.10-trixie"
+ },
+ {
+  "ref": "python:3.10-slim",
+  "os": "debian:trixie",
+  "how": "same digest as 3.10-slim-trixie"
+ },
+ {
+  "ref": "python:3.11",
+  "os": "debian:trixie",
+  "how": "same digest as 3.11-trixie"
+ },
+ {
+  "ref": "python:3.11-bookworm",
+  "os": "debian:bookworm",
+  "how": "tag names it"
+ },
+ {
+  "ref": "python:3.11-slim",
+  "os": "debian:trixie",
+  "how": "same digest as 3.11-slim-trixie"
+ },
+ {
+  "ref": "python:3.11-slim-bookworm",
+  "os": "debian:bookworm",
+  "how": "tag names it"
+ },
+ {
+  "ref": "python:3.12-slim",
+  "os": "debian:trixie",
+  "how": "same digest as 3.12-slim-trixie"
+ },
+ {
+  "ref": "python:3.6-slim",
+  "os": "debian:bullseye",
+  "how": "same digest as 3.6-slim-bullseye"
+ },
+ {
+  "ref": "python:3.7",
+  "os": "debian:bookworm",
+  "how": "same digest as 3.7-bookworm"
+ },
+ {
+  "ref": "python:3.7-slim",
+  "os": "debian:bookworm",
+  "how": "same digest as 3.7-slim-bookworm"
+ },
+ {
+  "ref": "python:3.8",
+  "os": "debian:bookworm",
+  "how": "same digest as 3.8-bookworm"
+ },
+ {
+  "ref": "python:3.8-slim",
+  "os": "debian:bookworm",
+  "how": "same digest as 3.8-slim-bookworm"
+ },
+ {
+  "ref": "python:3.8-slim-bullseye",
+  "os": "debian:bullseye",
+  "how": "tag names it"
+ },
+ {
+  "ref": "python:3.9",
+  "os": "debian:trixie",
+  "how": "same digest as 3.9-trixie"
+ },
+ {
+  "ref": "python:3.9-slim",
+  "os": "debian:trixie",
+  "how": "same digest as 3.9-slim-trixie"
+ },
+ {
+  "ref": "redis:5.0",
+  "os": "debian:bullseye",
+  "how": "same digest as 5.0-bullseye"
+ },
+ {
+  "ref": "rockylinux:8",
+  "created": "2023-11-24",
+  "os": "rocky:8.9",
+  "how": "first layer /etc/os-release"
+ },
+ {
+  "ref": "rockylinux:9",
+  "created": "2023-11-28",
+  "os": "rocky:9.3",
+  "how": "first layer /etc/os-release"
+ },
+ {
+  "ref": "rootproject/root:6.24.06-ubuntu20.04",
+  "created": "2021-09-06",
+  "os": "ubuntu:focal",
+  "how": "first layer /etc/os-release"
+ },
+ {
+  "ref": "rootproject/root:6.30.06-ubuntu22.04",
+  "created": "2024-04-22",
+  "os": "ubuntu:22.04",
+  "how": "config"
+ },
+ {
+  "ref": "rootproject/root:6.34.00-ubuntu24.04",
+  "created": "2024-12-06",
+  "os": "ubuntu:24.04",
+  "how": "config"
+ },
+ {
+  "ref": "ruby:2.2-slim",
+  "os": "debian:jessie",
+  "how": "same digest as 2.2-slim-jessie"
+ },
+ {
+  "ref": "ruby:2.2.10",
+  "os": "debian:jessie",
+  "how": "same digest as 2.2.10-jessie"
+ },
+ {
+  "ref": "ruby:2.5",
+  "os": "debian:buster",
+  "how": "same digest as 2.5-buster"
+ },
+ {
+  "ref": "ruby:2.6-buster",
+  "os": "debian:buster",
+  "how": "tag names it"
+ },
+ {
+  "ref": "ruby:2.7",
+  "os": "debian:bullseye",
+  "how": "same digest as 2.7-bullseye"
+ },
+ {
+  "ref": "ruby:2.7-slim",
+  "os": "debian:bullseye",
+  "how": "same digest as 2.7-slim-bullseye"
+ },
+ {
+  "ref": "ruby:3.1",
+  "os": "debian:bookworm",
+  "how": "same digest as 3.1-bookworm"
+ },
+ {
+  "ref": "ruby:3.1-slim",
+  "os": "debian:bookworm",
+  "how": "same digest as 3.1-slim-bookworm"
+ },
+ {
+  "ref": "ruby:3.2",
+  "os": "debian:trixie",
+  "how": "same digest as 3.2-trixie"
+ },
+ {
+  "ref": "ruby:3.2-slim",
+  "os": "debian:trixie",
+  "how": "same digest as 3.2-slim-trixie"
+ },
+ {
+  "ref": "rust:1.75",
+  "os": "debian:bookworm",
+  "how": "same digest as 1.75-bookworm"
+ },
+ {
+  "ref": "rust:latest",
+  "created": "2026-08-25",
+  "os": "debian:trixie",
+  "how": "config"
+ },
+ {
+  "ref": "ubuntu:12.04",
+  "created": "2017-04-12",
+  "os": "ubuntu:12.04",
+  "how": "first layer /etc/os-release"
+ },
+ {
+  "ref": "ubuntu:14.04",
+  "created": "2021-03-25",
+  "os": "ubuntu:14.04",
+  "how": "first layer /etc/os-release"
+ },
+ {
+  "ref": "ubuntu:16.04",
+  "created": "2021-08-31",
+  "os": "ubuntu:xenial",
+  "how": "first layer /etc/os-release"
+ },
+ {
+  "ref": "ubuntu:18.04",
+  "created": "2023-05-30",
+  "os": "ubuntu:18.04",
+  "how": "config"
+ },
+ {
+  "ref": "ubuntu:20.04",
+  "created": "2025-04-08",
+  "os": "ubuntu:20.04",
+  "how": "config"
+ },
+ {
+  "ref": "ubuntu:22.04",
+  "created": "2026-08-10",
+  "os": "ubuntu:jammy",
+  "how": "first layer /etc/os-release"
+ },
+ {
+  "ref": "ubuntu:24.04",
+  "created": "2026-08-17",
+  "os": "ubuntu:noble",
+  "how": "first layer /etc/os-release"
+ },
+ {
+  "ref": "ubuntu:bionic",
+  "os": "ubuntu:18.04",
+  "how": "tag names it"
+ },
+ {
+  "ref": "ubuntu:disco-20200114",
+  "created": "2020-01-16",
+  "os": "ubuntu:disco",
+  "how": "first layer /etc/os-release"
+ },
+ {
+  "ref": "ubuntu:focal",
+  "os": "ubuntu:20.04",
+  "how": "tag names it"
+ },
+ {
+  "ref": "vbatts/slackware:14.2",
+  "created": "2023-07-27",
+  "os": "slackware:14.2",
+  "how": "first layer /etc/os-release"
+ },
+ {
+  "ref": "wolframresearch/wolframengine",
+  "created": "2026-06-12",
+  "os": "ubuntu:24.04",
+  "how": "config"
+ },
+ {
+  "ref": "yugabytedb/yugabyte:2.17.2.0-b216",
+  "created": "2023-03-22",
+  "os": "YugabyteDB:2.17.2.0",
+  "how": "config"
+ }
+]
