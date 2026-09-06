@@ -9,6 +9,7 @@ the consume-time staleness invariant, the metrics timer drain, and RolloutTurnID
 
 import asyncio
 import dataclasses
+import sys
 from types import SimpleNamespace
 from typing import Literal
 from unittest.mock import AsyncMock, MagicMock
@@ -345,6 +346,32 @@ def test_validate_and_log_commits_validation_metrics(
         )
 
     asyncio.run(run())
+
+
+def test_validation_wandb_mirror_does_not_advance_training_step(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Async eval must not make W&B reject the next explicit training point."""
+    fake_wandb = MagicMock()
+    fake_wandb.run = object()
+    monkeypatch.setitem(sys.modules, "wandb", fake_wandb)
+
+    controller = object.__new__(Controller)
+    controller._mirror_validation_to_wandb(
+        {
+            "validation_reward/_mean": 0.25,
+            "timing/validate": 12.0,
+        },
+        policy_version=4,
+    )
+
+    fake_wandb.log.assert_called_once_with(
+        {
+            "validation_reward/_mean": 0.25,
+            "validation/policy_version": 4,
+        },
+        commit=False,
+    )
 
 
 def test_trainer_requires_batch_reserved_for_live_policy() -> None:

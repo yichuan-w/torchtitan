@@ -1684,12 +1684,11 @@ class Controller(Configurable):
         The metrics_processor call in ``_validate_and_log`` routes validation to W&B at
         the live training step, which W&B drops: an async pass finishes at a step W&B has
         already committed, and W&B requires a strictly-increasing step. Here we log the
-        validation keys with NO explicit step -- W&B appends them at its current
-        (monotonic) step, so nothing is dropped -- and bind them to their own x-axis
-        (``validation/policy_version``) via ``define_metric`` so they chart against the
-        evaluated version rather than wall-clock order. Logging without a step advances
-        W&B's step by one; that does not drop training points, which use explicit,
-        ever-increasing steps. Best-effort: a W&B hiccup must never fail training.
+        validation keys with NO explicit step and ``commit=False`` -- W&B merges them
+        into its current open row without advancing the global step -- and bind them to
+        their own x-axis (``validation/policy_version``) via ``define_metric``. Advancing
+        the global step here used to make the next explicit training point non-monotonic
+        and drop that whole point. Best-effort: a W&B hiccup must never fail training.
         """
         try:
             import wandb
@@ -1708,7 +1707,9 @@ class Controller(Configurable):
             for key in payload:
                 if key != "validation/policy_version":
                     wandb.define_metric(key, step_metric="validation/policy_version")
-            wandb.log(payload)
+            # An async pass may finish while the trainer is assembling the same W&B
+            # row. Do not close that row: the next explicit training log commits it.
+            wandb.log(payload, commit=False)
         except Exception:
             logger.exception(
                 "failed to mirror validation to the W&B run at policy_version %d",
