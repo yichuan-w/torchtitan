@@ -96,16 +96,22 @@ def _stub(monkeypatch, status: str = "accepted", **extra) -> _Seen:
 
     monkeypatch.setattr(od.fb, "process_one", fake)
 
-    def to_row(d, *, task_id=None, inject_agent_runtime=True, pretest=None):
+    def to_row(d, *, task_id=None, inject_agent_runtime=True, pretest=None, protected=None):
         # As pack.to_row: the identity is the caller's, since the directory
         # is `package` here and `r<N>` once renamed; the hook is the caller's
-        # too, and lands on the row's grading payload.
+        # too, and lands on the row's grading payload; so are the protected
+        # lists (the real to_row lets tests/protected_paths.json override them).
         tid = task_id or Path(d).name
         text = (Path(d) / "instruction.md").read_text()
-        seen.rows.append({"dir": d, "pretest": pretest})
+        seen.rows.append({"dir": d, "pretest": pretest, "protected": protected})
         tmax = {"test_sh": "echo 1\n"}
         if pretest and pretest[0]:
             tmax.update({"pre_test_sh": pretest[0], "pretest_env_identity": pretest[1]})
+        if protected is not None:
+            if protected.paths:
+                tmax["protected_paths"] = list(protected.paths)
+            if protected.cmds:
+                tmax["protected_cmds"] = list(protected.cmds)
         return {"prompt": text, "label": tid,
                 "metadata": {"instance_id": tid, "problem_statement": text, "tmax": tmax}}
 
@@ -465,4 +471,32 @@ def test_a_row_without_a_hook_folds_without_one(tmp_path, monkeypatch) -> None:
     rw = root.evolution.task("tw_a").rewrite_dirs()[0]
     assert not rw.pretest.exists()
     assert [r["pretest"] for r in seen.rows] == [None]
-    assert "pre_test_sh" not in json.loads(root.mix.live.read_text())["metadata"]["tmax"]
+    assert [r["protected"] for r in seen.rows] == [None]  # no lists on the row: none passed
+    tm = json.loads(root.mix.live.read_text())["metadata"]["tmax"]
+    assert not {"pre_test_sh", "protected_paths", "protected_cmds"} & set(tm)
+
+
+PATHS = ["/app/pinned", "/app/data dir/model.bin", "tests"]
+CMDS = ['sqlite3 /app/db "select count(*) from t where n=\'x\'"']
+
+
+def test_fold_carries_the_rows_protected_lists_when_the_package_ships_none(
+        tmp_path, monkeypatch) -> None:
+    """The mix row a rewrite descends from carries protected lists; the rewrite's
+    package ships no tests/protected_paths.json. The fold hands the row's lists to
+    the row builder (which lets a package file override them), so the folded
+    revision keeps grading by the same baseline -- the hole the loop PR closes."""
+    root = _root(tmp_path, monkeypatch, tmax={"test_sh": "echo 1\n",
+                                              "protected_paths": PATHS, "protected_cmds": CMDS})
+    _signal(root)
+    seen = _stub(monkeypatch)
+
+    r = od.run_round(root, workers=1)
+
+    assert (r["handled"], r["accepted"], r["mix_version"]) == (1, 1, 2), r
+    rw = root.evolution.task("tw_a").rewrite_dirs()[0]
+    assert not (root.evolution.task("tw_a").rev(1) / "tests" / "protected_paths.json").exists()
+    assert not rw.pretest.exists()  # no hook on this row; the lists travel on their own
+    assert [r["protected"] for r in seen.rows] == [od.pack.Protected(PATHS, CMDS)]  # as LISTS
+    tm = json.loads(root.mix.live.read_text())["metadata"]["tmax"]
+    assert tm["protected_paths"] == PATHS and tm["protected_cmds"] == CMDS

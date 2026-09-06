@@ -560,9 +560,12 @@ def fold(root: layout.Root, accepted: list[dict]) -> int | None:
             strip_harness(rewrite.package)
             # The directory is `package` now and `r<N>` once renamed, so the
             # row's identity is passed rather than read off the name; so is
-            # the hook, which the package never held.
+            # the hook, which the package never held, and so are the row's
+            # protected lists -- unless the package ships its own
+            # tests/protected_paths.json, which pack.to_row lets override them.
             row = pack.to_row(str(rewrite.package), task_id=tid,
-                              pretest=row_pretest(old_md))
+                              pretest=row_pretest(old_md),
+                              protected=pack.Protected.from_tmax(old_md.get("tmax") or {}))
         except Exception as e:  # noqa: BLE001 -- one malformed package, not the round
             _finish(h, "failed", stage="fold", reason=f"{type(e).__name__}: {e}")
             continue
