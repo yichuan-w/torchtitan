@@ -210,6 +210,18 @@ def test_failing_ctrf_read_cannot_change_reward_or_status(monkeypatch) -> None:
     assert rollout.diagnostics["ctrf"] is None
 
 
+def test_sandbox_execution_error_marks_rollout_unscored(monkeypatch) -> None:
+    from torchtitan.experiments.rl.harness.agents.terminus import _SandboxExecutionError
+
+    rollouter = _stub_rollouter(monkeypatch, ctrf_result=None)
+    agent = AsyncMock(side_effect=_SandboxExecutionError("Failed to create session:"))
+    monkeypatch.setattr(rollouter_mod, "get_agent", lambda name: agent)
+    rollout, _, _, _, diagnostics = _run_rollout(rollouter)
+    assert rollout.status == RolloutStatus.ERROR
+    assert diagnostics.infra_failed is True
+    rollouter_mod.grade_tmax.assert_not_awaited()
+
+
 def test_successful_ctrf_read_is_recorded(monkeypatch) -> None:
     report = {"tests": 4, "passed": 3, "failed": ["t::test_check_04_no_shortcut"]}
     rollouter = _stub_rollouter(monkeypatch, ctrf_result=report)
