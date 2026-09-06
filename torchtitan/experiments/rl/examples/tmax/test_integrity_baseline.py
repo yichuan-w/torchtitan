@@ -478,6 +478,49 @@ def _captured_log():
         lg.removeHandler(h)
 
 
+def test_describe_differences_names_paths_and_indexes_commands():
+    entries = IB.protected_entries_of(_TMAX)  # 2 paths, then 1 command at index 2
+    cmd = _TMAX["protected_cmds"][0]
+    assert IB.describe_differences(entries, ["/app/pinned", cmd]) == [
+        "/app/pinned",
+        "cmd#2",
+    ]
+    assert IB.describe_differences(entries, ["tests"]) == ["tests"]
+    assert IB.describe_differences(entries, ["gone"]) == [
+        "?"
+    ]  # a key the row no longer carries
+    assert cmd not in " ".join(IB.describe_differences(entries, [cmd]))
+
+
+def test_a_command_difference_is_logged_by_index_never_by_text_on_both_graders():
+    """F5: the log named the differing entries by text, which for a command printed the
+    command itself. Both graders now log paths as paths and commands as cmd#<index>."""
+    cmd = _TMAX["protected_cmds"][0]
+    # async grader: the command's digest changed
+    sb = _FakeSandbox([(0, f"{_D1} 0\n{_D2} 1\n{_D1} 2\n", "")])
+    with _captured_log() as lines:
+        assert _grade(sb) == 0.0
+    hits = [ln for ln in lines if "integrity baseline difference" in ln]
+    assert (
+        len(hits) == 1
+        and "cmd#2" in hits[0]
+        and "sqlite3" not in hits[0]
+        and cmd not in hits[0]
+    ), hits
+    assert "/app/pinned" not in hits[0]  # only the differing entry is named
+    # sync (raw-SDK) grader: the same
+    sb = _FakeSDK([(0, f"{_D1} 0\n{_D2} 1\n{_D1} 2\n", "")])
+    with _captured_log() as lines:
+        assert _grade_sdk(sb) == 0.0
+    hits = [ln for ln in lines if "integrity baseline difference" in ln]
+    assert len(hits) == 1 and "cmd#2" in hits[0] and "sqlite3" not in hits[0], hits
+    # a path difference still names the path (both graders)
+    sb = _FakeSDK([(0, f"{_D2} 0\n{_D2} 1\n{_D3} 2\n", "")])
+    with _captured_log() as lines:
+        assert _grade_sdk(sb) == 0.0
+    assert any("/app/pinned" in ln and "cmd#" not in ln for ln in lines)
+
+
 # ---------------------------------------------------------------- the raw-SDK grader (local_smoke)
 class _FakeSDK:
     """The raw daytona Sandbox surface grade_tmax_daytona / seed_workspace_daytona use: a sync
