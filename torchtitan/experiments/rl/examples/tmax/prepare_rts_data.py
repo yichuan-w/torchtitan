@@ -287,6 +287,26 @@ def _build_context(env_dir: str, dockerfile: str) -> dict[str, str]:
     return context
 
 
+# gold_rollout's form-B replay records one command per `_gr '<base64>'` line. TWO patterns, on purpose: the
+# writer emits the strict shape (column 0, single quotes, unwrapped base64 -- gold_rollout.render_replay_script),
+# while the loose one matches ANY line that invokes `_gr` at all. Counting with the strict pattern alone would
+# silently UNDERCOUNT a script whose writer drifted; matching drift only in the shapes we thought of would miss
+# the rest. So the loose pattern is deliberately the widest thing that is still an invocation, and any line it
+# finds that the strict one does not refuses rather than returning a number nobody can trust. Shapes this
+# catches that a `starts with _gr ' and ends with '` rule would ALSO miss: a trailing comment, double quotes
+# around the payload, a payload wrapped across lines, an unquoted `$var`.
+_GR_STRICT = re.compile(r"^_gr '[A-Za-z0-9+/=]+'$", re.M)
+_GR_LOOSE = re.compile(r"^\s*_gr\b(?!\()", re.M)
+# The writer's function definition: present in every form-B script and in nothing else, so it says "this is a
+# replay" independently of how many commands it recorded (an empty replay is a real, recorded shape).
+_GR_PREAMBLE = re.compile(r"^_gr\(\)\{", re.M)
+
+
+class OracleCommandsFormError(ValueError):
+    """A form-B replay whose `_gr` lines do not all parse. Typed so a caller can refuse the ROW by name: a
+    nameless traceback out of a 456-row prep tells nobody which task to look at."""
+
+
 def _oracle_commands(solve_sh: str) -> int:
     """Approximate the number of shell commands the reference solution executes.
 
@@ -294,7 +314,34 @@ def _oracle_commands(solve_sh: str) -> int:
     rollout capped at N turns cannot solve a task whose oracle needs more than N
     commands. Heredoc bodies are data, not commands, so they are skipped; ``&&``,
     ``;`` and ``|`` chains each count as another command.
+
+    A solution can arrive in two shapes and the count has to mean the same thing
+    in both. A flat script is read line by line, as above. gold_rollout's form-B
+    replay is not flat: the commands it recorded are base64 payloads, one per
+    ``_gr`` invocation, wrapped in a fixed preamble that is plumbing rather than
+    work. Counting its LINES measures the wrapper -- the preamble alone is about
+    ten "commands", while a payload that chained three operations is one -- so a
+    form-B script is counted by its invocations instead, which is the number of
+    commands the rollout actually issued. Anything that is not form B falls
+    through to the line reader unchanged.
+
+    A replay is recognised by the writer's own ``_gr()`` definition rather than
+    by finding an invocation, so an EMPTY replay (a recorded shape: nothing ran)
+    counts zero instead of falling through to the line reader and counting the
+    wrapper. And because a strict pattern alone would silently undercount a
+    drifted writer, the loose pattern gold_rollout's own reader uses runs beside
+    it; a disagreement raises rather than returning a number nobody can trust.
     """
+    if _GR_PREAMBLE.search(solve_sh):
+        strict, loose = len(_GR_STRICT.findall(solve_sh)), len(
+            _GR_LOOSE.findall(solve_sh)
+        )
+        if strict != loose:
+            raise OracleCommandsFormError(
+                f"form-B replay: {loose} `_gr` line(s) but {strict} in the shape this counter reads, so the "
+                f"command count would be wrong by {loose - strict}; the replay writer's output has drifted"
+            )
+        return strict
     count, in_heredoc, terminator = 0, False, None
     for raw in solve_sh.splitlines():
         line = raw.strip()
@@ -508,7 +555,12 @@ def _to_row(
     oracle_commands = 0
     if os.path.exists(solve_path):
         with open(solve_path, encoding="utf-8", errors="replace") as f:
-            oracle_commands = _oracle_commands(f.read())
+            try:
+                oracle_commands = _oracle_commands(f.read())
+            except OracleCommandsFormError as e:
+                # A row whose difficulty cannot be measured is refused BY NAME, like every other filter here,
+                # rather than escaping as a traceback with no task in it.
+                return None, f"oracle_commands_form ({e})"
 
     metadata = {
         "instance_id": task_id,
