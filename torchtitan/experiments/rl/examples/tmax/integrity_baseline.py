@@ -197,6 +197,19 @@ def parse_digest_output(stdout: str, entries: list[tuple[str, str]]) -> dict[str
 
 
 ExecFn = Callable[..., Awaitable[tuple]]
+SyncExecFn = Callable[..., tuple]
+
+
+def _digests_from_exec(
+    rc: int, stdout: str | None, stderr: str | None, entries: list[tuple[str, str]]
+) -> dict[str, str]:
+    """The one judgement of an exec's outcome, async and sync alike: a nonzero exit is the
+    harness's failure; otherwise the output is parsed by index."""
+    if rc != 0:
+        raise IntegrityHarnessError(
+            f"digest command exited {rc}: {(stderr or '').strip()[:200]!r}"
+        )
+    return parse_digest_output(stdout or "", entries)
 
 
 async def compute_digests(
@@ -208,11 +221,18 @@ async def compute_digests(
     rc, stdout, stderr = await exec_fn(
         cmd, check=False, timeout=min(COMMAND_TIMEOUT_CAP_SEC, timeout)
     )
-    if rc != 0:
-        raise IntegrityHarnessError(
-            f"digest command exited {rc}: {(stderr or '').strip()[:200]!r}"
-        )
-    return parse_digest_output(stdout or "", entries)
+    return _digests_from_exec(rc, stdout, stderr, entries)
+
+
+def compute_digests_sync(
+    exec_fn: SyncExecFn, entries: list[tuple[str, str]], *, workdir: str, timeout: int
+) -> dict[str, str]:
+    """The same string and the same parse over a SYNC ``exec_fn(cmd, timeout=...)`` returning
+    ``(rc, stdout, stderr)`` -- the raw Daytona SDK's ``process.exec`` behind an adapter that
+    runs the command as root (grading.grade_tmax_daytona). Nothing else differs."""
+    cmd = build_digest_command(entries, workdir)
+    rc, stdout, stderr = exec_fn(cmd, timeout=min(COMMAND_TIMEOUT_CAP_SEC, timeout))
+    return _digests_from_exec(rc, stdout, stderr, entries)
 
 
 def differences(baseline: dict[str, str], current: dict[str, str]) -> list[str]:
@@ -263,6 +283,16 @@ async def capture_baseline(
     )
 
 
+def _require_baseline(
+    entries: list[tuple[str, str]], baseline: dict[str, str] | None
+) -> None:
+    if baseline is None:
+        raise IntegrityHarnessError(
+            f"{len(entries)} protected entr(y/ies) but no integrity baseline was captured "
+            "at rollout"
+        )
+
+
 async def integrity_differences(
     exec_fn: ExecFn,
     tmax: dict,
@@ -276,10 +306,33 @@ async def integrity_differences(
     entries = protected_entries_of(tmax)
     if not entries:
         return []
-    if baseline is None:
-        raise IntegrityHarnessError(
-            f"{len(entries)} protected entr(y/ies) but no integrity baseline was captured "
-            "at rollout"
-        )
+    _require_baseline(entries, baseline)
     current = await compute_digests(exec_fn, entries, workdir=workdir, timeout=timeout)
+    return differences(baseline, current)
+
+
+def capture_baseline_sync(
+    exec_fn: SyncExecFn, tmax: dict, *, workdir: str, timeout: int
+) -> dict[str, str] | None:
+    """``capture_integrity_baseline`` over a sync exec (the raw-SDK path)."""
+    entries = protected_entries_of(tmax)
+    if not entries:
+        return None
+    return compute_digests_sync(exec_fn, entries, workdir=workdir, timeout=timeout)
+
+
+def integrity_differences_sync(
+    exec_fn: SyncExecFn,
+    tmax: dict,
+    baseline: dict[str, str] | None,
+    *,
+    workdir: str,
+    timeout: int,
+) -> list[str]:
+    """``integrity_differences`` over a sync exec: same rule, same string, same parse."""
+    entries = protected_entries_of(tmax)
+    if not entries:
+        return []
+    _require_baseline(entries, baseline)
+    current = compute_digests_sync(exec_fn, entries, workdir=workdir, timeout=timeout)
     return differences(baseline, current)

@@ -454,6 +454,244 @@ def test_rows_without_protected_paths_keep_the_old_behaviour_byte_for_byte():
     assert _grade(sb, tmax=tmax) == 1.0 and not any("exit 1" in c[0] for c in sb.calls)
 
 
+import contextlib
+import logging as _logging
+import types
+
+
+@contextlib.contextmanager
+def _captured_log():
+    """grading's logger lines during the block, as strings."""
+    lines: list[str] = []
+
+    class H(_logging.Handler):
+        def emit(self, record):
+            lines.append(record.getMessage())
+
+    h = H()
+    lg = _logging.getLogger(G.__name__)
+    lg.addHandler(h)
+    lg.setLevel(_logging.INFO)
+    try:
+        yield lines
+    finally:
+        lg.removeHandler(h)
+
+
+# ---------------------------------------------------------------- the raw-SDK grader (local_smoke)
+class _FakeSDK:
+    """The raw daytona Sandbox surface grade_tmax_daytona / seed_workspace_daytona use: a sync
+    ``process.exec(cmd, timeout=)`` returning ``exit_code`` / ``result`` and ``fs.upload_file``.
+    Every command arrives wrapped by _root_sh; the fake dispatches on what is inside."""
+
+    class _Proc:
+        def __init__(self, outer):
+            self.outer = outer
+
+        def exec(self, cmd, timeout=None):
+            o = self.outer
+            o.calls.append((cmd, timeout))
+            m = re.search(r"printf %s (tmax-sentinel-[0-9a-f]+) > ([^\s']+)", cmd)
+            if m:
+                o.files[m.group(2)] = m.group(1)
+                return types.SimpleNamespace(exit_code=0, result="")
+            if "sha256sum" in cmd:
+                o.digest_execs += 1
+                rc, out, _err = o.digest_answers.pop(0)
+                return types.SimpleNamespace(exit_code=rc, result=out)
+            if "bash /tests/test.sh" in cmd:
+                o.tests_ran = True
+                o.files["/logs/verifier/reward.txt"] = o.verifier_reward
+                return types.SimpleNamespace(exit_code=0, result="")
+            m = re.search(r"cat ([^\s']+)", cmd)
+            if m:
+                return types.SimpleNamespace(
+                    exit_code=0, result=o.files.get(m.group(1), "")
+                )
+            return types.SimpleNamespace(exit_code=0, result="")
+
+    class _FS:
+        def __init__(self, outer):
+            self.outer = outer
+
+        def upload_file(self, content, dest):
+            self.outer.files[dest] = content.decode("utf-8")
+
+    def __init__(self, digest_answers=(), verifier_reward="1"):
+        self.files, self.calls, self.digest_answers = {}, [], list(digest_answers)
+        self.verifier_reward, self.tests_ran, self.digest_execs = (
+            verifier_reward,
+            False,
+            0,
+        )
+        self.process, self.fs = self._Proc(self), self._FS(self)
+
+
+def _grade_sdk(sb, baseline=_BASE, tmax=_TMAX):
+    return G.grade_tmax_daytona(
+        sb, tmax, workdir="/workspace", baseline_digests=baseline
+    )
+
+
+def test_raw_sdk_grader_holds_a_protected_row_to_the_same_rule():
+    """grade_tmax_daytona (local_smoke's grader) must not grade a protected row as if
+    unprotected: same seam (after the sentinel, before the verifier), same string through the
+    SDK's exec as root, same judgement -- no baseline raises, a difference scores 0 without
+    running the verifier, identical proceeds."""
+    sb = _FakeSDK([(0, f"{_D1} 0\n{_D2} 1\n{_D3} 2\n", "")])
+    assert _grade_sdk(sb) == 1.0 and sb.tests_ran and sb.digest_execs == 1
+    digest_call = [c for c in sb.calls if "sha256sum" in c[0]][0]
+    assert digest_call[1] == 120  # the capped timeout
+    inner = IB.build_digest_command(IB.protected_entries_of(_TMAX), "/workspace")
+    assert digest_call[0] == G._root_sh(inner)  # the SAME builder, run as root
+    sentinel_i = next(
+        i
+        for i, c in enumerate(sb.calls)
+        if "tmax-sentinel-" in c[0] and "printf" in c[0]
+    )
+    digest_i = next(i for i, c in enumerate(sb.calls) if "sha256sum" in c[0])
+    tests_i = next(i for i, c in enumerate(sb.calls) if "bash /tests/test.sh" in c[0])
+    assert sentinel_i < digest_i < tests_i
+
+    sb = _FakeSDK([(0, f"{_D2} 0\n{_D2} 1\n{_D3} 2\n", "")])  # /app/pinned changed
+    with _captured_log() as lines:
+        assert _grade_sdk(sb) == 0.0
+    assert not sb.tests_ran
+    assert any(
+        "integrity baseline difference" in ln and "/app/pinned" in ln for ln in lines
+    )
+    assert not any(
+        _D1 in ln or _D2 in ln for ln in lines
+    )  # entries only, never digests
+
+    sb = _FakeSDK([(0, f"{_D1} 0\n{_D2} 1\n{_D3} 2\n", "")])
+    try:
+        _grade_sdk(sb, baseline=None)
+    except IB.IntegrityHarnessError:
+        pass
+    else:
+        raise AssertionError(
+            "a protected row without a baseline must raise, never grade"
+        )
+    assert not sb.tests_ran and sb.digest_execs == 0
+
+    for bad in (
+        [(0, f"{_D1} 0\n{_D2} 1\n", "")],
+        [(1, "", "boom")],
+    ):  # harness failures void
+        sb = _FakeSDK(bad)
+        try:
+            _grade_sdk(sb)
+        except IB.IntegrityHarnessError:
+            pass
+        else:
+            raise AssertionError("a malformed or failing digest run must raise")
+        assert not sb.tests_ran
+
+
+def test_raw_sdk_grader_leaves_unprotected_rows_untouched():
+    tmax = {
+        k: v for k, v in _TMAX.items() if k not in ("protected_paths", "protected_cmds")
+    }
+    sb = _FakeSDK([])
+    assert _grade_sdk(sb, baseline=None, tmax=tmax) == 1.0 and sb.tests_ran
+    assert sb.digest_execs == 0 and not any("sha256sum" in c[0] for c in sb.calls)
+
+
+def test_capture_baseline_daytona_is_the_rollouter_seam_over_the_sdk():
+    sb = _FakeSDK([(0, f"{_D1} 0\n{_D2} 1\n{_D3} 2\n", "")])
+    got = G.capture_baseline_daytona(sb, _TMAX, workdir="/workspace", timeout_sec=900)
+    assert got == _BASE
+    assert sb.calls[-1][1] == 120  # capped
+    assert (
+        G.capture_baseline_daytona(_FakeSDK([]), {"test_sh": "x"}, workdir="/w") is None
+    )
+
+
+def _load_local_smoke():
+    """local_smoke imports the Daytona SDK at module level; stand it in when absent."""
+    if "daytona_api_client" not in sys.modules:
+        try:
+            import daytona_api_client  # noqa: F401
+        except ImportError:
+            cfg = types.ModuleType("daytona_api_client")
+
+            class Configuration:
+                def __init__(self, *a, **k):
+                    pass
+
+            cfg.Configuration = Configuration
+            sys.modules["daytona_api_client"] = cfg
+    if "daytona" not in sys.modules:
+        try:
+            import daytona  # noqa: F401
+        except ImportError:
+            d = types.ModuleType("daytona")
+            d.CreateSandboxFromImageParams = lambda **k: k
+            d.Daytona = object
+            d.Resources = lambda **k: k
+            sys.modules["daytona"] = d
+    spec = importlib.util.spec_from_file_location(
+        "local_smoke", _HERE / "local_smoke.py"
+    )
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    return mod
+
+
+def test_local_smoke_captures_after_the_seeds_and_before_the_agent_and_grades_with_it():
+    """The smoke holds the sandbox between seed_workspace_daytona and its scripted agent, so it
+    captures there and grade_tmax_daytona receives that very object. Its grading loader also
+    has to register integrity_baseline by file first: grading's import of it is real now."""
+    ls = _load_local_smoke()
+    grading = (
+        ls._load_grading()
+    )  # the real loader, in a process without the training stack
+    assert callable(grading.grade_tmax_daytona) and callable(
+        grading.capture_baseline_daytona
+    )
+    assert "torchtitan.experiments.rl.examples.tmax.integrity_baseline" in sys.modules
+
+    events = []
+    sentinel = {"/app/pinned": _D1}
+
+    class FakeGrading:
+        @staticmethod
+        def seed_workspace_daytona(sb, tmax):
+            events.append(("seed", tmax["task_id"]))
+
+        @staticmethod
+        def capture_baseline_daytona(sb, tmax, *, workdir):
+            events.append(("capture", workdir))
+            return sentinel
+
+        @staticmethod
+        def grade_tmax_daytona(sb, tmax, *, workdir, baseline_digests=None):
+            events.append(("grade", workdir, baseline_digests))
+            return 1.0
+
+    sb = _FakeSDK([])
+    sb.delete = lambda: events.append(("delete",))
+    client = types.SimpleNamespace(create=lambda params: sb)
+    sample = {
+        "metadata": {
+            "image": "img:1",
+            "workdir": "/app",
+            "tmax": _TMAX,
+            "instance_id": "task_000001_aaaaaaaa",
+            "problem_statement": "do it",
+        }
+    }
+    assert ls._run_one(client, FakeGrading, sample) == 1.0
+    agent_i = next(i for i, c in enumerate(sb.calls) if "cd /app" in c[0])
+    assert events[:2] == [("seed", "task_000001_aaaaaaaa"), ("capture", "/app")]
+    assert events[2] == ("grade", "/app", sentinel) and events[2][2] is sentinel
+    assert events[-1] == ("delete",)
+    # the agent acted after the capture: its exec is the only sandbox call, and the
+    # capture (fake, no exec) was already recorded when it ran
+    assert agent_i == 1 and len([c for c in sb.calls if "cd /app" in c[0]]) == 1
+
+
 # ---------------------------------------------------------------- the arithmetic, in a real shell
 # The fake-exec tests never execute the string. These do, in the same `bash` the sandbox launches, and hold
 # the command digests to the hook exporter's arithmetic reproduced inline: env -i with the safe PATH, HOME

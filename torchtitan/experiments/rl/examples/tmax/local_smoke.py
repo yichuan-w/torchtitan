@@ -55,9 +55,20 @@ _HERE = os.path.dirname(os.path.abspath(__file__))
 
 
 def _load_grading():
-    """Import grading.py as a standalone module (its torchtitan import is
-    TYPE_CHECKING-only, so it loads cleanly in the daytona-only venv) -- avoids
-    triggering the package __init__ which pulls in the full training stack."""
+    """Import grading.py as a standalone module -- avoids triggering the package
+    __init__, which pulls in the full training stack. grading's one real import,
+    integrity_baseline (stdlib), is loaded from its file first and registered
+    under its dotted name, so grading's ``from torchtitan...integrity_baseline
+    import`` resolves without running torchtitan/experiments/rl/__init__.py; its
+    other torchtitan import is TYPE_CHECKING-only."""
+    dotted = "torchtitan.experiments.rl.examples.tmax.integrity_baseline"
+    if dotted not in sys.modules:
+        spec = importlib.util.spec_from_file_location(
+            dotted, os.path.join(_HERE, "integrity_baseline.py")
+        )
+        mod = importlib.util.module_from_spec(spec)
+        sys.modules[dotted] = mod
+        spec.loader.exec_module(mod)
     spec = importlib.util.spec_from_file_location(
         "tmax_grading", os.path.join(_HERE, "grading.py")
     )
@@ -123,8 +134,13 @@ def _run_one(client: Daytona, grading, sample: dict) -> float:
         # Seed agent inputs (environment/seeds/* -> /workspace) BEFORE the agent,
         # the SAME way the rollouter does, so this smoke exercises the real path.
         grading.seed_workspace_daytona(sb, tmax)
+        # INTEGRITY BASELINE, at the rollouter's seam: after the seeds, before the
+        # agent's first action. None for a row without protected entries.
+        baseline = grading.capture_baseline_daytona(sb, tmax, workdir=workdir)
         _scripted_agent(sb, sample)
-        reward = grading.grade_tmax_daytona(sb, tmax, workdir=workdir)
+        reward = grading.grade_tmax_daytona(
+            sb, tmax, workdir=workdir, baseline_digests=baseline
+        )
         print(f"  -> reward={reward}")
         return reward
     finally:
