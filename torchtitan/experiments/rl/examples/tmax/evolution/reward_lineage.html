@@ -7,7 +7,7 @@ body{font:14px system-ui,sans-serif;margin:20px;color:#182235;background:#fff}la
 <p>Select one task to follow its original and rewritten versions. Each point is a finalized rollout group. The x-axis is the policy version when the group was claimed; a rollout may span later weight updates.</p>
 <label>Task <input id="task" list="tasks"><datalist id="tasks"></datalist><button id="show">Show</button></label>
 <p id="count"></p><svg id="chart" viewBox="0 0 900 260" role="img" aria-label="Accuracy and reward by policy at group claim"></svg>
-<p>Blue: solve rate. Orange: mean reward. For binary rewards they coincide. Revision changes also change the problem; a lower rate after a rewrite does not alone imply a worse model. Missing scores are excluded.</p>
+<p>Blue: solve rate. Orange: mean reward. For binary rewards they coincide. Revision changes also change the problem; a lower rate after a rewrite does not alone imply a worse model. Infrastructure failures and missing or nonfinite rewards are excluded.</p>
 <table><thead><tr><th>Revision</th><th>Policy at claim</th><th>Epoch</th><th>Solved / scored</th><th>Reward</th><th>Infra failures</th><th>Group</th></tr></thead><tbody id="detail"></tbody></table>
 <script>
 const rows=__ROWS__;
