@@ -7,9 +7,10 @@
 """Build a training JSONL from the ``Fzz1/Tmax-Tasks-Clean`` ``reaudit`` split.
 
 The reaudit split is the tmax corpus after the 2026-09 re-audit: 456 tasks published as a
-seeds-layout package tar plus a 24-column parquet, at a PINNED dataset revision::
+seeds-layout package tar plus a 26-column parquet, at a PINNED dataset revision::
 
-    splits/reaudit.parquet            456 x 24   (the split; hook columns 22-23)
+    splits/reaudit.parquet            456 x 26   (the split; hook columns 22-23; protected_paths and
+                                                  protected_cmds, the 2026-09-06 columns)
     data/tasks-reaudit-00000.tar      456 packages, 2366 members, all files, under tasks/<task_id>/
 
     tasks/<task_id>/instruction.md
@@ -90,30 +91,31 @@ from torchtitan.experiments.rl.examples.tmax.prepare_tmax_data import (
 )
 
 HF_REPO = "Fzz1/Tmax-Tasks-Clean"
-HF_REVISION = (
-    "7eb7c31a3d1eb644284b5871af0d1120ab7361a3"  # main moves; the split does not
-)
+HF_REVISION = "9783e1c043a81b7e1cb56e071e213b89c9f50589"  # main moves; the split does not. The 26-column publish on top of 7eb7c31a3d1e
 HF_PARQUET = "splits/reaudit.parquet"
 HF_TAR = "data/tasks-reaudit-00000.tar"
-# sha256 of the published bytes at HF_REVISION (the split builder's own publish record).
-PARQUET_SHA256 = "70ebe801ffd38c17ee2faefa18295e37f8d2e244a9884a5c68eeea39ea5fa641"
+# sha256 of the published bytes at HF_REVISION (the split builder's own publish record). The tar is
+# the one 7eb7c31a3d1e published; only the parquet moved (two columns appended).
+PARQUET_SHA256 = "bbd153e80b164c3cae1fd0cfbcb20214b1390330fe25709d42817bfcdfd13355"
 TAR_SHA256 = "6e0375659a6c569343df1df2f1c5fe7d003f2cbb716480563830d1c8a2a67620"
 EXPECT_ROWS = 456
+EXPECT_COLUMNS = 26
 MEMBER_ROOT = "tasks"
 
 _HOOK_COLUMNS = ("pre_test_sh", "pre_test_env_identity")
-# OPTIONAL column: a JSON list of the task's protected paths. Empty cell (or the column absent, as in the
-# first published cut) means the row carries no integrity baseline and grades exactly as before.
+# The integrity-baseline columns, part of the split's contract since the 26-column publish: JSON lists
+# of the task's protected paths / protected command strings. An EMPTY cell means the row carries no
+# baseline and grades exactly as before; an absent column is a different split and refuses.
 _PROTECTED_COLUMN = "protected_paths"
-_PROTECTED_CMDS_COLUMN = (
-    "protected_cmds"  # same contract: a JSON list of command strings, or empty
-)
+_PROTECTED_CMDS_COLUMN = "protected_cmds"
 _NEEDED_COLUMNS = (
     "task_id",
     "member_prefix",
     "task_content_sha256",
     "shard",
     *_HOOK_COLUMNS,
+    _PROTECTED_COLUMN,
+    _PROTECTED_CMDS_COLUMN,
 )
 
 
@@ -182,6 +184,11 @@ def load_split(parquet_path: str) -> list[dict]:
     missing = [c for c in _NEEDED_COLUMNS if c not in table.column_names]
     if missing:
         raise RefuseError(f"split {parquet_path} lacks column(s) {missing}")
+    if len(table.column_names) != EXPECT_COLUMNS:
+        raise RefuseError(
+            f"split {parquet_path} has {len(table.column_names)} columns, expected {EXPECT_COLUMNS}: "
+            "not the pinned split shape"
+        )
     rows = table.to_pylist()
     ids = [r["task_id"] for r in rows]
     if len(set(ids)) != len(ids):
@@ -562,8 +569,6 @@ def prepare(
         "protected_cmds": sum(
             1 for r in built if r["metadata"]["tmax"].get("protected_cmds")
         ),
-        "protected_column_present": any(_PROTECTED_COLUMN in r for r in rows),
-        "protected_cmds_column_present": any(_PROTECTED_CMDS_COLUMN in r for r in rows),
         "stamped_matched": matched,
         "stamped_total": stamped,
         "reasons": reasons,
@@ -650,11 +655,8 @@ def main() -> None:
         f"wrote {summary['rows']} reaudit tasks -> {args.out}  "
         f"(hooked {summary['hooked']}, env-identity self-check "
         f"{summary['stamped_matched']}/{summary['stamped_total']} stamped rows match; "
-        f"protected paths on {summary['protected']} row(s)"
-        + ("" if summary["protected_column_present"] else " [column absent]")
-        + f", protected commands on {summary['protected_cmds']} row(s)"
-        + ("" if summary["protected_cmds_column_present"] else " [column absent]")
-        + ")"
+        f"protected paths on {summary['protected']} row(s), "
+        f"protected commands on {summary['protected_cmds']} row(s))"
     )
     for reason, n in sorted(summary["reasons"].items(), key=lambda kv: -kv[1]):
         print(f"  {reason:32s} {n}")

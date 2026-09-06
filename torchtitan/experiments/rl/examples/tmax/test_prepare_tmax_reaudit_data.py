@@ -70,6 +70,8 @@ _COLUMNS = [
     "dockerfile_repaired",
     "pre_test_sh",
     "pre_test_env_identity",
+    "protected_paths",
+    "protected_cmds",
 ]
 
 
@@ -100,6 +102,8 @@ def _fixture(
     binary_fixture: str | None = None,
     protected: dict[str, str] | None = None,
     protected_cmds: dict[str, str] | None = None,
+    drop_columns: tuple[str, ...] | None = None,
+    extra_columns: tuple[str, ...] | None = None,
 ):
     """``protected`` / ``protected_cmds`` = {task_id: the CELL text}; when given, that column is written for
     every row ("" where unspecified). When None the column is absent, as in the first published cut."""
@@ -154,14 +158,14 @@ def _fixture(
                 }
             )
     cols = list(_COLUMNS)
-    if protected is not None:
-        cols.append("protected_paths")
+    for r in rows:
+        r["protected_paths"] = (protected or {}).get(r["task_id"], "")
+        r["protected_cmds"] = (protected_cmds or {}).get(r["task_id"], "")
+    cols = [c for c in cols if c not in (drop_columns or ())]
+    for c in extra_columns or ():
+        cols.append(c)
         for r in rows:
-            r["protected_paths"] = protected.get(r["task_id"], "")
-    if protected_cmds is not None:
-        cols.append("protected_cmds")
-        for r in rows:
-            r["protected_cmds"] = protected_cmds.get(r["task_id"], "")
+            r[c] = ""
     table = pa.table({c: [r[c] for r in rows] for c in cols})
     pq_path = d / "reaudit.parquet"
     pq.write_table(table, pq_path)
@@ -183,7 +187,15 @@ BROKEN = ("task_000003_cccccccc", _PRE_TEST.decode(), "")  # a script with no id
 
 def _prepare(spec, **kw):
     """(summary, rows, work_dir) for a fixture built from ``spec``; fixture kwargs are tamper/drop_pkg."""
-    _fx = ("tamper", "drop_pkg", "binary_fixture", "protected", "protected_cmds")
+    _fx = (
+        "tamper",
+        "drop_pkg",
+        "binary_fixture",
+        "protected",
+        "protected_cmds",
+        "drop_columns",
+        "extra_columns",
+    )
     pq_path, tar_path, work = _fixture(
         spec, **{k: v for k, v in kw.items() if k in _fx}
     )
@@ -390,7 +402,7 @@ def test_a_non_utf8_fixture_refuses_the_package_by_name_as_prepare_rts_data_does
 
 def test_protected_paths_pass_through_on_a_three_row_fixture():
     """hooked with paths -> the list lands in tmax; unhooked -> no key; an EMPTY cell -> no key (absent, never an
-    empty list). And with the column absent altogether -- today's published cut -- no row carries the key."""
+    empty list). The columns themselves are part of the contract: absent, the split refuses."""
     third = ("task_000005_eeeeeeee", "", "")
     summary, rows, _w = _prepare(
         [HOOKED, UNHOOKED, third],
@@ -406,11 +418,7 @@ def test_protected_paths_pass_through_on_a_three_row_fixture():
     )  # the quotes survive verbatim
     for k in ("protected_paths", "protected_cmds"):
         assert k not in by[UNHOOKED[0]] and k not in by[third[0]], k
-    assert summary["protected"] == 1 and summary["protected_column_present"] is True
-    assert (
-        summary["protected_cmds"] == 1
-        and summary["protected_cmds_column_present"] is True
-    )
+    assert summary["protected"] == 1 and summary["protected_cmds"] == 1
     # a command entry with a newline refuses by id (the hook's manifest is line-based)
     try:
         _prepare(
@@ -421,17 +429,29 @@ def test_protected_paths_pass_through_on_a_three_row_fixture():
         assert HOOKED[0] in str(e) and "newline" in str(e), e
     else:
         raise AssertionError("a newline in a protected_cmds entry must refuse")
-    summary, rows, _w = _prepare([HOOKED, UNHOOKED])  # both columns absent
+    summary, rows, _w = _prepare([HOOKED, UNHOOKED])  # both cells blank on every row
     assert not any(
         k in r["metadata"]["tmax"]
         for r in rows
         for k in ("protected_paths", "protected_cmds")
     )
-    assert summary["protected"] == 0 and summary["protected_column_present"] is False
-    assert (
-        summary["protected_cmds"] == 0
-        and summary["protected_cmds_column_present"] is False
-    )
+    assert summary["protected"] == 0 and summary["protected_cmds"] == 0
+    # The columns are part of the 26-column contract: a split without them (the 24-column
+    # first cut) is a different split and refuses by name; so does any other column count.
+    for drop in (("protected_paths", "protected_cmds"), ("protected_cmds",)):
+        try:
+            _prepare([HOOKED, UNHOOKED], drop_columns=drop)
+        except R.RefuseError as e:
+            assert "lacks column(s)" in str(e) and drop[-1] in str(e), e
+        else:
+            raise AssertionError(f"a split lacking {drop} must refuse")
+    try:
+        _prepare([HOOKED, UNHOOKED], extra_columns=("surprise",))
+    except R.RefuseError as e:
+        assert "27 columns, expected 26" in str(e), e
+    else:
+        raise AssertionError("a split with a 27th column must refuse")
+    assert len(_COLUMNS) == R.EXPECT_COLUMNS == 26
     # a cell that is present but not a JSON list of non-empty strings refuses by id
     for bad in ('"not-a-list"', '["ok", ""]', "{oops"):
         try:
