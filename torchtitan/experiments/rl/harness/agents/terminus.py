@@ -318,6 +318,10 @@ _PANE_CAP_BYTES = 8 * 1024 * 1024
 # to 8 MiB each is tens of gigabytes: turn it on for a run you mean to audit.
 
 
+class _SandboxExecutionError(RuntimeError):
+    """The sandbox API failed without returning a command result."""
+
+
 class _SandboxEnvironment:
     """Our ``Sandbox`` in the shape Terminus-2 expects of a harbor environment."""
 
@@ -358,13 +362,16 @@ class _SandboxEnvironment:
             command = f"cd {shlex.quote(cwd)} && {command}"
         command = self._bound_pane_pipe(command)
         started_at = time.time()
-        exit_code, stdout, stderr = await self._sandbox.exec(
-            command,
-            user=str(user or self.default_user),
-            env=env,
-            check=False,
-            **({"timeout": timeout_sec} if timeout_sec else {}),
-        )
+        try:
+            exit_code, stdout, stderr = await self._sandbox.exec(
+                command,
+                user=str(user or self.default_user),
+                env=env,
+                check=False,
+                **({"timeout": timeout_sec} if timeout_sec else {}),
+            )
+        except Exception as e:
+            raise _SandboxExecutionError(f"{type(e).__name__}: {e}") from e
         self._trace_exec(command, started_at, exit_code)
         if exit_code != 0:
             # Terminus-2 surfaces a tmux failure as "Failed to start tmux session.
@@ -587,6 +594,10 @@ async def terminus_agent(task: AgentTask) -> AgentRun:
                 stage,
                 _episodes(agent),
             )
+            raise
+        except _SandboxExecutionError:
+            # The rollouter excludes failed API calls from training. Returning
+            # submitted=False here would instead turn a missing result into 0.
             raise
         except Exception as e:
             logger.warning(

@@ -24,7 +24,7 @@ import asyncio
 import sys
 import types
 from pathlib import Path
-from unittest.mock import MagicMock
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
@@ -182,6 +182,40 @@ def test_an_error_keeps_the_episodes_it_got_through(monkeypatch):
         raises=RuntimeError("adapter returned no completion"),
     )
     assert (run.finish_reason, run.submitted, run.turns) == ("error", False, 6)
+
+
+def test_sandbox_api_error_is_not_returned_as_an_unsuccessful_attempt(monkeypatch):
+    from torchtitan.experiments.rl.harness.agents.terminus import (
+        _SandboxEnvironment,
+        _SandboxExecutionError,
+    )
+
+    provider_error = RuntimeError("Failed to create session:")
+    sandbox = MagicMock()
+    sandbox.exec = AsyncMock(side_effect=provider_error)
+    env = _SandboxEnvironment(sandbox, agent_dir=Path("."))
+    with pytest.raises(_SandboxExecutionError) as raised:
+        asyncio.run(env.exec("which firewall-cmd"))
+    assert raised.value.__cause__ is provider_error
+    with pytest.raises(_SandboxExecutionError):
+        _run(
+            monkeypatch,
+            max_turns=10,
+            episodes=6,
+            pending_completion=False,
+            raises=raised.value,
+        )
+
+
+def test_nonzero_command_exit_remains_a_command_result():
+    from torchtitan.experiments.rl.harness.agents.terminus import _SandboxEnvironment
+
+    sandbox = MagicMock()
+    sandbox.exec = AsyncMock(return_value=(1, "", "command failed"))
+    env = _SandboxEnvironment(sandbox, agent_dir=Path("."))
+    result = asyncio.run(env.exec("false"))
+    assert result.return_code == 1
+    assert result.stderr == "command failed"
 
 
 @pytest.mark.parametrize(
