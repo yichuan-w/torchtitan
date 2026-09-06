@@ -37,6 +37,7 @@ from typing import TYPE_CHECKING
 
 from torchtitan.experiments.rl.examples.tmax.integrity_baseline import (
     capture_baseline_sync,
+    describe_differences,
     integrity_differences,
     integrity_differences_sync,
     protected_entries_of,
@@ -293,7 +294,7 @@ async def grade_tmax(
                 "[tmax] integrity baseline difference for %s in %d protected entr(y/ies): %s; scoring 0",
                 tmax.get("task_id", "?"),
                 len(_differing),
-                _differing,
+                describe_differences(_protected, _differing),
             )
             return 0.0
 
@@ -482,7 +483,7 @@ def grade_tmax_daytona(
                 "[tmax] integrity baseline difference for %s in %d protected entr(y/ies): %s; scoring 0",
                 tmax.get("task_id", "?"),
                 len(_differing),
-                _differing,
+                describe_differences(_protected, _differing),
             )
             return 0.0
 

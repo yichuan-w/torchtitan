@@ -243,6 +243,22 @@ def differences(baseline: dict[str, str], current: dict[str, str]) -> list[str]:
     return [k for k in keys if baseline.get(k) != current.get(k)]
 
 
+def describe_differences(
+    entries: list[tuple[str, str]], differing: list[str]
+) -> list[str]:
+    """The differing entries as they may be LOGGED: a path as itself, a command as
+    ``cmd#<index>`` (its position in the row's combined list), never the command text --
+    a protected command is part of the task's verifier surface and a log line is not the
+    place for it. An entry not in ``entries`` (a baseline key the row no longer carries) is
+    reported as ``?``."""
+    index = {entry: (i, kind) for i, (kind, entry) in enumerate(entries)}
+    out = []
+    for d in differing:
+        i, kind = index.get(d, (None, None))
+        out.append(d if kind == "path" else f"cmd#{i}" if kind == "cmd" else "?")
+    return out
+
+
 def tmax_protected_fields(
     paths: list[str] | None, cmds: list[str] | None
 ) -> dict[str, list[str]]:

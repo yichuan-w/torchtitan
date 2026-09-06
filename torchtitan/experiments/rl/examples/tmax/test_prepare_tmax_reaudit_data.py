@@ -463,6 +463,38 @@ def test_protected_paths_pass_through_on_a_three_row_fixture():
             raise AssertionError(f"malformed protected_paths must refuse: {bad!r}")
 
 
+def test_a_non_empty_extraction_target_refuses_by_name():
+    """The fixtures reader enumerates the extracted directory, so a file already under a task's
+    tests/ before extraction would become a grading fixture while every sha still passes. The
+    target has to be empty: a stray file refuses the run and is named."""
+    pq_path, tar_path, work = _fixture([HOOKED, UNHOOKED])
+    stray = pathlib.Path(work) / "tasks" / HOOKED[0] / "tests" / "stray_fixture.txt"
+    stray.parent.mkdir(parents=True)
+    stray.write_text("planted before extraction\n")
+    try:
+        R.prepare(
+            parquet_path=pq_path,
+            tar_path=tar_path,
+            out=str(pathlib.Path(work).parent / "out.jsonl"),
+            work_dir=work,
+            expect_rows=2,
+        )
+    except R.RefuseError as e:
+        assert (
+            "not empty" in str(e)
+            and "stray_fixture.txt" in str(e)
+            and HOOKED[0] in str(e)
+        ), e
+    else:
+        raise AssertionError("a non-empty extraction target must refuse")
+    # an empty pre-created target is fine (the script itself creates it)
+    stray.unlink()
+    for d in (stray.parent, stray.parent.parent):
+        d.rmdir()
+    summary, rows, _w = _prepare([HOOKED, UNHOOKED])
+    assert summary["rows"] == 2
+
+
 def test_row_count_guard_and_limit():
     pq_path, tar_path, work = _fixture([HOOKED, UNHOOKED])
     out = str(pathlib.Path(work).parent / "o.jsonl")

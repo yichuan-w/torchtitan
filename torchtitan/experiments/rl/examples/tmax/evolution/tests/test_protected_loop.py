@@ -366,6 +366,47 @@ def test_sandbox_tool_takes_the_baseline_at_up_for_grade_and_before_solve_for_or
         server.down()
 
 
+def test_sandbox_tool_inherits_the_lists_from_run_pretest_json(
+    tmp_path, monkeypatch, capsys
+) -> None:
+    """A package with NO tests/protected_paths.json (every shipped package) still grades with
+    the lists its row carries: the harness wrote them into run/pretest.json beside the hook,
+    and boot, grade and oracle read them from there."""
+    pkg = _package(tmp_path)
+    (pkg / "run").mkdir()
+    (pkg / "run" / "pretest.json").write_text(
+        json.dumps(
+            {
+                "pre_test_sh": "",
+                "pretest_env_identity": "",
+                "protected_paths": PATHS,
+                "protected_cmds": CMDS,
+            }
+        )
+    )
+    events: list = []
+    server = _Server(pkg, monkeypatch, events)
+    try:
+        assert "integrity baseline: 3 paths, 1 cmds" in capsys.readouterr().err
+        assert [e[0] for e in events] == ["seed_workspace", "capture_baseline"]
+        assert events[1][1] == 4  # the inherited entries were digested at up
+        del events[:]
+        assert server.request("grade") == {"ok": True, "reward": 1.0}
+        assert events[0][2] is not None and len(events[0][2]) == 4
+        del events[:]
+        assert server.request("oracle", solve_timeout=5)["ok"]
+        assert [e for e in events if e[0] == "capture_baseline"][0][1] == 4
+        # the package's own file, once written, overrides the inherited lists (grade then refuses
+        # until reset, as for any list change; oracle uses the file)
+        (pkg / FILE).write_text(json.dumps({"paths": ["/only"], "cmds": []}))
+        assert not server.request("grade")["ok"]
+        del events[:]
+        assert server.request("oracle", solve_timeout=5)["ok"]
+        assert [e for e in events if e[0] == "capture_baseline"][0][1] == 1
+    finally:
+        server.down()
+
+
 def test_sandbox_tool_without_lists_is_unchanged(tmp_path, monkeypatch, capsys) -> None:
     pkg = _package(tmp_path)
     (pkg / "run").mkdir()

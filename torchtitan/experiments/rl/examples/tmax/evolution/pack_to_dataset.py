@@ -34,6 +34,7 @@ import argparse
 import json
 import os
 from dataclasses import dataclass, field
+from pathlib import Path
 
 _TT_CANDIDATES = [
     os.environ.get("TRL_TT", ""),
@@ -129,6 +130,30 @@ class Protected:
         cmds = list(tmax.get("protected_cmds") or [])
         return cls(paths, cmds) if (paths or cmds) else None
 
+    @classmethod
+    def from_pretest_file(cls, path) -> "Protected | None":
+        """From the snapshot the loop writes beside a rewrite (and copies under
+        the package's run/ for the sandbox tool): layout.write_pretest's
+        ``protected_paths`` / ``protected_cmds`` keys. None without a file or
+        without lists -- the same tolerance as layout.read_pretest."""
+        lists = _tmax_modules("layout").read_protected_lists(Path(path))
+        if not lists:
+            return None
+        return cls(list(lists.get("protected_paths") or []),
+                   list(lists.get("protected_cmds") or []))
+
+
+def effective_protected(inherited: "Protected | None", package_dir: str) -> "Protected | None":
+    """THE resolver every build of a variant's row goes through: the package's
+    own tests/protected_paths.json when it ships one (the authoring agent's
+    lists override), else the lists the variant INHERITS from the row it
+    descends from. Every caller -- the loop's probe, the agent's sandbox tool
+    (boot, oracle, grade), the fold, the mix builder -- hands to_row the same
+    inherited lists, so a variant is validated and folded with one and the same
+    baseline. Shipped packages carry no file, so inheritance is the real path."""
+    own = package_protected(package_dir)
+    return own if own is not None else inherited
+
 
 def _json_list(cell, column: str) -> list:
     if cell is None or not str(cell).strip():
@@ -197,9 +222,7 @@ def to_row(task_dir: str, *, task_id: str | None = None,
         raise ValueError(f"{task_dir}: {reason}")
     ident = task_id or os.path.basename(task_dir.rstrip("/"))
     try:
-        lists = package_protected(task_dir)
-        if lists is None:
-            lists = protected
+        lists = effective_protected(protected, task_dir)
         if lists is not None:
             ib = _ib_module()
             try:

@@ -292,10 +292,34 @@ def _package_sha256(
     return h.hexdigest()
 
 
+def _preexisting(tasks_root: str, limit: int = 5) -> list[str]:
+    """Paths already under the extraction target, relative to it, the first ``limit``."""
+    found: list[str] = []
+    for dirpath, dirnames, filenames in os.walk(tasks_root):
+        for name in sorted(filenames) + sorted(
+            d for d in dirnames if not os.listdir(os.path.join(dirpath, d))
+        ):
+            found.append(os.path.relpath(os.path.join(dirpath, name), tasks_root))
+            if len(found) >= limit:
+                return found
+    return found
+
+
 def verify_and_extract(tar_path: str, rows: list[dict], out_root: str) -> str:
-    """Verify every split row's package against the tar and extract it; return the tasks root."""
+    """Verify every split row's package against the tar and extract it; return the tasks root.
+
+    The target must be EMPTY. The row builder enumerates the extracted directory (every file
+    under tests/ becomes a grading fixture), so anything already there -- a previous run's
+    leftovers, a stray file -- would reach the trainer rows while the parquet and tar shas
+    still pass. A non-empty target refuses by name rather than extracting over it."""
     tasks_root = os.path.join(out_root, MEMBER_ROOT)
     os.makedirs(tasks_root, exist_ok=True)
+    stray = _preexisting(tasks_root)
+    if stray:
+        raise RefuseError(
+            f"extraction target {tasks_root} is not empty (e.g. {stray}): refusing to extract "
+            "over pre-existing files; use a fresh --work-dir"
+        )
     with tarfile.open(tar_path) as tar:
         groups = _package_members(tar)
         missing = [r["task_id"] for r in rows if r["member_prefix"] not in groups]

@@ -496,7 +496,10 @@ def test_fold_carries_the_rows_protected_lists_when_the_package_ships_none(
     assert (r["handled"], r["accepted"], r["mix_version"]) == (1, 1, 2), r
     rw = root.evolution.task("tw_a").rewrite_dirs()[0]
     assert not (root.evolution.task("tw_a").rev(1) / "tests" / "protected_paths.json").exists()
-    assert not rw.pretest.exists()  # no hook on this row; the lists travel on their own
+    # No hook on this row, but the lists travel in the same snapshot: the hook readers see
+    # None, the list reader sees the parent's lists (what the probe and the tool validate with).
+    assert layout.read_pretest(rw.pretest) is None
+    assert layout.read_protected_lists(rw.pretest) == {"protected_paths": PATHS, "protected_cmds": CMDS}
     assert [r["protected"] for r in seen.rows] == [od.pack.Protected(PATHS, CMDS)]  # as LISTS
     tm = json.loads(root.mix.live.read_text())["metadata"]["tmax"]
     assert tm["protected_paths"] == PATHS and tm["protected_cmds"] == CMDS
