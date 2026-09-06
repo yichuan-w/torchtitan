@@ -27,7 +27,10 @@ one line of JSON, so COPY sources together stay under 1 MiB, and files under
 `tests/` are text and together stay under 1 MiB; a binary under `tests/` is
 refused by name, and `./sandbox up` says so. `AGENTS.md`,
 `sandbox` and `traces/` are the harness and do not travel. Which files you
-*should* touch depends on the job in your prompt, and that prompt says so.
+*should* touch depends on the job in your prompt, and that prompt says so. If your
+variant relies on files or command outputs the solver must leave untouched, list
+them in `tests/protected_paths.json` as `{"paths": [...], "cmds": [...]}`; the
+harness digests them before and after the episode and any change scores 0.
 
 Two files in `run/` are read by the caller rather than by you:
 
