@@ -430,9 +430,12 @@ def _write_pretest(pkg: Path, task: dict) -> None:
     alone.
     """
     hook = task.get("_pretest")
-    if not hook or not hook[0]:
+    lists = task.get("_protected") or {}
+    if not (hook and hook[0]) and not lists:
         return
-    layout.write_pretest(pkg / "run" / "pretest.json", *hook)
+    layout.write_pretest(pkg / "run" / "pretest.json", *(hook or ("", "")),
+                         protected_paths=lists.get("protected_paths"),
+                         protected_cmds=lists.get("protected_cmds"))
 
 
 def _prepare_package(pkg: Path, task: dict) -> dict:

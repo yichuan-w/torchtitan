@@ -512,8 +512,11 @@ async def _serve(pkg: Path, sock: str, resources: dict | None = None) -> int:
     # agent editing its copy would only mislead its own check, never the
     # loop's probe, which reads the rewrite's own file.
     pretest = _pretest_of(pkg)
+    # The row's protected lists ride in the same run/pretest.json; a package
+    # file the agent writes overrides them inside to_row, as at the fold.
+    protected = pack.Protected.from_pretest_file(pkg / "run" / "pretest.json")
     try:
-        row = pack.to_row(str(pkg), pretest=pretest)
+        row = pack.to_row(str(pkg), pretest=pretest, protected=protected)
     except Exception as e:  # noqa: BLE001 -- the package, not the platform
         log(f"package error: {type(e).__name__}: {e}")
         _write_state(pkg, {**state, "status": "failed",
@@ -562,7 +565,8 @@ async def _serve(pkg: Path, sock: str, resources: dict | None = None) -> int:
             async def oracle(solve_timeout: int) -> dict:
                 # Re-read the package: the agent edits solution/ and tests/
                 # between calls and expects the current files to be judged.
-                tmax = pack.to_row(str(pkg), pretest=pretest)["metadata"]["tmax"]
+                tmax = pack.to_row(str(pkg), pretest=pretest,
+                                   protected=protected)["metadata"]["tmax"]
                 sol_dir = pkg / "solution"
                 if not (sol_dir / "solve.sh").exists():
                     return {"ok": False, "error": "package ships no solution/solve.sh"}
@@ -599,7 +603,8 @@ async def _serve(pkg: Path, sock: str, resources: dict | None = None) -> int:
                 if op == "oracle":
                     return await oracle(int(req.get("solve_timeout") or SOLVE_TIMEOUT))
                 if op == "grade":
-                    tmax = pack.to_row(str(pkg), pretest=pretest)["metadata"]["tmax"]
+                    tmax = pack.to_row(str(pkg), pretest=pretest,
+                                       protected=protected)["metadata"]["tmax"]
                     if dr.protected_entries_of(tmax) != boot_entries:
                         return {"ok": False,
                                 "error": "the protected lists changed since up; "

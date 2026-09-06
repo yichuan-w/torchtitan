@@ -116,8 +116,9 @@ def read_declared(mix: Path) -> tuple[dict[str, dict], dict[str, tuple[str, str]
     the package."""
     resources: dict[str, dict] = {}
     pretests: dict[str, tuple[str, str]] = {}
+    protecteds: dict[str, "pack.Protected"] = {}
     if not mix.exists():
-        return resources, pretests
+        return resources, pretests, protecteds
     for ln in open(mix):
         if not ln.strip():
             continue
@@ -129,7 +130,10 @@ def read_declared(mix: Path) -> tuple[dict[str, dict], dict[str, tuple[str, str]
         hook = row_pretest(md)
         if hook:
             pretests[iid] = hook
-    return resources, pretests
+        lists = pack.Protected.from_tmax(md.get("tmax") or {})
+        if lists is not None:
+            protecteds[iid] = lists
+    return resources, pretests, protecteds
 
 
 def row_pretest(md: dict) -> tuple[str, str] | None:
@@ -402,7 +406,8 @@ def _compact_resources(p: dict | None) -> dict | None:
 
 def handle(root: layout.Root, sig: Signal, *, declared: dict[str, dict],
            history: tuple[dict, dict], dry: bool = False,
-           pretests: dict[str, tuple[str, str]] | None = None) -> dict:
+           pretests: dict[str, tuple[str, str]] | None = None,
+           protecteds: dict | None = None) -> dict:
     """One signal, one rewrite directory, one verdict in rewrite.json.
 
     An accepted rewrite stays `running` on disk until the fold renames its
@@ -436,8 +441,14 @@ def handle(root: layout.Root, sig: Signal, *, declared: dict[str, dict],
         meta["dry"] = True
     layout.write_json_atomic(rewrite.meta, meta)
     hook = (pretests or {}).get(tid)
-    if hook:
-        layout.write_pretest(rewrite.pretest, *hook)
+    lists = (protecteds or {}).get(tid)
+    if hook or lists:
+        # The snapshot beside rewrite.json: the hook AND the row's protected
+        # lists, so the probe, the sandbox tool and the fold all see the same
+        # inherited lists (a package file, if the agent writes one, overrides).
+        layout.write_pretest(rewrite.pretest, *(hook or ("", "")),
+                             protected_paths=lists.paths if lists else None,
+                             protected_cmds=lists.cmds if lists else None)
     try:
         shutil.copytree(src, rewrite.package)
         run_dir = root.run(str(d["run"])).path
@@ -787,12 +798,12 @@ def run_round(root: layout.Root, *, only: str | None = None, limit: int | None =
     # from the mix the trainer reads, and which axes the accepted rewrites
     # already used. Read once per round: the mix is 12 MB on GPFS and the
     # rewrite records are one small file each.
-    declared, pretests = read_declared(root.mix.live)
+    declared, pretests, protecteds = read_declared(root.mix.live)
     history = operator_history(root)
     handled: list[dict] = []
     with ThreadPoolExecutor(max_workers=workers) as ex:
         futs = {ex.submit(handle, root, s, declared=declared, history=history, dry=dry,
-                          pretests=pretests): s
+                          pretests=pretests, protecteds=protecteds): s
                 for s in todo}
         for fut in as_completed(futs):
             s = futs[fut]

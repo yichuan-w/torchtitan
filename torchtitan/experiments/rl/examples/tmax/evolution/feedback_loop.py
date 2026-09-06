@@ -550,7 +550,11 @@ def process_one(rewrite: layout.RewriteDir, signal: dict, *, job: str,
         # run/ to grade the way training does; the loop's probe reads the
         # snapshot itself, which the session cannot reach.
         task["_pretest"] = layout.read_pretest(rewrite.pretest)
-        pretest_file = rewrite.pretest if task["_pretest"] else None
+        # ...and the row's protected lists from the same snapshot: the probe and
+        # the agent's tool must validate the variant with the lists it will be
+        # folded with, or a reward-1 variant folds into a reward-0 row.
+        task["_protected"] = layout.read_protected_lists(rewrite.pretest)
+        pretest_file = rewrite.pretest if (task["_pretest"] or task["_protected"]) else None
         # The names the seed's verifier already depended on unseen, taken from
         # the input revision before anything here is rewritten.
         baseline = seed_literals(task, seed_dir)

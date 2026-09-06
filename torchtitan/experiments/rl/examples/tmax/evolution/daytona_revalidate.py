@@ -227,11 +227,14 @@ async def probe(
     resources: dict | None = None,
     require_paths: list[str] | None = None,
     pretest: tuple[str, str] | None = None,
+    protected: "pack.Protected | None" = None,
 ) -> dict:
     # `pretest` is the row's pin hook; the adapter puts it on the grading
     # payload beside this package's own environment identity, so grade_tmax
     # below runs it, or skips it, exactly as a training rollout would.
-    row = pack.to_row(str(pkg), pretest=pretest)
+    # `protected` is the lists the variant inherits from its row (the package's
+    # own file overrides inside to_row): the same lists the fold will use.
+    row = pack.to_row(str(pkg), pretest=pretest, protected=protected)
     md = row["metadata"]
     tmax = md["tmax"]
     workdir = md.get("workdir") or "/workspace"
@@ -436,6 +439,11 @@ def main() -> None:
                 require_paths=args.require_path,
                 pretest=(
                     layout.read_pretest(args.pretest_file)
+                    if args.pretest_file
+                    else None
+                ),
+                protected=(
+                    pack.Protected.from_pretest_file(args.pretest_file)
                     if args.pretest_file
                     else None
                 ),

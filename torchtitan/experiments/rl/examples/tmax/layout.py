@@ -79,12 +79,43 @@ def link_or_copy(src: Path, dst: Path) -> None:
         shutil.copy2(src, dst)
 
 
-def write_pretest(path: Path, pre_test_sh: str, env_identity: str) -> None:
+def write_pretest(path: Path, pre_test_sh: str, env_identity: str, *,
+                  protected_paths: list[str] | None = None,
+                  protected_cmds: list[str] | None = None) -> None:
     """The pin hook a mix row carries, as ``pretest.json``: the check script
     grading runs before the verifier, and the environment identity its pins
-    were captured against (the drift guard compares it to the package's)."""
-    write_json_atomic(path, {"pre_test_sh": pre_test_sh,
-                             "pretest_env_identity": env_identity})
+    were captured against (the drift guard compares it to the package's).
+    Beside the hook, the row's PROTECTED lists (``protected_paths`` /
+    ``protected_cmds``, each written only when non-empty): a variant inherits
+    them from the row it descends from, and every build of the variant's row
+    -- the loop's probe, the agent's sandbox tool, the fold -- reads them from
+    here so validation and the folded row see the same lists. A row with lists
+    and no hook writes an empty script; ``read_pretest`` then returns None while
+    ``read_protected_lists`` returns the lists."""
+    snap: dict = {"pre_test_sh": pre_test_sh, "pretest_env_identity": env_identity}
+    if protected_paths:
+        snap["protected_paths"] = list(protected_paths)
+    if protected_cmds:
+        snap["protected_cmds"] = list(protected_cmds)
+    write_json_atomic(path, snap)
+
+
+def read_protected_lists(path: Path) -> dict[str, list[str]] | None:
+    """``{"protected_paths": [...], "protected_cmds": [...]}`` (only the non-empty
+    keys) from a ``pretest.json``, or None when there is no file, no readable
+    JSON, or no lists. Iterated as lists, never joined and re-split."""
+    try:
+        got = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return None
+    if not isinstance(got, dict):
+        return None
+    out = {}
+    for key in ("protected_paths", "protected_cmds"):
+        val = got.get(key)
+        if isinstance(val, list) and val:
+            out[key] = [str(v) for v in val]
+    return out or None
 
 
 def read_pretest(path: Path) -> tuple[str, str] | None:
