@@ -81,10 +81,11 @@ def create(base: Path, *, mix: Path | None, sources: list[Path], bin_dir: Path |
     else:
         raise SystemExit("give --mix or --fork-from")
     for s in sources:
-        s = s.resolve()
+        # The loop looks up corpus aliases (e.g. tw-extract), even when their
+        # targets are versioned directories with different names.
         link = root.data / "sources" / s.name
         if not link.exists():
-            link.symlink_to(s)
+            link.symlink_to(s.resolve())
     if bin_dir is not None and not root.bin.exists():
         root.bin.symlink_to(Path(bin_dir).resolve())
     layout.write_json_atomic(root.experiment_json, {

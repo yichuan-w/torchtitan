@@ -78,3 +78,20 @@ def test_create_refuses_an_existing_root(tmp_path: Path) -> None:
     with pytest.raises(SystemExit):
         create(tmp_path / "root", mix=_seed(tmp_path), sources=[], bin_dir=None,
                name=None, purpose="", profile=None, fork_from=None)
+
+
+def test_versioned_source_keeps_its_corpus_alias_when_created_and_forked(tmp_path):
+    create = _new_root()
+    versioned = tmp_path / "tw-extract-version2"
+    (versioned / "tasks/tw_1").mkdir(parents=True)
+    (versioned / "tasks/tw_1/instruction.md").write_text("task")
+    alias = tmp_path / "tw-extract"
+    alias.symlink_to(versioned)
+    root = create(tmp_path / "root", mix=_seed(tmp_path), sources=[alias],
+                  bin_dir=None, name=None, purpose="", profile=None, fork_from=None)
+    fork = create(tmp_path / "fork", mix=None, sources=[], bin_dir=None,
+                  name=None, purpose="", profile=None, fork_from=root.path)
+    for experiment in (root, fork):
+        source = experiment.data / "sources/tw-extract"
+        assert source.resolve() == versioned
+        assert (source / "tasks/tw_1/instruction.md").read_text() == "task"
