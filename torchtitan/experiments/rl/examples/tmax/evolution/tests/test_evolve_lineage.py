@@ -309,6 +309,72 @@ def test_one_signal_per_task_the_newest_at_the_current_rev(tmp_path, monkeypatch
     assert len(seen) == 1
 
 
+def test_unchanged_late_signal_reuses_completed_decision(tmp_path, monkeypatch) -> None:
+    root = _root(tmp_path, monkeypatch)
+    _signal(root)
+    seen = _stub(monkeypatch, status="kept")
+    process = od.fb.process_one
+
+    def with_late_signal(*args, **kwargs):
+        _signal(root, group=8, created="20260904-190000Z")
+        return process(*args, **kwargs)
+
+    monkeypatch.setattr(od.fb, "process_one", with_late_signal)
+    od.run_round(root, workers=1)
+    result = od.run_round(root, workers=1)
+    assert result["reused"] == 1 and result["handled"] == 0
+    assert len(seen) == 1
+    lines = _ledger(root)
+    assert lines[-1]["outcome"] == "reused"
+    assert lines[-1]["rewrite"] == lines[0]["rewrite"]
+    assert od.rebuild_status(root)["pending"] == 0
+    assert od.run_round(root, workers=1)["reused"] == 0
+
+
+def test_changed_feedback_runs_again_and_rejection_is_reused(tmp_path, monkeypatch) -> None:
+    root = _root(tmp_path, monkeypatch)
+    _signal(root)
+    seen = _stub(monkeypatch, status="rejected")
+    od.run_round(root, workers=1)
+    _signal(root, group=8)
+    assert od.run_round(root, workers=1)["reused"] == 1
+    _signal(root, group=9, n=3)
+    assert od.run_round(root, workers=1)["handled"] == 1
+    _signal(root, group=10, n=3, direction="easier")
+    assert od.run_round(root, workers=1)["handled"] == 1
+    assert len(seen) == 3
+
+
+def test_failed_execution_can_retry_unchanged_feedback(tmp_path, monkeypatch) -> None:
+    root = _root(tmp_path, monkeypatch)
+    _signal(root)
+    seen = _stub(monkeypatch, status="failed")
+    od.run_round(root, workers=1)
+    _signal(root, group=8)
+    assert od.run_round(root, workers=1)["handled"] == 1
+    assert len(seen) == 2
+
+
+def test_new_revision_starts_a_new_rewrite(tmp_path, monkeypatch) -> None:
+    root = _root(tmp_path, monkeypatch)
+    _signal(root)
+    seen = _stub(monkeypatch)
+    od.run_round(root, workers=1)
+    _signal(root, group=8, rev=1)
+    assert od.run_round(root, workers=1)["handled"] == 1
+    assert len(seen) == 2
+    assert root.evolution.task("tw_a").rev(2).exists()
+
+
+def test_explicit_replay_bypasses_reuse(tmp_path, monkeypatch) -> None:
+    root = _root(tmp_path, monkeypatch)
+    sid = _signal(root)
+    seen = _stub(monkeypatch, status="kept")
+    od.run_round(root, workers=1)
+    assert od.run_round(root, workers=1, signal=sid)["handled"] == 1
+    assert len(seen) == 2
+
+
 def test_limit_leaves_the_rest_pending_rather_than_superseded(tmp_path, monkeypatch) -> None:
     root = _root(tmp_path, monkeypatch)
     seed_b = root.data / "sources" / "tw-extract" / "tasks" / "tw_b"

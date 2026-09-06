@@ -19,7 +19,8 @@ A round:
      siblings racing for the same r<N+1>, and a signal about a revision that
      is no longer the task's measured a policy input that is gone; both get a
      `superseded` line and the reason.
-  3. handle, concurrently across tasks: copy r<rev> to the rewrite's
+  3. reuse the last completed decision for unchanged feedback; otherwise
+     handle, concurrently across tasks: copy r<rev> to the rewrite's
      package/, hardlink the rollout records under package/traces/, snapshot
      the row's pin hook as pretest.json beside rewrite.json, run
      feedback_loop.process_one there, record the verdict in rewrite.json.
@@ -521,6 +522,32 @@ def _finish(h: dict, status: str, *, stage: str, reason: str) -> None:
     h["status"] = status
 
 
+def reusable_rewrite(root: layout.Root, sig: Signal, ledger: dict[str, dict]) -> str | None:
+    """Reuse the last decision for unchanged feedback, never an execution failure.
+
+    New rollout paths and timestamps are expected on every draw. They do not
+    change the feedback identity; raw signals remain available for inspection.
+    """
+    keys = ("task", "rev", "direction", "solved", "total")
+    for previous in reversed(list(ledger.values())):
+        if (previous.get("outcome") != "handled"
+                or previous.get("task") != sig.task
+                or previous.get("rev") != sig.data["rev"]):
+            continue
+        run, stem = previous["signal"].split("/", 1)
+        data, _ = read_signal(root.run(run).signals / f"{stem}.json")
+        if data is None or any(data.get(key) != sig.data.get(key) for key in keys):
+            return None
+        reference = previous.get("rewrite")
+        if not reference:
+            return None
+        meta = json.loads((root.evolution.path / reference / "rewrite.json").read_text())
+        if meta.get("status") in {"accepted", "rejected", "kept", "blocked"}:
+            return reference
+        return None
+    return None
+
+
 def fold(root: layout.Root, accepted: list[dict]) -> int | None:
     """Every accepted rewrite of the round into one new mix version.
 
@@ -750,7 +777,7 @@ def run_round(root: layout.Root, *, only: str | None = None, limit: int | None =
     # task has moved past, or close a signal the ledger already closed.
     dry = dry or bool(signal)
     result: dict = {"handled": 0, "accepted": 0, "deferred": 0, "junk": 0,
-                    "superseded": 0, "counts": {}, "mix_version": None}
+                    "superseded": 0, "reused": 0, "counts": {}, "mix_version": None}
     if signal:
         picks, rest = [_replay_signal(root, signal)], []
         found: list[Signal] = []
@@ -769,14 +796,23 @@ def run_round(root: layout.Root, *, only: str | None = None, limit: int | None =
         return {**result, "reason": "no signals"}
 
     todo, deferred = [], []
+    reused = set()
     for s in picks:
+        reference = reusable_rewrite(root, s, ledger) if not signal else None
+        if reference is not None:
+            log.info("%s %s reused: %s (unchanged feedback)", s.task, s.sid, reference)
+            result["reused"] += 1
+            reused.add(s.sid)
+            if not dry:
+                _ledger_line(root, s, "reused", rewrite=reference)
+            continue
         if s.data["direction"] == "easier" and not SIMPLIFY_ENABLED and not signal:
             deferred.append(s)
         else:
             todo.append(s)
     if limit:
         todo = todo[:limit]
-    closing = {s.sid for s in todo} | {s.sid for s in deferred}
+    closing = {s.sid for s in todo} | {s.sid for s in deferred} | reused
     for s in deferred:
         log.info("%s %s deferred: the easier direction is off", s.task, s.sid)
         result["deferred"] += 1
@@ -902,7 +938,7 @@ def main() -> None:
         log.info("round done%s: %s", " (dry)" if dry else "", r)
         if not dry:
             rebuild_status(root)
-            if r.get("handled"):
+            if r.get("handled") or r.get("reused"):
                 _snapshot_lineage(root, f"once: {r}")
         return
     log.info("evolve loop up: pid=%d root=%s interval=%ds workers=%d simplify=%s",
@@ -910,10 +946,10 @@ def main() -> None:
     while True:
         try:
             r = run_round(root, workers=args.workers)
-            if r.get("handled") or r.get("junk") or r.get("deferred") or r.get("superseded"):
+            if r.get("handled") or r.get("junk") or r.get("deferred") or r.get("superseded") or r.get("reused"):
                 log.info("round: %s", r)
             rebuild_status(root)
-            if r.get("handled"):
+            if r.get("handled") or r.get("reused"):
                 _snapshot_lineage(root, f"round: {r}")
         except Exception as e:  # noqa: BLE001
             log.exception("round failed: %s", e)
