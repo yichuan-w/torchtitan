@@ -23,7 +23,7 @@ apt-get or apt at build time. --ids narrows or overrides that.
 
 Dry run by default. --apply backs every package Dockerfile up under
 --backup-dir first (default: <tasks-dir>/../../archive/task-backups-bullseye-<stamp>,
-so a tasks dir at <root>/data/tw-extract/tasks backs up under <root>/archive/),
+so a tasks dir at <root>/data/tw-extract/tasks backs up under <root>/data/archive/),
 then writes; the mix goes through layout.write_mix, which on a root's live mix
 publishes the next version, so the history is that backup.
 
