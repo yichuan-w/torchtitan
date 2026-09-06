@@ -1,4 +1,10 @@
 #!/usr/bin/env python3
+# Copyright (c) Meta Platforms, Inc. and affiliates.
+# All rights reserved.
+#
+# This source code is licensed under the BSD-style license found in the
+# LICENSE file in the root directory of this source tree.
+
 """Say which distribution release each base image tag really is, from the registry.
 
 A tag rarely names its distribution (`python:3.6-slim`, `node:14`, `ruby:2.7`),
@@ -20,12 +26,14 @@ import urllib.error
 import urllib.request
 from concurrent.futures import ThreadPoolExecutor
 
-MEDIA = ", ".join([
-    "application/vnd.docker.distribution.manifest.list.v2+json",
-    "application/vnd.oci.image.index.v1+json",
-    "application/vnd.docker.distribution.manifest.v2+json",
-    "application/vnd.oci.image.manifest.v1+json",
-])
+MEDIA = ", ".join(
+    [
+        "application/vnd.docker.distribution.manifest.list.v2+json",
+        "application/vnd.oci.image.index.v1+json",
+        "application/vnd.docker.distribution.manifest.v2+json",
+        "application/vnd.oci.image.manifest.v1+json",
+    ]
+)
 
 
 def split(ref: str) -> tuple[str, str, str]:
@@ -63,16 +71,27 @@ def head_digest(url: str, headers: dict) -> str | None:
 
 
 CODENAMES = {
-    "trixie": "debian:trixie", "bookworm": "debian:bookworm", "bullseye": "debian:bullseye",
-    "buster": "debian:buster", "stretch": "debian:stretch", "jessie": "debian:jessie",
-    "noble": "ubuntu:24.04", "jammy": "ubuntu:22.04", "focal": "ubuntu:20.04",
-    "bionic": "ubuntu:18.04", "xenial": "ubuntu:16.04", "alpine": "alpine",
+    "trixie": "debian:trixie",
+    "bookworm": "debian:bookworm",
+    "bullseye": "debian:bullseye",
+    "buster": "debian:buster",
+    "stretch": "debian:stretch",
+    "jessie": "debian:jessie",
+    "noble": "ubuntu:24.04",
+    "jammy": "ubuntu:22.04",
+    "focal": "ubuntu:20.04",
+    "bionic": "ubuntu:18.04",
+    "xenial": "ubuntu:16.04",
+    "alpine": "alpine",
 }
 
 
 def layer_os_release(base: str, man: dict, h: dict) -> str | None:
     """Read /etc/os-release out of the first (root filesystem) layer."""
-    import gzip, io, tarfile
+    import gzip
+    import io
+    import tarfile
+
     layers = man.get("layers") or []
     if not layers:
         return None
@@ -82,19 +101,28 @@ def layer_os_release(base: str, man: dict, h: dict) -> str | None:
     except OSError:
         raw = body
     with tarfile.open(fileobj=io.BytesIO(raw)) as t:
-        for name in ("etc/os-release", "./etc/os-release", "usr/lib/os-release", "./usr/lib/os-release"):
+        for name in (
+            "etc/os-release",
+            "./etc/os-release",
+            "usr/lib/os-release",
+            "./usr/lib/os-release",
+        ):
             try:
                 m = t.getmember(name)
             except KeyError:
                 continue
             if m.issym() or m.islnk():
                 try:
-                    m = t.getmember(m.linkname.lstrip("/").replace("../", "")) if not m.linkname.startswith("etc") else t.getmember(m.linkname)
+                    m = (
+                        t.getmember(m.linkname.lstrip("/").replace("../", ""))
+                        if not m.linkname.startswith("etc")
+                        else t.getmember(m.linkname)
+                    )
                 except KeyError:
                     continue
             txt = t.extractfile(m).read().decode("utf-8", "replace")
             kv = dict(re.findall(r'^(\w+)="?([^"\n]*)"?$', txt, re.M))
-            return f"{kv.get('ID','?')}:{kv.get('VERSION_CODENAME') or kv.get('VERSION_ID') or '?'}"
+            return f"{kv.get('ID', '?')}:{kv.get('VERSION_CODENAME') or kv.get('VERSION_ID') or '?'}"
     return None
 
 
@@ -139,8 +167,12 @@ def resolve(ref: str) -> dict:
         body, hdr = get(f"{base}/manifests/{tag}", h)
         man = json.loads(body)
         if "manifests" in man:  # index: pick linux/amd64
-            cands = [m for m in man["manifests"] if m.get("platform", {}).get("os") == "linux"
-                     and m["platform"].get("architecture") == "amd64"]
+            cands = [
+                m
+                for m in man["manifests"]
+                if m.get("platform", {}).get("os") == "linux"
+                and m["platform"].get("architecture") == "amd64"
+            ]
             if not cands:
                 out["error"] = "no linux/amd64 manifest"
                 return out
@@ -164,7 +196,14 @@ def resolve(ref: str) -> dict:
             m2 = re.search(r"alpine[-:_ ]v?(\d+\.\d+)", hist + " " + tag, re.I)
             out["os"] = f"alpine:{m2.group(1) if m2 else '?'}"
         elif labels.get("org.label-schema.name") or labels.get("name"):
-            out["os"] = f"{labels.get('org.label-schema.name') or labels.get('name')}:{labels.get('org.label-schema.version') or labels.get('version') or labels.get('org.opencontainers.image.version') or '?'}"
+            name = labels.get("org.label-schema.name") or labels.get("name")
+            version = (
+                labels.get("org.label-schema.version")
+                or labels.get("version")
+                or labels.get("org.opencontainers.image.version")
+                or "?"
+            )
+            out["os"] = f"{name}:{version}"
         else:
             out["os"] = "?"
         out["how"] = "config"
@@ -177,9 +216,19 @@ def resolve(ref: str) -> dict:
             except Exception as e:  # noqa: BLE001
                 out["layer_error"] = f"{type(e).__name__}: {e}"[:120]
         # keep what may explain it
-        out["labels"] = {k: v for k, v in labels.items()
-                         if any(s in k for s in ("version", "name", "ref.name", "release", "vendor"))}
-        out["env_hint"] = [e for e in env if re.match(r"^(NODE|PYTHON|RUBY|PHP|GO|RUST|JULIA|ERLANG|OTP|ELIXIR|JAVA|REDIS|MONGO)_?(VERSION|MAJOR)", e)]
+        out["labels"] = {
+            k: v
+            for k, v in labels.items()
+            if any(s in k for s in ("version", "name", "ref.name", "release", "vendor"))
+        }
+        out["env_hint"] = [
+            e
+            for e in env
+            if re.match(
+                r"^(NODE|PYTHON|RUBY|PHP|GO|RUST|JULIA|ERLANG|OTP|ELIXIR|JAVA|REDIS|MONGO)_?(VERSION|MAJOR)",
+                e,
+            )
+        ]
         out["history_hint"] = hist[:300]
     except Exception as e:  # noqa: BLE001
         out["error"] = f"{type(e).__name__}: {e}"[:200]
@@ -199,7 +248,9 @@ def main() -> None:
     ok = sum(1 for r in rows if r.get("os") and r["os"] != "?")
     print(f"resolved {ok}/{len(rows)} -> {a.out}", file=sys.stderr)
     for r in rows:
-        print(f"{r['ref']:45s} {r.get('os','?'):22s} created={r.get('created','')} {r.get('error','')}")
+        print(
+            f"{r['ref']:45s} {r.get('os', '?'):22s} created={r.get('created', '')} {r.get('error', '')}"
+        )
 
 
 if __name__ == "__main__":

@@ -1,4 +1,10 @@
 #!/usr/bin/env python3
+# Copyright (c) Meta Platforms, Inc. and affiliates.
+# All rights reserved.
+#
+# This source code is licensed under the BSD-style license found in the
+# LICENSE file in the root directory of this source tree.
+
 """Pin the apt sources of every bullseye-based task environment to a Debian snapshot.
 
 Debian 11 (bullseye) left LTS on 2026-08-31. Since then deb.debian.org's
@@ -68,24 +74,28 @@ def pin_block(snapshot: str, codename: str = "bullseye") -> str:
     deb = f"http://snapshot.debian.org/archive/debian/{snapshot}"
     sec = f"http://snapshot.debian.org/archive/debian-security/{snapshot}"
     security_suite = RELEASES.get(codename, (None, f"{codename}-security"))[1]
-    return "\n".join([
-        f"# Debian {codename} is out of support: the mirrors drop or stop re-signing its",
-        "# suites, and apt then fails at update or at fetch. Every suite is pinned to a",
-        "# snapshot.debian.org state from before that, and apt is told to accept that",
-        "# snapshot's aged Release file.",
-        "RUN printf '%s\\n' \\",
-        f"      'deb {deb} {codename} main' \\",
-        f"      'deb {sec} {security_suite} main' \\",
-        f"      'deb {deb} {codename}-updates main' \\",
-        "      > /etc/apt/sources.list \\",
-        " && rm -f /etc/apt/sources.list.d/debian.sources \\",
-        " && printf '%s\\n' 'Acquire::Check-Valid-Until \"false\";' 'Acquire::Retries \"3\";' \\",
-        "      > /etc/apt/apt.conf.d/99snapshot",
-        "",
-    ])
+    return "\n".join(
+        [
+            f"# Debian {codename} is out of support: the mirrors drop or stop re-signing its",
+            "# suites, and apt then fails at update or at fetch. Every suite is pinned to a",
+            "# snapshot.debian.org state from before that, and apt is told to accept that",
+            "# snapshot's aged Release file.",
+            "RUN printf '%s\\n' \\",
+            f"      'deb {deb} {codename} main' \\",
+            f"      'deb {sec} {security_suite} main' \\",
+            f"      'deb {deb} {codename}-updates main' \\",
+            "      > /etc/apt/sources.list \\",
+            " && rm -f /etc/apt/sources.list.d/debian.sources \\",
+            " && printf '%s\\n' 'Acquire::Check-Valid-Until \"false\";' 'Acquire::Retries \"3\";' \\",
+            "      > /etc/apt/apt.conf.d/99snapshot",
+            "",
+        ]
+    )
 
 
-RESOLVED: dict[str, str] = {}  # image ref -> "debian:<codename>", from resolve_base_images.py
+RESOLVED: dict[
+    str, str
+] = {}  # image ref -> "debian:<codename>", from resolve_base_images.py
 
 
 def codename_of(text: str) -> str | None:
@@ -114,7 +124,8 @@ def codename_of(text: str) -> str | None:
         return "jessie"
     os_ = RESOLVED.get(image, "")
     for cn in RELEASES:
-        if os_ == f"debian:{cn}" or os_ == f"debian:{ {'jessie': 8, 'stretch': 9, 'buster': 10, 'bullseye': 11}[cn] }":
+        version = {"jessie": 8, "stretch": 9, "buster": 10, "bullseye": 11}[cn]
+        if os_ == f"debian:{cn}" or os_ == f"debian:{version}":
             return cn
     return None
 
@@ -140,7 +151,7 @@ def pin(text: str, snapshot: str | None = None) -> str:
     if cn is None:
         raise ValueError("not an out-of-support Debian base")
     snap = snapshot or RELEASES[cn][0]
-    end = text.index("\n", m.end()) + 1 if "\n" in text[m.end():] else len(text)
+    end = text.index("\n", m.end()) + 1 if "\n" in text[m.end() :] else len(text)
     return text[:end] + "\n" + pin_block(snap, cn) + text[end:]
 
 
@@ -153,19 +164,40 @@ def dockerfile_of(task_dir: Path) -> Path | None:
 
 def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
-    ap.add_argument("--tasks-dir", required=True, type=Path,
-                    help="directory holding <task_id>/ packages")
-    ap.add_argument("--mix", type=Path, default=None,
-                    help="a mix whose matching rows get the same pin (a root's live.jsonl publishes)")
-    ap.add_argument("--ids", nargs="*", default=None,
-                    help="only these tasks (default: every bullseye+apt Dockerfile in --tasks-dir)")
-    ap.add_argument("--snapshot", default=None,
-                    help="override the snapshot.debian.org timestamp for every release "
-                         "(default: per release, see RELEASES)")
-    ap.add_argument("--resolved", type=Path, default=None,
-                    help="resolve_base_images.py output, so tags that do not name their release still match")
+    ap.add_argument(
+        "--tasks-dir",
+        required=True,
+        type=Path,
+        help="directory holding <task_id>/ packages",
+    )
+    ap.add_argument(
+        "--mix",
+        type=Path,
+        default=None,
+        help="a mix whose matching rows get the same pin (a root's live.jsonl publishes)",
+    )
+    ap.add_argument(
+        "--ids",
+        nargs="*",
+        default=None,
+        help="only these tasks (default: every bullseye+apt Dockerfile in --tasks-dir)",
+    )
+    ap.add_argument(
+        "--snapshot",
+        default=None,
+        help="override the snapshot.debian.org timestamp for every release "
+        "(default: per release, see RELEASES)",
+    )
+    ap.add_argument(
+        "--resolved",
+        type=Path,
+        default=None,
+        help="resolve_base_images.py output, so tags that do not name their release still match",
+    )
     ap.add_argument("--backup-dir", type=Path, default=None)
-    ap.add_argument("--apply", action="store_true", help="write changes (default: dry run)")
+    ap.add_argument(
+        "--apply", action="store_true", help="write changes (default: dry run)"
+    )
     a = ap.parse_args()
 
     if a.resolved:
@@ -173,8 +205,12 @@ def main() -> None:
             RESOLVED[r["ref"]] = r.get("os", "?")
     stamp = time.strftime("%Y%m%d-%H%M%SZ", time.gmtime())
     tasks_dir = a.tasks_dir.resolve()
-    backup_dir = a.backup_dir or (tasks_dir.parent.parent / "archive" / f"task-backups-bullseye-{stamp}")
-    print(f"tasks_dir={tasks_dir} mix={a.mix} snapshot={a.snapshot} apply={a.apply} backup_dir={backup_dir}")
+    backup_dir = a.backup_dir or (
+        tasks_dir.parent.parent / "archive" / f"task-backups-bullseye-{stamp}"
+    )
+    print(
+        f"tasks_dir={tasks_dir} mix={a.mix} snapshot={a.snapshot} apply={a.apply} backup_dir={backup_dir}"
+    )
 
     if a.ids:
         task_dirs = [tasks_dir / t for t in a.ids]
@@ -206,13 +242,17 @@ def main() -> None:
             dst.parent.mkdir(parents=True, exist_ok=True)
             shutil.copy2(df, dst)
             df.write_text(pin(text, a.snapshot))
-        print(f"  package {td.name:10s} {'pinned' if a.apply else 'would pin'} [{cn}{'' if _APT.search(text) else ', no apt in Dockerfile'}]  ({df})")
+        print(
+            f"  package {td.name:10s} {'pinned' if a.apply else 'would pin'} "
+            f"[{cn}{'' if _APT.search(text) else ', no apt in Dockerfile'}]  ({df})"
+        )
     for name, why in skipped:
         print(f"  package {name:10s} skipped: {why}")
     print(f"packages {'pinned' if a.apply else 'to pin'}: {len(pinned)}")
 
     if a.mix:
         from torchtitan.experiments.rl.examples.tmax import layout
+
         rows = [json.loads(l) for l in a.mix.read_text().splitlines() if l.strip()]
         want = set(pinned) | set(a.ids or [])
         changed: list[str] = []
@@ -223,20 +263,41 @@ def main() -> None:
             if label not in want or not isinstance(df, str):
                 continue
             if not needs_pin(df):
-                print(f"  row     {label:10s} skipped: {'already pinned' if MARKER in df else 'not on an out-of-support Debian release'}")
+                print(
+                    f"  row     {label:10s} skipped: "
+                    f"{'already pinned' if MARKER in df else 'not on an out-of-support Debian release'}"
+                )
                 continue
             changed.append(label)
             if a.apply:
                 md["dockerfile"] = pin(df, a.snapshot)
-            print(f"  row     {label:10s} {'pinned' if a.apply else 'would pin'} [{codename_of(df)}]")
-        absent = sorted(want - {(r.get("label") or (r.get("metadata") or {}).get("instance_id")) for r in rows})
+            print(
+                f"  row     {label:10s} {'pinned' if a.apply else 'would pin'} [{codename_of(df)}]"
+            )
+        absent = sorted(
+            want
+            - {
+                (r.get("label") or (r.get("metadata") or {}).get("instance_id"))
+                for r in rows
+            }
+        )
         if absent:
             print(f"  rows not in mix: {' '.join(absent)}")
-        print(f"mix rows {'pinned' if a.apply else 'to pin'}: {len(changed)} of {len(rows)}")
+        print(
+            f"mix rows {'pinned' if a.apply else 'to pin'}: {len(changed)} of {len(rows)}"
+        )
         if a.apply and changed:
-            published = layout.write_mix(a.mix, [json.dumps(r, ensure_ascii=False) for r in rows])
-            print(f"mix rewritten ({len(rows)} rows preserved)"
-                  + (f"; published mix v{published[0]:04d} -> {published[1]}" if published else ""))
+            published = layout.write_mix(
+                a.mix, [json.dumps(r, ensure_ascii=False) for r in rows]
+            )
+            print(
+                f"mix rewritten ({len(rows)} rows preserved)"
+                + (
+                    f"; published mix v{published[0]:04d} -> {published[1]}"
+                    if published
+                    else ""
+                )
+            )
 
     if not a.apply:
         print("dry run -- pass --apply to write")
