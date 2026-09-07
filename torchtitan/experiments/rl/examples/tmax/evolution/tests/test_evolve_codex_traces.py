@@ -4,11 +4,13 @@ agent."""
 from __future__ import annotations
 
 import json
+from contextlib import nullcontext
 import shutil
 import stat
 import subprocess
 import sys
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
@@ -26,6 +28,43 @@ FILES = {
 TASK = {"instruction": FILES["instruction.md"], "dockerfile": FILES["environment/Dockerfile"],
         "solve_sh": FILES["solution/solve.sh"], "test_state_py": FILES["tests/test_state.py"],
         "_verifier_rel": "tests/test_state.py"}
+
+
+@pytest.mark.parametrize("has_evidence", [True, False])
+def test_spec_repair_requires_a_declaration_and_has_no_growth_floor(tmp_path, monkeypatch, has_evidence):
+    rw = _rewrite(tmp_path, monkeypatch)
+
+    def prepare(pkg, task):
+        (pkg / "run").mkdir()
+        (pkg / "run/seed_size.json").write_text("{}")
+        return ec.ev.file_map(task)
+
+    def run_codex(run, pkg, prompt):
+        assert not (pkg / "run/seed_size.json").exists()
+        assert (pkg / "run/failure.txt").read_text() == "suspected mismatch"
+        assert "claim to check" in prompt
+        (pkg / "instruction.md").write_text("clarified instruction")
+        repair = {key: "documented observation" for key in
+                  ("diagnosis", "evidence", "change", "retained_skill", "validation")}
+        if not has_evidence:
+            repair.pop("evidence")
+        (pkg / "run/repair.json").write_text(json.dumps(repair))
+        return subprocess.CompletedProcess([], 0, stdout="")
+
+    monkeypatch.setattr(ec, "_require_codex", lambda: None)
+    monkeypatch.setattr(ec, "_prepare_package", prepare)
+    monkeypatch.setattr(ec, "session", lambda *a, **k: nullcontext(SimpleNamespace(dir=SimpleNamespace(path=tmp_path / "session"))))
+    monkeypatch.setattr(ec, "_run_codex", run_codex)
+    monkeypatch.setattr(ec, "_sandbox_down", lambda pkg: None)
+    monkeypatch.setattr(ec, "_require_checked", lambda pkg: None)
+    monkeypatch.setattr(ec, "_agent_checked", lambda pkg: True)
+    if has_evidence:
+        result = ec.evolve_agentic(rw, TASK, "repair_spec", observed="suspected mismatch")
+        assert result["_spec_repair"]["evidence"] == "documented observation"
+        assert "_simplify" not in result
+    else:
+        with pytest.raises(ValueError, match="nonempty evidence"):
+            ec.evolve_agentic(rw, TASK, "repair_spec", observed="suspected mismatch")
 
 
 def _rewrite(tmp_path, monkeypatch, job: str = "harder") -> layout.RewriteDir:

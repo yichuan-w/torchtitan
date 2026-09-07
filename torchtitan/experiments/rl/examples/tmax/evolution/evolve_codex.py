@@ -1082,6 +1082,38 @@ fresh one.
 
 Confirm with `./sandbox check` before you stop."""
 
+_SPEC_REPAIR_JOB = """A simplification attempt reported a possible task defect.
+The report is in `run/failure.txt`; it is a claim to check, not an established
+fact. Read the public instruction, environment, verifier and actual attempts.
+Identify a concrete disagreement that prevents fair grading or execution.
+Compilation, a student's success claim, or a hypothetical shortcut is not
+proof of a grading error. An oracle-informed constant can satisfy a valid
+fixed-output task; do not add requirements merely to reject that possibility.
+
+Repair only a demonstrated defect, preserving the task's intended capability.
+Make required inputs and API contracts available, reconcile contradictory
+requirements, or correct a verifier that rejects a valid result. Do not remove
+the student goal, precompute its output, or replace a required implementation
+with a marker or mock that no longer exercises it. If a live external system
+cannot be provided faithfully, leave the task blocked and explain why.
+Do not combine the repair with a difficulty adjustment. Student rollouts on
+the repaired revision will determine whether it still needs simplification.
+
+Before editing, write `run/repair.json` with nonempty string fields diagnosis,
+evidence, change, retained_skill, and validation. Evidence must identify the
+conflicting public requirement and actual observation, with file locations or
+trace turns. Validation states what would demonstrate that the defect is fixed.
+If the report is unsupported or no faithful repair is possible, write
+`GIVE UP: <reason>` to `run/verdict.txt` and stop without changing the task.
+
+Use `./sandbox grade` to check any claimed grading counterexample. For a
+verifier repair, demonstrate acceptance of a valid result and rejection of an
+invalid result; record both outcomes in `run/repair.json`. Static fixture contradictions can
+be established by inspecting the exact bytes and the public format together.
+Finish with `./sandbox check`; the caller independently checks the repaired
+reference solution and the untouched workspace before publishing the revision.
+"""
+
 _VERIFIER_JOB = """The task in this package was just made one rung harder through a
 change to its requirements or workflow. Write the verifier for the task as the
 instruction states it.
@@ -1298,14 +1330,14 @@ def evolve_agentic(
     revalidates afterwards; the agent's own pass is not the gate, it is what
     stops the agent from finishing on a rewrite it never ran.
 
-    `job` is one of "harder", "easier", "repair". The attempts are the records
+    `job` is "harder", "easier", "repair", or "repair_spec". The attempts are the records
     the loop hardlinked under ``traces/``. Raises on failure; raises Blocked
     when the agent declined.
     """
     _require_codex()
     pkg = rewrite.package
     fmap = _prepare_package(pkg, task)
-    if job == "easier":
+    if job in ("easier", "repair_spec"):
         # Growth is required only for harder jobs; the caller checks direction independently.
         (pkg / "run" / "seed_size.json").unlink(missing_ok=True)
     if observed:
@@ -1351,6 +1383,7 @@ def evolve_agentic(
                 cards=so.prompt(task.get("_simplify_hint", "vague")),
             ),
             "repair": _REPAIR_JOB.format(exit_code=exit_code),
+            "repair_spec": _SPEC_REPAIR_JOB,
         }[job]
         + _traces_spec(rewrite.traces)
         + _budget(AGENT_TIMEOUT)
@@ -1399,6 +1432,12 @@ def evolve_agentic(
         decision["hint_level"] = task.get("_simplify_hint", "vague")
         out["_simplify"] = decision
         out["_operator"], out["_family"] = decision["operator"], "simplify"
+    if job == "repair_spec":
+        repair = json.loads((pkg / "run" / "repair.json").read_text())
+        for key in ("diagnosis", "evidence", "change", "retained_skill", "validation"):
+            if not isinstance(repair.get(key), str) or not repair[key].strip():
+                raise ValueError(f"repair declaration needs a nonempty {key}")
+        out["_spec_repair"] = repair
     if vsession is not None:
         out["_verifier_author"] = "blind"
         out["_verifier_session"] = str(vsession.path)

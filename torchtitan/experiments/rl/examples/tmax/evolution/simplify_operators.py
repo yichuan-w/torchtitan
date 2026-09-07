@@ -47,6 +47,10 @@ is a specification defect, even when a hint could make the test pass.
 Use verifier diagnostics when present. A student's success claim or local
 self-test proves only the property it exercised; repeated execution on one
 unchanged input does not establish invariance under changed input order.
+Compilation or an existing executable does not establish correct runtime
+output. Use the recorded reward when claiming that an attempt passed.
+An oracle-informed constant can pass many valid fixed-output tasks; this
+alone is not evidence of wrong grading or a reason to discard the task.
 Infrastructure failures, missing required
 evidence, inconsistent specifications and wrong grading require repair:
 write BLOCKED: repair_required: <reason> to run/verdict.txt and stop.

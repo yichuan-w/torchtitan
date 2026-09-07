@@ -342,7 +342,12 @@ def revalidate(
     verifier path, or a path the instruction stopped revealing that the verifier
     still needs. Judged before/after, so an SWE test.sh that always references
     repo internals is not mistaken for a fresh dark path."""
-    if changed == ["instruction"] and orig is not None and not task.get("_simplify"):
+    if (
+        changed == ["instruction"]
+        and orig is not None
+        and not task.get("_simplify")
+        and not task.get("_spec_repair")
+    ):
         if not task["instruction"].strip():
             return {"ok": False, "stage": "empty", "why": "instruction emptied"}
         before, after = sl.audit(orig), sl.audit(task)
@@ -732,7 +737,26 @@ def process_one(
                         rewrite, task, solved=solved, attempts=graded, hint=hint_lvl
                     )
                 except ec.Blocked as e:
-                    return _done(rec, "kept", stage="agent", reason=str(e))
+                    if not str(e).startswith("BLOCKED: repair_required:"):
+                        return _done(rec, "kept", stage="agent", reason=str(e))
+                    report = (work / "run" / "verdict.txt").read_text()
+                    rec["action"] = "repair"
+                    rec["spec_repair"] = {"reported": report}
+                    # Preserve the declined package, including any partial edits,
+                    # and repair from the exact input revision.
+                    work.rename(rewrite.path / "before-spec-repair")
+                    shutil.copytree(seed_dir, work)
+                    try:
+                        new = ec.evolve_agentic(
+                            rewrite, task, "repair_spec", observed=report
+                        )
+                    except ec.Blocked as repair_error:
+                        return _done(
+                            rec, "kept", stage="spec_repair", reason=str(repair_error)
+                        )
+                    rec["spec_repair"].update(new["_spec_repair"])
+                    rec["family"] = "repair"
+                    rec["agent_validated"] = new.get("_agent_validated")
                 except Exception as e:  # noqa: BLE001 -- the task stays as it is
                     return _done(
                         rec, "failed", stage="agent", reason=f"{type(e).__name__}: {e}"

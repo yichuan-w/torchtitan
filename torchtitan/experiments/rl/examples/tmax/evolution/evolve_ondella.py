@@ -566,6 +566,8 @@ def handle(
             "reason": f"{type(e).__name__}: {e}"[:300],
         }
     for key in (
+        "action",
+        "spec_repair",
         "operator",
         "harder_mode",
         "family",
@@ -642,6 +644,7 @@ def _close(root: layout.Root, h: dict, *, dry: bool) -> None:
             "event": "rewrite",
             "rewrite": f"rewrites/{rewrite.path.name}",
             "job": meta["job"],
+            "action": meta.get("action"),
             "input_rev": meta["input_rev"],
             "status": meta["status"],
         },
