@@ -40,6 +40,34 @@ TASK = {
 }
 
 
+@pytest.mark.parametrize("via_stdin", [False, True])
+def test_sandbox_patch_uses_run_codex_and_preserves_failure(
+    tmp_path, monkeypatch, via_stdin
+) -> None:
+    tools = tmp_path / "bin"
+    tools.mkdir()
+    codex = tools / "codex"
+    codex.write_text(
+        "#!/bin/sh\n"
+        "printf '%s' \"$1\" > command.txt\n"
+        "printf '%s' \"$2\" > patch.txt\n"
+        "exit 7\n"
+    )
+    codex.chmod(0o755)
+    monkeypatch.setenv("TRL_BASE", str(tmp_path))
+    patch = "*** Begin Patch\n*** Add File: result\n+$(touch unsafe)\n*** End Patch"
+    command = ["bash", str(ec.SANDBOX), "patch"]
+    if not via_stdin:
+        command.append(patch)
+    result = subprocess.run(
+        command, input=patch if via_stdin else "", text=True, cwd=tmp_path
+    )
+    assert result.returncode == 7
+    assert (tmp_path / "command.txt").read_text() == "--codex-run-as-apply-patch"
+    assert (tmp_path / "patch.txt").read_text() == patch
+    assert not (tmp_path / "unsafe").exists()
+
+
 @pytest.mark.parametrize("has_evidence", [True, False])
 def test_spec_repair_requires_a_declaration_and_has_no_growth_floor(
     tmp_path, monkeypatch, has_evidence
@@ -245,7 +273,8 @@ def test_run_codex_streams_to_the_session_and_runs_in_the_package(
     assert f"model_reasoning_effort={ec.CODEX_EFFORT}" in command
     assert kwargs["env"]["CODEX_HOME"] == str(run.dir.codex_home)
     assert result.returncode == 0
-    assert run.dir.prompt.read_text() == "do the work"
+    assert run.dir.prompt.read_text().startswith("do the work\n\n")
+    assert "./sandbox patch" in run.dir.prompt.read_text()
     assert run.dir.stdout.read_text() == "VERDICT: pass\n"
     assert run.dir.stderr.read_text() == "warning\n"
     meta = json.loads(run.dir.meta.read_text())
@@ -281,7 +310,8 @@ def test_run_codex_resume_continues_in_place_and_links_the_thread(
     assert command[1:3] == ["exec", "resume"] and command[3] == "sid-1"
     assert "-C" not in command
     assert kwargs["cwd"] == str(rw.package)
-    assert run.dir.prompt.read_text() == "fix it"
+    assert run.dir.prompt.read_text().startswith("fix it\n\n")
+    assert "./sandbox patch" in run.dir.prompt.read_text()
     linked = run.dir.codex_home / "sessions/2026/09/02/rollout-x.jsonl"
     assert linked.stat().st_ino == jsonl.stat().st_ino
     assert ec._session_id(run.dir) == "sid-1"

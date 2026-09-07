@@ -367,6 +367,13 @@ def _run_codex(
     """
     sd = run.dir
     timeout = int(run.meta["timeout_sec"])
+    prompt += (
+        "\n\nFor local package edits in Codex's *** Begin Patch format, use "
+        "`./sandbox patch` with the patch on standard input or as one argument. "
+        "This invokes the same Codex binary as this session; a host command "
+        "named apply_patch may use a different format. Read back files you "
+        "create, including run/verdict.txt, before reporting that they exist.\n"
+    )
     sd.prompt.write_text(prompt)
     env = _codex_env(sd)
     if CODEX_DRIVER == "sdk":

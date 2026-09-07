@@ -7,6 +7,15 @@
 # the fallback for running the script in place.
 set -uo pipefail
 HERE=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
+if [ "${1:-}" = patch ]; then
+    shift
+    if [ "$#" -gt 1 ]; then
+        echo 'usage: ./sandbox patch [PATCH]; otherwise reads standard input' >&2
+        exit 2
+    fi
+    PATCH_TEXT=${1:-$(cat)}
+    exec "${TRL_BASE:?}/bin/codex" --codex-run-as-apply-patch "$PATCH_TEXT"
+fi
 # The python that runs agent_sandbox.py. Prefer an explicit override, then the
 # training venv ($TRL_VENV), then whatever python3 is on PATH -- never a
 # machine-specific absolute path, so this runs on any host the loop is launched from.
@@ -27,6 +36,7 @@ fi
 # shellcheck disable=SC1091
 [ -f "${DAYTONA_ENV_FILE:-$HOME/.config/daytona/env}" ] && . "${DAYTONA_ENV_FILE:-$HOME/.config/daytona/env}"
 if [ "${1:-help}" = help ] || [ "${1:-}" = -h ] || [ "${1:-}" = --help ]; then
+    echo 'patch [PATCH]: edit local package files with a Codex patch; omit PATCH to read stdin'
     "$PY" "${EVOLVE_HARNESS_DIR:-$HERE}/agent_sandbox.py" --help
     exit 0
 fi
