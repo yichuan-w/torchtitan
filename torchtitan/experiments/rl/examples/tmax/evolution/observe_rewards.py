@@ -10,7 +10,6 @@
 from __future__ import annotations
 
 import argparse
-import collections
 import datetime as dt
 import fcntl
 import hashlib
@@ -24,7 +23,9 @@ import time
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+sys.path.insert(0, str(Path(__file__).resolve().parent))
 import layout  # noqa: E402
+import observe_lineage  # noqa: E402
 
 LOG = logging.getLogger("observe_rewards")
 
@@ -53,41 +54,8 @@ def read_events(path: Path) -> list[dict]:
     return [json.loads(line) for line in data.splitlines() if line.strip()]
 
 
-def aggregate(rows: list[dict]) -> dict:
-    scored = sum(row["scored"] for row in rows)
-    return {
-        "tasks": len({row["task"] for row in rows}),
-        "groups": len(rows),
-        "scored": scored,
-        "infra": sum(row["infra"] for row in rows),
-        "solved": sum(row["solved"] for row in rows),
-        "accuracy": sum(row["solved"] for row in rows) / scored if scored else None,
-        "reward": sum(row["reward_sum"] for row in rows) / scored if scored else None,
-    }
-
-
-def summarize(rows: list[dict], folded: set[str]) -> dict:
-    # Compare identical tasks and sample hashes within this snapshot.
-    seed = [row for row in rows if row["rev"] == 0]
-    stable = [row for row in seed if row["task"] not in folded]
-    by_task = collections.defaultdict(list)
-    for row in stable:
-        if row["scored"] and row["sample_revision"]:
-            by_task[(row["task"], row["sample_revision"])].append(row)
-    pairs = []
-    for task_rows in by_task.values():
-        task_rows.sort(key=lambda row: row["group"])
-        if len(task_rows) > 1 and task_rows[0]["epoch"] != task_rows[-1]["epoch"]:
-            pairs.append({"first": task_rows[0], "latest": task_rows[-1]})
-    return {
-        "baseline": aggregate([pair["first"] for pair in pairs]),
-        "current": aggregate([pair["latest"] for pair in pairs]),
-        "pairs": pairs,
-    }
-
-
 def collect(
-    root: layout.Root, run: layout.Run, output: Path
+    root: layout.Root, run: layout.Run, output: Path, task_filter: str | None = None
 ) -> tuple[list[dict], list[dict]]:
     events = read_events(run.trainer / "training_lineage/events.jsonl")
     claimed = {}
@@ -108,6 +76,8 @@ def collect(
     cache.mkdir(exist_ok=True)
     rows = []
     for group, event in sorted(finalized.items()):
+        if task_filter and event["task_id"] != task_filter:
+            continue
         started = time.monotonic()
         task = event["task_id"]
         key = hashlib.sha256(json.dumps(event, sort_keys=True).encode()).hexdigest()
@@ -184,6 +154,8 @@ def collect(
         )
     folds = []
     for task in root.evolution.task_dirs():
+        if task_filter and task.task_id != task_filter:
+            continue
         if task.lineage.exists():
             folds.extend(
                 {"task": task.task_id, **event}
@@ -193,21 +165,55 @@ def collect(
     return rows, folds
 
 
-def publish(wb, rows: list[dict], result: dict, snapshot: Path) -> None:
+def publish(wb, result: dict, snapshot: Path, charts: dict) -> None:
     import wandb
 
-    table_rows = [
-        dict(row, accuracy=row["solved"] / row["scored"] if row["scored"] else None)
-        for row in rows
+    datasets = {
+        "Unchanged task accuracy": result["unchanged"]["points"],
+        "Rewrite accuracy": result["comparisons"],
+        "Task timeline": result["timeline"],
+    }
+    payload = {}
+    focus = next((r["task"] for r in result["comparisons"]), "")
+    for title, rows in datasets.items():
+        columns = charts[title]["columns"]
+        table = wandb.Table(
+            columns=columns, data=[[r.get(c) for c in columns] for r in rows]
+        )
+        payload[title] = wandb.plot_table(
+            charts[title]["id"],
+            table,
+            fields={column: column for column in columns},
+            string_fields={"task": focus},
+        )
+    wb.log(payload)
+    LOG.info(
+        "published snapshot=%s plots=%s url=%s", snapshot.name, len(payload), wb.url
+    )
+
+
+def register_charts(entity: str, output: Path) -> dict:
+    import wandb
+
+    definitions = json.loads(Path(__file__).with_name("reward_charts.json").read_text())
+    key = hashlib.sha256(json.dumps(definitions, sort_keys=True).encode()).hexdigest()[
+        :12
     ]
-    template = Path(__file__).with_name("reward_lineage.html").read_text()
-    page = template.replace("__ROWS__", json.dumps(table_rows).replace("<", "\\u003c"))
-    display = {key: result[key] for key in ("baseline", "current")}
-    display["updated"] = dt.datetime.now(dt.timezone.utc).isoformat(timespec="seconds")
-    page = page.replace("__SUMMARY__", json.dumps(display))
-    (snapshot / "accuracy.html").write_text(page)
-    wb.log({"Accuracy": wandb.Html(page, inject=False)})
-    LOG.info("published snapshot=%s groups=%s url=%s", snapshot.name, len(rows), wb.url)
+    path = output / f"charts-{key}.json"
+    if path.exists():
+        return json.loads(path.read_text())
+    api = wandb.Api()
+    for index, (title, chart) in enumerate(definitions.items()):
+        chart["id"] = api.create_custom_chart(
+            entity=entity,
+            name=f"task-observer-{key}-{index}",
+            display_name=title,
+            spec_type="vega2",
+            access="private",
+            spec=chart["spec"],
+        )
+    layout.write_json_atomic(path, definitions)
+    return definitions
 
 
 def main() -> None:
@@ -226,7 +232,10 @@ def main() -> None:
     parser.add_argument("--upload", action="store_true")
     parser.add_argument("--watch", action="store_true")
     parser.add_argument("--interval", type=int, default=300)
+    parser.add_argument("--task", help="one-task local smoke test; cannot upload")
     args = parser.parse_args()
+    if args.task and (args.upload or args.watch):
+        parser.error("--task is a local smoke test; omit --upload and --watch")
     if args.interval < 10:
         parser.error("--interval must be at least 10 seconds")
     args.out.mkdir(parents=True, exist_ok=True)
@@ -249,14 +258,18 @@ def main() -> None:
         "interval": args.interval,
     }
     config_path = args.out / "config.json"
+    if args.task:
+        config["task"] = args.task
     if config_path.exists() and json.loads(config_path.read_text()) != config:
         raise ValueError("output directory belongs to another source or configuration")
     layout.write_json_atomic(config_path, config)
     wb = None
+    charts = None
     if args.upload:
         import wandb
 
         entity, project, source_id = args.source_wandb.split("/")
+        charts = register_charts(entity, args.out)
         wb = wandb.init(
             entity=entity,
             project=project,
@@ -266,11 +279,12 @@ def main() -> None:
             group=source_id,
             dir=str(args.out),
             resume="allow",
+            allow_val_change=True,
             config={
                 "source_wandb": args.source_wandb,
                 "interval_seconds": args.interval,
                 "axis": "generator policy at group claim; not exact per-token policy",
-                "cohort": "same task and sample hash, never folded by snapshot time",
+                "cohort": "intersection across observed epochs; same original hash; never folded by snapshot time",
             },
             settings=wandb.Settings(
                 console="off",
@@ -288,8 +302,11 @@ def main() -> None:
         while True:
             start = time.monotonic()
             LOG.info("poll start source=%s pid=%s", run.path, os.getpid())
-            rows, folds = collect(root, run, args.out)
-            result = summarize(rows, {fold["task"] for fold in folds})
+            rows, folds = collect(root, run, args.out, args.task)
+            events = read_events(run.trainer / "training_lineage/events.jsonl")
+            result = observe_lineage.build(
+                root, run, rows, folds, events, args.out, args.task
+            )
             snapshot = (
                 args.out
                 / "snapshots"
@@ -303,13 +320,23 @@ def main() -> None:
                     "observer_sha256": hashlib.sha256(
                         Path(__file__).read_bytes()
                     ).hexdigest(),
+                    "implementation": {
+                        name: hashlib.sha256(
+                            Path(__file__).with_name(name).read_bytes()
+                        ).hexdigest()
+                        for name in (
+                            "observe_rewards.py",
+                            "observe_lineage.py",
+                            "reward_charts.json",
+                        )
+                    },
                     "rows": rows,
                     "folds": folds,
                     "summary": result,
                 },
             )
             if wb is not None:
-                publish(wb, rows, result, snapshot)
+                publish(wb, result, snapshot, charts)
             LOG.info(
                 "poll done snapshot=%s groups=%s elapsed=%.3f",
                 snapshot,

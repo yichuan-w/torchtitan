@@ -1,0 +1,365 @@
+{
+  "Unchanged task accuracy": {
+    "columns": [
+      "epoch",
+      "accuracy",
+      "tasks",
+      "attempts",
+      "policy_min",
+      "policy_max",
+      "coverage"
+    ],
+    "spec": {
+      "$schema": "https://vega.github.io/schema/vega-lite/v5.json",
+      "data": {
+        "name": "wandb"
+      },
+      "title": "Unchanged tasks: same intersection at every epoch",
+      "mark": {
+        "type": "line",
+        "point": true
+      },
+      "encoding": {
+        "x": {
+          "field": "${field:epoch}",
+          "type": "ordinal",
+          "title": "Dataset epoch (0 = first pass)"
+        },
+        "y": {
+          "field": "${field:accuracy}",
+          "type": "quantitative",
+          "title": "Accuracy",
+          "scale": {
+            "domain": [
+              0,
+              1
+            ]
+          },
+          "axis": {
+            "format": ".0%"
+          }
+        },
+        "tooltip": [
+          {
+            "field": "${field:epoch}",
+            "type": "quantitative"
+          },
+          {
+            "field": "${field:accuracy}",
+            "type": "quantitative"
+          },
+          {
+            "field": "${field:tasks}",
+            "type": "quantitative"
+          },
+          {
+            "field": "${field:attempts}",
+            "type": "quantitative"
+          },
+          {
+            "field": "${field:policy_min}",
+            "type": "quantitative"
+          },
+          {
+            "field": "${field:policy_max}",
+            "type": "quantitative"
+          },
+          {
+            "field": "${field:coverage}",
+            "type": "nominal"
+          }
+        ]
+      }
+    }
+  },
+  "Rewrite accuracy": {
+    "columns": [
+      "task",
+      "from_rev",
+      "to_rev",
+      "before",
+      "after",
+      "before_policy",
+      "after_policy",
+      "before_n",
+      "after_n",
+      "before_group",
+      "after_group",
+      "after_step"
+    ],
+    "spec": {
+      "$schema": "https://vega.github.io/schema/vega-lite/v5.json",
+      "data": {
+        "name": "wandb"
+      },
+      "title": "Rewrite accuracy: last old vs first new observation",
+      "layer": [
+        {
+          "data": {
+            "values": [
+              {
+                "x": 0,
+                "y": 0
+              },
+              {
+                "x": 1,
+                "y": 1
+              }
+            ]
+          },
+          "mark": {
+            "type": "line",
+            "color": "#999",
+            "strokeDash": [
+              5,
+              5
+            ]
+          },
+          "encoding": {
+            "x": {
+              "field": "x",
+              "type": "quantitative",
+              "scale": {
+                "domain": [
+                  0,
+                  1
+                ]
+              },
+              "title": "Before rewrite",
+              "axis": {
+                "format": ".0%"
+              }
+            },
+            "y": {
+              "field": "y",
+              "type": "quantitative",
+              "scale": {
+                "domain": [
+                  0,
+                  1
+                ]
+              },
+              "title": "After rewrite",
+              "axis": {
+                "format": ".0%"
+              }
+            }
+          }
+        },
+        {
+          "mark": {
+            "type": "circle",
+            "size": 90,
+            "opacity": 0.45
+          },
+          "encoding": {
+            "x": {
+              "field": "${field:before}",
+              "type": "quantitative",
+              "scale": {
+                "domain": [
+                  0,
+                  1
+                ]
+              },
+              "title": "Before rewrite",
+              "axis": {
+                "format": ".0%"
+              }
+            },
+            "y": {
+              "field": "${field:after}",
+              "type": "quantitative",
+              "scale": {
+                "domain": [
+                  0,
+                  1
+                ]
+              },
+              "title": "After rewrite",
+              "axis": {
+                "format": ".0%"
+              }
+            },
+            "tooltip": [
+              {
+                "field": "${field:task}",
+                "type": "nominal"
+              },
+              {
+                "field": "${field:from_rev}",
+                "type": "quantitative"
+              },
+              {
+                "field": "${field:to_rev}",
+                "type": "quantitative"
+              },
+              {
+                "field": "${field:before}",
+                "type": "quantitative"
+              },
+              {
+                "field": "${field:after}",
+                "type": "quantitative"
+              },
+              {
+                "field": "${field:before_policy}",
+                "type": "quantitative"
+              },
+              {
+                "field": "${field:after_policy}",
+                "type": "quantitative"
+              },
+              {
+                "field": "${field:before_n}",
+                "type": "quantitative"
+              },
+              {
+                "field": "${field:after_n}",
+                "type": "quantitative"
+              },
+              {
+                "field": "${field:after_step}",
+                "type": "quantitative"
+              }
+            ]
+          }
+        }
+      ]
+    }
+  },
+  "Task timeline": {
+    "columns": [
+      "task",
+      "event",
+      "time",
+      "label",
+      "epoch",
+      "step",
+      "revision",
+      "accuracy",
+      "evidence",
+      "source"
+    ],
+    "spec": {
+      "$schema": "https://vega.github.io/schema/vega-lite/v5.json",
+      "data": {
+        "name": "wandb"
+      },
+      "title": "Task timeline: fold, take, train (hover for trace evidence)",
+      "params": [
+        {
+          "name": "task",
+          "value": "${string:task}",
+          "bind": {
+            "input": "text",
+            "name": "Task ID: "
+          }
+        },
+        {
+          "name": "zoom",
+          "select": {
+            "type": "interval",
+            "encodings": [
+              "x"
+            ]
+          },
+          "bind": "scales"
+        }
+      ],
+      "transform": [
+        {
+          "filter": "datum['${field:task}'] === task || datum['${field:task}'] === ''"
+        }
+      ],
+      "encoding": {
+        "x": {
+          "field": "${field:time}",
+          "type": "temporal",
+          "title": "Time (browser timezone)"
+        },
+        "y": {
+          "field": "${field:event}",
+          "type": "nominal",
+          "sort": [
+            "epoch",
+            "rewrite",
+            "rewrite_end",
+            "fold",
+            "admitted",
+            "trained"
+          ],
+          "title": null,
+          "axis": {
+            "labelExpr": "{'epoch':'Epoch starts','rewrite':'Rewrite starts','rewrite_end':'Rewrite ends','fold':'Published','admitted':'Task taken','trained':'Training update'}[datum.label]"
+          }
+        },
+        "tooltip": [
+          {
+            "field": "${field:label}",
+            "type": "nominal"
+          },
+          {
+            "field": "${field:time}",
+            "type": "temporal"
+          },
+          {
+            "field": "${field:epoch}",
+            "type": "quantitative"
+          },
+          {
+            "field": "${field:step}",
+            "type": "quantitative"
+          },
+          {
+            "field": "${field:revision}",
+            "type": "quantitative"
+          },
+          {
+            "field": "${field:accuracy}",
+            "type": "quantitative"
+          },
+          {
+            "field": "${field:evidence}",
+            "type": "nominal"
+          },
+          {
+            "field": "${field:source}",
+            "type": "nominal"
+          }
+        ]
+      },
+      "layer": [
+        {
+          "mark": {
+            "type": "point",
+            "filled": true,
+            "size": 100
+          },
+          "encoding": {
+            "color": {
+              "field": "${field:event}",
+              "type": "nominal",
+              "legend": null
+            }
+          }
+        },
+        {
+          "mark": {
+            "type": "text",
+            "align": "left",
+            "dx": 8,
+            "dy": -11,
+            "fontSize": 11
+          },
+          "encoding": {
+            "text": {
+              "field": "${field:label}",
+              "type": "nominal"
+            }
+          }
+        }
+      ]
+    }
+  }
+}

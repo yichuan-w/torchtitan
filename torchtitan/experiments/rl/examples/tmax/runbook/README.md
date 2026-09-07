@@ -135,21 +135,37 @@ evaluation too. The longer [RUNBOOK.md](RUNBOOK.md) covers tuning and debugging.
 
 ## Watch accuracy while tasks evolve
 
-The runbook starts one W&B companion named `accuracy-<training-run-id>`, in the
-training run's project. Open its single `Accuracy` panel. It updates every five
-minutes without restarting training.
+The runbook starts one W&B companion named `accuracy-<training-run-id>` in the
+training run's project. It updates every five minutes without restarting training.
+Select the trainer and companion in the project workspace to see training,
+evaluation and task evolution together.
 
-The default view compares the first and latest results on the same unchanged
-tasks. The slope and percentage-point label show the change directly. Both ends
-use the same task IDs and sample hashes; infrastructure failures and missing
-scores are excluded. The participating tasks can change between updates, so
-compare the two points within a snapshot. These are training tasks; fixed TB
-pass@5 remains the measure of generalization.
+The observer publishes three W&B charts:
 
-To inspect one task and its rewrites, enter its task ID in the same panel and click Show.
-Each point names its task revision. A change across revisions also reflects a
-changed problem. The policy label is the version at group start, not an exact
-single-policy evaluation. Click All unchanged tasks to return to the overview.
+- **Unchanged task accuracy** compares epochs using the intersection of tasks
+  with scored results in every observed epoch, the same original content hash,
+  and no fold by snapshot time. Every point uses the same cohort. Later folds or
+  new epochs can change the intersection, so each snapshot recomputes the whole
+  curve. Hover for task count, valid attempts and the range of generator versions
+  at group claim. The latest epoch can still be incomplete. This observes unchanged
+  training tasks; fixed TB pass@5 remains the independent evaluation.
+- **Rewrite accuracy** plots the last scored old-version observation completed
+  before publication against the first scored new-version observation. Points
+  below the diagonal have lower observed accuracy after rewriting. Hover for task,
+  revisions, attempt counts and the two model versions. Model updates between
+  observations confound the effect of rewriting. A missing new observation
+  produces no point, not zero accuracy.
+- **Task timeline** has a Task ID field inside the W&B chart. It shows rewrite
+  start/end, fold publication, task admission and actual training updates, with
+  global epoch boundaries. Hover for revision, epoch, Step and trace-access
+  evidence. Admission with the new content revision proves that the new version
+  was taken; publication alone does not.
+
+Trace evidence distinguishes returned rollout-body content, a read command without
+confirmed body output, no matching evidence, and missing session records. It covers
+recorded Codex agent sessions. Reading traces does not establish that they caused
+a particular edit; the source tool calls and outputs remain in the observer's
+local `trace-evidence/` cache for inspection.
 
 The observer is enabled by `RL_OBSERVE_REWARDS=1` in the shared defaults. Set it
 to 0 in the run config to disable it. Logs, input caches, snapshots, and the W&B
@@ -168,3 +184,7 @@ directory you own:
 Keep that output directory when restarting to reuse the cached inputs. Omit
 `--upload --watch` for one local snapshot. Stop only the observer with
 `systemctl --user stop observe-<run-directory-name>`.
+
+Before uploading, smoke-test one real task with a separate output directory and
+`--task <task-id>` (without `--upload --watch`). This writes its timeline and
+comparison to the snapshot JSON and cannot replace the full W&B view.
