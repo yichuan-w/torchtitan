@@ -1,3 +1,9 @@
+# Copyright (c) Meta Platforms, Inc. and affiliates.
+# All rights reserved.
+#
+# This source code is licensed under the BSD-style license found in the
+# LICENSE file in the root directory of this source tree.
+
 """Trace-based choices for reducing one obstacle in a terminal task."""
 from __future__ import annotations
 
@@ -19,9 +25,14 @@ CARDS = {
 def prompt(hint: str) -> str:
     if hint not in ("none", "vague", "specific"):
         raise ValueError(f"unknown simplify hint level: {hint}")
-    cards = {k: v for k, v in CARDS.items()
-             if hint != "none" or k not in ("add_scaffold", "enhance_feedback")}
-    return "\n\n".join(f"{key}: {rule}" for key, rule in cards.items()) + f"""
+    cards = {
+        k: v
+        for k, v in CARDS.items()
+        if hint != "none" or k not in ("add_scaffold", "enhance_feedback")
+    }
+    return (
+        "\n\n".join(f"{key}: {rule}" for key, rule in cards.items())
+        + f"""
 
 Hint level: {hint}. none permits structural changes only; vague permits a
 direction or subgoal, not concrete solution steps; specific permits one
@@ -53,6 +64,7 @@ The untouched environment must fail and the reference solution must pass.
 Run ./sandbox check before finishing. Passing proves task validity, not its
 difficulty: subsequent training rollouts measure whether it became easier.
 """
+    )
 
 
 def read_decision(pkg: Path, hint: str) -> dict:
@@ -61,20 +73,34 @@ def read_decision(pkg: Path, hint: str) -> dict:
         if not isinstance(decision.get(field), str) or not decision[field].strip():
             raise ValueError(f"simplify decision requires {field}")
     op = decision["operator"]
-    if op not in CARDS or (hint == "none" and op in ("add_scaffold", "enhance_feedback")):
+    if op not in CARDS or (
+        hint == "none" and op in ("add_scaffold", "enhance_feedback")
+    ):
         raise ValueError(f"simplify operator not allowed: {op}")
     evidence = decision.get("evidence")
     if not isinstance(evidence, list) or not evidence:
         raise ValueError("simplify decision requires trace evidence")
     for item in evidence:
         name = item.get("attempt", "")
-        if not isinstance(name, str) or Path(name).name != name or not name.startswith("attempt-"):
+        if (
+            not isinstance(name, str)
+            or Path(name).name != name
+            or not name.startswith("attempt-")
+        ):
             raise ValueError("evidence must name an attempt file")
         turn = item.get("turn")
         observation = item.get("observation")
-        if type(turn) is not int or not isinstance(observation, str) or not observation.strip():
+        if (
+            type(turn) is not int
+            or not isinstance(observation, str)
+            or not observation.strip()
+        ):
             raise ValueError("evidence requires a turn and observation")
-        records = [json.loads(line) for line in (pkg / "traces" / name).read_text().splitlines() if line.strip()]
+        records = [
+            json.loads(line)
+            for line in (pkg / "traces" / name).read_text().splitlines()
+            if line.strip()
+        ]
         if not any(record.get("turn") == turn for record in records):
             raise ValueError(f"evidence turn absent: {name}:{turn}")
     return decision

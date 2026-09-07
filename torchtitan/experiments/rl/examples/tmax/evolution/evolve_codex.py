@@ -1185,14 +1185,15 @@ def evolve_agentic(rewrite: layout.RewriteDir, task: dict, job: str, *,
     blind = job == "harder" and VERIFIER_AUTHOR == "blind"
     prompt = {
         "harder": (_HARDER_JOB_BLIND if blind else _HARDER_JOB).format(
-                                     solved=solved, attempts=attempts_n,
-                                     candidates=_candidates(cands),
-                                     seed_lines=seed_size["solution_lines"],
-                                     seed_asserts=seed_size["verifier_asserts"],
-                                     min_added=ts.MIN_ADDED, max_added=ts.MAX_ADDED,
-                                     max_asserts=ts.MAX_ADDED_ASSERTS),
-        "easier": _EASIER_JOB.format(solved=solved, attempts=attempts_n,
-                                    cards=so.prompt(task.get("_simplify_hint", "vague"))),
+            solved=solved, attempts=attempts_n,
+            candidates=_candidates(cands),
+            seed_lines=seed_size["solution_lines"],
+            seed_asserts=seed_size["verifier_asserts"],
+            min_added=ts.MIN_ADDED, max_added=ts.MAX_ADDED,
+            max_asserts=ts.MAX_ADDED_ASSERTS),
+        "easier": _EASIER_JOB.format(
+            solved=solved, attempts=attempts_n,
+            cards=so.prompt(task.get("_simplify_hint", "vague"))),
         "repair": _REPAIR_JOB.format(exit_code=exit_code),
     }[job] + _traces_spec(rewrite.traces) + _budget(AGENT_TIMEOUT)
 
