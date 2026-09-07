@@ -420,7 +420,15 @@ def revalidate(
                 )[:200]
                 + also,
                 "literals": names,
-                "tail": dv.get("tail", ""),
+                "tail": "\n\n".join(
+                    text
+                    for text in (
+                        dv.get("tail", ""),
+                        (dv.get("verifier") or {}).get("output_tail", ""),
+                    )
+                    if text
+                ),
+                "verifier": dv.get("verifier", {}),
                 "solve_exit": dv.get("solve_exit"),
                 "measured": dv.get("measured"),
                 "resources": dv.get("resources"),

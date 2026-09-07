@@ -9,7 +9,6 @@ from __future__ import annotations
 import asyncio
 import json
 import sys
-import types
 from contextlib import asynccontextmanager
 from pathlib import Path
 
@@ -145,6 +144,7 @@ def _probe_row_as_the_loop_would(rewrite, monkeypatch) -> dict:
     async def grade(_sb, tmax, *, workdir, baseline_digests=None, **_kw):
         seen["tmax"] = tmax
         seen["baseline"] = baseline_digests
+        _kw["diagnostics"].update(exit_code=0, output_tail="1 passed")
         return 1.0
 
     for name, fn in (
@@ -174,6 +174,7 @@ def _probe_row_as_the_loop_would(rewrite, monkeypatch) -> dict:
             else None,
         )
     )
+    assert verdict["verifier"] == {"exit_code": 0, "output_tail": "1 passed"}
     assert verdict["ok"]
     return seen
 

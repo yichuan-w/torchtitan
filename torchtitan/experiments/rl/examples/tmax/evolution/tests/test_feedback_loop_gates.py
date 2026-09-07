@@ -111,6 +111,30 @@ def test_new_dark_paths_ignores_what_the_seed_already_required_unseen(tmp_path) 
     assert fb.new_dark_paths(work, task, seed) == []
 
 
+def test_revalidate_keeps_test_failure_when_solution_output_is_empty(
+    tmp_path, monkeypatch
+) -> None:
+    work, task = _pkg(tmp_path, SEED["instruction"], SEED["test_state_py"])
+    verifier = {"exit_code": 0, "output_tail": "FAILED test_report: missing report"}
+    monkeypatch.setattr(fb.shutil, "which", lambda _name: None)
+    monkeypatch.setattr(
+        fb,
+        "daytona_probe",
+        lambda *args, **kwargs: {
+            "ok": False,
+            "stage": "daytona_oracle",
+            "reward": 0.0,
+            "solve_exit": 0,
+            "tail": "",
+            "verifier": verifier,
+        },
+    )
+    verdict = fb.revalidate(work, "img", "tid", task, orig=SEED)
+    assert not verdict["ok"]
+    assert verdict["verifier"] == verifier
+    assert verdict["tail"] == verifier["output_tail"]
+
+
 def test_revalidate_records_paths_the_untouched_container_lacks(
     tmp_path, monkeypatch
 ) -> None:
