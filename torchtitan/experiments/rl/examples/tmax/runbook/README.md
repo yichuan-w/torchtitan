@@ -140,7 +140,10 @@ training run's project. It updates every five minutes without restarting trainin
 Select the trainer and companion in the project workspace to see training,
 evaluation and task evolution together.
 
-The observer publishes three W&B charts:
+The observer publishes three W&B Custom Charts, backed by complete snapshots.
+They are separate from the standard history line plots used for training metrics.
+Keep the two accuracy plots side by side and give the task timeline a full row;
+event details appear on hover instead of overlapping text labels.
 
 - **Unchanged task accuracy** compares epochs using the intersection of tasks
   with scored results in every observed epoch, the same original content hash,

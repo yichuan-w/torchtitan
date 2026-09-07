@@ -14,7 +14,11 @@
       "data": {
         "name": "wandb"
       },
-      "title": {"text": "Unchanged tasks: same intersection at every epoch", "subtitle": "${string:cohort}"},
+      "title": {
+        "text": "Unchanged task accuracy",
+        "subtitle": ["${string:cohort}", "Latest epoch may be incomplete"],
+        "anchor": "start"
+      },
       "mark": {
         "type": "line",
         "point": true
@@ -23,7 +27,8 @@
         "x": {
           "field": "${field:epoch}",
           "type": "ordinal",
-          "title": "Dataset epoch (0 = first pass)"
+          "title": "Dataset epoch",
+          "axis": {"labelAngle": 0}
         },
         "y": {
           "field": "${field:accuracy}",
@@ -92,7 +97,7 @@
       "data": {
         "name": "wandb"
       },
-      "title": "Rewrite accuracy: last old vs first new observation",
+      "title": {"text": "Accuracy before / after rewrite", "anchor": "start"},
       "layer": [
         {
           "data": {
@@ -121,8 +126,8 @@
               "type": "quantitative",
               "scale": {
                 "domain": [
-                  0,
-                  1
+                  -0.04,
+                  1.04
                 ]
               },
               "title": "Before rewrite",
@@ -135,8 +140,8 @@
               "type": "quantitative",
               "scale": {
                 "domain": [
-                  0,
-                  1
+                  -0.04,
+                  1.04
                 ]
               },
               "title": "After rewrite",
@@ -149,8 +154,8 @@
         {
           "mark": {
             "type": "circle",
-            "size": 90,
-            "opacity": 0.45
+            "size": 55,
+            "opacity": 0.3
           },
           "encoding": {
             "x": {
@@ -158,8 +163,8 @@
               "type": "quantitative",
               "scale": {
                 "domain": [
-                  0,
-                  1
+                  -0.04,
+                  1.04
                 ]
               },
               "title": "Before rewrite",
@@ -172,8 +177,8 @@
               "type": "quantitative",
               "scale": {
                 "domain": [
-                  0,
-                  1
+                  -0.04,
+                  1.04
                 ]
               },
               "title": "After rewrite",
@@ -246,7 +251,11 @@
       "data": {
         "name": "wandb"
       },
-      "title": "Task timeline: fold, take, train (hover for trace evidence)",
+      "title": {
+        "text": "Task ${string:task}",
+        "subtitle": "Hover a point for revision, epoch, Step and trace evidence",
+        "anchor": "start"
+      },
       "params": [
         {
           "name": "task",
@@ -262,7 +271,9 @@
         "x": {
           "field": "${field:time}",
           "type": "temporal",
-          "title": "Time (browser timezone)"
+          "title": "Time (browser timezone)",
+          "axis": {"format": "%b %d %H:%M", "labelAngle": 0, "tickCount": 6},
+          "scale": {"padding": 20}
         },
         "y": {
           "field": "${field:event}",
@@ -277,6 +288,11 @@
           ],
           "title": null,
           "axis": {
+            "labelLimit": 160,
+            "labelPadding": 12,
+            "ticks": false,
+            "domain": false,
+            "grid": true,
             "labelExpr": "{'epoch':'Epoch starts','rewrite':'Rewrite starts','rewrite_end':'Rewrite ends','fold':'Published','admitted':'Task taken','trained':'Training update'}[datum.label]"
           }
         },
@@ -315,37 +331,7 @@
           }
         ]
       },
-      "layer": [
-        {
-          "mark": {
-            "type": "point",
-            "filled": true,
-            "size": 100
-          },
-          "encoding": {
-            "color": {
-              "field": "${field:event}",
-              "type": "nominal",
-              "legend": null
-            }
-          }
-        },
-        {
-          "mark": {
-            "type": "text",
-            "align": "left",
-            "dx": 8,
-            "dy": -11,
-            "fontSize": 11
-          },
-          "encoding": {
-            "text": {
-              "field": "${field:label}",
-              "type": "nominal"
-            }
-          }
-        }
-      ]
+      "mark": {"type": "circle", "size": 90, "opacity": 0.85, "color": "#3B73B9"}
     }
   }
 }
