@@ -132,6 +132,11 @@ and verifier together where needed. Checks may be removed only for the
 explicitly removed goal or constraint; remaining goals retain semantic and
 shortcut checks. Do not loosen checks to accept an incorrect remaining goal.
 Preserve existing guidance and acceptance tolerances for the retained skill.
+Supplying prerequisite state must preserve the original task's allowed
+inputs and equivalent outputs. Do not add identity, provenance, or content
+preservation requirements merely to force use of a supplied fixture. If the
+fixture can be bypassed under the existing contract, choose another
+intervention instead of making the retained goal stricter.
 Extracting a stage must not silently add precision requirements or make its
 test inputs harder. If an existing check is defective, request repair instead
 of combining that repair with simplification.
