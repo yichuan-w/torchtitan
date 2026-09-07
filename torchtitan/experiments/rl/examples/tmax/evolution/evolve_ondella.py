@@ -533,17 +533,26 @@ def handle(
                 # An interrupted historical rewrite must not stop this signal.
                 log.warning("%s unreadable prior rewrite: %s", tid, previous.meta)
                 continue
+            context = (
+                {
+                    "input_rev": previous_meta["input_rev"],
+                    "simplify": previous_meta["simplify"],
+                }
+                if previous_meta.get("simplify")
+                else previous_meta.get("simplify_context")
+                if previous_meta.get("calibration")
+                else None
+            )
             if (
                 previous_meta.get("status") == "accepted"
                 and previous_meta.get("result_rev") == rev
-                and previous_meta.get("simplify")
+                and context
             ):
                 layout.write_json_atomic(
                     rewrite.traces / "previous-simplify.json",
                     {
-                        "input_rev": previous_meta["input_rev"],
+                        **context,
                         "result_rev": rev,
-                        "simplify": previous_meta["simplify"],
                         "observed": {
                             key: d[key] for key in ("direction", "solved", "total")
                         },
@@ -558,6 +567,19 @@ def handle(
             resources=training_box(tid, declared),
             history=history,
         )
+        if rec.get("calibration"):
+            context = json.loads(
+                (rewrite.traces / "previous-simplify.json").read_text()
+            )
+            rationale = rewrite.package / "run" / "hardening.md"
+            context.setdefault("calibrations", []).append(
+                {
+                    "input_rev": rev,
+                    "observed": context["observed"],
+                    "rationale": rationale.read_text() if rationale.exists() else None,
+                }
+            )
+            rec["simplify_context"] = context
     except Exception as e:  # noqa: BLE001 -- the rewrite records its own failure
         rec = {
             "status": "failed",
@@ -572,6 +594,8 @@ def handle(
         "family",
         "hint",
         "simplify",
+        "calibration",
+        "simplify_context",
         "stage",
         "reason",
         "verdicts",

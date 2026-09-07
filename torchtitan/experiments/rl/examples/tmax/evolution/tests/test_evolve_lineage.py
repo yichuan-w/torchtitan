@@ -242,6 +242,64 @@ def test_next_revision_receives_prior_simplification_and_current_outcome(
     assert not (root.evolution.task("tw_a").rev(2) / "traces").exists()
 
 
+def test_calibration_preserves_the_intervention_for_the_next_revision(
+    tmp_path, monkeypatch
+):
+    root = _root(tmp_path, monkeypatch)
+    choice = {"operator": "reduce_scale", "change": "retain two inputs"}
+    _signal(root, direction="easier")
+    _stub(monkeypatch, simplify=choice)
+    assert od.run_round(root, workers=1)["accepted"] == 1
+
+    _signal(root, rev=1, group=8, direction="harder", created="20260904-183112Z")
+    calibrated = _stub(monkeypatch, calibration=True)
+    process = od.fb.process_one
+
+    def calibrate(rewrite, *args, **kwargs):
+        result = process(rewrite, *args, **kwargs)
+        (rewrite.package / "run/hardening.md").write_text("Restore one input.\n")
+        return result
+
+    monkeypatch.setattr(od.fb, "process_one", calibrate)
+    assert od.run_round(root, workers=1)["accepted"] == 1
+    meta = json.loads(calibrated[0]["rewrite"].meta.read_text())
+    assert "simplify" not in meta
+    assert meta["calibration"] is True
+    adjustment = {
+        "input_rev": 1,
+        "observed": {"direction": "harder", "solved": 2, "total": 2},
+        "rationale": "Restore one input.\n",
+    }
+    assert meta["simplify_context"]["calibrations"] == [adjustment]
+
+    _signal(root, rev=2, group=9, direction="easier", created="20260904-183212Z")
+    following = _stub(monkeypatch)
+    assert od.run_round(root, workers=1)["accepted"] == 1
+    assert following[0]["previous_simplify"] == {
+        "input_rev": 0,
+        "result_rev": 2,
+        "simplify": choice,
+        "calibrations": [adjustment],
+        "observed": {"direction": "easier", "solved": 0, "total": 2},
+    }
+
+
+def test_ordinary_hardening_does_not_reuse_an_older_simplification(
+    tmp_path, monkeypatch
+):
+    root = _root(tmp_path, monkeypatch)
+    _signal(root, direction="easier")
+    _stub(monkeypatch, simplify={"operator": "reduce_scale"})
+    assert od.run_round(root, workers=1)["accepted"] == 1
+    _signal(root, rev=1, group=8, created="20260904-183112Z")
+    _stub(monkeypatch)
+    assert od.run_round(root, workers=1)["accepted"] == 1
+    _signal(root, rev=2, group=9, created="20260904-183212Z")
+    following = _stub(monkeypatch)
+    assert od.run_round(root, workers=1)["accepted"] == 1
+    assert following[0]["previous_simplify"] is None
+
+
 def test_round_materializes_r0_handles_the_signal_and_folds_r1(
     tmp_path, monkeypatch
 ) -> None:
