@@ -75,6 +75,10 @@ Make only that change. Update instruction, environment, reference solution
 and verifier together where needed. Checks may be removed only for the
 explicitly removed goal or constraint; remaining goals retain semantic and
 shortcut checks. Do not loosen checks to accept an incorrect remaining goal.
+Preserve existing guidance and acceptance tolerances for the retained skill.
+Extracting a stage must not silently add precision requirements or make its
+test inputs harder. If an existing check is defective, request repair instead
+of combining that repair with simplification.
 The untouched environment must fail and the reference solution must pass.
 Run ./sandbox check before finishing. Passing proves task validity, not its
 difficulty: subsequent training rollouts measure whether it became easier.
