@@ -131,6 +131,11 @@ def _stub(monkeypatch, status: str = "accepted", **extra) -> _Seen:
                 "seed_dir": seed_dir,
                 "resources": resources,
                 "history": history,
+                "previous_simplify": (
+                    json.loads((rewrite.traces / "previous-simplify.json").read_text())
+                    if (rewrite.traces / "previous-simplify.json").exists()
+                    else None
+                ),
             }
         )
         (rewrite.package / "instruction.md").write_text("harder\n")
@@ -196,6 +201,27 @@ def test_round_persists_simplify_choice(tmp_path, monkeypatch):
     od.run_round(root, workers=1)
     meta = json.loads(seen[0]["rewrite"].meta.read_text())
     assert meta["simplify"] == choice
+
+
+def test_next_revision_receives_prior_simplification_and_current_outcome(
+    tmp_path, monkeypatch
+):
+    root = _root(tmp_path, monkeypatch)
+    _signal(root, direction="easier")
+    choice = {"operator": "reduce_scale", "change": "retain two inputs"}
+    seen = _stub(monkeypatch, simplify=choice)
+    od.run_round(root, workers=1)
+    assert seen[0]["previous_simplify"] is None
+    _signal(root, rev=1, group=8, direction="harder", created="20260904-183112Z")
+    od.run_round(root, workers=1)
+    prior = seen[1]["previous_simplify"]
+    assert prior == {
+        "input_rev": 0,
+        "result_rev": 1,
+        "simplify": choice,
+        "observed": {"direction": "harder", "solved": 2, "total": 2},
+    }
+    assert not (root.evolution.task("tw_a").rev(2) / "traces").exists()
 
 
 def test_round_materializes_r0_handles_the_signal_and_folds_r1(

@@ -526,6 +526,31 @@ def handle(
             layout.link_or_copy(
                 run_dir / rel, rewrite.traces / f"attempt-{i:02d}.jsonl"
             )
+        for previous in task.rewrite_dirs():
+            try:
+                previous_meta = json.loads(previous.meta.read_text())
+            except (OSError, ValueError):
+                # An interrupted historical rewrite must not stop this signal.
+                log.warning("%s unreadable prior rewrite: %s", tid, previous.meta)
+                continue
+            if (
+                previous_meta.get("status") == "accepted"
+                and previous_meta.get("result_rev") == rev
+                and previous_meta.get("simplify")
+            ):
+                layout.write_json_atomic(
+                    rewrite.traces / "previous-simplify.json",
+                    {
+                        "input_rev": previous_meta["input_rev"],
+                        "result_rev": rev,
+                        "simplify": previous_meta["simplify"],
+                        "observed": {
+                            key: d[key]
+                            for key in ("direction", "solved", "total")
+                        },
+                    },
+                )
+                break
         rec = fb.process_one(
             rewrite,
             d,

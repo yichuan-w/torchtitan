@@ -744,7 +744,13 @@ came from. Every later line is one turn, in order: turn, keystrokes (a list:
 what the agent typed; empty on a closing turn), task_complete, output (the
 terminal after it; empty on the last turn, where the episode ended),
 analysis, plan, think. A turn with no parseable response has raw instead of
-keystrokes. jq is on PATH; these are enough:
+keystrokes. The header may contain verifier diagnostics and a per-test report.
+If `traces/previous-simplify.json` exists, read the prior intervention and its
+measured outcome before editing. An all-failed variant needs a stronger or
+different intervention at the remaining obstacle; an all-solved variant needs
+part of the removed difficulty restored, not an unrelated extra deliverable.
+The current attempts show whether the prior prediction held. jq is on PATH;
+these are enough:
 
   head -qn1 traces/*.jsonl | jq -c '{rollout, reward, turns, finish_reason}'
                                                               # every attempt's outcome
