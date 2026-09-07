@@ -36,6 +36,12 @@ def assess_attempts(rows: list[dict], *, expected: int = 16) -> dict:
         and row.get("finish_reason") == "hit_max_turns"
         for row in scored
     )
+    execution_failures = sum(
+        row.get("sparse_reward", row.get("reward")) == 0
+        and row.get("finish_reason")
+        in {"hit_max_turns", "hit_time_budget", "hit_context_limit"}
+        for row in scored
+    )
     result = {
         "task": next(iter(tasks), None),
         "expected": expected,
@@ -43,12 +49,13 @@ def assess_attempts(rows: list[dict], *, expected: int = 16) -> dict:
         "scored": len(scored),
         "solved": solved,
         "turn_limit_failures": turn_failures,
+        "execution_limit_failures": execution_failures,
         "target_min": 0.25,
         "target_max": 0.75,
     }
     if len(scored) != expected:
         action = "remeasure"
-    elif turn_failures > expected / 4 or turn_failures > failures / 2:
+    elif execution_failures > expected / 4 or execution_failures > failures / 2:
         action = "review_execution"
     elif solved / expected > 0.75:
         action = "harder"

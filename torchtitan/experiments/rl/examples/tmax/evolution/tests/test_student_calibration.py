@@ -53,11 +53,16 @@ def test_missing_or_infrastructure_attempt_is_not_student_failure():
     assert result["action"] == "remeasure"
 
 
-def test_execution_exhaustion_does_not_count_as_calibrated_difficulty():
+@pytest.mark.parametrize(
+    "reason", ["hit_max_turns", "hit_time_budget", "hit_context_limit"]
+)
+def test_execution_exhaustion_does_not_count_as_calibrated_difficulty(reason):
     rows = attempts(6)
     for row in rows[6:14]:
-        row["finish_reason"] = "hit_max_turns"
-    assert assess_attempts(rows)["action"] == "review_execution"
+        row["finish_reason"] = reason
+    result = assess_attempts(rows)
+    assert result["action"] == "review_execution"
+    assert result["execution_limit_failures"] == 8
 
 
 def test_no_duplicate_or_mixed_task_attempts():
