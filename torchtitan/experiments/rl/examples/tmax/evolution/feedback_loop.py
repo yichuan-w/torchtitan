@@ -451,6 +451,14 @@ def revalidate(
             )
             or {}
         )
+        if not null.get("ok") or type(null.get("passed")) is not bool:
+            return {
+                "ok": False,
+                "stage": "null_check",
+                "why": "untouched-workspace validation did not complete: "
+                + str(null.get("why") or null.get("stage") or "missing result"),
+                "null": null,
+            }
         if null.get("passed"):
             return {
                 "ok": False,
@@ -460,6 +468,11 @@ def revalidate(
         return {
             "ok": True,
             "fast_path": "daytona_oracle",
+            "null": {
+                key: null[key]
+                for key in ("ok", "stage", "passed", "reward", "resources")
+                if key in null
+            },
             "advice": advice,
             "reward": dv.get("reward"),
             "measured": dv.get("measured"),

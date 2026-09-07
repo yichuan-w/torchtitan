@@ -437,6 +437,31 @@ def test_easier_uses_full_validation_without_harder_growth(
     assert not verdict["ok"] and verdict["stage"] == "step_size"
 
 
+@pytest.mark.parametrize(
+    "null",
+    [None, {"ok": False, "why": "sandbox unavailable"}, {"ok": True}],
+)
+def test_incomplete_null_check_cannot_accept_a_rewrite(tmp_path, monkeypatch, null):
+    work, task = _pkg(tmp_path, SEED["instruction"], SEED["test_state_py"])
+    task.update(
+        solve_sh=SEED["solve_sh"],
+        _direction="easier",
+        _simplify={"operator": "add_scaffold"},
+    )
+    monkeypatch.setattr(fb.shutil, "which", lambda _name: None)
+    monkeypatch.setattr(
+        fb,
+        "daytona_probe",
+        lambda *args, shortcut=None, **kwargs: null
+        if shortcut
+        else {"ok": True, "reward": 1},
+    )
+    verdict = fb.revalidate(
+        work, "image", "t", task, orig=SEED, changed=["instruction"]
+    )
+    assert not verdict["ok"] and verdict["stage"] == "null_check"
+
+
 def test_easier_records_decision_and_can_decline(tmp_path, monkeypatch):
     rw, r0 = _rewrite(tmp_path, monkeypatch)
     ec = _fake_ec()
