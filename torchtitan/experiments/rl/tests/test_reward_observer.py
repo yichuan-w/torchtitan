@@ -40,6 +40,11 @@ def row(task="a", rev=0, epoch=0, group=0, scored=4, solved=2, revision="same"):
 class RewardObserverTest(unittest.TestCase):
     def test_publishes_three_charts_without_html_or_per_task_metrics(self):
         entries = []
+
+        def table(**kwargs):
+            return kwargs
+
+        table.MAX_ARTIFACT_ROWS = 200000
         wb = SimpleNamespace(log=entries.append, url="test")
         rows = [row(), row(epoch=1, group=10, solved=3)]
         with tempfile.TemporaryDirectory() as directory:
@@ -47,7 +52,7 @@ class RewardObserverTest(unittest.TestCase):
                 sys.modules,
                 {
                     "wandb": SimpleNamespace(
-                        Table=lambda **kwargs: kwargs,
+                        Table=table,
                         plot_table=lambda *args, **kwargs: (args, kwargs),
                     )
                 },

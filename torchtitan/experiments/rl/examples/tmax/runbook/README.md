@@ -155,7 +155,9 @@ The observer publishes three W&B charts:
   revisions, attempt counts and the two model versions. Model updates between
   observations confound the effect of rewriting. A missing new observation
   produces no point, not zero accuracy.
-- **Task timeline** has a Task ID field inside the W&B chart. It shows rewrite
+- **Task timeline** selects a task through **Edit panel → Chart fields → task**:
+  enter the ID in the first text field, leave the data-column dropdown unchanged,
+  then click **Apply**. W&B hides Vega's inline input. The chart shows rewrite
   start/end, fold publication, task admission and actual training updates, with
   global epoch boundaries. Hover for revision, epoch, Step and trace-access
   evidence. Admission with the new content revision proves that the new version

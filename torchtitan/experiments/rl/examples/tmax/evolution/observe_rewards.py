@@ -168,6 +168,8 @@ def collect(
 def publish(wb, result: dict, snapshot: Path, charts: dict) -> None:
     import wandb
 
+    # The timeline spans the run; the SDK's 10k history default drops later events.
+    wandb.Table.MAX_ROWS = wandb.Table.MAX_ARTIFACT_ROWS
     datasets = {
         "Unchanged task accuracy": result["unchanged"]["points"],
         "Rewrite accuracy": result["comparisons"],
@@ -184,7 +186,10 @@ def publish(wb, result: dict, snapshot: Path, charts: dict) -> None:
             charts[title]["id"],
             table,
             fields={column: column for column in columns},
-            string_fields={"task": focus},
+            string_fields={
+                "task": focus,
+                "cohort": f"Same {len(result['unchanged']['cohort'])} tasks; latest epoch may be incomplete",
+            },
         )
     wb.log(payload)
     LOG.info(

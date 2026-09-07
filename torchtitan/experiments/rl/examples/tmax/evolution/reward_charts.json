@@ -14,7 +14,7 @@
       "data": {
         "name": "wandb"
       },
-      "title": "Unchanged tasks: same intersection at every epoch",
+      "title": {"text": "Unchanged tasks: same intersection at every epoch", "subtitle": "${string:cohort}"},
       "mark": {
         "type": "line",
         "point": true
@@ -250,11 +250,7 @@
       "params": [
         {
           "name": "task",
-          "value": "${string:task}",
-          "bind": {
-            "input": "text",
-            "name": "Task ID: "
-          }
+          "value": "${string:task}"
         }
       ],
       "transform": [
