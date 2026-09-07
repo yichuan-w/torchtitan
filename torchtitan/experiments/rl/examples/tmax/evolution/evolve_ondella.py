@@ -545,8 +545,7 @@ def handle(
                         "result_rev": rev,
                         "simplify": previous_meta["simplify"],
                         "observed": {
-                            key: d[key]
-                            for key in ("direction", "solved", "total")
+                            key: d[key] for key in ("direction", "solved", "total")
                         },
                     },
                 )

@@ -661,7 +661,9 @@ def test_rollout_record_separates_validation_groups_and_honors_the_switch(
         assert header["reward"] == 0.0
         assert turns == []
         assert not list(run.path.rglob("*.incoming"))
-        assert run.pane("task-123", group_id, 0) == (run.path / rel).with_suffix(".pane")
+        assert run.pane("task-123", group_id, 0) == (run.path / rel).with_suffix(
+            ".pane"
+        )
 
 
 def test_no_tmux_probe_appends_one_advisory_line_per_hit(

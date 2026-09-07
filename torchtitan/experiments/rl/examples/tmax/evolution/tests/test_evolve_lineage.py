@@ -203,11 +203,15 @@ def test_round_persists_simplify_choice(tmp_path, monkeypatch):
     assert meta["simplify"] == choice
 
 
-def test_round_records_a_spec_repair_separately_from_simplification(tmp_path, monkeypatch):
+def test_round_records_a_spec_repair_separately_from_simplification(
+    tmp_path, monkeypatch
+):
     root = _root(tmp_path, monkeypatch)
     _signal(root, direction="easier")
     repair = {"diagnosis": "missing public format"}
-    seen = _stub(monkeypatch, action="repair", family="repair", operator=None, spec_repair=repair)
+    seen = _stub(
+        monkeypatch, action="repair", family="repair", operator=None, spec_repair=repair
+    )
     od.run_round(root, workers=1)
     meta = json.loads(seen[0]["rewrite"].meta.read_text())
     assert meta["status"] == "accepted" and meta["result_rev"] == 1

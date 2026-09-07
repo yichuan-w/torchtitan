@@ -12,13 +12,50 @@ import json
 from pathlib import Path
 
 CARDS = {
-    "reduce_scale": "Reduce one input dimension that causes the observed failures: object count, nesting depth, numeric range, or supported format cases. State the smaller input domain in the instruction and generate tests within it; preserve correctness and shortcut checks throughout that domain. Retain a nontrivial operation, not only a constant or empty case. Restore the removed dimension to increase difficulty.",
-    "relax_constraint": "Use when the basic result is correct but a resource, compatibility or implementation restriction blocks success. Remove one stated restriction and its corresponding checks, preserving correctness checks. Do not remove the capability chosen for training. Restore that restriction to increase difficulty; do not change fleet resources or episode budgets.",
-    "provide_initial_state": "Use when prerequisites consume the attempts before the intended skill is reached. Materialize one valid prerequisite in the environment; keep the remaining goal and its checks. Do not precompute the output of the retained skill. Remove the supplied state to restore difficulty.",
-    "extract_subtask": "Keep a meaningful component of the original task with realistic inputs and independently checkable output. It may be a prerequisite or a simpler component of the skill the student cannot yet perform. Remove other goals and only their checks, supplying prerequisite state where the retained component needs it. Name the original capability it prepares the student for. Do not replace the task with an unrelated exercise or a trivial output. Reattach the removed stages to restore difficulty.",
-    "reduce_distractors": "Use when the agent repeatedly confuses irrelevant files or similar records with relevant evidence. Remove one source of irrelevant material while retaining all evidence and the core inference. Missing evidence is a task defect, not a distractor. Restore the removed material to increase difficulty.",
-    "add_scaffold": "Use when the agent has the evidence and can use the tools but cannot organize the next step. Add one directional hint or intermediate goal; specific guidance is allowed only at the configured hint level. Never provide the final answer, exact patch or full command recipe. Remove the hint to restore difficulty.",
-    "enhance_feedback": "Use when repeated execution errors show the agent cannot interpret the tool response. Improve one task-local error message to identify the violated input or precondition, without supplying the solution. Preserve tool semantics and private grading. Restore the original message to increase difficulty; do not modify the shared harness.",
+    "reduce_scale": (
+        "Reduce one input dimension that causes the observed failures: object count, nesting depth, "
+        "numeric range, or supported format cases. State the smaller input domain in the instruction "
+        "and generate tests within it; preserve correctness and shortcut checks throughout that domain. "
+        "Retain a nontrivial operation, not only a constant or empty case. Restore the removed "
+        "dimension to increase difficulty."
+    ),
+    "relax_constraint": (
+        "Use when the basic result is correct but a resource, compatibility or implementation "
+        "restriction blocks success. Remove one stated restriction and its corresponding checks, "
+        "preserving correctness checks. Do not remove the capability chosen for training. Restore that "
+        "restriction to increase difficulty; do not change fleet resources or episode budgets."
+    ),
+    "provide_initial_state": (
+        "Use when prerequisites consume the attempts before the intended skill is reached. Materialize "
+        "one valid prerequisite in the environment; keep the remaining goal and its checks. Do not "
+        "precompute the output of the retained skill. Remove the supplied state to restore difficulty."
+    ),
+    "extract_subtask": (
+        "Keep a meaningful component of the original task with realistic inputs and independently "
+        "checkable output. It may be a prerequisite or a simpler component of the skill the student "
+        "cannot yet perform. Remove other goals and only their checks, supplying prerequisite state "
+        "where the retained component needs it. Name the original capability it prepares the student "
+        "for. Do not replace the task with an unrelated exercise or a trivial output. Reattach the "
+        "removed stages to restore difficulty."
+    ),
+    "reduce_distractors": (
+        "Use when the agent repeatedly confuses irrelevant files or similar records with relevant "
+        "evidence. Remove one source of irrelevant material while retaining all evidence and the core "
+        "inference. Missing evidence is a task defect, not a distractor. Restore the removed material "
+        "to increase difficulty."
+    ),
+    "add_scaffold": (
+        "Use when the agent has the evidence and can use the tools but cannot organize the next step. "
+        "Add one directional hint or intermediate goal; specific guidance is allowed only at the "
+        "configured hint level. Never provide the final answer, exact patch or full command recipe. "
+        "Remove the hint to restore difficulty."
+    ),
+    "enhance_feedback": (
+        "Use when repeated execution errors show the agent cannot interpret the tool response. Improve "
+        "one task-local error message to identify the violated input or precondition, without supplying "
+        "the solution. Preserve tool semantics and private grading. Restore the original message to "
+        "increase difficulty; do not modify the shared harness."
+    ),
 }
 
 
@@ -30,7 +67,9 @@ def prompt(hint: str) -> str:
         for k, v in CARDS.items()
         if hint != "none" or k not in ("add_scaffold", "enhance_feedback")
     }
-    return "\n\n".join(f"{key}: {rule}" for key, rule in cards.items()) + f"""
+    return (
+        "\n\n".join(f"{key}: {rule}" for key, rule in cards.items())
+        + f"""
 
 Hint level: {hint}. none permits structural changes only; vague permits a
 direction or subgoal, not concrete solution steps; specific permits one
@@ -100,6 +139,7 @@ The untouched environment must fail and the reference solution must pass.
 Run ./sandbox check before finishing. Passing proves task validity, not its
 difficulty: subsequent training rollouts measure whether it became easier.
 """
+    )
 
 
 def read_decision(pkg: Path, hint: str) -> dict:

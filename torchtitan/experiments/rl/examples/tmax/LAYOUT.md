@@ -83,7 +83,7 @@ $TRL_BASE/
 ```
 
 Gone, with their contents at the places above: `consumed/`, `junk/`,
-`deferred_easier/`, `parents/`, `retuned/`, `signals/codex_traces/`, `meta/`,
+`deferred_easier/`, `parents/`, `retuned/`, `signals/codex_traces/`, `meta/`, <!-- codespell:ignore retuned -->
 `evolution_stats.json`, `evolution_lineage.jsonl`, `mix_snapshot.jsonl`, the
 flat `logs/`, `rollout-dumps/`, `exec-traces/`, `*.sandbox.json`, `launch.info`.
 

@@ -1,3 +1,9 @@
+# Copyright (c) Meta Platforms, Inc. and affiliates.
+# All rights reserved.
+#
+# This source code is licensed under the BSD-style license found in the
+# LICENSE file in the root directory of this source tree.
+
 """Where everything under one experiment root lives. LAYOUT.md is the contract;
 this module is the only place a path is spelled.
 
@@ -43,7 +49,9 @@ def write_json_atomic(path: Path, value: dict) -> None:
     """Write beside, then rename in: a reader never sees a half file."""
     path.parent.mkdir(parents=True, exist_ok=True)
     tmp = path.with_name(path.name + ".incoming")
-    tmp.write_text(json.dumps(value, ensure_ascii=False, indent=1, sort_keys=True) + "\n")
+    tmp.write_text(
+        json.dumps(value, ensure_ascii=False, indent=1, sort_keys=True) + "\n"
+    )
     os.replace(tmp, path)
 
 
@@ -79,9 +87,14 @@ def link_or_copy(src: Path, dst: Path) -> None:
         shutil.copy2(src, dst)
 
 
-def write_pretest(path: Path, pre_test_sh: str, env_identity: str, *,
-                  protected_paths: list[str] | None = None,
-                  protected_cmds: list[str] | None = None) -> None:
+def write_pretest(
+    path: Path,
+    pre_test_sh: str,
+    env_identity: str,
+    *,
+    protected_paths: list[str] | None = None,
+    protected_cmds: list[str] | None = None,
+) -> None:
     """The pin hook a mix row carries, as ``pretest.json``: the check script
     grading runs before the verifier, and the environment identity its pins
     were captured against (the drift guard compares it to the package's).
@@ -203,8 +216,11 @@ class Root:
         """Every run, oldest first; the ``latest`` link is not a run."""
         if not self.runs.exists():
             return []
-        return [Run(p) for p in sorted(self.runs.iterdir())
-                if p.is_dir() and not p.is_symlink() and p.name != "latest"]
+        return [
+            Run(p)
+            for p in sorted(self.runs.iterdir())
+            if p.is_dir() and not p.is_symlink() and p.name != "latest"
+        ]
 
 
 @dataclass(frozen=True)
@@ -226,13 +242,17 @@ class MixDir:
 
     @staticmethod
     def manifest_of(version_path: Path) -> Path:
-        return version_path.with_name(version_path.name[: -len(".jsonl")] + ".manifest.json")
+        return version_path.with_name(
+            version_path.name[: -len(".jsonl")] + ".manifest.json"
+        )
 
     @staticmethod
     def inputs_of(version_path: Path) -> Path:
         """The build manifest of a version that came from outside (v1, the
         seed): what the seed's builder pinned by sha256, copied in."""
-        return version_path.with_name(version_path.name[: -len(".jsonl")] + ".inputs.json")
+        return version_path.with_name(
+            version_path.name[: -len(".jsonl")] + ".inputs.json"
+        )
 
     def versions(self) -> list[tuple[int, Path]]:
         """(version, file), ascending, from the history directory's names."""
@@ -266,8 +286,13 @@ class MixDir:
                 continue
         return None
 
-    def publish(self, rows: list[str], *, parent_version: int | None = None,
-                t: float | None = None) -> tuple[int, Path]:
+    def publish(
+        self,
+        rows: list[str],
+        *,
+        parent_version: int | None = None,
+        t: float | None = None,
+    ) -> tuple[int, Path]:
         """Write the next version and its manifest, then point ``live.jsonl`` at it.
 
         ``rows`` are complete JSON lines without the trailing newline. The
@@ -285,10 +310,16 @@ class MixDir:
         tmp = target.with_name(target.name + ".incoming")
         tmp.write_text("".join(r + "\n" for r in rows))
         os.replace(tmp, target)
-        write_json_atomic(self.manifest_of(target), {
-            "version": version, "parent_version": parent_version, "stamp": st,
-            "sha256": sha256_file(target), "rows": len(rows),
-        })
+        write_json_atomic(
+            self.manifest_of(target),
+            {
+                "version": version,
+                "parent_version": parent_version,
+                "stamp": st,
+                "sha256": sha256_file(target),
+                "rows": len(rows),
+            },
+        )
         link_tmp = self.live.with_name("live.jsonl.incoming")
         if link_tmp.exists():
             link_tmp.unlink()

@@ -408,7 +408,9 @@ def test_process_one_easier_reads_the_records_for_the_chat_arm(
 
 
 @pytest.mark.parametrize("declaration", ["_simplify", "_spec_repair"])
-def test_easier_uses_full_validation_without_harder_growth(tmp_path, monkeypatch, declaration):
+def test_easier_uses_full_validation_without_harder_growth(
+    tmp_path, monkeypatch, declaration
+):
     work, task = _pkg(tmp_path, SEED["instruction"], SEED["test_state_py"])
     task.update(
         solve_sh=SEED["solve_sh"],
@@ -469,11 +471,18 @@ def test_easier_records_decision_and_can_decline(tmp_path, monkeypatch):
 
 
 @pytest.mark.parametrize("repair_declines", [False, True])
-def test_spec_defect_is_repaired_from_the_input_revision(tmp_path, monkeypatch, repair_declines):
+def test_spec_defect_is_repaired_from_the_input_revision(
+    tmp_path, monkeypatch, repair_declines
+):
     rw, r0 = _rewrite(tmp_path, monkeypatch)
     ec = _fake_ec()
-    report = "BLOCKED: repair_required: " + "visible contract disagrees with the check " * 8
-    repair = {"diagnosis": "unstated output format", "validation": "valid output accepted"}
+    report = (
+        "BLOCKED: repair_required: " + "visible contract disagrees with the check " * 8
+    )
+    repair = {
+        "diagnosis": "unstated output format",
+        "validation": "valid output accepted",
+    }
     calls = []
 
     def simplify(rewrite, task, **kwargs):
@@ -485,13 +494,19 @@ def test_spec_defect_is_repaired_from_the_input_revision(tmp_path, monkeypatch, 
     def repair_task(rewrite, task, job, *, observed):
         assert job == "repair_spec" and observed == report
         assert not (rewrite.package / "environment/partial-edit.txt").exists()
-        assert (rewrite.path / "before-spec-repair/environment/partial-edit.txt").read_text() == "unfinished"
+        assert (
+            rewrite.path / "before-spec-repair/environment/partial-edit.txt"
+        ).read_text() == "unfinished"
         assert (rewrite.package / "instruction.md").read_text() == SEED["instruction"]
         calls.append("repair")
         if repair_declines:
             raise ec.Blocked("GIVE UP: the suspected defect is unsupported")
-        return {**task, "instruction": "Write the report as plain text to /app/report.txt.",
-                "_spec_repair": repair, "_agent_validated": True}
+        return {
+            **task,
+            "instruction": "Write the report as plain text to /app/report.txt.",
+            "_spec_repair": repair,
+            "_agent_validated": True,
+        }
 
     def revalidate(work, image, tid, task, **kwargs):
         calls.append("validate")

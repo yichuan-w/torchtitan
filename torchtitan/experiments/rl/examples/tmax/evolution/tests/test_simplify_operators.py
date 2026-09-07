@@ -51,7 +51,9 @@ def test_record_round_trips_real_evidence(tmp_path):
 def test_unicode_output_does_not_split_json_records(tmp_path, separator):
     row = decision(tmp_path)
     (tmp_path / "traces/attempt-01.jsonl").write_text(
-        json.dumps({"turn": 2, "output": "before" + separator + "after"}, ensure_ascii=False)
+        json.dumps(
+            {"turn": 2, "output": "before" + separator + "after"}, ensure_ascii=False
+        )
         + "\n"
     )
     assert so.read_decision(tmp_path, "vague") == row
