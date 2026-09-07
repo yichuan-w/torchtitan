@@ -121,6 +121,58 @@ def test_measured_feedback_survives_the_fold(tmp_path, monkeypatch):
     assert "student_feedback" not in root.mix.live.read_text()
 
 
+def test_training_signal_supplies_measured_feedback_and_parent_revision(
+    tmp_path, monkeypatch
+):
+    root = _root(tmp_path, monkeypatch)
+    monkeypatch.setenv("SWE_RETUNE_AGENT", "codex")
+    monkeypatch.setenv("EVOLVE_HARDER_OPERATORS", "0")
+    _signal(root)
+    seen = _stub(monkeypatch)
+    od.run_round(root, workers=1)
+    feedback = seen[0]["signal"]["student_feedback"]
+    assert feedback["measurement"] == {
+        "run": RUN,
+        "group": 7,
+        "rev": 0,
+        "solved": 2,
+        "total": 2,
+    }
+    assert "previous_revision" not in feedback
+    _signal(root, group=8, rev=1)
+    od.run_round(root, workers=1)
+    feedback = seen[1]["signal"]["student_feedback"]
+    assert feedback["measurement"]["rev"] == 1
+    assert feedback["previous_revision"] == {
+        "rev": 0,
+        "instruction": SEED["instruction.md"],
+    }
+    original = json.loads(root.run(RUN).signal("tw_a", 8).read_text())
+    assert "student_feedback" not in original
+    assert "student_feedback" not in root.mix.live.read_text()
+
+
+def test_explicit_feedback_is_preserved_and_changed_feedback_is_not_reused(
+    tmp_path, monkeypatch
+):
+    root = _root(tmp_path, monkeypatch)
+    monkeypatch.setenv("SWE_RETUNE_AGENT", "codex")
+    monkeypatch.setenv("EVOLVE_HARDER_OPERATORS", "0")
+    seen = _stub(monkeypatch, status="kept", harder_mode="student")
+    for group, solved in ((7, 16), (8, 13), (9, 13)):
+        _signal(root, group=group)
+        path = root.run(RUN).signal("tw_a", group)
+        signal = json.loads(path.read_text())
+        signal["student_feedback"] = {"independent_measurement": {"solved": solved}}
+        layout.write_json_atomic(path, signal)
+        result = od.run_round(root, workers=1)
+        assert result["reused" if group == 9 else "handled"] == 1
+    assert len(seen) == 2
+    assert seen[1]["signal"]["student_feedback"] == {
+        "independent_measurement": {"solved": 13}
+    }
+
+
 class _Seen(list):
     """The process_one calls, in order; `.rows` is what the fold asked the row
     builder for."""
