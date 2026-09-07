@@ -1367,7 +1367,7 @@ def evolve_agentic(
         + _budget(AGENT_TIMEOUT)
     )
 
-    if not use_operators and job == "harder" and task.get("_student_feedback"):
+    if not use_operators and job in ("harder", "easier") and task.get("_student_feedback"):
         feedback = task["_student_feedback"]
         (pkg / "run" / "student_feedback.json").write_text(
             json.dumps(feedback, indent=2) + "\n"
