@@ -691,8 +691,19 @@ def rl_grpo_qwen3_5_9b_tmax() -> Controller.Config:
     # Controller._start_async_validation). That run never tripped the skip path, but
     # only by ~3 minutes, so validation/skipped staying 0 is the check that the
     # interval and this concurrency are sized for the benchmark.
+    #
+    # 2026-09-07: lowered 128 -> 64 to match run_tb2_eval.sh, whose numbers are the
+    # ones the eval curve is compared against. On a 24 h in-training run at 128 the
+    # eval host never kept more than 62-93 requests running anyway -- a TB-2.1
+    # rollout spends most of its life in the sandbox, so seats past that only widen
+    # the sandbox burst. The first pass of that run, launched at step 0 alongside the
+    # training pool's first 1500 sandbox creates, sat at 116-118 running with a
+    # quarter of the token throughput of every later pass and read avg@5 0.09 against
+    # 0.19-0.21 for the same weights later; 34 of its 445 rollouts died on
+    # infrastructure and scored 0. Fewer seats make that first pass cheaper to
+    # schedule, and a pass that runs in waves costs wall clock, not accuracy.
     config.eval_rollout_concurrency = int(
-        os.environ.get("SWE_EVAL_ROLLOUT_CONCURRENCY", "128")
+        os.environ.get("SWE_EVAL_ROLLOUT_CONCURRENCY", "64")
     )
     # Weight-sync KV policy. Default (SWE_SALT_KV=1): keep in-flight KV AND the prefix
     # cache (no preempt, no full re-prefill) and salt the prefix cache per GROUP (its n
