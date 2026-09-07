@@ -78,6 +78,16 @@ def assess_confirmations(batches: list[dict]) -> dict:
     seed_ranges = [set(range(batch["seed"], batch["seed"] + 16)) for batch in batches]
     if seed_ranges[0] & seed_ranges[1]:
         raise ValueError("confirmation sampling seeds overlap")
+    for batch, expected_seeds in zip(batches, seed_ranges, strict=True):
+        actual_seeds = [row.get("sampling_seed") for row in batch["attempts"]]
+        if (
+            any(type(seed) is not int for seed in actual_seeds)
+            or len(actual_seeds) != len(set(actual_seeds))
+            or not set(actual_seeds) <= expected_seeds
+        ):
+            raise ValueError(
+                "confirmation requires distinct recorded sampling seeds in the declared range"
+            )
     results = [assess_attempts(batch["attempts"], expected=16) for batch in batches]
     if len({result["task"] for result in results}) != 1:
         raise ValueError("confirmation attempts must refer to the same task")

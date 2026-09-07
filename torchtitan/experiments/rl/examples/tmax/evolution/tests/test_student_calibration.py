@@ -82,7 +82,10 @@ def confirmations():
             candidate_sha256="candidate",
             evaluation_sha256="evaluator",
             seed=seed,
-            attempts=attempts(solved),
+            attempts=[
+                {**row, "sampling_seed": seed + i}
+                for i, row in enumerate(attempts(solved))
+            ],
         )
         for seed, solved in ((10001, 9), (20001, 11))
     ]
@@ -91,7 +94,8 @@ def confirmations():
 def test_confirmation_requires_both_batches_in_range():
     batches = confirmations()
     assert assess_confirmations(batches)["action"] == "confirmed"
-    batches[1]["attempts"] = attempts(16)
+    for row in batches[1]["attempts"]:
+        row["sparse_reward"] = 1
     assert assess_confirmations(batches)["action"] == "not_confirmed"
 
 
@@ -116,3 +120,19 @@ def test_confirmation_cannot_use_different_tasks_from_the_same_dataset():
         row["task"] = "other"
     with pytest.raises(ValueError, match="same task"):
         assess_confirmations(batches)
+
+
+@pytest.mark.parametrize("recorded_seed", [None, 10001, 90001])
+def test_confirmation_rejects_missing_repeated_or_unexpected_actual_seed(recorded_seed):
+    batches = confirmations()
+    batches[0]["attempts"][-1]["sampling_seed"] = recorded_seed
+    with pytest.raises(ValueError, match="recorded sampling seeds"):
+        assess_confirmations(batches)
+
+
+def test_confirmation_with_distinct_seeds_still_requires_all_trials():
+    batches = confirmations()
+    batches[0]["attempts"].pop()
+    result = assess_confirmations(batches)
+    assert result["action"] == "not_confirmed"
+    assert result["batches"][0]["action"] == "remeasure"
