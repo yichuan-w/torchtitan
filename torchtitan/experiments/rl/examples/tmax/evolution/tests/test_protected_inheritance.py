@@ -1,3 +1,9 @@
+# Copyright (c) Meta Platforms, Inc. and affiliates.
+# All rights reserved.
+#
+# This source code is licensed under the BSD-style license found in the
+# LICENSE file in the root directory of this source tree.
+
 """A variant INHERITS its protected lists. Shipped packages carry no tests/protected_paths.json,
 so the lists a variant is validated and folded with come from the mix row it descends from --
 and they must be the same lists at both ends, or a reward-1 variant folds into a reward-0 row.
