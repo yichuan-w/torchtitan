@@ -226,6 +226,7 @@ def test_simplify_codex_rewrites_in_place_and_keeps_the_session(tmp_path, monkey
             "operator": "provide_initial_state", "retained_skill": "transform data",
             "bottleneck": "cannot prepare input", "change": "supply one fixture",
             "restore": "remove the fixture",
+            "prediction": "A readable fixture permits transformation; another input search would refute this.",
             "evidence": [{"attempt": "attempt-01.jsonl", "turn": 1,
                           "observation": "lists inputs"}]}))
         jsonl = Path(kwargs["env"]["CODEX_HOME"]) / "sessions/2026/09/01/trace.jsonl"

@@ -5,6 +5,7 @@
 # LICENSE file in the root directory of this source tree.
 
 """A simplify choice must refer to real attempts and respect the hint mode."""
+
 import json
 import sys
 from pathlib import Path
@@ -27,6 +28,7 @@ def decision(pkg, **updates):
         bottleneck="cannot interpret error",
         change="explain input type",
         restore="restore error",
+        prediction="The agent can correct the input type; repeating the same invalid call would refute this.",
         evidence=[
             dict(
                 attempt="attempt-01.jsonl",
@@ -50,6 +52,8 @@ def test_record_round_trips_real_evidence(tmp_path):
     [
         ("operator", "invented"),
         ("retained_skill", ""),
+        ("prediction", ""),
+        ("prediction", None),
         ("evidence", []),
         ("evidence", [dict(attempt="../secret", turn=2, observation="x")]),
         ("evidence", [dict(attempt="attempt-01.jsonl", turn=99, observation="x")]),
