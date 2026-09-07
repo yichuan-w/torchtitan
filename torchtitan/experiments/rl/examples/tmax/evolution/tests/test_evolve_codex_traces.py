@@ -4,6 +4,7 @@ agent."""
 from __future__ import annotations
 
 import json
+import shutil
 import stat
 import subprocess
 import sys
@@ -219,6 +220,14 @@ def test_simplify_codex_rewrites_in_place_and_keeps_the_session(tmp_path, monkey
     def on_start(command, kwargs):
         pkg = Path(kwargs["cwd"])
         (pkg / "instruction.md").write_text("rewritten instruction")
+        (pkg / "environment" / "fixture.txt").write_text("prepared prerequisite")
+        (pkg / "run" / "checks.jsonl").write_text('{"verdict":"pass"}\n')
+        (pkg / "run" / "simplify.json").write_text(json.dumps({
+            "operator": "provide_initial_state", "retained_skill": "transform data",
+            "bottleneck": "cannot prepare input", "change": "supply one fixture",
+            "restore": "remove the fixture",
+            "evidence": [{"attempt": "attempt-01.jsonl", "turn": 1,
+                          "observation": "lists inputs"}]}))
         jsonl = Path(kwargs["env"]["CODEX_HOME"]) / "sessions/2026/09/01/trace.jsonl"
         jsonl.parent.mkdir(parents=True)
         jsonl.write_text('{"type":"session_meta"}\n')
@@ -231,9 +240,15 @@ def test_simplify_codex_rewrites_in_place_and_keeps_the_session(tmp_path, monkey
 
     monkeypatch.setattr(ec.subprocess, "Popen", factory)
 
-    result = ec.simplify_codex(rw, dict(TASK), solved=0, attempts=16)
+    seed = tmp_path / "seed"
+    shutil.copytree(rw.package, seed)
+    result = ec.simplify_codex(rw, {**TASK, "_seed_dir": str(seed)}, solved=0, attempts=16)
 
-    assert result["instruction"] == "rewritten instruction" and result["_hint"] == "codex"
+    assert result["instruction"] == "rewritten instruction" and result["_hint"] == "agent_easier"
+    assert result["_simplify"]["operator"] == "provide_initial_state"
+    assert result["_simplify"]["hint_level"] == "vague"
+    assert "environment/fixture.txt" in result["_support_changed"]
+    assert not (rw.package / "run" / "seed_size.json").exists()
     assert seen["kwargs"]["cwd"] == str(rw.package)
     sd = layout.SessionDir(Path(result["_session"]))
     assert sd.path.parent == rw.sessions and sd.path.name.endswith("--agent")
@@ -241,13 +256,17 @@ def test_simplify_codex_rewrites_in_place_and_keeps_the_session(tmp_path, monkey
     assert (sd.codex_home / "sessions/2026/09/01/trace.jsonl").exists()
     assert "TRACES." in sd.prompt.read_text()
     agents = (rw.package / "AGENTS.md").read_text()
-    assert "traces/attempt-NN.jsonl" in agents and "0 of 16" in agents
+    assert "run/simplify.json" in agents
+    assert "0 of 16" in sd.prompt.read_text()
+    assert "Hint level: vague" in sd.prompt.read_text()
     assert seen["kwargs"]["env"]["PATH"].startswith(str(Path(sys.executable).parent) + ":") or True
 
 
 def test_traces_spec_names_the_file_and_the_readers(tmp_path, monkeypatch) -> None:
     rw = _rewrite(tmp_path, monkeypatch)
     assert ec._traces_spec(rw.traces) == ""
+
+
     _trace(rw)
     spec = ec._traces_spec(rw.traces)
     assert "traces/attempt-NN.jsonl" in spec
@@ -255,6 +274,12 @@ def test_traces_spec_names_the_file_and_the_readers(tmp_path, monkeypatch) -> No
     assert "keystrokes" in spec and "raw" in spec
     assert "jq -r 'select(.turn)" in spec and "\\(.turn)" in spec  # jq's escape, not python's
     assert "finish_reason" in spec
+
+
+def test_simplify_without_traces_declines_before_starting_codex(tmp_path, monkeypatch):
+    rw = _rewrite(tmp_path, monkeypatch, job="easier")
+    with pytest.raises(ec.Blocked, match="requires attempt traces"):
+        ec.simplify_codex(rw, dict(TASK))
 
 
 def test_prepare_package_records_the_seed_literals_size_and_box(tmp_path, monkeypatch) -> None:

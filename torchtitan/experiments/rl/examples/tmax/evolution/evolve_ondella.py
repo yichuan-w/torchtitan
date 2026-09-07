@@ -544,6 +544,7 @@ def handle(
         "operator",
         "family",
         "hint",
+        "simplify",
         "stage",
         "reason",
         "verdicts",
@@ -812,7 +813,7 @@ def operator_history(root: layout.Root) -> tuple[dict, dict]:
     used_fams: dict[str, int] = {}
     for _task, _rw, meta in _rewrite_metas(root):
         op = meta.get("operator")
-        if meta.get("status") != "accepted" or not op:
+        if meta.get("status") != "accepted" or not op or meta.get("family") == "simplify":
             continue
         used_ops[op] = used_ops.get(op, 0) + 1
         fam = fam_of.get(op)

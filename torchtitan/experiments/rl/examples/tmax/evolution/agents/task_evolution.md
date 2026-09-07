@@ -18,7 +18,7 @@ Your working directory is the task package itself.
 | `tests/test_state.py` or `tests/test.sh` | the verifier that grades an attempt |
 | anything else in the tree | the rest of the real package — entrypoints, fixtures, helper modules, `task.toml`. Present because the package has to actually run. |
 | `traces/` | real attempts at this task, one JSONL file each, when the caller had them; the prompt's TRACES paragraph gives the format |
-| `run/` | scratch space for you, and where you write the two files below |
+| `run/` | scratch space and the declarations listed below |
 
 **You may edit any of them, and you may add new ones.** A file you create in the
 package travels back with it, so an axis that needs a fixture, a config or a data
@@ -32,12 +32,13 @@ variant relies on files or command outputs the solver must leave untouched, list
 them in `tests/protected_paths.json` as `{"paths": [...], "cmds": [...]}`; the
 harness digests them before and after the episode and any change scores 0.
 
-Two files in `run/` are read by the caller rather than by you:
+The caller reads these declarations from `run/`:
 
-| `run/operator.txt` | the id of the axis you chose, alone on one line. Only the harder job offers a choice; write it before you start editing, so the record survives a session that later times out. |
+| `run/operator.txt` | the harder job's chosen axis, alone on one line, written before editing. |
+| `run/simplify.json` | the easier job's operator, retained skill, change, restoration and trace evidence, as specified in its prompt. |
 | `run/verdict.txt` | written only when you stop without finishing — see *Giving up* below. |
 
-The caller rebuilds the pool's axis balance by reading `run/operator.txt` off
+For harder jobs, the caller rebuilds the pool's axis balance by reading `run/operator.txt` off
 every task that comes back. A task folded in without it is invisible to that
 count, so a session that finishes the work but never declares the axis is
 discarded rather than kept.
@@ -48,7 +49,7 @@ These are properties of the files themselves, so they apply whichever job you we
 given. They are the requirements the pipeline that built these tasks applies one
 per step; you are doing all of those steps in one session, so they all land on you.
 
-**`solution/solve.sh`** completes the whole workflow from the original starting
+**`solution/solve.sh`** completes the whole workflow from the variant's starting
 state, the way a strong agent's successful run would. Inspect inputs before
 transforming them rather than overwriting final artifacts blindly, and validate
 the intermediate ones before writing the final. Keep it deterministic, safe to run
@@ -60,7 +61,7 @@ was written once and never recomputed.
 
 **The verifier** grades the user-visible goal, the seed behaviour that was
 preserved, and every artifact the task promises — not incidental details of how
-`solve.sh` happens to do it. Four roles have to be covered. They are roles, not
+`solve.sh` happens to do it. For harder jobs, four roles have to be covered. They are roles, not
 a count: keep every existing test function that still holds under the new axis
 and add what the axis needs, so the verifier never checks less than the seed's
 did. The roles:
@@ -70,6 +71,11 @@ did. The roles:
 - `final_semantics` — the end state means what it should, checked by content;
 - `no_shortcut` — an answer that was copied, hardcoded, or written for the verifier
   is caught.
+
+For easier jobs, a removed goal or relaxed constraint may lose its corresponding
+checks only when declared in `run/simplify.json`. Preserve semantic correctness
+and shortcut rejection for every remaining goal. An extracted subtask does not
+need an extra intermediate artifact merely to fill a role.
 
 `no_shortcut` is the one usually missing and it has to be earned in behaviour: change
 an input the answer depends on and re-run the workflow, asserting the output followed
@@ -241,7 +247,7 @@ it was, which costs one round and nothing else. Nobody is counting your successe
 The outcome that actually damages the pool is a task that passes because the
 check got weaker: it looks like a win, it is folded back in, and nothing
 downstream can tell that the verifier used to demand more. Weeks later it is
-still there, teaching the model that less is enough. If your only route to
+still there, teaching the model that less is enough. For harder jobs, if your only route to
 `VERDICT: pass` runs through making the verifier ask for less, take the give-up
 instead — that is what it is for.
 

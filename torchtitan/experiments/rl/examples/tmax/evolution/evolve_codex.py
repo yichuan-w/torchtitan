@@ -40,6 +40,7 @@ from pathlib import Path
 import evolve as ev
 import synth_client as llm
 import task_size as ts
+import simplify_operators as so
 import verifier_literals as vl
 from torchtitan.experiments.rl.examples.tmax import layout
 
@@ -617,40 +618,6 @@ def _harness_check(pkg: Path, name: str = "check") -> str:
 # Prompts
 # --------------------------------------------------------------------------
 
-_AGENTS_MD = """# Your job: make ONE terminal task easier, by rewriting its instruction only
-
-You are re-tuning a training task an agent kept failing. Files in this directory:
-
-- `instruction.md` — the task as given to the agent. THIS is the only file you edit.
-- `environment/Dockerfile` — how the task's container is built (context, read-only).
-- `{verifier}` — the private verifier that grades a solution (context, read-only).
-- `solution/solve.sh` — a reference solution, if present (context, read-only).
-- `traces/attempt-NN.jsonl` — the FULL failed attempts, one file each: every turn's
-  commands and the terminal output that followed (format under TRACES in the prompt).
-
-The agent solved this {solved} of {attempts} attempts — too hard. Rewrite
-`instruction.md` so a capable agent lands it about half the time.
-
-## How to make it easier ({level})
-{level_rule}
-
-## Hard rule — never leak the verifier
-Never name the verifier in the instruction: no test file paths (tests/...), no
-test or function names, no `pytest` / `test.sh` command to run. Point at the
-BEHAVIOUR to fix or where in the source to look — naming the check that grades it
-hands over the answer, and the task is then rejected. The verifier is given to you
-only so you know what NOT to reveal; never weaken or reference it.
-
-## Work efficiently
-Read the traces to find where the agent actually got stuck, then make the smallest
-edit that clears that one failure. At most {max_calls} tool calls. When done, the
-rewritten `instruction.md` is your entire output — do not print it, just save it.
-"""
-
-_PROMPT = ("Read AGENTS.md and the files it points to, then rewrite instruction.md "
-           "in place to make this task easier as instructed. Save it and stop.")
-
-
 _ORACLE_AGENTS_MD = """# Your job: make the reference solution pass the verifier
 
 This task was just rewritten to be harder. The rewrite regenerated the
@@ -725,29 +692,12 @@ def _traces_spec(traces: Path) -> str:
 
 def simplify_codex(rewrite: layout.RewriteDir, task: dict, solved: int = 0,
                    attempts: int = 16, hint: str = "vague") -> dict:
-    """Codex-driven counterpart of evolve.simplify: the instruction rewritten in
-    place, with the failed attempts on disk under ``traces/``. Returns a new
-    task dict with `instruction` rewritten and `_hint="codex"`. Raises on
-    hard failure."""
-    _require_codex()
-    pkg = rewrite.package
-    fmap = ev.file_map(task)
-    level = "specific" if any(rewrite.traces.glob("attempt-*.jsonl")) else "vague"
-    if hint == "none":
-        level = "none"
-    (pkg / "AGENTS.md").write_text(_AGENTS_MD.format(
-        verifier=ev._verifier_rel(task), solved=solved, attempts=attempts,
-        level=level, level_rule=ev.HINT_LEVELS[level], max_calls=MAX_TOOL_CALLS))
-    with session(rewrite, "agent", timeout=TIMEOUT_SEC) as run:
-        p = _run_codex(run, pkg, _PROMPT + _traces_spec(rewrite.traces))
-    new_instruction = (pkg / fmap["instruction"]).read_text()
-    if not new_instruction.strip():
-        raise RuntimeError("codex emptied the instruction")
-    if new_instruction == task["instruction"]:
-        raise RuntimeError(f"codex left the instruction unchanged "
-                           f"(exit {p.returncode}): {p.stdout[-200:]}")
-    return {**task, "instruction": new_instruction, "_hint": "codex",
-            "_session": str(run.dir.path)}
+    """Choose one trace-supported operator and validate the resulting package."""
+    so.prompt(hint)
+    if not any(rewrite.traces.glob("attempt-*.jsonl")):
+        raise Blocked("simplify requires attempt traces")
+    return evolve_agentic(rewrite, {**task, "_solved": solved,
+                          "_attempts": attempts, "_simplify_hint": hint}, "easier")
 
 
 def repair_oracle_codex(rewrite: layout.RewriteDir, task: dict, observed: str,
@@ -994,18 +944,9 @@ different counts, and that note is what it reads.
 
 Aim for a task a capable agent lands about half the time."""
 
-_EASIER_JOB = """This task was solved {solved} of {attempts} attempts — the agent
-never got there, so it teaches nothing either.
-
-The failed attempts are in `traces/`, one file per attempt (format under
-TRACES at the end). Read the last turns of several of them to find where the
-agent actually got stuck: the same failing command, the same missing file, the
-same misreading of the instruction. Then make the smallest change that clears
-that one obstacle. Prefer adding to the instruction
-what a fair task would have said; only take structure out of the task itself if
-the instruction cannot carry it.
-
-Aim for a task a capable agent lands about half the time."""
+_EASIER_JOB = """This task was solved {solved} of {attempts} attempts.
+Diagnose the attempts and reduce one obstacle while retaining a stated skill.
+{cards}"""
 
 _REPAIR_JOB = """Your rewrite did not survive the caller's check. It rebuilt the
 package from scratch, ran `solution/solve.sh` against the verifier (exit
@@ -1226,6 +1167,9 @@ def evolve_agentic(rewrite: layout.RewriteDir, task: dict, job: str, *,
     _require_codex()
     pkg = rewrite.package
     fmap = _prepare_package(pkg, task)
+    if job == "easier":
+        # Growth is required only for harder jobs; the caller checks direction independently.
+        (pkg / "run" / "seed_size.json").unlink(missing_ok=True)
     if observed:
         (pkg / "run" / "failure.txt").write_text(observed)
 
@@ -1247,7 +1191,8 @@ def evolve_agentic(rewrite: layout.RewriteDir, task: dict, job: str, *,
                                      seed_asserts=seed_size["verifier_asserts"],
                                      min_added=ts.MIN_ADDED, max_added=ts.MAX_ADDED,
                                      max_asserts=ts.MAX_ADDED_ASSERTS),
-        "easier": _EASIER_JOB.format(solved=solved, attempts=attempts_n),
+        "easier": _EASIER_JOB.format(solved=solved, attempts=attempts_n,
+                                    cards=so.prompt(task.get("_simplify_hint", "vague"))),
         "repair": _REPAIR_JOB.format(exit_code=exit_code),
     }[job] + _traces_spec(rewrite.traces) + _budget(AGENT_TIMEOUT)
 
@@ -1284,6 +1229,11 @@ def evolve_agentic(rewrite: layout.RewriteDir, task: dict, job: str, *,
     out["_hint"] = f"agent_{job}"
     out["_agent_validated"] = _agent_checked(pkg)
     out["_session"] = str(run.dir.path)
+    if job == "easier":
+        decision = so.read_decision(pkg, task.get("_simplify_hint", "vague"))
+        decision["hint_level"] = task.get("_simplify_hint", "vague")
+        out["_simplify"] = decision
+        out["_operator"], out["_family"] = decision["operator"], "simplify"
     if vsession is not None:
         out["_verifier_author"] = "blind"
         out["_verifier_session"] = str(vsession.path)

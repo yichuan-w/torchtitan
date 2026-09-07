@@ -248,6 +248,52 @@ def test_process_one_easier_reads_the_records_for_the_chat_arm(tmp_path, monkeyp
     assert rec["verdicts"]["oracle"] == "skipped"
 
 
+def test_easier_uses_full_validation_without_harder_growth(tmp_path, monkeypatch):
+    work, task = _pkg(tmp_path, SEED["instruction"], SEED["test_state_py"])
+    task.update(solve_sh=SEED["solve_sh"], _direction="easier", _simplify={"operator": "add_scaffold"})
+    calls = []
+
+    def probe(*args, **kwargs):
+        calls.append(kwargs)
+        return {"ok": True, "passed": False, "reward": 1, "solve_exit": 0}
+
+    monkeypatch.setattr(fb.shutil, "which", lambda _n: None)
+    monkeypatch.setattr(fb, "daytona_probe", probe)
+    verdict = fb.revalidate(work, "image", "t", task, orig=SEED, changed=["instruction"])
+    assert verdict["ok"] and verdict["fast_path"] == "daytona_oracle"
+    assert len(calls) == 2 and calls[1]["shortcut"] == ":"
+    task["_direction"] = "harder"
+    verdict = fb.revalidate(work, "image", "t", task, orig=SEED, changed=["instruction"])
+    assert not verdict["ok"] and verdict["stage"] == "step_size"
+
+
+def test_easier_records_decision_and_can_decline(tmp_path, monkeypatch):
+    rw, r0 = _rewrite(tmp_path, monkeypatch)
+    ec = _fake_ec()
+    choice = {"operator": "reduce_scale", "retained_skill": "convert"}
+
+    def simplify(rewrite, task, **kwargs):
+        assert task["_direction"] == "easier"
+        return {**task, "instruction": "Convert one file.", "_simplify": choice,
+                "_operator": "reduce_scale", "_family": "simplify", "_agent_validated": True}
+
+    ec.simplify_codex = simplify
+    monkeypatch.setitem(sys.modules, "evolve_codex", ec)
+    monkeypatch.setenv("SWE_RETUNE_AGENT", "codex")
+    monkeypatch.setattr(fb, "revalidate", lambda *a, **k: {"ok": True})
+    monkeypatch.setattr(fb.shutil, "which", lambda _n: None)
+    rec = fb.process_one(rw, {**SIGNAL, "solved": 0}, job="easier", seed_dir=r0)
+    assert rec["status"] == "accepted" and rec["simplify"] == choice
+    assert rec["operator"] == "reduce_scale" and rec["agent_validated"]
+
+    def decline(*args, **kwargs):
+        raise ec.Blocked("repair_required: invalid task")
+
+    ec.simplify_codex = decline
+    rec = fb.process_one(rw, {**SIGNAL, "solved": 0}, job="easier", seed_dir=r0)
+    assert rec["status"] == "kept" and "repair_required" in rec["reason"]
+
+
 def test_format_trace_prefers_failures() -> None:
     records = [
         ({"reward": 1.0, "turns": 1}, [{"turn": 1, "keystrokes": ["ok\n"], "output": "fine"}]),

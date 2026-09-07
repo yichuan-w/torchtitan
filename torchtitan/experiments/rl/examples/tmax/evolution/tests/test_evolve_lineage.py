@@ -188,6 +188,16 @@ def _ledger(root: layout.Root) -> list[dict]:
     return layout.read_jsonl(root.evolution.ledger)
 
 
+def test_round_persists_simplify_choice(tmp_path, monkeypatch):
+    root = _root(tmp_path, monkeypatch)
+    _signal(root, direction="easier")
+    choice = {"operator": "reduce_scale", "retained_skill": "convert files"}
+    seen = _stub(monkeypatch, simplify=choice)
+    od.run_round(root, workers=1)
+    meta = json.loads(seen[0]["rewrite"].meta.read_text())
+    assert meta["simplify"] == choice
+
+
 def test_round_materializes_r0_handles_the_signal_and_folds_r1(
     tmp_path, monkeypatch
 ) -> None:
@@ -544,6 +554,7 @@ def test_operator_history_counts_accepted_rewrites_only(tmp_path, monkeypatch) -
         ("20260904-100000Z", "accepted", {}),
         ("20260904-110000Z", "rejected", {}),
         ("20260904-120000Z", "accepted", {"dry": True}),
+        ("20260904-130000Z", "accepted", {"operator": "reduce_scale", "family": "simplify"}),
     ):
         rw = task.rewrite("harder", stamp_)
         layout.write_json_atomic(

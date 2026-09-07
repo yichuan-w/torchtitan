@@ -281,7 +281,7 @@ def revalidate(work: Path, image: str, tid: str, task: dict,
     verifier path, or a path the instruction stopped revealing that the verifier
     still needs. Judged before/after, so an SWE test.sh that always references
     repo internals is not mistaken for a fresh dark path."""
-    if changed == ["instruction"] and orig is not None:
+    if changed == ["instruction"] and orig is not None and not task.get("_simplify"):
         if not task["instruction"].strip():
             return {"ok": False, "stage": "empty", "why": "instruction emptied"}
         before, after = sl.audit(orig), sl.audit(task)
@@ -317,7 +317,7 @@ def revalidate(work: Path, image: str, tid: str, task: dict,
         # the agent's own check applies it first, this is the backstop.
         step = (ts.violations(ts.size_of(orig["solve_sh"], orig["test_state_py"], _kind(orig)),
                               ts.size_of(task["solve_sh"], task["test_state_py"], _kind(task)))
-                if orig is not None else [])
+                if orig is not None and task.get("_direction") != "easier" else [])
         dv = daytona_probe(work, resources=resources, require_paths=dark,
                            pretest_file=pretest_file)
         if dv is None:
@@ -544,6 +544,7 @@ def process_one(rewrite: layout.RewriteDir, signal: dict, *, job: str,
         task["_task_id"] = tid
         task["_seed_dir"] = str(seed_dir)
         task["_solved"], task["_attempts"] = solved, graded
+        task["_direction"] = job
         task["_resources"] = resources
         # The row's pin hook, as the loop snapshotted it beside rewrite.json
         # (None for a row without one). The agent's tool gets a copy under
@@ -571,6 +572,8 @@ def process_one(rewrite: layout.RewriteDir, signal: dict, *, job: str,
                 try:
                     new = ec.simplify_codex(rewrite, task, solved=solved, attempts=graded,
                                             hint=hint_lvl)
+                except ec.Blocked as e:
+                    return _done(rec, "kept", stage="agent", reason=str(e))
                 except Exception as e:  # noqa: BLE001 -- the task stays as it is
                     return _done(rec, "failed", stage="agent",
                                  reason=f"{type(e).__name__}: {e}")
@@ -579,6 +582,10 @@ def process_one(rewrite: layout.RewriteDir, signal: dict, *, job: str,
                 new = ev.simplify(task, solved=solved, attempts=graded, trajectory=trace,
                                   hint=("none" if arm == "none" else hint_lvl))
             rec["hint"] = new.get("_hint")
+            if new.get("_simplify"):
+                rec["simplify"] = new["_simplify"]
+                rec["operator"], rec["family"] = new["_operator"], new["_family"]
+                rec["agent_validated"] = new.get("_agent_validated")
         else:                                                 # k/k -> harder
             # Which axis to evolve along is not the agent's call. The choice is
             # scored against the whole pool -- L(o) for whether this seed has a
