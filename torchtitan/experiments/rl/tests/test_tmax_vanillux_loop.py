@@ -547,6 +547,8 @@ def test_rollout_record_is_one_header_line_then_one_line_per_turn(
         secs=412.34,
         budget_sec=1800,
         started="20260904-182201Z",
+        verifier={"exit_code": 0, "output_tail": "one check failed"},
+        ctrf={"tests": 2, "passed": 1, "failed": ["test_order_invariance"]},
     )
 
     assert rel == "rollouts/task-123/g713-r13.jsonl"
@@ -570,6 +572,8 @@ def test_rollout_record_is_one_header_line_then_one_line_per_turn(
         "turns",
         "started",
         "exec",
+        "verifier",
+        "ctrf",
     ]
     assert header == {
         "task": "task-123",
@@ -595,6 +599,8 @@ def test_rollout_record_is_one_header_line_then_one_line_per_turn(
         "turns": 2,
         "started": "20260904-182201Z",
         "exec": exec_trace,
+        "verifier": {"exit_code": 0, "output_tail": "one check failed"},
+        "ctrf": {"tests": 2, "passed": 1, "failed": ["test_order_invariance"]},
     }
     assert turns == [
         {"turn": 1, "keystrokes": ["ls\n"], "output": "out", "think": "t"},

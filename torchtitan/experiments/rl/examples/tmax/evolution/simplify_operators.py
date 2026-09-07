@@ -42,6 +42,9 @@ does not identify that obstacle. Compare the failed check with the submitted
 artifact and the visible requirement before choosing a card. A reasonable
 interpretation rejected by an unstated exact-string or formatting requirement
 is a specification defect, even when a hint could make the test pass.
+Use verifier diagnostics when present. A student's success claim or local
+self-test proves only the property it exercised; repeated execution on one
+unchanged input does not establish invariance under changed input order.
 Infrastructure failures, missing required
 evidence, inconsistent specifications and wrong grading require repair:
 write BLOCKED: repair_required: <reason> to run/verdict.txt and stop.

@@ -22,6 +22,7 @@ from unittest.mock import AsyncMock
 import pytest
 
 from torchtitan.experiments.rl.examples.tmax import rollouter as rollouter_mod
+from torchtitan.experiments.rl.examples.tmax import grading as grading_mod
 from torchtitan.experiments.rl.examples.tmax.data import TMaxSample
 from torchtitan.experiments.rl.examples.tmax.grading import (
     ctrf_pass_fraction,
@@ -63,6 +64,25 @@ def _reduced(reports: list[dict | None]) -> dict[str, float]:
         metric.key: m.Mean.reduce([metric.value])["mean"]
         for metric in _ctrf_metrics(reports)
     }
+
+
+@pytest.mark.parametrize("reward", [0.0, 1.0])
+def test_grading_output_is_recorded_without_changing_reward(monkeypatch, reward):
+    monkeypatch.setattr(grading_mod, "_make_nonce", lambda: "sentinel")
+    sandbox = AsyncMock()
+    output = "x" * 17000 + "FAILED test_order_invariance\n"
+    sandbox.exec.return_value = (0, output, "details\n")
+    sandbox.read_file.side_effect = ["sentinel", str(reward)]
+    diagnostics = {}
+    actual = asyncio.run(grading_mod.grade_tmax(
+        sandbox, {"test_sh": "test command"}, workdir="/app",
+        diagnostics=diagnostics,
+    ))
+    assert actual == reward
+    assert diagnostics == {
+        "exit_code": 0, "output_tail": (output + "details\n")[-16000:]
+    }
+    assert len(diagnostics["output_tail"]) == 16000
 
 
 def test_parses_real_ctrf_schema() -> None:

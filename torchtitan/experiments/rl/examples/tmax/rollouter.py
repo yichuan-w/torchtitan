@@ -521,6 +521,8 @@ def _write_rollout_record(
     secs: float,
     budget_sec: int,
     started: str,
+    verifier: dict | None = None,
+    ctrf: dict | None = None,
 ) -> str | None:
     """Write one training rollout as ``rollouts/<task>/g<group>-r<idx>.jsonl``
     and return that path relative to the run, or None when nothing was written.
@@ -581,6 +583,8 @@ def _write_rollout_record(
             "turns": len(turns),
             "started": started,
             "exec": list(exec_trace),
+            "verifier": verifier,
+            "ctrf": ctrf,
         }
         rollout_record.write_record(path, header, turns)
     except Exception as e:  # noqa: BLE001 -- a lost record must not fail a graded rollout
@@ -1205,6 +1209,7 @@ class TMaxRollouter(Rollouter):
         # Per-test verifier breakdown; stays None unless the rollout was graded with
         # the CTRF read enabled and the task wrote a parsable report.
         ctrf: dict | None = None
+        verifier: dict = {}
         # reward.txt's value, kept alongside a dense reward so both curves are
         # comparable on one run, and whether dense had to fall back to it.
         sparse_reward = 0.0
@@ -1348,6 +1353,7 @@ class TMaxRollouter(Rollouter):
                             workdir=sample.workdir,
                             timeout_sec=verifier_sec,
                             baseline_digests=baseline_digests,
+                            diagnostics=verifier,
                         )
                         sparse_reward = reward
                         # Read the verifier's second output (the per-test CTRF
@@ -1539,6 +1545,8 @@ class TMaxRollouter(Rollouter):
                 secs=time.monotonic() - started_at,
                 budget_sec=budget_sec,
                 started=layout.stamp(started_wall),
+                verifier=verifier,
+                ctrf=ctrf,
             )
             if pane_text is not None:
                 _write_pane(run, sample, group_id, rollout_idx, pane_text)
@@ -1559,6 +1567,7 @@ class TMaxRollouter(Rollouter):
                     "submitted": submitted,
                     "infra_failed": diagnostics.infra_failed,
                     "ctrf": ctrf,
+                    "verifier": verifier,
                     "sparse_reward": sparse_reward,
                     "dense_fallback": dense_fallback,
                     # Relative to the run directory, so the group-level signal
