@@ -767,6 +767,10 @@ axes:
 
 {candidates}
 
+Preserve the seed's primary domain and core objective. Add difficulty within
+the same domain; do not shift the main work to another domain or introduce
+bugs merely to turn a non-debugging task into a debugging task.
+
 One rung, not a new task. Keep everything the seed asks for and add ONE
 requirement that the agent which solved it never had to meet. The attempts
 that solved it are in `traces/`, one file per attempt (format under TRACES at
@@ -858,6 +862,10 @@ easy to teach anything. Make it one rung harder, along exactly one of these
 axes:
 
 {candidates}
+
+Preserve the seed's primary domain and core objective. Add difficulty within
+the same domain; do not shift the main work to another domain or introduce
+bugs merely to turn a non-debugging task into a debugging task.
 
 One rung, not a new task. Keep everything the seed asks for and add ONE
 requirement that the agent which solved it never had to meet. The attempts
