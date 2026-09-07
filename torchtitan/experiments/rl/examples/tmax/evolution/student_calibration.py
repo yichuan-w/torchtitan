@@ -58,3 +58,26 @@ def assess_attempts(rows: list[dict], *, expected: int = 16) -> dict:
         action = "confirm_independently"
     result["action"] = action
     return result
+
+
+def assess_confirmations(batches: list[dict]) -> dict:
+    """Confirm one frozen candidate under one evaluator with two disjoint seeds."""
+    if len(batches) != 2:
+        raise ValueError("two independent confirmation batches are required")
+    for key in ("candidate_sha256", "evaluation_sha256"):
+        identities = {batch[key] for batch in batches}
+        if len(identities) != 1 or not next(iter(identities)):
+            raise ValueError(f"confirmation must use the same {key}")
+    seed_ranges = [set(range(batch["seed"], batch["seed"] + 16)) for batch in batches]
+    if seed_ranges[0] & seed_ranges[1]:
+        raise ValueError("confirmation sampling seeds overlap")
+    results = [assess_attempts(batch["attempts"], expected=16) for batch in batches]
+    return {
+        "action": "confirmed"
+        if all(result["action"] == "confirm_independently" for result in results)
+        else "not_confirmed",
+        "batches": results,
+        "candidate_sha256": batches[0]["candidate_sha256"],
+        "evaluation_sha256": batches[0]["evaluation_sha256"],
+        "seeds": [batch["seed"] for batch in batches],
+    }

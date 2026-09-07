@@ -12,7 +12,7 @@ from pathlib import Path
 import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from student_calibration import assess_attempts
+from student_calibration import assess_attempts, assess_confirmations
 
 
 def attempts(solved):
@@ -69,3 +69,37 @@ def test_no_duplicate_or_mixed_task_attempts():
     rows[-1]["task"] = "other"
     with pytest.raises(ValueError, match="one task"):
         assess_attempts(rows)
+
+
+def confirmations():
+    return [
+        dict(
+            candidate_sha256="candidate",
+            evaluation_sha256="evaluator",
+            seed=seed,
+            attempts=attempts(solved),
+        )
+        for seed, solved in ((10001, 9), (20001, 11))
+    ]
+
+
+def test_confirmation_requires_both_batches_in_range():
+    batches = confirmations()
+    assert assess_confirmations(batches)["action"] == "confirmed"
+    batches[1]["attempts"] = attempts(16)
+    assert assess_confirmations(batches)["action"] == "not_confirmed"
+
+
+@pytest.mark.parametrize("key", ["candidate_sha256", "evaluation_sha256"])
+def test_confirmation_cannot_mix_candidates_or_evaluators(key):
+    batches = confirmations()
+    batches[1][key] = "different"
+    with pytest.raises(ValueError, match="same"):
+        assess_confirmations(batches)
+
+
+def test_confirmation_cannot_replay_overlapping_sample_seeds():
+    batches = confirmations()
+    batches[1]["seed"] = batches[0]["seed"] + 8
+    with pytest.raises(ValueError, match="overlap"):
+        assess_confirmations(batches)
