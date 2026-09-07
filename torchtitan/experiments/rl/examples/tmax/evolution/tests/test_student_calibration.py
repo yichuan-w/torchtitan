@@ -103,3 +103,11 @@ def test_confirmation_cannot_replay_overlapping_sample_seeds():
     batches[1]["seed"] = batches[0]["seed"] + 8
     with pytest.raises(ValueError, match="overlap"):
         assess_confirmations(batches)
+
+
+def test_confirmation_cannot_use_different_tasks_from_the_same_dataset():
+    batches = confirmations()
+    for row in batches[1]["attempts"]:
+        row["task"] = "other"
+    with pytest.raises(ValueError, match="same task"):
+        assess_confirmations(batches)

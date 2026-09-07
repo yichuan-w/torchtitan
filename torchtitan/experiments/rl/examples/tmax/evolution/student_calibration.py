@@ -72,6 +72,8 @@ def assess_confirmations(batches: list[dict]) -> dict:
     if seed_ranges[0] & seed_ranges[1]:
         raise ValueError("confirmation sampling seeds overlap")
     results = [assess_attempts(batch["attempts"], expected=16) for batch in batches]
+    if len({result["task"] for result in results}) != 1:
+        raise ValueError("confirmation attempts must refer to the same task")
     return {
         "action": "confirmed"
         if all(result["action"] == "confirm_independently" for result in results)
