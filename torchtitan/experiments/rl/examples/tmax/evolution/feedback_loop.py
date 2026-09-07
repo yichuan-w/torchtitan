@@ -757,8 +757,10 @@ def process_one(
                     rec["spec_repair"] = {"reported": report}
                     # Preserve the declined package, including any partial edits,
                     # and repair from the exact input revision.
-                    work.rename(rewrite.path / "before-spec-repair")
+                    declined = rewrite.path / "before-spec-repair"
+                    work.rename(declined)
                     shutil.copytree(seed_dir, work)
+                    shutil.copytree(declined / "traces", rewrite.traces)
                     try:
                         new = ec.evolve_agentic(
                             rewrite, task, "repair_spec", observed=report

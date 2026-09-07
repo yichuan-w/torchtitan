@@ -513,6 +513,8 @@ def test_spec_defect_is_repaired_from_the_input_revision(
     def simplify(rewrite, task, **kwargs):
         (rewrite.package / "run").mkdir()
         (rewrite.package / "run/verdict.txt").write_text(report)
+        rewrite.traces.mkdir(exist_ok=True)
+        (rewrite.traces / "attempt-01.jsonl").write_text('{"reward": 0}\n')
         (rewrite.package / "environment/partial-edit.txt").write_text("unfinished")
         raise ec.Blocked(report[:200])
 
@@ -523,6 +525,7 @@ def test_spec_defect_is_repaired_from_the_input_revision(
             rewrite.path / "before-spec-repair/environment/partial-edit.txt"
         ).read_text() == "unfinished"
         assert (rewrite.package / "instruction.md").read_text() == SEED["instruction"]
+        assert (rewrite.traces / "attempt-01.jsonl").read_text() == '{"reward": 0}\n'
         calls.append("repair")
         if repair_declines:
             raise ec.Blocked("GIVE UP: the suspected defect is unsupported")
