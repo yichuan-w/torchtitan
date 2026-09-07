@@ -138,11 +138,8 @@ def read_decision(pkg: Path, hint: str) -> dict:
             or not observation.strip()
         ):
             raise ValueError("evidence requires a turn and observation")
-        records = [
-            json.loads(line)
-            for line in (pkg / "traces" / name).read_text().splitlines()
-            if line.strip()
-        ]
+        with (pkg / "traces" / name).open() as stream:
+            records = [json.loads(line) for line in stream if line.strip()]
         if not any(record.get("turn") == turn for record in records):
             raise ValueError(f"evidence turn absent: {name}:{turn}")
     return decision

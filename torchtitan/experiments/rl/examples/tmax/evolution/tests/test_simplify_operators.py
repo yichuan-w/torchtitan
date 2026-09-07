@@ -47,6 +47,16 @@ def test_record_round_trips_real_evidence(tmp_path):
     assert so.read_decision(tmp_path, "vague") == row
 
 
+@pytest.mark.parametrize("separator", ["\u0085", "\u2028", "\u2029"])
+def test_unicode_output_does_not_split_json_records(tmp_path, separator):
+    row = decision(tmp_path)
+    (tmp_path / "traces/attempt-01.jsonl").write_text(
+        json.dumps({"turn": 2, "output": "before" + separator + "after"}, ensure_ascii=False)
+        + "\n"
+    )
+    assert so.read_decision(tmp_path, "vague") == row
+
+
 @pytest.mark.parametrize(
     "field,value",
     [
