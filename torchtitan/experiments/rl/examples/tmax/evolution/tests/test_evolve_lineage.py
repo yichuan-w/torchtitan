@@ -109,6 +109,18 @@ def _signal(
     return layout.signal_id(run, task, group)
 
 
+def test_measured_feedback_survives_the_fold(tmp_path, monkeypatch):
+    root = _root(tmp_path, monkeypatch)
+    _signal(root)
+    feedback = {"solved": 16, "scored": 16, "action": "harder"}
+    seen = _stub(monkeypatch, student_feedback=feedback)
+    result = od.run_round(root, workers=1)
+    assert result["accepted"] == 1
+    saved = json.loads(seen[0]["rewrite"].meta.read_text())
+    assert saved["student_feedback"] == feedback
+    assert "student_feedback" not in root.mix.live.read_text()
+
+
 class _Seen(list):
     """The process_one calls, in order; `.rows` is what the fold asked the row
     builder for."""

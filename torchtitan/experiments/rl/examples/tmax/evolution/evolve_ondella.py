@@ -543,6 +543,7 @@ def handle(
     for key in (
         "operator",
         "harder_mode",
+        "student_feedback",
         "family",
         "hint",
         "simplify",
