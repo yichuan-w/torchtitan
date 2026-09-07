@@ -9,6 +9,7 @@ visible, what the probe is asked, and how a failure reaches the agent; and
 process_one's verdicts over one rewrite directory."""
 from __future__ import annotations
 
+import json
 import shutil
 import sys
 import types
@@ -20,6 +21,50 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 import feedback_loop as fb
 from torchtitan.experiments.rl.examples.tmax import layout, rollout_record
+
+
+@pytest.mark.parametrize(
+    "infrastructure,second_ok", [(True, True), (True, False), (False, False)]
+)
+def test_python_download_failure_uses_the_existing_bounded_probe_retry(
+    tmp_path, monkeypatch, infrastructure, second_ok
+):
+    from torchtitan.experiments.rl.examples.tmax.grading import (
+        _check_verifier_python_download,
+    )
+
+    if infrastructure:
+        output = (
+            "error: Request failed after 3 retries\n"
+            "Failed to download https://github.com/astral-sh/python-build-standalone/releases/download/example/python.tar.gz\n"
+            "HTTP status server error (504 Gateway Timeout)\n"
+        )
+        with pytest.raises(RuntimeError) as failure:
+            _check_verifier_python_download("uvx --with pytest pytest", output, 0.0)
+        reason = str(failure.value)
+    else:
+        reason = "reward=0.0 solve_exit=0"
+    calls, sleeps = [], []
+    env = tmp_path / "daytona.env"
+    env.write_text("")
+    monkeypatch.setattr(fb, "DAYTONA_VENV_PY", sys.executable)
+    monkeypatch.setattr(fb, "DAYTONA_ENV_FILE", str(env))
+    monkeypatch.setattr(fb.time, "sleep", sleeps.append)
+
+    def run(command, **kwargs):
+        calls.append(command)
+        ok = len(calls) > 1 and second_ok
+        return types.SimpleNamespace(
+            stdout=json.dumps({"ok": ok, "why": reason}),
+            stderr="",
+            returncode=0 if ok else 1,
+        )
+
+    monkeypatch.setattr(fb.subprocess, "run", run)
+    result = fb.daytona_probe(tmp_path)
+    assert result["ok"] == (infrastructure and second_ok)
+    assert len(calls) == (2 if infrastructure else 1)
+    assert sleeps == ([20] if infrastructure else [])
 
 
 def _pkg(tmp_path, instruction, verifier, readme=None):

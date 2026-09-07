@@ -72,7 +72,7 @@ DAYTONA_ENV_FILE = os.environ.get(
 
 _INFRA_RE = re.compile(
     r"Timeout|Bad ?Gateway|InternalServer|50[234]|[Cc]onnection|timed? ?out|"
-    r"no stdout|TooManyRequests|429"
+    r"no stdout|TooManyRequests|429|verifier Python download failed with HTTP 5xx"
 )
 
 
