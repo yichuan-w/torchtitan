@@ -26,9 +26,11 @@ outside the table, and 85% of the ones training sampled again came back
 0/16. Seed verifiers have a median of 6 assertions in 3 test functions, so
 one requirement is two or three assertions.
 
-So a rewrite is one rung up: at least MIN_ADDED lines more than the seed
-(it did get harder), at most MAX_ADDED more (one requirement), and at most
-MAX_ADDED_ASSERTS more assertions. The band is relative to the seed, with no
+Legacy operator rewrites require at least MIN_ADDED lines more than the seed.
+Student-guided rewrites may keep or reduce the solution length: a changed
+decision can require the same amount of code. Both modes allow at most
+MAX_ADDED more lines and MAX_ADDED_ASSERTS more assertions. These are size
+bounds, not evidence that a rewrite is harder. The band is relative to the seed, with no
 absolute ceiling: the seed at its size scored 16/16, which is the proof the
 policy handles that size, and one rung above it is what is asked. (An
 absolute ceiling of 20 was tried first; with a 17-line seed it left one
@@ -79,14 +81,14 @@ def _read(p: Path) -> str:
         return ""
 
 
-def violations(seed: dict, new: dict) -> list[str]:
+def violations(seed: dict, new: dict, *, require_growth: bool = True) -> list[str]:
     """Why `new` is not one rung above `seed`, in the words the agent reads;
     empty when it is."""
     out = []
     s, n = seed["solution_lines"], new["solution_lines"]
-    if n < s + MIN_ADDED:
+    if require_growth and n < s + MIN_ADDED:
         out.append(f"the reference solution has {n} lines against the seed's {s}; a harder task "
-                   f"needs at least {MIN_ADDED} more, or the policy has nothing new to do")
+                   f"in operator mode requires at least {MIN_ADDED} more")
     if n > s + MAX_ADDED:
         out.append(f"the reference solution has {n} lines against the seed's {s}; one rung is at "
                    f"most {MAX_ADDED} more (in this corpus the 0/16 share doubles once a task "
@@ -100,5 +102,5 @@ def violations(seed: dict, new: dict) -> list[str]:
 
 
 def why(vs: list[str]) -> str:
-    return ("The rewrite is more than one rung above the seed: " + "; ".join(vs)
-            + ". Keep the seed's deliverable and add one requirement; take the rest back out.")
+    return ("The rewrite violates the configured size bounds: " + "; ".join(vs)
+            + ". Revise the solution and verifier to satisfy these bounds while preserving the task's goal.")

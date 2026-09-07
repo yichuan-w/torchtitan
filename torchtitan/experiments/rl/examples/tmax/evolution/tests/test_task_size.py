@@ -39,6 +39,14 @@ def test_a_large_seed_keeps_its_own_band() -> None:
     assert ts.violations(seed, {"solution_lines": 19, "verifier_asserts": 12}) != []
 
 
+def test_student_size_bounds_allow_replacement_but_limit_growth() -> None:
+    seed = {"solution_lines": 9, "verifier_asserts": 6}
+    for lines in (4, 9, 17):
+        assert ts.violations(seed, {"solution_lines": lines, "verifier_asserts": 6}, require_growth=False) == []
+    assert ts.violations(seed, {"solution_lines": 18, "verifier_asserts": 6}, require_growth=False)
+    assert ts.violations(seed, {"solution_lines": 9, "verifier_asserts": 12}, require_growth=False)
+
+
 def test_size_of_package_reads_the_files(tmp_path) -> None:
     (tmp_path / "solution").mkdir()
     (tmp_path / "tests").mkdir()

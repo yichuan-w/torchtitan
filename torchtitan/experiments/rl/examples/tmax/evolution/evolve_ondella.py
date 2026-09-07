@@ -561,6 +561,7 @@ def handle(
     for key in (
         "operator",
         "harder_mode",
+        "require_solution_growth",
         "student_feedback",
         "family",
         "hint",
@@ -691,6 +692,8 @@ def reusable_rewrite(
                 else "operators"
             )
             if meta.get("harder_mode", "operators") != mode:
+                return None
+            if mode == "student" and meta.get("require_solution_growth", True):
                 return None
         if meta.get("status") in {"accepted", "rejected", "kept", "blocked"}:
             return reference

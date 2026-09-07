@@ -316,6 +316,20 @@ def test_check_reports_names_the_task_never_states(tmp_path, monkeypatch, capsys
         server.close()
 
 
+def test_step_audit_respects_recorded_growth_policy(tmp_path):
+    pkg = tmp_path / "pkg"
+    (pkg / "run").mkdir(parents=True)
+    (pkg / "tests").mkdir()
+    (pkg / "solution").mkdir()
+    (pkg / "tests/test_state.py").write_text("assert True\n")
+    (pkg / "solution/solve.sh").write_text("echo output\n")
+    seed = {"solution_lines": 9, "verifier_asserts": 1}
+    (pkg / "run/seed_size.json").write_text(json.dumps(seed))
+    assert asb._step_audit(pkg)
+    (pkg / "run/seed_size.json").write_text(json.dumps({**seed, "require_growth": False}))
+    assert asb._step_audit(pkg) == []
+
+
 def test_check_fails_a_rewrite_more_than_one_rung_above_the_seed(tmp_path, monkeypatch, capsys) -> None:
     pkg = tmp_path / "pkg"
     (pkg / "run").mkdir(parents=True)
@@ -345,7 +359,7 @@ def test_check_fails_a_rewrite_more_than_one_rung_above_the_seed(tmp_path, monke
 
     assert rc == 1
     out = capsys.readouterr().out
-    assert "VERDICT: fail   stage=step_size" in out and "more than one rung" in out
+    assert "VERDICT: fail   stage=step_size" in out and "size bounds" in out
     record = json.loads((pkg / "run" / "checks.jsonl").read_text().strip())
     assert record["stage"] == "step_size" and record["reward"] == 1.0
     assert any("at most 8 more" in v for v in record["step_size"])

@@ -217,11 +217,16 @@ def test_harder_menu_is_opt_in(tmp_path, monkeypatch, mode):
         operator=[("test_family", "test_operator", "test_definition")],
     )
     prompt = sessions[0]["prompt"]
+    size = json.loads((rw.package / "run/seed_size.json").read_text())
     if mode == "1":
+        assert size.get("require_growth", True)
+        assert "must grow by 3 to 8" in prompt
         assert "test_definition" in prompt and "Pick from that list" in prompt
         assert "operator-misfit" in prompt
         assert out["_operator"] == "test_operator"
     else:
+        assert size["require_growth"] is False
+        assert "may stay the same length or shrink" in prompt
         assert "test_definition" not in prompt and "Pick from that list" not in prompt
         assert "run/hardening.md" in prompt
         assert "new inference or decision" in prompt

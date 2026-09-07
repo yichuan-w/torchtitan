@@ -436,7 +436,9 @@ def _session_id(sd: layout.SessionDir) -> str:
 # --------------------------------------------------------------------------
 
 
-def _write_seed_literals(pkg: Path, verifier_rel: str) -> None:
+def _write_seed_literals(
+    pkg: Path, verifier_rel: str, *, require_growth: bool = True
+) -> None:
     """What the seed's verifier already depends on unseen, for `./sandbox
     check`'s names audit to subtract: the agent answers for the names its
     rewrite added, not for the seed's. Written once, before the session,
@@ -447,9 +449,10 @@ def _write_seed_literals(pkg: Path, verifier_rel: str) -> None:
     path.parent.mkdir(exist_ok=True)
     path.write_text(json.dumps(vl.audit_package(pkg, verifier_rel)) + "\n")
     # And the seed's size, for the one-rung check the same tool runs.
-    (pkg / "run" / "seed_size.json").write_text(
-        json.dumps(ts.size_of_package(pkg, verifier_rel)) + "\n"
-    )
+    size = ts.size_of_package(pkg, verifier_rel)
+    if not require_growth:
+        size["require_growth"] = False
+    (pkg / "run" / "seed_size.json").write_text(json.dumps(size) + "\n")
 
 
 def _write_resources(pkg: Path, task: dict) -> None:
@@ -501,7 +504,9 @@ def _prepare_package(pkg: Path, task: dict) -> dict:
     pkg.chmod(0o700)
     (pkg / "run").mkdir(exist_ok=True)
     fmap = ev.file_map(task)
-    _write_seed_literals(pkg, fmap["test_state_py"])
+    _write_seed_literals(
+        pkg, fmap["test_state_py"], require_growth=task.get("_harder_mode") != "student"
+    )
     _write_resources(pkg, task)
     _write_pretest(pkg, task)
     shutil.copy2(SPEC, pkg / "AGENTS.md")
@@ -923,9 +928,8 @@ hardening threshold.
 
 {guidance}
 
-The size of the rewrite is checked, not trusted. The reference solution may
-grow by {min_added} to {max_added} non-comment lines over the seed's
-{seed_lines}; the verifier may gain at most {max_asserts} assertions over the
+The size of the rewrite is checked, not trusted. {growth_bound}
+The seed has {seed_lines} non-comment solution lines; the verifier may gain at most {max_asserts} assertions over the
 seed's {seed_asserts}. `./sandbox check` fails outside that and the caller
 rejects the rewrite. Measured on this corpus: rewrites that grew to 125 lines
 came back 0/16 five times in six, while the seed at its own size was solved
@@ -993,9 +997,8 @@ hardening threshold.
 
 {guidance}
 
-The size of the rewrite is checked, not trusted. The reference solution may
-grow by {min_added} to {max_added} non-comment lines over the seed's
-{seed_lines}; the verifier may gain at most {max_asserts} assertions over the
+The size of the rewrite is checked, not trusted. {growth_bound}
+The seed has {seed_lines} non-comment solution lines; the verifier may gain at most {max_asserts} assertions over the
 seed's {seed_asserts}. `./sandbox check` fails outside that and the caller
 rejects the rewrite. Measured on this corpus: rewrites that grew to 125 lines
 came back 0/16 five times in six, while the seed at its own size was solved
@@ -1302,6 +1305,9 @@ def evolve_agentic(
     when the agent declined.
     """
     _require_codex()
+    use_operators = job == "harder" and harder_uses_operators()
+    if job == "harder":
+        task = {**task, "_harder_mode": "operators" if use_operators else "student"}
     pkg = rewrite.package
     fmap = _prepare_package(pkg, task)
     if job == "easier":
@@ -1317,7 +1323,6 @@ def evolve_agentic(
     # `operator` is the scored shortlist, in score order, each entry
     # (family, operator_id, definition) -- the same order operator_shortlist
     # and pick_operator both return.
-    use_operators = job == "harder" and harder_uses_operators()
     cands = list(operator or []) if use_operators else []
     if use_operators and not cands:
         raise ValueError("operator mode requires a nonempty harder shortlist")
@@ -1340,8 +1345,15 @@ def evolve_agentic(
                 ),
                 seed_lines=seed_size["solution_lines"],
                 seed_asserts=seed_size["verifier_asserts"],
-                min_added=ts.MIN_ADDED,
-                max_added=ts.MAX_ADDED,
+                growth_bound=(
+                    f"The reference solution must grow by {ts.MIN_ADDED} to {ts.MAX_ADDED} non-comment lines."
+                    if use_operators
+                    else (
+                        "The reference solution may stay the same length or shrink, "
+                        f"and may grow by at most {ts.MAX_ADDED} non-comment lines. "
+                        "Do not add code to meet a minimum length."
+                    )
+                ),
                 max_asserts=ts.MAX_ADDED_ASSERTS,
             ),
             "easier": _EASIER_JOB.format(

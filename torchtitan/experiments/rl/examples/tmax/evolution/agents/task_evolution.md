@@ -196,14 +196,13 @@ whole session and gains nothing.
 **A harder task preserves the original goal and changes one bottleneck.** Follow
 the prompt's hardening mode. Student-guided changes must require a new inference
 or decision in the core workflow; an unrelated deliverable is insufficient.
-The reference solution
-may grow by 3 to 8 non-comment lines over the seed's; the verifier may gain at
-most 5 assertions. `./sandbox check` fails outside that and the caller rejects
-the rewrite. The numbers come from this corpus: the seed at its own size was
-solved every time, the 0/16 share doubles once a task outgrows the 14 to 20
-line band, and the rewrites that grew to 125 lines came back 0/16 five times in
-six. Size is not difficulty, but a rewrite outside that band has left the
-region where the policy can be taught.
+In student-guided mode, the reference solution may stay the same length or
+shrink, and may grow by at most 8 non-comment lines. In operator mode it must
+grow by 3 to 8 lines. The verifier may gain at most 5 assertions in either
+mode. `./sandbox check` and the caller enforce these size bounds. Preserve
+necessary facts in the instruction or discoverable workspace; remove a
+solution hint only when the task remains unambiguous. Measure difficulty by
+student re-testing, not by added lines.
 
 **A verifier may not depend on a name the task never states.** You write the
 solution first and the verifier against it, so the verifier inherits the

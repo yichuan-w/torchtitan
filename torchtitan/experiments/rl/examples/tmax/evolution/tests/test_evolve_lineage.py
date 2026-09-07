@@ -158,7 +158,9 @@ def test_explicit_feedback_is_preserved_and_changed_feedback_is_not_reused(
     root = _root(tmp_path, monkeypatch)
     monkeypatch.setenv("SWE_RETUNE_AGENT", "codex")
     monkeypatch.setenv("EVOLVE_HARDER_OPERATORS", "0")
-    seen = _stub(monkeypatch, status="kept", harder_mode="student")
+    seen = _stub(
+        monkeypatch, status="kept", harder_mode="student", require_solution_growth=False
+    )
     for group, solved in ((7, 16), (8, 13), (9, 13)):
         _signal(root, group=group)
         path = root.run(RUN).signal("tw_a", group)
@@ -525,6 +527,7 @@ def test_switching_harder_mode_does_not_reuse_the_old_decision(tmp_path, monkeyp
         result["harder_mode"] = (
             "operators" if od.ops.harder_uses_operators() else "student"
         )
+        result["require_solution_growth"] = od.ops.harder_uses_operators()
         return result
 
     monkeypatch.setattr(od.fb, "process_one", record_mode)
@@ -545,6 +548,23 @@ def test_failed_execution_can_retry_unchanged_feedback(tmp_path, monkeypatch) ->
     _signal(root, group=8)
     assert od.run_round(root, workers=1)["handled"] == 1
     assert len(seen) == 2
+
+
+def test_old_student_growth_policy_is_not_reused(tmp_path, monkeypatch):
+    root = _root(tmp_path, monkeypatch)
+    monkeypatch.setenv("SWE_RETUNE_AGENT", "codex")
+    monkeypatch.setenv("EVOLVE_HARDER_OPERATORS", "0")
+    old = _stub(monkeypatch, status="kept", harder_mode="student")
+    _signal(root)
+    assert od.run_round(root, workers=1)["handled"] == 1
+    current = _stub(
+        monkeypatch, status="kept", harder_mode="student", require_solution_growth=False
+    )
+    _signal(root, group=8)
+    assert od.run_round(root, workers=1)["handled"] == 1
+    _signal(root, group=9)
+    assert od.run_round(root, workers=1)["reused"] == 1
+    assert len(old) == len(current) == 1
 
 
 def test_new_revision_starts_a_new_rewrite(tmp_path, monkeypatch) -> None:
