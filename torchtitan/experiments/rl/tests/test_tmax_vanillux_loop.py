@@ -23,6 +23,7 @@ from unittest.mock import AsyncMock, Mock
 
 import pytest
 
+from torchtitan.experiments.rl.actors.generator import SamplingConfig
 from torchtitan.experiments.rl.examples.tmax import (
     layout,
     rollout_record,
@@ -353,7 +354,12 @@ def test_sandbox_issue_metrics_count_events_and_affected_rollouts() -> None:
     }
 
 
-def _run_group_with_one_infra_failure(monkeypatch: pytest.MonkeyPatch, group_id: int):
+def _run_group_with_one_infra_failure(
+    monkeypatch: pytest.MonkeyPatch,
+    group_id: int,
+    sampling: SamplingConfig | None = None,
+    group_size: int = 2,
+):
     """Two siblings, the second an infrastructure failure, scored 1.0 / 0.0."""
     # No run directory: the group-level signal writer has nowhere to write and
     # returns before it reads the placeholder sample.
@@ -392,24 +398,45 @@ def _run_group_with_one_infra_failure(monkeypatch: pytest.MonkeyPatch, group_id:
     async def score_group(rollouts, sample):
         del sample
         return [
-            Mock(reward=1.0, reward_breakdown={}),
-            Mock(reward=0.0, reward_breakdown={}),
+            Mock(reward=0.0 if i == 1 else 1.0, reward_breakdown={})
+            for i in range(len(rollouts))
         ]
 
     rollouter.score_group = AsyncMock(side_effect=score_group)
-    rollouter.advantage_estimator = Mock(return_value=[0.5, -0.5])
+    rollouter.advantage_estimator = Mock(
+        return_value=[0.5, -0.5] + [0.0] * (group_size - 2)
+    )
 
     group = asyncio.run(
         rollouter.run_group_rollouts(
             generate_fn=AsyncMock(),
             sample=object(),
             group_id=group_id,
-            group_size=2,
-            sampling=object(),
+            group_size=group_size,
+            sampling=sampling if sampling is not None else SamplingConfig(),
             renderer=object(),
         )
     )
     return rollouter, group
+
+
+@pytest.mark.parametrize("group_id", [-1, 0])
+@pytest.mark.parametrize("seed", [None, 150001])
+def test_tmax_siblings_receive_distinct_sampling_seeds(monkeypatch, group_id, seed):
+    sampling = SamplingConfig(seed=seed, temperature=0.8, top_p=0.95)
+    rollouter, _ = _run_group_with_one_infra_failure(
+        monkeypatch, group_id, sampling, 16
+    )
+    received = [
+        call.kwargs["sampling"] for call in rollouter._run_agent_rollout.await_args_list
+    ]
+    assert [config.seed for config in received] == (
+        [None] * 16 if seed is None else list(range(seed, seed + 16))
+    )
+    assert sampling.seed == seed
+    assert all(
+        config.temperature == 0.8 and config.top_p == 0.95 for config in received
+    )
 
 
 def test_infra_failure_is_unscored_not_a_zero_in_a_training_group(
