@@ -135,6 +135,66 @@ def _rewrite(tmp_path, monkeypatch, job: str = "harder") -> layout.RewriteDir:
     return rw
 
 
+@pytest.mark.parametrize("has_previous,solved", [(True, 8), (False, 8), (True, 4)])
+def test_only_all_pass_after_simplify_uses_restoration_guidance(
+    tmp_path, monkeypatch, has_previous, solved
+):
+    import agent_sandbox as sandbox
+
+    rw = _rewrite(tmp_path, monkeypatch)
+    rw.traces.mkdir(parents=True, exist_ok=True)
+    if has_previous:
+        (rw.traces / "previous-simplify.json").write_text(
+            json.dumps(
+                {"simplify": {"operator": "add_scaffold", "hint_level": "vague"}}
+            )
+        )
+    calibration = has_previous and solved == 8
+
+    def run_codex(run, pkg, prompt):
+        assert (ec._CALIBRATION_GUIDANCE in prompt) == calibration
+        assert (ec._STUDENT_HARDER_GUIDANCE in prompt) != calibration
+        assert bool(sandbox._step_audit(pkg)) != calibration
+        (pkg / "instruction.md").write_text("adjusted guidance")
+        return subprocess.CompletedProcess([], 0, stdout="")
+
+    monkeypatch.setattr(ec, "_require_codex", lambda: None)
+    monkeypatch.setattr(ec, "harder_uses_operators", lambda: False)
+    monkeypatch.setattr(ec, "VERIFIER_AUTHOR", "same")
+    monkeypatch.setattr(
+        ec,
+        "session",
+        lambda *a, **k: nullcontext(
+            SimpleNamespace(dir=SimpleNamespace(path=tmp_path / "session"))
+        ),
+    )
+    monkeypatch.setattr(ec, "_run_codex", run_codex)
+    monkeypatch.setattr(ec, "_sandbox_down", lambda pkg: None)
+    monkeypatch.setattr(ec, "_check_verdict", lambda pkg: None)
+    monkeypatch.setattr(ec, "_require_checked", lambda pkg: None)
+    monkeypatch.setattr(ec, "_agent_checked", lambda pkg: True)
+    result = ec.evolve_agentic(
+        rw, {**TASK, "_solved": solved, "_attempts": 8}, "harder"
+    )
+    assert bool(result.get("_calibration")) == calibration
+
+
+def test_calibration_can_retain_a_blind_verifier_but_requires_a_fresh_check(tmp_path):
+    pkg, vpkg = tmp_path / "author", tmp_path / "verifier"
+    rel, text = "tests/test_state.py", "assert result == expected\n"
+    for folder in (pkg, vpkg):
+        (folder / rel).parent.mkdir(parents=True)
+        (folder / rel).write_text(text)
+    (pkg / "run").mkdir()
+    check = pkg / "run/checks.jsonl"
+    check.write_text('{"verdict":"pass"}\n')
+    with pytest.raises(RuntimeError, match="changed nothing"):
+        ec._take_verifier(vpkg, pkg, rel, text)
+    assert ec._take_verifier(vpkg, pkg, rel, text, allow_unchanged=True) == rel
+    assert (pkg / rel).read_text() == text
+    assert not check.exists()
+
+
 class _FakePopen:
     """A codex process that writes to the streams the harness opened for it."""
 

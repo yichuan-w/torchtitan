@@ -1,4 +1,10 @@
 #!/usr/bin/env python3
+# Copyright (c) Meta Platforms, Inc. and affiliates.
+# All rights reserved.
+#
+# This source code is licensed under the BSD-style license found in the
+# LICENSE file in the root directory of this source tree.
+
 """How much a task asks, in two numbers, and how far a rewrite may raise them.
 
 The size of the reference solution (non-empty, non-comment lines of
@@ -48,7 +54,9 @@ MAX_ADDED_ASSERTS = 5
 
 
 def solution_lines(src: str) -> int:
-    return sum(1 for l in src.splitlines() if l.strip() and not l.strip().startswith("#"))
+    return sum(
+        1 for l in src.splitlines() if l.strip() and not l.strip().startswith("#")
+    )
 
 
 def verifier_asserts(src: str, kind: str = "python") -> int:
@@ -58,18 +66,24 @@ def verifier_asserts(src: str, kind: str = "python") -> int:
         except SyntaxError:
             tree = None
         if tree is not None:
-            return sum(1 for n in ast.walk(tree) if isinstance(n, (ast.Assert, ast.Raise)))
+            return sum(
+                1 for n in ast.walk(tree) if isinstance(n, (ast.Assert, ast.Raise))
+            )
     return len(re.findall(r"^\s*(assert|raise|exit 1|return 1)\b", src, re.M))
 
 
 def size_of(solve_sh: str, verifier: str, kind: str = "python") -> dict:
-    return {"solution_lines": solution_lines(solve_sh),
-            "verifier_asserts": verifier_asserts(verifier, kind)}
+    return {
+        "solution_lines": solution_lines(solve_sh),
+        "verifier_asserts": verifier_asserts(verifier, kind),
+    }
 
 
 def size_of_package(pkg: Path, verifier_rel: str) -> dict:
     kind = "python" if verifier_rel.endswith(".py") else "shell"
-    return size_of(_read(pkg / "solution" / "solve.sh"), _read(pkg / verifier_rel), kind)
+    return size_of(
+        _read(pkg / "solution" / "solve.sh"), _read(pkg / verifier_rel), kind
+    )
 
 
 def _read(p: Path) -> str:
@@ -79,26 +93,37 @@ def _read(p: Path) -> str:
         return ""
 
 
-def violations(seed: dict, new: dict) -> list[str]:
-    """Why `new` is not one rung above `seed`, in the words the agent reads;
-    empty when it is."""
+def violations(seed: dict, new: dict, *, min_added: int = MIN_ADDED) -> list[str]:
+    """Check solution and verifier growth against the seed.
+
+    Calibration may set the minimum to zero while retaining both upper limits.
+    """
     out = []
     s, n = seed["solution_lines"], new["solution_lines"]
-    if n < s + MIN_ADDED:
-        out.append(f"the reference solution has {n} lines against the seed's {s}; a harder task "
-                   f"needs at least {MIN_ADDED} more, or the policy has nothing new to do")
+    if n < s + min_added:
+        out.append(
+            f"the reference solution has {n} lines against the seed's {s}; a harder task "
+            f"needs at least {min_added} more"
+        )
     if n > s + MAX_ADDED:
-        out.append(f"the reference solution has {n} lines against the seed's {s}; one rung is at "
-                   f"most {MAX_ADDED} more (in this corpus the 0/16 share doubles once a task "
-                   f"outgrows the 14-20 line band, and rewrites that grew to 125 lines scored "
-                   f"0/16 five times in six)")
+        out.append(
+            f"the reference solution has {n} lines against the seed's {s}; one rung is at "
+            f"most {MAX_ADDED} more (in this corpus the 0/16 share doubles once a task "
+            f"outgrows the 14-20 line band, and rewrites that grew to 125 lines scored "
+            f"0/16 five times in six)"
+        )
     sa, na = seed["verifier_asserts"], new["verifier_asserts"]
     if na > sa + MAX_ADDED_ASSERTS:
-        out.append(f"the verifier has {na} assertions against the seed's {sa}; one requirement is "
-                   f"two or three, so at most {MAX_ADDED_ASSERTS} more")
+        out.append(
+            f"the verifier has {na} assertions against the seed's {sa}; one requirement is "
+            f"two or three, so at most {MAX_ADDED_ASSERTS} more"
+        )
     return out
 
 
 def why(vs: list[str]) -> str:
-    return ("The rewrite is more than one rung above the seed: " + "; ".join(vs)
-            + ". Keep the seed's deliverable and add one requirement; take the rest back out.")
+    return (
+        "The rewrite is more than one rung above the seed: "
+        + "; ".join(vs)
+        + ". Keep the seed's deliverable and stay within these limits."
+    )

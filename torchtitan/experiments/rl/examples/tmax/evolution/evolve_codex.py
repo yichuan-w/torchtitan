@@ -509,6 +509,11 @@ def _prepare_package(pkg: Path, task: dict) -> dict:
     (pkg / "run").mkdir(exist_ok=True)
     fmap = ev.file_map(task)
     _write_seed_literals(pkg, fmap["test_state_py"])
+    if task.get("_calibration"):
+        path = pkg / "run" / "seed_size.json"
+        size = json.loads(path.read_text())
+        # Restoring a removed condition can require no additional solution lines.
+        path.write_text(json.dumps({**size, "min_added": 0}) + "\n")
     _write_resources(pkg, task)
     _write_pretest(pkg, task)
     shutil.copy2(SPEC, pkg / "AGENTS.md")
@@ -925,6 +930,22 @@ support a useful change within the size limits, write
 `GIVE UP: no-supported-hardening — <why>` and stop.
 """
 
+_CALIBRATION_GUIDANCE = """The previous simplification now has all attempts passing.
+Read `traces/previous-simplify.json` and the current attempts. Move toward mixed
+success by partially undoing the previous simplification. Keep
+the change within the earlier task's requirements; do not introduce another
+obligation or a new difficulty dimension.
+
+Before editing, write `run/hardening.md` with the prior intervention, the
+portion being restored, the supporting attempts, and the predicted effect.
+If the removed condition is indivisible, restore it with limited guidance or
+feedback at the recorded hint level. Keep the correctness checks for the
+retained goal. A change to guidance alone may leave the verifier unchanged.
+The reference solution need not grow: removing a hint or restoring one
+condition can change difficulty without adding several commands. If the
+evidence does not support an intermediate task, write GIVE UP with the reason.
+"""
+
 
 _HARDER_JOB = """This task was solved {solved} of {attempts} attempts and met the
 hardening threshold.
@@ -1211,12 +1232,20 @@ def _blind_layout(pkg: Path, vpkg: Path) -> None:
     os.chmod(vpkg / "sandbox", 0o755)
 
 
-def _take_verifier(vpkg: Path, pkg: Path, seed_rel: str, seed_text: str) -> str:
+def _take_verifier(
+    vpkg: Path,
+    pkg: Path,
+    seed_rel: str,
+    seed_text: str,
+    *,
+    allow_unchanged: bool = False,
+) -> str:
     """Copy the verifier the blind author wrote into the author's package,
-    replacing the seed's, and return its path. Raises when nothing changed."""
+    replacing the seed's, and return its path. Calibration may retain a
+    reviewed verifier; other jobs must change it."""
     rel = _verifier_on_disk(vpkg, seed_rel)
     text = (vpkg / rel).read_text()
-    if rel == seed_rel and text == seed_text:
+    if rel == seed_rel and text == seed_text and not allow_unchanged:
         raise RuntimeError("verifier author changed nothing")
     if rel != seed_rel:
         (pkg / seed_rel).unlink(missing_ok=True)
@@ -1255,12 +1284,24 @@ def _blind_verifier(
             seed_asserts=seed_size["verifier_asserts"],
             max_asserts=ts.MAX_ADDED_ASSERTS,
         ) + _budget(AGENT_TIMEOUT)
+        if task.get("_calibration"):
+            prompt += (
+                "\nThis adjusts a previous simplification. If the existing verifier "
+                "still fully checks the retained goal, keep it unchanged and validate it. "
+                "A change only to guidance does not require a new assertion.\n"
+            )
         try:
             _run_codex(run, vpkg, prompt)
         finally:
             _sandbox_down(vpkg)
     _check_verdict(vpkg)
-    rel = _take_verifier(vpkg, pkg, seed_rel, seed_text)
+    rel = _take_verifier(
+        vpkg,
+        pkg,
+        seed_rel,
+        seed_text,
+        allow_unchanged=bool(task.get("_calibration")),
+    )
     return run.dir, rel
 
 
@@ -1343,21 +1384,32 @@ def evolve_agentic(
     """
     _require_codex()
     pkg = rewrite.package
-    fmap = _prepare_package(pkg, task)
-    if job in ("easier", "repair_spec"):
-        # Growth is required only for harder jobs; the caller checks direction independently.
-        (pkg / "run" / "seed_size.json").unlink(missing_ok=True)
-    if observed:
-        (pkg / "run" / "failure.txt").write_text(observed)
-
     solved = task.get("_solved", 0)
     attempts_n = task.get(
         "_attempts", len(list(rewrite.traces.glob("attempt-*.jsonl"))) or 16
     )
+    use_operators = job == "harder" and harder_uses_operators()
+    previous = rewrite.traces / "previous-simplify.json"
+    calibration = (
+        job == "harder"
+        and not use_operators
+        and solved == attempts_n
+        and attempts_n > 0
+        and previous.exists()
+        and bool(json.loads(previous.read_text()).get("simplify"))
+    )
+    if calibration:
+        task = {**task, "_calibration": True}
+    fmap = _prepare_package(pkg, task)
+    if job in ("easier", "repair_spec"):
+        # Simplification and specification repair do not use the hardening size rule.
+        (pkg / "run" / "seed_size.json").unlink(missing_ok=True)
+    if observed:
+        (pkg / "run" / "failure.txt").write_text(observed)
+
     # `operator` is the scored shortlist, in score order, each entry
     # (family, operator_id, definition) -- the same order operator_shortlist
     # and pick_operator both return.
-    use_operators = job == "harder" and harder_uses_operators()
     cands = list(operator or []) if use_operators else []
     if use_operators and not cands:
         raise ValueError("operator mode requires a nonempty harder shortlist")
@@ -1376,11 +1428,13 @@ def evolve_agentic(
                 guidance=(
                     _OPERATOR_HARDER_GUIDANCE.format(candidates=_candidates(cands))
                     if use_operators
+                    else _CALIBRATION_GUIDANCE
+                    if calibration
                     else _STUDENT_HARDER_GUIDANCE
                 ),
                 seed_lines=seed_size["solution_lines"],
                 seed_asserts=seed_size["verifier_asserts"],
-                min_added=ts.MIN_ADDED,
+                min_added=0 if calibration else ts.MIN_ADDED,
                 max_added=ts.MAX_ADDED,
                 max_asserts=ts.MAX_ADDED_ASSERTS,
             ),

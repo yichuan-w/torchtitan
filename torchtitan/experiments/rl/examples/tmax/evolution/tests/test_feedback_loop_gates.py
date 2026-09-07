@@ -437,6 +437,29 @@ def test_easier_uses_full_validation_without_harder_growth(
     assert not verdict["ok"] and verdict["stage"] == "step_size"
 
 
+def test_calibration_retains_full_validation_and_the_growth_ceiling(
+    tmp_path, monkeypatch
+):
+    work, task = _pkg(tmp_path, SEED["instruction"], SEED["test_state_py"])
+    task.update(solve_sh=SEED["solve_sh"], _direction="harder", _calibration=True)
+    calls = []
+
+    def probe(*args, **kwargs):
+        calls.append(kwargs)
+        return {"ok": True, "passed": False, "reward": 1, "solve_exit": 0}
+
+    monkeypatch.setattr(fb.shutil, "which", lambda _n: None)
+    monkeypatch.setattr(fb, "daytona_probe", probe)
+    verdict = fb.revalidate(
+        work, "image", "t", task, orig=SEED, changed=["instruction"]
+    )
+    assert verdict["ok"] and verdict["fast_path"] == "daytona_oracle"
+    assert len(calls) == 2 and calls[1]["shortcut"] == ":"
+    task["solve_sh"] += "\necho extra\n" * (fb.ts.MAX_ADDED + 1)
+    verdict = fb.revalidate(work, "image", "t", task, orig=SEED, changed=["solve_sh"])
+    assert not verdict["ok"] and verdict["stage"] == "step_size"
+
+
 @pytest.mark.parametrize(
     "null",
     [None, {"ok": False, "why": "sandbox unavailable"}, {"ok": True}],

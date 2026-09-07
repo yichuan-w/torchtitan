@@ -347,6 +347,7 @@ def revalidate(
         and orig is not None
         and not task.get("_simplify")
         and not task.get("_spec_repair")
+        and not task.get("_calibration")
     ):
         if not task["instruction"].strip():
             return {"ok": False, "stage": "empty", "why": "instruction emptied"}
@@ -390,6 +391,7 @@ def revalidate(
             ts.violations(
                 ts.size_of(orig["solve_sh"], orig["test_state_py"], _kind(orig)),
                 ts.size_of(task["solve_sh"], task["test_state_py"], _kind(task)),
+                min_added=0 if task.get("_calibration") else ts.MIN_ADDED,
             )
             if orig is not None and task.get("_direction") != "easier"
             else []
@@ -857,6 +859,8 @@ def process_one(
                     new.get("_family", fam),
                 )
 
+        if new.get("_calibration"):
+            rec["calibration"] = True
         _write_back(work, new)
         changed = _changed(task, new)
         box = _probe_box(new, resources)
