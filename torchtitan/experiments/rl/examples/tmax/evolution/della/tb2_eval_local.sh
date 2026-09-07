@@ -67,6 +67,8 @@ SET_SUFFIX=""
 STAMP=$(date -u +%Y%m%d-%H%M%SZ)
 EVAL=$TRL_BASE/evals/$STAMP--$RUN_NAME-step$STEP$SET_SUFFIX
 mkdir -p "$EVAL" || exit 2
+# The rollouter needs an output root to save completed validation attempts.
+export TRL_RUN_DIR="$EVAL"
 exec > >(tee -a "$EVAL/stdout.log") 2>&1
 
 set -a; . ~/.config/daytona/env; set +a
