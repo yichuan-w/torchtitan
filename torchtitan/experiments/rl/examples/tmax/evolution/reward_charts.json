@@ -255,16 +255,6 @@
             "input": "text",
             "name": "Task ID: "
           }
-        },
-        {
-          "name": "zoom",
-          "select": {
-            "type": "interval",
-            "encodings": [
-              "x"
-            ]
-          },
-          "bind": "scales"
         }
       ],
       "transform": [
