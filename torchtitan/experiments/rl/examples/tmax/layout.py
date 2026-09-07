@@ -408,11 +408,12 @@ class Run:
         return self.path / "advisories"
 
     def rollout_record(self, task: str, group: int, idx: int) -> Path:
-        return self.rollouts / safe(task) / f"g{group}-r{idx}.jsonl"
+        root = self.path / "validation_rollouts" if group < 0 else self.rollouts
+        return root / safe(task) / f"g{group}-r{idx}.jsonl"
 
     def pane(self, task: str, group: int, idx: int) -> Path:
         """The terminal transcript beside the record, when TMAX_PANE_DUMP=1."""
-        return self.rollouts / safe(task) / f"g{group}-r{idx}.pane"
+        return self.rollout_record(task, group, idx).with_suffix(".pane")
 
     def signal(self, task: str, group: int) -> Path:
         return self.signals / f"{safe(task)}--g{group}.json"

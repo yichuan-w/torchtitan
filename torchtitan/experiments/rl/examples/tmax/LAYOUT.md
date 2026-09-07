@@ -57,6 +57,7 @@ $TRL_BASE/
 │       ├── weights/step-<N>/    every step as bf16 HF safetensors (18 GB), written by ckpt_export.py
 │       ├── rollouts/<task>/g<group>-r<idx>.jsonl   one file per rollout (format below)
 │       │                     …/g<group>-r<idx>.pane    the terminal transcript, when TMAX_PANE_DUMP=1
+│       ├── validation_rollouts/<task>/g<group>-r<idx>.jsonl   completed validation attempts, saved before the full report
 │       ├── signals/<task>--g<group>.json           one per zero-variance training group
 │       └── advisories/{infra_quarantine,no_tmux}.jsonl   per-task warnings; append-only
 ├── evals/<stamp>--<run>-step<N>/ an evaluation is neither a run nor the loop
@@ -127,7 +128,9 @@ Every later line, one turn, keys in reading order:
 turn whose completion holds no Terminus response keeps its text under `raw`
 instead of `keystrokes`. `output` is the terminal reply the next turn was
 prompted with; empty on the last turn. Validation groups (negative ids) write
-no records; the controller's validation report owns those.
+the same format under `validation_rollouts/` as each attempt completes. They
+are separate from the training records consumed by evolution. The controller
+also writes its browsable report after the full validation pass finishes.
 
 ### Signal `runs/<run>/signals/<task>--g<group>.json`
 

@@ -524,7 +524,7 @@ def _write_rollout_record(
     verifier: dict | None = None,
     ctrf: dict | None = None,
 ) -> str | None:
-    """Write one training rollout as ``rollouts/<task>/g<group>-r<idx>.jsonl``
+    """Write one completed rollout as ``<task>/g<group>-r<idx>.jsonl``
     and return that path relative to the run, or None when nothing was written.
 
     Line 1 is the outcome and its cost; every later line is one turn, decoded
@@ -539,13 +539,13 @@ def _write_rollout_record(
 
     ``reward`` is the verifier's verdict before the rubric's shaping; ``turns``
     counts the turn lines that follow, one per adapter round trip. Validation
-    groups (negative ids) write nothing: their prompts are a held-out or
-    benchmark set the controller's validation report already owns, and a file
-    here would read as a training rollout of a task never trained on.
+    groups (negative ids) go under ``validation_rollouts/``; training groups
+    go under ``rollouts/``. Saving each completed validation attempt preserves
+    its evidence if the process exits before the controller writes its report.
     ``SWE_ROLLOUT_RECORDS=0`` switches the file off. Best-effort: a failed write
     is a warning, never a failed rollout.
     """
-    if group_id < 0 or os.environ.get("SWE_ROLLOUT_RECORDS", "1") != "1":
+    if os.environ.get("SWE_ROLLOUT_RECORDS", "1") != "1":
         return None
     path = run.rollout_record(sample.instance_id, group_id, rollout_idx)
     try:
