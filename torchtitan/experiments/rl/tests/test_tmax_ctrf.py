@@ -21,8 +21,8 @@ from unittest.mock import AsyncMock
 
 import pytest
 
-from torchtitan.experiments.rl.examples.tmax import rollouter as rollouter_mod
 from torchtitan.experiments.rl.examples.tmax import grading as grading_mod
+from torchtitan.experiments.rl.examples.tmax import rollouter as rollouter_mod
 from torchtitan.experiments.rl.examples.tmax.data import TMaxSample
 from torchtitan.experiments.rl.examples.tmax.grading import (
     ctrf_pass_fraction,
@@ -74,13 +74,18 @@ def test_grading_output_is_recorded_without_changing_reward(monkeypatch, reward)
     sandbox.exec.return_value = (0, output, "details\n")
     sandbox.read_file.side_effect = ["sentinel", str(reward)]
     diagnostics = {}
-    actual = asyncio.run(grading_mod.grade_tmax(
-        sandbox, {"test_sh": "test command"}, workdir="/app",
-        diagnostics=diagnostics,
-    ))
+    actual = asyncio.run(
+        grading_mod.grade_tmax(
+            sandbox,
+            {"test_sh": "test command"},
+            workdir="/app",
+            diagnostics=diagnostics,
+        )
+    )
     assert actual == reward
     assert diagnostics == {
-        "exit_code": 0, "output_tail": (output + "details\n")[-16000:]
+        "exit_code": 0,
+        "output_tail": (output + "details\n")[-16000:],
     }
     assert len(diagnostics["output_tail"]) == 16000
 
