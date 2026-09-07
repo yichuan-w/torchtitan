@@ -968,18 +968,23 @@ def rl_grpo_qwen3_5_9b_tmax() -> Controller.Config:
             enable_prefix_caching=True,
             cudagraph=VLLMCudagraphConfig(enable=True, mode="FULL_DECODE_ONLY"),
         )
-    # torch.compile the torchtitan model (trainer + the wrapper generator, which
-    # register_to_vllm compiles via compile_config). At TP=1 the inductor
-    # allreduce-fusion landmine that gates vLLM's own compile does not apply, and
-    # "aot_eager" is a safe, no-codegen backend (AOT trace, eager exec) whose
-    # faster forward lets more agent turns finish inside the per-task budget. So
-    # it defaults ON when TP==1. This recipe is FSDP/DP (always TP=1), so the
-    # default reaches the training trainer too; SWE_GEN_COMPILE=0 turns it off,
-    # =1 forces it on regardless of TP. SWE_GEN_COMPILE_BACKEND picks the backend
-    # (aot_eager default; "inductor" for more speedup at TP=1).
-    _tp1 = config.generator.parallelism.tensor_parallel_degree == 1
-    _compile_env = os.environ.get("SWE_GEN_COMPILE", "").strip()
-    if _compile_env == "1" or (_compile_env == "" and _tp1):
+    # torch.compile the torchtitan model. OFF by default, and it must stay that
+    # way for any config that trains: ``config.compile`` is one field shared by
+    # the trainer and the wrapper generator, so turning it on for the generator
+    # turns it on for the trainer too. The trainer cannot take it -- dynamo traces
+    # Qwen3.5's causal_conv1d (fla's CausalConv1dFunction, an autograd.Function
+    # carrying torch.compiler.disable) from inside the activation-checkpoint HOP,
+    # where falling back to a graph break is not available, so it raises
+    # torch._dynamo.exc.Unsupported and every forward_backward dies. f3738819
+    # defaulted this ON at TP==1 and cost a 150-step run 18 restarts and 8 hours
+    # without a single completed step; the gate is back to opt-in.
+    #
+    # SWE_GEN_COMPILE=1 opts in -- meant for the single-GPU eval, where nothing
+    # trains and a faster forward fits more agent turns inside the task budget.
+    # SWE_GEN_COMPILE_BACKEND picks the backend: aot_eager (default, AOT trace +
+    # eager exec, no codegen) or "inductor", which is only safe at TP=1 because
+    # of the allreduce-fusion landmine that gates vLLM's own compile.
+    if os.environ.get("SWE_GEN_COMPILE", "0") == "1":
         config.compile = dataclasses.replace(
             config.compile,
             enable=True,
