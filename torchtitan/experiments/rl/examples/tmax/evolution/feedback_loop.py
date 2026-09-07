@@ -700,6 +700,9 @@ def process_one(
         task["_task_id"] = tid
         task["_seed_dir"] = str(seed_dir)
         task["_solved"], task["_attempts"] = solved, graded
+        if signal.get("student_feedback") is not None:
+            task["_student_feedback"] = signal["student_feedback"]
+            rec["student_feedback"] = signal["student_feedback"]
         task["_direction"] = job
         task["_resources"] = resources
         # The row's pin hook, as the loop snapshotted it beside rewrite.json

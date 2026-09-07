@@ -889,6 +889,11 @@ in `traces/`. Start by identifying the successful strategy and a task-relevant
 judgment it currently bypasses. Inspect failures as well: distinguish a missing
 skill from unclear requirements or infrastructure trouble.
 
+A strategy not exercised in these attempts is not evidence that the student
+cannot use it. When prior measured feedback is supplied, compare its prediction
+with the actual attempts. A previous change solved consistently is demonstrated
+student capability; use that result to revise the difficulty hypothesis.
+
 Before editing, write `run/hardening.md`: cite attempt filenames and concrete
 actions or observations; explain the current strategy, the changed condition,
 and the new inference or decision needed to reach the original goal. State why
@@ -1349,6 +1354,21 @@ def evolve_agentic(
         + _traces_spec(rewrite.traces)
         + _budget(AGENT_TIMEOUT)
     )
+
+    if not use_operators and job == "harder" and task.get("_student_feedback"):
+        feedback = task["_student_feedback"]
+        (pkg / "run" / "student_feedback.json").write_text(
+            json.dumps(feedback, indent=2) + "\n"
+        )
+        prompt += (
+            "\n\nMEASURED STUDENT FEEDBACK\n"
+            "Read run/student_feedback.json before proposing the next change. "
+            "It records prior measurements and the requested adjustment. "
+            "Use the corresponding attempts to explain why the previous "
+            "change was too easy, too hard, or execution-heavy, and revise "
+            "that mechanism. Do not add the feedback, scores, or evaluator "
+            "details to the task instruction or environment.\n"
+        )
 
     with session(rewrite, "agent", timeout=AGENT_TIMEOUT) as run:
         try:

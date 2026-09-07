@@ -233,6 +233,20 @@ def test_harder_menu_is_opt_in(tmp_path, monkeypatch, mode):
         assert out["_harder_mode"] == "student"
 
 
+def test_measured_feedback_reaches_proposer_only(tmp_path, monkeypatch):
+    monkeypatch.setenv("EVOLVE_HARDER_OPERATORS", "0")
+    rw = _rewrite(tmp_path, monkeypatch)
+    sessions, checks = [], []
+    _wire(monkeypatch, sessions, checks)
+    feedback = {"solved": 16, "scored": 16, "action": "harder"}
+    ec.evolve_agentic(rw, {**SEED, "_student_feedback": feedback}, "harder")
+    assert "Read run/student_feedback.json" in sessions[0]["prompt"]
+    assert (
+        json.loads((rw.package / "run/student_feedback.json").read_text()) == feedback
+    )
+    assert "student_feedback" not in (rw.package / "instruction.md").read_text()
+
+
 def test_operator_mode_still_requires_declaration(tmp_path, monkeypatch):
     monkeypatch.setenv("EVOLVE_HARDER_OPERATORS", "1")
     rw = _rewrite(tmp_path, monkeypatch)
