@@ -47,9 +47,9 @@ export SYNTH_ENV_FILE=${SYNTH_ENV_FILE:-/scratch/gpfs/TRIDAO/al9080/terminal-rl/
 export TRL_PROFILE TRL_BASE TRL_VENV TRL_TT=$TT PYTHONPATH=$TT
 # Agentic retune with the full rollout records as files, no chat fallback; a
 # vague hint level, since specific where-to-look hints teach hint-following.
-# The easier arm stays off: 0/k signals get a `deferred` ledger line and are
-# replayed when it is turned on.
-export SWE_RETUNE_AGENT=codex SWE_SIMPLIFY_HINT=vague SWE_EVOLVE_SIMPLIFY=0
+# The easier arm defaults off. An explicit opt-in replays deferred 0/k signals.
+export SWE_RETUNE_AGENT=codex SWE_SIMPLIFY_HINT=vague
+export SWE_EVOLVE_SIMPLIFY=${SWE_EVOLVE_SIMPLIFY:-0}
 # Default hardening follows student traces without an operator menu or declaration.
 # Set to 1 before launch to restore the fixed shortlist.
 export EVOLVE_HARDER_OPERATORS=${EVOLVE_HARDER_OPERATORS:-0}
