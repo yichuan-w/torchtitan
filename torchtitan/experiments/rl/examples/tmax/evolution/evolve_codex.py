@@ -83,6 +83,7 @@ CODEX_MODEL = os.environ.get("SYNTH_MODEL", "gpt-5.6")
 # records as reasoning_effort=null.
 CODEX_EFFORT = llm.EFFORT
 API_BASE = os.environ.get("SYNTH_API_BASE", "https://us.api.openai.com/v1")
+ACCOUNT_HOME = os.environ.get("EVOLVE_CODEX_ACCOUNT_HOME")
 # Turn budget the agent is told to respect; the hard cap is the subprocess
 # timeout below. "deadline in the prompt" per the design.
 MAX_TOOL_CALLS = int(os.environ.get("CODEX_RETUNE_MAX_CALLS", "25"))
@@ -282,12 +283,25 @@ def _harness_env() -> dict:
 def _codex_env(sd: layout.SessionDir) -> dict:
     env = _harness_env()
     env["CODEX_HOME"] = str(sd.codex_home)
-    env["OPENAI_API_KEY"] = llm._api_key()
+    if ACCOUNT_HOME:
+        auth = Path(ACCOUNT_HOME).resolve() / "auth.json"
+        if not auth.is_file():
+            raise RuntimeError(f"account authentication missing: {auth}")
+        sd.codex_home.mkdir(parents=True, exist_ok=True)
+        # Codex 0.153.4 writes through this link; one credential file owns refresh.
+        (sd.codex_home / "auth.json").symlink_to(auth)
+        env.pop("OPENAI_API_KEY", None)
+        env.pop("CODEX_THREAD_ID", None)
+        env.pop("CODEX_SESSION_ID", None)
+    else:
+        env["OPENAI_API_KEY"] = llm._api_key()
     return env
 
 
 def _provider_overrides() -> list[str]:
     """The provider settings both drivers pass; the SDK takes them as a list."""
+    if ACCOUNT_HOME:
+        return ["model_provider=openai"]
     return [
         "model_providers.oai.name=openai",
         f"model_providers.oai.base_url={API_BASE}",
@@ -327,17 +341,27 @@ def _codex_cmd(cwd: Path, resume: str | None = None) -> list[str]:
     cmd += [
         "--dangerously-bypass-approvals-and-sandbox",
         "--skip-git-repo-check",
-        "-c",
-        "model_providers.oai.name=openai",
-        "-c",
-        f"model_providers.oai.base_url={API_BASE}",
-        "-c",
-        "model_providers.oai.env_key=OPENAI_API_KEY",
-        "-c",
-        "model_provider=oai",
-        "-c",
-        f"model_reasoning_effort={CODEX_EFFORT}",
     ]
+    for override in _provider_overrides() + [f"model_reasoning_effort={CODEX_EFFORT}"]:
+        cmd += ["-c", override]
+    if ACCOUNT_HOME:
+        # Use the account's authentication, but never its personal configuration.
+        cmd += [
+            "--ignore-user-config",
+            "--json",
+            "-c",
+            "project_doc_max_bytes=0",
+            "-c",
+            "features.skip_host_skill_discovery=true",
+            "-c",
+            "features.plugins=false",
+            "-c",
+            "features.apps=false",
+            "-c",
+            "features.hooks=false",
+            "-c",
+            "skills.include_instructions=false",
+        ]
     # `exec resume` takes no -C (codex-cli 0.149: it continues in the
     # session's recorded cwd); the subprocess is started in the package
     # either way.
@@ -374,7 +398,12 @@ def _run_codex(
         "named apply_patch may use a different format. Read back files you "
         "create, including run/verdict.txt, before reporting that they exist.\n"
     )
+    if ACCOUNT_HOME and (cwd / "AGENTS.md").is_file():
+        # Automatic document discovery is off; retain the experiment's own role.
+        prompt = (cwd / "AGENTS.md").read_text() + "\n\n" + prompt
     sd.prompt.write_text(prompt)
+    if ACCOUNT_HOME and CODEX_DRIVER != "exec":
+        raise ValueError("account authentication currently requires the exec driver")
     env = _codex_env(sd)
     if CODEX_DRIVER == "sdk":
         cmd = _session_cmd(run, cwd, resume=resume)
@@ -404,6 +433,9 @@ def _run_codex(
                 proc.kill()
                 proc.communicate()
                 raise
+            finally:
+                if ACCOUNT_HOME:
+                    (sd.codex_home / "auth.json").unlink(missing_ok=True)
     except subprocess.TimeoutExpired as exc:
         run.meta["exit_code"] = proc.returncode
         # The partial streams are on disk; hand them to the caller too, which

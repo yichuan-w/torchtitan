@@ -40,6 +40,46 @@ TASK = {
 }
 
 
+def test_account_auth_never_loads_api_key(tmp_path, monkeypatch) -> None:
+    monkeypatch.setenv("TRL_BASE", str(tmp_path))
+    (tmp_path / "account").mkdir()
+    (tmp_path / "account/auth.json").write_text("account credential")
+    monkeypatch.setattr(ec, "ACCOUNT_HOME", str(tmp_path / "account"))
+    monkeypatch.setattr(ec, "_harness_env", lambda: {"OPENAI_API_KEY": "unused"})
+    monkeypatch.setattr(ec.llm, "_api_key", lambda: pytest.fail("API auth used"))
+    env = ec._codex_env(SimpleNamespace(codex_home=tmp_path / "private"))
+    assert env["CODEX_HOME"] == str(tmp_path / "private")
+    assert (tmp_path / "private/auth.json").is_symlink()
+    assert (tmp_path / "private/auth.json").samefile(tmp_path / "account/auth.json")
+    assert "OPENAI_API_KEY" not in env
+    cmd = ec._codex_cmd(tmp_path)
+    assert "--ignore-user-config" in cmd and "--json" in cmd
+    assert "model_provider=openai" in cmd
+    assert not any("env_key" in part or "base_url" in part for part in cmd)
+
+
+def test_account_cleanup_preserves_source_auth_and_private_trace(
+    tmp_path, monkeypatch
+) -> None:
+    account = tmp_path / "account"
+    source = account / "sessions"
+    source.mkdir(parents=True)
+    (source / "rollout-own.jsonl").write_text("own transcript\n")
+    (source / "rollout-other.jsonl").write_text("other account activity\n")
+    (account / "auth.json").write_text("credential must stay here")
+    private = tmp_path / "private"
+    monkeypatch.setattr(ec, "ACCOUNT_HOME", str(account))
+    monkeypatch.setattr(ec, "_harness_env", dict)
+    ec._codex_env(SimpleNamespace(codex_home=private))
+    (private / "sessions").mkdir()
+    (private / "sessions/rollout-own.jsonl").write_text("own transcript\n")
+    ec._prune_private_home(private)
+    assert (private / "sessions/rollout-own.jsonl").read_text() == "own transcript\n"
+    assert not (private / "sessions/rollout-other.jsonl").exists()
+    assert not (private / "auth.json").exists()
+    assert (account / "auth.json").read_text() == "credential must stay here"
+
+
 @pytest.mark.parametrize("via_stdin", [False, True])
 def test_sandbox_patch_uses_run_codex_and_preserves_failure(
     tmp_path, monkeypatch, via_stdin
@@ -250,6 +290,96 @@ def _fake_popen(monkeypatch, **cfg):
     monkeypatch.setattr(ec, "_codex_env", lambda sd: {"CODEX_HOME": str(sd.codex_home)})
     monkeypatch.setattr(ec, "_codex_bin", lambda: Path("/opt/bin/codex"))
     return seen
+
+
+@pytest.mark.parametrize("timed_out", [False, True])
+def test_account_run_isolates_context_and_removes_auth_link(
+    tmp_path, monkeypatch, timed_out
+) -> None:
+    rw = _rewrite(tmp_path, monkeypatch)
+    account = tmp_path / "account"
+    account.mkdir()
+    source_auth = account / "auth.json"
+    source_auth.write_text("test account credential")
+    role = "Use only this task's package.\n"
+    (rw.package / "AGENTS.md").write_text(role)
+    monkeypatch.setattr(ec, "ACCOUNT_HOME", str(account))
+    monkeypatch.setattr(ec, "CODEX_DRIVER", "exec")
+    monkeypatch.setattr(ec, "_codex_bin", lambda: Path("/opt/bin/codex"))
+    monkeypatch.setattr(ec.llm, "_api_key", lambda: pytest.fail("API auth used"))
+    monkeypatch.setattr(
+        ec,
+        "_harness_env",
+        lambda: {
+            "OPENAI_API_KEY": "unused",
+            "CODEX_THREAD_ID": "unrelated-thread",
+            "CODEX_SESSION_ID": "unrelated-session",
+        },
+    )
+    started = []
+
+    def on_start(command, kwargs):
+        env = kwargs["env"]
+        private = Path(env["CODEX_HOME"])
+        assert private != account
+        assert (private / "auth.json").is_symlink()
+        assert (private / "auth.json").samefile(source_auth)
+        assert (
+            not {"OPENAI_API_KEY", "CODEX_THREAD_ID", "CODEX_SESSION_ID"} & env.keys()
+        )
+        assert "--ignore-user-config" in command and "--json" in command
+        assert "model_provider=openai" in command
+        assert not any("env_key" in arg or "base_url" in arg for arg in command)
+        for override in (
+            "project_doc_max_bytes=0",
+            "features.skip_host_skill_discovery=true",
+            "features.plugins=false",
+            "features.apps=false",
+            "features.hooks=false",
+            "skills.include_instructions=false",
+        ):
+            assert override in command
+        started.append(private)
+
+    class AccountPopen(_FakePopen):
+        def communicate(self, input=None, timeout=None):
+            if input is not None:
+                assert input.startswith(role + "\n\nsimplify the task")
+            return super().communicate(input=input, timeout=timeout)
+
+    def factory(command, **kwargs):
+        return AccountPopen(
+            command,
+            on_start=on_start,
+            out="account output\n",
+            timeout_after=5 if timed_out else None,
+            **kwargs,
+        )
+
+    monkeypatch.setattr(ec.subprocess, "Popen", factory)
+    expectation = (
+        pytest.raises(subprocess.TimeoutExpired) if timed_out else nullcontext()
+    )
+    with expectation:
+        with ec.session(rw, "agent", timeout=5) as run:
+            try:
+                result = ec._run_codex(run, rw.package, "simplify the task")
+                assert result.returncode == 0
+            finally:
+                # Check before session() prunes the home, so it cannot hide a leak.
+                assert not (run.dir.codex_home / "auth.json").is_symlink()
+                assert not (run.dir.codex_home / "auth.json").exists()
+                assert source_auth.read_text() == "test account credential"
+                assert run.dir.prompt.read_text().startswith(
+                    role + "\n\nsimplify the task"
+                )
+
+    assert started == [run.dir.codex_home]
+    assert run.dir.stdout.read_text() == "account output\n"
+    meta = json.loads(run.dir.meta.read_text())
+    assert meta["status"] == ("timed_out" if timed_out else "completed")
+    assert meta["exit_code"] == (-9 if timed_out else 0)
+    assert source_auth.read_text() == "test account credential"
 
 
 def test_session_records_start_and_end_and_prunes_the_codex_home(

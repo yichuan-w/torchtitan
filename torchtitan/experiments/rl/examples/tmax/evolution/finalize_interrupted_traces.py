@@ -1,4 +1,10 @@
 #!/usr/bin/env python3
+# Copyright (c) Meta Platforms, Inc. and affiliates.
+# All rights reserved.
+#
+# This source code is licensed under the BSD-style license found in the
+# LICENSE file in the root directory of this source tree.
+
 """Mark the sessions and rewrites a stopped loop left `running`.
 
 restart_evolve.sh stops the loop's whole process group, so every codex
@@ -6,8 +12,9 @@ session alive at that moment died with it and every rewrite waiting on one
 never reached its verdict. Their records still say `running`, which reads as
 live. This walks tasks/*/rewrites/*/ under the root, and writes `interrupted`
 into every session.json and rewrite.json that says `running`, with when it
-was observed and which loop pid was stopped. Nothing else is touched: a
-record that already finished says what it says.
+was observed and which loop pid was stopped. Account-auth links left by the
+stopped sessions are removed without touching their targets. Records that
+already finished retain their status.
 
     finalize_interrupted_traces.py --stopped-loop-pid <pid>     (TRL_BASE set)
 """
@@ -25,14 +32,20 @@ from torchtitan.experiments.rl.examples.tmax import layout  # noqa: E402
 def _mark(path: Path, *, stopped_loop_pid: int, observed: str) -> str:
     """'marked', 'skipped' or raises."""
     record = json.loads(path.read_text())
+    # SIGKILL bypasses the session's finally; never dereference shared auth.
+    auth_link = path.parent / "codex" / "auth.json"
+    if auth_link.is_symlink():
+        auth_link.unlink()
     if record.get("status") != "running":
         return "skipped"
-    record.update({
-        "status": "interrupted",
-        "finished": observed,
-        "error": f"evolve loop process group stopped (pid {stopped_loop_pid})",
-        "stopped_loop_pid": stopped_loop_pid,
-    })
+    record.update(
+        {
+            "status": "interrupted",
+            "finished": observed,
+            "error": f"evolve loop process group stopped (pid {stopped_loop_pid})",
+            "stopped_loop_pid": stopped_loop_pid,
+        }
+    )
     layout.write_json_atomic(path, record)
     return "marked"
 
@@ -47,16 +60,34 @@ def finalize_interrupted(root: layout.Root, *, stopped_loop_pid: int) -> dict[st
                 if not path.exists():
                     continue
                 try:
-                    outcome = _mark(path, stopped_loop_pid=stopped_loop_pid, observed=observed)
+                    outcome = _mark(
+                        path, stopped_loop_pid=stopped_loop_pid, observed=observed
+                    )
                 except (OSError, ValueError, TypeError) as exc:
                     counts["failed"] += 1
-                    print(json.dumps({"outcome": "finalize_failed", "file": str(path),
-                                      "error": f"{type(exc).__name__}: {exc}"}, sort_keys=True))
+                    print(
+                        json.dumps(
+                            {
+                                "outcome": "finalize_failed",
+                                "file": str(path),
+                                "error": f"{type(exc).__name__}: {exc}",
+                            },
+                            sort_keys=True,
+                        )
+                    )
                     continue
                 counts[outcome] += 1
                 if outcome == "marked":
-                    print(json.dumps({"outcome": "marked_interrupted", "task": task.task_id,
-                                      "file": str(path.relative_to(root.path))}, sort_keys=True))
+                    print(
+                        json.dumps(
+                            {
+                                "outcome": "marked_interrupted",
+                                "task": task.task_id,
+                                "file": str(path.relative_to(root.path)),
+                            },
+                            sort_keys=True,
+                        )
+                    )
     return counts
 
 
@@ -64,7 +95,9 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     parser.add_argument("--stopped-loop-pid", required=True, type=int)
     args = parser.parse_args()
-    counts = finalize_interrupted(layout.Root.from_env(), stopped_loop_pid=args.stopped_loop_pid)
+    counts = finalize_interrupted(
+        layout.Root.from_env(), stopped_loop_pid=args.stopped_loop_pid
+    )
     print(json.dumps({"outcome": "finalize_summary", **counts}, sort_keys=True))
     return int(counts["failed"] > 0)
 
