@@ -914,6 +914,13 @@ checksum appended after the original solution is not enough merely because it
 reads the original outputs. Choose the mechanism the traces justify, rather
 than applying an example mechanically.
 
+Prefer changes to inputs or objectives that require the successful strategy to
+adapt, rather than merely declaring that strategy disallowed. If correctness
+depends on a method or source restriction, make it enforceable in the runnable
+environment or checkable by the grader; otherwise reformulate it as an
+observable task condition. When reviewing measured feedback, check successful
+attempts for violations of those restrictions.
+
 Preserve the original user goal and a solvable, discoverable specification.
 Aim for a modest reduction in this student's solve rate toward mixed success,
 not universal failure. Describe this as a hypothesis for student re-testing;
