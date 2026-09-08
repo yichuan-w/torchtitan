@@ -16,6 +16,8 @@ import sys
 import time
 from pathlib import Path
 
+import pytest
+
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 import evolve_ondella as od
@@ -136,6 +138,13 @@ def _stub(monkeypatch, status: str = "accepted", **extra) -> _Seen:
                     if (rewrite.traces / "previous-simplify.json").exists()
                     else None
                 ),
+                "previous_parent": {
+                    str(
+                        path.relative_to(rewrite.traces / "previous-simplify-parent")
+                    ): path.read_bytes()
+                    for path in (rewrite.traces / "previous-simplify-parent").rglob("*")
+                    if path.is_file()
+                },
             }
         )
         (rewrite.package / "instruction.md").write_text("harder\n")
@@ -233,11 +242,19 @@ def test_next_revision_receives_prior_simplification_and_current_outcome(
     _signal(root, rev=1, group=8, direction="harder", created="20260904-183112Z")
     od.run_round(root, workers=1)
     prior = seen[1]["previous_simplify"]
+    original = root.evolution.task("tw_a").rev(0)
     assert prior == {
         "input_rev": 0,
         "result_rev": 1,
         "simplify": choice,
         "observed": {"direction": "harder", "solved": 2, "total": 2},
+        "parent": {
+            "path": "traces/previous-simplify-parent",
+            "sha256": {name: layout.sha256_file(original / name) for name in SEED},
+        },
+    }
+    assert seen[1]["previous_parent"] == {
+        name: content.encode() for name, content in SEED.items()
     }
     assert not (root.evolution.task("tw_a").rev(2) / "traces").exists()
 
@@ -281,7 +298,54 @@ def test_calibration_preserves_the_intervention_for_the_next_revision(
         "simplify": choice,
         "calibrations": [adjustment],
         "observed": {"direction": "easier", "solved": 0, "total": 2},
+        "parent": {
+            "path": "traces/previous-simplify-parent",
+            "sha256": {
+                name: layout.sha256_file(root.evolution.task("tw_a").rev(0) / name)
+                for name in SEED
+            },
+        },
     }
+    assert (
+        following[0]["previous_parent"]["instruction.md"]
+        == SEED["instruction.md"].encode()
+    )
+
+
+@pytest.mark.parametrize("change", ["file", "metadata", "both"])
+def test_changed_simplify_reference_is_rejected_without_changing_original(
+    tmp_path, monkeypatch, change
+):
+    root = _root(tmp_path, monkeypatch)
+    _signal(root, direction="easier")
+    _stub(monkeypatch, simplify={"operator": "reduce_scale"})
+    assert od.run_round(root, workers=1)["accepted"] == 1
+    _signal(root, rev=1, group=8, created="20260904-183112Z")
+    seen = _stub(monkeypatch, calibration=True)
+    process = od.fb.process_one
+
+    def change_reference(rewrite, *args, **kwargs):
+        result = process(rewrite, *args, **kwargs)
+        reference = rewrite.traces / "previous-simplify-parent/instruction.md"
+        if change in ("file", "both"):
+            reference.write_text("A different original goal.\n")
+        if change in ("metadata", "both"):
+            record = rewrite.traces / "previous-simplify.json"
+            context = json.loads(record.read_text())
+            context["input_rev"] = 1
+            context["parent"]["sha256"]["instruction.md"] = layout.sha256_file(
+                reference
+            )
+            record.write_text(json.dumps(context))
+        return result
+
+    monkeypatch.setattr(od.fb, "process_one", change_reference)
+    assert od.run_round(root, workers=1)["accepted"] == 0
+    meta = json.loads(seen[0]["rewrite"].meta.read_text())
+    assert meta["status"] == "rejected" and meta["stage"] == "simplify_context"
+    original = root.evolution.task("tw_a").rev(0) / "instruction.md"
+    assert original.read_text() == SEED["instruction.md"]
+    assert not root.evolution.task("tw_a").rev(2).exists()
 
 
 def test_ordinary_hardening_does_not_reuse_an_older_simplification(

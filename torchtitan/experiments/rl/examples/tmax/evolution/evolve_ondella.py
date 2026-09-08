@@ -526,6 +526,10 @@ def handle(
             layout.link_or_copy(
                 run_dir / rel, rewrite.traces / f"attempt-{i:02d}.jsonl"
             )
+        parent_snapshot = None
+        parent_hashes = {}
+        previous_context = None
+        context_hash = None
         for previous in task.rewrite_dirs():
             try:
                 previous_meta = json.loads(previous.meta.read_text())
@@ -548,15 +552,30 @@ def handle(
                 and previous_meta.get("result_rev") == rev
                 and context
             ):
-                layout.write_json_atomic(
-                    rewrite.traces / "previous-simplify.json",
-                    {
-                        **context,
-                        "result_rev": rev,
-                        "observed": {
-                            key: d[key] for key in ("direction", "solved", "total")
-                        },
+                parent_snapshot = rewrite.traces / "previous-simplify-parent"
+                # A hardlink would let edits to the reference change the original revision.
+                shutil.copytree(task.rev(context["input_rev"]), parent_snapshot)
+                parent_hashes = {
+                    str(path.relative_to(parent_snapshot)): layout.sha256_file(path)
+                    for path in sorted(parent_snapshot.rglob("*"))
+                    if path.is_file()
+                }
+                previous_context = {
+                    **context,
+                    "result_rev": rev,
+                    "parent": {
+                        "path": str(parent_snapshot.relative_to(rewrite.package)),
+                        "sha256": parent_hashes,
                     },
+                    "observed": {
+                        key: d[key] for key in ("direction", "solved", "total")
+                    },
+                }
+                layout.write_json_atomic(
+                    rewrite.traces / "previous-simplify.json", previous_context
+                )
+                context_hash = layout.sha256_file(
+                    rewrite.traces / "previous-simplify.json"
                 )
                 break
         rec = fb.process_one(
@@ -567,10 +586,26 @@ def handle(
             resources=training_box(tid, declared),
             history=history,
         )
+        if parent_snapshot is not None:
+            current_hashes = {
+                str(path.relative_to(parent_snapshot)): layout.sha256_file(path)
+                for path in sorted(parent_snapshot.rglob("*"))
+                if path.is_file()
+            }
+            context_file = rewrite.traces / "previous-simplify.json"
+            if (
+                current_hashes != parent_hashes
+                or not context_file.is_file()
+                or layout.sha256_file(context_file) != context_hash
+            ):
+                rec.update(
+                    status="rejected",
+                    stage="simplify_context",
+                    reason="The original task reference or its lineage record was changed.",
+                )
         if rec.get("calibration"):
-            context = json.loads(
-                (rewrite.traces / "previous-simplify.json").read_text()
-            )
+            assert previous_context is not None
+            context = previous_context
             rationale = rewrite.package / "run" / "hardening.md"
             context.setdefault("calibrations", []).append(
                 {

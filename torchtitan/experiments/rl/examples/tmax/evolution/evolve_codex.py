@@ -963,8 +963,11 @@ support a useful change within the size limits, write
 """
 
 _CALIBRATION_GUIDANCE = """The previous simplification now has all attempts passing.
-Read `traces/previous-simplify.json` and the current attempts. Move toward mixed
-success by partially undoing the previous simplification. Keep
+Read `traces/previous-simplify.json` and the current attempts. When the record
+includes a parent path, compare that original task's files with the current
+package to identify the exact help or restriction that changed. Keep the
+reference copy and lineage record unchanged; both are checked after the session. Move toward
+mixed success by partially undoing the previous simplification. Keep
 the change within the earlier task's requirements; do not introduce another
 obligation or a new difficulty dimension.
 
