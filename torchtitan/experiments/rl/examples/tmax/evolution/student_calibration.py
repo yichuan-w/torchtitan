@@ -55,10 +55,11 @@ def assess_attempts(rows: list[dict], *, expected: int = 16) -> dict:
     }
     if len(scored) != expected:
         action = "remeasure"
+    elif solved / expected > 0.75:
+        # A few exhausted attempts must not route an otherwise easy task to easier.
+        action = "harder"
     elif execution_failures > expected / 4 or execution_failures > failures / 2:
         action = "review_execution"
-    elif solved / expected > 0.75:
-        action = "harder"
     elif solved / expected < 0.25:
         action = "easier"
     else:

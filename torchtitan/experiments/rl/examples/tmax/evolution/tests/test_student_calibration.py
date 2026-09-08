@@ -65,6 +65,19 @@ def test_execution_exhaustion_does_not_count_as_calibrated_difficulty(reason):
     assert result["execution_limit_failures"] == 8
 
 
+@pytest.mark.parametrize("solved", [12, 13, 14, 15])
+@pytest.mark.parametrize(
+    "reason", ["hit_max_turns", "hit_time_budget", "hit_context_limit"]
+)
+def test_high_success_requires_hardening_despite_execution_failures(solved, reason):
+    rows = attempts(solved)
+    for row in rows[solved:]:
+        row["finish_reason"] = reason
+    result = assess_attempts(rows)
+    assert result["action"] == ("harder" if solved > 12 else "review_execution")
+    assert result["execution_limit_failures"] == 16 - solved
+
+
 def test_no_duplicate_or_mixed_task_attempts():
     rows = attempts(8)
     rows[-1]["trial"] = rows[0]["trial"]
