@@ -258,6 +258,7 @@ async def run_vanillux_loop(
     time_budget_sec: int,
     max_turns: int = _MAX_TURNS,
     exec_timeout: int = _EXEC_TIMEOUT,
+    max_context_tokens: int = 0,
 ) -> tuple[int, bool, int, str]:
     """Drive the faithful Vanillux bash-only ReAct agent against the adapter.
 
@@ -312,6 +313,17 @@ async def run_vanillux_loop(
             b for b in blocks if isinstance(b, dict) and b.get("type") == "tool_use"
         ]
         if not tool_uses:
+            usage = data.get("usage") or {}
+            if (
+                stop_reason in ("max_tokens", "length")
+                and max_context_tokens > 0
+                and usage.get("input_tokens", 0) + usage.get("output_tokens", 0)
+                >= max_context_tokens
+            ):
+                # A truncated action at the context wall is a resource failure,
+                # not evidence that the policy failed to follow the tool format.
+                finish_reason = "hit_context_limit"
+                break
             text = "".join(
                 b.get("text", "")
                 for b in blocks
@@ -436,6 +448,7 @@ async def vanillux_agent(task: AgentTask) -> AgentRun:
         session_id=task.session_id,
         adapter=task.adapter,
         time_budget_sec=task.time_budget_sec,
+        max_context_tokens=task.max_context_tokens,
         **({"max_turns": task.max_turns} if task.max_turns is not None else {}),
         **(
             {"exec_timeout": task.exec_timeout} if task.exec_timeout is not None else {}

@@ -38,7 +38,7 @@ from torchtitan.experiments.rl.examples.tmax.rollouter import (
     _write_rollout_record,
     TMaxRollouter,
 )
-from torchtitan.experiments.rl.harness import CapturedTurn
+from torchtitan.experiments.rl.harness import AgentTask, CapturedTurn
 from torchtitan.experiments.rl.observability.metrics import Mean
 from torchtitan.experiments.rl.rollout.types import Rollout, RolloutStatus
 
@@ -113,6 +113,7 @@ def _run_loop(
     *,
     time_budget_sec: int = 60,
     max_turns: int = 1,
+    max_context_tokens: int = 0,
 ) -> tuple[int, bool, int, str]:
     sandbox: Any = object()
     adapter: Any = _FakeAdapter(responses)
@@ -124,6 +125,7 @@ def _run_loop(
             adapter=adapter,
             time_budget_sec=time_budget_sec,
             max_turns=max_turns,
+            max_context_tokens=max_context_tokens,
         )
     )
 
@@ -301,6 +303,81 @@ def test_format_error_stops_early(monkeypatch: pytest.MonkeyPatch) -> None:
     response = {"content": [{"type": "text", "text": "not a tool call"}]}
 
     assert _run_loop([response]) == (1, False, 1, "stopped_early")
+
+
+@pytest.mark.parametrize("feedback", [False, True])
+@pytest.mark.parametrize("output_tokens", [0, 64])
+def test_context_exhaustion_is_not_a_format_error(monkeypatch, feedback, output_tokens):
+    monkeypatch.setattr(vanillux_loop, "_FORMAT_ERROR_FEEDBACK", feedback)
+    response = {
+        "content": [
+            {"type": "text", "text": "partial action" if output_tokens else ""}
+        ],
+        "stop_reason": "max_tokens",
+        "usage": {
+            "input_tokens": 32768 - output_tokens,
+            "output_tokens": output_tokens,
+        },
+    }
+    assert _run_loop([response], max_context_tokens=32768) == (
+        1,
+        False,
+        0,
+        "hit_context_limit",
+    )
+
+
+@pytest.mark.parametrize("context_cap", [0, 32768])
+def test_per_turn_truncation_is_not_context_exhaustion(monkeypatch, context_cap):
+    monkeypatch.setattr(vanillux_loop, "_FORMAT_ERROR_FEEDBACK", False)
+    response = {
+        "content": [{"type": "text", "text": "partial action"}],
+        "stop_reason": "max_tokens",
+        "usage": {"input_tokens": 1000, "output_tokens": 8192},
+    }
+    assert _run_loop([response], max_context_tokens=context_cap) == (
+        1,
+        False,
+        1,
+        "stopped_early",
+    )
+
+
+def test_agent_passes_context_budget_to_loop():
+    response = {
+        "content": [{"type": "text", "text": "partial action"}],
+        "stop_reason": "max_tokens",
+        "usage": {"input_tokens": 32700, "output_tokens": 68},
+    }
+    result = asyncio.run(
+        vanillux_loop.vanillux_agent(
+            AgentTask(
+                sandbox=object(),
+                instruction="test task",
+                session_id="test",
+                adapter=_FakeAdapter([response]),
+                time_budget_sec=60,
+                max_context_tokens=32768,
+            )
+        )
+    )
+    assert (result.finish_reason, result.format_errors) == ("hit_context_limit", 0)
+
+
+def test_complete_tool_at_context_wall_still_executes(monkeypatch):
+    async def run_bash(sb, command, timeout):
+        return vanillux_loop.SUBMIT_MARKER, 0
+
+    monkeypatch.setattr(vanillux_loop, "_run_bash", run_bash)
+    response = _tool_response()
+    response.update(
+        stop_reason="max_tokens",
+        usage={
+            "input_tokens": 32700,
+            "output_tokens": 68,
+        },
+    )
+    assert _run_loop([response], max_context_tokens=32768) == (1, True, 0, "submit")
 
 
 def test_finish_reason_metrics_are_exhaustive_fractions() -> None:

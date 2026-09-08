@@ -1344,6 +1344,7 @@ class TMaxRollouter(Rollouter):
                             adapter=adapter,
                             time_budget_sec=budget_sec,
                             workdir=sample.workdir,
+                            max_context_tokens=self._max_context_tokens,
                         )
                     )
                     # None = the harness has no submit signal at all; grade anyway
