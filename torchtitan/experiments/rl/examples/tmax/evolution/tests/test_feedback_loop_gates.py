@@ -565,8 +565,9 @@ def test_incomplete_null_check_cannot_accept_a_rewrite(tmp_path, monkeypatch, nu
         "environment/input.txt",
     ],
 )
-def test_scaffold_preserves_the_executable_task_before_validation(
-    tmp_path, monkeypatch, extra
+@pytest.mark.parametrize("operator", ["add_scaffold", "provide_initial_state"])
+def test_simplify_preserves_operator_scope_before_validation(
+    tmp_path, monkeypatch, extra, operator
 ):
     rw, r0 = _rewrite(tmp_path, monkeypatch)
     ec = _fake_ec()
@@ -576,8 +577,8 @@ def test_scaffold_preserves_the_executable_task_before_validation(
         new = {
             **task,
             "instruction": task["instruction"] + "Inspect the input format first.\n",
-            "_simplify": {"operator": "add_scaffold"},
-            "_operator": "add_scaffold",
+            "_simplify": {"operator": operator},
+            "_operator": operator,
             "_family": "simplify",
         }
         if extra in ("dockerfile", "solve_sh", "test_state_py"):
@@ -599,7 +600,10 @@ def test_scaffold_preserves_the_executable_task_before_validation(
     monkeypatch.setattr(fb, "revalidate", revalidate)
     monkeypatch.setattr(fb.shutil, "which", lambda _name: None)
     rec = fb.process_one(rw, {**SIGNAL, "solved": 0}, job="easier", seed_dir=r0)
-    if extra:
+    rejected = extra and (
+        operator == "add_scaffold" or extra in ("test_state_py", "tests/helper.py")
+    )
+    if rejected:
         assert rec["status"] == "rejected" and rec["stage"] == "simplify_scope"
         assert extra in rec["changed"] and extra in rec["reason"]
         assert calls == []
@@ -610,8 +614,9 @@ def test_scaffold_preserves_the_executable_task_before_validation(
 
 @pytest.mark.parametrize("alternate", fb.ev.VERIFIER_CANDIDATES)
 @pytest.mark.parametrize("operation", ["add", "remove", "change"])
-def test_scaffold_checks_verifier_entries_omitted_by_the_collector(
-    tmp_path, monkeypatch, alternate, operation
+@pytest.mark.parametrize("operator", ["add_scaffold", "provide_initial_state"])
+def test_simplify_checks_verifier_entries_omitted_by_the_collector(
+    tmp_path, monkeypatch, alternate, operation, operator
 ):
     import evolve_codex as real_ec
 
@@ -635,8 +640,8 @@ def test_scaffold_checks_verifier_entries_omitted_by_the_collector(
         assert not new["_support_changed"]
         return {
             **new,
-            "_simplify": {"operator": "add_scaffold"},
-            "_operator": "add_scaffold",
+            "_simplify": {"operator": operator},
+            "_operator": operator,
             "_family": "simplify",
         }
 
@@ -651,6 +656,38 @@ def test_scaffold_checks_verifier_entries_omitted_by_the_collector(
     rec = fb.process_one(rw, {**SIGNAL, "solved": 0}, job="easier", seed_dir=r0)
     assert rec["status"] == "rejected" and rec["stage"] == "simplify_scope", rec
     assert alternate in rec["reason"]
+
+
+@pytest.mark.parametrize("operator", ["add_scaffold", "provide_initial_state"])
+def test_simplify_preserves_unchanged_crlf_verifier(tmp_path, monkeypatch, operator):
+    rw, r0 = _rewrite(tmp_path, monkeypatch)
+    verifier = fb.ev.FILES["test_state_py"]
+    original = SEED["test_state_py"].replace("\n", "\r\n").encode()
+    for root in (r0, rw.package):
+        (root / verifier).write_bytes(original)
+    ec = _fake_ec()
+
+    def simplify(rewrite, task, **kwargs):
+        return {
+            **task,
+            "instruction": task["instruction"] + "Inspect the input format first.\n",
+            "_simplify": {"operator": operator},
+            "_operator": operator,
+            "_family": "simplify",
+        }
+
+    def revalidate(work, *args, **kwargs):
+        assert (work / verifier).read_bytes() == original
+        return {"ok": True}
+
+    ec.simplify_codex = simplify
+    monkeypatch.setitem(sys.modules, "evolve_codex", ec)
+    monkeypatch.setenv("SWE_RETUNE_AGENT", "codex")
+    monkeypatch.setattr(fb, "revalidate", revalidate)
+    monkeypatch.setattr(fb.shutil, "which", lambda _name: None)
+    rec = fb.process_one(rw, {**SIGNAL, "solved": 0}, job="easier", seed_dir=r0)
+    assert rec["status"] == "accepted", rec
+    assert (r0 / verifier).read_bytes() == original
 
 
 def test_easier_records_decision_and_can_decline(tmp_path, monkeypatch):

@@ -642,6 +642,9 @@ def _write_back(work: Path, new: dict) -> None:
     for key, rel in ev.file_map(new).items():
         dest = work / rel
         dest.parent.mkdir(parents=True, exist_ok=True)
+        # Preserve original newline bytes when the round-tripped text is unchanged.
+        if dest.exists() and dest.read_text() == new[key]:
+            continue
         dest.write_text(new[key])
 
 
@@ -871,11 +874,21 @@ def process_one(
             rec["calibration"] = True
         _write_back(work, new)
         changed = _changed(task, new)
-        if (
-            rec["action"] == "simplify"
-            and new.get("_simplify", {}).get("operator") == "add_scaffold"
+        simplify_op = new.get("_simplify", {}).get("operator")
+        if rec["action"] == "simplify" and simplify_op in (
+            "add_scaffold",
+            "provide_initial_state",
         ):
-            scope_changes = [name for name in changed if name != "instruction"]
+            if simplify_op == "add_scaffold":
+                scope_changes = [name for name in changed if name != "instruction"]
+                scope_rule = "add_scaffold may change only instruction.md"
+            else:
+                scope_changes = [
+                    name
+                    for name in changed
+                    if name == "test_state_py" or name.startswith("tests/")
+                ]
+                scope_rule = "provide_initial_state must preserve verifier files"
             # The collector omits alternate verifier entrypoints from support files.
             for rel in ev.VERIFIER_CANDIDATES:
                 before, after = seed_dir / rel, work / rel
@@ -889,8 +902,7 @@ def process_one(
                     rec,
                     "rejected",
                     stage="simplify_scope",
-                    reason="add_scaffold may change only instruction.md: "
-                    + ", ".join(scope_changes),
+                    reason=scope_rule + ": " + ", ".join(scope_changes),
                 )
         box = _probe_box(new, resources)
         rec["resources"] = box

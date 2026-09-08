@@ -83,7 +83,8 @@ For easier jobs, a removed goal or relaxed constraint may lose its corresponding
 checks only when declared in `run/simplify.json`. Preserve existing semantic and
 shortcut checks for every remaining goal. Do not add checks or refactor the reference
 merely to satisfy the roles above. `add_scaffold` changes only `instruction.md`;
-its environment, reference and verifier stay unchanged.
+its environment, reference and verifier stay unchanged. `provide_initial_state`
+supplies prerequisites in the environment and leaves verifier files unchanged.
 
 For harder jobs, `no_shortcut` has to be earned in behaviour: change
 an input the answer depends on and re-run the workflow, asserting the output followed

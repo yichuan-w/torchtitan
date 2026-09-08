@@ -27,7 +27,8 @@ CARDS = {
     ),
     "provide_initial_state": (
         "Use when prerequisites consume the attempts before the intended skill is reached. Materialize "
-        "one valid prerequisite in the environment; keep the remaining goal and its checks. Do not "
+        "one valid prerequisite in the environment; keep the remaining goal and its checks. "
+        "Keep all verifier files unchanged. Do not "
         "precompute the output of the retained skill. Remove the supplied state to restore difficulty."
     ),
     "extract_subtask": (
