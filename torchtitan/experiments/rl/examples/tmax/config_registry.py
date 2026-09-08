@@ -752,10 +752,23 @@ def rl_grpo_qwen3_5_9b_tmax() -> Controller.Config:
             StickySessionRoutingStrategy,
         )
 
+        # Overload re-pin (see StickySessionRoutingStrategy.Config.rebalance_load_ratio).
+        # RoundRobin deals NEW sessions evenly but a pin is for life, and that has no
+        # restoring force: once one rank saturates, its sessions crawl, run out their
+        # time budget and stay, while the others' finish early and cycle out. The
+        # 09-07 (2 ranks) and 09-08 (3 ranks) runs both ended up 15-22x skewed onto
+        # rank 0 with the idle ranks stuck in lockstep behind it. Ratio 2 + gap 8:
+        # untouched while balanced, breaks the pin once a rank holds more than
+        # twice the least-loaded rank's in-flight requests (+8). Moves go to the
+        # current least-loaded rank, so they water-fill and stop by themselves.
+        # SWE_DP_STICKY_REBALANCE=0 restores a pin for life (A/B).
+        _rebalance = float(os.environ.get("SWE_DP_STICKY_REBALANCE", "2.0"))
         _dp_router = dataclasses.replace(
             _dp_router,
             strategy=StickySessionRoutingStrategy.Config(
-                fallback_strategy=RoundRobinRoutingStrategy.Config()
+                fallback_strategy=RoundRobinRoutingStrategy.Config(),
+                rebalance_load_ratio=_rebalance,
+                rebalance_min_gap=8,
             ),
         )
 

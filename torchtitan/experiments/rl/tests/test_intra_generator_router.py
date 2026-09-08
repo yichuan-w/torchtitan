@@ -94,3 +94,80 @@ def test_rejects_dp_degree_without_routing(dp_degree: int):
         IntraGeneratorRouter.Config(strategy=RoundRobinRoutingStrategy.Config()).build(
             dp_degree=dp_degree
         )
+
+
+def test_sticky_rebalances_a_swamped_pin():
+    """A session pinned to a rank that is far more loaded than the least-loaded
+    rank moves there on its next request (and stays: it is re-pinned)."""
+    router = IntraGeneratorRouter.Config(
+        strategy=StickySessionRoutingStrategy.Config(
+            fallback_strategy=RoundRobinRoutingStrategy.Config(),
+            rebalance_load_ratio=2.0,
+            rebalance_min_gap=2,
+        )
+    ).build(dp_degree=2)
+    # Session A pins to rank 0 (first RoundRobin pick).
+    assert router.reserve("a0", routing_session_id="A") == 0
+    # Swamp rank 0 with unpinned traffic while rank 1 stays idle.
+    for i in range(6):
+        router._handles[0].reserved_load += 1
+    assert _loads(router) == [7, 0]
+    # 7 > 2.0 * 0 + 2 -> A's next request breaks the pin and goes to rank 1 ...
+    assert router.reserve("a1", routing_session_id="A") == 1
+    # ... and the session is re-pinned there for the request after.
+    assert router.reserve("a2", routing_session_id="A") == 1
+    assert _loads(router) == [7, 2]
+
+
+def test_sticky_rebalance_off_by_default_keeps_the_pin():
+    router = IntraGeneratorRouter.Config(
+        strategy=StickySessionRoutingStrategy.Config(
+            fallback_strategy=RoundRobinRoutingStrategy.Config(),
+        )
+    ).build(dp_degree=2)
+    assert router.reserve("a0", routing_session_id="A") == 0
+    for i in range(50):
+        router._handles[0].reserved_load += 1
+    # ratio 0 -> a pin is for life, however skewed.
+    assert router.reserve("a1", routing_session_id="A") == 0
+
+
+def test_sticky_rebalance_respects_min_gap():
+    """Tiny absolute skews (idle ties) must not bounce sessions."""
+    router = IntraGeneratorRouter.Config(
+        strategy=StickySessionRoutingStrategy.Config(
+            fallback_strategy=RoundRobinRoutingStrategy.Config(),
+            rebalance_load_ratio=2.0,
+            rebalance_min_gap=8,
+        )
+    ).build(dp_degree=2)
+    assert router.reserve("a0", routing_session_id="A") == 0
+    for i in range(3):
+        router._handles[0].reserved_load += 1
+    # 4 > 2*0 + 8 is false -> stay.
+    assert router.reserve("a1", routing_session_id="A") == 0
+
+
+def test_sticky_rebalance_water_fills_across_three_ranks():
+    """Moves go to the CURRENT least-loaded rank and stop once loads are within
+    ratio, so a flood of re-pins spreads instead of stampeding one rank."""
+    router = IntraGeneratorRouter.Config(
+        strategy=StickySessionRoutingStrategy.Config(
+            fallback_strategy=RoundRobinRoutingStrategy.Config(),
+            rebalance_load_ratio=2.0,
+            rebalance_min_gap=0,
+        )
+    ).build(dp_degree=3)
+    # 30 sessions all pinned to rank 0 (simulate the pathology directly).
+    sessions = [f"s{i}" for i in range(30)]
+    for s in sessions:
+        router._handles[0].reserved_load += 1
+        router._strategy._sessions[s] = router._handles[0]
+    assert _loads(router) == [30, 0, 0]
+    # Each session's next request re-routes; loads water-fill across ranks.
+    chosen = [router.reserve(f"{s}/t1", routing_session_id=s) for s in sessions]
+    loads = _loads(router)
+    assert loads[0] == 30  # pins moved; rank 0's OLD reservations are untouched
+    assert loads[1] + loads[2] == 30
+    assert abs(loads[1] - loads[2]) <= 1
+    assert set(chosen) == {1, 2}

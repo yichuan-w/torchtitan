@@ -108,15 +108,47 @@ class StickySessionRoutingStrategy(RoutingStrategy):
         )
         """Routing strategy used for new sessions and requests without a session."""
 
+        rebalance_load_ratio: float = 0.0
+        """Break a pin when the pinned candidate is this many times more loaded
+        than the least-loaded one (``pinned.reserved_load >
+        ratio * least.reserved_load + rebalance_min_gap``): the request goes to
+        the least-loaded candidate and the session is re-pinned there. 0 keeps a
+        pin for the session's whole life.
+
+        Why: a pin for life has no restoring force. Once one candidate saturates,
+        its sessions crawl (each turn waits in its queue), run out their whole
+        time budget, and stay pinned there, while the other candidates' sessions
+        finish early and cycle out -- so the loaded candidate only accumulates.
+        Two 9B runs (2026-09-07, 2026-09-08) reached a 15-22x in-flight skew across
+        3 DP ranks this way, with the idle ranks unable to run faster because
+        engine.step() is SPMD lockstep. The fallback picks the CURRENT least-loaded
+        candidate, and reserving raises its load, so moves water-fill and stop by
+        themselves. A moved session re-prefills once."""
+
+        rebalance_min_gap: int = 8
+        """Absolute in-flight headroom before a ratio breach counts, so a
+        3-vs-0 idle tie does not bounce sessions around."""
+
         def __post_init__(self):
             if self.max_sessions <= 0:
                 raise ValueError(
                     f"max_sessions must be positive, got {self.max_sessions}"
                 )
+            if self.rebalance_load_ratio < 0:
+                raise ValueError(
+                    "rebalance_load_ratio must be non-negative, got "
+                    f"{self.rebalance_load_ratio}"
+                )
+            if self.rebalance_min_gap < 0:
+                raise ValueError(
+                    f"rebalance_min_gap must be non-negative, got {self.rebalance_min_gap}"
+                )
 
     def __init__(self, config: Config):
         self._max_sessions = config.max_sessions
         self._fallback_strategy = config.fallback_strategy.build()
+        self._rebalance_ratio = config.rebalance_load_ratio
+        self._rebalance_min_gap = config.rebalance_min_gap
         self._sessions: OrderedDict[str, RoutingCandidate] = OrderedDict()
 
     def choose(
@@ -144,6 +176,19 @@ class StickySessionRoutingStrategy(RoutingStrategy):
         sticky_candidate = self._sessions.get(routing_ctx.session_id)
         if sticky_candidate is not None:
             if any(h is sticky_candidate for h in candidates):
+                if self._rebalance_ratio > 0 and len(candidates) > 1:
+                    least = min(candidates, key=lambda h: h.reserved_load)
+                    if (
+                        least is not sticky_candidate
+                        and sticky_candidate.reserved_load
+                        > self._rebalance_ratio * least.reserved_load
+                        + self._rebalance_min_gap
+                    ):
+                        # Pinned candidate is swamped: move this session to the
+                        # least-loaded one. See Config.rebalance_load_ratio.
+                        self._sessions[routing_ctx.session_id] = least
+                        self._sessions.move_to_end(routing_ctx.session_id)
+                        return least
                 # End of the dict means it's the most-recently-used session.
                 self._sessions.move_to_end(routing_ctx.session_id)
                 return sticky_candidate
