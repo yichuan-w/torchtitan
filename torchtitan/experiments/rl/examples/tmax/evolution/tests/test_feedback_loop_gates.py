@@ -554,6 +554,105 @@ def test_incomplete_null_check_cannot_accept_a_rewrite(tmp_path, monkeypatch, nu
     assert not verdict["ok"] and verdict["stage"] == "null_check"
 
 
+@pytest.mark.parametrize(
+    "extra",
+    [
+        None,
+        "dockerfile",
+        "solve_sh",
+        "test_state_py",
+        "tests/helper.py",
+        "environment/input.txt",
+    ],
+)
+def test_scaffold_preserves_the_executable_task_before_validation(
+    tmp_path, monkeypatch, extra
+):
+    rw, r0 = _rewrite(tmp_path, monkeypatch)
+    ec = _fake_ec()
+    calls = []
+
+    def simplify(rewrite, task, **kwargs):
+        new = {
+            **task,
+            "instruction": task["instruction"] + "Inspect the input format first.\n",
+            "_simplify": {"operator": "add_scaffold"},
+            "_operator": "add_scaffold",
+            "_family": "simplify",
+        }
+        if extra in ("dockerfile", "solve_sh", "test_state_py"):
+            new[extra] += "\n# additional edit\n"
+        elif extra:
+            path = rewrite.package / extra
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text("additional content\n")
+            new["_support_changed"] = [extra]
+        return new
+
+    def revalidate(*args, **kwargs):
+        calls.append("validate")
+        return {"ok": True}
+
+    ec.simplify_codex = simplify
+    monkeypatch.setitem(sys.modules, "evolve_codex", ec)
+    monkeypatch.setenv("SWE_RETUNE_AGENT", "codex")
+    monkeypatch.setattr(fb, "revalidate", revalidate)
+    monkeypatch.setattr(fb.shutil, "which", lambda _name: None)
+    rec = fb.process_one(rw, {**SIGNAL, "solved": 0}, job="easier", seed_dir=r0)
+    if extra:
+        assert rec["status"] == "rejected" and rec["stage"] == "simplify_scope"
+        assert extra in rec["changed"] and extra in rec["reason"]
+        assert calls == []
+    else:
+        assert rec["status"] == "accepted" and calls == ["validate"]
+    assert (r0 / "instruction.md").read_text() == SEED["instruction"]
+
+
+@pytest.mark.parametrize("alternate", fb.ev.VERIFIER_CANDIDATES)
+@pytest.mark.parametrize("operation", ["add", "remove", "change"])
+def test_scaffold_checks_verifier_entries_omitted_by_the_collector(
+    tmp_path, monkeypatch, alternate, operation
+):
+    import evolve_codex as real_ec
+
+    primary = next(rel for rel in fb.ev.VERIFIER_CANDIDATES if rel != alternate)
+    rw, r0 = _rewrite(tmp_path, monkeypatch, {**SEED, "_verifier_rel": primary})
+    if operation != "add":
+        for root in (r0, rw.package):
+            (root / alternate).write_text(SEED["test_state_py"])
+    ec = _fake_ec()
+
+    def simplify(rewrite, task, **kwargs):
+        path = rewrite.package / alternate
+        if operation == "remove":
+            path.unlink()
+        else:
+            path.write_text("# another verifier entrypoint\n")
+        (rewrite.package / "instruction.md").write_text(
+            task["instruction"] + "Inspect the input format first.\n"
+        )
+        new = real_ec._collect(task, rewrite.package, fb.ev.file_map(task))
+        assert not new["_support_changed"]
+        return {
+            **new,
+            "_simplify": {"operator": "add_scaffold"},
+            "_operator": "add_scaffold",
+            "_family": "simplify",
+        }
+
+    ec.simplify_codex = simplify
+    monkeypatch.setitem(sys.modules, "evolve_codex", ec)
+    monkeypatch.setenv("SWE_RETUNE_AGENT", "codex")
+    monkeypatch.setattr(
+        fb,
+        "revalidate",
+        lambda *a, **k: pytest.fail("scope violation reached validation"),
+    )
+    rec = fb.process_one(rw, {**SIGNAL, "solved": 0}, job="easier", seed_dir=r0)
+    assert rec["status"] == "rejected" and rec["stage"] == "simplify_scope", rec
+    assert alternate in rec["reason"]
+
+
 def test_easier_records_decision_and_can_decline(tmp_path, monkeypatch):
     rw, r0 = _rewrite(tmp_path, monkeypatch)
     ec = _fake_ec()

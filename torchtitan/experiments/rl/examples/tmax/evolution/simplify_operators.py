@@ -48,6 +48,8 @@ CARDS = {
         "Use when the agent has the evidence and can use the tools but cannot organize the next step. "
         "Add one directional hint or intermediate goal; specific guidance is allowed only at the "
         "configured hint level. Never provide the final answer, exact patch or full command recipe. "
+        "Change instruction.md only; keep the environment, reference solution and verifier unchanged. "
+        "If the intervention requires supplying starting state, choose provide_initial_state instead. "
         "Remove the hint to restore difficulty."
     ),
     "enhance_feedback": (

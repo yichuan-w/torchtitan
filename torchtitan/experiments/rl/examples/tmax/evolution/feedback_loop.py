@@ -871,6 +871,27 @@ def process_one(
             rec["calibration"] = True
         _write_back(work, new)
         changed = _changed(task, new)
+        if (
+            rec["action"] == "simplify"
+            and new.get("_simplify", {}).get("operator") == "add_scaffold"
+        ):
+            scope_changes = [name for name in changed if name != "instruction"]
+            # The collector omits alternate verifier entrypoints from support files.
+            for rel in ev.VERIFIER_CANDIDATES:
+                before, after = seed_dir / rel, work / rel
+                old = before.read_bytes() if before.exists() else None
+                current = after.read_bytes() if after.exists() else None
+                if old != current and rel not in scope_changes:
+                    scope_changes.append(rel)
+            if scope_changes:
+                rec["changed"] = list(dict.fromkeys([*changed, *scope_changes]))
+                return _done(
+                    rec,
+                    "rejected",
+                    stage="simplify_scope",
+                    reason="add_scaffold may change only instruction.md: "
+                    + ", ".join(scope_changes),
+                )
         box = _probe_box(new, resources)
         rec["resources"] = box
         v = revalidate(
