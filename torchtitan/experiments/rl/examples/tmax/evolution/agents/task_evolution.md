@@ -51,6 +51,9 @@ choose the change from the actual attempts and record its rationale in
 Apply these requirements to files the requested change needs to modify. For easier
 jobs, preserve working files outside the declared intervention. Report a demonstrated
 seed defect through the repair path instead of combining its repair with simplification.
+For easier jobs, keep instruction passages unrelated to the intervention verbatim.
+When simplifying a passage that combines several requirements, state the retained
+requirements explicitly in that passage.
 
 **`solution/solve.sh`**, when the intervention requires changing it, completes the
 whole workflow from the variant's starting state, the way a strong agent's
