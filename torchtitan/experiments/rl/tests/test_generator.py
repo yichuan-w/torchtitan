@@ -275,6 +275,65 @@ def test_build_sampling_params_seed_and_stop_default_to_none():
     assert not params.stop_token_ids  # vLLM normalizes None -> []
 
 
+@pytest.mark.parametrize(
+    "engine_seed,debug_seed,expected",
+    [(None, None, None), (None, 42, 42), (0, None, 0), (17, None, 17), (17, 42, 17)],
+)
+def test_engine_seed_reaches_vllm_without_changing_request_seed(
+    monkeypatch, engine_seed, debug_seed, expected
+):
+    import torchtitan.experiments.rl.actors.generator as module
+
+    config = VLLMGenerator.Config(
+        backend="vllm_native",
+        debug=DebugConfig(seed=debug_seed),
+        engine_seed=engine_seed,
+    )
+    captured = {}
+
+    class EngineBoundary(Exception):
+        pass
+
+    def capture_engine_args(**kwargs):
+        captured.update(kwargs)
+        raise EngineBoundary
+
+    monkeypatch.setattr(module, "EngineArgs", capture_engine_args)
+    monkeypatch.setattr(module, "current_rank", lambda: SimpleNamespace(rank=0))
+    monkeypatch.setattr(module, "init_logger", lambda: None)
+    monkeypatch.setattr(module.sl, "init_structured_logger", lambda **kwargs: None)
+    monkeypatch.setattr(module.sl, "log_trace_instant", lambda *args: None)
+    monkeypatch.setattr(module, "set_cast_linear_inference_cache", lambda value: None)
+    monkeypatch.setattr(module, "set_batch_invariance", lambda value: None)
+    monkeypatch.setattr(VLLMGenerator, "_set_determinism", lambda *args: None)
+    monkeypatch.setattr(module, "_flash_attention_kernels_available", lambda: True)
+    monkeypatch.setattr(module, "_install_flashinfer_allreduce_import_stub", lambda: None)
+    monkeypatch.setenv("SWE_GEN_NATIVE_FP32_LMHEAD", "0")
+    monkeypatch.setenv("SWE_GEN_VLLM_DEFAULT_COMPILE", "1")
+    monkeypatch.delenv("SWE_GEN_VLLM_ATTENTION", raising=False)
+    monkeypatch.delenv("TT_GDN_UNIFIED_KERNEL", raising=False)
+    generator = VLLMGenerator.__new__(VLLMGenerator)
+    with pytest.raises(EngineBoundary):
+        generator.__init__(
+            config,
+            model_spec=SimpleNamespace(
+                state_dict_adapter=lambda **kwargs: None,
+                model=SimpleNamespace(max_seq_len=4096, layers=[]),
+            ),
+            model_path="unused",
+            compile_config=None,
+            max_num_seqs=8,
+            output_dir="unused",
+        )
+    if expected is None:
+        assert "seed" not in captured
+    else:
+        assert captured["seed"] == expected
+    assert config.debug.seed == debug_seed
+    params = generator._build_sampling_params(SamplingConfig(seed=debug_seed))
+    assert params.seed == debug_seed
+
+
 # --- vLLM metric timing math (the `_prepare_generation_request_metrics` helper) ---
 
 

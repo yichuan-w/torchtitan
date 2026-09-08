@@ -908,6 +908,12 @@ class VLLMGenerator(Actor, Configurable):
         debug: DebugConfig = field(default_factory=DebugConfig)
         """Debug and determinism settings."""
 
+        engine_seed: int | None = None
+        """Override vLLM's engine RNG seed without assigning per-request seeds.
+        None preserves debug.seed or vLLM's default. For repeated evaluations,
+        use distinct engine seeds and leave debug.seed unset so requests consume
+        successive draws instead of each restarting a seeded random stream."""
+
         backend: Literal["torchtitan_wrapper", "vllm_native"] = "torchtitan_wrapper"
         """Which vLLM model backend to use. ``torchtitan_wrapper`` (default) wraps
         the torchtitan model class and syncs sharded weights directly. Use
@@ -1320,7 +1326,9 @@ class VLLMGenerator(Actor, Configurable):
             )
             if vllm_compilation_config is not None:
                 engine_kwargs["compilation_config"] = vllm_compilation_config
-        if config.debug.seed is not None:
+        if config.engine_seed is not None:
+            engine_kwargs["seed"] = config.engine_seed
+        elif config.debug.seed is not None:
             engine_kwargs["seed"] = config.debug.seed
         engine_args = EngineArgs(**engine_kwargs)
 
