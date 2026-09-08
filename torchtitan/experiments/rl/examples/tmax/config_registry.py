@@ -763,12 +763,22 @@ def rl_grpo_qwen3_5_9b_tmax() -> Controller.Config:
         # current least-loaded rank, so they water-fill and stop by themselves.
         # SWE_DP_STICKY_REBALANCE=0 restores a pin for life (A/B).
         _rebalance = float(os.environ.get("SWE_DP_STICKY_REBALANCE", "2.0"))
+        # max_sessions is the size of the session->rank pin table, LRU-evicted.
+        # The strategy's 4096 default is below this recipe's live population
+        # (SWE_ROLLOUT_CONCURRENCY=1500 rollouts in flight, plus every finished
+        # one until it ages out), so once ~4096 sessions have ever been created the
+        # table starts evicting LIVE sessions -- the least-recently-routed ones,
+        # i.e. exactly those waiting in a queue -- and re-dealing them. Both 9B
+        # runs of 09-08 tipped into the 15-50x DP skew within minutes of crossing
+        # 4096 sessions (4063 and 4454 at the tip). 16384 keeps every live session
+        # pinned; the table is str->handle, so the cost is nil.
         _dp_router = dataclasses.replace(
             _dp_router,
             strategy=StickySessionRoutingStrategy.Config(
                 fallback_strategy=RoundRobinRoutingStrategy.Config(),
                 rebalance_load_ratio=_rebalance,
                 rebalance_min_gap=8,
+                max_sessions=int(os.environ.get("SWE_DP_STICKY_MAX_SESSIONS", "16384")),
             ),
         )
 
