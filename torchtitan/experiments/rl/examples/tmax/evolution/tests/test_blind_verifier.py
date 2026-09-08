@@ -77,8 +77,14 @@ def test_blind_layout_hides_the_solution_and_the_harness_files(tmp_path) -> None
         "traces/attempt-01.jsonl": "{}",
         "run/checks.jsonl": "{}",
         "run/verdict.txt": "x",
+        "run/hardening.md": "reference strategy",
+        "run/student_feedback.json": "student attempts",
+        "run/notes/oracle.txt": "reference output",
+        "run/check.blind1.txt": "oracle diagnostics",
         "run/seed_size.json": "{}",
         "run/resources.json": "{}",
+        "run/seed_literals.json": "{}",
+        "run/pretest.json": "{}",
         "AGENTS.md": "author spec",
         "sandbox": "#!/bin/bash",
     }.items():
@@ -89,6 +95,12 @@ def test_blind_layout_hides_the_solution_and_the_harness_files(tmp_path) -> None
     seen = {str(p.relative_to(vpkg)) for p in vpkg.rglob("*") if p.is_file()}
     assert "solution/solve.sh" not in seen and "traces/attempt-01.jsonl" not in seen
     assert "run/checks.jsonl" not in seen and "run/verdict.txt" not in seen
+    assert {path for path in seen if path.startswith("run/")} == {
+        "run/seed_size.json",
+        "run/resources.json",
+        "run/seed_literals.json",
+        "run/pretest.json",
+    }
     assert {
         "instruction.md",
         "tests/test_state.py",

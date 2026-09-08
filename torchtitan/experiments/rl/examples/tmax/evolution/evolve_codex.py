@@ -846,18 +846,12 @@ SANDBOX = Path(__file__).resolve().parent / "agent_sandbox.sh"
 # which is what the split was for. "same" remains for comparison.
 VERIFIER_AUTHOR = os.environ.get("SWE_VERIFIER_AUTHOR", "blind")
 VERIFIER_SPEC = Path(__file__).resolve().parent / "agents" / "verifier_author.md"
-# What the verifier's author must not see. Everything else in the package is
-# what an agent attempting the task could read.
+# Hide author-only files; run metadata is filtered separately in _blind_layout.
 HIDDEN_FROM_VERIFIER = (
     "solution",
     "traces",
     "AGENTS.md",
     "sandbox",
-    "run/checks.jsonl",
-    "run/verdict.txt",
-    "run/failure.txt",
-    "run/sandbox.json",
-    "run/sandbox.log",
 )
 AGENT_TIMEOUT = int(os.environ.get("EVOLVE_AGENT_TIMEOUT", "2400"))
 
@@ -1167,6 +1161,11 @@ def _blind_layout(pkg: Path, vpkg: Path) -> None:
 
     def ignore(d, names):
         rel = Path(d).relative_to(pkg)
+        if rel == Path("run"):
+            # Preserve harness inputs, excluding author analysis and oracle output.
+            return set(names) - {
+                "seed_size.json", "resources.json", "seed_literals.json", "pretest.json"
+            }
         return {
             n
             for n in names
