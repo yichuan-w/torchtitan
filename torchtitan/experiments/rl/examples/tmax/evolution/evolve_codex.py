@@ -897,6 +897,12 @@ Before editing, write `run/hardening.md`: cite attempt filenames and concrete
 actions or observations; explain the current strategy, the changed condition,
 and the new inference or decision needed to reach the original goal. State why
 the old strategy with a routine post-processing step would be insufficient.
+For each strategy predicted to fail, include a concrete proposed input, the
+correct observable result, and the result that strategy would produce. If the
+results agree, that case does not support the prediction. For a strategy that
+discards information, include cases requiring different outcomes and check
+that the grader distinguishes them; a wrong reason for the right output is
+not a measured failure.
 Use that analysis to design the patch; no operator menu or operator declaration
 is required.
 
