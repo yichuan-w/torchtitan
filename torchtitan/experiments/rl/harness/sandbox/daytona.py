@@ -505,6 +505,17 @@ class DaytonaSandbox:
       ``TT_DAYTONA_RPC_RETRIES``            -- retries for idempotent RPCs; default 2.
       ``TT_DAYTONA_HEARTBEAT_SEC``          -- activity refresh interval; default
                                                180s, or 0 to disable.
+      ``TT_DAYTONA_TTL_MIN``                -- hard wall-clock lifetime in minutes,
+                                               counted from creation whatever the
+                                               sandbox's state; 0 (default)
+                                               disables it. The only reaper that
+                                               reaches a sandbox that never
+                                               started (BUILD_FAILED, ERROR),
+                                               which auto-stop and auto-delete
+                                               both miss. It deletes LIVE
+                                               sandboxes at the same age, so set
+                                               it above the longest legitimate
+                                               rollout, not near it.
     """
 
     api_key_env = ("DAYTONA_API_KEY",)
@@ -822,13 +833,34 @@ class DaytonaSandbox:
             )
         if int(_getenv("TT_DAYTONA_RPC_RETRIES", default="2")) < 0:
             raise ValueError("TT_DAYTONA_RPC_RETRIES must be non-negative")
+        # Neither auto_stop nor auto_delete reaches a sandbox that never started:
+        # both are defined on a RUNNING sandbox going idle, and a BUILD_FAILED or
+        # ERROR one is already in a terminal state, so it stays for good. That is
+        # where a stopped run's residue actually comes from -- a task whose image
+        # does not build leaves one corpse per create retry. ttl_minutes is the
+        # only cloud-side reaper that covers it: wall-clock from creation
+        # regardless of state (verified on this account 2026-09-07, a
+        # BUILD_FAILED sandbox with ttl=2 was gone inside 142s while an
+        # otherwise identical one without it stayed).
+        #
+        # It also kills LIVE sandboxes at the same age, so it is off by default
+        # (0) and must be set well above the longest a rollout can legitimately
+        # take -- boot allowance + SWE_TIME_BUDGET_SEC + the verifier -- or it
+        # takes running work with it.
+        ttl_min = int(_getenv("TT_DAYTONA_TTL_MIN", default="0"))
+        if ttl_min < 0:
+            raise ValueError(f"TT_DAYTONA_TTL_MIN must be non-negative, got {ttl_min}")
         # Some Daytona regions reject non-ephemeral creates outright ("Only
         # ephemeral sandboxes are permitted in this region"). Opt-in via
-        # TT_DAYTONA_EPHEMERAL. Ephemeral already means delete-on-stop, and the
-        # SDK rejects the pair -- passing both only warns ("'ephemeral' and
-        # 'auto_delete_interval' cannot be used together") and drops the TTL, so
-        # send auto_delete_interval only on the non-ephemeral path.
+        # TT_DAYTONA_EPHEMERAL. Ephemeral already means delete-on-stop -- the SDK
+        # forces auto_delete_interval to 0, which is sooner than any value we
+        # could pass, and warns if one is given ("'ephemeral' and
+        # 'auto_delete_interval' cannot be used together") -- so send
+        # auto_delete_interval only on the non-ephemeral path. ttl_minutes has no
+        # such conflict and goes on both.
         create_kwargs = {}
+        if ttl_min > 0:
+            create_kwargs["ttl_minutes"] = ttl_min
         if _getenv("TT_DAYTONA_EPHEMERAL", default="0") == "1":
             create_kwargs["ephemeral"] = True
         else:
