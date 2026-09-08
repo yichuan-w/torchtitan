@@ -90,8 +90,14 @@ def _flash_attention_kernels_available() -> bool:
 
 # Scheduler token budget for GDN models under align-mode prefix caching. Chunked
 # prefill is required there, so this is a real per-step budget rather than a
-# "never chunk" sentinel.
-_GDN_ALIGN_MAX_NUM_BATCHED_TOKENS = 8192
+# "never chunk" sentinel. SWE_GDN_MAX_NUM_BATCHED_TOKENS overrides it: a larger
+# budget admits cold-prefilled requests faster (a queue of ~18K-token re-prefills
+# behind an 8192 budget drains at ~2.7 req/s per engine, measured 09-08) but costs
+# a few GB of KV per card -- vLLM sizes its non-KV reserve from a dummy forward
+# of this many tokens -- and makes prefill-heavy lockstep steps longer.
+_GDN_ALIGN_MAX_NUM_BATCHED_TOKENS = int(
+    os.environ.get("SWE_GDN_MAX_NUM_BATCHED_TOKENS", "8192")
+)
 
 
 def _state_dict_local_gib(state_dict: dict) -> float:
