@@ -28,6 +28,7 @@ def test_echoed_command_cannot_finish_reference():
     parsed = TerminusXMLPlainParser().parse_response(first["content"][0]["text"])
     assert not parsed.error and len(parsed.commands) == 1
     echoed = parsed.commands[0].keystrokes
+    assert f"printf '\\r\\n{adapter.marker}=%s\\r\\n'" in echoed
     waiting = asyncio.run(adapter.complete("s", body(echoed)))
     assert adapter.exit_code is None
     assert (

@@ -42,7 +42,9 @@ class ReferenceAdapter:
         if not self.started:
             keys = (
                 f"bash -c {shlex.quote(self.command)}; "
-                f"printf '\\n{self.marker}=%s\\n' \"$?\"\n"
+                # A command may disable ONLCR. Explicit carriage returns keep
+                # the result on one line even after such terminal changes.
+                f"printf '\\r\\n{self.marker}=%s\\r\\n' \"$?\"\n"
             )
             duration = 1
             self.started = True
