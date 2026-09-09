@@ -52,8 +52,12 @@ def main():
             for rel in set(original) | set(patched)
             if original.get(rel) != patched.get(rel)
         }
+        reference_changes = set(task.get("allowed_reference_changes", []))
+        if any(not rel.startswith("solution/") for rel in reference_changes):
+            raise ValueError("reference changes must be solution files")
         if changed != set(task["changed_files"]) or any(
-            not rel.startswith("tests/") for rel in changed
+            not rel.startswith("tests/") and rel not in reference_changes
+            for rel in changed
         ):
             raise ValueError(f"undeclared or non-grader changes: {tid}")
         baseline = rows[tid]
@@ -68,13 +72,29 @@ def main():
             if version == "patched":
                 tmax = row["metadata"]["tmax"]
                 for rel in changed:
+                    if rel in reference_changes:
+                        continue
                     if rel == "tests/test.sh":
                         tmax["test_sh"] = patched[rel].decode()
                     elif rel in patched:
                         tmax.setdefault("fixtures", {})[rel] = patched[rel].decode()
                     else:
                         del tmax["fixtures"][rel]
-            for probe in task["probes"]:
+            probes = list(task["probes"])
+            if not any(probe["name"] == "reference" for probe in probes):
+                package = Path(task[f"{version}_package"])
+                script = package / "solution/solve.sh"
+                probes.append(
+                    {
+                        "name": "reference",
+                        "kind": "positive",
+                        "script": str(script),
+                        "sha256": hashlib.sha256(script.read_bytes()).hexdigest(),
+                        "expected_original_reward": 1,
+                        "expected_patched_reward": 1,
+                    }
+                )
+            for probe in probes:
                 if args.probe and probe["name"] not in args.probe:
                     continue
                 expected = probe[f"expected_{version}_reward"]
