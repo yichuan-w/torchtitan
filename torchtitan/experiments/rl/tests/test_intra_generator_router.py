@@ -239,3 +239,13 @@ def test_tmax_fallback_preserves_sticky_protection(monkeypatch, fallback):
     assert cfg.rebalance_load_ratio == 2.0
     assert cfg.rebalance_min_gap == 8
     assert cfg.max_sessions == 16384
+
+
+def test_tmax_rebalance_is_off_by_default(monkeypatch):
+    from torchtitan.experiments.rl.examples.tmax.config_registry import (
+        rl_grpo_qwen3_5_9b_tmax,
+    )
+
+    monkeypatch.delenv("SWE_DP_STICKY_REBALANCE", raising=False)
+    cfg = rl_grpo_qwen3_5_9b_tmax().generator.intra_generator_router.strategy
+    assert cfg.rebalance_load_ratio == 0.0

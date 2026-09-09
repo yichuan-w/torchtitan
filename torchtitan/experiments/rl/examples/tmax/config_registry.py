@@ -757,7 +757,9 @@ def rl_grpo_qwen3_5_9b_tmax() -> Controller.Config:
         config.generator.intra_generator_router,
         strategy=StickySessionRoutingStrategy.Config(
             fallback_strategy=_fallback,
-            rebalance_load_ratio=float(os.environ.get("SWE_DP_STICKY_REBALANCE", "2.0")),
+            # Keep session affinity stable by default.  Rebalancing is an
+            # opt-in policy because reserved request count is not KV usage.
+            rebalance_load_ratio=float(os.environ.get("SWE_DP_STICKY_REBALANCE", "0.0")),
             rebalance_min_gap=8,
             max_sessions=int(os.environ.get("SWE_DP_STICKY_MAX_SESSIONS", "16384")),
         ),
