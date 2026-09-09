@@ -144,8 +144,15 @@ Extracting a stage must not silently add precision requirements or make its
 test inputs harder. If an existing check is defective, request repair instead
 of combining that repair with simplification.
 The untouched environment must fail and the reference solution must pass.
-Run ./sandbox check before finishing. Passing proves task validity, not its
-difficulty: subsequent training rollouts measure whether it became easier.
+Run ./sandbox check before finishing. Those two outcomes establish only that
+the reference passes the current tests and the untouched state does not.
+Check the retained requirements against the verifier's actual input coverage;
+random cases alone may miss required branches or boundary behavior. Use the
+attempts' implementations to test a suspected mismatch on a legal input, and
+record the input, observed output and grading result in run/simplify.json's
+evidence observations. An incorrect retained behavior accepted by the verifier
+requires repair, even if the reference also passes. Subsequent student
+rollouts measure difficulty; their scores do not resolve a grading defect.
 """
     )
 
