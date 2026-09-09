@@ -35,7 +35,7 @@ class SemanticProbeTests(unittest.TestCase):
                 return subprocess.CompletedProcess(args, 0, '{"tests": []}', "")
             index = sum(not (call[0] == "exec" and call[1].startswith("if [")) for call in calls)
             code = 1 if index > 3 and args[1] == "grade" else 0
-            if index == failure_phase:
+            if index in (failure_phase if isinstance(failure_phase, tuple) else (failure_phase,)):
                 code = failure_code
             return subprocess.CompletedProcess(args, code, "probe output", "")
         with patch.object(probes.subprocess, "run", side_effect=command):
@@ -56,10 +56,23 @@ class SemanticProbeTests(unittest.TestCase):
     def test_wrong_solution_passing_is_rejected(self):
         with self.assertRaisesRegex(RuntimeError, "wrong-1/grade"):
             self.execute(6, 0)
+        records = [json.loads(line) for line in (self.pkg / "run/verifier-probe-results.jsonl").read_text().splitlines()]
+        self.assertTrue(any(row.get("case") == "wrong-2" and row.get("phase") == "grade"
+                            and row.get("status") == "finished" for row in records))
+        self.assertFalse(any(row.get("status") == "passed" for row in records))
 
     def test_later_wrong_solution_passing_is_rejected(self):
         with self.assertRaisesRegex(RuntimeError, "wrong-2/grade"):
             self.execute(9, 0)
+
+    def test_multiple_semantic_misses_are_reported_together(self):
+        with self.assertRaises(RuntimeError) as error:
+            self.execute((6, 9), 0)
+        self.assertIn("wrong-1/grade", str(error.exception))
+        self.assertIn("wrong-2/grade", str(error.exception))
+        records = [json.loads(line) for line in (self.pkg / "run/verifier-probe-results.jsonl").read_text().splitlines()]
+        self.assertEqual(len(next(row["errors"] for row in records if row.get("status") == "failed")), 2)
+        self.assertEqual(records[-1]["phase"], "down")
 
     def test_wrong_solution_crash_is_not_a_semantic_rejection(self):
         with self.assertRaisesRegex(RuntimeError, "wrong-1/setup"):
@@ -68,6 +81,9 @@ class SemanticProbeTests(unittest.TestCase):
     def test_grading_infrastructure_error_is_not_a_rejection(self):
         with self.assertRaisesRegex(RuntimeError, "wrong-1/grade"):
             self.execute(6, 2)
+        records = [json.loads(line) for line in (self.pkg / "run/verifier-probe-results.jsonl").read_text().splitlines()]
+        self.assertFalse(any(row.get("case") == "wrong-2" for row in records))
+        self.assertEqual(records[-1]["phase"], "down")
 
     def test_correct_solution_rejection_fails_gate(self):
         with self.assertRaisesRegex(RuntimeError, "correct/grade"):

@@ -23,6 +23,7 @@ def verify_probes(pkg: Path, env: dict[str, str], timeout: int) -> None:
     if any(not script.strip() for script in scripts.values()) or len(set(scripts.values())) != len(scripts):
         raise ValueError("Semantic probes require distinct, nonempty scripts")
     log_path = pkg / "run" / "verifier-probe-results.jsonl"
+    missed = []
 
     def record(**values):
         with log_path.open("a") as stream:
@@ -52,7 +53,12 @@ def verify_probes(pkg: Path, env: dict[str, str], timeout: int) -> None:
             record(case=case, phase="grade_details", status="finished", returncode=details.returncode,
                    stdout=details.stdout, stderr=details.stderr)
         if result.returncode != expected:
-            raise RuntimeError(f"Semantic probe {case}/{phase}: expected exit {expected}, got {result.returncode}; see {log_path}")
+            message = f"Semantic probe {case}/{phase}: expected exit {expected}, got {result.returncode}"
+            if phase == "grade" and case.startswith("wrong-") and result.returncode == 0:
+                # Collect all semantic misses for repair; setup and grading errors still abort.
+                missed.append(message)
+            else:
+                raise RuntimeError(f"{message}; see {log_path}")
 
     try:
         for case in names:
@@ -60,6 +66,9 @@ def verify_probes(pkg: Path, env: dict[str, str], timeout: int) -> None:
             # Scripts execute only through the Daytona harness, never on the host.
             run(case, "setup", ["exec", scripts[case], "--timeout", str(timeout)], 0)
             run(case, "grade", ["grade"], 0 if case == "correct" else 1)
+        if missed:
+            record(status="failed", errors=missed)
+            raise RuntimeError("; ".join(missed) + f"; see {log_path}")
         record(status="passed")
     finally:
         run("cleanup", "down", ["down"], 0)
