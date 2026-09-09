@@ -6,6 +6,7 @@ seam tests inject exposed the name, so they stayed green; this test asks the rea
 from __future__ import annotations
 
 import re
+import asyncio
 import sys
 from pathlib import Path
 
@@ -40,6 +41,16 @@ def test_every_dr_name_the_sandbox_tool_uses_exists_on_the_real_revalidator() ->
     assert (
         not missing
     ), f"agent_sandbox uses dr.{missing} but daytona_revalidate does not provide them"
+
+
+@pytest.mark.parametrize("kwargs, expected", [({}, 60), ({"timeout": 30}, 30)])
+def test_root_wrapper_preserves_sandbox_default_timeout(kwargs, expected):
+    class Sandbox:
+        async def exec(self, cmd, *, user, check, timeout=60):
+            assert timeout > 0
+            assert user == "root"
+            return timeout
+    assert asyncio.run(dr._Root(Sandbox()).exec("true", **kwargs)) == expected
 
 
 def test_the_fake_revalidator_in_the_seam_tests_is_not_wider_than_the_real_one() -> None:

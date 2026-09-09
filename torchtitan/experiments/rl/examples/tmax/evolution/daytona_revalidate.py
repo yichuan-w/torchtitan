@@ -108,10 +108,10 @@ class _Root:
     def __init__(self, inner):
         self._inner = inner
 
-    async def exec(self, cmd, *, check=False, timeout=None, **kw):
+    async def exec(self, cmd, *, check=False, **kw):
         kw.pop("user", None)
         return await self._inner.exec(
-            cmd, user="root", check=check, timeout=timeout, **kw
+            cmd, user="root", check=check, **kw
         )
 
     async def write_file(self, dest, content, **kw):
