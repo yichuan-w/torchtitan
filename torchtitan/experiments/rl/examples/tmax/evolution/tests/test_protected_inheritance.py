@@ -1,3 +1,9 @@
+# Copyright (c) Meta Platforms, Inc. and affiliates.
+# All rights reserved.
+#
+# This source code is licensed under the BSD-style license found in the
+# LICENSE file in the root directory of this source tree.
+
 """A variant INHERITS its protected lists. Shipped packages carry no tests/protected_paths.json,
 so the lists a variant is validated and folded with come from the mix row it descends from --
 and they must be the same lists at both ends, or a reward-1 variant folds into a reward-0 row.
@@ -9,7 +15,6 @@ from __future__ import annotations
 import asyncio
 import json
 import sys
-import types
 from contextlib import asynccontextmanager
 from pathlib import Path
 
@@ -145,6 +150,7 @@ def _probe_row_as_the_loop_would(rewrite, monkeypatch) -> dict:
     async def grade(_sb, tmax, *, workdir, baseline_digests=None, **_kw):
         seen["tmax"] = tmax
         seen["baseline"] = baseline_digests
+        _kw["diagnostics"].update(exit_code=0, output_tail="1 passed")
         return 1.0
 
     for name, fn in (
@@ -174,6 +180,7 @@ def _probe_row_as_the_loop_would(rewrite, monkeypatch) -> dict:
             else None,
         )
     )
+    assert verdict["verifier"] == {"exit_code": 0, "output_tail": "1 passed"}
     assert verdict["ok"]
     return seen
 

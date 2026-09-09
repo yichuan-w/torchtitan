@@ -30,6 +30,7 @@ import json
 import logging
 import os
 import posixpath
+import re
 import shlex
 import uuid
 from functools import partial
@@ -217,6 +218,22 @@ async def seed_workspace(sb: Sandbox, tmax: dict, *, dest: str = _SEEDS_DEST) ->
         await sb.write_file(path, content, user="root")
 
 
+def _check_verifier_python_download(test_sh: str, output: str, reward: float) -> None:
+    """Raise for uv bootstrap server failures before pytest starts."""
+    if reward >= 1 or not re.search(r"\buvx\b", test_sh) or "pytest" not in test_sh:
+        return
+    if "test session starts" in output or "short test summary info" in output:
+        return
+    if (
+        "error: Request failed after" in output
+        and "Failed to download https://github.com/astral-sh/python-build-standalone/releases/download/"
+        in output
+        and re.search(r"HTTP status server error \(5\d\d\b", output)
+    ):
+        # A shell wrapper can write reward=0 even when uv never started pytest.
+        raise RuntimeError("verifier Python download failed with HTTP 5xx before tests")
+
+
 async def grade_tmax(
     sb: Sandbox,
     tmax: dict,
@@ -352,6 +369,8 @@ async def grade_tmax(
         # Post-episode evidence for the task editor, never an agent observation.
         diagnostics.update(exit_code=rc, output_tail=verifier_output[-16000:])
     reward_txt = await sb.read_file(reward_path, user="root")
+    reward = _parse_reward(reward_txt)
+    _check_verifier_python_download(test_sh, verifier_output, reward)
     if (reward_txt or "").strip() == nonce:
         logger.info(
             "[tmax] verifier left the sentinel in place (never wrote %s; "
@@ -361,7 +380,6 @@ async def grade_tmax(
             verifier_tail,
         )
         return 0.0
-    reward = _parse_reward(reward_txt)
     if reward < 1.0:
         logger.info(
             "[tmax] verifier for %s exited %s with reward=%.2f; tail %r",
@@ -492,12 +510,14 @@ def grade_tmax_daytona(
             )
             return 0.0
 
-    sb.process.exec(
+    verification = sb.process.exec(
         _root_sh(f"chmod +x {_TEST_SH}; bash {_TEST_SH}"),
         timeout=timeout,
     )
     r = sb.process.exec(_root_sh(f"cat {reward_path}"), timeout=30)
     reward_txt = r.result if getattr(r, "exit_code", 1) == 0 else ""
+    reward = _parse_reward(reward_txt)
+    _check_verifier_python_download(test_sh, verification.result or "", reward)
     if reward_txt.strip() == nonce:
         return 0.0
-    return _parse_reward(reward_txt)
+    return reward

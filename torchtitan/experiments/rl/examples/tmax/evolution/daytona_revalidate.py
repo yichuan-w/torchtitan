@@ -91,10 +91,10 @@ from torchtitan.experiments.rl.examples.tmax.grading import (  # noqa: E402
     grade_tmax,
     seed_workspace,
 )
-from torchtitan.experiments.rl.examples.tmax.integrity_baseline import (  # noqa: E402
+from torchtitan.experiments.rl.examples.tmax.integrity_baseline import (  # noqa: E402,F401
     capture_baseline,
     protected_cmds_of,
-    protected_entries_of,
+    protected_entries_of as protected_entries_of,
     protected_paths_of,
 )
 
@@ -143,11 +143,6 @@ async def _start_entrypoint(sb, command: str, *, workdir: str) -> None:  # noqa:
 def log(msg: str) -> None:
     print(f"[{time.strftime('%H:%M:%S')}] {msg}", file=sys.stderr, flush=True)
 
-
-# A box at the platform ceiling cannot truncate a reading; a box below it can,
-# which is what the `oom_kill` / disk-exhausted / timeout fields beside a
-# measurement report.
-from derive_sizing import CEILING  # noqa: E402
 
 # oom_kill separates a kernel kill from a deadline; memory.peak beside
 # memory.max shows a near miss as well as a hit; cpu.stat's usage_usec over the
@@ -325,7 +320,10 @@ async def probe(
         code, out, err = await sb.exec(cmd, check=False, timeout=solve_timeout)
         log(f"run exit={code}")
         measured = await measure(sb, time.time() - t0, tail=(out or "") + (err or ""))
-        reward = await grade_tmax(sb, tmax, workdir=workdir, baseline_digests=baseline)
+        verifier = {}
+        reward = await grade_tmax(
+            sb, tmax, workdir=workdir, baseline_digests=baseline, diagnostics=verifier
+        )
     tail = (out + "\n" + err)[-400:]
     if shortcut is None:
         why = starved(measured, code, solve_timeout) if reward < 1.0 else ""
@@ -335,6 +333,7 @@ async def probe(
             "reward": reward,
             "solve_exit": code,
             "tail": tail,
+            "verifier": verifier,
             "resources": box,
             "measured": measured,
             "pretest": hook,
@@ -355,6 +354,7 @@ async def probe(
         "passed": reward >= 1.0,
         "reward": reward,
         "tail": tail,
+        "verifier": verifier,
         "resources": box,
         "pretest": hook,
         "paths_checked": list(require_paths or []),

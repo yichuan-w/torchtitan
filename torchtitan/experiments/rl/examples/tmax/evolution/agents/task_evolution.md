@@ -48,12 +48,16 @@ choose the change from the actual attempts and record its rationale in
 
 ## What each file has to hold
 
-These are properties of the files themselves, so they apply whichever job you were
-given. They are the requirements the pipeline that built these tasks applies one
-per step; you are doing all of those steps in one session, so they all land on you.
+Apply these requirements to files the requested change needs to modify. For easier
+jobs, preserve working files outside the declared intervention. Report a demonstrated
+seed defect through the repair path instead of combining its repair with simplification.
+For easier jobs, keep instruction passages unrelated to the intervention verbatim.
+When simplifying a passage that combines several requirements, state the retained
+requirements explicitly in that passage.
 
-**`solution/solve.sh`** completes the whole workflow from the variant's starting
-state, the way a strong agent's successful run would. Inspect inputs before
+**`solution/solve.sh`**, when the intervention requires changing it, completes the
+whole workflow from the variant's starting state, the way a strong agent's
+successful run would. Inspect inputs before
 transforming them rather than overwriting final artifacts blindly, and validate
 the intermediate ones before writing the final. Keep it deterministic, safe to run
 twice, and runnable non-interactively from any working directory. Above all,
@@ -76,11 +80,13 @@ did. The roles:
   is caught.
 
 For easier jobs, a removed goal or relaxed constraint may lose its corresponding
-checks only when declared in `run/simplify.json`. Preserve semantic correctness
-and shortcut rejection for every remaining goal. An extracted subtask does not
-need an extra intermediate artifact merely to fill a role.
+checks only when declared in `run/simplify.json`. Preserve existing semantic and
+shortcut checks for every remaining goal. Do not add checks or refactor the reference
+merely to satisfy the roles above. `add_scaffold` changes only `instruction.md`;
+its environment, reference and verifier stay unchanged. `provide_initial_state`
+supplies prerequisites in the environment and leaves verifier files unchanged.
 
-`no_shortcut` is the one usually missing and it has to be earned in behaviour: change
+For harder jobs, `no_shortcut` has to be earned in behaviour: change
 an input the answer depends on and re-run the workflow, asserting the output followed
 and restoring what you changed; or recompute the expected answer inside the verifier
 from the current inputs; or require an intermediate artifact whose content must agree

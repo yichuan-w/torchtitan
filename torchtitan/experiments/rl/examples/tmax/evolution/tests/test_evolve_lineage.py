@@ -16,6 +16,8 @@ import sys
 import time
 from pathlib import Path
 
+import pytest
+
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 import evolve_ondella as od
@@ -131,6 +133,18 @@ def _stub(monkeypatch, status: str = "accepted", **extra) -> _Seen:
                 "seed_dir": seed_dir,
                 "resources": resources,
                 "history": history,
+                "previous_simplify": (
+                    json.loads((rewrite.traces / "previous-simplify.json").read_text())
+                    if (rewrite.traces / "previous-simplify.json").exists()
+                    else None
+                ),
+                "previous_parent": {
+                    str(
+                        path.relative_to(rewrite.traces / "previous-simplify-parent")
+                    ): path.read_bytes()
+                    for path in (rewrite.traces / "previous-simplify-parent").rglob("*")
+                    if path.is_file()
+                },
             }
         )
         (rewrite.package / "instruction.md").write_text("harder\n")
@@ -196,6 +210,158 @@ def test_round_persists_simplify_choice(tmp_path, monkeypatch):
     od.run_round(root, workers=1)
     meta = json.loads(seen[0]["rewrite"].meta.read_text())
     assert meta["simplify"] == choice
+
+
+def test_round_records_a_spec_repair_separately_from_simplification(
+    tmp_path, monkeypatch
+):
+    root = _root(tmp_path, monkeypatch)
+    _signal(root, direction="easier")
+    repair = {"diagnosis": "missing public format"}
+    seen = _stub(
+        monkeypatch, action="repair", family="repair", operator=None, spec_repair=repair
+    )
+    od.run_round(root, workers=1)
+    meta = json.loads(seen[0]["rewrite"].meta.read_text())
+    assert meta["status"] == "accepted" and meta["result_rev"] == 1
+    assert meta["action"] == "repair" and meta["spec_repair"] == repair
+    assert "simplify" not in meta
+    events = layout.read_jsonl(root.evolution.task("tw_a").lineage)
+    assert next(e for e in events if e["event"] == "rewrite")["action"] == "repair"
+
+
+def test_next_revision_receives_prior_simplification_and_current_outcome(
+    tmp_path, monkeypatch
+):
+    root = _root(tmp_path, monkeypatch)
+    _signal(root, direction="easier")
+    choice = {"operator": "reduce_scale", "change": "retain two inputs"}
+    seen = _stub(monkeypatch, simplify=choice)
+    od.run_round(root, workers=1)
+    assert seen[0]["previous_simplify"] is None
+    _signal(root, rev=1, group=8, direction="harder", created="20260904-183112Z")
+    od.run_round(root, workers=1)
+    prior = seen[1]["previous_simplify"]
+    original = root.evolution.task("tw_a").rev(0)
+    assert prior == {
+        "input_rev": 0,
+        "result_rev": 1,
+        "simplify": choice,
+        "observed": {"direction": "harder", "solved": 2, "total": 2},
+        "parent": {
+            "path": "traces/previous-simplify-parent",
+            "sha256": {name: layout.sha256_file(original / name) for name in SEED},
+        },
+    }
+    assert seen[1]["previous_parent"] == {
+        name: content.encode() for name, content in SEED.items()
+    }
+    assert not (root.evolution.task("tw_a").rev(2) / "traces").exists()
+
+
+def test_calibration_preserves_the_intervention_for_the_next_revision(
+    tmp_path, monkeypatch
+):
+    root = _root(tmp_path, monkeypatch)
+    choice = {"operator": "reduce_scale", "change": "retain two inputs"}
+    _signal(root, direction="easier")
+    _stub(monkeypatch, simplify=choice)
+    assert od.run_round(root, workers=1)["accepted"] == 1
+
+    _signal(root, rev=1, group=8, direction="harder", created="20260904-183112Z")
+    calibrated = _stub(monkeypatch, calibration=True)
+    process = od.fb.process_one
+
+    def calibrate(rewrite, *args, **kwargs):
+        result = process(rewrite, *args, **kwargs)
+        (rewrite.package / "run/hardening.md").write_text("Restore one input.\n")
+        return result
+
+    monkeypatch.setattr(od.fb, "process_one", calibrate)
+    assert od.run_round(root, workers=1)["accepted"] == 1
+    meta = json.loads(calibrated[0]["rewrite"].meta.read_text())
+    assert "simplify" not in meta
+    assert meta["calibration"] is True
+    adjustment = {
+        "input_rev": 1,
+        "observed": {"direction": "harder", "solved": 2, "total": 2},
+        "rationale": "Restore one input.\n",
+    }
+    assert meta["simplify_context"]["calibrations"] == [adjustment]
+
+    _signal(root, rev=2, group=9, direction="easier", created="20260904-183212Z")
+    following = _stub(monkeypatch)
+    assert od.run_round(root, workers=1)["accepted"] == 1
+    assert following[0]["previous_simplify"] == {
+        "input_rev": 0,
+        "result_rev": 2,
+        "simplify": choice,
+        "calibrations": [adjustment],
+        "observed": {"direction": "easier", "solved": 0, "total": 2},
+        "parent": {
+            "path": "traces/previous-simplify-parent",
+            "sha256": {
+                name: layout.sha256_file(root.evolution.task("tw_a").rev(0) / name)
+                for name in SEED
+            },
+        },
+    }
+    assert (
+        following[0]["previous_parent"]["instruction.md"]
+        == SEED["instruction.md"].encode()
+    )
+
+
+@pytest.mark.parametrize("change", ["file", "metadata", "both"])
+def test_changed_simplify_reference_is_rejected_without_changing_original(
+    tmp_path, monkeypatch, change
+):
+    root = _root(tmp_path, monkeypatch)
+    _signal(root, direction="easier")
+    _stub(monkeypatch, simplify={"operator": "reduce_scale"})
+    assert od.run_round(root, workers=1)["accepted"] == 1
+    _signal(root, rev=1, group=8, created="20260904-183112Z")
+    seen = _stub(monkeypatch, calibration=True)
+    process = od.fb.process_one
+
+    def change_reference(rewrite, *args, **kwargs):
+        result = process(rewrite, *args, **kwargs)
+        reference = rewrite.traces / "previous-simplify-parent/instruction.md"
+        if change in ("file", "both"):
+            reference.write_text("A different original goal.\n")
+        if change in ("metadata", "both"):
+            record = rewrite.traces / "previous-simplify.json"
+            context = json.loads(record.read_text())
+            context["input_rev"] = 1
+            context["parent"]["sha256"]["instruction.md"] = layout.sha256_file(
+                reference
+            )
+            record.write_text(json.dumps(context))
+        return result
+
+    monkeypatch.setattr(od.fb, "process_one", change_reference)
+    assert od.run_round(root, workers=1)["accepted"] == 0
+    meta = json.loads(seen[0]["rewrite"].meta.read_text())
+    assert meta["status"] == "rejected" and meta["stage"] == "simplify_context"
+    original = root.evolution.task("tw_a").rev(0) / "instruction.md"
+    assert original.read_text() == SEED["instruction.md"]
+    assert not root.evolution.task("tw_a").rev(2).exists()
+
+
+def test_ordinary_hardening_does_not_reuse_an_older_simplification(
+    tmp_path, monkeypatch
+):
+    root = _root(tmp_path, monkeypatch)
+    _signal(root, direction="easier")
+    _stub(monkeypatch, simplify={"operator": "reduce_scale"})
+    assert od.run_round(root, workers=1)["accepted"] == 1
+    _signal(root, rev=1, group=8, created="20260904-183112Z")
+    _stub(monkeypatch)
+    assert od.run_round(root, workers=1)["accepted"] == 1
+    _signal(root, rev=2, group=9, created="20260904-183212Z")
+    following = _stub(monkeypatch)
+    assert od.run_round(root, workers=1)["accepted"] == 1
+    assert following[0]["previous_simplify"] is None
 
 
 def test_round_materializes_r0_handles_the_signal_and_folds_r1(

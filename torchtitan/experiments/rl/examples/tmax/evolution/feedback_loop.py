@@ -72,7 +72,7 @@ DAYTONA_ENV_FILE = os.environ.get(
 
 _INFRA_RE = re.compile(
     r"Timeout|Bad ?Gateway|InternalServer|50[234]|[Cc]onnection|timed? ?out|"
-    r"no stdout|TooManyRequests|429"
+    r"no stdout|TooManyRequests|429|verifier Python download failed with HTTP 5xx"
 )
 
 
@@ -342,7 +342,13 @@ def revalidate(
     verifier path, or a path the instruction stopped revealing that the verifier
     still needs. Judged before/after, so an SWE test.sh that always references
     repo internals is not mistaken for a fresh dark path."""
-    if changed == ["instruction"] and orig is not None and not task.get("_simplify"):
+    if (
+        changed == ["instruction"]
+        and orig is not None
+        and not task.get("_simplify")
+        and not task.get("_spec_repair")
+        and not task.get("_calibration")
+    ):
         if not task["instruction"].strip():
             return {"ok": False, "stage": "empty", "why": "instruction emptied"}
         before, after = sl.audit(orig), sl.audit(task)
@@ -385,6 +391,7 @@ def revalidate(
             ts.violations(
                 ts.size_of(orig["solve_sh"], orig["test_state_py"], _kind(orig)),
                 ts.size_of(task["solve_sh"], task["test_state_py"], _kind(task)),
+                min_added=0 if task.get("_calibration") else ts.MIN_ADDED,
             )
             if orig is not None and task.get("_direction") != "easier"
             else []
@@ -413,7 +420,15 @@ def revalidate(
                 )[:200]
                 + also,
                 "literals": names,
-                "tail": dv.get("tail", ""),
+                "tail": "\n\n".join(
+                    text
+                    for text in (
+                        dv.get("tail", ""),
+                        (dv.get("verifier") or {}).get("output_tail", ""),
+                    )
+                    if text
+                ),
+                "verifier": dv.get("verifier", {}),
                 "solve_exit": dv.get("solve_exit"),
                 "measured": dv.get("measured"),
                 "resources": dv.get("resources"),
@@ -446,6 +461,14 @@ def revalidate(
             )
             or {}
         )
+        if not null.get("ok") or type(null.get("passed")) is not bool:
+            return {
+                "ok": False,
+                "stage": "null_check",
+                "why": "untouched-workspace validation did not complete: "
+                + str(null.get("why") or null.get("stage") or "missing result"),
+                "null": null,
+            }
         if null.get("passed"):
             return {
                 "ok": False,
@@ -455,6 +478,11 @@ def revalidate(
         return {
             "ok": True,
             "fast_path": "daytona_oracle",
+            "null": {
+                key: null[key]
+                for key in ("ok", "stage", "passed", "reward", "resources")
+                if key in null
+            },
             "advice": advice,
             "reward": dv.get("reward"),
             "measured": dv.get("measured"),
@@ -614,6 +642,9 @@ def _write_back(work: Path, new: dict) -> None:
     for key, rel in ev.file_map(new).items():
         dest = work / rel
         dest.parent.mkdir(parents=True, exist_ok=True)
+        # Preserve original newline bytes when the round-tripped text is unchanged.
+        if dest.exists() and dest.read_text() == new[key]:
+            continue
         dest.write_text(new[key])
 
 
@@ -732,7 +763,28 @@ def process_one(
                         rewrite, task, solved=solved, attempts=graded, hint=hint_lvl
                     )
                 except ec.Blocked as e:
-                    return _done(rec, "kept", stage="agent", reason=str(e))
+                    if not str(e).startswith("BLOCKED: repair_required:"):
+                        return _done(rec, "kept", stage="agent", reason=str(e))
+                    report = (work / "run" / "verdict.txt").read_text()
+                    rec["action"] = "repair"
+                    rec["spec_repair"] = {"reported": report}
+                    # Preserve the declined package, including any partial edits,
+                    # and repair from the exact input revision.
+                    declined = rewrite.path / "before-spec-repair"
+                    work.rename(declined)
+                    shutil.copytree(seed_dir, work)
+                    shutil.copytree(declined / "traces", rewrite.traces)
+                    try:
+                        new = ec.evolve_agentic(
+                            rewrite, task, "repair_spec", observed=report
+                        )
+                    except ec.Blocked as repair_error:
+                        return _done(
+                            rec, "kept", stage="spec_repair", reason=str(repair_error)
+                        )
+                    rec["spec_repair"].update(new["_spec_repair"])
+                    rec["family"] = "repair"
+                    rec["agent_validated"] = new.get("_agent_validated")
                 except Exception as e:  # noqa: BLE001 -- the task stays as it is
                     return _done(
                         rec, "failed", stage="agent", reason=f"{type(e).__name__}: {e}"
@@ -818,8 +870,40 @@ def process_one(
                     new.get("_family", fam),
                 )
 
+        if new.get("_calibration"):
+            rec["calibration"] = True
         _write_back(work, new)
         changed = _changed(task, new)
+        simplify_op = new.get("_simplify", {}).get("operator")
+        if rec["action"] == "simplify" and simplify_op in (
+            "add_scaffold",
+            "provide_initial_state",
+        ):
+            if simplify_op == "add_scaffold":
+                scope_changes = [name for name in changed if name != "instruction"]
+                scope_rule = "add_scaffold may change only instruction.md"
+            else:
+                scope_changes = [
+                    name
+                    for name in changed
+                    if name == "test_state_py" or name.startswith("tests/")
+                ]
+                scope_rule = "provide_initial_state must preserve verifier files"
+            # The collector omits alternate verifier entrypoints from support files.
+            for rel in ev.VERIFIER_CANDIDATES:
+                before, after = seed_dir / rel, work / rel
+                old = before.read_bytes() if before.exists() else None
+                current = after.read_bytes() if after.exists() else None
+                if old != current and rel not in scope_changes:
+                    scope_changes.append(rel)
+            if scope_changes:
+                rec["changed"] = list(dict.fromkeys([*changed, *scope_changes]))
+                return _done(
+                    rec,
+                    "rejected",
+                    stage="simplify_scope",
+                    reason=scope_rule + ": " + ", ".join(scope_changes),
+                )
         box = _probe_box(new, resources)
         rec["resources"] = box
         v = revalidate(

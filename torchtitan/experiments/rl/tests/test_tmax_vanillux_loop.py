@@ -618,17 +618,17 @@ def test_rollout_record_is_one_header_line_then_one_line_per_turn(
 
 @pytest.mark.parametrize(
     "group_id, records, expect",
-    [(-1, "1", False), (5, "0", False), (5, "1", True)],
+    [(-1, "1", True), (-1, "0", False), (5, "0", False), (5, "1", True)],
 )
-def test_rollout_record_skips_validation_groups_and_honors_the_switch(
+def test_rollout_record_separates_validation_groups_and_honors_the_switch(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
     group_id: int,
     records: str,
     expect: bool,
 ) -> None:
-    """Validation rollouts belong to the controller's validation report; a file
-    under rollouts/ would read as a training rollout of a task never trained on."""
+    """Each completed validation attempt is saved before the controller report,
+    separately from training records consumed by evolution."""
     run = _run_dir(monkeypatch, tmp_path)
     monkeypatch.setenv("SWE_ROLLOUT_RECORDS", records)
 
@@ -653,7 +653,17 @@ def test_rollout_record_skips_validation_groups_and_honors_the_switch(
     )
 
     assert (rel is not None) is expect
-    assert run.rollouts.exists() is expect
+    assert run.rollouts.exists() is (expect and group_id >= 0)
+    assert (run.path / "validation_rollouts").exists() is (expect and group_id < 0)
+    if expect:
+        header, turns = rollout_record.read_record(run.path / rel)
+        assert header["group"] == group_id
+        assert header["reward"] == 0.0
+        assert turns == []
+        assert not list(run.path.rglob("*.incoming"))
+        assert run.pane("task-123", group_id, 0) == (run.path / rel).with_suffix(
+            ".pane"
+        )
 
 
 def test_no_tmux_probe_appends_one_advisory_line_per_hit(

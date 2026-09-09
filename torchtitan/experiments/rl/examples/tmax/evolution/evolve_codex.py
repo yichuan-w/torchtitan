@@ -83,6 +83,7 @@ CODEX_MODEL = os.environ.get("SYNTH_MODEL", "gpt-5.6")
 # records as reasoning_effort=null.
 CODEX_EFFORT = llm.EFFORT
 API_BASE = os.environ.get("SYNTH_API_BASE", "https://us.api.openai.com/v1")
+ACCOUNT_HOME = os.environ.get("EVOLVE_CODEX_ACCOUNT_HOME")
 # Turn budget the agent is told to respect; the hard cap is the subprocess
 # timeout below. "deadline in the prompt" per the design.
 MAX_TOOL_CALLS = int(os.environ.get("CODEX_RETUNE_MAX_CALLS", "25"))
@@ -282,12 +283,25 @@ def _harness_env() -> dict:
 def _codex_env(sd: layout.SessionDir) -> dict:
     env = _harness_env()
     env["CODEX_HOME"] = str(sd.codex_home)
-    env["OPENAI_API_KEY"] = llm._api_key()
+    if ACCOUNT_HOME:
+        auth = Path(ACCOUNT_HOME).resolve() / "auth.json"
+        if not auth.is_file():
+            raise RuntimeError(f"account authentication missing: {auth}")
+        sd.codex_home.mkdir(parents=True, exist_ok=True)
+        # Codex 0.153.4 writes through this link; one credential file owns refresh.
+        (sd.codex_home / "auth.json").symlink_to(auth)
+        env.pop("OPENAI_API_KEY", None)
+        env.pop("CODEX_THREAD_ID", None)
+        env.pop("CODEX_SESSION_ID", None)
+    else:
+        env["OPENAI_API_KEY"] = llm._api_key()
     return env
 
 
 def _provider_overrides() -> list[str]:
     """The provider settings both drivers pass; the SDK takes them as a list."""
+    if ACCOUNT_HOME:
+        return ["model_provider=openai"]
     return [
         "model_providers.oai.name=openai",
         f"model_providers.oai.base_url={API_BASE}",
@@ -327,17 +341,27 @@ def _codex_cmd(cwd: Path, resume: str | None = None) -> list[str]:
     cmd += [
         "--dangerously-bypass-approvals-and-sandbox",
         "--skip-git-repo-check",
-        "-c",
-        "model_providers.oai.name=openai",
-        "-c",
-        f"model_providers.oai.base_url={API_BASE}",
-        "-c",
-        "model_providers.oai.env_key=OPENAI_API_KEY",
-        "-c",
-        "model_provider=oai",
-        "-c",
-        f"model_reasoning_effort={CODEX_EFFORT}",
     ]
+    for override in _provider_overrides() + [f"model_reasoning_effort={CODEX_EFFORT}"]:
+        cmd += ["-c", override]
+    if ACCOUNT_HOME:
+        # Use the account's authentication, but never its personal configuration.
+        cmd += [
+            "--ignore-user-config",
+            "--json",
+            "-c",
+            "project_doc_max_bytes=0",
+            "-c",
+            "features.skip_host_skill_discovery=true",
+            "-c",
+            "features.plugins=false",
+            "-c",
+            "features.apps=false",
+            "-c",
+            "features.hooks=false",
+            "-c",
+            "skills.include_instructions=false",
+        ]
     # `exec resume` takes no -C (codex-cli 0.149: it continues in the
     # session's recorded cwd); the subprocess is started in the package
     # either way.
@@ -367,7 +391,19 @@ def _run_codex(
     """
     sd = run.dir
     timeout = int(run.meta["timeout_sec"])
+    prompt += (
+        "\n\nFor local package edits in Codex's *** Begin Patch format, use "
+        "`./sandbox patch` with the patch on standard input or as one argument. "
+        "This invokes the same Codex binary as this session; a host command "
+        "named apply_patch may use a different format. Read back files you "
+        "create, including run/verdict.txt, before reporting that they exist.\n"
+    )
+    if ACCOUNT_HOME and (cwd / "AGENTS.md").is_file():
+        # Automatic document discovery is off; retain the experiment's own role.
+        prompt = (cwd / "AGENTS.md").read_text() + "\n\n" + prompt
     sd.prompt.write_text(prompt)
+    if ACCOUNT_HOME and CODEX_DRIVER != "exec":
+        raise ValueError("account authentication currently requires the exec driver")
     env = _codex_env(sd)
     if CODEX_DRIVER == "sdk":
         cmd = _session_cmd(run, cwd, resume=resume)
@@ -397,6 +433,9 @@ def _run_codex(
                 proc.kill()
                 proc.communicate()
                 raise
+            finally:
+                if ACCOUNT_HOME:
+                    (sd.codex_home / "auth.json").unlink(missing_ok=True)
     except subprocess.TimeoutExpired as exc:
         run.meta["exit_code"] = proc.returncode
         # The partial streams are on disk; hand them to the caller too, which
@@ -502,6 +541,11 @@ def _prepare_package(pkg: Path, task: dict) -> dict:
     (pkg / "run").mkdir(exist_ok=True)
     fmap = ev.file_map(task)
     _write_seed_literals(pkg, fmap["test_state_py"])
+    if task.get("_calibration"):
+        path = pkg / "run" / "seed_size.json"
+        size = json.loads(path.read_text())
+        # Restoring a removed condition can require no additional solution lines.
+        path.write_text(json.dumps({**size, "min_added": 0}) + "\n")
     _write_resources(pkg, task)
     _write_pretest(pkg, task)
     shutil.copy2(SPEC, pkg / "AGENTS.md")
@@ -744,7 +788,13 @@ came from. Every later line is one turn, in order: turn, keystrokes (a list:
 what the agent typed; empty on a closing turn), task_complete, output (the
 terminal after it; empty on the last turn, where the episode ended),
 analysis, plan, think. A turn with no parseable response has raw instead of
-keystrokes. jq is on PATH; these are enough:
+keystrokes. The header may contain verifier diagnostics and a per-test report.
+If `traces/previous-simplify.json` exists, read the prior intervention and its
+measured outcome before editing. An all-failed variant needs a stronger or
+different intervention at the remaining obstacle; an all-solved variant needs
+part of the removed difficulty restored, not an unrelated extra deliverable.
+The current attempts show whether the prior prediction held. jq is on PATH;
+these are enough:
 
   head -qn1 traces/*.jsonl | jq -c '{rollout, reward, turns, finish_reason}'
                                                               # every attempt's outcome
@@ -912,6 +962,25 @@ support a useful change within the size limits, write
 `GIVE UP: no-supported-hardening — <why>` and stop.
 """
 
+_CALIBRATION_GUIDANCE = """The previous simplification now has all attempts passing.
+Read `traces/previous-simplify.json` and the current attempts. When the record
+includes a parent path, compare that original task's files with the current
+package to identify the exact help or restriction that changed. Keep the
+reference copy and lineage record unchanged; both are checked after the session. Move toward
+mixed success by partially undoing the previous simplification. Keep
+the change within the earlier task's requirements; do not introduce another
+obligation or a new difficulty dimension.
+
+Before editing, write `run/hardening.md` with the prior intervention, the
+portion being restored, the supporting attempts, and the predicted effect.
+If the removed condition is indivisible, restore it with limited guidance or
+feedback at the recorded hint level. Keep the correctness checks for the
+retained goal. A change to guidance alone may leave the verifier unchanged.
+The reference solution need not grow: removing a hint or restoring one
+condition can change difficulty without adding several commands. If the
+evidence does not support an intermediate task, write GIVE UP with the reason.
+"""
+
 
 _HARDER_JOB = """This task was solved {solved} of {attempts} attempts and met the
 hardening threshold.
@@ -1076,6 +1145,38 @@ fresh one.
 
 Confirm with `./sandbox check` before you stop."""
 
+_SPEC_REPAIR_JOB = """A simplification attempt reported a possible task defect.
+The report is in `run/failure.txt`; it is a claim to check, not an established
+fact. Read the public instruction, environment, verifier and actual attempts.
+Identify a concrete disagreement that prevents fair grading or execution.
+Compilation, a student's success claim, or a hypothetical shortcut is not
+proof of a grading error. An oracle-informed constant can satisfy a valid
+fixed-output task; do not add requirements merely to reject that possibility.
+
+Repair only a demonstrated defect, preserving the task's intended capability.
+Make required inputs and API contracts available, reconcile contradictory
+requirements, or correct a verifier that rejects a valid result. Do not remove
+the student goal, precompute its output, or replace a required implementation
+with a marker or mock that no longer exercises it. If a live external system
+cannot be provided faithfully, leave the task blocked and explain why.
+Do not combine the repair with a difficulty adjustment. Student rollouts on
+the repaired revision will determine whether it still needs simplification.
+
+Before editing, write `run/repair.json` with nonempty string fields diagnosis,
+evidence, change, retained_skill, and validation. Evidence must identify the
+conflicting public requirement and actual observation, with file locations or
+trace turns. Validation states what would demonstrate that the defect is fixed.
+If the report is unsupported or no faithful repair is possible, write
+`GIVE UP: <reason>` to `run/verdict.txt` and stop without changing the task.
+
+Use `./sandbox grade` to check any claimed grading counterexample. For a
+verifier repair, demonstrate acceptance of a valid result and rejection of an
+invalid result; record both outcomes in `run/repair.json`. Static fixture contradictions can
+be established by inspecting the exact bytes and the public format together.
+Finish with `./sandbox check`; the caller independently checks the repaired
+reference solution and the untouched workspace before publishing the revision.
+"""
+
 _VERIFIER_JOB = """The task in this package was just made one rung harder through a
 change to its requirements or workflow. Write the verifier for the task as the
 instruction states it.
@@ -1166,12 +1267,20 @@ def _blind_layout(pkg: Path, vpkg: Path) -> None:
     os.chmod(vpkg / "sandbox", 0o755)
 
 
-def _take_verifier(vpkg: Path, pkg: Path, seed_rel: str, seed_text: str) -> str:
+def _take_verifier(
+    vpkg: Path,
+    pkg: Path,
+    seed_rel: str,
+    seed_text: str,
+    *,
+    allow_unchanged: bool = False,
+) -> str:
     """Copy the verifier the blind author wrote into the author's package,
-    replacing the seed's, and return its path. Raises when nothing changed."""
+    replacing the seed's, and return its path. Calibration may retain a
+    reviewed verifier; other jobs must change it."""
     rel = _verifier_on_disk(vpkg, seed_rel)
     text = (vpkg / rel).read_text()
-    if rel == seed_rel and text == seed_text:
+    if rel == seed_rel and text == seed_text and not allow_unchanged:
         raise RuntimeError("verifier author changed nothing")
     if rel != seed_rel:
         (pkg / seed_rel).unlink(missing_ok=True)
@@ -1210,12 +1319,24 @@ def _blind_verifier(
             seed_asserts=seed_size["verifier_asserts"],
             max_asserts=ts.MAX_ADDED_ASSERTS,
         ) + _budget(AGENT_TIMEOUT)
+        if task.get("_calibration"):
+            prompt += (
+                "\nThis adjusts a previous simplification. If the existing verifier "
+                "still fully checks the retained goal, keep it unchanged and validate it. "
+                "A change only to guidance does not require a new assertion.\n"
+            )
         try:
             _run_codex(run, vpkg, prompt)
         finally:
             _sandbox_down(vpkg)
     _check_verdict(vpkg)
-    rel = _take_verifier(vpkg, pkg, seed_rel, seed_text)
+    rel = _take_verifier(
+        vpkg,
+        pkg,
+        seed_rel,
+        seed_text,
+        allow_unchanged=bool(task.get("_calibration")),
+    )
     return run.dir, rel
 
 
@@ -1292,27 +1413,38 @@ def evolve_agentic(
     revalidates afterwards; the agent's own pass is not the gate, it is what
     stops the agent from finishing on a rewrite it never ran.
 
-    `job` is one of "harder", "easier", "repair". The attempts are the records
+    `job` is "harder", "easier", "repair", or "repair_spec". The attempts are the records
     the loop hardlinked under ``traces/``. Raises on failure; raises Blocked
     when the agent declined.
     """
     _require_codex()
     pkg = rewrite.package
-    fmap = _prepare_package(pkg, task)
-    if job == "easier":
-        # Growth is required only for harder jobs; the caller checks direction independently.
-        (pkg / "run" / "seed_size.json").unlink(missing_ok=True)
-    if observed:
-        (pkg / "run" / "failure.txt").write_text(observed)
-
     solved = task.get("_solved", 0)
     attempts_n = task.get(
         "_attempts", len(list(rewrite.traces.glob("attempt-*.jsonl"))) or 16
     )
+    use_operators = job == "harder" and harder_uses_operators()
+    previous = rewrite.traces / "previous-simplify.json"
+    calibration = (
+        job == "harder"
+        and not use_operators
+        and solved == attempts_n
+        and attempts_n > 0
+        and previous.exists()
+        and bool(json.loads(previous.read_text()).get("simplify"))
+    )
+    if calibration:
+        task = {**task, "_calibration": True}
+    fmap = _prepare_package(pkg, task)
+    if job in ("easier", "repair_spec"):
+        # Simplification and specification repair do not use the hardening size rule.
+        (pkg / "run" / "seed_size.json").unlink(missing_ok=True)
+    if observed:
+        (pkg / "run" / "failure.txt").write_text(observed)
+
     # `operator` is the scored shortlist, in score order, each entry
     # (family, operator_id, definition) -- the same order operator_shortlist
     # and pick_operator both return.
-    use_operators = job == "harder" and harder_uses_operators()
     cands = list(operator or []) if use_operators else []
     if use_operators and not cands:
         raise ValueError("operator mode requires a nonempty harder shortlist")
@@ -1331,11 +1463,13 @@ def evolve_agentic(
                 guidance=(
                     _OPERATOR_HARDER_GUIDANCE.format(candidates=_candidates(cands))
                     if use_operators
+                    else _CALIBRATION_GUIDANCE
+                    if calibration
                     else _STUDENT_HARDER_GUIDANCE
                 ),
                 seed_lines=seed_size["solution_lines"],
                 seed_asserts=seed_size["verifier_asserts"],
-                min_added=ts.MIN_ADDED,
+                min_added=0 if calibration else ts.MIN_ADDED,
                 max_added=ts.MAX_ADDED,
                 max_asserts=ts.MAX_ADDED_ASSERTS,
             ),
@@ -1345,6 +1479,7 @@ def evolve_agentic(
                 cards=so.prompt(task.get("_simplify_hint", "vague")),
             ),
             "repair": _REPAIR_JOB.format(exit_code=exit_code),
+            "repair_spec": _SPEC_REPAIR_JOB,
         }[job]
         + _traces_spec(rewrite.traces)
         + _budget(AGENT_TIMEOUT)
@@ -1393,6 +1528,12 @@ def evolve_agentic(
         decision["hint_level"] = task.get("_simplify_hint", "vague")
         out["_simplify"] = decision
         out["_operator"], out["_family"] = decision["operator"], "simplify"
+    if job == "repair_spec":
+        repair = json.loads((pkg / "run" / "repair.json").read_text())
+        for key in ("diagnosis", "evidence", "change", "retained_skill", "validation"):
+            if not isinstance(repair.get(key), str) or not repair[key].strip():
+                raise ValueError(f"repair declaration needs a nonempty {key}")
+        out["_spec_repair"] = repair
     if vsession is not None:
         out["_verifier_author"] = "blind"
         out["_verifier_session"] = str(vsession.path)
