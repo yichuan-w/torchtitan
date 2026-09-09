@@ -35,10 +35,12 @@ endpoint synth_client uses, and the key injected via env.
 from __future__ import annotations
 
 import contextlib
+import hashlib
 import json
 import os
 import shutil
 import subprocess
+import tempfile
 import time
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -48,7 +50,7 @@ import simplify_operators as so
 import synth_client as llm
 import task_size as ts
 import verifier_literals as vl
-from verifier_probes import verify_probes
+from verifier_probes import SemanticProbeMisses, verify_probes
 from synth_operators import harder_uses_operators
 from torchtitan.experiments.rl.examples.tmax import layout
 
@@ -1210,6 +1212,81 @@ def _take_verifier(vpkg: Path, pkg: Path, seed_rel: str, seed_text: str) -> str:
     return rel
 
 
+def _probe_hashes(package: Path, exclude: tuple[str, ...] = ()) -> dict[str, str]:
+    return {str(p.relative_to(package)): hashlib.sha256(p.read_bytes()).hexdigest()
+            for p in package.rglob("*") if p.is_file()
+            and p.relative_to(package).parts[0] not in exclude and "__pycache__" not in p.parts}
+
+
+def _independent_verifier(
+    rewrite: layout.RewriteDir, vsession: layout.SessionDir, *, allow_repair: bool = True
+) -> None:
+    vpkg = vsession.package
+    pointer = vsession.path / "independent-probes.json"
+    if pointer.exists():
+        probe = Path(json.loads(pointer.read_text())["package"])
+    else:
+        with session(rewrite, "probe", timeout=AGENT_TIMEOUT) as run:
+            probe = run.dir.package
+            _blind_layout(vpkg, probe)
+            shutil.rmtree(probe / "tests")
+            (probe / "tests").mkdir()
+            (probe / "tests/test.sh").write_text(
+                "#!/bin/sh\nmkdir -p /logs/verifier\necho 0 > /logs/verifier/reward.txt\nexit 2\n"
+            )
+            for name in ("seed_size.json", "seed_literals.json"):
+                (probe / "run" / name).unlink(missing_ok=True)
+            shutil.copy2(VERIFIER_SPEC.with_name("independent_verifier_probes.md"), probe / "AGENTS.md")
+
+            before = _probe_hashes(probe, ("run",))
+            run.meta["public_inputs_sha256"] = before
+            try:
+                result = _run_codex(run, probe, "Create independent semantic controls from the public task.\n" + _budget(AGENT_TIMEOUT))
+                if result.returncode:
+                    raise RuntimeError(f"Independent probe author exited {result.returncode}")
+            finally:
+                _sandbox_down(probe)
+            _check_verdict(probe)
+            if _probe_hashes(probe, ("run",)) != before:
+                raise RuntimeError("Independent probe author changed public task files")
+        layout.write_json_atomic(pointer, {"package": str(probe),
+            "controls_sha256": _probe_hashes(probe / "run/verifier-probes")})
+
+    controls_sha256 = json.loads(pointer.read_text())["controls_sha256"]
+    public_sha256 = _probe_hashes(vpkg, ("run", "tests"))
+    for attempt in range(2 if allow_repair else 1):
+        if _probe_hashes(probe / "run/verifier-probes") != controls_sha256:
+            raise RuntimeError("Independent controls changed during verifier repair")
+        replay = Path(tempfile.mkdtemp(prefix="replay-", dir=probe.parent))
+        _blind_layout(vpkg, replay)
+        shutil.copytree(probe / "run/verifier-probes", replay / "run/verifier-probes")
+        try:
+            verify_probes(replay, _harness_env(), AGENT_TIMEOUT)
+        except SemanticProbeMisses as error:
+            if not allow_repair or attempt:
+                raise
+            (vpkg / "run/independent-failures.jsonl").write_text(error.log_path.read_text())
+            (vpkg / "run/verdict.txt").unlink(missing_ok=True)
+            with session(rewrite, "probe-repair", timeout=AGENT_TIMEOUT, resumes=vsession) as run:
+                try:
+                    result = _run_codex(run, vpkg,
+                        "The independent correct implementation passed, but faulty implementations also passed. "
+                        "Read run/independent-failures.jsonl for their public requirements, scripts, and grading evidence. "
+                        "Repair the verifier to reject those semantic errors while accepting valid implementations. "
+                        "Preserve the public task and follow AGENTS.md, including your own replay controls.\n"
+                        + _budget(AGENT_TIMEOUT), resume=_session_id(vsession))
+                    if result.returncode:
+                        raise RuntimeError(f"Verifier probe repair exited {result.returncode}")
+                finally:
+                    _sandbox_down(vpkg)
+            _check_verdict(vpkg)
+            if _probe_hashes(vpkg, ("run", "tests")) != public_sha256:
+                raise RuntimeError("Verifier repair changed public task files")
+            verify_probes(vpkg, _harness_env(), AGENT_TIMEOUT)
+        else:
+            return
+
+
 def _blind_verifier(
     rewrite: layout.RewriteDir, task: dict, fmap: dict
 ) -> tuple[layout.SessionDir, str]:
@@ -1237,11 +1314,16 @@ def _blind_verifier(
             max_asserts=ts.MAX_ADDED_ASSERTS,
         ) + _budget(AGENT_TIMEOUT)
         try:
-            _run_codex(run, vpkg, prompt)
+            result = _run_codex(run, vpkg, prompt)
+            if result.returncode:
+                raise RuntimeError(
+                    f"Verifier author exited {result.returncode}; see {run.dir.stdout}"
+                )
         finally:
             _sandbox_down(vpkg)
     _check_verdict(vpkg)
     verify_probes(vpkg, _harness_env(), AGENT_TIMEOUT)
+    _independent_verifier(rewrite, run.dir)
     rel = _take_verifier(vpkg, pkg, seed_rel, seed_text)
     return run.dir, rel
 
@@ -1266,11 +1348,16 @@ def _blind_repair(
             AGENT_TIMEOUT
         )
         try:
-            _run_codex(run, vpkg, prompt, resume=sid)
+            result = _run_codex(run, vpkg, prompt, resume=sid)
+            if result.returncode:
+                raise RuntimeError(
+                    f"Verifier repair exited {result.returncode}; see {run.dir.stdout}"
+                )
         finally:
             _sandbox_down(vpkg)
     _check_verdict(vpkg)
     verify_probes(vpkg, _harness_env(), AGENT_TIMEOUT)
+    _independent_verifier(rewrite, vsession, allow_repair=False)
     before = (pkg / _verifier_on_disk(pkg, seed_rel)).read_text()
     return _take_verifier(vpkg, pkg, _verifier_on_disk(pkg, seed_rel), before)
 

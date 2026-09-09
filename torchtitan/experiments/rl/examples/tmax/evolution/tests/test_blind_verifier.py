@@ -141,6 +141,8 @@ def _wire(monkeypatch, sessions: list, checks: list, verifier_text=NEW_VERIFIER)
     monkeypatch.setattr(ec, "_codex_bin", lambda: Path(sys.executable))
     monkeypatch.setattr(ec, "VERIFIER_AUTHOR", "blind")
     monkeypatch.setattr(ec, "_sandbox_down", lambda _pkg: None)
+    # These tests isolate author/reference reconciliation; independent replay has separate tests.
+    monkeypatch.setattr(ec, "_independent_verifier", lambda *args, **kwargs: None)
 
     def fake_run_codex(run, cwd, prompt, resume=None):
         role = "verifier" if not (cwd / "solution").exists() else "author"
@@ -291,6 +293,39 @@ def test_failed_semantic_replay_prevents_accepting_verifier(tmp_path, monkeypatc
     monkeypatch.setattr(ec, "verify_probes", reject)
     with pytest.raises(RuntimeError, match="wrong-2/grade"):
         ec.evolve_agentic(rw, dict(SEED), "harder")
+    assert (rw.package / "tests/test_state.py").read_text() == SEED["test_state_py"]
+
+
+@pytest.mark.parametrize("repair", [False, True])
+def test_failed_verifier_process_is_recorded_before_replay(tmp_path, monkeypatch, repair):
+    rw = _rewrite(tmp_path, monkeypatch)
+    replays = _wire(monkeypatch, [], [])
+    cleanups = []
+    monkeypatch.setattr(ec, "_sandbox_down", lambda pkg: cleanups.append(pkg))
+    monkeypatch.setattr(ec, "_session_id", lambda sd: "verifier-session")
+
+    def failed_process(run, cwd, prompt, resume=None):
+        run.meta["exit_code"] = 1
+        run.dir.stdout.write_text("usage limit exceeded\n")
+        return type("P", (), {"returncode": 1})()
+
+    monkeypatch.setattr(ec, "_run_codex", failed_process)
+    fmap = ec.ev.file_map(SEED)
+    with pytest.raises(RuntimeError, match="Verifier .* exited 1; see"):
+        if repair:
+            with ec.session(rw, "verifier", timeout=ec.AGENT_TIMEOUT) as previous:
+                ec._blind_layout(rw.package, previous.dir.package)
+            ec._blind_repair(rw, previous.dir, fmap, "reference failed", 1)
+        else:
+            ec._blind_verifier(rw, dict(SEED), fmap)
+
+    failed = [sd for sd in rw.session_dirs() if json.loads(sd.meta.read_text())["status"] == "failed"]
+    assert len(failed) == 1
+    meta = json.loads(failed[0].meta.read_text())
+    assert meta["exit_code"] == 1
+    assert "exited 1" in meta["error"]
+    assert failed[0].stdout.read_text() == "usage limit exceeded\n"
+    assert len(cleanups) == 1 and replays == []
     assert (rw.package / "tests/test_state.py").read_text() == SEED["test_state_py"]
 
 

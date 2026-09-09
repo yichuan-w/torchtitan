@@ -8,6 +8,12 @@ import subprocess
 from pathlib import Path
 
 
+class SemanticProbeMisses(RuntimeError):
+    def __init__(self, messages: list[str], log_path: Path):
+        self.log_path = log_path
+        super().__init__("; ".join(messages) + f"; see {log_path}")
+
+
 def verify_probes(pkg: Path, env: dict[str, str], timeout: int) -> None:
     probes = pkg / "run" / "verifier-probes"
     contract = json.loads((probes / "contract.json").read_text())
@@ -68,7 +74,7 @@ def verify_probes(pkg: Path, env: dict[str, str], timeout: int) -> None:
             run(case, "grade", ["grade"], 0 if case == "correct" else 1)
         if missed:
             record(status="failed", errors=missed)
-            raise RuntimeError("; ".join(missed) + f"; see {log_path}")
+            raise SemanticProbeMisses(missed, log_path)
         record(status="passed")
     finally:
         run("cleanup", "down", ["down"], 0)
