@@ -23,9 +23,21 @@ from pathlib import Path
 from environment_sweep import digest, revision, write_json
 
 
-def accepted(result: dict, expected_reward: float) -> bool:
-    """An interrupted control is not evidence that the grader rejected it."""
+def accepted(
+    result: dict,
+    expected_reward: float,
+    *,
+    completion_marker: str | None = None,
+    required_observation: str | None = None,
+) -> bool:
+    """Compatibility name for a preliminary execution match, never semantic acceptance.
+
+    Every result still requires independent review of the actual verifier
+    behavior. A numeric zero alone cannot establish the intended rejection.
+    """
     reward = result.get("reward")
+    grading_exit = (result.get("grading") or {}).get("exit_code")
+    output = result.get("solve_stdout") or ""
     return (
         result.get("stage") == "daytona_oracle"
         and result.get("solve_exit") == 0
@@ -34,6 +46,10 @@ def accepted(result: dict, expected_reward: float) -> bool:
         and isinstance(reward, (int, float))
         and math.isfinite(reward)
         and reward == expected_reward
+        and type(grading_exit) is int
+        and grading_exit not in (124, 127, 137)
+        and (completion_marker is None or completion_marker in output.splitlines())
+        and (required_observation is None or required_observation in output)
     )
 
 
@@ -85,6 +101,11 @@ async def run(args) -> int:
             raise ValueError("controls require binary expected rewards")
         if case["solve_timeout"] <= 0:
             raise ValueError("control timeout must be positive")
+        for key in ("completion_marker", "required_observation"):
+            if key in case and (
+                not isinstance(case[key], str) or not case[key].strip()
+            ):
+                raise ValueError(f"{key} must be a nonempty string")
         md = case["row"]["metadata"]
         for key in ("daytona_cpu", "daytona_mem_gb", "daytona_disk_gb"):
             if not isinstance(md.get(key), (int, float)) or md[key] <= 0:
@@ -103,7 +124,7 @@ async def run(args) -> int:
             saved = json.loads(result_path.read_text())
             if saved["input_sha256"] != checksum or saved["run"] != stamp:
                 raise ValueError(f"checkpoint changed: {name}")
-            log.info("item=%s status=resume_skip accepted=%s", name, saved["accepted"])
+            log.info("item=%s status=resume_skip run_match=%s", name, saved["accepted"])
             return saved
         # The reference and the controlled mutation are frozen together. The
         # prepared row remains authoritative for environment and grading files.
@@ -142,6 +163,12 @@ async def run(args) -> int:
                     "why": f"{type(exc).__name__}: {exc}",
                     **getattr(exc, "validation", {}),
                 }
+            run_match = accepted(
+                result,
+                case["expected_reward"],
+                completion_marker=case.get("completion_marker"),
+                required_observation=case.get("required_observation"),
+            )
             record = {
                 "input": case,
                 "input_sha256": checksum,
@@ -149,7 +176,11 @@ async def run(args) -> int:
                 "started_at": started,
                 "finished_at": time.time(),
                 "result": result,
-                "accepted": accepted(result, case["expected_reward"]),
+                # Retained for existing result readers; this is not release approval.
+                "accepted": run_match,
+                "run_match": run_match,
+                "assessment": "preliminary_execution_match",
+                "review_required": True,
             }
             pending = item / f"result-{time.time_ns()}.pending"
             write_json(pending, record)
@@ -157,7 +188,7 @@ async def run(args) -> int:
             log.info(
                 "item=%s status=%s expected=%s reward=%s stage=%s elapsed=%.1f",
                 name,
-                "pass" if record["accepted"] else "fail",
+                "preliminary_match" if run_match else "execution_mismatch",
                 case["expected_reward"],
                 result.get("reward"),
                 result.get("stage"),
@@ -169,6 +200,9 @@ async def run(args) -> int:
     summary = {
         "total": len(records),
         "accepted": sum(r["accepted"] for r in records),
+        "run_matches": sum(r["accepted"] for r in records),
+        "assessment": "preliminary_execution_match",
+        "review_required": True,
         "failed": [r["input"]["case_id"] for r in records if not r["accepted"]],
     }
     log.info("summary=%s", json.dumps(summary))

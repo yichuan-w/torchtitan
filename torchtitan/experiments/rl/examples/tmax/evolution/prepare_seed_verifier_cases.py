@@ -103,6 +103,13 @@ def main():
                 script = Path(probe["script"]).read_bytes()
                 if hashlib.sha256(script).hexdigest() != probe["sha256"]:
                     raise ValueError("probe changed after review")
+                observations = {}
+                for key in ("completion_marker", "required_observation"):
+                    if key in probe:
+                        value = probe[key]
+                        if not isinstance(value, str) or not value.strip():
+                            raise ValueError(f"{key} must be a nonempty string")
+                        observations[key] = value
                 solution = {
                     rel.removeprefix("solution/"): content.decode()
                     for rel, content in original.items()
@@ -125,6 +132,7 @@ def main():
                         "requirement": task["requirement_excerpt"],
                         "bug": task["bug"],
                         "source_revision": manifest.get("published_revision"),
+                        **observations,
                     }
                 )
     if not cases:
