@@ -49,7 +49,7 @@ import synth_client as llm
 import task_size as ts
 import verifier_literals as vl
 from synth_operators import harder_uses_operators
-from torchtitan.experiments.rl.examples.tmax import layout
+from torchtitan.experiments.rl.examples.tmax import layout, rollout_record
 
 
 class Filtered(RuntimeError):
@@ -824,6 +824,22 @@ def simplify_codex(
     so.prompt(hint)
     if not any(rewrite.traces.glob("attempt-*.jsonl")):
         raise Blocked("simplify requires attempt traces")
+    for path in sorted(rewrite.traces.glob("attempt-*.jsonl")):
+        try:
+            head, turns = rollout_record.read_record(path)
+        except (OSError, ValueError):
+            continue
+        if (
+            head.get("reward") == 0
+            and not head.get("infra_failed")
+            and any(turn.get("turn") for turn in turns)
+        ):
+            break
+    else:
+        raise Blocked(
+            "simplify requires a failed student execution, "
+            "not empty or infrastructure-only traces"
+        )
     return evolve_agentic(
         rewrite,
         {**task, "_solved": solved, "_attempts": attempts, "_simplify_hint": hint},

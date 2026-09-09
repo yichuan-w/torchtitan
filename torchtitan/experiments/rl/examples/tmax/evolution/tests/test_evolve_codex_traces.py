@@ -640,6 +640,35 @@ def test_simplify_without_traces_declines_before_starting_codex(tmp_path, monkey
         ec.simplify_codex(rw, dict(TASK))
 
 
+@pytest.mark.parametrize("case", ["header_only", "infra_failure", "success", "malformed"])
+def test_simplify_requires_failed_student_execution(tmp_path, monkeypatch, case):
+    rw = _rewrite(tmp_path, monkeypatch, job="easier")
+    _trace(rw)
+    path = rw.traces / "attempt-01.jsonl"
+    head, turns = rollout_record.read_record(path)
+    if case == "header_only":
+        turns = []  # The header's turn count is not evidence of an execution.
+    elif case == "infra_failure":
+        head["infra_failed"] = True
+    elif case == "success":
+        head["reward"] = 1
+    if case == "malformed":
+        path.write_text("not-json\n")
+    else:
+        rollout_record.write_record(path, head, turns)
+    monkeypatch.setattr(ec, "evolve_agentic", lambda *a, **kw: pytest.fail("author started"))
+    with pytest.raises(ec.Blocked, match="requires a failed student execution"):
+        ec.simplify_codex(rw, dict(TASK))
+
+
+def test_simplify_uses_valid_failure_beside_empty_trace(tmp_path, monkeypatch):
+    rw = _rewrite(tmp_path, monkeypatch, job="easier")
+    _trace(rw, n=2)
+    (rw.traces / "attempt-01.jsonl").write_text('{"reward":0,"turns":0}\n')
+    monkeypatch.setattr(ec, "evolve_agentic", lambda *a, **kw: {"started": True})
+    assert ec.simplify_codex(rw, dict(TASK)) == {"started": True}
+
+
 def test_prepare_package_records_the_seed_literals_size_and_box(
     tmp_path, monkeypatch
 ) -> None:
