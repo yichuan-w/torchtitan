@@ -74,10 +74,10 @@ from torchtitan.experiments.rl.examples.tmax.integrity_baseline import (
     tmax_protected_fields,
 )
 from torchtitan.experiments.rl.examples.tmax.prepare_rts_data import (
-    _AGENT_RUNTIME_BLOCK,
     _build_context,
     _entrypoint_command,
     _grading_fixtures,
+    _inject_agent_runtime,
     _join_continuations,
     _load_resource_map,
     _oracle_commands,
@@ -397,7 +397,7 @@ def to_row(
     except ValueError:
         return None, "build_context_too_large"
     if inject_agent_runtime:
-        dockerfile = dockerfile.rstrip("\n") + "\n" + _AGENT_RUNTIME_BLOCK
+        dockerfile = _inject_agent_runtime(dockerfile)
 
     with open(paths["instruction"], encoding="utf-8") as f:
         instruction = _strip_canary(f.read())

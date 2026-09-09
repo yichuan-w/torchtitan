@@ -206,7 +206,7 @@ def test_agent_runtime_is_not_injected_by_default(tmp_path):
 
 def test_injected_agent_runtime_installs_tmux_without_touching_the_workdir(tmp_path):
     """Corpora carrying upstream task content verbatim (TerminalWorld-Seeds) ship no
-    tmux, which Terminus-2 needs; the appended step must not shift WORKDIR."""
+    tmux, which Terminus-2 needs; injected RUNs must not shift WORKDIR."""
     root = tmp_path / "tasks"
     root.mkdir()
     _write_task(root, "rts_task_hhh")
@@ -215,8 +215,13 @@ def test_injected_agent_runtime_installs_tmux_without_touching_the_workdir(tmp_p
 
     assert reasons == {"ok": 1}
     md = rows[0]["metadata"]
-    assert md["dockerfile"].startswith(_DOCKERFILE)
+    assert md["dockerfile"].startswith("FROM ubuntu:22.04\n")
     assert "tmux" in md["dockerfile"]
+    # Repair must precede the source Dockerfile's own apt RUN. Appending it after
+    # that RUN cannot rescue an EOL Debian/Ubuntu image.
+    assert md["dockerfile"].index("repair obsolete apt sources") < md[
+        "dockerfile"
+    ].index("RUN apt-get update")
     # EOL Debian images can keep a dead *-security suite after their main mirror
     # moves to archive.debian.org. A second update failure must disable that
     # optional source so tmux can still come from the main archive.
@@ -224,6 +229,32 @@ def test_injected_agent_runtime_installs_tmux_without_touching_the_workdir(tmp_p
     assert "disabled obsolete security suite" in md["dockerfile"]
     # A trailing RUN leaves the last WORKDIR in force.
     assert md["workdir"] == "/srv/final"
+
+
+def test_agent_runtime_repairs_each_apt_multistage_before_its_first_run(tmp_path):
+    root = tmp_path / "tasks"
+    root.mkdir()
+    dockerfile = """FROM debian:buster AS build
+RUN apt-get update && apt-get install -y make
+FROM scratch AS assets
+COPY --from=build /tmp/out /out
+FROM node:18-bullseye
+RUN apt-get update && apt-get install -y git
+WORKDIR /app
+"""
+    _write_task(root, "rts_task_multistage", dockerfile=dockerfile)
+
+    rows, reasons = build_rows([str(root)], inject_agent_runtime=True)
+
+    assert reasons == {"ok": 1}
+    injected = rows[0]["metadata"]["dockerfile"]
+    assert injected.count("repair obsolete apt sources") == 2
+    assert "FROM scratch AS assets\n# harbor-agent-runtime" not in injected
+    for stage in ("FROM debian:buster AS build", "FROM node:18-bullseye"):
+        stage_text = injected[injected.index(stage) :]
+        assert stage_text.index("repair obsolete apt sources") < stage_text.index(
+            "RUN apt-get update"
+        )
 
 
 def test_injection_does_not_add_build_context_sources(tmp_path):

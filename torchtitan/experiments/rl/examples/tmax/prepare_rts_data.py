@@ -187,6 +187,55 @@ RUN ( if command -v tmux >/dev/null 2>&1; then \\
     || echo 'harbor-agent-runtime: tmux preinstall failed (non-fatal); Terminus will self-install at runtime' >&2
 """
 
+# Some upstream Dockerfiles run apt before the trailing tmux layer. On an EOL
+# Debian/Ubuntu base that original RUN fails first, so the repair in
+# _AGENT_RUNTIME_BLOCK is never reached. Put this non-fatal probe at the start of
+# every stage that uses apt; if the normal mirrors still work it changes nothing,
+# and if they do not it repairs them before any upstream apt instruction runs.
+_APT_SOURCES_PREFLIGHT_BLOCK = r"""# harbor-agent-runtime: repair obsolete apt sources before upstream RUN layers
+RUN ( command -v apt-get >/dev/null 2>&1 || exit 0; \
+      apt-get update >/dev/null 2>&1 || ( \
+        for sources in /etc/apt/sources.list /etc/apt/sources.list.d/*.list; do \
+          [ -f "$sources" ] || continue; \
+          sed -i -e 's|http://deb.debian.org/debian|http://archive.debian.org/debian|g' \
+                 -e 's|http://security.debian.org/debian-security|http://archive.debian.org/debian-security|g' \
+                 -e 's|http://deb.debian.org/debian-security|http://archive.debian.org/debian-security|g' \
+                 -e 's|http://archive.ubuntu.com/ubuntu|http://old-releases.ubuntu.com/ubuntu|g' \
+                 -e 's|http://security.ubuntu.com/ubuntu|http://old-releases.ubuntu.com/ubuntu|g' \
+                 -e 's|http://.*archive.ubuntu.com/ubuntu|http://old-releases.ubuntu.com/ubuntu|g' \
+                 "$sources"; \
+        done; \
+        echo 'Acquire::Check-Valid-Until "false";' > /etc/apt/apt.conf.d/99harbor-archive; \
+        apt-get update >/dev/null 2>&1 || ( \
+          for sources in /etc/apt/sources.list /etc/apt/sources.list.d/*.list; do \
+            [ -f "$sources" ] || continue; \
+            sed -i '/debian-security/s/^[[:space:]]*deb/# disabled obsolete security suite: deb/' "$sources"; \
+          done; \
+          apt-get update >/dev/null 2>&1 \
+        ) \
+      ) ) || echo 'harbor-agent-runtime: apt source preflight failed (non-fatal)' >&2
+"""
+
+
+def _inject_agent_runtime(dockerfile: str) -> str:
+    """Repair apt stages before upstream RUNs, then install tmux in the final stage."""
+    from_matches = list(re.finditer(r"(?mi)^\s*FROM\s+[^\n]+\n?", dockerfile))
+    insert_at: list[int] = []
+    for i, match in enumerate(from_matches):
+        stage_end = (
+            from_matches[i + 1].start() if i + 1 < len(from_matches) else len(dockerfile)
+        )
+        if re.search(r"\bapt-get\b", dockerfile[match.end() : stage_end]):
+            insert_at.append(match.end())
+
+    for offset in reversed(insert_at):
+        dockerfile = (
+            dockerfile[:offset]
+            + _APT_SOURCES_PREFLIGHT_BLOCK
+            + dockerfile[offset:]
+        )
+    return dockerfile.rstrip("\n") + "\n" + _AGENT_RUNTIME_BLOCK
+
 
 def _join_continuations(dockerfile: str) -> str:
     """Fold backslash-continued Dockerfile lines into one physical line each.
@@ -514,10 +563,10 @@ def _to_row(
     fixtures, reason = _grading_fixtures(task_dir)
     if reason:
         return None, reason
-    # After _build_context: the appended step has no COPY sources of its own, and a
-    # trailing RUN in the final stage leaves WORKDIR/ENTRYPOINT/CMD untouched.
+    # After _build_context: the injected steps have no COPY sources of their own,
+    # and the trailing RUN in the final stage leaves WORKDIR/ENTRYPOINT/CMD untouched.
     if inject_agent_runtime:
-        dockerfile = dockerfile.rstrip("\n") + "\n" + _AGENT_RUNTIME_BLOCK
+        dockerfile = _inject_agent_runtime(dockerfile)
 
     with open(paths["instruction"], encoding="utf-8") as f:
         instruction = _strip_canary(f.read())
