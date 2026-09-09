@@ -328,38 +328,43 @@ def _strip_comments_in_continuation(dockerfile: str) -> str:
     return "".join(kept)
 
 
-_PROXY_ENV_NAMES = ("http_proxy", "https_proxy", "HTTP_PROXY", "HTTPS_PROXY")
 _proxy_patch_done = False
 
 
 def _keep_proxy_for_context_upload() -> None:
-    """Let a task's build context reach Daytona's object store through the proxy.
+    """Keep the process environment while Daytona creates its object-store client.
 
     The SDK uploads COPY sources to S3 with an obstore client that it constructs
-    inside ``isolated_env()`` -- a helper that clears ``os.environ`` wholesale, so
-    ``https_proxy`` never reaches it. On a host whose only egress is an HTTP
-    proxy, every context upload then dies with "Generic S3 error: Error performing
-    HEAD https://s3...". Re-inject just the proxy variables. No-op when no proxy is
-    configured (direct egress).
+    inside ``isolated_env()``. Daytona 0.203.0 implements that helper by clearing
+    and rebuilding the process-wide ``os.environ`` twice. A rollout worker creates
+    many sandboxes concurrently and also has Python/HTTP runtime threads; one such
+    clear raced a thread doing ``pwd.getpwuid()``, crashing in
+    ``_nss_sss_getpwuid_r -> getenv`` with SIGSEGV. It also removes the HTTP proxy
+    while constructing obstore, breaking context uploads on proxy-only hosts.
+
+    ObjectStorage passes endpoint and credentials explicitly to ``S3Store``, so it
+    does not need to hide the ambient environment. Replace the SDK context manager
+    with a no-op and rebind the copies imported by both object-storage modules.
+    This keeps proxy variables available and, critically, never mutates process
+    environment from a concurrent request.
     """
     global _proxy_patch_done
     if _proxy_patch_done:
-        return
-    proxy = {n: _getenv(n) for n in _PROXY_ENV_NAMES if _getenv(n)}
-    if not proxy:
-        _proxy_patch_done = True
         return
     try:
         from daytona._sync import object_storage as sync_store  # type: ignore
         from daytona._utils import environment as env_mod  # type: ignore
     except ImportError:
         return
-    original = env_mod.isolated_env
 
+    from contextlib import contextmanager
+
+    @contextmanager
     def isolated_env(temp_env=None):
-        merged = dict(temp_env or {})
-        merged.update(proxy)
-        return original(merged)
+        # Daytona's callers pass credentials directly to S3Store. Keep accepting
+        # the argument for SDK compatibility, but never rewrite process-wide env.
+        del temp_env
+        yield
 
     env_mod.isolated_env = isolated_env
     # object_storage imported the symbol by value, so rebind it there as well.
@@ -371,7 +376,10 @@ def _keep_proxy_for_context_upload() -> None:
     except ImportError:
         pass
     _proxy_patch_done = True
-    logger.info("[daytona] proxy re-injected for build-context upload")
+    logger.info(
+        "[daytona] disabled process-global environment clearing for "
+        "build-context upload"
+    )
 
 
 def _eager_rebuild_daytona_models() -> None:
