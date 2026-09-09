@@ -36,6 +36,8 @@ def revision() -> str:
 
 
 def freeze(args) -> None:
+    from pack_to_dataset import declared_solve_budget
+
     args.output.mkdir(parents=True, exist_ok=False)
     (args.output / "inputs").mkdir()
     (args.output / "packages").mkdir()
@@ -74,6 +76,8 @@ def freeze(args) -> None:
                 900, int(row["metadata"].get("agent_timeout_sec") or 0)
             ),
         }
+        if source is not None:
+            payload["solve_timeout"] = declared_solve_budget(source, payload["solve_timeout"])
         if source is not None:
             shutil.copytree(source, args.output / "packages" / tid, symlinks=False)
             for path in sorted((source / "solution").rglob("*")):
@@ -120,6 +124,7 @@ async def run(args) -> int:
     log = logging.getLogger("environment_sweep")
     config = {
         "revision": revision(),
+        "execution_harness": "terminus",
         "label": args.label,
         "concurrency": args.concurrency,
         "ids": args.ids,
@@ -194,6 +199,7 @@ async def run(args) -> int:
                     "ok": False,
                     "stage": "environment_error",
                     "why": f"{type(exc).__name__}: {exc}",
+                    **getattr(exc, "validation", {}),
                 }
             result.update(
                 task_id=tid,

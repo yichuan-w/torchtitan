@@ -87,6 +87,18 @@ def _rts_module():
     return _tmax_modules("prepare_tmax_data", "prepare_rts_data")
 
 
+def declared_solve_budget(src: Path, floor: int) -> int:
+    """Respect a package's declared reference execution budget during validation."""
+    import tomllib
+
+    path = src / "task.toml"
+    if not path.exists():
+        return floor
+    with path.open("rb") as stream:
+        declared = (tomllib.load(stream).get("agent") or {}).get("timeout_sec")
+    return max(floor, int(declared)) if declared is not None else floor
+
+
 def _ib_module():
     """integrity_baseline: the shape of the protected keys, from the one module
     that also digests them at rollout and grading."""

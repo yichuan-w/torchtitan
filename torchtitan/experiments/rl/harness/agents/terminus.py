@@ -482,7 +482,9 @@ def _count_subagent_calls(agent: Any, llm: _AdapterLLM) -> None:
     agent._run_subagent = counting
 
 
-async def terminus_agent(task: AgentTask) -> AgentRun:
+async def terminus_agent(
+    task: AgentTask, *, terminal_session_name: str | None = None
+) -> AgentRun:
     """Drive Terminus-2 against the task's sandbox and the adapter's policy."""
     from harbor.agents.terminus_2 import Terminus2  # type: ignore
     from harbor.llms.base import ContextLengthExceededError  # type: ignore
@@ -521,6 +523,10 @@ async def terminus_agent(task: AgentTask) -> AgentRun:
                     _PROACTIVE_SUMMARIZE_THRESHOLD if _SUMMARIZE else 0
                 ),
             )
+            if terminal_session_name is not None:
+                # Repeated validation in one sandbox retains prior sessions and
+                # their services until grading, instead of killing their panes.
+                agent.name = lambda: terminal_session_name
             # Swap the LiteLLM backend for the in-process adapter before setup;
             # Terminus-2 only reads self._llm through ``call`` and the limit getters.
             llm = _AdapterLLM(

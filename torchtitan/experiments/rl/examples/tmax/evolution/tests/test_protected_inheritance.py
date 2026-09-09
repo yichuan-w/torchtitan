@@ -137,6 +137,10 @@ def _probe_row_as_the_loop_would(rewrite, monkeypatch) -> dict:
     async def measure(_sb, _secs, tail=""):
         return {}
 
+    async def run_reference(_sb, _cmd, _timeout):
+        return {"solve_exit": 0, "stdout": "", "stderr": "", "submitted": True,
+                "terminal": {}, "transcript": [], "execution_harness": "terminus"}
+
     ib = pack._ib_module()
 
     async def capture(_sb, tmax, *, workdir, timeout):
@@ -151,6 +155,7 @@ def _probe_row_as_the_loop_would(rewrite, monkeypatch) -> dict:
         ("boot_agent_sandbox", boot),
         ("seed_workspace", seed),
         ("measure", measure),
+        ("run_reference", run_reference),
         ("capture_baseline", capture),
         ("grade_tmax", grade),
     ):

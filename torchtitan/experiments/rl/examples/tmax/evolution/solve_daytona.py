@@ -27,6 +27,7 @@ import os
 import shlex
 import sys
 import time
+from dataclasses import asdict
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
@@ -34,6 +35,9 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 import pack_to_dataset as pack          # noqa: E402
 import synth_client as llm              # noqa: E402
 import daytona_revalidate as dr         # noqa: E402  (_Root, _start_entrypoint)
+from terminus_validation import ProviderAdapter  # noqa: E402
+from torchtitan.experiments.rl.harness.agents.spec import AgentTask  # noqa: E402
+from torchtitan.experiments.rl.harness.agents.terminus import terminus_agent  # noqa: E402
 
 from torchtitan.experiments.rl.harness.agents.claude_code import (  # noqa: E402
     boot_agent_sandbox,
@@ -157,11 +161,11 @@ async def _codex_attempt(sb, md: dict, workdir: str, budget: int) -> dict:
 
 
 async def attempt(row: dict, idx: int, max_turns: int,
-                  agent: str = "chat") -> dict:
+                  agent: str = "terminus") -> dict:
     md = row["metadata"]
     tmax, workdir = md["tmax"], md.get("workdir") or "/workspace"
     instruction = md["problem_statement"]
-    history: list[tuple[str, str]] = []
+    adapter = ProviderAdapter(llm)
     t0 = time.time()
     try:
         async with boot_agent_sandbox(
@@ -169,6 +173,8 @@ async def attempt(row: dict, idx: int, max_turns: int,
             dockerfile=md.get("dockerfile") or None,
             build_context=md.get("build_context") or None,
             install_claude=False,
+            cpu=md.get("daytona_cpu"),
+            memory=md.get("daytona_mem_gb"),
             disk_gb=md.get("daytona_disk_gb"),
         ) as sandbox:
             sb = dr._Root(sandbox)
@@ -186,32 +192,38 @@ async def attempt(row: dict, idx: int, max_turns: int,
                 a["reward"] = await grade_tmax(sb, tmax, workdir=workdir,
                                                baseline_digests=baseline)
                 a["t"] = round(time.time() - t0, 1)
+                a["execution_harness"] = "codex"
                 return a
-            for turn in range(max_turns):
-                try:
-                    cmd = await asyncio.to_thread(
-                        llm.agent_step, instruction, history)
-                except Exception as e:  # noqa: BLE001
-                    return {"reward": None, "turns": turn,
-                            "why": f"llm: {e}"[:200], "t": time.time() - t0}
-                if cmd.strip() == "DONE" or not cmd.strip():
-                    break
-                rc, out, err = await sb.exec(
-                    cmd,
-                    check=False, timeout=AGENT_CMD_TIMEOUT)
-                history.append((cmd, f"exit={rc}\n{(out + err)[-2000:]}"))
-            reward = await grade_tmax(sb, tmax, workdir=workdir, baseline_digests=baseline)
-        return {"reward": reward, "turns": len(history),
-                "transcript": [{"cmd": c, "out": o[:800]} for c, o in history],
+            _, version, _ = await sb.exec("tmux -V", check=True, timeout=30)
+            run = await terminus_agent(AgentTask(
+                sandbox=sb, instruction=instruction,
+                session_id=f"{md['instance_id']}-{idx}", adapter=adapter,
+                time_budget_sec=int(md.get("agent_timeout_sec") or max_turns * AGENT_CMD_TIMEOUT),
+                max_turns=max_turns, workdir=workdir,
+            ))
+            reward = (await grade_tmax(sb, tmax, workdir=workdir, baseline_digests=baseline)
+                      if run.submitted else 0.0)
+            pane_error = None
+            try:
+                pane = await sb.read_file(run.pane_path) if run.pane_path else ""
+            except Exception as exc:
+                pane = ""
+                pane_error = f"{type(exc).__name__}: {exc}"
+        return {"reward": reward, **asdict(run), "execution_harness": "terminus",
+                "tmux_version": version.strip(), "pane": pane,
+                "pane_error": pane_error,
+                "pane_limit_bytes": 8 * 1024 * 1024,
+                "transcript": adapter.transcript,
                 "t": round(time.time() - t0, 1)}
     except Exception as e:  # noqa: BLE001
-        return {"reward": None, "turns": len(history),
+        return {"reward": None, "turns": len(adapter.transcript),
+                "transcript": adapter.transcript, "execution_harness": agent,
                 "why": f"{type(e).__name__}: {e}"[:250],
                 "t": round(time.time() - t0, 1)}
 
 
 async def solve_task(tid: str, attempts: int, max_turns: int,
-                     sem: asyncio.Semaphore, agent: str = "chat",
+                     sem: asyncio.Semaphore, agent: str = "terminus",
                      src: Path | None = None) -> dict:
     """Solve one task ``attempts`` times. ``src`` names the package directory
     (a revision under ``tasks/<task>/r<N>/``, say); without it the task is
@@ -256,7 +268,9 @@ async def main_async(args: argparse.Namespace) -> None:
         for ln in open(out):
             if ln.strip():
                 r = json.loads(ln)
-                if r.get("graded"):
+                if r.get("graded") and all(
+                    a.get("execution_harness") == args.agent for a in r.get("attempts", [])
+                ):
                     done.add(r["task_id"])
     ids = [l.strip() for l in open(args.ids) if l.strip()]
     todo = [t for t in ids if t not in done]
@@ -283,10 +297,8 @@ def main() -> None:
     ap.add_argument("--ids", required=True)
     ap.add_argument("--out", required=True)
     ap.add_argument("--attempts", type=int, default=5)
-    ap.add_argument("--agent", choices=("chat", "codex"), default="chat",
-                    help="chat = the bare loop the corpus pass@5 was measured "
-                         "with; codex = OpenAI Codex CLI in-sandbox (separate "
-                         "instrument, report separately)")
+    ap.add_argument("--agent", choices=("terminus", "codex"), default="terminus",
+                    help="terminus uses the training harness; codex is a separate instrument")
     ap.add_argument("--max-turns", type=int, default=25)
     ap.add_argument("--concurrency", type=int, default=16,
                     help="max concurrent sandboxes (training holds 768; stay small)")

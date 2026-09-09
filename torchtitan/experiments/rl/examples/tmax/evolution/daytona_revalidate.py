@@ -74,6 +74,7 @@ if _TREE is not None and str(_TREE) not in sys.path:
     sys.path.append(str(_TREE))
 
 import pack_to_dataset as pack  # noqa: E402
+from terminus_validation import run_reference  # noqa: E402
 
 
 try:
@@ -230,8 +231,10 @@ async def probe(
     pretest: tuple[str, str] | None = None,
     protected: "pack.Protected | None" = None,
     prepared_row: dict | None = None,
-    check_terminal: bool = False,
+    check_terminal: bool = True,
 ) -> dict:
+    # Retained for callers of the former optional smoke check. Reference and
+    # shortcut commands now always run through Terminus.
     # `pretest` is the row's pin hook; the adapter puts it on the grading
     # payload beside this package's own environment identity, so grade_tmax
     # below runs it, or skips it, exactly as a training rollout would.
@@ -300,7 +303,6 @@ async def probe(
         if md.get("entrypoint"):
             await _start_entrypoint(sb, md["entrypoint"], workdir=workdir)
         await seed_workspace(sb, tmax)
-        terminal = await terminal_smoke(sb) if check_terminal else None
         # Which of the paths the caller asks about the untouched workspace
         # already has. A path the verifier requires that is here before anything
         # runs is a precondition the agent inherits; one that is not, and that
@@ -330,21 +332,27 @@ async def probe(
         # verifier re-digests and a difference grades 0. None without entries.
         baseline = await capture_baseline(sb, tmax, workdir=workdir, timeout=120)
         t0 = time.time()
-        code, out, err = await sb.exec(cmd, check=False, timeout=solve_timeout)
+        execution = await run_reference(sb, cmd, solve_timeout)
+        code, out, err = (execution[key] for key in ("solve_exit", "stdout", "stderr"))
+        terminal = execution["terminal"]
         log(f"run exit={code}")
         measured = await measure(sb, time.time() - t0, tail=(out or "") + (err or ""))
         grading = {}
-        reward = await grade_tmax(
-            sb, tmax, workdir=workdir, baseline_digests=baseline, diagnostics=grading
+        reward = (
+            await grade_tmax(
+                sb, tmax, workdir=workdir, baseline_digests=baseline, diagnostics=grading
+            ) if execution["submitted"] else 0.0
         )
     tail = (out + "\n" + err)[-400:]
     if shortcut is None:
         why = starved(measured, code, solve_timeout) if reward < 1.0 else ""
         return {
-            "ok": reward >= 1.0,
+            "ok": reward >= 1.0 and code == 0 and execution["submitted"],
             "stage": "daytona_oracle",
             "reward": reward,
             "solve_exit": code,
+            "execution_harness": execution["execution_harness"],
+            "transcript": execution["transcript"],
             "solve_stdout": out,
             "solve_stderr": err,
             "grading": grading,
@@ -376,53 +384,6 @@ async def probe(
         "terminal": terminal,
         "paths_checked": list(require_paths or []),
         "paths_missing": missing,
-    }
-
-
-async def terminal_smoke(sb) -> dict:
-    """Exercise Harbor's terminal startup and command path without an LLM."""
-    from harbor.agents.terminus_2.tmux_session import TmuxSession
-    from torchtitan.experiments.rl.harness.agents.terminus import _SandboxEnvironment
-
-    # Test the built image before Harbor gets an opportunity to install tmux.
-    _, version, _ = await sb.exec("tmux -V", check=True, timeout=30)
-    env = _SandboxEnvironment(sb, agent_dir=Path("/logs/agent"))
-    session = TmuxSession(
-        session_name="environment-validation",
-        environment=env,
-        logging_path=Path("/logs/agent/terminus_2.pane"),
-        local_asciinema_recording_path=None,
-        remote_asciinema_recording_path=None,
-        user="root",
-    )
-    await session.start()
-    await session.send_keys(
-        ["printf '%s' terminal-ok > /tmp/terminal-validation-result", "Enter"],
-        block=True,
-        max_timeout_sec=30,
-    )
-    _, output, _ = await sb.exec(
-        "cat /tmp/terminal-validation-result", check=True, timeout=30
-    )
-    alive = await session.is_session_alive()
-    if output.strip() != "terminal-ok" or not alive:
-        _, pane, _ = await sb.exec(
-            "tmux capture-pane -p -t environment-validation", check=False, timeout=30
-        )
-        raise RuntimeError(
-            "terminal command did not complete in a live tmux session: "
-            f"alive={alive}, version={version!r}, output={output!r}, pane={pane!r}, "
-            f"commands={env.exec_trace!r}"
-        )
-    await sb.exec(
-        "tmux kill-session -t environment-validation && rm -f /tmp/terminal-validation-result",
-        check=True,
-        timeout=30,
-    )
-    return {
-        "version": version.strip(),
-        "command_output": output.strip(),
-        "exec": env.exec_trace,
     }
 
 

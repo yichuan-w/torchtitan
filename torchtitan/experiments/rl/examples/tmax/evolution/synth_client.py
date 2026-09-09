@@ -163,8 +163,8 @@ def _client():
     return _CLIENT
 
 
-def chat(messages: list[dict], max_tokens: int = 12000,
-         retries: int = 4) -> str:
+def chat_response(messages: list[dict], max_tokens: int = 12000,
+                  retries: int = 4, *, preserve_truncation: bool = True) -> dict:
     # max_completion_tokens is shared between reasoning and content; at high
     # effort the reasoning share can consume the whole budget and hand back an
     # EMPTY content string (seen live as "JSONDecodeError ... char 0" in every
@@ -194,13 +194,15 @@ def chat(messages: list[dict], max_tokens: int = 12000,
                 u.get("prompt_tokens_details") or {}
             ).get("cached_tokens", 0)
             content = body["choices"][0]["message"]["content"] or ""
+            if preserve_truncation and body["choices"][0].get("finish_reason") == "length":
+                return body
             if not content.strip():
                 # Budget consumed by reasoning, no content produced -- retryable
                 # (the retry rides the enlarged budget), not a valid empty answer.
                 last = ("empty content (finish_reason="
                         f"{body['choices'][0].get('finish_reason')})")
                 raise _EmptyContent(last)
-            return content
+            return body
         except _EmptyContent as e:
             last = str(e)
         except Exception as e:  # noqa: BLE001
@@ -214,6 +216,11 @@ def chat(messages: list[dict], max_tokens: int = 12000,
                 last = f"{type(e).__name__}: {e}"
         time.sleep(min(60, 5 * 2 ** attempt))
     raise RuntimeError(f"chat failed after {retries} attempts: {last}")
+
+
+def chat(messages: list[dict], max_tokens: int = 12000,
+         retries: int = 4) -> str:
+    return chat_response(messages, max_tokens, retries, preserve_truncation=False)["choices"][0]["message"]["content"]
 
 
 def _parse_json(text: str) -> dict:

@@ -86,30 +86,7 @@ def recommend(r: dict) -> tuple[int, int, int]:
             min(max(math.ceil(net_disk * 1.3 / 1024), 1), 10))
 
 
-def declared_solve_budget(src: Path, floor: int) -> int:
-    """The task's own agent timeout, floored at the run's --timeout.
-
-    A fixed deadline for every task checks the deadline, not the task. Three of
-    the seven failures in the 2026-09-02 re-verification were this: tw_17818
-    declares 1800s and finished in 954, tw_418406 declares 3600 and finished in
-    1078, and both were killed at the tool's 900s default and recorded as task
-    failures. The floor stays because a task that declares nothing, or declares
-    something implausibly short, should still get the run's budget.
-    """
-    toml = src / "task.toml"
-    if not toml.exists():
-        return floor
-    section = ""
-    for raw in toml.read_text(errors="replace").splitlines():
-        line = raw.strip()
-        if line.startswith("["):
-            section = line
-        elif section == "[agent]" and line.startswith("timeout_sec"):
-            try:
-                return max(floor, int(float(line.split("=", 1)[1].strip())))
-            except ValueError:
-                return floor
-    return floor
+declared_solve_budget = sd.pack.declared_solve_budget
 
 
 async def verify(tid: str, cpu: int, mem: int, disk: int,
@@ -158,9 +135,10 @@ async def verify(tid: str, cpu: int, mem: int, disk: int,
                 # INTEGRITY BASELINE: solution/ in, nothing run yet; the grade
                 # below re-digests it, as training does.
                 baseline = await capture_baseline(sb, tmax, workdir=workdir, timeout=120)
-                code, out, err = await sb.exec(
-                    cmd or "bash /solution/solve.sh",
-                    check=False, timeout=timeout)
+                execution = await dr.run_reference(sb, cmd or "bash /solution/solve.sh", timeout)
+                code, out, err = (execution[key] for key in ("solve_exit", "stdout", "stderr"))
+                rec.update(execution_harness="terminus", terminal=execution["terminal"],
+                           transcript=execution["transcript"])
                 solve_secs = round(time.time() - t0, 1)
                 # Before grading, which starts processes of its own and would
                 # fold their memory into a peak meant to describe the solution.
@@ -172,7 +150,8 @@ async def verify(tid: str, cpu: int, mem: int, disk: int,
                         if x.isdigit()]
                 usec = next((int(x) for x in (parts[2] if len(parts) > 2 else "").split()
                              if x.isdigit()), None)
-                reward = await grade_tmax(sb, tmax, workdir=workdir, baseline_digests=baseline)
+                reward = (await grade_tmax(sb, tmax, workdir=workdir, baseline_digests=baseline)
+                          if execution["submitted"] else 0.0)
                 # What the box had left when everything was done.
                 _, dfout, _ = await sb.exec(
                     "df -B1 --output=size,used / | tail -1", check=False, timeout=60)
@@ -182,7 +161,7 @@ async def verify(tid: str, cpu: int, mem: int, disk: int,
                     size_mb = round(int(parts[0]) / 1048576, 1)
                     used_mb = round(int(parts[1]) / 1048576, 1)
                 blob = ((out or "") + (err or ""))[-400:]
-                return {**rec, "ok": reward >= 1.0, "reward": reward,
+                return {**rec, "ok": reward >= 1.0 and code == 0, "reward": reward,
                         "solve_exit": code, "secs": round(time.time() - t0, 1),
                         "solve_secs": solve_secs,
                         "cpu_seconds": round(usec / 1e6, 1) if usec else None,
@@ -200,7 +179,7 @@ async def verify(tid: str, cpu: int, mem: int, disk: int,
             return {**rec, "ok": False, "secs": round(time.time() - t0, 1),
                     "disk_exhausted": ("no space left" in msg.lower()
                                        or "disk_exhausted" in msg.lower()),
-                    "why": msg}
+                    "why": msg, **getattr(e, "validation", {})}
 
 
 async def main_async(a: argparse.Namespace) -> None:

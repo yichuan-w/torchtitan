@@ -330,7 +330,7 @@ def cmd_oracle(pkg: Path, solve_timeout: int) -> int:
         print(f"sandbox error: {r.get('error')}", file=sys.stderr)
         return 2
     _print_oracle(r)
-    return 0 if float(r.get("reward") or 0) >= 1.0 else 1
+    return 0 if float(r.get("reward") or 0) >= 1.0 and r.get("solve_exit") == 0 else 1
 
 
 def cmd_grade(pkg: Path) -> int:
@@ -429,7 +429,7 @@ def cmd_check(pkg: Path, solve_timeout: int, at_max: bool = False) -> int:
         print(f"VERDICT: error   stage=oracle ({r.get('error')})")
         return 2
     reward = float(r.get("reward") or 0)
-    oracle_ok = reward >= 1.0
+    oracle_ok = reward >= 1.0 and r.get("solve_exit") == 0
     starved = "" if oracle_ok else _starved(r, solve_timeout)
     # The reference solution passing says the verifier and the solution agree.
     # It says nothing about whether an agent that reads only the instruction
@@ -580,14 +580,17 @@ async def _serve(pkg: Path, sock: str, resources: dict | None = None) -> int:
                 baseline = await dr.capture_baseline(
                     sb, tmax, workdir=workdir, timeout=EXEC_TIMEOUT)
                 t0 = time.time()
-                code, out, err = await sb.exec("bash /solution/solve.sh", check=False,
-                                               timeout=solve_timeout)
+                execution = await dr.run_reference(sb, "bash /solution/solve.sh", solve_timeout)
+                code, out, err = (execution[key] for key in ("solve_exit", "stdout", "stderr"))
                 # Before grading, which starts processes of its own.
                 measured = await dr.measure(sb, time.time() - t0,
                                             tail=(out or "") + (err or ""))
-                reward = await dr.grade_tmax(sb, tmax, workdir=workdir,
+                reward = (await dr.grade_tmax(sb, tmax, workdir=workdir,
                                              baseline_digests=baseline)
+                          if execution["submitted"] else 0.0)
                 return {"ok": True, "solve_exit": code, "reward": reward,
+                        "execution_harness": "terminus", "terminal": execution["terminal"],
+                        "transcript": execution["transcript"],
                         "measured": measured, "resources": box,
                         "tail": (out + "\n" + err)[-4000:]}
 
@@ -630,7 +633,8 @@ async def _serve(pkg: Path, sock: str, resources: dict | None = None) -> int:
                     try:
                         resp = await handle(req)
                     except Exception as e:  # noqa: BLE001 -- report, keep serving
-                        resp = {"ok": False, "error": f"{type(e).__name__}: {e}"[:500]}
+                        resp = {"ok": False, "error": f"{type(e).__name__}: {e}"[:500],
+                                **getattr(e, "validation", {})}
                 log(f"  -> {'ok' if resp.get('ok') else 'error'} "
                     f"{'code=' + str(resp['code']) if 'code' in resp else ''}"
                     f"{' reward=' + str(resp['reward']) if 'reward' in resp else ''} "
