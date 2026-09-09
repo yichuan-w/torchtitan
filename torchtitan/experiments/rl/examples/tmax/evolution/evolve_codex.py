@@ -48,6 +48,7 @@ import simplify_operators as so
 import synth_client as llm
 import task_size as ts
 import verifier_literals as vl
+from verifier_probes import verify_probes
 from synth_operators import harder_uses_operators
 from torchtitan.experiments.rl.examples.tmax import layout
 
@@ -1105,7 +1106,10 @@ name open, check the value.
 
 Then do the task yourself through `./sandbox exec`, the way the instruction
 describes it, and `./sandbox grade`: it must pass. `./sandbox reset` and grade
-the untouched workspace: it must fail. Both, before you finish."""
+the untouched workspace: it must fail. Save the correct and single-error replay
+scripts and their contract under run/verifier-probes as AGENTS.md specifies.
+The caller replays both scripts in fresh Daytona environments before accepting
+your verifier; a wrong script must execute successfully and then fail grading."""
 
 _VERIFIER_REPAIR_JOB = """The verifier you wrote does not agree with the task's reference solution, which
 you cannot see: the caller ran that solution in a fresh container (exit
@@ -1235,6 +1239,7 @@ def _blind_verifier(
         finally:
             _sandbox_down(vpkg)
     _check_verdict(vpkg)
+    verify_probes(vpkg, _harness_env(), AGENT_TIMEOUT)
     rel = _take_verifier(vpkg, pkg, seed_rel, seed_text)
     return run.dir, rel
 
@@ -1263,6 +1268,7 @@ def _blind_repair(
         finally:
             _sandbox_down(vpkg)
     _check_verdict(vpkg)
+    verify_probes(vpkg, _harness_env(), AGENT_TIMEOUT)
     before = (pkg / _verifier_on_disk(pkg, seed_rel)).read_text()
     return _take_verifier(vpkg, pkg, _verifier_on_disk(pkg, seed_rel), before)
 

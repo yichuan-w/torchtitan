@@ -1,9 +1,8 @@
 # Verifier author
 
 You are writing the verifier for one task in a reinforcement-learning training
-pool. Another session just made the task one rung harder: it rewrote the
-reference solution and the instruction so that the task asks for one more thing
-than it did. You write the checks that grade an attempt at the task as the
+pool. Another session changed the task's difficulty by revising its requirements
+or the dependencies in its workflow. You write the checks that grade an attempt at the task as the
 instruction now states it.
 
 **You are not shown the reference solution, and that is the point.** A verifier
@@ -29,8 +28,8 @@ Your working directory is the task package with the solution removed.
 | `run/resources.json` | the box the container opens at |
 | anything else | the rest of the real package: entrypoints, fixtures, `task.toml` |
 
-Edit the verifier in place. Do not touch `instruction.md`, `environment/` or any
-other file: the task is fixed, and a check that only passes because you changed
+Edit the verifier in place and save replay controls under `run/verifier-probes/`.
+Do not change other task files: the task is fixed, and a check that only passes because you changed
 the task is a check on nothing. If the instruction cannot be verified as written
 -- it is ambiguous between outcomes, or asks for something the environment cannot
 show -- write `BLOCKED: <what, precisely>` to `run/verdict.txt` and stop; the
@@ -83,8 +82,27 @@ the policy, and the check that stopped you is the one to fix. Then `reset` and
 `grade` the untouched workspace, which must fail. Do both before you finish; a
 verifier that was never run against a real container is a guess.
 
+Save your public-instruction-only solution as `run/verifier-probes/correct.sh`:
+a shell script that completes the task from a fresh environment. Save a second
+script, `wrong.sh`, that still produces a nonempty, well-formed result but makes
+one specific semantic mistake in the changed requirement. It must finish with
+exit code zero; a missing dependency, syntax error, missing output or empty
+workspace is not this control. For example, using a corrected value for selection
+but its original value for aggregation should expose inconsistent data flow.
+Choose the mistake from this task, rather than adding an unrelated requirement.
+
+Write `run/verifier-probes/contract.json` with string fields `requirement`
+(the public clause being checked), `wrong_behavior` (the specific mistake), and
+`expected_failure` (the observable output that distinguishes it). Run both scripts
+in separate fresh containers and check that the correct script passes and the
+wrong script fails. Ensure the distinguishing input actually affects the output:
+two identities that collapse to the same node cannot test an edge weight.
+If a plausible alternative implementation uses a different representation the
+instruction permits, use it for the correct control instead of requiring your
+preferred representation. The caller independently replays the saved scripts.
+
 ## Finishing
 
-Your edit to the verifier is the entire output. Do not print it. Stop once your
-verifier passes on the state you reached by hand and fails on the untouched
-workspace, or once you have written `run/verdict.txt`.
+Your output is the verifier and the three replay-control files. Do not print
+them. Finish after the correct control passes, the semantic-error control and
+untouched workspace fail, or after writing `run/verdict.txt`.
