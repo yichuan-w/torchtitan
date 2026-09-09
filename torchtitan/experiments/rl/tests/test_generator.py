@@ -325,6 +325,46 @@ def test_failed_engine_loop_rejects_new_work():
     asyncio.run(main())
 
 
+def _abort_collective_rank(rank, rendezvous):
+    from datetime import timedelta
+    import torch.distributed as dist
+
+    dist.init_process_group(
+        "gloo",
+        init_method=f"file://{rendezvous}",
+        rank=rank,
+        world_size=2,
+        timeout=timedelta(seconds=30),
+    )
+    try:
+
+        async def main():
+            generator = _generator()
+            generator._rank = rank
+            generator._broadcast_group = dist.group.WORLD
+            generator._request_dispatcher = _dispatcher(rank=rank, dp_degree=2)
+
+            def abort(ids):
+                if rank == 1:
+                    raise RuntimeError("peer abort failed")
+
+            generator._engine.abort_request = abort
+            with pytest.raises(RuntimeError, match="abort failed on at least one rank"):
+                await generator._abort_requests(["r0"])
+
+        asyncio.run(main())
+    finally:
+        dist.destroy_process_group()
+
+
+def test_peer_abort_failure_reaches_all_ranks_over_gloo(tmp_path):
+    import torch.multiprocessing as mp
+
+    mp.spawn(
+        _abort_collective_rank, args=(str(tmp_path / "gloo"),), nprocs=2, join=True
+    )
+
+
 @pytest.mark.parametrize("failed_rank", [None, "local", "peer"])
 def test_abort_requires_success_on_every_rank(monkeypatch, failed_rank):
     import torchtitan.experiments.rl.actors.generator as mod
