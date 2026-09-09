@@ -25,6 +25,7 @@ The last stdout line is a JSON verdict; everything else is progress logging.
 Requires the training venv (torchtitan + daytona SDK) and the Daytona env file
 sourced -- feedback_loop wraps both.
 """
+
 from __future__ import annotations
 
 import argparse
@@ -228,13 +229,19 @@ async def probe(
     require_paths: list[str] | None = None,
     pretest: tuple[str, str] | None = None,
     protected: "pack.Protected | None" = None,
+    prepared_row: dict | None = None,
+    check_terminal: bool = False,
 ) -> dict:
     # `pretest` is the row's pin hook; the adapter puts it on the grading
     # payload beside this package's own environment identity, so grade_tmax
     # below runs it, or skips it, exactly as a training rollout would.
     # `protected` is the lists the variant inherits from its row (the package's
     # own file overrides inside to_row): the same lists the fold will use.
-    row = pack.to_row(str(pkg), pretest=pretest, protected=protected)
+    row = (
+        prepared_row
+        if prepared_row is not None
+        else pack.to_row(str(pkg), pretest=pretest, protected=protected)
+    )
     md = row["metadata"]
     tmax = md["tmax"]
     workdir = md.get("workdir") or "/workspace"
@@ -293,6 +300,7 @@ async def probe(
         if md.get("entrypoint"):
             await _start_entrypoint(sb, md["entrypoint"], workdir=workdir)
         await seed_workspace(sb, tmax)
+        terminal = await terminal_smoke(sb) if check_terminal else None
         # Which of the paths the caller asks about the untouched workspace
         # already has. A path the verifier requires that is here before anything
         # runs is a precondition the agent inherits; one that is not, and that
@@ -338,6 +346,7 @@ async def probe(
             "resources": box,
             "measured": measured,
             "pretest": hook,
+            "terminal": terminal,
             "paths_checked": list(require_paths or []),
             "paths_missing": missing,
             **(
@@ -357,8 +366,44 @@ async def probe(
         "tail": tail,
         "resources": box,
         "pretest": hook,
+        "terminal": terminal,
         "paths_checked": list(require_paths or []),
         "paths_missing": missing,
+    }
+
+
+async def terminal_smoke(sb) -> dict:
+    """Exercise Harbor's terminal startup and command path without an LLM."""
+    from harbor.agents.terminus_2.tmux_session import TmuxSession
+    from torchtitan.experiments.rl.harness.agents.terminus import _SandboxEnvironment
+
+    # Test the built image before Harbor gets an opportunity to install tmux.
+    _, version, _ = await sb.exec("tmux -V", check=True, timeout=30)
+    env = _SandboxEnvironment(sb, agent_dir=Path("/logs/agent"))
+    session = TmuxSession(
+        session_name="environment-validation",
+        environment=env,
+        logging_path=Path("/logs/agent/terminus_2.pane"),
+        local_asciinema_recording_path=None,
+        remote_asciinema_recording_path=None,
+        user="root",
+    )
+    await session.start()
+    await session.send_keys(
+        ["printf '%s' terminal-ok > /tmp/terminal-validation-result", "Enter"],
+        block=True,
+        max_timeout_sec=30,
+    )
+    _, output, _ = await sb.exec(
+        "cat /tmp/terminal-validation-result", check=True, timeout=30
+    )
+    if output.strip() != "terminal-ok" or not await session.is_session_alive():
+        raise RuntimeError("terminal command did not complete in a live tmux session")
+    await sb.exec("tmux kill-session -t environment-validation", check=True, timeout=30)
+    return {
+        "version": version.strip(),
+        "command_output": output.strip(),
+        "exec": env.exec_trace,
     }
 
 

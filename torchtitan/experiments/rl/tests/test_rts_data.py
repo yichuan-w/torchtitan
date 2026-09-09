@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import base64
 import json
+import subprocess
 from types import SimpleNamespace
 
 import pytest
@@ -193,15 +194,38 @@ def test_entrypoint_reaches_the_row_and_the_dataset(tmp_path):
     assert next(iter(dataset)).entrypoint == "/entrypoint.sh sleep infinity"
 
 
-def test_agent_runtime_is_not_injected_by_default(tmp_path):
-    """RTS Dockerfiles already install tmux; injecting would be a no-op RUN layer."""
+def test_agent_runtime_is_required_by_default(tmp_path):
     root = tmp_path / "tasks"
     root.mkdir()
     _write_task(root, "rts_task_ggg")
 
     rows, _reasons = build_rows([str(root)])
 
-    assert rows[0]["metadata"]["dockerfile"] == _DOCKERFILE
+    assert "&& tmux -V" in rows[0]["metadata"]["dockerfile"]
+
+
+@pytest.mark.parametrize("installed", [False, True])
+def test_runtime_install_failure_cannot_build_a_successful_image(tmp_path, installed):
+    from torchtitan.experiments.rl.examples.tmax.prepare_rts_data import (
+        _AGENT_RUNTIME_BLOCK,
+    )
+
+    # A fake package manager claims success but installs nothing. Restrict PATH
+    # to the fixture so no host package manager or tmux can satisfy the check.
+    apk = tmp_path / "apk"
+    apk.write_text("#!/bin/sh\nexit 0\n")
+    apk.chmod(0o755)
+    if installed:
+        tmux = tmp_path / "tmux"
+        tmux.write_text("#!/bin/sh\necho 'tmux test'\n")
+        tmux.chmod(0o755)
+    command = _AGENT_RUNTIME_BLOCK.split("RUN ", 1)[1].replace("\\\n", "")
+    result = subprocess.run(
+        ["/bin/sh", "-c", command],
+        env={"PATH": str(tmp_path)},
+        capture_output=True,
+    )
+    assert (result.returncode == 0) is installed
 
 
 def test_injected_agent_runtime_installs_tmux_without_touching_the_workdir(tmp_path):
@@ -471,6 +495,7 @@ def test_agent_budget_policy(declared, expected):
     )
     rollouter = SimpleNamespace(
         _time_budget_sec=2400,
+        _agent_budget_floor_sec=7200,
         _agent_budget_sec=TMaxRollouter._agent_budget_sec,
     )
     assert TMaxRollouter._agent_budget_sec(rollouter, sample) == expected

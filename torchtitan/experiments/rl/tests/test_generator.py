@@ -290,6 +290,7 @@ def test_metric_failure_settles_the_current_future_and_all_siblings(monkeypatch)
             for rid in ("bad", "sibling", "queued")
         ]
         for rid in ("bad", "sibling"):
+            dispatcher._rank0_generation_futures[rid].min_policy_version = 7
             dispatcher._rank0_dp_router.reserve(rid, routing_session_id=rid)
         queue = asyncio.Queue()
         dispatcher._rank0_result_receiver = SimpleNamespace(recv=queue.get)

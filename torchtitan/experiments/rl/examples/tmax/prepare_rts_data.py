@@ -507,7 +507,7 @@ def _to_row(
     task_dir: str,
     *,
     task_id: str | None = None,
-    inject_agent_runtime: bool = False,
+    inject_agent_runtime: bool = True,
     resources: dict[str, int] | None = None,
     pretest: tuple[str, str] | None = None,
 ) -> tuple[dict | None, str]:
@@ -662,7 +662,7 @@ def build_rows(
     limit: int | None = None,
     seed: int = 42,
     max_oracle_commands: int | None = None,
-    inject_agent_runtime: bool = False,
+    inject_agent_runtime: bool = True,
     resource_map: dict[str, dict[str, int]] | None = None,
     pretest_map: dict[str, tuple[str, str]] | None = None,
 ) -> tuple[list[dict], dict[str, int]]:
@@ -737,10 +737,10 @@ def main() -> None:
     )
     ap.add_argument(
         "--inject-agent-runtime",
-        action="store_true",
-        help="append a tmux install step to each Dockerfile -- required for corpora "
-        "that ship the upstream task content verbatim (TerminalWorld-Seeds) rather "
-        "than RTS, whose Dockerfiles already carry it",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+        help="require tmux in the final image (default: enabled); disable only "
+        "when preparing data for a harness that does not use tmux",
     )
     ap.add_argument(
         "--metadata-parquet",
