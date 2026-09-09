@@ -230,7 +230,7 @@ def test_tmax_fallback_preserves_sticky_protection(monkeypatch, fallback):
         rl_grpo_qwen3_5_9b_tmax,
     )
 
-    monkeypatch.setenv("SWE_DP_ROUTER", fallback)
+    monkeypatch.setenv("SWE_DP_FALLBACK_ROUTER", fallback)
     monkeypatch.setenv("SWE_DP_STICKY_REBALANCE", "2.0")
     monkeypatch.setenv("SWE_DP_STICKY_MAX_SESSIONS", "16384")
     cfg = rl_grpo_qwen3_5_9b_tmax().generator.intra_generator_router.strategy

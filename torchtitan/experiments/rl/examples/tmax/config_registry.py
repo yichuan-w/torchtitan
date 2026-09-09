@@ -740,7 +740,14 @@ def rl_grpo_qwen3_5_9b_tmax() -> Controller.Config:
         StickySessionRoutingStrategy,
     )
 
-    _routing_name = os.environ.get("SWE_DP_ROUTER", "roundrobin").lower()
+    # Sticky routing is always the outer strategy here.  This knob selects
+    # only where a new/unpinned session goes (and where a broken pin is
+    # reattached).  Keep SWE_DP_ROUTER as a compatibility alias for older
+    # runbooks, but make the narrower name the documented one.
+    _routing_name = os.environ.get(
+        "SWE_DP_FALLBACK_ROUTER",
+        os.environ.get("SWE_DP_ROUTER", "roundrobin"),
+    ).lower()
     _fallback = (
         LeastLoadedRoutingStrategy.Config()
         if _routing_name in ("leastloaded", "least", "ll")
