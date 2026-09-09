@@ -36,26 +36,18 @@ import os
 from dataclasses import dataclass, field
 from pathlib import Path
 
-_TT_CANDIDATES = [
-    os.environ.get("TRL_TT", ""),
-    os.path.expanduser("~/torchtitan"),
-    os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(
-        os.path.abspath(__file__)))), "torchtitan"),
-]
-
-
 def _checkout_root() -> str:
-    # TRL_TT is read here, not at import: the loop's launcher exports it
-    # before this module loads, but a caller that sets it afterwards (a test,
-    # a tool run by hand) has to be honoured too.
-    candidates = [os.environ.get("TRL_TT", ""), *_TT_CANDIDATES[1:]]
-    root = next((c for c in candidates if c and os.path.isdir(
-        os.path.join(c, "torchtitan"))), None)
+    # An explicit checkout is honored or rejected; otherwise use this script's
+    # own tree. Falling back to ~/torchtitan silently bypasses worktree fixes.
+    configured = os.environ.get("TRL_TT")
+    candidates = [Path(configured)] if configured else Path(__file__).resolve().parents
+    root = next((c for c in candidates if
+                 (c / "torchtitan/experiments/rl/examples/tmax/prepare_rts_data.py").is_file()), None)
     if root is None:
         raise ModuleNotFoundError(
             "no torchtitan checkout found (set TRL_TT); refusing to fold with "
             "a local approximation of prepare_rts_data")
-    return root
+    return str(root)
 
 
 def _tmax_modules(*leaves: str):

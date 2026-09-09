@@ -58,7 +58,8 @@ def test_row_carries_dockerfile_and_last_workdir(tmp_path):
     assert reasons == {"ok": 1}
     (row,) = rows
     md = row["metadata"]
-    assert md["dockerfile"] == _DOCKERFILE
+    assert md["dockerfile"].startswith(_DOCKERFILE)
+    assert "&& tmux -V" in md["dockerfile"]
     # No published image: the sandbox backend must build the Dockerfile instead.
     assert md["image"] == ""
     # The LAST WORKDIR wins -- that is where the agent's commands land.
@@ -241,21 +242,13 @@ def test_injected_agent_runtime_installs_tmux_without_touching_the_workdir(tmp_p
     md = rows[0]["metadata"]
     assert md["dockerfile"].startswith("FROM ubuntu:22.04\n")
     assert "tmux" in md["dockerfile"]
-    # Repair must precede the source Dockerfile's own apt RUN. Appending it after
-    # that RUN cannot rescue an EOL Debian/Ubuntu image.
-    assert md["dockerfile"].index("repair obsolete apt sources") < md[
-        "dockerfile"
-    ].index("RUN apt-get update")
-    # EOL Debian images can keep a dead *-security suite after their main mirror
-    # moves to archive.debian.org. A second update failure must disable that
-    # optional source so tmux can still come from the main archive.
-    assert "/etc/apt/sources.list.d/*.list" in md["dockerfile"]
-    assert "disabled obsolete security suite" in md["dockerfile"]
+    assert md["dockerfile"].startswith(_DOCKERFILE)
+    assert "--allow-unauthenticated" not in md["dockerfile"]
     # A trailing RUN leaves the last WORKDIR in force.
     assert md["workdir"] == "/srv/final"
 
 
-def test_agent_runtime_repairs_each_apt_multistage_before_its_first_run(tmp_path):
+def test_agent_runtime_preserves_upstream_stages_and_package_sources(tmp_path):
     root = tmp_path / "tasks"
     root.mkdir()
     dockerfile = """FROM debian:buster AS build
@@ -272,13 +265,10 @@ WORKDIR /app
 
     assert reasons == {"ok": 1}
     injected = rows[0]["metadata"]["dockerfile"]
-    assert injected.count("repair obsolete apt sources") == 2
+    assert injected.startswith(dockerfile)
+    assert injected.count("harbor-agent-runtime") == 1
     assert "FROM scratch AS assets\n# harbor-agent-runtime" not in injected
-    for stage in ("FROM debian:buster AS build", "FROM node:18-bullseye"):
-        stage_text = injected[injected.index(stage) :]
-        assert stage_text.index("repair obsolete apt sources") < stage_text.index(
-            "RUN apt-get update"
-        )
+    assert "sed -i" not in injected
 
 
 def test_injection_does_not_add_build_context_sources(tmp_path):
@@ -453,7 +443,7 @@ def test_dataset_loads_a_dockerfile_only_row(tmp_path):
 
     dataset = TMaxDataset(TMaxDataset.Config(data_path=str(path), shuffle=False))
     sample = next(iter(dataset))
-    assert sample.dockerfile == _DOCKERFILE
+    assert sample.dockerfile == rows[0]["metadata"]["dockerfile"]
     assert sample.image == ""
     assert sample.workdir == "/srv/final"
 

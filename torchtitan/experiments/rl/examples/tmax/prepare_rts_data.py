@@ -121,34 +121,10 @@ _AGENT_RUNTIME_BLOCK = """
 RUN ( if command -v tmux >/dev/null 2>&1; then \\
         exit 0; \\
       elif command -v apt-get >/dev/null 2>&1; then \\
-        (apt-get update || ( \\
-          for sources in /etc/apt/sources.list /etc/apt/sources.list.d/*.list; do \\
-            [ -f "$sources" ] || continue; \\
-            sed -i -e 's|http://deb.debian.org/debian|http://archive.debian.org/debian|g' \\
-                   -e 's|http://security.debian.org/debian-security|http://archive.debian.org/debian-security|g' \\
-                   -e 's|http://deb.debian.org/debian-security|http://archive.debian.org/debian-security|g' \\
-                   -e 's|http://archive.ubuntu.com/ubuntu|http://old-releases.ubuntu.com/ubuntu|g' \\
-                   -e 's|http://security.ubuntu.com/ubuntu|http://old-releases.ubuntu.com/ubuntu|g' \\
-                   -e 's|http://.*archive.ubuntu.com/ubuntu|http://old-releases.ubuntu.com/ubuntu|g' \\
-                   "$sources"; \\
-          done; \\
-          echo 'Acquire::Check-Valid-Until "false";' > /etc/apt/apt.conf.d/99harbor-archive; \\
-          apt-get update || ( \\
-            for sources in /etc/apt/sources.list /etc/apt/sources.list.d/*.list; do \\
-              [ -f "$sources" ] || continue; \\
-              sed -i '/debian-security/s/^[[:space:]]*deb/# disabled obsolete security suite: deb/' "$sources"; \\
-            done; \\
-            apt-get update \\
-          ) \\
-        )) && (apt-get install -y tmux || apt-get install -y --allow-unauthenticated tmux) \\
+        apt-get update && apt-get install -y tmux \\
         && rm -rf /var/lib/apt/lists/*; \\
       elif command -v yum >/dev/null 2>&1; then \\
-        (yum install -y tmux || ( \\
-          sed -i -e 's|^mirrorlist=|#mirrorlist=|g' \\
-                 -e 's|^#baseurl=http://mirror.centos.org|baseurl=http://vault.centos.org|g' \\
-                 /etc/yum.repos.d/CentOS-*.repo 2>/dev/null; \\
-          yum install -y tmux \\
-        )) && yum clean all; \\
+        yum install -y tmux && yum clean all; \\
       elif command -v dnf >/dev/null 2>&1; then \\
         dnf install -y tmux && dnf clean all; \\
       elif command -v microdnf >/dev/null 2>&1; then \\
@@ -165,53 +141,13 @@ RUN ( if command -v tmux >/dev/null 2>&1; then \\
     && tmux -V
 """
 
-# Some upstream Dockerfiles run apt before the trailing tmux layer. On an EOL
-# Debian/Ubuntu base that original RUN fails first, so the repair in
-# _AGENT_RUNTIME_BLOCK is never reached. Put this non-fatal probe at the start of
-# every stage that uses apt; if the normal mirrors still work it changes nothing,
-# and if they do not it repairs them before any upstream apt instruction runs.
-_APT_SOURCES_PREFLIGHT_BLOCK = r"""# harbor-agent-runtime: repair obsolete apt sources before upstream RUN layers
-RUN ( command -v apt-get >/dev/null 2>&1 || exit 0; \
-      apt-get update >/dev/null 2>&1 || ( \
-        for sources in /etc/apt/sources.list /etc/apt/sources.list.d/*.list; do \
-          [ -f "$sources" ] || continue; \
-          sed -i -e 's|http://deb.debian.org/debian|http://archive.debian.org/debian|g' \
-                 -e 's|http://security.debian.org/debian-security|http://archive.debian.org/debian-security|g' \
-                 -e 's|http://deb.debian.org/debian-security|http://archive.debian.org/debian-security|g' \
-                 -e 's|http://archive.ubuntu.com/ubuntu|http://old-releases.ubuntu.com/ubuntu|g' \
-                 -e 's|http://security.ubuntu.com/ubuntu|http://old-releases.ubuntu.com/ubuntu|g' \
-                 -e 's|http://.*archive.ubuntu.com/ubuntu|http://old-releases.ubuntu.com/ubuntu|g' \
-                 "$sources"; \
-        done; \
-        echo 'Acquire::Check-Valid-Until "false";' > /etc/apt/apt.conf.d/99harbor-archive; \
-        apt-get update >/dev/null 2>&1 || ( \
-          for sources in /etc/apt/sources.list /etc/apt/sources.list.d/*.list; do \
-            [ -f "$sources" ] || continue; \
-            sed -i '/debian-security/s/^[[:space:]]*deb/# disabled obsolete security suite: deb/' "$sources"; \
-          done; \
-          apt-get update >/dev/null 2>&1 \
-        ) \
-      ) ) || echo 'harbor-agent-runtime: apt source preflight failed (non-fatal)' >&2
-"""
-
-
 def _inject_agent_runtime(dockerfile: str) -> str:
-    """Repair apt stages before upstream RUNs, then install tmux in the final stage."""
-    from_matches = list(re.finditer(r"(?mi)^\s*FROM\s+[^\n]+\n?", dockerfile))
-    insert_at: list[int] = []
-    for i, match in enumerate(from_matches):
-        stage_end = (
-            from_matches[i + 1].start() if i + 1 < len(from_matches) else len(dockerfile)
-        )
-        if re.search(r"\bapt-get\b", dockerfile[match.end() : stage_end]):
-            insert_at.append(match.end())
+    """Require tmux in the final stage using the task's declared package sources.
 
-    for offset in reversed(insert_at):
-        dockerfile = (
-            dockerfile[:offset]
-            + _APT_SOURCES_PREFLIGHT_BLOCK
-            + dockerfile[offset:]
-        )
+    Source repairs belong in the task Dockerfile before its first package
+    operation. A network or signing failure must not rewrite healthy sources
+    or disable security repositories in an otherwise unrelated build.
+    """
     return dockerfile.rstrip("\n") + "\n" + _AGENT_RUNTIME_BLOCK
 
 

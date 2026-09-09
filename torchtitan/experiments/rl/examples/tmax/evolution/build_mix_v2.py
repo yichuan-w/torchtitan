@@ -120,7 +120,7 @@ def tw_rows(ids_path: Path, disk_results: Path, tasks_parquet: Path,
         try:
             row = pack.to_row(str(src))
         except Exception as e:  # noqa: BLE001
-            missing.append(f"{tid} (pack: {type(e).__name__})")
+            missing.append(f"{tid} (pack: {type(e).__name__}: {e})")
             continue
         md = row["metadata"]
         d = declared.get(tid, {})

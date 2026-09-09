@@ -19,6 +19,17 @@ def _checkout(monkeypatch):
     monkeypatch.setenv("TRL_TT", str(Path(__file__).resolve().parents[7]))
 
 
+def test_packer_defaults_to_its_own_checkout(monkeypatch):
+    monkeypatch.delenv("TRL_TT", raising=False)
+    assert Path(pack._checkout_root()) == Path(__file__).resolve().parents[7]
+
+
+def test_invalid_explicit_checkout_does_not_fall_back(monkeypatch, tmp_path):
+    monkeypatch.setenv("TRL_TT", str(tmp_path))
+    with pytest.raises(ModuleNotFoundError, match="no torchtitan checkout"):
+        pack._checkout_root()
+
+
 def _package(tmp_path: Path) -> Path:
     pkg = tmp_path / "pkg"
     (pkg / "environment").mkdir(parents=True)
