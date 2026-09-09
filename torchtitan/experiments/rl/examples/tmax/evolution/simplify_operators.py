@@ -78,8 +78,11 @@ Hint level: {hint}. none permits structural changes only; vague permits a
 direction or subgoal, not concrete solution steps; specific permits one
 trace-supported step, never the complete solution or private verifier details.
 
-Read multiple attempts, including successful steps. Identify a recurring
-obstacle, then state the skill this variant retains. Aim for some successful
+Read every supplied attempt's outcome and locate its first unresolved obstacle,
+including attempts that never reach the proposed intervention. In bottleneck,
+state how many attempts encounter each obstacle and cite their trace locations;
+do not infer a shared bottleneck from only the furthest-progressing attempts.
+Identify a recurring obstacle, then state the skill this variant retains. Aim for some successful
 and some unsuccessful student attempts, rather than preserving every difficult
 part of a task that the student cannot yet solve. A timeout or 0/k alone
 does not identify that obstacle. Compare the failed check with the submitted
@@ -117,6 +120,11 @@ In prediction, name the observed failing action or decision and explain how
 the proposed change enables a different next action. State an observable
 result that would disprove this explanation in a new rollout. A shorter task,
 fewer assertions, or a reminder to be careful is not a causal explanation.
+Name which attempts the change could help and what unresolved work remains
+on their path to submission. Removing setup does not establish that they can
+perform the retained diagnosis; reducing output count does not remove an
+earlier discovery failure. Account for those remaining obstacles when choosing
+the intervention, rather than treating saved time as sufficient evidence.
 For a hint, identify what direction the student lacked; repeating a direction
 it already followed adds no help. For structural changes, identify the
 prerequisite, interference, or search barrier being removed. Distinguish
