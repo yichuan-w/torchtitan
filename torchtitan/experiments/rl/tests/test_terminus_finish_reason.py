@@ -21,7 +21,10 @@ dead session as a real attempt, which then scores 0 and looks like a model failu
 from __future__ import annotations
 
 import asyncio
+import shlex
+import subprocess
 import sys
+import time
 import types
 from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock
@@ -205,9 +208,31 @@ def test_pane_capture_creates_directory_and_keeps_runs_separate():
     wrapped = first._bound_pane_pipe(command)
     second._bound_pane_pipe(command)
     assert wrapped.startswith("mkdir -p /logs/agent && ")
-    assert "head -c 8388608" in wrapped
+    assert "dd bs=1 count=8388608" in wrapped
     assert first.pane_path != second.pane_path
     assert first.pane_path in wrapped
+
+
+def test_pane_output_is_visible_before_eof_and_stops_at_cap(monkeypatch, tmp_path):
+    from torchtitan.experiments.rl.harness.agents import terminus
+
+    monkeypatch.setattr(terminus, "_PANE_CAP_BYTES", 4096)
+    env = terminus._SandboxEnvironment(MagicMock(), agent_dir=Path("/tmp/run"))
+    wrapped = env._bound_pane_pipe(f"tmux pipe-pane -t agent 'cat > {tmp_path}/original.pane'")
+    pipe_command = shlex.split(wrapped)[-1]
+    with subprocess.Popen(["sh", "-c", pipe_command], stdin=subprocess.PIPE) as process:
+        process.stdin.write(b"observed\n")
+        process.stdin.flush()
+        deadline = time.monotonic() + 3
+        path = Path(env.pane_path)
+        while (not path.exists() or path.stat().st_size < 9) and time.monotonic() < deadline:
+            time.sleep(0.01)
+        assert path.read_bytes() == b"observed\n"
+        process.stdin.write(b"x" * 4096)
+        process.stdin.flush()
+        process.wait(timeout=3)
+        assert process.returncode == 0
+        assert path.stat().st_size == 4096
 
 
 def test_a_dead_session_is_stopped_early_not_a_submit(monkeypatch):

@@ -402,8 +402,8 @@ class _SandboxEnvironment:
         """Cap the pane transcript, and remember where it is.
 
         Terminus-2 builds its tmux session with an unbounded
-        ``pipe-pane 'cat > <path>'``. Rewriting it to ``head -c`` stops the file
-        at _PANE_CAP_BYTES: head exits at the cap, tmux's pipe takes EPIPE, and
+        ``pipe-pane 'cat > <path>'``. A bounded ``dd`` stops the file
+        at _PANE_CAP_BYTES: dd exits at the cap, tmux's pipe takes EPIPE, and
         the terminal keeps working with nothing more written. Left alone, a
         command that floods the terminal fills the task's own disk.
 
@@ -418,7 +418,9 @@ class _SandboxEnvironment:
         self.pane_path = str(path)
         # Harbor assumes its log directory already exists. Each run also needs
         # its own file when previous sessions keep background services alive.
-        bounded = f"head -c {_PANE_CAP_BYTES} > {shlex.quote(str(path))}"
+        # One-byte blocks make the cap exact even with short pipe reads and
+        # write small observations immediately; head buffers them until EOF.
+        bounded = f"dd bs=1 count={_PANE_CAP_BYTES} > {shlex.quote(str(path))} 2>/dev/null"
         command = command.replace(f"'cat > {original}'", shlex.quote(bounded), 1)
         return f"mkdir -p {shlex.quote(str(path.parent))} && {command}"
 
