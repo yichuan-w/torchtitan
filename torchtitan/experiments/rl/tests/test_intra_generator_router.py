@@ -171,3 +171,71 @@ def test_sticky_rebalance_water_fills_across_three_ranks():
     assert loads[1] + loads[2] == 30
     assert abs(loads[1] - loads[2]) <= 1
     assert set(chosen) == {1, 2}
+
+
+def test_least_loaded_idle_sessions_rotate_after_release():
+    router = IntraGeneratorRouter.Config(
+        strategy=StickySessionRoutingStrategy.Config(
+            fallback_strategy=LeastLoadedRoutingStrategy.Config()
+        )
+    ).build(dp_degree=5)
+    ranks = []
+    for i in range(25):
+        rid = f"cold-{i}"
+        ranks.append(router.reserve(rid, routing_session_id=rid))
+        router.release(rid)
+    assert ranks == list(range(5)) * 5
+    # The new tie breaker must not change existing session affinity.
+    assert router.reserve("again", routing_session_id="cold-3") == 3
+
+
+def test_least_loaded_rotates_only_among_minimum_load_candidates():
+    router = IntraGeneratorRouter.Config(
+        strategy=LeastLoadedRoutingStrategy.Config()
+    ).build(dp_degree=3)
+    assert router.reserve("held", routing_session_id=None) == 0
+    ranks = []
+    for i in range(8):
+        rid = f"short-{i}"
+        ranks.append(router.reserve(rid, routing_session_id=None))
+        router.release(rid)
+    assert ranks == [1, 2] * 4
+    assert _loads(router) == [1, 0, 0]
+
+
+def test_sticky_rebalance_rotates_tied_destinations():
+    router = IntraGeneratorRouter.Config(
+        strategy=StickySessionRoutingStrategy.Config(
+            fallback_strategy=RoundRobinRoutingStrategy.Config(),
+            rebalance_load_ratio=2.0,
+            rebalance_min_gap=0,
+        )
+    ).build(dp_degree=3)
+    for i in range(12):
+        router.reserve(f"pin-{i}", routing_session_id=f"s-{i}")
+        router.release(f"pin-{i}")
+    # Simulate sustained load on rank 0 while the other ranks are idle.
+    router._handles[0].reserved_load = 20
+    moved = []
+    for i in (0, 3, 6, 9):
+        rid = f"move-{i}"
+        moved.append(router.reserve(rid, routing_session_id=f"s-{i}"))
+        router.release(rid)
+    assert moved == [1, 2, 1, 2]
+
+
+@pytest.mark.parametrize("fallback", ["leastloaded", "roundrobin"])
+def test_tmax_fallback_preserves_sticky_protection(monkeypatch, fallback):
+    from torchtitan.experiments.rl.examples.tmax.config_registry import (
+        rl_grpo_qwen3_5_9b_tmax,
+    )
+
+    monkeypatch.setenv("SWE_DP_ROUTER", fallback)
+    monkeypatch.setenv("SWE_DP_STICKY_REBALANCE", "2.0")
+    monkeypatch.setenv("SWE_DP_STICKY_MAX_SESSIONS", "16384")
+    cfg = rl_grpo_qwen3_5_9b_tmax().generator.intra_generator_router.strategy
+    expected = LeastLoadedRoutingStrategy if fallback == "leastloaded" else RoundRobinRoutingStrategy
+    assert isinstance(cfg.fallback_strategy, expected.Config)
+    assert cfg.rebalance_load_ratio == 2.0
+    assert cfg.rebalance_min_gap == 8
+    assert cfg.max_sessions == 16384

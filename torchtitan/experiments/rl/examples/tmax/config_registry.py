@@ -732,55 +732,29 @@ def rl_grpo_qwen3_5_9b_tmax() -> Controller.Config:
     # gets it. SWE_GDN_BI below sets it independently, and still wins.
     _prefix_cache_env = os.environ.get("SWE_GEN_PREFIX_CACHE", "")
     _prefix_cache = None if _prefix_cache_env == "" else _prefix_cache_env == "1"
-    # DP routing across the generator's engines. tmax DEFAULTS to
-    # StickySession(fallback=RoundRobin): deal new sessions out evenly BY COUNT so no
-    # single engine piles up. The upstream default (fallback=LeastLoaded) concentrated
-    # ~2x load on engine 0 -- reserved_load is per-turn (transient, ~0 between an
-    # agent's turns) but the sticky pin is per-session (persistent), so LeastLoaded's
-    # min() froze the frequent between-turn ties onto the lowest index. Measured on a
-    # 4-engine 9B run: engine 0 ran ~2.0x the others under LeastLoaded, ~1.2x under
-    # RoundRobin. The sticky pin is kept either way for prefix-cache reuse.
-    # SWE_DP_ROUTER=leastloaded restores the upstream LeastLoaded fallback for A/B.
-    _dp_router = config.generator.intra_generator_router
-    if os.environ.get("SWE_DP_ROUTER", "roundrobin").lower() not in (
-        "leastloaded",
-        "least",
-        "ll",
-    ):
-        from torchtitan.experiments.rl.routing.strategies import (
-            RoundRobinRoutingStrategy,
-            StickySessionRoutingStrategy,
-        )
+    # Keep sticky affinity and overload protection for either cold-session
+    # fallback. LeastLoaded rotates ties; request count is not KV occupancy.
+    from torchtitan.experiments.rl.routing.strategies import (
+        LeastLoadedRoutingStrategy,
+        RoundRobinRoutingStrategy,
+        StickySessionRoutingStrategy,
+    )
 
-        # Overload re-pin (see StickySessionRoutingStrategy.Config.rebalance_load_ratio).
-        # RoundRobin deals NEW sessions evenly but a pin is for life, and that has no
-        # restoring force: once one rank saturates, its sessions crawl, run out their
-        # time budget and stay, while the others' finish early and cycle out. The
-        # 09-07 (2 ranks) and 09-08 (3 ranks) runs both ended up 15-22x skewed onto
-        # rank 0 with the idle ranks stuck in lockstep behind it. Ratio 2 + gap 8:
-        # untouched while balanced, breaks the pin once a rank holds more than
-        # twice the least-loaded rank's in-flight requests (+8). Moves go to the
-        # current least-loaded rank, so they water-fill and stop by themselves.
-        # SWE_DP_STICKY_REBALANCE=0 restores a pin for life (A/B).
-        _rebalance = float(os.environ.get("SWE_DP_STICKY_REBALANCE", "2.0"))
-        # max_sessions is the size of the session->rank pin table, LRU-evicted.
-        # The strategy's 4096 default is below this recipe's live population
-        # (SWE_ROLLOUT_CONCURRENCY=1500 rollouts in flight, plus every finished
-        # one until it ages out), so once ~4096 sessions have ever been created the
-        # table starts evicting LIVE sessions -- the least-recently-routed ones,
-        # i.e. exactly those waiting in a queue -- and re-dealing them. Both 9B
-        # runs of 09-08 tipped into the 15-50x DP skew within minutes of crossing
-        # 4096 sessions (4063 and 4454 at the tip). 16384 keeps every live session
-        # pinned; the table is str->handle, so the cost is nil.
-        _dp_router = dataclasses.replace(
-            _dp_router,
-            strategy=StickySessionRoutingStrategy.Config(
-                fallback_strategy=RoundRobinRoutingStrategy.Config(),
-                rebalance_load_ratio=_rebalance,
-                rebalance_min_gap=8,
-                max_sessions=int(os.environ.get("SWE_DP_STICKY_MAX_SESSIONS", "16384")),
-            ),
-        )
+    _routing_name = os.environ.get("SWE_DP_ROUTER", "roundrobin").lower()
+    _fallback = (
+        LeastLoadedRoutingStrategy.Config()
+        if _routing_name in ("leastloaded", "least", "ll")
+        else RoundRobinRoutingStrategy.Config()
+    )
+    _dp_router = dataclasses.replace(
+        config.generator.intra_generator_router,
+        strategy=StickySessionRoutingStrategy.Config(
+            fallback_strategy=_fallback,
+            rebalance_load_ratio=float(os.environ.get("SWE_DP_STICKY_REBALANCE", "2.0")),
+            rebalance_min_gap=8,
+            max_sessions=int(os.environ.get("SWE_DP_STICKY_MAX_SESSIONS", "16384")),
+        ),
+    )
 
     config.generator = dataclasses.replace(
         config.generator,

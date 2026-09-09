@@ -77,21 +77,30 @@ class RoundRobinRoutingStrategy(RoutingStrategy):
 
 
 class LeastLoadedRoutingStrategy(RoutingStrategy):
-    """Pick the candidate with the least reserved load."""
+    """Pick the least reserved load, rotating equal-load choices."""
 
     @dataclass(kw_only=True, slots=True)
     class Config(Configurable.Config):
         pass
+
+    def __init__(self, config: Config):
+        del config
+        self._next_index = 0
 
     def choose(
         self,
         routing_ctx: RoutingContext,
         candidates: Sequence[RoutingCandidate],
     ) -> RoutingCandidate:
-        """Return the candidate with the lowest reserved load."""
-
+        """Respect load first; avoid repeatedly pinning idle sessions to rank 0."""
         del routing_ctx
-        return min(candidates, key=lambda h: h.reserved_load)
+        minimum = min(h.reserved_load for h in candidates)
+        for offset in range(len(candidates)):
+            index = (self._next_index + offset) % len(candidates)
+            if candidates[index].reserved_load == minimum:
+                self._next_index = (index + 1) % len(candidates)
+                return candidates[index]
+        raise AssertionError("no least-loaded candidate")
 
 
 class StickySessionRoutingStrategy(RoutingStrategy):
@@ -147,6 +156,7 @@ class StickySessionRoutingStrategy(RoutingStrategy):
     def __init__(self, config: Config):
         self._max_sessions = config.max_sessions
         self._fallback_strategy = config.fallback_strategy.build()
+        self._rebalance_strategy = LeastLoadedRoutingStrategy.Config().build()
         self._rebalance_ratio = config.rebalance_load_ratio
         self._rebalance_min_gap = config.rebalance_min_gap
         self._sessions: OrderedDict[str, RoutingCandidate] = OrderedDict()
@@ -184,6 +194,7 @@ class StickySessionRoutingStrategy(RoutingStrategy):
                         > self._rebalance_ratio * least.reserved_load
                         + self._rebalance_min_gap
                     ):
+                        least = self._rebalance_strategy.choose(routing_ctx, candidates)
                         # Pinned candidate is swamped: move this session to the
                         # least-loaded one. See Config.rebalance_load_ratio.
                         self._sessions[routing_ctx.session_id] = least
