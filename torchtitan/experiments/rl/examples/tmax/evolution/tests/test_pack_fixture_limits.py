@@ -70,3 +70,15 @@ def test_a_binary_fixture_is_refused_by_name(tmp_path) -> None:
     (pkg / "tests/ref.bin").write_bytes(b"\x00\xff\xfe binary \x80")
     with pytest.raises(ValueError, match="tests_fixture_binary.*tests/ref.bin"):
         pack.to_row(str(pkg), task_id="t")
+
+
+def test_host_python_caches_are_not_task_fixtures(tmp_path):
+    pkg = _package(tmp_path)
+    cache = pkg / "tests/__pycache__"
+    cache.mkdir()
+    (cache / "test_state.cpython-312.pyc").write_bytes(b"\xff\x00")
+    (pkg / "tests/test_state.py").write_text("def test_state(): assert True\n")
+    row = pack.to_row(str(pkg), task_id="t")
+    assert row["metadata"]["tmax"]["fixtures"] == {
+        "tests/test_state.py": "def test_state(): assert True\n"
+    }
