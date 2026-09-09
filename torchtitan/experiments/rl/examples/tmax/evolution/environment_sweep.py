@@ -178,6 +178,16 @@ async def run(args) -> int:
                         prepared_row=payload["row"],
                         check_terminal=True,
                     )
+                    if (
+                        result.get("stage") == "daytona_oracle"
+                        and result["solve_exit"] != 0
+                    ):
+                        result["ok"] = False
+                        result["stage"] = "reference_error"
+                        result.setdefault(
+                            "why",
+                            f"reference solution exited with {result['solve_exit']}",
+                        )
             except Exception as exc:
                 log.exception("item=%s validation failed", tid)
                 result = {
