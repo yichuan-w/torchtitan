@@ -206,6 +206,77 @@ def test_process_finished_requests_resolves_future_with_completion():
     asyncio.run(main())
 
 
+@pytest.mark.parametrize("settlement", ["abort", "cancel"])
+def test_peer_result_drain_survives_late_completion(settlement):
+    async def main():
+        dispatcher = _dispatcher(dp_degree=5)
+        queue = asyncio.Queue()
+        dispatcher._rank0_result_receiver = SimpleNamespace(recv=queue.get)
+        futures = {}
+        for rid in ("late", "healthy", "next"):
+            futures[rid] = dispatcher.rank0_register_future(rid, "generator")
+            dispatcher._rank0_generation_futures[rid].min_policy_version = 7
+            dispatcher._rank0_dp_router.reserve(rid, routing_session_id=rid)
+
+        # A peer finished and sent its output, but rank 0 handles cancellation
+        # before the fan-in task receives that already queued completion.
+        if settlement == "abort":
+            assert dispatcher.rank0_settle_aborted("late")
+        else:
+            futures["late"].cancel()
+        drain = asyncio.create_task(dispatcher._rank0_drain_results())
+        try:
+            await queue.put(
+                dispatcher._build_completions(
+                    [_request_output(request_id=rid) for rid in ("late", "healthy")], 7
+                )
+            )
+            await asyncio.sleep(0)
+            assert not drain.done(), (
+                f"peer completion drain died: {drain.exception()!r}"
+            )
+            assert futures["healthy"].done()
+            assert futures["healthy"].result().request_id == "healthy"
+            await queue.put(
+                dispatcher._build_completions([_request_output(request_id="next")], 7)
+            )
+            await asyncio.sleep(0)
+            assert futures["next"].result().request_id == "next"
+            assert not dispatcher.rank0_has_pending_futures()
+            assert dispatcher._rank0_dp_router._reservations == {}
+            assert all(
+                h.reserved_load == 0 for h in dispatcher._rank0_dp_router._handles
+            )
+        finally:
+            drain.cancel()
+            await asyncio.gather(drain, return_exceptions=True)
+
+    asyncio.run(main())
+
+
+def test_peer_result_drain_failure_is_logged_and_rejects_new_requests(caplog):
+    async def main():
+        dispatcher = _dispatcher(dp_degree=5)
+        pending = dispatcher.rank0_register_future("pending", "generator")
+
+        async def broken_recv():
+            raise RuntimeError("result channel unavailable")
+
+        dispatcher._rank0_result_receiver = SimpleNamespace(recv=broken_recv)
+        dispatcher._rank0_drain_task = asyncio.create_task(
+            dispatcher._rank0_drain_results()
+        )
+        with pytest.raises(RuntimeError, match="result channel unavailable"):
+            await dispatcher._rank0_drain_task
+        with pytest.raises(RuntimeError, match="result channel unavailable"):
+            await pending
+        with pytest.raises(RuntimeError, match="peer result drain has stopped"):
+            dispatcher.rank0_register_future("new", "generator")
+        assert "generator peer result drain crashed" in caplog.text
+
+    asyncio.run(main())
+
+
 def test_process_finished_requests_noop_on_nonzero_tp_rank():
     # tp_rank != 0 hold no finished outputs, so processing returns before building or sending.
     dispatcher = _dispatcher(rank=1, dp_degree=1, tp_degree=2)

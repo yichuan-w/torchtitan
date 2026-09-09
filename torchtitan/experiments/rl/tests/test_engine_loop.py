@@ -54,6 +54,7 @@ def _bare_generator(
     generator._close_request = CloseRequest() if close_requested else None
     generator._model_state_dict_pull_request = model_state_dict_pull_request
     generator._queued_generation_requests = pending or []
+    generator._pending_abort_request_ids = []
     # overlap_weight_fetch state. pending_weight_fetch is polled via .done() only, so a
     # SimpleNamespace(done=lambda: ...) stands in for the real asyncio.Task.
     generator.config = SimpleNamespace(overlap_weight_fetch=overlap_weight_fetch)

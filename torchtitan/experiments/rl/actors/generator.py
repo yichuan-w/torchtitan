@@ -556,6 +556,8 @@ class RequestDispatcher:
         self, request_id: str, metrics_prefix: str
     ) -> asyncio.Future[Completion]:
         """RANK 0: register a future for ``request_id`` and return it to await."""
+        if self._rank0_drain_task is not None and self._rank0_drain_task.done():
+            raise RuntimeError("generator peer result drain has stopped")
         if request_id in self._rank0_generation_futures:
             raise ValueError(f"request_id {request_id!r} is already in flight")
         future: asyncio.Future[Completion] = asyncio.get_running_loop().create_future()
@@ -760,7 +762,20 @@ class RequestDispatcher:
         for request_id, completion, metrics_inputs in completions:
             # in flight when this one finished (includes itself; counted before the pop)
             inflight_requests_at_completion = float(len(self._rank0_generation_futures))
-            generation_future = self._rank0_generation_futures.pop(request_id)
+            generation_future = self._rank0_generation_futures.pop(request_id, None)
+            if generation_future is None:
+                # A peer can finish and send before the abort broadcast, while
+                # rank 0 settles the abort before receiving that peer's output.
+                # The abort already released the reservation. Ignore only this
+                # late result, preserving the rest of the completion batch.
+                logger.debug("Ignoring settled generation result %s", request_id)
+                continue
+            if self._rank0_dp_router is not None:
+                self._rank0_dp_router.release(request_id)
+            if generation_future.future.done():
+                # Cancellation of the endpoint's await may cancel its future.
+                # Never let set_result kill the shared peer-result drain.
+                continue
 
             # Replace the placeholder min (the builder set min == max) with the true admitted
             # version stamped on the future at admission.
@@ -780,18 +795,21 @@ class RequestDispatcher:
             completion.metrics = metrics
 
             generation_future.future.set_result(completion)
-            # Free the request's reserved load on its DP rank so load-aware
-            # routing sees the accurate loads on DPs.
-            if self._rank0_dp_router is not None:
-                self._rank0_dp_router.release(request_id)
 
     async def _rank0_drain_results(self) -> None:
         """RANK 0 background task which receives and resolves completions pushed
         by peer TP rank 0s.
         """
-        while True:
-            completions = await self._rank0_result_receiver.recv()
-            self._rank0_resolve_futures(completions)
+        try:
+            while True:
+                completions = await self._rank0_result_receiver.recv()
+                self._rank0_resolve_futures(completions)
+        except Exception as exc:
+            # This task remains referenced until shutdown, so asyncio's default
+            # "exception was never retrieved" reporting may arrive hours late.
+            logger.exception("generator peer result drain crashed")
+            self.fail_generation_futures(exc)
+            raise
 
     def fail_generation_futures(self, exc: BaseException) -> None:
         """RANK 0: fail every unresolved generation future after an exception or
