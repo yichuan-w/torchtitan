@@ -24,6 +24,7 @@ Each layer supplies its own candidate type (``_GeneratorHandle`` for generators,
 from __future__ import annotations
 
 import itertools
+import random
 from abc import ABC, abstractmethod
 from collections import OrderedDict
 from collections.abc import Sequence
@@ -85,7 +86,7 @@ class LeastLoadedRoutingStrategy(RoutingStrategy):
 
     def __init__(self, config: Config):
         del config
-        self._next_index = 0
+        self._rng = random.Random()
 
     def choose(
         self,
@@ -95,12 +96,15 @@ class LeastLoadedRoutingStrategy(RoutingStrategy):
         """Respect load first; avoid repeatedly pinning idle sessions to rank 0."""
         del routing_ctx
         minimum = min(h.reserved_load for h in candidates)
-        for offset in range(len(candidates)):
-            index = (self._next_index + offset) % len(candidates)
-            if candidates[index].reserved_load == minimum:
-                self._next_index = (index + 1) % len(candidates)
-                return candidates[index]
-        raise AssertionError("no least-loaded candidate")
+        minimum_candidates = [
+            candidate
+            for candidate in candidates
+            if candidate.reserved_load == minimum
+        ]
+        # Randomize only exact ties. Load still has strict priority, while a
+        # fresh router does not deterministically seed the first cold session
+        # on rank 0.
+        return self._rng.choice(minimum_candidates)
 
 
 class StickySessionRoutingStrategy(RoutingStrategy):
