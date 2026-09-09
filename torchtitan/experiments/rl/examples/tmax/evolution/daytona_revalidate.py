@@ -404,8 +404,16 @@ async def terminal_smoke(sb) -> dict:
     _, output, _ = await sb.exec(
         "cat /tmp/terminal-validation-result", check=True, timeout=30
     )
-    if output.strip() != "terminal-ok" or not await session.is_session_alive():
-        raise RuntimeError("terminal command did not complete in a live tmux session")
+    alive = await session.is_session_alive()
+    if output.strip() != "terminal-ok" or not alive:
+        _, pane, _ = await sb.exec(
+            "tmux capture-pane -p -t environment-validation", check=False, timeout=30
+        )
+        raise RuntimeError(
+            "terminal command did not complete in a live tmux session: "
+            f"alive={alive}, version={version!r}, output={output!r}, pane={pane!r}, "
+            f"commands={env.exec_trace!r}"
+        )
     await sb.exec(
         "tmux kill-session -t environment-validation && rm -f /tmp/terminal-validation-result",
         check=True,
