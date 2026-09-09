@@ -21,15 +21,21 @@ outputs against the public specification. Include the changed-input witness in
 the wrong script: demonstrate and print its incorrect output, restore the
 original input, and rerun the wrong implementation so the caller can grade it
 on its own tests. A script that crashes or never produces the requested artifact
-does not demonstrate a semantic error. All saved scripts must exit zero.
+does not demonstrate a semantic error. A successful setup must exit zero;
+propagate setup errors instead of masking them with `exit 0`.
 
 Write `run/verifier-probes/contract.json` with a nonempty `cases` array, ordered
 like the wrong scripts. Each case has string fields `requirement` (the relevant
 public clause), `wrong_behavior` (the specific error), and `expected_failure`
 (the witness input, correct output, and wrong output). The saved scripts must
-run from a fresh environment. Use `./sandbox reset` and pass script contents as
-the argument to `./sandbox exec`; stdin is not forwarded. Execute student scripts
-only in that container. Edit only files under `run/verifier-probes/`.
+run inside a fresh container. Save container commands directly in each script:
+the caller passes its entire contents to `./sandbox exec`. Do not put sandbox
+commands, host paths, or an outer launcher in a saved script. Each script must
+be self-contained: sibling control files are not copied into the container.
+To validate a saved script from this workspace, run `./sandbox reset`, then
+`./sandbox exec "$(cat run/verifier-probes/correct.sh)"` (or the wrong script).
+Stdin is not forwarded. Execute student scripts only in that container.
+Edit only files under `run/verifier-probes/`, except for an ambiguity verdict.
 
 If the public specification is ambiguous enough that the two outputs cannot be
 distinguished, write the precise ambiguity to `run/verdict.txt` and finish.
