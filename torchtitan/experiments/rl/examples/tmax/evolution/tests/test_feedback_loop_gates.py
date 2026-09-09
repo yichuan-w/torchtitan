@@ -554,6 +554,30 @@ def test_incomplete_null_check_cannot_accept_a_rewrite(tmp_path, monkeypatch, nu
     assert not verdict["ok"] and verdict["stage"] == "null_check"
 
 
+@pytest.mark.parametrize("infra_failed", [False, True])
+def test_feedback_keeps_task_when_simplify_has_no_failed_execution(
+    tmp_path, monkeypatch, infra_failed
+):
+    import evolve_codex as ec
+
+    rw, r0 = _rewrite(tmp_path, monkeypatch)
+    before = {str(p.relative_to(rw.package)): p.read_bytes()
+              for p in rw.package.rglob('*') if p.is_file()}
+    rollout_record.write_record(
+        rw.traces / "attempt-01.jsonl",
+        {"reward": 0, "turns": 1, "infra_failed": infra_failed},
+        [{"turn": 1, "keystrokes": ["ls\n"]}] if infra_failed else [],
+    )
+    monkeypatch.setenv("SWE_RETUNE_AGENT", "codex")
+    monkeypatch.setattr(ec, "evolve_agentic", lambda *a, **kw: pytest.fail("author started"))
+    monkeypatch.setattr(fb, "revalidate", lambda *a, **kw: pytest.fail("sandbox started"))
+    rec = fb.process_one(rw, {**SIGNAL, "solved": 0}, job="easier", seed_dir=r0)
+    assert rec["status"] == "kept" and rec["stage"] == "agent"
+    assert "requires a failed student execution" in rec["reason"]
+    assert all((rw.package / rel).read_bytes() == content for rel, content in before.items())
+    assert all((r0 / rel).read_bytes() == content for rel, content in before.items())
+
+
 @pytest.mark.parametrize(
     "extra",
     [
