@@ -129,6 +129,8 @@ async def run_reference(sb, command: str, timeout: int) -> dict:
     pane_error = None
     try:
         pane = await sb.read_file(run.pane_path) if run.pane_path else ""
+        if not pane:
+            pane_error = "terminal log is missing or empty"
     except Exception as exc:
         pane = ""
         pane_error = f"{type(exc).__name__}: {exc}"

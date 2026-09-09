@@ -355,6 +355,7 @@ class _SandboxEnvironment:
         # Set when Terminus-2 starts its pane, so the transcript can be fetched
         # before the sandbox goes away. None until then.
         self.pane_path: str | None = None
+        self._pane_name = agent_dir.name + ".pane"
 
     async def exec(
         self,
@@ -412,10 +413,14 @@ class _SandboxEnvironment:
         m = self._PANE_PIPE.search(command)
         if m is None:
             return command
-        path = m.group("path")
-        self.pane_path = path
-        bounded = f"head -c {_PANE_CAP_BYTES} > {shlex.quote(path)}"
-        return command.replace(f"'cat > {path}'", f"'{bounded}'", 1)
+        original = m.group("path")
+        path = Path(original).with_name(self._pane_name)
+        self.pane_path = str(path)
+        # Harbor assumes its log directory already exists. Each run also needs
+        # its own file when previous sessions keep background services alive.
+        bounded = f"head -c {_PANE_CAP_BYTES} > {shlex.quote(str(path))}"
+        command = command.replace(f"'cat > {original}'", shlex.quote(bounded), 1)
+        return f"mkdir -p {shlex.quote(str(path.parent))} && {command}"
 
     def _trace_exec(self, command: str, started_at: float, exit_code: int) -> None:
         """Keep one exec in the session's trace.

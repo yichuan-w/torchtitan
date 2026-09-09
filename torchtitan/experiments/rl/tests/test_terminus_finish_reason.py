@@ -196,6 +196,20 @@ def test_a_parsing_error_cannot_confirm_completion(monkeypatch):
     assert (run.finish_reason, run.submitted) == ("stopped_early", False)
 
 
+def test_pane_capture_creates_directory_and_keeps_runs_separate():
+    from torchtitan.experiments.rl.harness.agents.terminus import _SandboxEnvironment
+
+    first = _SandboxEnvironment(MagicMock(), agent_dir=Path("/tmp/run-first"))
+    second = _SandboxEnvironment(MagicMock(), agent_dir=Path("/tmp/run-second"))
+    command = "tmux pipe-pane -t agent 'cat > /logs/agent/terminus_2.pane'"
+    wrapped = first._bound_pane_pipe(command)
+    second._bound_pane_pipe(command)
+    assert wrapped.startswith("mkdir -p /logs/agent && ")
+    assert "head -c 8388608" in wrapped
+    assert first.pane_path != second.pane_path
+    assert first.pane_path in wrapped
+
+
 def test_a_dead_session_is_stopped_early_not_a_submit(monkeypatch):
     """The regression: exit 3 used to report submit just for ending under the cap."""
     run = _run(monkeypatch, max_turns=10, episodes=4, pending_completion=False)
