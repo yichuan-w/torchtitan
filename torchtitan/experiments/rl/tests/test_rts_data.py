@@ -217,6 +217,11 @@ def test_injected_agent_runtime_installs_tmux_without_touching_the_workdir(tmp_p
     md = rows[0]["metadata"]
     assert md["dockerfile"].startswith(_DOCKERFILE)
     assert "tmux" in md["dockerfile"]
+    # EOL Debian images can keep a dead *-security suite after their main mirror
+    # moves to archive.debian.org. A second update failure must disable that
+    # optional source so tmux can still come from the main archive.
+    assert "/etc/apt/sources.list.d/*.list" in md["dockerfile"]
+    assert "disabled obsolete security suite" in md["dockerfile"]
     # A trailing RUN leaves the last WORKDIR in force.
     assert md["workdir"] == "/srv/final"
 

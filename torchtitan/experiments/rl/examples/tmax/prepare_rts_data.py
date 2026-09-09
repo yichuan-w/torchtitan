@@ -130,8 +130,11 @@ _DEFAULT_WORKDIR = "/app"
 # (e.g. an EOL mirror, or a distro whose pkg manager we don't branch on), and a hard
 # `exit 1` there dropped the ENTIRE image to BUILD_FAILED -- e.g. tw_473991 (archlinux)
 # fell through to the old `else: exit 1` because pacman had no branch, and its 192
-# rollouts all BUILD_FAILED and burned Daytona create quota. When tmux is not baked in,
-# Terminus self-installs it at runtime, so a miss is degraded-but-recoverable, not fatal.
+# rollouts all BUILD_FAILED and burned Daytona create quota. Terminus normally
+# self-installs tmux at runtime, but that fallback uses the same package sources.
+# Keep the injected repair complete enough that an obsolete security suite cannot
+# leave a successfully-built image without tmux (tw_307912 did exactly that with
+# redis:5.0 and a dead bullseye-security archive entry).
 # @andy: once the environment/base images are fixed so every task builds tmux, flip this
 # back to strict (drop the `|| echo` catch and restore `exit 1` in the else) to surface
 # real regressions instead of silently shipping images without tmux.
@@ -141,15 +144,24 @@ RUN ( if command -v tmux >/dev/null 2>&1; then \\
         exit 0; \\
       elif command -v apt-get >/dev/null 2>&1; then \\
         (apt-get update || ( \\
-          sed -i -e 's|http://deb.debian.org/debian|http://archive.debian.org/debian|g' \\
-                 -e 's|http://security.debian.org/debian-security|http://archive.debian.org/debian-security|g' \\
-                 -e 's|http://deb.debian.org/debian-security|http://archive.debian.org/debian-security|g' \\
-                 -e 's|http://archive.ubuntu.com/ubuntu|http://old-releases.ubuntu.com/ubuntu|g' \\
-                 -e 's|http://security.ubuntu.com/ubuntu|http://old-releases.ubuntu.com/ubuntu|g' \\
-                 -e 's|http://.*archive.ubuntu.com/ubuntu|http://old-releases.ubuntu.com/ubuntu|g' \\
-                 /etc/apt/sources.list 2>/dev/null; \\
+          for sources in /etc/apt/sources.list /etc/apt/sources.list.d/*.list; do \\
+            [ -f "$sources" ] || continue; \\
+            sed -i -e 's|http://deb.debian.org/debian|http://archive.debian.org/debian|g' \\
+                   -e 's|http://security.debian.org/debian-security|http://archive.debian.org/debian-security|g' \\
+                   -e 's|http://deb.debian.org/debian-security|http://archive.debian.org/debian-security|g' \\
+                   -e 's|http://archive.ubuntu.com/ubuntu|http://old-releases.ubuntu.com/ubuntu|g' \\
+                   -e 's|http://security.ubuntu.com/ubuntu|http://old-releases.ubuntu.com/ubuntu|g' \\
+                   -e 's|http://.*archive.ubuntu.com/ubuntu|http://old-releases.ubuntu.com/ubuntu|g' \\
+                   "$sources"; \\
+          done; \\
           echo 'Acquire::Check-Valid-Until "false";' > /etc/apt/apt.conf.d/99harbor-archive; \\
-          apt-get update \\
+          apt-get update || ( \\
+            for sources in /etc/apt/sources.list /etc/apt/sources.list.d/*.list; do \\
+              [ -f "$sources" ] || continue; \\
+              sed -i '/debian-security/s/^[[:space:]]*deb/# disabled obsolete security suite: deb/' "$sources"; \\
+            done; \\
+            apt-get update \\
+          ) \\
         )) && (apt-get install -y tmux || apt-get install -y --allow-unauthenticated tmux) \\
         && rm -rf /var/lib/apt/lists/*; \\
       elif command -v yum >/dev/null 2>&1; then \\
