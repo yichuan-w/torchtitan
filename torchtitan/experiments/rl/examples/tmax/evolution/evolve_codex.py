@@ -1106,10 +1106,12 @@ name open, check the value.
 
 Then do the task yourself through `./sandbox exec`, the way the instruction
 describes it, and `./sandbox grade`: it must pass. `./sandbox reset` and grade
-the untouched workspace: it must fail. Save the correct and single-error replay
-scripts and their contract under run/verifier-probes as AGENTS.md specifies.
-The caller replays both scripts in fresh Daytona environments before accepting
-your verifier; a wrong script must execute successfully and then fail grading."""
+the untouched workspace: it must fail. Save the correct script, a separate
+single-error script for each independently falsifiable clause of the changed
+requirement, and their cases contract under run/verifier-probes as AGENTS.md
+specifies. The caller replays every script in a fresh Daytona environment before
+accepting your verifier; each wrong script must execute successfully and then
+fail grading."""
 
 _VERIFIER_REPAIR_JOB = """The verifier you wrote does not agree with the task's reference solution, which
 you cannot see: the caller ran that solution in a fresh container (exit

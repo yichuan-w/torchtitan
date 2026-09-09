@@ -175,6 +175,9 @@ def _wire(monkeypatch, sessions: list, checks: list, verifier_text=NEW_VERIFIER)
 
     monkeypatch.setattr(ec, "_run_codex", fake_run_codex)
     monkeypatch.setattr(ec, "_harness_check", fake_harness_check)
+    replays = []
+    monkeypatch.setattr(ec, "verify_probes", lambda pkg, env, timeout: replays.append(pkg))
+    return replays
 
 
 def test_blind_mode_runs_two_sessions_and_the_second_never_sees_the_solution(
@@ -182,7 +185,7 @@ def test_blind_mode_runs_two_sessions_and_the_second_never_sees_the_solution(
 ) -> None:
     rw = _rewrite(tmp_path, monkeypatch)
     sessions, checks = [], []
-    _wire(monkeypatch, sessions, checks)
+    replays = _wire(monkeypatch, sessions, checks)
 
     out = ec.evolve_agentic(rw, dict(SEED), "harder")
 
@@ -191,6 +194,7 @@ def test_blind_mode_runs_two_sessions_and_the_second_never_sees_the_solution(
     assert sessions[0]["cwd"] == rw.package
     # The verifier's author works in a copy under its own session.
     assert sessions[1]["cwd"] == sessions[1]["session"].package
+    assert replays == [sessions[1]["cwd"]]
     assert sessions[1]["session"].path.parent == rw.sessions
     assert "Leave `tests/` exactly as it is" in sessions[0]["prompt"]
     assert "not shown the reference solution" in sessions[1]["prompt"]
@@ -277,6 +281,19 @@ def test_operator_mode_still_requires_declaration(tmp_path, monkeypatch):
         )
 
 
+def test_failed_semantic_replay_prevents_accepting_verifier(tmp_path, monkeypatch):
+    rw = _rewrite(tmp_path, monkeypatch)
+    _wire(monkeypatch, [], [])
+
+    def reject(pkg, env, timeout):
+        raise RuntimeError("Semantic probe wrong-2/grade passed unexpectedly")
+
+    monkeypatch.setattr(ec, "verify_probes", reject)
+    with pytest.raises(RuntimeError, match="wrong-2/grade"):
+        ec.evolve_agentic(rw, dict(SEED), "harder")
+    assert (rw.package / "tests/test_state.py").read_text() == SEED["test_state_py"]
+
+
 def test_same_mode_runs_one_session_that_writes_everything(
     tmp_path, monkeypatch
 ) -> None:
@@ -306,7 +323,7 @@ def test_a_disagreement_gets_one_repair_of_the_verifier_then_is_discarded(
 ) -> None:
     rw = _rewrite(tmp_path, monkeypatch)
     sessions, checks = [], []
-    _wire(monkeypatch, sessions, checks)
+    replays = _wire(monkeypatch, sessions, checks)
     verdicts = iter(["fail", "fail"])
 
     def failing_check(pkg, name="check"):
@@ -329,6 +346,7 @@ def test_a_disagreement_gets_one_repair_of_the_verifier_then_is_discarded(
     assert [s["role"] for s in sessions] == ["author", "verifier", "verifier"]
     assert sessions[2]["resume"] == "sid-v"
     assert sessions[2]["cwd"] == sessions[1]["cwd"]
+    assert replays == [sessions[1]["cwd"], sessions[2]["cwd"]]
     assert "does not agree with the task's reference solution" in sessions[2]["prompt"]
     assert (
         (sessions[2]["cwd"] / "run" / "failure.txt")

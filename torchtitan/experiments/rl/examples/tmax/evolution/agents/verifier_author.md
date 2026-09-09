@@ -83,26 +83,31 @@ the policy, and the check that stopped you is the one to fix. Then `reset` and
 verifier that was never run against a real container is a guess.
 
 Save your public-instruction-only solution as `run/verifier-probes/correct.sh`:
-a shell script that completes the task from a fresh environment. Save a second
-script, `wrong.sh`, that still produces a nonempty, well-formed result but makes
-one specific semantic mistake in the changed requirement. It must finish with
-exit code zero; a missing dependency, syntax error, missing output or empty
-workspace is not this control. For example, using a corrected value for selection
-but its original value for aggregation should expose inconsistent data flow.
-Choose the mistake from this task, rather than adding an unrelated requirement.
+a shell script that completes the task from a fresh environment. Split the
+changed requirement into its independently falsifiable clauses. For each clause,
+save `wrong-1.sh`, `wrong-2.sh`, and so on: each script produces a nonempty,
+well-formed result but violates that clause alone. Check every clause of the
+changed dependency, including its validity conditions, rather than stopping
+after finding one error the verifier rejects. For example, selecting the latest
+valid result requires both choosing the latest result and rejecting invalid ones.
+Each script must finish with exit code zero; a missing dependency, syntax error,
+missing output or empty workspace is not a semantic control. Choose the mistakes
+from this task, rather than adding unrelated requirements.
 
-Write `run/verifier-probes/contract.json` with string fields `requirement`
+Write `run/verifier-probes/contract.json` with a nonempty `cases` array, in the
+same order as the numbered scripts. Each entry has string fields `requirement`
 (the public clause being checked), `wrong_behavior` (the specific mistake), and
-`expected_failure` (the observable output that distinguishes it). Run both scripts
-in separate fresh containers and check that the correct script passes and the
-wrong script fails. Ensure the distinguishing input actually affects the output:
+`expected_failure` (the observable output that distinguishes it). Run every script
+in a separate fresh container: the correct script must pass and every wrong script
+must fail. Pass script contents as the argument to `./sandbox exec`; stdin is not
+forwarded into the container. Ensure the distinguishing input affects the output:
 two identities that collapse to the same node cannot test an edge weight.
 If a plausible alternative implementation uses a different representation the
 instruction permits, use it for the correct control instead of requiring your
-preferred representation. The caller independently replays the saved scripts.
+preferred representation. The caller independently replays every saved script.
 
 ## Finishing
 
-Your output is the verifier and the three replay-control files. Do not print
-them. Finish after the correct control passes, the semantic-error control and
+Your output is the verifier, the contract and the replay scripts. Do not print
+them. Finish after the correct control passes, every semantic-error control and
 untouched workspace fail, or after writing `run/verdict.txt`.

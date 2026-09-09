@@ -18,18 +18,23 @@ class SemanticProbeTests(unittest.TestCase):
         self.pkg = Path(self.temp.name)
         directory = self.pkg / "run" / "verifier-probes"
         directory.mkdir(parents=True)
-        (directory / "contract.json").write_text(json.dumps(dict(
+        (directory / "contract.json").write_text(json.dumps({"cases": [dict(
             requirement="Use audited count for both filtering and weight",
-            wrong_behavior="Use raw count for weight", expected_failure="Edge weight differs")))
+            wrong_behavior="Use raw count for weight", expected_failure="Edge weight differs"), dict(
+            requirement="Only verified audit records qualify",
+            wrong_behavior="Use pending audit record", expected_failure="Selected papers differ")]}))
         (directory / "correct.sh").write_text("write_correct_graph")
-        (directory / "wrong.sh").write_text("write_wrong_weight_graph")
+        (directory / "wrong-1.sh").write_text("write_wrong_weight_graph")
+        (directory / "wrong-2.sh").write_text("write_pending_audit_graph")
 
     def execute(self, failure_phase=None, failure_code=0):
         calls = []
         def command(args, **kwargs):
             calls.append(args[1:])
-            index = len(calls)
-            code = 1 if index == 6 and args[1] == "grade" else 0
+            if args[1] == "exec" and args[2].startswith("if ["):
+                return subprocess.CompletedProcess(args, 0, '{"tests": []}', "")
+            index = sum(not (call[0] == "exec" and call[1].startswith("if [")) for call in calls)
+            code = 1 if index > 3 and args[1] == "grade" else 0
             if index == failure_phase:
                 code = failure_code
             return subprocess.CompletedProcess(args, code, "probe output", "")
@@ -39,22 +44,29 @@ class SemanticProbeTests(unittest.TestCase):
 
     def test_fresh_environments_and_daytona_only_execution(self):
         calls = self.execute()
-        self.assertEqual([call[0] for call in calls], ["reset", "exec", "grade", "reset", "exec", "grade", "down"])
+        self.assertEqual([call[0] for call in calls], ["reset", "exec", "grade", "exec"] * 3 + ["down"])
         self.assertEqual(calls[1][1], "write_correct_graph")
-        self.assertEqual(calls[4][1], "write_wrong_weight_graph")
+        self.assertEqual(calls[5][1], "write_wrong_weight_graph")
+        self.assertEqual(calls[9][1], "write_pending_audit_graph")
         records = [json.loads(line) for line in (self.pkg / "run/verifier-probe-results.jsonl").read_text().splitlines()]
         self.assertTrue(any(row.get("status") == "passed" for row in records))
+        self.assertEqual(sum(row.get("phase") == "grade_details" and row.get("status") == "finished"
+                             for row in records), 3)
 
     def test_wrong_solution_passing_is_rejected(self):
-        with self.assertRaisesRegex(RuntimeError, "wrong/grade"):
+        with self.assertRaisesRegex(RuntimeError, "wrong-1/grade"):
             self.execute(6, 0)
 
+    def test_later_wrong_solution_passing_is_rejected(self):
+        with self.assertRaisesRegex(RuntimeError, "wrong-2/grade"):
+            self.execute(9, 0)
+
     def test_wrong_solution_crash_is_not_a_semantic_rejection(self):
-        with self.assertRaisesRegex(RuntimeError, "wrong/setup"):
+        with self.assertRaisesRegex(RuntimeError, "wrong-1/setup"):
             self.execute(5, 1)
 
     def test_grading_infrastructure_error_is_not_a_rejection(self):
-        with self.assertRaisesRegex(RuntimeError, "wrong/grade"):
+        with self.assertRaisesRegex(RuntimeError, "wrong-1/grade"):
             self.execute(6, 2)
 
     def test_correct_solution_rejection_fails_gate(self):
