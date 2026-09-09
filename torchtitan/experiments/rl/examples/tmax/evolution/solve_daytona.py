@@ -1,4 +1,10 @@
 #!/usr/bin/env python3
+# Copyright (c) Meta Platforms, Inc. and affiliates.
+# All rights reserved.
+#
+# This source code is licensed under the BSD-style license found in the
+# LICENSE file in the root directory of this source tree.
+
 """Measure pass@k for task packages by solving them on Daytona sandboxes.
 
 Per attempt: boot the package's environment with its Dockerfile, build context,
@@ -30,30 +36,34 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-import pack_to_dataset as pack          # noqa: E402
-import synth_client as llm              # noqa: E402
-import daytona_revalidate as dr         # noqa: E402  (_Root, _start_entrypoint)
+import daytona_revalidate as dr  # noqa: E402  (_Root, _start_entrypoint)
+import pack_to_dataset as pack  # noqa: E402
+import synth_client as llm  # noqa: E402
 from terminus_validation import ProviderAdapter  # noqa: E402
-from torchtitan.experiments.rl.harness.agents.spec import AgentTask  # noqa: E402
-from torchtitan.experiments.rl.harness.agents.terminus import terminus_agent  # noqa: E402
-
-from torchtitan.experiments.rl.harness.agents.claude_code import (  # noqa: E402
-    boot_agent_sandbox,
+from torchtitan.experiments.rl.examples.tmax.grading import (  # noqa: E402
+    grade_tmax,
+    seed_workspace,
 )
 from torchtitan.experiments.rl.examples.tmax.integrity_baseline import (  # noqa: E402
     capture_baseline,
 )
-from torchtitan.experiments.rl.examples.tmax.grading import (  # noqa: E402
-    grade_tmax,
-    seed_workspace,
+
+from torchtitan.experiments.rl.harness.agents.claude_code import (  # noqa: E402
+    boot_agent_sandbox,
+)
+from torchtitan.experiments.rl.harness.agents.spec import AgentTask  # noqa: E402
+from torchtitan.experiments.rl.harness.agents.terminus import (  # noqa: E402
+    terminus_agent,
 )
 
 BASE = Path(os.environ.get("TRL_BASE", "/scratch/gpfs/TRIDAO/al9080/terminal-rl"))
 # Extra pool roots (colon-separated) searched FIRST. A revision under
 # tasks/<task>/r<N>/ is not in any pool; pass it to solve_task as ``src``.
 _EXTRA = [Path(p) for p in os.environ.get("TRL_EXTRA_POOL", "").split(":") if p]
-POOL_ROOTS = _EXTRA + [BASE / "data/sources" / c / "tasks"
-                       for c in ("tw-extract", "swe-extract", "tmax-extract")]
+POOL_ROOTS = _EXTRA + [
+    BASE / "data/sources" / c / "tasks"
+    for c in ("tw-extract", "swe-extract", "tmax-extract")
+]
 AGENT_CMD_TIMEOUT = int(os.environ.get("SOLVE_CMD_TIMEOUT", "180"))
 
 log = logging.getLogger("solve_daytona")
@@ -70,7 +80,8 @@ def resolve_src(tid: str) -> Path | None:
 CODEX_URL = os.environ.get(
     "SOLVE_CODEX_URL",
     "https://github.com/openai/codex/releases/latest/download/"
-    "codex-x86_64-unknown-linux-musl.tar.gz")
+    "codex-x86_64-unknown-linux-musl.tar.gz",
+)
 
 
 async def _codex_attempt(sb, md: dict, workdir: str, budget: int) -> dict:
@@ -113,8 +124,11 @@ async def _codex_attempt(sb, md: dict, workdir: str, budget: int) -> dict:
     )
     rc, out, err = await sb.exec(install, check=False, timeout=420)
     if rc != 0:
-        return {"reward": None, "turns": None,
-                "why": f"codex_install_failed(rc={rc}): {(out + err)[-200:]}"}
+        return {
+            "reward": None,
+            "turns": None,
+            "why": f"codex_install_failed(rc={rc}): {(out + err)[-200:]}",
+        }
 
     key = os.environ.get("OPENAI_API_KEY") or ""
     model = os.environ.get("SOLVE_CODEX_MODEL", "gpt-5.6")
@@ -142,24 +156,39 @@ async def _codex_attempt(sb, md: dict, workdir: str, budget: int) -> dict:
         "-c model_provider=oai "
         # No -C: codex inherits the container's own directory, which is
         # where a plain exec and the model's tmux pane both land.
-        f"-m {shlex.quote(model)} "
-        "- < /tmp/codex_prompt.txt",
-        check=False, timeout=budget)
-    blob = (out + err)
+        f"-m {shlex.quote(model)} " "- < /tmp/codex_prompt.txt",
+        check=False,
+        timeout=budget,
+    )
+    blob = out + err
     # Codex surfaces an API refusal in its own output; distinguish it from a
     # genuine solve attempt so a policy block is not scored as reward 0.
-    if rc != 0 and any(s in blob for s in (
-            "cybersecurity risk", "flagged", "content_policy",
-            "usage policies", "401 Unauthorized", "invalid_api_key")):
-        return {"reward": None, "turns": None, "codex_exit": rc,
-                "why": f"codex_refused_or_auth: {blob[-200:]}"}
-    return {"reward": "pending_grade", "turns": None, "codex_exit": rc,
-            "transcript": [{"cmd": "codex exec <instruction>",
-                            "out": blob[-4000:]}]}
+    if rc != 0 and any(
+        s in blob
+        for s in (
+            "cybersecurity risk",
+            "flagged",
+            "content_policy",
+            "usage policies",
+            "401 Unauthorized",
+            "invalid_api_key",
+        )
+    ):
+        return {
+            "reward": None,
+            "turns": None,
+            "codex_exit": rc,
+            "why": f"codex_refused_or_auth: {blob[-200:]}",
+        }
+    return {
+        "reward": "pending_grade",
+        "turns": None,
+        "codex_exit": rc,
+        "transcript": [{"cmd": "codex exec <instruction>", "out": blob[-4000:]}],
+    }
 
 
-async def attempt(row: dict, idx: int, max_turns: int,
-                  agent: str = "terminus") -> dict:
+async def attempt(row: dict, idx: int, max_turns: int, agent: str = "terminus") -> dict:
     md = row["metadata"]
     tmax, workdir = md["tmax"], md.get("workdir") or "/workspace"
     instruction = md["problem_statement"]
@@ -183,24 +212,36 @@ async def attempt(row: dict, idx: int, max_turns: int,
             # the rollouter's seam for both Codex and Terminus.
             baseline = await capture_baseline(sb, tmax, workdir=workdir, timeout=120)
             if agent == "codex":
-                a = await _codex_attempt(sb, md, workdir,
-                                         budget=max_turns * AGENT_CMD_TIMEOUT)
+                a = await _codex_attempt(
+                    sb, md, workdir, budget=max_turns * AGENT_CMD_TIMEOUT
+                )
                 if a.get("reward") is None:
                     return {**a, "t": round(time.time() - t0, 1)}
-                a["reward"] = await grade_tmax(sb, tmax, workdir=workdir,
-                                               baseline_digests=baseline)
+                a["reward"] = await grade_tmax(
+                    sb, tmax, workdir=workdir, baseline_digests=baseline
+                )
                 a["t"] = round(time.time() - t0, 1)
                 a["execution_harness"] = "codex"
                 return a
             _, version, _ = await sb.exec("tmux -V", check=True, timeout=30)
-            run = await terminus_agent(AgentTask(
-                sandbox=sb, instruction=instruction,
-                session_id=f"{md['instance_id']}-{idx}", adapter=adapter,
-                time_budget_sec=int(md.get("agent_timeout_sec") or max_turns * AGENT_CMD_TIMEOUT),
-                max_turns=max_turns, workdir=workdir,
-            ))
-            reward = (await grade_tmax(sb, tmax, workdir=workdir, baseline_digests=baseline)
-                      if run.submitted else 0.0)
+            run = await terminus_agent(
+                AgentTask(
+                    sandbox=sb,
+                    instruction=instruction,
+                    session_id=f"{md['instance_id']}-{idx}",
+                    adapter=adapter,
+                    time_budget_sec=int(
+                        md.get("agent_timeout_sec") or max_turns * AGENT_CMD_TIMEOUT
+                    ),
+                    max_turns=max_turns,
+                    workdir=workdir,
+                )
+            )
+            reward = (
+                await grade_tmax(sb, tmax, workdir=workdir, baseline_digests=baseline)
+                if run.submitted
+                else 0.0
+            )
             pane_error = None
             try:
                 pane = await sb.read_file(run.pane_path) if run.pane_path else ""
@@ -209,22 +250,36 @@ async def attempt(row: dict, idx: int, max_turns: int,
             except Exception as exc:
                 pane = ""
                 pane_error = f"{type(exc).__name__}: {exc}"
-        return {"reward": reward, **asdict(run), "execution_harness": "terminus",
-                "tmux_version": version.strip(), "pane": pane,
-                "pane_error": pane_error,
-                "pane_limit_bytes": 8 * 1024 * 1024,
-                "transcript": adapter.transcript,
-                "t": round(time.time() - t0, 1)}
+        return {
+            "reward": reward,
+            **asdict(run),
+            "execution_harness": "terminus",
+            "tmux_version": version.strip(),
+            "pane": pane,
+            "pane_error": pane_error,
+            "pane_limit_bytes": 8 * 1024 * 1024,
+            "transcript": adapter.transcript,
+            "t": round(time.time() - t0, 1),
+        }
     except Exception as e:  # noqa: BLE001
-        return {"reward": None, "turns": len(adapter.transcript),
-                "transcript": adapter.transcript, "execution_harness": agent,
-                "why": f"{type(e).__name__}: {e}"[:250],
-                "t": round(time.time() - t0, 1)}
+        return {
+            "reward": None,
+            "turns": len(adapter.transcript),
+            "transcript": adapter.transcript,
+            "execution_harness": agent,
+            "why": f"{type(e).__name__}: {e}"[:250],
+            "t": round(time.time() - t0, 1),
+        }
 
 
-async def solve_task(tid: str, attempts: int, max_turns: int,
-                     sem: asyncio.Semaphore, agent: str = "terminus",
-                     src: Path | None = None) -> dict:
+async def solve_task(
+    tid: str,
+    attempts: int,
+    max_turns: int,
+    sem: asyncio.Semaphore,
+    agent: str = "terminus",
+    src: Path | None = None,
+) -> dict:
     """Solve one task ``attempts`` times. ``src`` names the package directory
     (a revision under ``tasks/<task>/r<N>/``, say); without it the task is
     looked up by id in the source corpora."""
@@ -241,22 +296,28 @@ async def solve_task(tid: str, attempts: int, max_turns: int,
     async def guarded(i: int) -> dict:
         async with sem:
             a = await attempt(row, i, max_turns, agent=agent)
-            log.info("%s attempt %d: reward=%s turns=%s%s t=%.0fs", tid, i,
-                     a.get("reward"), a.get("turns"),
-                     f" why={a.get('why')}" if a.get("why") else "",
-                     a.get("t", 0))
+            log.info(
+                "%s attempt %d: reward=%s turns=%s%s t=%.0fs",
+                tid,
+                i,
+                a.get("reward"),
+                a.get("turns"),
+                f" why={a.get('why')}" if a.get("why") else "",
+                a.get("t", 0),
+            )
             return a
 
-    rec["attempts"] = list(await asyncio.gather(
-        *[guarded(i) for i in range(attempts)]))
+    rec["attempts"] = list(await asyncio.gather(*[guarded(i) for i in range(attempts)]))
     rec["rewards"] = [a.get("reward") for a in rec["attempts"]]
     graded = [a for a in rec["attempts"] if a.get("reward") is not None]
     solved = sum(1 for a in graded if a["reward"] >= 1.0)
-    rec.update(graded=len(graded), solved=solved,
-               pass_at_k=(solved / len(graded)) if graded else None,
-               status=("solved" if solved else
-                       "unsolved" if graded else "ungraded"),
-               t_end=time.time())
+    rec.update(
+        graded=len(graded),
+        solved=solved,
+        pass_at_k=(solved / len(graded)) if graded else None,
+        status=("solved" if solved else "unsolved" if graded else "ungraded"),
+        t_end=time.time(),
+    )
     return rec
 
 
@@ -269,27 +330,40 @@ async def main_async(args: argparse.Namespace) -> None:
             if ln.strip():
                 r = json.loads(ln)
                 if r.get("graded") and all(
-                    a.get("execution_harness") == args.agent for a in r.get("attempts", [])
+                    a.get("execution_harness") == args.agent
+                    for a in r.get("attempts", [])
                 ):
                     done.add(r["task_id"])
     ids = [l.strip() for l in open(args.ids) if l.strip()]
     todo = [t for t in ids if t not in done]
-    log.info("ids=%d already-graded=%d todo=%d attempts=%d concurrency=%d",
-             len(ids), len(done), len(todo), args.attempts, args.concurrency)
+    log.info(
+        "ids=%d already-graded=%d todo=%d attempts=%d concurrency=%d",
+        len(ids),
+        len(done),
+        len(todo),
+        args.attempts,
+        args.concurrency,
+    )
     sem = asyncio.Semaphore(args.concurrency)
     with open(out, "a") as f:
         # task-level serial write, attempt-level concurrency via the semaphore;
         # tasks themselves also run concurrently in bounded batches
         for batch_start in range(0, len(todo), args.task_batch):
-            batch = todo[batch_start:batch_start + args.task_batch]
+            batch = todo[batch_start : batch_start + args.task_batch]
             recs = await asyncio.gather(
-                *[solve_task(t, args.attempts, args.max_turns, sem, args.agent)
-                  for t in batch])
+                *[
+                    solve_task(t, args.attempts, args.max_turns, sem, args.agent)
+                    for t in batch
+                ]
+            )
             for rec in recs:
                 f.write(json.dumps(rec) + "\n")
             f.flush()
-            log.info("checkpoint: %d/%d tasks written",
-                     min(batch_start + args.task_batch, len(todo)), len(todo))
+            log.info(
+                "checkpoint: %d/%d tasks written",
+                min(batch_start + args.task_batch, len(todo)),
+                len(todo),
+            )
 
 
 def main() -> None:
@@ -297,19 +371,30 @@ def main() -> None:
     ap.add_argument("--ids", required=True)
     ap.add_argument("--out", required=True)
     ap.add_argument("--attempts", type=int, default=5)
-    ap.add_argument("--agent", choices=("terminus", "codex"), default="terminus",
-                    help="terminus uses the training harness; codex is a separate instrument")
+    ap.add_argument(
+        "--agent",
+        choices=("terminus", "codex"),
+        default="terminus",
+        help="terminus uses the training harness; codex is a separate instrument",
+    )
     ap.add_argument("--max-turns", type=int, default=25)
-    ap.add_argument("--concurrency", type=int, default=16,
-                    help="max concurrent sandboxes (training holds 768; stay small)")
-    ap.add_argument("--task-batch", type=int, default=8,
-                    help="tasks in flight per checkpoint batch")
+    ap.add_argument(
+        "--concurrency",
+        type=int,
+        default=16,
+        help="max concurrent sandboxes (training holds 768; stay small)",
+    )
+    ap.add_argument(
+        "--task-batch", type=int, default=8, help="tasks in flight per checkpoint batch"
+    )
     ap.add_argument("--log", default=str(BASE / "logs/solve_daytona.log"))
     args = ap.parse_args()
     Path(args.log).parent.mkdir(parents=True, exist_ok=True)
     logging.basicConfig(
-        level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s",
-        handlers=[logging.FileHandler(args.log), logging.StreamHandler()])
+        level=logging.INFO,
+        format="%(asctime)s %(levelname)s %(message)s",
+        handlers=[logging.FileHandler(args.log), logging.StreamHandler()],
+    )
     asyncio.run(main_async(args))
 
 

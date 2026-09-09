@@ -1034,7 +1034,10 @@ class Controller(Configurable):
             _eval_backend_kwargs: dict = {}
             if _eval_backend:
                 _eval_backend_kwargs["backend"] = _eval_backend
-                if _eval_backend == "vllm_native" and not config.generator.vllm_additional_config:
+                if (
+                    _eval_backend == "vllm_native"
+                    and not config.generator.vllm_additional_config
+                ):
                     _eval_backend_kwargs["vllm_additional_config"] = {
                         "gdn_prefill_backend": "triton"
                     }

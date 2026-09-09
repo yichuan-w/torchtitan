@@ -1,3 +1,9 @@
+# Copyright (c) Meta Platforms, Inc. and affiliates.
+# All rights reserved.
+#
+# This source code is licensed under the BSD-style license found in the
+# LICENSE file in the root directory of this source tree.
+
 """Oracle completion must come from a Terminus observation and confirmed submit."""
 
 import asyncio
@@ -142,7 +148,9 @@ def test_pane_read_error_preserves_confirmed_exit(monkeypatch):
 
     async def run(task, **_kwargs):
         task.adapter.exit_code = 7
-        return AgentRun(turns=3, submitted=True, finish_reason="submit", pane_path="/pane")
+        return AgentRun(
+            turns=3, submitted=True, finish_reason="submit", pane_path="/pane"
+        )
 
     monkeypatch.setattr(tv, "terminus_agent", run)
     result = asyncio.run(tv.run_reference(sb, "exit 7", 30))
@@ -151,15 +159,18 @@ def test_pane_read_error_preserves_confirmed_exit(monkeypatch):
 
 
 def test_raw_provider_returns_empty_truncation_without_retry(monkeypatch):
-    import synth_client
     from unittest.mock import Mock
+
+    import synth_client
 
     response = {
         "choices": [{"message": {"content": None}, "finish_reason": "length"}],
         "usage": {"prompt_tokens": 10, "completion_tokens": 24000},
     }
     create = Mock(return_value=SimpleNamespace(model_dump=lambda: response))
-    client = SimpleNamespace(chat=SimpleNamespace(completions=SimpleNamespace(create=create)))
+    client = SimpleNamespace(
+        chat=SimpleNamespace(completions=SimpleNamespace(create=create))
+    )
     monkeypatch.setattr(synth_client, "_client", lambda: client)
     assert synth_client.chat_response(body("prompt")["messages"]) == response
     create.assert_called_once()

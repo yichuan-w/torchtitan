@@ -1,4 +1,10 @@
 #!/usr/bin/env python3
+# Copyright (c) Meta Platforms, Inc. and affiliates.
+# All rights reserved.
+#
+# This source code is licensed under the BSD-style license found in the
+# LICENSE file in the root directory of this source tree.
+
 """Boot each task at the size the audit recommends and run its oracle there.
 
 Measuring a peak is not the same as proving the size works. The measurement ran
@@ -34,7 +40,6 @@ import json
 import logging
 import math
 import os
-import shlex
 import sys
 import time
 from pathlib import Path
@@ -56,15 +61,17 @@ from torchtitan.experiments.rl.harness.agents.claude_code import boot_agent_sand
 CODEX_RAM, CODEX_DISK = 359.5, 357.0
 # oom_kill is what separates a kernel kill from a deadline; memory.peak next to
 # memory.max shows a near miss rather than only a hit.
-CGROUP_READ = ("cat /sys/fs/cgroup/memory.events 2>/dev/null | tr '\\n' ' '; echo '|'; "
-               "cat /sys/fs/cgroup/memory.peak /sys/fs/cgroup/memory.max "
-               "2>/dev/null | tr '\\n' ' '; echo '|'; "
-               # cpu.stat's usage_usec over the solve's wall time gives the mean
-               # cores the reference solution drew. It is a mean, so it is a
-               # floor on the parallelism, not the peak -- but the agent
-               # measurement is the only cpu source otherwise, and two tasks
-               # timed out at 900s on its number while finishing at 4 cores.
-               "awk '/usage_usec/{print $2}' /sys/fs/cgroup/cpu.stat 2>/dev/null")
+CGROUP_READ = (
+    "cat /sys/fs/cgroup/memory.events 2>/dev/null | tr '\\n' ' '; echo '|'; "
+    "cat /sys/fs/cgroup/memory.peak /sys/fs/cgroup/memory.max "
+    "2>/dev/null | tr '\\n' ' '; echo '|'; "
+    # cpu.stat's usage_usec over the solve's wall time gives the mean
+    # cores the reference solution drew. It is a mean, so it is a
+    # floor on the parallelism, not the peak -- but the agent
+    # measurement is the only cpu source otherwise, and two tasks
+    # timed out at 900s on its number while finishing at 4 cores.
+    "awk '/usage_usec/{print $2}' /sys/fs/cgroup/cpu.stat 2>/dev/null"
+)
 # The largest [agent] timeout_sec any task in the corpus declares, measured
 # across all 1353 packages: {600: 153, 900: 696, 1200: 11, 1800: 387, 2400: 3,
 # 2700: 13, 3600: 73, 5400: 5, 7200: 2}, the two 7200s being tw_12007's pool.
@@ -73,27 +80,41 @@ CGROUP_READ = ("cat /sys/fs/cgroup/memory.events 2>/dev/null | tr '\\n' ' '; ech
 # the per-task deadline was added to protect.
 _MAX_DECLARED_BUDGET_S = 7200
 
-LOCAL = Path(os.environ.get("MEASURE_LOCAL_BASE",
-                            "/scratch/al9080/terminal-rl/measure"))
+LOCAL = Path(
+    os.environ.get("MEASURE_LOCAL_BASE", "/scratch/al9080/terminal-rl/measure")
+)
 log = logging.getLogger("verify_provisioning")
 
 
 def recommend(r: dict) -> tuple[int, int, int]:
     net_ram = max(r["peak_ram_mb"] - CODEX_RAM, 0)
     net_disk = max(r["peak_disk_mb"] - CODEX_DISK, 0)
-    return (min(max(math.ceil(r["peak_cpu_cores"]), 1), 4),
-            min(max(math.ceil(net_ram * 1.3 / 1024), 1), 8),
-            min(max(math.ceil(net_disk * 1.3 / 1024), 1), 10))
+    return (
+        min(max(math.ceil(r["peak_cpu_cores"]), 1), 4),
+        min(max(math.ceil(net_ram * 1.3 / 1024), 1), 8),
+        min(max(math.ceil(net_disk * 1.3 / 1024), 1), 10),
+    )
 
 
 declared_solve_budget = sd.pack.declared_solve_budget
 
 
-async def verify(tid: str, cpu: int, mem: int, disk: int,
-                 sem: asyncio.Semaphore, timeout: int,
-                 cmd: str | None = None) -> dict:
-    rec = {"task_id": tid, "cpu": cpu, "mem_gb": mem, "disk_gb": disk,
-           "ts": int(time.time())}
+async def verify(
+    tid: str,
+    cpu: int,
+    mem: int,
+    disk: int,
+    sem: asyncio.Semaphore,
+    timeout: int,
+    cmd: str | None = None,
+) -> dict:
+    rec = {
+        "task_id": tid,
+        "cpu": cpu,
+        "mem_gb": mem,
+        "disk_gb": disk,
+        "ts": int(time.time()),
+    }
     src = sd.resolve_src(tid)
     if src is None:
         return {**rec, "ok": False, "why": "no_pool_dir"}
@@ -113,9 +134,13 @@ async def verify(tid: str, cpu: int, mem: int, disk: int,
     async with sem:
         try:
             async with boot_agent_sandbox(
-                md.get("image") or "", dockerfile=md.get("dockerfile") or None,
+                md.get("image") or "",
+                dockerfile=md.get("dockerfile") or None,
                 build_context=md.get("build_context") or None,
-                install_claude=False, cpu=cpu, memory=mem, disk_gb=disk,
+                install_claude=False,
+                cpu=cpu,
+                memory=mem,
+                disk_gb=disk,
             ) as sandbox:
                 sb = dr._Root(sandbox)
                 if md.get("entrypoint"):
@@ -123,8 +148,10 @@ async def verify(tid: str, cpu: int, mem: int, disk: int,
                 await seed_workspace(sb, tmax)
                 for f in sorted(sol.rglob("*")):
                     if f.is_file():
-                        await sb.write_file(f"/solution/{f.relative_to(sol)}",
-                                            f.read_text(errors="replace"))
+                        await sb.write_file(
+                            f"/solution/{f.relative_to(sol)}",
+                            f.read_text(errors="replace"),
+                        )
                 # --command replaces the reference solution. Running the null
                 # action across the corpus asks what each task pays for doing
                 # nothing: a grader assembled only from "this must not exist"
@@ -134,12 +161,21 @@ async def verify(tid: str, cpu: int, mem: int, disk: int,
                 # rest instead of guessing at how many.
                 # INTEGRITY BASELINE: solution/ in, nothing run yet; the grade
                 # below re-digests it, as training does.
-                baseline = await capture_baseline(sb, tmax, workdir=workdir, timeout=120)
-                execution = await dr.run_reference(sb, cmd or "bash /solution/solve.sh", timeout)
-                code, out, err = (execution[key] for key in ("solve_exit", "stdout", "stderr"))
-                rec.update(execution_harness="terminus", terminal=execution["terminal"],
-                           transcript=execution["transcript"],
-                           pane_error=execution.get("pane_error"))
+                baseline = await capture_baseline(
+                    sb, tmax, workdir=workdir, timeout=120
+                )
+                execution = await dr.run_reference(
+                    sb, cmd or "bash /solution/solve.sh", timeout
+                )
+                code, out, err = (
+                    execution[key] for key in ("solve_exit", "stdout", "stderr")
+                )
+                rec.update(
+                    execution_harness="terminus",
+                    terminal=execution["terminal"],
+                    transcript=execution["transcript"],
+                    pane_error=execution.get("pane_error"),
+                )
                 solve_secs = round(time.time() - t0, 1)
                 # Before grading, which starts processes of its own and would
                 # fold their memory into a peak meant to describe the solution.
@@ -147,40 +183,71 @@ async def verify(tid: str, cpu: int, mem: int, disk: int,
                 parts = (ev or "").split("|")
                 toks = parts[0].split()
                 kv = dict(zip(toks[::2], toks[1::2]))
-                nums = [int(x) for x in (parts[1] if len(parts) > 1 else "").split()
-                        if x.isdigit()]
-                usec = next((int(x) for x in (parts[2] if len(parts) > 2 else "").split()
-                             if x.isdigit()), None)
-                reward = (await grade_tmax(sb, tmax, workdir=workdir, baseline_digests=baseline)
-                          if execution["submitted"] else 0.0)
+                nums = [
+                    int(x)
+                    for x in (parts[1] if len(parts) > 1 else "").split()
+                    if x.isdigit()
+                ]
+                usec = next(
+                    (
+                        int(x)
+                        for x in (parts[2] if len(parts) > 2 else "").split()
+                        if x.isdigit()
+                    ),
+                    None,
+                )
+                reward = (
+                    await grade_tmax(
+                        sb, tmax, workdir=workdir, baseline_digests=baseline
+                    )
+                    if execution["submitted"]
+                    else 0.0
+                )
                 # What the box had left when everything was done.
                 _, dfout, _ = await sb.exec(
-                    "df -B1 --output=size,used / | tail -1", check=False, timeout=60)
+                    "df -B1 --output=size,used / | tail -1", check=False, timeout=60
+                )
                 parts = (dfout or "").split()
                 size_mb = used_mb = None
                 if len(parts) == 2 and all(p.isdigit() for p in parts):
                     size_mb = round(int(parts[0]) / 1048576, 1)
                     used_mb = round(int(parts[1]) / 1048576, 1)
                 blob = ((out or "") + (err or ""))[-400:]
-                return {**rec, "ok": reward >= 1.0 and code == 0, "reward": reward,
-                        "solve_exit": code, "secs": round(time.time() - t0, 1),
-                        "solve_secs": solve_secs,
-                        "cpu_seconds": round(usec / 1e6, 1) if usec else None,
-                        "cpu_mean_cores": (round(usec / 1e6 / solve_secs, 2)
-                                           if usec and solve_secs > 0 else None),
-                        "oom_kill": int(kv.get("oom_kill", -1)),
-                        "mem_peak_mb": round(nums[0] / 1048576, 1) if nums else None,
-                        "mem_max_mb": (round(nums[1] / 1048576, 1)
-                                       if len(nums) > 1 else None),
-                        "df_size_mb": size_mb, "df_used_mb": used_mb,
-                        "disk_exhausted": "no space left" in blob.lower(),
-                        "tail": blob}
+                return {
+                    **rec,
+                    "ok": reward >= 1.0 and code == 0,
+                    "reward": reward,
+                    "solve_exit": code,
+                    "secs": round(time.time() - t0, 1),
+                    "solve_secs": solve_secs,
+                    "cpu_seconds": round(usec / 1e6, 1) if usec else None,
+                    "cpu_mean_cores": (
+                        round(usec / 1e6 / solve_secs, 2)
+                        if usec and solve_secs > 0
+                        else None
+                    ),
+                    "oom_kill": int(kv.get("oom_kill", -1)),
+                    "mem_peak_mb": round(nums[0] / 1048576, 1) if nums else None,
+                    "mem_max_mb": (
+                        round(nums[1] / 1048576, 1) if len(nums) > 1 else None
+                    ),
+                    "df_size_mb": size_mb,
+                    "df_used_mb": used_mb,
+                    "disk_exhausted": "no space left" in blob.lower(),
+                    "tail": blob,
+                }
         except Exception as e:  # noqa: BLE001
             msg = f"{type(e).__name__}: {str(e)[:200]}"
-            return {**rec, "ok": False, "secs": round(time.time() - t0, 1),
-                    "disk_exhausted": ("no space left" in msg.lower()
-                                       or "disk_exhausted" in msg.lower()),
-                    "why": msg, **getattr(e, "validation", {})}
+            return {
+                **rec,
+                "ok": False,
+                "secs": round(time.time() - t0, 1),
+                "disk_exhausted": (
+                    "no space left" in msg.lower() or "disk_exhausted" in msg.lower()
+                ),
+                "why": msg,
+                **getattr(e, "validation", {}),
+            }
 
 
 async def main_async(a: argparse.Namespace) -> None:
@@ -201,12 +268,19 @@ async def main_async(a: argparse.Namespace) -> None:
         for line in open(out):
             if line.strip():
                 done.add(json.loads(line)["task_id"])
-    todo = [(t, *((4, 8, 10) if a.at_max else v))
-            for t, v in sorted(recs.items()) if t not in done]
+    todo = [
+        (t, *((4, 8, 10) if a.at_max else v))
+        for t, v in sorted(recs.items())
+        if t not in done
+    ]
     if a.limit:
         todo = todo[: a.limit]
-    log.info("%d tasks in audit, %d already verified, %d to run",
-             len(recs), len(done), len(todo))
+    log.info(
+        "%d tasks in audit, %d already verified, %d to run",
+        len(recs),
+        len(done),
+        len(todo),
+    )
     sem = asyncio.Semaphore(a.concurrency)
     lock = asyncio.Lock()
     n = [0]
@@ -220,20 +294,38 @@ async def main_async(a: argparse.Namespace) -> None:
         # covers every step, including the ones added later.
         budget = max(a.timeout, _MAX_DECLARED_BUDGET_S) + 900
         try:
-            r = await asyncio.wait_for(verify(t, c, m, d, sem, a.timeout, a.command),
-                                       timeout=budget)
+            r = await asyncio.wait_for(
+                verify(t, c, m, d, sem, a.timeout, a.command), timeout=budget
+            )
         except asyncio.TimeoutError:
-            r = {"task_id": t, "cpu": c, "mem_gb": m, "disk_gb": d,
-                 "ok": False, "why": f"hung past {budget}s outside any exec "
-                                     f"deadline (boot, upload or grading)"}
+            r = {
+                "task_id": t,
+                "cpu": c,
+                "mem_gb": m,
+                "disk_gb": d,
+                "ok": False,
+                "why": f"hung past {budget}s outside any exec "
+                f"deadline (boot, upload or grading)",
+            }
         async with lock:
             with open(out, "a") as f:
                 f.write(json.dumps(r) + "\n")
             n[0] += 1
-            log.info("[%d/%d] %s %d/%dGi/%dGi ok=%s reward=%s disk_out=%s used=%s/%sMB %s",
-                     n[0], len(todo), t, c, m, d, r.get("ok"), r.get("reward"),
-                     r.get("disk_exhausted"), r.get("df_used_mb"),
-                     r.get("df_size_mb"), str(r.get("why", ""))[:60])
+            log.info(
+                "[%d/%d] %s %d/%dGi/%dGi ok=%s reward=%s disk_out=%s used=%s/%sMB %s",
+                n[0],
+                len(todo),
+                t,
+                c,
+                m,
+                d,
+                r.get("ok"),
+                r.get("reward"),
+                r.get("disk_exhausted"),
+                r.get("df_used_mb"),
+                r.get("df_size_mb"),
+                str(r.get("why", ""))[:60],
+            )
 
     await asyncio.gather(*(run(t, c, m, d) for t, c, m, d in todo))
 
@@ -244,8 +336,9 @@ def main() -> None:
     # Prefer the sizing derive_sizing.py produced. recommend() below is the old
     # agent-only rule, kept because probe_oom_suspects imports it, but a check
     # that re-derives its own sizes stops checking what the mix actually uses.
-    ap.add_argument("--sizing", default=None,
-                    help="derive_sizing.py output; overrides --audit")
+    ap.add_argument(
+        "--sizing", default=None, help="derive_sizing.py output; overrides --audit"
+    )
     ap.add_argument("--out", default=str(LOCAL / "provisioning_check.jsonl"))
     ap.add_argument("--concurrency", type=int, default=64)
     ap.add_argument("--timeout", type=int, default=900)
@@ -255,16 +348,26 @@ def main() -> None:
     # Running at the platform ceiling turns this from a check into an unbiased
     # measurement of the reference solution: nothing is truncated by a limit,
     # so memory.peak is what the oracle wants rather than what it was allowed.
-    ap.add_argument("--command", default=None,
-                    help="run this instead of solution/solve.sh; ':' is the null action")
-    ap.add_argument("--at-max", action="store_true",
-                    help="boot every task at 4/8/10 instead of the audited size")
+    ap.add_argument(
+        "--command",
+        default=None,
+        help="run this instead of solution/solve.sh; ':' is the null action",
+    )
+    ap.add_argument(
+        "--at-max",
+        action="store_true",
+        help="boot every task at 4/8/10 instead of the audited size",
+    )
     a = ap.parse_args()
     LOCAL.mkdir(parents=True, exist_ok=True)
     logging.basicConfig(
-        level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s",
-        handlers=[logging.FileHandler(LOCAL / "verify_provisioning.log"),
-                  logging.StreamHandler()])
+        level=logging.INFO,
+        format="%(asctime)s %(levelname)s %(message)s",
+        handlers=[
+            logging.FileHandler(LOCAL / "verify_provisioning.log"),
+            logging.StreamHandler(),
+        ],
+    )
     asyncio.run(main_async(a))
 
 

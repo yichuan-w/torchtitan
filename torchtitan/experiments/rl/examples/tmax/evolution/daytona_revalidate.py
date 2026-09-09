@@ -93,10 +93,10 @@ from torchtitan.experiments.rl.examples.tmax.grading import (  # noqa: E402
     grade_tmax,
     seed_workspace,
 )
-from torchtitan.experiments.rl.examples.tmax.integrity_baseline import (  # noqa: E402
+from torchtitan.experiments.rl.examples.tmax.integrity_baseline import (  # noqa: E402,F401
     capture_baseline,
     protected_cmds_of,
-    protected_entries_of,
+    protected_entries_of,  # Exported for agent_sandbox's shared grading path.
     protected_paths_of,
 )
 
@@ -111,9 +111,7 @@ class _Root:
 
     async def exec(self, cmd, *, check=False, **kw):
         kw.pop("user", None)
-        return await self._inner.exec(
-            cmd, user="root", check=check, **kw
-        )
+        return await self._inner.exec(cmd, user="root", check=check, **kw)
 
     async def write_file(self, dest, content, **kw):
         kw.pop("user", None)
@@ -149,8 +147,6 @@ def log(msg: str) -> None:
 # A box at the platform ceiling cannot truncate a reading; a box below it can,
 # which is what the `oom_kill` / disk-exhausted / timeout fields beside a
 # measurement report.
-from derive_sizing import CEILING  # noqa: E402
-
 # oom_kill separates a kernel kill from a deadline; memory.peak beside
 # memory.max shows a near miss as well as a hit; cpu.stat's usage_usec over the
 # solve's wall time is the mean cores the reference solution drew. The same
@@ -340,8 +336,14 @@ async def probe(
         grading = {}
         reward = (
             await grade_tmax(
-                sb, tmax, workdir=workdir, baseline_digests=baseline, diagnostics=grading
-            ) if execution["submitted"] else 0.0
+                sb,
+                tmax,
+                workdir=workdir,
+                baseline_digests=baseline,
+                diagnostics=grading,
+            )
+            if execution["submitted"]
+            else 0.0
         )
     tail = (out + "\n" + err)[-400:]
     if shortcut is None:

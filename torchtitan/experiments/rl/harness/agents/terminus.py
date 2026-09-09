@@ -420,7 +420,9 @@ class _SandboxEnvironment:
         # its own file when previous sessions keep background services alive.
         # One-byte blocks make the cap exact even with short pipe reads and
         # write small observations immediately; head buffers them until EOF.
-        bounded = f"dd bs=1 count={_PANE_CAP_BYTES} > {shlex.quote(str(path))} 2>/dev/null"
+        bounded = (
+            f"dd bs=1 count={_PANE_CAP_BYTES} > {shlex.quote(str(path))} 2>/dev/null"
+        )
         command = command.replace(f"'cat > {original}'", shlex.quote(bounded), 1)
         return f"mkdir -p {shlex.quote(str(path.parent))} && {command}"
 

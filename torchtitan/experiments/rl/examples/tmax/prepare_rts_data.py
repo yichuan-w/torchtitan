@@ -141,6 +141,7 @@ RUN ( if command -v tmux >/dev/null 2>&1; then \\
     && tmux -V
 """
 
+
 def _inject_agent_runtime(dockerfile: str) -> str:
     """Require tmux in the final stage using the task's declared package sources.
 

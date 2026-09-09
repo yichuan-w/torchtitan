@@ -154,7 +154,10 @@ def _run(monkeypatch, *, max_turns: int, built: list | None = None, **agent_kwar
 
 def test_confirmed_task_complete_is_a_submit(monkeypatch):
     run = _run(
-        monkeypatch, max_turns=10, episodes=4, pending_completion=True,
+        monkeypatch,
+        max_turns=10,
+        episodes=4,
+        pending_completion=True,
         parse_results=[_parse_result(is_task_complete=True)] * 2,
     )
     assert (run.finish_reason, run.submitted, run.turns) == ("submit", True, 4)
@@ -162,7 +165,10 @@ def test_confirmed_task_complete_is_a_submit(monkeypatch):
 
 def test_session_death_after_first_completion_does_not_submit(monkeypatch):
     run = _run(
-        monkeypatch, max_turns=10, episodes=4, pending_completion=True,
+        monkeypatch,
+        max_turns=10,
+        episodes=4,
+        pending_completion=True,
         parse_results=[_parse_result(is_task_complete=True)],
     )
     assert (run.finish_reason, run.submitted) == ("stopped_early", False)
@@ -170,7 +176,10 @@ def test_session_death_after_first_completion_does_not_submit(monkeypatch):
 
 def test_confirmation_on_last_episode_submits(monkeypatch):
     run = _run(
-        monkeypatch, max_turns=2, episodes=2, pending_completion=True,
+        monkeypatch,
+        max_turns=2,
+        episodes=2,
+        pending_completion=True,
         parse_results=[_parse_result(is_task_complete=True)] * 2,
     )
     assert (run.finish_reason, run.submitted) == ("submit", True)
@@ -178,7 +187,10 @@ def test_confirmation_on_last_episode_submits(monkeypatch):
 
 def test_an_action_withdraws_pending_completion(monkeypatch):
     run = _run(
-        monkeypatch, max_turns=10, episodes=4, pending_completion=True,
+        monkeypatch,
+        max_turns=10,
+        episodes=4,
+        pending_completion=True,
         parse_results=[
             _parse_result(is_task_complete=True),
             _parse_result(commands=["pwd"]),
@@ -190,7 +202,10 @@ def test_an_action_withdraws_pending_completion(monkeypatch):
 
 def test_a_parsing_error_cannot_confirm_completion(monkeypatch):
     run = _run(
-        monkeypatch, max_turns=10, episodes=4, pending_completion=True,
+        monkeypatch,
+        max_turns=10,
+        episodes=4,
+        pending_completion=True,
         parse_results=[
             _parse_result(is_task_complete=True),
             _parse_result(is_task_complete=True, error="invalid commands"),
@@ -218,14 +233,18 @@ def test_pane_output_is_visible_before_eof_and_stops_at_cap(monkeypatch, tmp_pat
 
     monkeypatch.setattr(terminus, "_PANE_CAP_BYTES", 4096)
     env = terminus._SandboxEnvironment(MagicMock(), agent_dir=Path("/tmp/run"))
-    wrapped = env._bound_pane_pipe(f"tmux pipe-pane -t agent 'cat > {tmp_path}/original.pane'")
+    wrapped = env._bound_pane_pipe(
+        f"tmux pipe-pane -t agent 'cat > {tmp_path}/original.pane'"
+    )
     pipe_command = shlex.split(wrapped)[-1]
     with subprocess.Popen(["sh", "-c", pipe_command], stdin=subprocess.PIPE) as process:
         process.stdin.write(b"observed\n")
         process.stdin.flush()
         deadline = time.monotonic() + 3
         path = Path(env.pane_path)
-        while (not path.exists() or path.stat().st_size < 9) and time.monotonic() < deadline:
+        while (
+            not path.exists() or path.stat().st_size < 9
+        ) and time.monotonic() < deadline:
             time.sleep(0.01)
         assert path.read_bytes() == b"observed\n"
         process.stdin.write(b"x" * 4096)

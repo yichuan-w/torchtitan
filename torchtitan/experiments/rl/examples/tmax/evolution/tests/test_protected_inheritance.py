@@ -1,3 +1,9 @@
+# Copyright (c) Meta Platforms, Inc. and affiliates.
+# All rights reserved.
+#
+# This source code is licensed under the BSD-style license found in the
+# LICENSE file in the root directory of this source tree.
+
 """A variant INHERITS its protected lists. Shipped packages carry no tests/protected_paths.json,
 so the lists a variant is validated and folded with come from the mix row it descends from --
 and they must be the same lists at both ends, or a reward-1 variant folds into a reward-0 row.
@@ -9,7 +15,6 @@ from __future__ import annotations
 import asyncio
 import json
 import sys
-import types
 from contextlib import asynccontextmanager
 from pathlib import Path
 
@@ -138,8 +143,15 @@ def _probe_row_as_the_loop_would(rewrite, monkeypatch) -> dict:
         return {}
 
     async def run_reference(_sb, _cmd, _timeout):
-        return {"solve_exit": 0, "stdout": "", "stderr": "", "submitted": True,
-                "terminal": {}, "transcript": [], "execution_harness": "terminus"}
+        return {
+            "solve_exit": 0,
+            "stdout": "",
+            "stderr": "",
+            "submitted": True,
+            "terminal": {},
+            "transcript": [],
+            "execution_harness": "terminus",
+        }
 
     ib = pack._ib_module()
 

@@ -327,6 +327,7 @@ def test_failed_engine_loop_rejects_new_work():
 
 def _abort_collective_rank(rank, rendezvous):
     from datetime import timedelta
+
     import torch.distributed as dist
 
     dist.init_process_group(

@@ -1,3 +1,9 @@
+# Copyright (c) Meta Platforms, Inc. and affiliates.
+# All rights reserved.
+#
+# This source code is licensed under the BSD-style license found in the
+# LICENSE file in the root directory of this source tree.
+
 """The integrity baseline reaches the breeding loop. A package's protected lists -- off the
 reaudit parquet, off the mix row a rewrite descends from, or off the package's own
 tests/protected_paths.json -- land on the row through the one shared helper, and the loop's
@@ -137,7 +143,7 @@ def test_malformed_lists_refuse_by_id(tmp_path) -> None:
             pack.to_row(str(pkg), protected=bad)
 
 
-def test_Protected_reads_cells_by_the_prep_scripts_rules_and_rows_by_their_keys() -> None:
+def test_protected_reads_cells_by_the_prep_scripts_rules_and_rows_by_their_keys() -> None:
     assert pack.Protected.from_cells(None, None) is None
     assert pack.Protected.from_cells("", "  ") is None
     assert pack.Protected.from_cells("[]", "[]") is None  # empty lists are nothing
@@ -261,9 +267,15 @@ def _fake_revalidator(events: list) -> types.ModuleType:
 
     async def run_reference(sb, cmd, timeout):
         code, out, err = await sb.exec(cmd, check=False, timeout=timeout)
-        return {"solve_exit": code, "stdout": out, "stderr": err,
-                "submitted": True, "terminal": {}, "transcript": [],
-                "execution_harness": "terminus"}
+        return {
+            "solve_exit": code,
+            "stdout": out,
+            "stderr": err,
+            "submitted": True,
+            "terminal": {},
+            "transcript": [],
+            "execution_harness": "terminus",
+        }
 
     async def capture_baseline(_sb, tmax, *, workdir, timeout):
         entries = ib.protected_entries_of(tmax)

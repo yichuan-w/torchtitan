@@ -1,4 +1,10 @@
 #!/usr/bin/env python3
+# Copyright (c) Meta Platforms, Inc. and affiliates.
+# All rights reserved.
+#
+# This source code is licensed under the BSD-style license found in the
+# LICENSE file in the root directory of this source tree.
+
 """Freeze prepared task rows, then validate every environment on Daytona."""
 
 from __future__ import annotations
@@ -77,14 +83,16 @@ def freeze(args) -> None:
             ),
         }
         if source is not None:
-            payload["solve_timeout"] = declared_solve_budget(source, payload["solve_timeout"])
+            payload["solve_timeout"] = declared_solve_budget(
+                source, payload["solve_timeout"]
+            )
         if source is not None:
             shutil.copytree(source, args.output / "packages" / tid, symlinks=False)
             for path in sorted((source / "solution").rglob("*")):
                 if path.is_file():
-                    payload["solution"][str(path.relative_to(source / "solution"))] = (
-                        path.read_text()
-                    )
+                    payload["solution"][
+                        str(path.relative_to(source / "solution"))
+                    ] = path.read_text()
         write_json(args.output / "inputs" / f"{tid}.json", payload)
     manifest["input_sha256"] = {
         tid: digest((args.output / "inputs" / f"{tid}.json").read_bytes())

@@ -1,4 +1,10 @@
 #!/usr/bin/env python3
+# Copyright (c) Meta Platforms, Inc. and affiliates.
+# All rights reserved.
+#
+# This source code is licensed under the BSD-style license found in the
+# LICENSE file in the root directory of this source tree.
+
 """Staged task synthesis, following RST's five-step rewrite protocol.
 
 The paper does not ask a model for a whole task in one shot. It fixes a
@@ -27,8 +33,6 @@ import os
 import pathlib
 import re
 import time
-import urllib.error
-import urllib.request
 
 import synth_operators as ops
 
@@ -78,14 +82,19 @@ def operator_card(operator: str) -> str:
             _CARDS = {}
     card = _CARDS.get(operator)
     if not card:
-        return ("(no card available for this operator — infer a construction "
-                "recipe from the definition, and say so in why_fit)")
+        return (
+            "(no card available for this operator — infer a construction "
+            "recipe from the definition, and say so in why_fit)"
+        )
     # ensure_ascii=False because the authors' cards are in Chinese, and escaping
     # turns every character of them into six the model has to pay for and read
     # through.
-    return json.dumps({k: v for k, v in card.items()
-                       if not k.startswith("_")},
-                      ensure_ascii=False, indent=1)[:3500]
+    return json.dumps(
+        {k: v for k, v in card.items() if not k.startswith("_")},
+        ensure_ascii=False,
+        indent=1,
+    )[:3500]
+
 
 # The key is regional: api.openai.com answers 401 with "incorrect regional
 # hostname" and names this one.
@@ -94,8 +103,9 @@ MODEL = os.environ.get("SYNTH_MODEL", "gpt-5.6")
 # Reasoning effort for every call. Default high: retune/audit quality is worth
 # more than latency here. Override per-run with SYNTH_EFFORT=medium|low.
 EFFORT = os.environ.get("SYNTH_EFFORT", "high")
-ENV_FILE = pathlib.Path(os.environ.get(
-    "SYNTH_ENV_FILE", str(pathlib.Path.home() / "Projects/MyClaw/.env")))
+ENV_FILE = pathlib.Path(
+    os.environ.get("SYNTH_ENV_FILE", str(pathlib.Path.home() / "Projects/MyClaw/.env"))
+)
 
 
 def _api_key() -> str:
@@ -114,8 +124,13 @@ def _api_key() -> str:
 # a task costs however many tokens its five steps and its retries took, and
 # until they are counted the answer can only be a guess. RST reports $0.05 a
 # task, which is the number this has to be compared against.
-USAGE = {"calls": 0, "prompt_tokens": 0, "completion_tokens": 0,
-         "reasoning_tokens": 0, "cached_tokens": 0}
+USAGE = {
+    "calls": 0,
+    "prompt_tokens": 0,
+    "completion_tokens": 0,
+    "reasoning_tokens": 0,
+    "cached_tokens": 0,
+}
 # What actually billed, which is not what was asked for: `gpt-5.6` is an alias
 # and resolves to `gpt-5.6-sol`, the most expensive tier of three that span 25x.
 # A run priced against the name in the config would be pricing the wrong model,
@@ -163,17 +178,25 @@ def _client():
     return _CLIENT
 
 
-def chat_response(messages: list[dict], max_tokens: int = 12000,
-                  retries: int = 4, *, preserve_truncation: bool = True) -> dict:
+def chat_response(
+    messages: list[dict],
+    max_tokens: int = 12000,
+    retries: int = 4,
+    *,
+    preserve_truncation: bool = True,
+) -> dict:
     # max_completion_tokens is shared between reasoning and content; at high
     # effort the reasoning share can consume the whole budget and hand back an
     # EMPTY content string (seen live as "JSONDecodeError ... char 0" in every
     # retune the hour effort=high shipped). Give high effort enough headroom.
     if EFFORT == "high":
         max_tokens = max(max_tokens, 24000)
-    payload = {"model": MODEL, "messages": messages,
-               "max_completion_tokens": max_tokens,
-               "reasoning_effort": EFFORT}
+    payload = {
+        "model": MODEL,
+        "messages": messages,
+        "max_completion_tokens": max_tokens,
+        "reasoning_effort": EFFORT,
+    }
     last = ""
     for attempt in range(retries):
         try:
@@ -187,20 +210,25 @@ def chat_response(messages: list[dict], max_tokens: int = 12000,
             # Reasoning tokens bill as completion tokens and are not listed
             # separately in the total, so they are tracked to show how much
             # of the bill is thinking rather than task text.
-            USAGE["reasoning_tokens"] += (
-                u.get("completion_tokens_details") or {}
-            ).get("reasoning_tokens", 0)
-            USAGE["cached_tokens"] += (
-                u.get("prompt_tokens_details") or {}
-            ).get("cached_tokens", 0)
+            USAGE["reasoning_tokens"] += (u.get("completion_tokens_details") or {}).get(
+                "reasoning_tokens", 0
+            )
+            USAGE["cached_tokens"] += (u.get("prompt_tokens_details") or {}).get(
+                "cached_tokens", 0
+            )
             content = body["choices"][0]["message"]["content"] or ""
-            if preserve_truncation and body["choices"][0].get("finish_reason") == "length":
+            if (
+                preserve_truncation
+                and body["choices"][0].get("finish_reason") == "length"
+            ):
                 return body
             if not content.strip():
                 # Budget consumed by reasoning, no content produced -- retryable
                 # (the retry rides the enlarged budget), not a valid empty answer.
-                last = ("empty content (finish_reason="
-                        f"{body['choices'][0].get('finish_reason')})")
+                last = (
+                    "empty content (finish_reason="
+                    f"{body['choices'][0].get('finish_reason')})"
+                )
                 raise _EmptyContent(last)
             return body
         except _EmptyContent as e:
@@ -211,16 +239,17 @@ def chat_response(messages: list[dict], max_tokens: int = 12000,
             if code is not None:
                 last = f"HTTP {code}: {str(e)[:300]}"
                 if code not in (408, 409, 429) and code < 500:
-                    raise RuntimeError(last)
+                    raise RuntimeError(last) from e
             else:
                 last = f"{type(e).__name__}: {e}"
-        time.sleep(min(60, 5 * 2 ** attempt))
+        time.sleep(min(60, 5 * 2**attempt))
     raise RuntimeError(f"chat failed after {retries} attempts: {last}")
 
 
-def chat(messages: list[dict], max_tokens: int = 12000,
-         retries: int = 4) -> str:
-    return chat_response(messages, max_tokens, retries, preserve_truncation=False)["choices"][0]["message"]["content"]
+def chat(messages: list[dict], max_tokens: int = 12000, retries: int = 4) -> str:
+    return chat_response(messages, max_tokens, retries, preserve_truncation=False)[
+        "choices"
+    ][0]["message"]["content"]
 
 
 def _parse_json(text: str) -> dict:
@@ -534,8 +563,7 @@ def _task_context(files: dict[str, str], limit: int = 3500) -> str:
     the first half of the checks against the first two thirds of the solution and
     reporting that they agreed.
     """
-    return "\n".join(f"--- {name} ---\n{body[:limit]}"
-                     for name, body in files.items())
+    return "\n".join(f"--- {name} ---\n{body[:limit]}" for name, body in files.items())
 
 
 # Above the largest generated verifier seen (16,724 characters), so the repair
@@ -551,8 +579,9 @@ def _checklist(test_src: str) -> str:
     rubric the agent can game.
     """
     items = []
-    for m in re.finditer(r"def (test_\w+)\s*\([^)]*\):\s*(?:\"\"\"(.*?)\"\"\")?",
-                         test_src, re.S):
+    for m in re.finditer(
+        r"def (test_\w+)\s*\([^)]*\):\s*(?:\"\"\"(.*?)\"\"\")?", test_src, re.S
+    ):
         name, doc = m.group(1), (m.group(2) or "").strip().splitlines()
         items.append(f"- {name}: {doc[0].strip() if doc else '(no description)'}")
     return "\n".join(items) or "- (no named checks found)"
@@ -590,10 +619,10 @@ Return schema:
 # rank every operator by how well it fits this seed, keep the best few, and only
 # then apply the two terms that spread the batch out. Sent by 煜坤 on
 # 2026-08-15 (docs/rst-authors/).
-LOCAL_POOL = 12          # operators that reach the diversity stage
-FALLBACK_COUNT = 5       # alternatives offered alongside the preferred one
-FAMILY_TARGET_SHARE = 0.2   # five families, each aimed at a fifth of the batch
-FAMILY_FLOOR = 0.25         # an over-used family is damped, never excluded
+LOCAL_POOL = 12  # operators that reach the diversity stage
+FALLBACK_COUNT = 5  # alternatives offered alongside the preferred one
+FAMILY_TARGET_SHARE = 0.2  # five families, each aimed at a fifth of the batch
+FAMILY_FLOOR = 0.25  # an over-used family is damped, never excluded
 # One operator fits almost any seed, so on local score alone it would take the
 # pool. The authors damp it by a constant rather than reweighting the scan.
 BROAD_OPERATOR = {"config_data_consistency": 0.35}
@@ -613,7 +642,10 @@ EVOLUTION_DIVERSITY_DEFAULT = "freq"
 def _diversity_mode(mode: str | None) -> str:
     """The spreading terms to apply, from the argument or SWE_OPERATOR_DIVERSITY."""
     if mode is None:
-        mode = os.environ.get("SWE_OPERATOR_DIVERSITY", "").strip() or EVOLUTION_DIVERSITY_DEFAULT
+        mode = (
+            os.environ.get("SWE_OPERATOR_DIVERSITY", "").strip()
+            or EVOLUTION_DIVERSITY_DEFAULT
+        )
     if mode not in DIVERSITY_MODES:
         raise ValueError(f"diversity mode {mode!r} is not one of {DIVERSITY_MODES}")
     return mode
@@ -663,19 +695,54 @@ def local_fit(seed: dict) -> dict[str, float]:
     # File structure as the authors describe it: extensions, build files, logs,
     # environment markers. Read off the seed's own files, not its prose.
     structure = 0
-    for ext in (".py", ".c", ".cpp", ".go", ".rs", ".js", ".ts", ".java", ".rb",
-                ".sh", ".json", ".yaml", ".yml", ".toml", ".ini", ".csv", ".xml"):
+    for ext in (
+        ".py",
+        ".c",
+        ".cpp",
+        ".go",
+        ".rs",
+        ".js",
+        ".ts",
+        ".java",
+        ".rb",
+        ".sh",
+        ".json",
+        ".yaml",
+        ".yml",
+        ".toml",
+        ".ini",
+        ".csv",
+        ".xml",
+    ):
         if ext in names:
             structure += 1
-    for build in ("makefile", "dockerfile", "cmake", "package.json", "pom.xml",
-                  "cargo.toml", "requirements", "pipfile", "go.mod", "gemfile"):
+    for build in (
+        "makefile",
+        "dockerfile",
+        "cmake",
+        "package.json",
+        "pom.xml",
+        "cargo.toml",
+        "requirements",
+        "pipfile",
+        "go.mod",
+        "gemfile",
+    ):
         if build in names or build in blob:
             structure += 1
     for logmark in (".log", "logs/", "stderr", "traceback", "journalctl"):
         if logmark in names or logmark in blob:
             structure += 1
-    for envmark in ("env ", "export ", "apt-get", "apk add", "pip install",
-                    "systemctl", "service ", "entrypoint"):
+    for envmark in (
+        "env ",
+        "export ",
+        "apt-get",
+        "apk add",
+        "pip install",
+        "systemctl",
+        "service ",
+        "entrypoint",
+    ):
         if envmark in blob:
             structure += 1
 
@@ -693,18 +760,33 @@ def local_fit(seed: dict) -> dict[str, float]:
             if kw:
                 op_hits = sum(1 for w in kw if w in text)
             else:
-                words = [w for w in re.findall(r"[a-z]{4,}", definition.lower())
-                         if w not in ("verify", "ensure", "align", "check",
-                                      "with", "that", "from", "into", "using")]
+                words = [
+                    w
+                    for w in re.findall(r"[a-z]{4,}", definition.lower())
+                    if w
+                    not in (
+                        "verify",
+                        "ensure",
+                        "align",
+                        "check",
+                        "with",
+                        "that",
+                        "from",
+                        "into",
+                        "using",
+                    )
+                ]
                 op_hits = sum(1 for w in words if w in text)
-            fit[op] = (1 + fam_hits + op_hits + structure) \
-                * BROAD_OPERATOR.get(op, 1.0)
+            fit[op] = (1 + fam_hits + op_hits + structure) * BROAD_OPERATOR.get(op, 1.0)
     return fit
 
 
-def score_operators(seed: dict, used_ops: dict[str, int],
-                    used_fams: dict[str, int],
-                    mode: str = "family+freq") -> list[tuple[float, str, str]]:
+def score_operators(
+    seed: dict,
+    used_ops: dict[str, int],
+    used_fams: dict[str, int],
+    mode: str = "family+freq",
+) -> list[tuple[float, str, str]]:
     """S(o) = L(o) x D(f(o)) x P(o), over the operators the scan surfaced.
 
         D(f) = max(0.25, 1 + 0.2N - n_f)     family balance   ("family+freq")
@@ -724,8 +806,7 @@ def score_operators(seed: dict, used_ops: dict[str, int],
     and one that is ahead is damped to a floor rather than shut out.
     """
     fit = local_fit(seed)
-    fam_of = {op: fam for fam, operators in ops.OPERATORS.items()
-              for op in operators}
+    fam_of = {op: fam for fam, operators in ops.OPERATORS.items() for op in operators}
     pool = sorted(fit.items(), key=lambda kv: -kv[1])[:LOCAL_POOL]
 
     assigned = sum(used_fams.values())
@@ -734,16 +815,20 @@ def score_operators(seed: dict, used_ops: dict[str, int],
         if local <= 0:
             continue
         fam = fam_of[op]
-        balance = max(FAMILY_FLOOR,
-                      1 + FAMILY_TARGET_SHARE * assigned - used_fams.get(fam, 0)
-                      ) if mode == "family+freq" else 1.0
+        balance = (
+            max(
+                FAMILY_FLOOR, 1 + FAMILY_TARGET_SHARE * assigned - used_fams.get(fam, 0)
+            )
+            if mode == "family+freq"
+            else 1.0
+        )
         inv_freq = 1.0 / (1 + used_ops.get(op, 0)) if mode != "off" else 1.0
         scored.append((local * balance * inv_freq, fam, op))
     scored.sort(reverse=True)
     return scored
 
 
-class Blocked(Exception):
+class Blocked(Exception):  # noqa: N818 - Existing public exception name.
     """No operator this seed can support, so nothing downstream should run.
 
     The authors block in four places: an operator with no local signal, a model
@@ -758,11 +843,13 @@ class Blocked(Exception):
     """
 
 
-def operator_shortlist(seed: dict, used_ops: dict[str, int],
-                       used_fams: dict[str, int],
-                       k: int = 1 + FALLBACK_COUNT,
-                       mode: str | None = None
-                       ) -> list[tuple[str, str, str]]:
+def operator_shortlist(
+    seed: dict,
+    used_ops: dict[str, int],
+    used_fams: dict[str, int],
+    k: int = 1 + FALLBACK_COUNT,
+    mode: str | None = None,
+) -> list[tuple[str, str, str]]:
     """The scored candidates, in score order, without collapsing them to one.
 
     `pick_operator` picks the axis before anything has opened the package: the
@@ -794,8 +881,9 @@ def operator_shortlist(seed: dict, used_ops: dict[str, int],
     return [(fam, op, ops.OPERATORS[fam][op]) for _, fam, op in scored[:k]]
 
 
-def pick_operator(seed: dict, used_ops: dict[str, int],
-                  used_fams: dict[str, int], rng) -> tuple[str, str, str]:
+def pick_operator(
+    seed: dict, used_ops: dict[str, int], used_fams: dict[str, int], rng
+) -> tuple[str, str, str]:
     """Preferred operator plus up to five alternatives, then a model ranking.
 
     The ranking step may substitute one of the alternatives or reject them all,
@@ -807,21 +895,36 @@ def pick_operator(seed: dict, used_ops: dict[str, int],
     if not scored:
         raise Blocked("local scan found no operator with any signal in the seed")
     preferred = scored[0]
-    alternatives = scored[1:1 + FALLBACK_COUNT]
+    alternatives = scored[1 : 1 + FALLBACK_COUNT]
     allowed = {op: fam for _, fam, op in [preferred, *alternatives]}
 
-    alt_text = "\n".join(f"- {op} ({fam}) — {ops.OPERATORS[fam][op]}"
-                         for _, fam, op in alternatives) or "(none)"
+    alt_text = (
+        "\n".join(
+            f"- {op} ({fam}) — {ops.OPERATORS[fam][op]}" for _, fam, op in alternatives
+        )
+        or "(none)"
+    )
     try:
-        out = _parse_json(chat([
-            {"role": "system", "content": "Return ONLY valid JSON."},
-            {"role": "user", "content": RANK_PROMPT.format(
-                preferred_id=preferred[2], preferred_family=preferred[1],
-                preferred_def=ops.OPERATORS[preferred[1]][preferred[2]],
-                alternatives=alt_text,
-                instruction=seed["instruction"][:2500],
-                dockerfile=seed["dockerfile"][:1500],
-                solution=seed["solution"][:1500])}], max_tokens=600))
+        out = _parse_json(
+            chat(
+                [
+                    {"role": "system", "content": "Return ONLY valid JSON."},
+                    {
+                        "role": "user",
+                        "content": RANK_PROMPT.format(
+                            preferred_id=preferred[2],
+                            preferred_family=preferred[1],
+                            preferred_def=ops.OPERATORS[preferred[1]][preferred[2]],
+                            alternatives=alt_text,
+                            instruction=seed["instruction"][:2500],
+                            dockerfile=seed["dockerfile"][:1500],
+                            solution=seed["solution"][:1500],
+                        ),
+                    },
+                ],
+                max_tokens=600,
+            )
+        )
         chosen = str(out.get("chosen_operator", "")).strip()
         if str(out.get("fit", "")).strip() == "blocked" or chosen == "blocked":
             raise Blocked(str(out.get("why", ""))[:200] or "model rejected all")
@@ -835,36 +938,60 @@ def pick_operator(seed: dict, used_ops: dict[str, int],
     return preferred[1], preferred[2], ops.OPERATORS[preferred[1]][preferred[2]]
 
 
-def synthesize(seed: dict, family: str, operator: str,
-               definition: str) -> tuple[dict, dict]:
+def synthesize(
+    seed: dict, family: str, operator: str, definition: str
+) -> tuple[dict, dict]:
     """Run the five steps; return (contract, files) for the derived task."""
-    files = {"instruction.md": seed["instruction"],
-             "environment/Dockerfile": seed["dockerfile"],
-             "solution/solve.sh": seed["solution"]}
+    files = {
+        "instruction.md": seed["instruction"],
+        "environment/Dockerfile": seed["dockerfile"],
+        "solution/solve.sh": seed["solution"],
+    }
 
-    contract = _parse_json(chat([
-        {"role": "system", "content": SYSTEM},
-        {"role": "user", "content": STEP0.format(
-            family=family, operator=operator, definition=definition,
-            card=operator_card(operator),
-            instruction=seed["instruction"][:5000],
-            dockerfile=seed["dockerfile"][:3500],
-            solution=seed["solution"][:3500])}]))
+    contract = _parse_json(
+        chat(
+            [
+                {"role": "system", "content": SYSTEM},
+                {
+                    "role": "user",
+                    "content": STEP0.format(
+                        family=family,
+                        operator=operator,
+                        definition=definition,
+                        card=operator_card(operator),
+                        instruction=seed["instruction"][:5000],
+                        dockerfile=seed["dockerfile"][:3500],
+                        solution=seed["solution"][:3500],
+                    ),
+                },
+            ]
+        )
+    )
     if contract.get("status") == "blocked":
         raise RuntimeError(f"step0 blocked: {contract.get('why_fit', '')[:200]}")
     cj = json.dumps(contract, indent=1)[:6000]
 
     for step, tmpl, extra in (
-            ("step1", STEP1, {}),
-            ("step2", STEP2, {}),
-            ("step3", STEP3, {"checklist": ""}),
-            ("step4", STEP4, {})):
+        ("step1", STEP1, {}),
+        ("step2", STEP2, {}),
+        ("step3", STEP3, {"checklist": ""}),
+        ("step4", STEP4, {}),
+    ):
         if step == "step3":
             extra["checklist"] = _checklist(files.get("tests/test_state.py", ""))
-        out = _parse_json(chat([
-            {"role": "system", "content": SYSTEM},
-            {"role": "user", "content": tmpl.format(
-                contract=cj, task_context=_task_context(files), **extra)}]))
+        out = _parse_json(
+            chat(
+                [
+                    {"role": "system", "content": SYSTEM},
+                    {
+                        "role": "user",
+                        "content": tmpl.format(
+                            contract=cj, task_context=_task_context(files), **extra
+                        ),
+                    },
+                ]
+            )
+        )
         if out.get("status") == "blocked":
             raise RuntimeError(f"{step} blocked: {str(out.get('rationale'))[:200]}")
         for name, body in (out.get("files") or {}).items():
@@ -1039,14 +1166,20 @@ Current task:
 
 
 _TEST_BODY = re.compile(
-    r"^\s*def\s+(test_\w+)\s*\([^)]*\)\s*(?:->[^:\n]+)?:((?:\n(?:[ \t].*)?)*)", re.M)
+    r"^\s*def\s+(test_\w+)\s*\([^)]*\)\s*(?:->[^:\n]+)?:((?:\n(?:[ \t].*)?)*)", re.M
+)
 _NOSC_WORDS = re.compile(
     r"no_?shortcut|placeholder|hard[_-]?cod|stale|dummy|verifier[_-]?only"
-    r"|fabricat|forged|precomputed", re.I)
-_MUTATES = re.compile(r"write_bytes|write_text|\.write\(|shutil\.copy"
-                      r"|os\.remove|unlink\(|truncate|touch\(")
-_RERUNS = re.compile(r"run_workflow|subprocess\.(run|check_|Popen)|os\.system"
-                     r"|run_cmd|sh\(")
+    r"|fabricat|forged|precomputed",
+    re.I,
+)
+_MUTATES = re.compile(
+    r"write_bytes|write_text|\.write\(|shutil\.copy"
+    r"|os\.remove|unlink\(|truncate|touch\("
+)
+_RERUNS = re.compile(
+    r"run_workflow|subprocess\.(run|check_|Popen)|os\.system" r"|run_cmd|sh\("
+)
 
 
 def _has_four_roles(src: str) -> bool:
@@ -1060,8 +1193,10 @@ def _has_four_roles(src: str) -> bool:
         return False
     # The re-run is often in a module-level helper the check calls, so that half
     # is searched across the file while the mutation stays local to the check.
-    return any(_NOSC_WORDS.search(b)
-               or (_MUTATES.search(b) and _RERUNS.search(src)) for _, b in fns)
+    return any(
+        _NOSC_WORDS.search(b) or (_MUTATES.search(b) and _RERUNS.search(src))
+        for _, b in fns
+    )
 
 
 SPEC_REPAIR = """Fill in what the instruction leaves out. \
@@ -1109,7 +1244,7 @@ calibration, not a new task.
 
 How far to move, which matters more than which direction. The target is a task a \
 capable agent solves roughly half the time: not every attempt, not none. Of the \
-last batch retuned from one extreme, a third landed on the other one — the \
+last batch adjusted from one extreme, a third landed on the other one — the \
 adjustment was the right sign and several times too large. So make one change and make it \
 count: a stage added or removed, a check tightened or explained, a sentence added \
 to the instruction. One, not three, because the result is measured after this and \
@@ -1202,8 +1337,9 @@ underspecified），shortcut 照样填。
 {dockerfile}"""
 
 
-def cross_file_consistency(contract: dict, files: dict[str, str],
-                           contract_json: str) -> dict[str, str]:
+def cross_file_consistency(
+    contract: dict, files: dict[str, str], contract_json: str
+) -> dict[str, str]:
     """Reconcile the four artifacts against the contract after staged rewriting.
 
     Staged generation keeps each file aligned to the contract, but not
@@ -1215,20 +1351,35 @@ def cross_file_consistency(contract: dict, files: dict[str, str],
     return _repair(CONSISTENCY, contract, files, contract_json)
 
 
-WRITABLE = ("instruction.md", "solution/solve.sh", "tests/test_state.py",
-            "environment/Dockerfile", "task.toml")
+WRITABLE = (
+    "instruction.md",
+    "solution/solve.sh",
+    "tests/test_state.py",
+    "environment/Dockerfile",
+    "task.toml",
+)
 
 
-def _repair(template: str, contract: dict, files: dict[str, str],
-            contract_json: str, **extra) -> dict[str, str]:
+def _repair(
+    template: str, contract: dict, files: dict[str, str], contract_json: str, **extra
+) -> dict[str, str]:
     """One repair pass. A failure here leaves the files as they were."""
     try:
-        out = _parse_json(chat([
-            {"role": "system", "content": SYSTEM},
-            {"role": "user", "content": template.format(
-                contract=contract_json,
-                task_context=_task_context(files, limit=REPAIR_CONTEXT),
-                **extra)}]))
+        out = _parse_json(
+            chat(
+                [
+                    {"role": "system", "content": SYSTEM},
+                    {
+                        "role": "user",
+                        "content": template.format(
+                            contract=contract_json,
+                            task_context=_task_context(files, limit=REPAIR_CONTEXT),
+                            **extra,
+                        ),
+                    },
+                ]
+            )
+        )
     except Exception:  # noqa: BLE001
         return files
     for name, body in (out.get("files") or {}).items():
@@ -1262,8 +1413,10 @@ When the task is complete and you have checked it, reply with exactly: DONE"""
 
 
 def agent_step(instruction: str, history: list[tuple[str, str]]) -> str:
-    msgs = [{"role": "system", "content": AGENT_SYSTEM},
-            {"role": "user", "content": f"Task:\n\n{instruction}"}]
+    msgs = [
+        {"role": "system", "content": AGENT_SYSTEM},
+        {"role": "user", "content": f"Task:\n\n{instruction}"},
+    ]
     for cmd, out in history:
         msgs.append({"role": "assistant", "content": cmd})
         msgs.append({"role": "user", "content": out[:4000]})
@@ -1289,12 +1442,22 @@ def diagnose_unsolved(task: dict) -> dict:
     task.
     """
     try:
-        return _parse_json(chat([
-            {"role": "system", "content": "Return ONLY valid JSON."},
-            {"role": "user", "content": DIAGNOSE.format(
-                instruction=task["instruction"][:6000],
-                solution=task["solve_sh"][:8000],
-                tests=task["test_state_py"][:12000],
-                dockerfile=task["dockerfile"][:4000])}], max_tokens=2000))
+        return _parse_json(
+            chat(
+                [
+                    {"role": "system", "content": "Return ONLY valid JSON."},
+                    {
+                        "role": "user",
+                        "content": DIAGNOSE.format(
+                            instruction=task["instruction"][:6000],
+                            solution=task["solve_sh"][:8000],
+                            tests=task["test_state_py"][:12000],
+                            dockerfile=task["dockerfile"][:4000],
+                        ),
+                    },
+                ],
+                max_tokens=2000,
+            )
+        )
     except Exception as e:  # noqa: BLE001
         return {"verdict": "unknown", "why": f"{type(e).__name__}: {e}"[:150]}

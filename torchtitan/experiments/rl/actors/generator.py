@@ -315,9 +315,9 @@ def _prepare_generation_request_metrics(
                 inputs.last_token_ts - inputs.first_token_ts
             ) * 1000
             metric_values[f"{prefix}/decode_time_ms"] = first_to_last_token_ms
-            metric_values[f"{prefix}/inter_token_latency_ms"] = (
-                first_to_last_token_ms / (inputs.num_generation_tokens - 1)
-            )
+            metric_values[
+                f"{prefix}/inter_token_latency_ms"
+            ] = first_to_last_token_ms / (inputs.num_generation_tokens - 1)
 
     # Emit each value with both Mean and Max aggregators.
     return [
@@ -1705,9 +1705,9 @@ class VLLMGenerator(Actor, Configurable):
                                 # blocks -> recompute under the new weights, while an
                                 # in-flight group keeps reusing its own KV. A per-sample
                                 # salt would re-prefill the shared prompt n times.
-                                engine_input["cache_salt"] = (
-                                    request.routing_session_id.split("/rollout=", 1)[0]
-                                )
+                                engine_input[
+                                    "cache_salt"
+                                ] = request.routing_session_id.split("/rollout=", 1)[0]
                             self._engine.add_request(
                                 request_id=request.request_id,
                                 prompt=engine_input,
@@ -1855,9 +1855,9 @@ class VLLMGenerator(Actor, Configurable):
             return
 
         # A placeholder future for the engine loop to resolve once the pull has been applied.
-        pull_model_state_dict_future: asyncio.Future[int] = (
-            asyncio.get_running_loop().create_future()
-        )
+        pull_model_state_dict_future: asyncio.Future[
+            int
+        ] = asyncio.get_running_loop().create_future()
 
         # `_engine_loop_condition` wakes the engine loop, if asleep, when a pull is queued.
         async with self._engine_loop_condition:

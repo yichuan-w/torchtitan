@@ -1,3 +1,9 @@
+# Copyright (c) Meta Platforms, Inc. and affiliates.
+# All rights reserved.
+#
+# This source code is licensed under the BSD-style license found in the
+# LICENSE file in the root directory of this source tree.
+
 """agent_sandbox reaches daytona_revalidate's names through `dr.<name>`; every one of them must exist
 on the REAL module. The training side hit the gap this guards: `./sandbox check` called
 dr.protected_entries_of, which daytona_revalidate imported nothing of, and every reaudit task that
@@ -5,8 +11,9 @@ carried the protected_* columns died at sandbox boot with AttributeError. The fa
 seam tests inject exposed the name, so they stayed green; this test asks the real module."""
 from __future__ import annotations
 
-import re
 import asyncio
+
+import re
 import sys
 from pathlib import Path
 
@@ -50,6 +57,7 @@ def test_root_wrapper_preserves_sandbox_default_timeout(kwargs, expected):
             assert timeout > 0
             assert user == "root"
             return timeout
+
     assert asyncio.run(dr._Root(Sandbox()).exec("true", **kwargs)) == expected
 
 

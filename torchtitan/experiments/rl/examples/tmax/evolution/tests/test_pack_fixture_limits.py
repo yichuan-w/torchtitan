@@ -1,3 +1,9 @@
+# Copyright (c) Meta Platforms, Inc. and affiliates.
+# All rights reserved.
+#
+# This source code is licensed under the BSD-style license found in the
+# LICENSE file in the root directory of this source tree.
+
 """What may sit under tests/ beside the verifier. Grading fixtures ride inside
 the mix row as text and are uploaded at grade time, so they are bounded the way
 the Dockerfile's COPY sources already are, and a binary one is refused with its
