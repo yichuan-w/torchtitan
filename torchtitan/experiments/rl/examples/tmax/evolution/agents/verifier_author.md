@@ -102,6 +102,10 @@ in a separate fresh container: the correct script must pass and every wrong scri
 must fail. Pass script contents as the argument to `./sandbox exec`; stdin is not
 forwarded into the container. Ensure the distinguishing input affects the output:
 two identities that collapse to the same node cannot test an edge weight.
+When testing rejection of invalid inputs, include a case that violates the
+targeted validity condition while satisfying the others. An input with multiple
+defects can be rejected for the wrong reason. Record that distinguishing input in the
+case's `expected_failure` field alongside the expected output difference.
 If a plausible alternative implementation uses a different representation the
 instruction permits, use it for the correct control instead of requiring your
 preferred representation. The caller independently replays every saved script.
