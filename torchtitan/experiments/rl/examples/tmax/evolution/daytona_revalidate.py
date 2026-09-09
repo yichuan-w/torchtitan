@@ -25,6 +25,7 @@ The last stdout line is a JSON verdict; everything else is progress logging.
 Requires the training venv (torchtitan + daytona SDK) and the Daytona env file
 sourced -- feedback_loop wraps both.
 """
+
 from __future__ import annotations
 
 import argparse
@@ -73,6 +74,7 @@ if _TREE is not None and str(_TREE) not in sys.path:
     sys.path.append(str(_TREE))
 
 import pack_to_dataset as pack  # noqa: E402
+from terminus_validation import run_reference  # noqa: E402
 
 
 try:
@@ -91,10 +93,10 @@ from torchtitan.experiments.rl.examples.tmax.grading import (  # noqa: E402
     grade_tmax,
     seed_workspace,
 )
-from torchtitan.experiments.rl.examples.tmax.integrity_baseline import (  # noqa: E402
+from torchtitan.experiments.rl.examples.tmax.integrity_baseline import (  # noqa: E402,F401
     capture_baseline,
     protected_cmds_of,
-    protected_entries_of,
+    protected_entries_of,  # Exported for agent_sandbox's shared grading path.
     protected_paths_of,
 )
 
@@ -107,11 +109,9 @@ class _Root:
     def __init__(self, inner):
         self._inner = inner
 
-    async def exec(self, cmd, *, check=False, timeout=None, **kw):
+    async def exec(self, cmd, *, check=False, **kw):
         kw.pop("user", None)
-        return await self._inner.exec(
-            cmd, user="root", check=check, timeout=timeout, **kw
-        )
+        return await self._inner.exec(cmd, user="root", check=check, **kw)
 
     async def write_file(self, dest, content, **kw):
         kw.pop("user", None)
@@ -147,8 +147,6 @@ def log(msg: str) -> None:
 # A box at the platform ceiling cannot truncate a reading; a box below it can,
 # which is what the `oom_kill` / disk-exhausted / timeout fields beside a
 # measurement report.
-from derive_sizing import CEILING  # noqa: E402
-
 # oom_kill separates a kernel kill from a deadline; memory.peak beside
 # memory.max shows a near miss as well as a hit; cpu.stat's usage_usec over the
 # solve's wall time is the mean cores the reference solution drew. The same
@@ -228,13 +226,21 @@ async def probe(
     require_paths: list[str] | None = None,
     pretest: tuple[str, str] | None = None,
     protected: "pack.Protected | None" = None,
+    prepared_row: dict | None = None,
+    check_terminal: bool = True,
 ) -> dict:
+    # Retained for callers of the former optional smoke check. Reference and
+    # shortcut commands now always run through Terminus.
     # `pretest` is the row's pin hook; the adapter puts it on the grading
     # payload beside this package's own environment identity, so grade_tmax
     # below runs it, or skips it, exactly as a training rollout would.
     # `protected` is the lists the variant inherits from its row (the package's
     # own file overrides inside to_row): the same lists the fold will use.
-    row = pack.to_row(str(pkg), pretest=pretest, protected=protected)
+    row = (
+        prepared_row
+        if prepared_row is not None
+        else pack.to_row(str(pkg), pretest=pretest, protected=protected)
+    )
     md = row["metadata"]
     tmax = md["tmax"]
     workdir = md.get("workdir") or "/workspace"
@@ -322,22 +328,42 @@ async def probe(
         # verifier re-digests and a difference grades 0. None without entries.
         baseline = await capture_baseline(sb, tmax, workdir=workdir, timeout=120)
         t0 = time.time()
-        code, out, err = await sb.exec(cmd, check=False, timeout=solve_timeout)
+        execution = await run_reference(sb, cmd, solve_timeout)
+        code, out, err = (execution[key] for key in ("solve_exit", "stdout", "stderr"))
+        terminal = execution["terminal"]
         log(f"run exit={code}")
         measured = await measure(sb, time.time() - t0, tail=(out or "") + (err or ""))
-        reward = await grade_tmax(sb, tmax, workdir=workdir, baseline_digests=baseline)
+        grading = {}
+        reward = (
+            await grade_tmax(
+                sb,
+                tmax,
+                workdir=workdir,
+                baseline_digests=baseline,
+                diagnostics=grading,
+            )
+            if execution["submitted"]
+            else 0.0
+        )
     tail = (out + "\n" + err)[-400:]
     if shortcut is None:
         why = starved(measured, code, solve_timeout) if reward < 1.0 else ""
         return {
-            "ok": reward >= 1.0,
+            "ok": reward >= 1.0 and code == 0 and execution["submitted"],
             "stage": "daytona_oracle",
             "reward": reward,
             "solve_exit": code,
+            "execution_harness": execution["execution_harness"],
+            "transcript": execution["transcript"],
+            "solve_stdout": out,
+            "solve_stderr": err,
+            "pane_error": execution.get("pane_error"),
+            "grading": grading,
             "tail": tail,
             "resources": box,
             "measured": measured,
             "pretest": hook,
+            "terminal": terminal,
             "paths_checked": list(require_paths or []),
             "paths_missing": missing,
             **(
@@ -354,9 +380,11 @@ async def probe(
         "stage": "daytona_shortcut",
         "passed": reward >= 1.0,
         "reward": reward,
+        "grading": grading,
         "tail": tail,
         "resources": box,
         "pretest": hook,
+        "terminal": terminal,
         "paths_checked": list(require_paths or []),
         "paths_missing": missing,
     }

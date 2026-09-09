@@ -28,7 +28,6 @@ Only two payloads cross the Monarch RPC boundary: the raw ``sample`` in, and the
 
 from __future__ import annotations
 
-import asyncio
 import logging
 import os
 from dataclasses import replace
@@ -126,8 +125,6 @@ class RolloutWorker(Actor):
             )
         self._rollouter: Rollouter = rollouter_config.build()
         self._generator_router: InterGeneratorRouter | None = None
-        # Strong refs for fire-and-forget cancel_generation RPCs.
-        self._cancel_rpc_tasks: set[asyncio.Task] = set()
 
     @endpoint
     async def setup(self, generators: list) -> None:
@@ -200,10 +197,6 @@ class RolloutWorker(Actor):
         """
         router = self._generator_router
 
-        # Strong refs for fire-and-forget cancel RPCs (a bare create_task can be
-        # garbage-collected mid-flight).
-        cancel_tasks: set[asyncio.Task] = self._cancel_rpc_tasks
-
         @sl.log_trace_span("generate")
         async def generate(
             prompt_token_ids: list[int],
@@ -212,41 +205,18 @@ class RolloutWorker(Actor):
             routing_session_id: str | None = None,
             sampling_config: SamplingConfig | None = None,
         ):
-            try:
-                result = await router.route(
-                    "generate",
-                    prompt_token_ids,
-                    request_id=request_id,
-                    routing_session_id=routing_session_id,
-                    sampling_config=sampling_config,
-                    metrics_prefix="generator",
-                    routing_ctx=RoutingContext(
-                        estimated_cost=1,
-                        session_id=routing_session_id,
-                    ),
-                )
-            except BaseException:
-                # The rollout is giving up on this turn (budget/guard
-                # cancellation, or the RPC failed). Without a cancel, the
-                # request stays queued on the generator and is generated at
-                # full cost for nobody -- orphans like that starved every live
-                # first turn on 08-29. Fire-and-forget so a cancellation
-                # handler never blocks; sticky routing sends the cancel to the
-                # same generator the request went to.
-                async def _cancel() -> None:
-                    await router.route(
-                        "cancel_generation",
-                        request_id=request_id,
-                        routing_ctx=RoutingContext(
-                            estimated_cost=0,
-                            session_id=routing_session_id,
-                        ),
-                    )
-
-                task = asyncio.create_task(_cancel())
-                cancel_tasks.add(task)
-                task.add_done_callback(cancel_tasks.discard)
-                raise
+            result = await router.route(
+                "generate",
+                prompt_token_ids,
+                request_id=request_id,
+                routing_session_id=routing_session_id,
+                sampling_config=sampling_config,
+                metrics_prefix="generator",
+                routing_ctx=RoutingContext(
+                    estimated_cost=1,
+                    session_id=routing_session_id,
+                ),
+            )
             # route returns a per-rank ValueMesh; all ranks return the same value.
             return result.get(0)
 

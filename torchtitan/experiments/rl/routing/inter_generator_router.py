@@ -9,6 +9,7 @@
 from __future__ import annotations
 
 import asyncio
+import logging
 from collections.abc import Sequence
 from dataclasses import dataclass, field
 from enum import auto, Enum
@@ -21,6 +22,8 @@ from torchtitan.experiments.rl.routing.strategies import (
 )
 from torchtitan.experiments.rl.routing.types import RoutingCandidate, RoutingContext
 from torchtitan.observability import structured_logger as sl
+
+logger = logging.getLogger(__name__)
 
 
 class _GeneratorState(Enum):
@@ -95,6 +98,7 @@ class InterGeneratorRouter(Configurable):
             h.idle.set()
 
         self._strategy = config.strategy.build()
+        self._cancel_tasks: set[asyncio.Task] = set()
         self._serving = asyncio.Event()
         self._refresh_serving_status()
 
@@ -152,8 +156,24 @@ class InterGeneratorRouter(Configurable):
         self._reserve(h, routing_ctx.estimated_cost)
         try:
             return await getattr(h.actor, method).call(*args, **kwargs)
+        except BaseException:
+            if method == "generate" and "request_id" in kwargs:
+                # The chosen actor owns the request even if routing preferences
+                # or serving states have changed while the caller was waiting.
+                task = asyncio.create_task(
+                    self._cancel_generation(h, kwargs["request_id"])
+                )
+                self._cancel_tasks.add(task)
+                task.add_done_callback(self._cancel_tasks.discard)
+            raise
         finally:
             self._release(h, routing_ctx.estimated_cost)
+
+    async def _cancel_generation(self, h: _GeneratorHandle, request_id: str) -> None:
+        try:
+            await h.actor.cancel_generation.call(request_id=request_id)
+        except Exception:
+            logger.exception("Failed to cancel generation request %s", request_id)
 
     async def fanout(
         self,

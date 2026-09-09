@@ -1,3 +1,9 @@
+# Copyright (c) Meta Platforms, Inc. and affiliates.
+# All rights reserved.
+#
+# This source code is licensed under the BSD-style license found in the
+# LICENSE file in the root directory of this source tree.
+
 """The integrity baseline reaches the breeding loop. A package's protected lists -- off the
 reaudit parquet, off the mix row a rewrite descends from, or off the package's own
 tests/protected_paths.json -- land on the row through the one shared helper, and the loop's
@@ -137,7 +143,7 @@ def test_malformed_lists_refuse_by_id(tmp_path) -> None:
             pack.to_row(str(pkg), protected=bad)
 
 
-def test_Protected_reads_cells_by_the_prep_scripts_rules_and_rows_by_their_keys() -> None:
+def test_protected_reads_cells_by_the_prep_scripts_rules_and_rows_by_their_keys() -> None:
     assert pack.Protected.from_cells(None, None) is None
     assert pack.Protected.from_cells("", "  ") is None
     assert pack.Protected.from_cells("[]", "[]") is None  # empty lists are nothing
@@ -259,6 +265,18 @@ def _fake_revalidator(events: list) -> types.ModuleType:
     async def measure(_sb, _secs, tail=""):
         return {}
 
+    async def run_reference(sb, cmd, timeout):
+        code, out, err = await sb.exec(cmd, check=False, timeout=timeout)
+        return {
+            "solve_exit": code,
+            "stdout": out,
+            "stderr": err,
+            "submitted": True,
+            "terminal": {},
+            "transcript": [],
+            "execution_harness": "terminus",
+        }
+
     async def capture_baseline(_sb, tmax, *, workdir, timeout):
         entries = ib.protected_entries_of(tmax)
         got = {e: "d" * 64 for _, e in entries} or None
@@ -274,6 +292,7 @@ def _fake_revalidator(events: list) -> types.ModuleType:
     dr._start_entrypoint = _start_entrypoint
     dr.seed_workspace = seed_workspace
     dr.measure = measure
+    dr.run_reference = run_reference
     dr.capture_baseline = capture_baseline
     dr.grade_tmax = grade_tmax
     dr._harness_provenance = lambda: "test"
@@ -449,6 +468,7 @@ def _probe(pkg: Path, monkeypatch, events: list, pretest=None) -> dict:
         "_start_entrypoint",
         "seed_workspace",
         "measure",
+        "run_reference",
         "capture_baseline",
         "grade_tmax",
     ):
@@ -531,6 +551,8 @@ def _wire(
     fake = _fake_revalidator(events)
     for name in names:
         monkeypatch.setattr(module, name, getattr(fake, name))
+    if hasattr(module, "dr"):
+        monkeypatch.setattr(module.dr, "run_reference", fake.run_reference)
 
 
 def _captured_then_graded(
@@ -591,7 +613,7 @@ def test_oom_probe_takes_the_baseline_before_the_run(tmp_path, monkeypatch) -> N
         )  # counters read before grading
 
 
-def test_solver_chat_agent_takes_the_baseline_before_its_first_command(
+def test_solver_terminus_agent_takes_the_baseline_before_its_first_command(
     tmp_path, monkeypatch
 ) -> None:
     import solve_daytona as sd
@@ -600,14 +622,19 @@ def test_solver_chat_agent_takes_the_baseline_before_its_first_command(
         row = pack.to_row(str(_package(tmp_path, name, lists)))
         events: list = []
         _wire(monkeypatch, sd, events)
-        turns = iter(["echo hi", "DONE"])
-        monkeypatch.setattr(sd.llm, "agent_step", lambda _i, _h: next(turns))
-        got = asyncio.run(sd.attempt(row, 0, 3, agent="chat"))
+        from torchtitan.experiments.rl.harness.agents.spec import AgentRun
+
+        async def run(task):
+            events.append(("terminus", task.instruction))
+            return AgentRun(turns=1, submitted=True, finish_reason="submit")
+
+        monkeypatch.setattr(sd, "terminus_agent", run)
+        got = asyncio.run(sd.attempt(row, 0, 3, agent="terminus"))
         assert (got["reward"], got["turns"]) == (1.0, 1), got
         _captured_then_graded(
             events, before="seed_workspace", after="exec", n_entries=4 if lists else 0
         )
-        assert [e[1] for e in events if e[0] == "exec"] == ["echo hi"]
+        assert [e[1] for e in events if e[0] == "exec"] == ["tmux -V"]
 
 
 def test_solver_codex_agent_takes_the_baseline_before_codex_runs(

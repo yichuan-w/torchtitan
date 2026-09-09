@@ -113,64 +113,18 @@ _MAX_CONTEXT_BYTES = 1 << 20
 
 _DEFAULT_WORKDIR = "/app"
 
-# A latency optimization, NOT a requirement. Terminus-2 installs tmux itself at
-# session bring-up (harbor ``TmuxSession.start`` -> ``_attempt_tmux_installation``:
-# package manager first, then a from-source build), so an image without tmux is not
-# unsolvable. Measured against un-injected TerminalWorld-Seeds images, harbor's
-# runtime install succeeded on 6/6 bases -- ubuntu:16.04 5.0s, centos:7 (yum) 10.9s,
-# ubuntu:22.04 9.1s. Baking the step in moves those seconds off every rollout and
-# onto the once-per-Dockerfile Daytona build, at the cost of coupling the JSONL to
-# one harness; hence opt-in, off by default.
-#
-# The archive-mirror rewrites keep the EOL bases (centos:7, ubuntu:16.04, debian
-# buster/stretch) buildable if their default mirrors go away.
-# Non-fatal by design: the whole install runs in a subshell whose failure is caught by
-# `|| echo ...`, so the RUN always exits 0 and a tmux preinstall failure never fails the
-# image build. Rationale: some source bases have a broken package path we don't control
-# (e.g. an EOL mirror, or a distro whose pkg manager we don't branch on), and a hard
-# `exit 1` there dropped the ENTIRE image to BUILD_FAILED -- e.g. tw_473991 (archlinux)
-# fell through to the old `else: exit 1` because pacman had no branch, and its 192
-# rollouts all BUILD_FAILED and burned Daytona create quota. Terminus normally
-# self-installs tmux at runtime, but that fallback uses the same package sources.
-# Keep the injected repair complete enough that an obsolete security suite cannot
-# leave a successfully-built image without tmux (tw_307912 did exactly that with
-# redis:5.0 and a dead bullseye-security archive entry).
-# @andy: once the environment/base images are fixed so every task builds tmux, flip this
-# back to strict (drop the `|| echo` catch and restore `exit 1` in the else) to surface
-# real regressions instead of silently shipping images without tmux.
+# tmux is an admission requirement for terminal-agent images. Fail the build
+# when installation fails; runtime fallback would retry the same broken package
+# sources independently in every sibling rollout.
 _AGENT_RUNTIME_BLOCK = """
-# harbor-agent-runtime: tmux is required by the terminal agent (non-fatal preinstall)
+# harbor-agent-runtime: tmux is required by the terminal agent
 RUN ( if command -v tmux >/dev/null 2>&1; then \\
         exit 0; \\
       elif command -v apt-get >/dev/null 2>&1; then \\
-        (apt-get update || ( \\
-          for sources in /etc/apt/sources.list /etc/apt/sources.list.d/*.list; do \\
-            [ -f "$sources" ] || continue; \\
-            sed -i -e 's|http://deb.debian.org/debian|http://archive.debian.org/debian|g' \\
-                   -e 's|http://security.debian.org/debian-security|http://archive.debian.org/debian-security|g' \\
-                   -e 's|http://deb.debian.org/debian-security|http://archive.debian.org/debian-security|g' \\
-                   -e 's|http://archive.ubuntu.com/ubuntu|http://old-releases.ubuntu.com/ubuntu|g' \\
-                   -e 's|http://security.ubuntu.com/ubuntu|http://old-releases.ubuntu.com/ubuntu|g' \\
-                   -e 's|http://.*archive.ubuntu.com/ubuntu|http://old-releases.ubuntu.com/ubuntu|g' \\
-                   "$sources"; \\
-          done; \\
-          echo 'Acquire::Check-Valid-Until "false";' > /etc/apt/apt.conf.d/99harbor-archive; \\
-          apt-get update || ( \\
-            for sources in /etc/apt/sources.list /etc/apt/sources.list.d/*.list; do \\
-              [ -f "$sources" ] || continue; \\
-              sed -i '/debian-security/s/^[[:space:]]*deb/# disabled obsolete security suite: deb/' "$sources"; \\
-            done; \\
-            apt-get update \\
-          ) \\
-        )) && (apt-get install -y tmux || apt-get install -y --allow-unauthenticated tmux) \\
+        apt-get update && apt-get install -y tmux \\
         && rm -rf /var/lib/apt/lists/*; \\
       elif command -v yum >/dev/null 2>&1; then \\
-        (yum install -y tmux || ( \\
-          sed -i -e 's|^mirrorlist=|#mirrorlist=|g' \\
-                 -e 's|^#baseurl=http://mirror.centos.org|baseurl=http://vault.centos.org|g' \\
-                 /etc/yum.repos.d/CentOS-*.repo 2>/dev/null; \\
-          yum install -y tmux \\
-        )) && yum clean all; \\
+        yum install -y tmux && yum clean all; \\
       elif command -v dnf >/dev/null 2>&1; then \\
         dnf install -y tmux && dnf clean all; \\
       elif command -v microdnf >/dev/null 2>&1; then \\
@@ -184,56 +138,17 @@ RUN ( if command -v tmux >/dev/null 2>&1; then \\
       else \\
         echo 'ERROR: no supported package manager to install tmux' >&2; exit 1; \\
       fi ) \\
-    || echo 'harbor-agent-runtime: tmux preinstall failed (non-fatal); Terminus will self-install at runtime' >&2
-"""
-
-# Some upstream Dockerfiles run apt before the trailing tmux layer. On an EOL
-# Debian/Ubuntu base that original RUN fails first, so the repair in
-# _AGENT_RUNTIME_BLOCK is never reached. Put this non-fatal probe at the start of
-# every stage that uses apt; if the normal mirrors still work it changes nothing,
-# and if they do not it repairs them before any upstream apt instruction runs.
-_APT_SOURCES_PREFLIGHT_BLOCK = r"""# harbor-agent-runtime: repair obsolete apt sources before upstream RUN layers
-RUN ( command -v apt-get >/dev/null 2>&1 || exit 0; \
-      apt-get update >/dev/null 2>&1 || ( \
-        for sources in /etc/apt/sources.list /etc/apt/sources.list.d/*.list; do \
-          [ -f "$sources" ] || continue; \
-          sed -i -e 's|http://deb.debian.org/debian|http://archive.debian.org/debian|g' \
-                 -e 's|http://security.debian.org/debian-security|http://archive.debian.org/debian-security|g' \
-                 -e 's|http://deb.debian.org/debian-security|http://archive.debian.org/debian-security|g' \
-                 -e 's|http://archive.ubuntu.com/ubuntu|http://old-releases.ubuntu.com/ubuntu|g' \
-                 -e 's|http://security.ubuntu.com/ubuntu|http://old-releases.ubuntu.com/ubuntu|g' \
-                 -e 's|http://.*archive.ubuntu.com/ubuntu|http://old-releases.ubuntu.com/ubuntu|g' \
-                 "$sources"; \
-        done; \
-        echo 'Acquire::Check-Valid-Until "false";' > /etc/apt/apt.conf.d/99harbor-archive; \
-        apt-get update >/dev/null 2>&1 || ( \
-          for sources in /etc/apt/sources.list /etc/apt/sources.list.d/*.list; do \
-            [ -f "$sources" ] || continue; \
-            sed -i '/debian-security/s/^[[:space:]]*deb/# disabled obsolete security suite: deb/' "$sources"; \
-          done; \
-          apt-get update >/dev/null 2>&1 \
-        ) \
-      ) ) || echo 'harbor-agent-runtime: apt source preflight failed (non-fatal)' >&2
+    && tmux -V
 """
 
 
 def _inject_agent_runtime(dockerfile: str) -> str:
-    """Repair apt stages before upstream RUNs, then install tmux in the final stage."""
-    from_matches = list(re.finditer(r"(?mi)^\s*FROM\s+[^\n]+\n?", dockerfile))
-    insert_at: list[int] = []
-    for i, match in enumerate(from_matches):
-        stage_end = (
-            from_matches[i + 1].start() if i + 1 < len(from_matches) else len(dockerfile)
-        )
-        if re.search(r"\bapt-get\b", dockerfile[match.end() : stage_end]):
-            insert_at.append(match.end())
+    """Require tmux in the final stage using the task's declared package sources.
 
-    for offset in reversed(insert_at):
-        dockerfile = (
-            dockerfile[:offset]
-            + _APT_SOURCES_PREFLIGHT_BLOCK
-            + dockerfile[offset:]
-        )
+    Source repairs belong in the task Dockerfile before its first package
+    operation. A network or signing failure must not rewrite healthy sources
+    or disable security repositories in an otherwise unrelated build.
+    """
     return dockerfile.rstrip("\n") + "\n" + _AGENT_RUNTIME_BLOCK
 
 
@@ -437,7 +352,10 @@ def _grading_fixtures(task_dir: str) -> tuple[dict[str, str], str | None]:
     fixtures: dict[str, str] = {}
     total = 0
     base = os.path.join(task_dir, "tests")
-    for dirpath, _dirs, files in os.walk(base):
+    for dirpath, dirs, files in os.walk(base):
+        # Host-side verifier inspection can leave Python bytecode caches. They
+        # are regenerated by Python and are not task fixtures.
+        dirs[:] = [name for name in dirs if name != "__pycache__"]
         for fn in sorted(files):
             abspath = os.path.join(dirpath, fn)
             rel = os.path.relpath(abspath, task_dir)
@@ -529,7 +447,7 @@ def _to_row(
     task_dir: str,
     *,
     task_id: str | None = None,
-    inject_agent_runtime: bool = False,
+    inject_agent_runtime: bool = True,
     resources: dict[str, int] | None = None,
     pretest: tuple[str, str] | None = None,
 ) -> tuple[dict | None, str]:
@@ -684,7 +602,7 @@ def build_rows(
     limit: int | None = None,
     seed: int = 42,
     max_oracle_commands: int | None = None,
-    inject_agent_runtime: bool = False,
+    inject_agent_runtime: bool = True,
     resource_map: dict[str, dict[str, int]] | None = None,
     pretest_map: dict[str, tuple[str, str]] | None = None,
 ) -> tuple[list[dict], dict[str, int]]:
@@ -759,10 +677,10 @@ def main() -> None:
     )
     ap.add_argument(
         "--inject-agent-runtime",
-        action="store_true",
-        help="append a tmux install step to each Dockerfile -- required for corpora "
-        "that ship the upstream task content verbatim (TerminalWorld-Seeds) rather "
-        "than RTS, whose Dockerfiles already carry it",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+        help="require tmux in the final image (default: enabled); disable only "
+        "when preparing data for a harness that does not use tmux",
     )
     ap.add_argument(
         "--metadata-parquet",
