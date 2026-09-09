@@ -8,6 +8,7 @@
 
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass, field
 
 from torchtitan.config import Configurable
@@ -16,6 +17,8 @@ from torchtitan.experiments.rl.routing.strategies import (
     StickySessionRoutingStrategy,
 )
 from torchtitan.experiments.rl.routing.types import RoutingCandidate, RoutingContext
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass(kw_only=True, slots=True)
@@ -64,6 +67,27 @@ class IntraGeneratorRouter(Configurable):
         # request_id -> the DP rank reserved for that request, so ``release`` can
         # free the load on the same rank when the request's completion resolves.
         self._reservations: dict[str, int] = {}
+        # Keep routing diagnostics cheap: one snapshot per 128 reserve/release
+        # operations is enough to compare the router's count with vLLM Running.
+        self._reserve_count = 0
+        self._release_count = 0
+
+    def _log_load_snapshot(self, event: str, *, request_id: str, dp_rank: int) -> None:
+        """Log sampled reservation state for diagnosing DP skew."""
+        count = max(self._reserve_count, self._release_count)
+        if count % 128 != 0:
+            return
+        logger.info(
+            "[routing] intra_dp event=%s request=%s chosen_dp=%d "
+            "reserved_load=%s active_reservations=%d reserves=%d releases=%d",
+            event,
+            request_id,
+            dp_rank,
+            [h.reserved_load for h in self._handles],
+            len(self._reservations),
+            self._reserve_count,
+            self._release_count,
+        )
 
     def reserve(self, request_id: str, *, routing_session_id: str | None) -> int:
         """Pick a DP rank for one request and reserve one load unit on it.
@@ -80,6 +104,8 @@ class IntraGeneratorRouter(Configurable):
         handle = self._strategy.choose(ctx, self._handles)
         handle.reserved_load += 1
         self._reservations[request_id] = handle.dp_rank
+        self._reserve_count += 1
+        self._log_load_snapshot("reserve", request_id=request_id, dp_rank=handle.dp_rank)
         return handle.dp_rank
 
     def release(self, request_id: str) -> None:
@@ -91,6 +117,8 @@ class IntraGeneratorRouter(Configurable):
         assert (
             handle.reserved_load >= 0
         ), f"dp rank {dp_rank} reserved_load went negative: {handle.reserved_load}"
+        self._release_count += 1
+        self._log_load_snapshot("release", request_id=request_id, dp_rank=dp_rank)
 
     def release_all(self) -> None:
         """Release every reservation when the generator fails or closes."""
