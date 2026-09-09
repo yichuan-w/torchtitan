@@ -278,12 +278,20 @@ class _CountingParser:
     def __init__(self, inner: Any) -> None:
         self._inner = inner
         self.format_errors = 0
+        self.completion_signals = 0
 
     def __getattr__(self, name: str) -> Any:
         return getattr(self._inner, name)
 
     def parse_response(self, content: str) -> Any:
         result = self._inner.parse_response(content)
+        # Harbor leaves a pending completion unchanged on parsing errors. Only
+        # successfully parsed responses can confirm it or withdraw it.
+        if not getattr(result, "error", None):
+            if getattr(result, "is_task_complete", False):
+                self.completion_signals += 1
+            else:
+                self.completion_signals = 0
         if not getattr(result, "commands", None) and not getattr(
             result, "is_task_complete", False
         ):
@@ -569,17 +577,13 @@ async def terminus_agent(
                         raise
                     raise _TimeBudgetExhausted("agent execution budget spent") from None
             turns = _episodes(agent)
-            # Terminus-2's loop has THREE exits, and only one of them is a submit:
-            # it runs the episodes out; it returns early on a confirmed
-            # <task_complete>true</task_complete> (the second consecutive one, at
-            # which point ``_pending_completion`` is still set); or it returns early
-            # because ``is_session_alive()`` went false, i.e. the tmux session died
-            # under it. Reading "ended before the cap" as the submit signal folds that
-            # third case into "submit" and scores a dead session as a real attempt.
-            if turns >= max_episodes:
-                finish_reason = "hit_max_turns"
-            elif getattr(agent, "_pending_completion", False):
+            # A pending completion also survives session death after the first
+            # signal. Require both signals and a normal return from agent.run.
+            # Confirmation on the last allowed episode still counts as a submit.
+            if parser is not None and parser.completion_signals >= 2:
                 finish_reason = "submit"
+            elif turns >= max_episodes:
+                finish_reason = "hit_max_turns"
             else:
                 finish_reason = "stopped_early"
             submitted = finish_reason == "submit"

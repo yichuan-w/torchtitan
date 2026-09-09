@@ -591,6 +591,7 @@ async def _serve(pkg: Path, sock: str, resources: dict | None = None) -> int:
                 return {"ok": True, "solve_exit": code, "reward": reward,
                         "execution_harness": "terminus", "terminal": execution["terminal"],
                         "transcript": execution["transcript"],
+                        "pane_error": execution.get("pane_error"),
                         "measured": measured, "resources": box,
                         "tail": (out + "\n" + err)[-4000:]}
 

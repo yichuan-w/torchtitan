@@ -114,3 +114,51 @@ def test_declared_budget_is_not_replaced_by_the_sweep_floor(tmp_path):
     (tmp_path / "task.toml").write_text("[agent]\ntimeout_sec = 3600\n")
     assert declared_solve_budget(tmp_path, 900) == 3600
     assert declared_solve_budget(tmp_path, 7200) == 7200
+
+
+def test_reference_error_keeps_terminal_observations(monkeypatch):
+    sb = SimpleNamespace(
+        exec=AsyncMock(return_value=(0, "tmux 3.2", "")),
+        write_file=AsyncMock(),
+    )
+
+    async def run(task, **_kwargs):
+        await task.adapter.complete("s", body("terminal before failure"))
+        raise RuntimeError("session disappeared")
+
+    monkeypatch.setattr(tv, "terminus_agent", run)
+    with pytest.raises(tv.ReferenceExecutionError, match="session disappeared") as err:
+        asyncio.run(tv.run_reference(sb, "exit 0", 30))
+    assert err.value.validation["transcript"][0]["prompt"] == "terminal before failure"
+
+
+def test_pane_read_error_preserves_confirmed_exit(monkeypatch):
+    sb = SimpleNamespace(
+        exec=AsyncMock(return_value=(0, "tmux 3.2", "")),
+        write_file=AsyncMock(),
+        read_file=AsyncMock(side_effect=RuntimeError("read failed")),
+    )
+
+    async def run(task, **_kwargs):
+        task.adapter.exit_code = 7
+        return AgentRun(turns=3, submitted=True, finish_reason="submit", pane_path="/pane")
+
+    monkeypatch.setattr(tv, "terminus_agent", run)
+    result = asyncio.run(tv.run_reference(sb, "exit 7", 30))
+    assert result["solve_exit"] == 7 and result["submitted"]
+    assert result["pane_error"] == "RuntimeError: read failed"
+
+
+def test_raw_provider_returns_empty_truncation_without_retry(monkeypatch):
+    import synth_client
+    from unittest.mock import Mock
+
+    response = {
+        "choices": [{"message": {"content": None}, "finish_reason": "length"}],
+        "usage": {"prompt_tokens": 10, "completion_tokens": 24000},
+    }
+    create = Mock(return_value=SimpleNamespace(model_dump=lambda: response))
+    client = SimpleNamespace(chat=SimpleNamespace(completions=SimpleNamespace(create=create)))
+    monkeypatch.setattr(synth_client, "_client", lambda: client)
+    assert synth_client.chat_response(body("prompt")["messages"]) == response
+    create.assert_called_once()

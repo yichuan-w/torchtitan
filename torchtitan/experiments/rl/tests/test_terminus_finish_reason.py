@@ -10,9 +10,9 @@ Terminus-2's episode loop has three exits and only one is a submit:
 
 1. it runs the episodes out (``_n_episodes == max_turns``);
 2. it returns early on a CONFIRMED ``<task_complete>true</task_complete>`` -- the
-   second consecutive one, at which point ``_pending_completion`` is still set;
+   second accepted one, with no intervening action withdrawing completion;
 3. it returns early because ``is_session_alive()`` went false, i.e. the tmux
-   session died under it, with no completion claimed at all.
+   session died under it, possibly with one unconfirmed completion pending.
 
 Reading "ended before the cap" as the submit signal folds 3 into 2 and reports a
 dead session as a real attempt, which then scores 0 and looks like a model failure.
@@ -150,8 +150,50 @@ def _run(monkeypatch, *, max_turns: int, built: list | None = None, **agent_kwar
 
 
 def test_confirmed_task_complete_is_a_submit(monkeypatch):
-    run = _run(monkeypatch, max_turns=10, episodes=4, pending_completion=True)
+    run = _run(
+        monkeypatch, max_turns=10, episodes=4, pending_completion=True,
+        parse_results=[_parse_result(is_task_complete=True)] * 2,
+    )
     assert (run.finish_reason, run.submitted, run.turns) == ("submit", True, 4)
+
+
+def test_session_death_after_first_completion_does_not_submit(monkeypatch):
+    run = _run(
+        monkeypatch, max_turns=10, episodes=4, pending_completion=True,
+        parse_results=[_parse_result(is_task_complete=True)],
+    )
+    assert (run.finish_reason, run.submitted) == ("stopped_early", False)
+
+
+def test_confirmation_on_last_episode_submits(monkeypatch):
+    run = _run(
+        monkeypatch, max_turns=2, episodes=2, pending_completion=True,
+        parse_results=[_parse_result(is_task_complete=True)] * 2,
+    )
+    assert (run.finish_reason, run.submitted) == ("submit", True)
+
+
+def test_an_action_withdraws_pending_completion(monkeypatch):
+    run = _run(
+        monkeypatch, max_turns=10, episodes=4, pending_completion=True,
+        parse_results=[
+            _parse_result(is_task_complete=True),
+            _parse_result(commands=["pwd"]),
+            _parse_result(is_task_complete=True),
+        ],
+    )
+    assert (run.finish_reason, run.submitted) == ("stopped_early", False)
+
+
+def test_a_parsing_error_cannot_confirm_completion(monkeypatch):
+    run = _run(
+        monkeypatch, max_turns=10, episodes=4, pending_completion=True,
+        parse_results=[
+            _parse_result(is_task_complete=True),
+            _parse_result(is_task_complete=True, error="invalid commands"),
+        ],
+    )
+    assert (run.finish_reason, run.submitted) == ("stopped_early", False)
 
 
 def test_a_dead_session_is_stopped_early_not_a_submit(monkeypatch):
@@ -298,10 +340,11 @@ def test_the_summarize_flag_restores_upstream_behavior(monkeypatch):
 # --------------------------------------------------------------------------
 
 
-def _parse_result(*, commands=(), is_task_complete=False):
+def _parse_result(*, commands=(), is_task_complete=False, error=None):
     result = MagicMock()
     result.commands = list(commands)
     result.is_task_complete = is_task_complete
+    result.error = error
     return result
 
 

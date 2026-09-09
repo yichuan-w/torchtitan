@@ -355,6 +355,7 @@ async def probe(
             "transcript": execution["transcript"],
             "solve_stdout": out,
             "solve_stderr": err,
+            "pane_error": execution.get("pane_error"),
             "grading": grading,
             "tail": tail,
             "resources": box,

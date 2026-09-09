@@ -1,11 +1,9 @@
 #!/usr/bin/env python3
 """Measure pass@k for task packages by solving them on Daytona sandboxes.
 
-The docker-based solve_eval needs a host with docker (flaminio, currently
-unreachable); this is the same measurement on the platform training already
-uses. Per attempt: boot the package's environment exactly as training rollouts
-do (dockerfile+build_context, entrypoint, workspace seeding), let the solver
-model drive it one bash command per turn, then grade with the real verifier.
+Per attempt: boot the package's environment with its Dockerfile, build context,
+entrypoint and workspace seeding, then run the solver through training's
+Terminus agent and grade with the real verifier after confirmed submission.
 Fresh sandbox per attempt; the reference solution is never staged.
 
 Resumable (task ids already graded in --out are skipped), observable
@@ -78,7 +76,7 @@ CODEX_URL = os.environ.get(
 async def _codex_attempt(sb, md: dict, workdir: str, budget: int) -> dict:
     """One attempt driven by the OpenAI Codex CLI inside the sandbox.
 
-    A second measurement instrument beside the bare chat loop -- NOT the one
+    A separate measurement instrument from Terminus, distinct from the one
     the corpus's pass@5/solvable definition was measured with; report its
     numbers as a separate column. Codex runs through the Responses API with a
     coding-optimized context, so it is the instrument to reach for on tasks the
@@ -182,7 +180,7 @@ async def attempt(row: dict, idx: int, max_turns: int,
                 await dr._start_entrypoint(sb, md["entrypoint"], workdir=workdir)
             await seed_workspace(sb, tmax)
             # INTEGRITY BASELINE: after setup, before the agent's first action --
-            # the rollouter's seam -- for the codex and the chat agent alike.
+            # the rollouter's seam for both Codex and Terminus.
             baseline = await capture_baseline(sb, tmax, workdir=workdir, timeout=120)
             if agent == "codex":
                 a = await _codex_attempt(sb, md, workdir,

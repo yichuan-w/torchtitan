@@ -138,7 +138,8 @@ async def verify(tid: str, cpu: int, mem: int, disk: int,
                 execution = await dr.run_reference(sb, cmd or "bash /solution/solve.sh", timeout)
                 code, out, err = (execution[key] for key in ("solve_exit", "stdout", "stderr"))
                 rec.update(execution_harness="terminus", terminal=execution["terminal"],
-                           transcript=execution["transcript"])
+                           transcript=execution["transcript"],
+                           pane_error=execution.get("pane_error"))
                 solve_secs = round(time.time() - t0, 1)
                 # Before grading, which starts processes of its own and would
                 # fold their memory into a peak meant to describe the solution.
