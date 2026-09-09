@@ -91,3 +91,8 @@ class IntraGeneratorRouter(Configurable):
         assert (
             handle.reserved_load >= 0
         ), f"dp rank {dp_rank} reserved_load went negative: {handle.reserved_load}"
+
+    def release_all(self) -> None:
+        """Release every reservation when the generator fails or closes."""
+        for request_id in list(self._reservations):
+            self.release(request_id)

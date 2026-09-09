@@ -172,16 +172,25 @@ def test_max_turns_wins_over_a_pending_completion(monkeypatch):
     assert run.submitted is False
 
 
-def test_an_error_keeps_the_episodes_it_got_through(monkeypatch):
-    """Reporting 0 turns here misattributes turns that are still trained on."""
-    run = _run(
-        monkeypatch,
-        max_turns=10,
-        episodes=6,
-        pending_completion=False,
-        raises=RuntimeError("adapter returned no completion"),
+def test_an_unexpected_error_is_not_a_scored_attempt(monkeypatch):
+    with pytest.raises(RuntimeError, match="adapter returned no completion"):
+        _run(
+            monkeypatch,
+            max_turns=10,
+            episodes=6,
+            pending_completion=False,
+            raises=RuntimeError("adapter returned no completion"),
+        )
+
+
+def test_tmux_setup_failure_propagates(monkeypatch):
+    monkeypatch.setattr(
+        _FakeTerminus2,
+        "setup",
+        AsyncMock(side_effect=RuntimeError("Failed to start tmux session")),
     )
-    assert (run.finish_reason, run.submitted, run.turns) == ("error", False, 6)
+    with pytest.raises(RuntimeError, match="Failed to start tmux session"):
+        _run(monkeypatch, max_turns=10, episodes=0, pending_completion=False)
 
 
 def test_sandbox_api_error_is_not_returned_as_an_unsuccessful_attempt(monkeypatch):
@@ -329,17 +338,18 @@ def test_a_turn_with_no_parsable_action_is_counted(monkeypatch):
 
 
 def test_format_errors_survive_a_crash(monkeypatch):
-    """They describe turns already captured for training, so an exception later in
-    the trajectory must not discard them."""
-    run = _run(
-        monkeypatch,
-        max_turns=150,
-        episodes=2,
-        pending_completion=False,
-        parse_results=[_parse_result(), _parse_result()],
-        raises=RuntimeError("boom"),
-    )
-    assert (run.finish_reason, run.format_errors) == ("error", 2)
+    built = []
+    with pytest.raises(RuntimeError, match="boom"):
+        _run(
+            monkeypatch,
+            max_turns=150,
+            episodes=2,
+            pending_completion=False,
+            parse_results=[_parse_result(), _parse_result()],
+            raises=RuntimeError("boom"),
+            built=built,
+        )
+    assert built[0]._parser.format_errors == 2
 
 
 def test_captured_subagent_calls_are_reported(monkeypatch, caplog):
@@ -488,14 +498,14 @@ def test_external_cancellation_is_not_agent_exhaustion(monkeypatch, caplog):
 
 
 def test_underlying_timeout_is_not_agent_exhaustion(monkeypatch):
-    run = _run(
-        monkeypatch,
-        max_turns=10,
-        episodes=2,
-        pending_completion=False,
-        raises=TimeoutError("sandbox transport"),
-    )
-    assert run.finish_reason == "error"
+    with pytest.raises(TimeoutError, match="sandbox transport"):
+        _run(
+            monkeypatch,
+            max_turns=10,
+            episodes=2,
+            pending_completion=False,
+            raises=TimeoutError("sandbox transport"),
+        )
 
 
 # --------------------------------------------------------------------------

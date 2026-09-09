@@ -232,9 +232,9 @@ def test_peer_result_drain_survives_late_completion(settlement):
                 )
             )
             await asyncio.sleep(0)
-            assert not drain.done(), (
-                f"peer completion drain died: {drain.exception()!r}"
-            )
+            assert (
+                not drain.done()
+            ), f"peer completion drain died: {drain.exception()!r}"
             assert futures["healthy"].done()
             assert futures["healthy"].result().request_id == "healthy"
             await queue.put(
@@ -273,6 +273,93 @@ def test_peer_result_drain_failure_is_logged_and_rejects_new_requests(caplog):
         with pytest.raises(RuntimeError, match="peer result drain has stopped"):
             dispatcher.rank0_register_future("new", "generator")
         assert "generator peer result drain crashed" in caplog.text
+
+    asyncio.run(main())
+
+
+def test_metric_failure_settles_the_current_future_and_all_siblings(monkeypatch):
+    import torchtitan.experiments.rl.actors.generator as mod
+
+    def fail_metrics(*args, **kwargs):
+        raise RuntimeError("invalid request metrics")
+
+    async def main():
+        dispatcher = _dispatcher(dp_degree=5)
+        futures = [
+            dispatcher.rank0_register_future(rid, "generator")
+            for rid in ("bad", "sibling", "queued")
+        ]
+        for rid in ("bad", "sibling"):
+            dispatcher._rank0_dp_router.reserve(rid, routing_session_id=rid)
+        queue = asyncio.Queue()
+        dispatcher._rank0_result_receiver = SimpleNamespace(recv=queue.get)
+        await queue.put(
+            dispatcher._build_completions([_request_output(request_id="bad")], 7)
+        )
+        monkeypatch.setattr(mod, "_prepare_generation_request_metrics", fail_metrics)
+        with pytest.raises(RuntimeError, match="invalid request metrics"):
+            await dispatcher._rank0_drain_results()
+        for future in futures:
+            assert future.done()
+            with pytest.raises(RuntimeError, match="invalid request metrics"):
+                await future
+        assert dispatcher._rank0_dp_router._reservations == {}
+
+    asyncio.run(main())
+
+
+def test_failed_engine_loop_rejects_new_work():
+    async def main():
+        generator = _generator()
+
+        async def fail():
+            raise RuntimeError("engine failed")
+
+        generator._engine_loop_task = asyncio.create_task(fail())
+        await asyncio.gather(generator._engine_loop_task, return_exceptions=True)
+        with pytest.raises(RuntimeError, match="engine loop has stopped") as raised:
+            await generator._ensure_engine_loop()
+        assert str(raised.value.__cause__) == "engine failed"
+
+    asyncio.run(main())
+
+
+@pytest.mark.parametrize("failed_rank", [None, "local", "peer"])
+def test_abort_requires_success_on_every_rank(monkeypatch, failed_rank):
+    import torchtitan.experiments.rl.actors.generator as mod
+
+    async def main():
+        generator = _generator()
+        dispatcher = generator._request_dispatcher = _dispatcher(dp_degree=2)
+        generator._broadcast_group = object()
+        future = dispatcher.rank0_register_future("r0", "generator")
+        dispatcher._rank0_dp_router.reserve("r0", routing_session_id="r0")
+
+        def abort(ids):
+            assert ids == ["r0"]
+            if failed_rank == "local":
+                raise RuntimeError("abort failed")
+
+        def collective(failed, *, op, group):
+            assert failed.item() == int(failed_rank == "local")
+            assert group is generator._broadcast_group
+            if failed_rank == "peer":
+                failed.fill_(1)
+
+        generator._engine.abort_request = abort
+        monkeypatch.setattr(mod.dist, "all_reduce", collective)
+        if failed_rank is None:
+            await generator._abort_requests(["r0"])
+            assert await future is None
+            assert dispatcher._rank0_dp_router._reservations == {}
+        else:
+            with pytest.raises(RuntimeError, match="abort failed on at least one rank"):
+                await generator._abort_requests(["r0"])
+            assert not future.done()
+            assert "r0" in dispatcher._rank0_dp_router._reservations
+            dispatcher.fail_generation_futures(RuntimeError("generator failed"))
+            with pytest.raises(RuntimeError, match="generator failed"):
+                await future
 
     asyncio.run(main())
 

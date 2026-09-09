@@ -595,10 +595,6 @@ async def terminus_agent(task: AgentTask) -> AgentRun:
                 _episodes(agent),
             )
             raise
-        except _SandboxExecutionError:
-            # The rollouter excludes failed API calls from training. Returning
-            # submitted=False here would instead turn a missing result into 0.
-            raise
         except Exception as e:
             logger.warning(
                 "[terminus] session=%s failed: %s: %s",
@@ -606,10 +602,9 @@ async def terminus_agent(task: AgentTask) -> AgentRun:
                 type(e).__name__,
                 str(e)[:200],
             )
-            # Keep the episodes the agent did get through; the turns it captured are
-            # still trained on, so reporting 0 here misattributes them.
-            turns = _episodes(agent)
-            finish_reason = "error"
+            # The rollouter retains captured turns for diagnostics and marks the
+            # rollout unscored. An agent/runtime error is not a wrong answer.
+            raise
         finally:
             if parser is not None:
                 format_errors = parser.format_errors

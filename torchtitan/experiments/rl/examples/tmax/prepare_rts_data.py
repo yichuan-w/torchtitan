@@ -113,33 +113,11 @@ _MAX_CONTEXT_BYTES = 1 << 20
 
 _DEFAULT_WORKDIR = "/app"
 
-# A latency optimization, NOT a requirement. Terminus-2 installs tmux itself at
-# session bring-up (harbor ``TmuxSession.start`` -> ``_attempt_tmux_installation``:
-# package manager first, then a from-source build), so an image without tmux is not
-# unsolvable. Measured against un-injected TerminalWorld-Seeds images, harbor's
-# runtime install succeeded on 6/6 bases -- ubuntu:16.04 5.0s, centos:7 (yum) 10.9s,
-# ubuntu:22.04 9.1s. Baking the step in moves those seconds off every rollout and
-# onto the once-per-Dockerfile Daytona build, at the cost of coupling the JSONL to
-# one harness; hence opt-in, off by default.
-#
-# The archive-mirror rewrites keep the EOL bases (centos:7, ubuntu:16.04, debian
-# buster/stretch) buildable if their default mirrors go away.
-# Non-fatal by design: the whole install runs in a subshell whose failure is caught by
-# `|| echo ...`, so the RUN always exits 0 and a tmux preinstall failure never fails the
-# image build. Rationale: some source bases have a broken package path we don't control
-# (e.g. an EOL mirror, or a distro whose pkg manager we don't branch on), and a hard
-# `exit 1` there dropped the ENTIRE image to BUILD_FAILED -- e.g. tw_473991 (archlinux)
-# fell through to the old `else: exit 1` because pacman had no branch, and its 192
-# rollouts all BUILD_FAILED and burned Daytona create quota. Terminus normally
-# self-installs tmux at runtime, but that fallback uses the same package sources.
-# Keep the injected repair complete enough that an obsolete security suite cannot
-# leave a successfully-built image without tmux (tw_307912 did exactly that with
-# redis:5.0 and a dead bullseye-security archive entry).
-# @andy: once the environment/base images are fixed so every task builds tmux, flip this
-# back to strict (drop the `|| echo` catch and restore `exit 1` in the else) to surface
-# real regressions instead of silently shipping images without tmux.
+# tmux is an admission requirement for terminal-agent images. Fail the build
+# when installation fails; runtime fallback would retry the same broken package
+# sources independently in every sibling rollout.
 _AGENT_RUNTIME_BLOCK = """
-# harbor-agent-runtime: tmux is required by the terminal agent (non-fatal preinstall)
+# harbor-agent-runtime: tmux is required by the terminal agent
 RUN ( if command -v tmux >/dev/null 2>&1; then \\
         exit 0; \\
       elif command -v apt-get >/dev/null 2>&1; then \\
@@ -184,7 +162,7 @@ RUN ( if command -v tmux >/dev/null 2>&1; then \\
       else \\
         echo 'ERROR: no supported package manager to install tmux' >&2; exit 1; \\
       fi ) \\
-    || echo 'harbor-agent-runtime: tmux preinstall failed (non-fatal); Terminus will self-install at runtime' >&2
+    && tmux -V
 """
 
 # Some upstream Dockerfiles run apt before the trailing tmux layer. On an EOL

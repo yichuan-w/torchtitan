@@ -2041,8 +2041,10 @@ class Controller(Configurable):
             _n = len(_rw)
             _ns = sum(1 for x in _rw if x and x > 0.0)
             _cls = (
-                "full_solve"
-                if _n and _ns == _n
+                "unscored"
+                if _n == 0
+                else "full_solve"
+                if _ns == _n
                 else "not_solve"
                 if _ns == 0
                 else "partial_solve"
@@ -2132,11 +2134,12 @@ class Controller(Configurable):
                 )
                 logger.info(
                     "[buffer] complete group_id=%d solved=%d/%d class=%s "
-                    "-> RELEASE(zero_std, dropped) target_ver=%d cur_ver=%d",
+                    "-> RELEASE(%s, dropped) target_ver=%d cur_ver=%d",
                     rollout_group.group_id,
                     _ns,
                     _n,
                     _cls,
+                    drop_reason,
                     target_policy_version,
                     self._trainer_policy_version,
                 )

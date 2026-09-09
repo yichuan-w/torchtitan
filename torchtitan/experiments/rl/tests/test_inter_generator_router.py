@@ -49,6 +49,7 @@ class _Actor:
         raises_pull: bool = False,
     ):
         self.generate = _Endpoint(name, wait=wait_generate)
+        self.cancel_generation = _Endpoint(None)
         self.pull_model_state_dict = _Endpoint(None, wait=wait_pull, raises=raises_pull)
 
 
@@ -118,6 +119,32 @@ def test_round_robin_cycles_through_generators():
         ]
         # Cycles through all three in order, then wraps back to the first.
         assert results == ["gen0", "gen1", "gen2", "gen0"]
+
+    asyncio.run(_run())
+
+
+@pytest.mark.parametrize("syncing", [False, True])
+def test_cancel_reaches_original_actor_after_routing_changes(syncing):
+    async def _run():
+        actors = [_Actor("gen0", wait_generate=True), _Actor("gen1")]
+        router = _router(actors, strategy=RoundRobinRoutingStrategy.Config())
+        request = asyncio.create_task(
+            router.route(
+                "generate",
+                request_id="r0",
+                routing_ctx=RoutingContext(),
+            )
+        )
+        await actors[0].generate.started.wait()
+        if syncing:
+            router._set_state(router._generators[0], _GeneratorState.SYNCING)
+        request.cancel()
+        with pytest.raises(asyncio.CancelledError):
+            await request
+        await asyncio.gather(*router._cancel_tasks)
+        assert actors[0].cancel_generation.calls == [((), {"request_id": "r0"})]
+        assert actors[1].cancel_generation.calls == []
+        assert await router.route("generate", routing_ctx=RoutingContext()) == "gen1"
 
     asyncio.run(_run())
 
