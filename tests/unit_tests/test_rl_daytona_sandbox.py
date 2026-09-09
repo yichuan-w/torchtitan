@@ -117,7 +117,7 @@ def test_build_exec_command_preserves_complex_command() -> None:
     assert completed.returncode == 0
     assert completed.stdout.decode() == "/example-home\nline 1\nline 2\n"
     assert base64.b64encode(command.encode()).decode() in full
-    assert "timeout --signal=TERM --kill-after=10s 17s bash" in full
+    assert "timeout -s TERM -k 10s 17s bash" in full
     assert command not in full
 
 
@@ -129,8 +129,10 @@ def test_build_exec_command_preserves_nonroot_env() -> None:
     runner = shlex.join(
         [
             "timeout",
-            "--signal=TERM",
-            "--kill-after=10s",
+            "-s",
+            "TERM",
+            "-k",
+            "10s",
             "9s",
             "env",
             "--",
@@ -175,7 +177,7 @@ def test_exec_separates_command_and_request_timeouts(
     assert result == (0, "ok", "")
     call = sandbox._session_exec.await_args
     assert call is not None
-    assert "timeout --signal=TERM --kill-after=10s 5s bash" in call.args[0]
+    assert "timeout -s TERM -k 10s 5s bash" in call.args[0]
     assert call.kwargs == {"command_timeout": 5, "request_timeout": 240}
 
 
@@ -190,7 +192,7 @@ def test_long_command_does_not_extend_request_timeout(
 
     call = sandbox._session_exec.await_args
     assert call is not None
-    assert "timeout --signal=TERM --kill-after=10s 3600s bash" in call.args[0]
+    assert "timeout -s TERM -k 10s 3600s bash" in call.args[0]
     assert call.kwargs == {"command_timeout": 3600, "request_timeout": 120}
 
 

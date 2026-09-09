@@ -165,8 +165,13 @@ def _build_exec_command(
         argv = ["env", "--", *(f"{key}={value}" for key, value in env.items()), *argv]
     argv = [
         "timeout",
-        "--signal=TERM",
-        f"--kill-after={_COMMAND_KILL_GRACE_SEC}s",
+        # Use the short options shared by GNU coreutils and BusyBox.  Some
+        # TerminalWorld images provide BusyBox's timeout, which rejects the
+        # GNU-only --signal/--kill-after spellings before running the payload.
+        "-s",
+        "TERM",
+        "-k",
+        f"{_COMMAND_KILL_GRACE_SEC}s",
         f"{timeout}s",
         *argv,
     ]
