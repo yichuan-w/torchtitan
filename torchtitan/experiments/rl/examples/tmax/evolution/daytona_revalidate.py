@@ -333,7 +333,10 @@ async def probe(
         code, out, err = await sb.exec(cmd, check=False, timeout=solve_timeout)
         log(f"run exit={code}")
         measured = await measure(sb, time.time() - t0, tail=(out or "") + (err or ""))
-        reward = await grade_tmax(sb, tmax, workdir=workdir, baseline_digests=baseline)
+        grading = {}
+        reward = await grade_tmax(
+            sb, tmax, workdir=workdir, baseline_digests=baseline, diagnostics=grading
+        )
     tail = (out + "\n" + err)[-400:]
     if shortcut is None:
         why = starved(measured, code, solve_timeout) if reward < 1.0 else ""
@@ -342,6 +345,9 @@ async def probe(
             "stage": "daytona_oracle",
             "reward": reward,
             "solve_exit": code,
+            "solve_stdout": out,
+            "solve_stderr": err,
+            "grading": grading,
             "tail": tail,
             "resources": box,
             "measured": measured,
@@ -363,6 +369,7 @@ async def probe(
         "stage": "daytona_shortcut",
         "passed": reward >= 1.0,
         "reward": reward,
+        "grading": grading,
         "tail": tail,
         "resources": box,
         "pretest": hook,
