@@ -374,6 +374,6 @@ cd "$RUN"
 exec python -m torchtitan.experiments.rl.train \
     --module torchtitan.experiments.rl.examples.tmax \
     --config rl_grpo_qwen3_5_9b_tmax \
-    --num-generators 1 \
+    --num-generators "$_gen_n" \
     --dump_folder "$RUN/trainer" \
     --hf_assets_path "$TRL_MODEL"
