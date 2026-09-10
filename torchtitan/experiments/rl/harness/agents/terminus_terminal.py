@@ -85,7 +85,8 @@ class TerminalLifecycle:
     @staticmethod
     def _control(command: str) -> tuple[bool, bool]:
         """Recognize Harbor clients; compound commands are never replayed."""
-        lexer = shlex.shlex(command, posix=True, punctuation_chars=True)
+        lexer = shlex.shlex(command, posix=True, punctuation_chars=";&|()\n")
+        lexer.whitespace = " \t\r"
         lexer.whitespace_split = True
         try:
             tokens = list(lexer)
@@ -108,7 +109,7 @@ class TerminalLifecycle:
             }
         )
         simple = not any(
-            token in {";", "&&", "||", "|", "&", "(", ")"} for token in tokens
+            token in {";", "&&", "||", "|", "&", "(", ")", "\n"} for token in tokens
         )
         return control, simple
 

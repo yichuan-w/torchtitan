@@ -982,7 +982,7 @@ class TMaxRollouter(Rollouter):
             logger.warning(
                 f"[tmax] group={group_id}: "
                 f"{sum(infra_failed_flags)}/{len(infra_failed_flags)} "
-                f"infrastructure failures excluded from the advantage baseline"
+                f"unscored failures excluded from the advantage baseline"
             )
 
         # Group reward-shape metrics. With evolution_harder_ratio < 1, evolution

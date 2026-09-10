@@ -71,11 +71,14 @@ def test_confirmed_connection_failure_retries_only_the_failed_client():
     assert send.await_count == 2
 
 
-def test_compound_client_is_never_replayed():
+@pytest.mark.parametrize("separator", [" && ", "; ", "\n"])
+def test_compound_client_is_never_replayed(separator):
     lifecycle, _ = terminal(result(LIVE))
     send = AsyncMock(return_value=MISSING)
     response = asyncio.run(
-        lifecycle.run("tmux load-buffer /file && tmux paste-buffer -t agent", send)
+        lifecycle.run(
+            "tmux load-buffer /file" + separator + "tmux paste-buffer -t agent", send
+        )
     )
     assert response.return_code == 1
     assert send.await_count == 1
