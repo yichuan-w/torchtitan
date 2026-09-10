@@ -56,13 +56,29 @@ and explores the container. Concretely:
   `required_evidence` (the agent had to find something, not guess it),
   `intermediate_artifact` (it produced the middle of the workflow), `final_semantics`
   (the end state means what it should, checked by content), and `no_shortcut` (an
-  answer that was copied, hardcoded or written for the verifier is caught -- recompute
-  the expected answer from the current inputs inside the verifier, or perturb an
-  input and re-run the workflow the way the instruction describes it, restoring
-  what you changed).
+  answer that was copied, hardcoded or written for the verifier is caught).
 - Never invoke `solution/solve.sh`: it is not there when the agent runs, and it is
   not there for you either. Invoke the workflow the way the instruction tells a
   user to.
+
+Map each retained or added requirement to a check of its promised behavior or
+result, using task inputs or an independently computed expectation. File existence,
+non-empty content, success words in a log, or agreement between two solver-written
+reports cannot alone establish correctness. Solver-written claims do not prove
+that a required execution, measurement or tool interaction occurred.
+
+If the task requires a reusable program, run the submitted program through the
+specified entry point on fresh valid inputs and check its outputs. Ensure retained
+outputs cannot let a no-op program pass, and restore inputs after the check. If the
+task asks only for a final artifact or state, check that result without inventing
+a requirement to save a script. Accept alternative paths, formats and implementations
+wherever the public task leaves them open.
+
+Before finishing, inspect whether a no-op, a hardcoded answer or fabricated evidence
+could still pass, and whether an equivalent legal solution could fail. Choose examples
+relevant to this task. In your final response, identify one concrete incorrect solution
+and the check that rejects it, and one legal alternative the checks allow; distinguish
+code inspection from executed tests. Keep the existing sandbox checks and job limits.
 
 ## The container
 
