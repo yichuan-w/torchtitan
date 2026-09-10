@@ -10,17 +10,26 @@ Save a complete correct implementation as `run/verifier-probes/correct.sh`.
 Then save `wrong-1.sh`, `wrong-2.sh`, and so on. Each wrong implementation should
 make a specific semantic mistake while otherwise completing the task. Derive
 these mistakes from the public requirements, including independently falsifiable
-validity conditions and decisions needed when inputs change. A constant answer
-alone does not cover errors in implementations that actually process their inputs.
+validity conditions. Identify what the public task requires the agent to leave:
+a final artifact, or a program explicitly required to handle further inputs.
+For a final-artifact task, each wrong script must leave an artifact that violates
+the specification on the supplied inputs. Do not invent a requirement to leave
+a reusable program or handle changed inputs.
 
-For each wrong implementation, construct a concrete input that exposes its
-mistake while satisfying the other input conditions. Change inputs only where
-the public task requires handling those changes. Run that input against your
-correct and wrong implementations in the container. Check the two observable
-outputs against the public specification. Include the changed-input witness in
-the wrong script: demonstrate and print its incorrect output, restore the
-original input, and rerun the wrong implementation so the caller can grade it
-on its own tests. A script that crashes or never produces the requested artifact
+For a task that explicitly requires a reusable program, construct a permitted
+input that exposes each wrong program's mistake. Run that input against the
+correct and wrong programs and compare their outputs with the public specification.
+Include the demonstration in the wrong script, restore the original inputs,
+and leave the faulty program available at the entry point the task requires.
+
+Before a wrong script exits zero, check the deliverable it actually leaves
+against the public requirement and print the expected and observed behavior
+that establishes the violation. The state presented for grading must still
+violate that requirement. An earlier incorrect output on changed inputs is
+insufficient if restoring the inputs and rerunning leaves a valid deliverable.
+If the violation cannot be established, write `BLOCKED: <reason>` to `run/verdict.txt`
+and stop instead of labeling the control wrong.
+A script that crashes or never produces the requested artifact
 does not demonstrate a semantic error. A successful setup must exit zero;
 propagate setup errors instead of masking them with `exit 0`.
 
@@ -38,6 +47,6 @@ Stdin is not forwarded. Execute student scripts only in that container.
 Edit only files under `run/verifier-probes/`, except for an ambiguity verdict.
 
 If the public specification is ambiguous enough that the two outputs cannot be
-distinguished, write the precise ambiguity to `run/verdict.txt` and finish.
+distinguished, write `BLOCKED: <precise ambiguity>` to `run/verdict.txt` and finish.
 Otherwise finish after the correct implementation and all witness demonstrations
 have run. The caller will replay the controls against the withheld grader.

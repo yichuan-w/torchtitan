@@ -57,36 +57,31 @@ state, the way a strong agent's successful run would. Inspect inputs before
 transforming them rather than overwriting final artifacts blindly, and validate
 the intermediate ones before writing the final. Keep it deterministic, safe to run
 twice, and runnable non-interactively from any working directory. Above all,
-**derive every output from the inputs as they are at run time** — this single
-property decides whether the reference passes its own verifier, because a
-`no_shortcut` check that perturbs an input and re-runs will catch an answer that
-was written once and never recomputed.
+**derive every output from the inputs as they are at run time**. The reference's
+implementation does not impose additional requirements on the student.
 
 **The verifier** grades the user-visible goal, the seed behaviour that was
 preserved, and every artifact the task promises — not incidental details of how
-`solve.sh` happens to do it. For harder jobs, four roles have to be covered. They are roles, not
-a count: keep every existing test function that still holds under the new axis
-and add what the axis needs, so the verifier never checks less than the seed's
-did. The roles:
-
-- `required_evidence` — the agent had to find something, not guess it;
-- `intermediate_artifact` — it produced the middle of the workflow, not only the end;
-- `final_semantics` — the end state means what it should, checked by content;
-- `no_shortcut` — an answer that was copied, hardcoded, or written for the verifier
-  is caught.
+`solve.sh` happens to do it. Keep every existing test that still holds under the
+new instruction and add checks for the changed requirement. For a final-artifact
+task, check the artifact's semantics on the supplied inputs. Check intermediate
+artifacts, execution evidence, or method restrictions only when the public task
+requires them. A correct final artifact is not a negative control merely because
+it was produced by a different method.
 
 For easier jobs, a removed goal or relaxed constraint may lose its corresponding
 checks only when declared in `run/simplify.json`. Preserve semantic correctness
-and shortcut rejection for every remaining goal. An extracted subtask does not
-need an extra intermediate artifact merely to fill a role.
+and checks for every remaining public requirement.
 
-`no_shortcut` is the one usually missing and it has to be earned in behaviour: change
-an input the answer depends on and re-run the workflow, asserting the output followed
-and restoring what you changed; or recompute the expected answer inside the verifier
-from the current inputs; or require an intermediate artifact whose content must agree
-with the final one. Asserting a file is non-empty, or lacks the word "placeholder", is
-not this check. Never invoke `solution/solve.sh` from the verifier — it is not there
-when the agent runs. Invoke the workflow the way the instruction tells a user to.
+When the public task requires a reusable program, test its submitted entry point
+on permitted inputs that distinguish correct behavior from plausible faulty
+implementations. Derive expected results independently and restore changed inputs
+after testing. Never invoke `solution/solve.sh` from the verifier or assume the
+student saved a workflow the instruction never requested.
+
+Do not add a report, execution log, or reusable-program requirement merely to
+satisfy a verifier role. A difficulty change must make a task-relevant decision
+affect the correctness of a required deliverable.
 
 **`instruction.md`** is a fair public request from someone who wants the work done.
 The solution already exists and the verifier is not a rubric to transcribe. Dumping

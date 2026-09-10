@@ -50,9 +50,9 @@ import simplify_operators as so
 import synth_client as llm
 import task_size as ts
 import verifier_literals as vl
-from verifier_probes import SemanticProbeMisses, verify_probes
 from synth_operators import harder_uses_operators
 from torchtitan.experiments.rl.examples.tmax import layout
+from verifier_probes import SemanticProbeMisses, verify_probes
 
 
 class Filtered(RuntimeError):
@@ -896,10 +896,22 @@ cannot use it. When prior measured feedback is supplied, compare its prediction
 with the actual attempts. A previous change solved consistently is demonstrated
 student capability; use that result to revise the difficulty hypothesis.
 
-Before editing, write `run/hardening.md`: cite attempt filenames and concrete
+Before editing, compare two candidate changes in `run/hardening.md`, then
+implement only one. For each candidate, cite attempt filenames and concrete
 actions or observations; explain the current strategy, the changed condition,
-and the new inference or decision needed to reach the original goal. State why
+and the new inference or decision needed to reach the original goal. Sketch
+the smallest correct adaptation from the observed strategy,
+distinguishing demonstrated skills from new decisions and dependencies between
+steps. Using the student's observed checking behavior, explain whether feedback
+available in the task would expose mistakes in that adaptation and allow their
+correction. Use this evidence to choose the change's magnitude; failure of the
+unchanged strategy alone does not establish difficulty of adaptation. State why
 the old strategy with a routine post-processing step would be insufficient.
+Choose the candidate whose required decisions are least covered by demonstrated
+student skills while remaining a modest step from those skills; explain the
+comparison before implementing it. If both reduce to routine adaptations, revise
+the candidates before selecting one. This comparison is proposal reasoning,
+not permission to generate or evaluate multiple task versions.
 For each strategy predicted to fail, include a concrete proposed input, the
 correct observable result, and the result that strategy would produce. If the
 results agree, that case does not support the prediction. For a strategy that
@@ -924,7 +936,13 @@ environment or checkable by the grader; otherwise reformulate it as an
 observable task condition. When reviewing measured feedback, check successful
 attempts for violations of those restrictions.
 
-Preserve the original user goal and a solvable, discoverable specification.
+Preserve the original user goal, existing tool hints and discovery aids, and
+requirements unrelated to the chosen change. Keep the specification solvable
+and discoverable. Locate the difficulty in deciding the correct outcome under
+the changed conditions, not in removing useful hints or adding an implementation
+restriction. Existing method requirements remain part of the original task;
+repair missing checks for validity, but do not count stricter enforcement of
+an unchanged requirement as the hardening mechanism.
 Aim for a modest reduction in this student's solve rate toward mixed success,
 not universal failure. Describe this as a hypothesis for student re-testing;
 passing the reference solution only establishes validity. If the traces do not
@@ -1178,7 +1196,10 @@ def _blind_layout(pkg: Path, vpkg: Path) -> None:
         if rel == Path("run"):
             # Preserve harness inputs, excluding author analysis and oracle output.
             return set(names) - {
-                "seed_size.json", "resources.json", "seed_literals.json", "pretest.json"
+                "seed_size.json",
+                "resources.json",
+                "seed_literals.json",
+                "pretest.json",
             }
         return {
             n
@@ -1213,13 +1234,20 @@ def _take_verifier(vpkg: Path, pkg: Path, seed_rel: str, seed_text: str) -> str:
 
 
 def _probe_hashes(package: Path, exclude: tuple[str, ...] = ()) -> dict[str, str]:
-    return {str(p.relative_to(package)): hashlib.sha256(p.read_bytes()).hexdigest()
-            for p in package.rglob("*") if p.is_file()
-            and p.relative_to(package).parts[0] not in exclude and "__pycache__" not in p.parts}
+    return {
+        str(p.relative_to(package)): hashlib.sha256(p.read_bytes()).hexdigest()
+        for p in package.rglob("*")
+        if p.is_file()
+        and p.relative_to(package).parts[0] not in exclude
+        and "__pycache__" not in p.parts
+    }
 
 
 def _independent_verifier(
-    rewrite: layout.RewriteDir, vsession: layout.SessionDir, *, allow_repair: bool = True
+    rewrite: layout.RewriteDir,
+    vsession: layout.SessionDir,
+    *,
+    allow_repair: bool = True,
 ) -> None:
     vpkg = vsession.package
     pointer = vsession.path / "independent-probes.json"
@@ -1236,21 +1264,36 @@ def _independent_verifier(
             )
             for name in ("seed_size.json", "seed_literals.json"):
                 (probe / "run" / name).unlink(missing_ok=True)
-            shutil.copy2(VERIFIER_SPEC.with_name("independent_verifier_probes.md"), probe / "AGENTS.md")
+            shutil.copy2(
+                VERIFIER_SPEC.with_name("independent_verifier_probes.md"),
+                probe / "AGENTS.md",
+            )
 
             before = _probe_hashes(probe, ("run",))
             run.meta["public_inputs_sha256"] = before
             try:
-                result = _run_codex(run, probe, "Create independent semantic controls from the public task.\n" + _budget(AGENT_TIMEOUT))
+                result = _run_codex(
+                    run,
+                    probe,
+                    "Create independent semantic controls from the public task.\n"
+                    + _budget(AGENT_TIMEOUT),
+                )
                 if result.returncode:
-                    raise RuntimeError(f"Independent probe author exited {result.returncode}")
+                    raise RuntimeError(
+                        f"Independent probe author exited {result.returncode}"
+                    )
             finally:
                 _sandbox_down(probe)
             _check_verdict(probe)
             if _probe_hashes(probe, ("run",)) != before:
                 raise RuntimeError("Independent probe author changed public task files")
-        layout.write_json_atomic(pointer, {"package": str(probe),
-            "controls_sha256": _probe_hashes(probe / "run/verifier-probes")})
+        layout.write_json_atomic(
+            pointer,
+            {
+                "package": str(probe),
+                "controls_sha256": _probe_hashes(probe / "run/verifier-probes"),
+            },
+        )
 
     controls_sha256 = json.loads(pointer.read_text())["controls_sha256"]
     public_sha256 = _probe_hashes(vpkg, ("run", "tests"))
@@ -1265,23 +1308,41 @@ def _independent_verifier(
         except SemanticProbeMisses as error:
             if not allow_repair or attempt:
                 raise
-            (vpkg / "run/independent-failures.jsonl").write_text(error.log_path.read_text())
+            (vpkg / "run/independent-failures.jsonl").write_text(
+                error.log_path.read_text()
+            )
             (vpkg / "run/verdict.txt").unlink(missing_ok=True)
-            with session(rewrite, "probe-repair", timeout=AGENT_TIMEOUT, resumes=vsession) as run:
+            with session(
+                rewrite, "probe-repair", timeout=AGENT_TIMEOUT, resumes=vsession
+            ) as run:
                 try:
-                    result = _run_codex(run, vpkg,
-                        "The independent correct implementation passed, but faulty implementations also passed. "
+                    result = _run_codex(
+                        run,
+                        vpkg,
+                        "The independent correct control passed, and controls labeled negative also passed. "
                         "Read run/independent-failures.jsonl for their public requirements, scripts, and grading evidence. "
-                        "Repair the verifier to reject those semantic errors while accepting valid implementations. "
+                        "First establish whether each negative control's actual state at grading violates the public task. "
+                        "For a final-artifact task, an earlier failure on changed inputs "
+                        "does not invalidate a correct final artifact; "
+                        "require reusable behavior only when the public task explicitly requires it. "
+                        "If a control is valid or its violation cannot be established, "
+                        "write BLOCKED: <evidence> to run/verdict.txt and stop. "
+                        "Otherwise repair the verifier to reject the demonstrated violations while accepting valid deliverables. "
                         "Preserve the public task and follow AGENTS.md, including your own replay controls.\n"
-                        + _budget(AGENT_TIMEOUT), resume=_session_id(vsession))
+                        + _budget(AGENT_TIMEOUT),
+                        resume=_session_id(vsession),
+                    )
                     if result.returncode:
-                        raise RuntimeError(f"Verifier probe repair exited {result.returncode}")
+                        raise RuntimeError(
+                            f"Verifier probe repair exited {result.returncode}"
+                        ) from error
                 finally:
                     _sandbox_down(vpkg)
             _check_verdict(vpkg)
             if _probe_hashes(vpkg, ("run", "tests")) != public_sha256:
-                raise RuntimeError("Verifier repair changed public task files")
+                raise RuntimeError(
+                    "Verifier repair changed public task files"
+                ) from error
             verify_probes(vpkg, _harness_env(), AGENT_TIMEOUT)
         else:
             return
@@ -1474,7 +1535,11 @@ def evolve_agentic(
         + _budget(AGENT_TIMEOUT)
     )
 
-    if not use_operators and job in ("harder", "easier") and task.get("_student_feedback"):
+    if (
+        not use_operators
+        and job in ("harder", "easier")
+        and task.get("_student_feedback")
+    ):
         feedback = task["_student_feedback"]
         (pkg / "run" / "student_feedback.json").write_text(
             json.dumps(feedback, indent=2) + "\n"

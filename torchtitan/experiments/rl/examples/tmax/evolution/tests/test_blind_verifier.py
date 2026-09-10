@@ -178,7 +178,9 @@ def _wire(monkeypatch, sessions: list, checks: list, verifier_text=NEW_VERIFIER)
     monkeypatch.setattr(ec, "_run_codex", fake_run_codex)
     monkeypatch.setattr(ec, "_harness_check", fake_harness_check)
     replays = []
-    monkeypatch.setattr(ec, "verify_probes", lambda pkg, env, timeout: replays.append(pkg))
+    monkeypatch.setattr(
+        ec, "verify_probes", lambda pkg, env, timeout: replays.append(pkg)
+    )
     return replays
 
 
@@ -263,7 +265,9 @@ def test_measured_feedback_reaches_proposer_only(tmp_path, monkeypatch, job):
     sessions, checks = [], []
     _wire(monkeypatch, sessions, checks)
     if job == "easier":
-        monkeypatch.setattr(ec.so, "read_decision", lambda *_: {"operator": "add_scaffold"})
+        monkeypatch.setattr(
+            ec.so, "read_decision", lambda *_: {"operator": "add_scaffold"}
+        )
     feedback = {"solved": 16 if job == "harder" else 0, "scored": 16, "action": job}
     ec.evolve_agentic(rw, {**SEED, "_student_feedback": feedback}, job)
     assert "Read run/student_feedback.json" in sessions[0]["prompt"]
@@ -297,7 +301,9 @@ def test_failed_semantic_replay_prevents_accepting_verifier(tmp_path, monkeypatc
 
 
 @pytest.mark.parametrize("repair", [False, True])
-def test_failed_verifier_process_is_recorded_before_replay(tmp_path, monkeypatch, repair):
+def test_failed_verifier_process_is_recorded_before_replay(
+    tmp_path, monkeypatch, repair
+):
     rw = _rewrite(tmp_path, monkeypatch)
     replays = _wire(monkeypatch, [], [])
     cleanups = []
@@ -319,7 +325,11 @@ def test_failed_verifier_process_is_recorded_before_replay(tmp_path, monkeypatch
         else:
             ec._blind_verifier(rw, dict(SEED), fmap)
 
-    failed = [sd for sd in rw.session_dirs() if json.loads(sd.meta.read_text())["status"] == "failed"]
+    failed = [
+        sd
+        for sd in rw.session_dirs()
+        if json.loads(sd.meta.read_text())["status"] == "failed"
+    ]
     assert len(failed) == 1
     meta = json.loads(failed[0].meta.read_text())
     assert meta["exit_code"] == 1

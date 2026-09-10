@@ -30,10 +30,13 @@ Your working directory is the task package with the solution removed.
 
 Edit the verifier in place and save replay controls under `run/verifier-probes/`.
 Do not change other task files: the task is fixed, and a check that only passes because you changed
-the task is a check on nothing. If the instruction cannot be verified as written
--- it is ambiguous between outcomes, or asks for something the environment cannot
-show -- write `BLOCKED: <what, precisely>` to `run/verdict.txt` and stop; the
-caller reads that and sends the instruction back to be fixed.
+the task is a check on nothing. If the public specification leaves the required
+outcome ambiguous, or explicitly requires a property the available artifacts and
+environment cannot establish, write `BLOCKED: <what, precisely>` to
+`run/verdict.txt` and stop. For a final-artifact task, ordinary instructions for
+obtaining the result do not require proof of execution history. Require a token
+log, saved workflow, provenance artifact, or evidence of a restricted method only
+when the public contract explicitly makes it part of acceptance.
 
 ## What the verifier has to hold
 
@@ -51,14 +54,16 @@ and explores the container. Concretely:
   tell.
 - **Add what the new requirement needs, and no more: at most 5 assertions over the
   seed's count** (`run/seed_size.json`). One requirement is two or three.
-- Cover the four roles the corpus asks of a verifier, as roles rather than a count:
-  `required_evidence` (the agent had to find something, not guess it),
-  `intermediate_artifact` (it produced the middle of the workflow), `final_semantics`
-  (the end state means what it should, checked by content), and `no_shortcut` (an
-  answer that was copied, hardcoded or written for the verifier is caught -- recompute
-  the expected answer from the current inputs inside the verifier, or perturb an
-  input and re-run the workflow the way the instruction describes it, restoring
-  what you changed).
+- Identify whether the public task requires a final artifact or a reusable
+  program. Check final-artifact semantics on the supplied inputs. Check
+  intermediate artifacts, execution evidence, or method restrictions only when
+  the public contract requires them. Do not infer a prohibition on copying or
+  hardcoding.
+- For an explicitly required reusable program, use permitted inputs that expose
+  semantic errors, run the submitted entry point, and compare its behavior with
+  independently derived expectations. Restore changed inputs after testing. A
+  faulty program remains a valid negative control after restoring the original
+  inputs if it still violates the reusable-program contract.
 - Never invoke `solution/solve.sh`: it is not there when the agent runs, and it is
   not there for you either. Invoke the workflow the way the instruction tells a
   user to.
