@@ -247,6 +247,50 @@ def test_sandbox_execution_error_marks_rollout_unscored(monkeypatch) -> None:
     rollouter_mod.grade_tmax.assert_not_awaited()
 
 
+def test_normal_shell_exit_keeps_the_failure_training_sample(monkeypatch) -> None:
+    rollouter = _stub_rollouter(monkeypatch, ctrf_result=None)
+    agent = AsyncMock(
+        return_value=AgentRun(
+            turns=2,
+            submitted=False,
+            finish_reason="terminal_exited",
+            terminal_events=[
+                {"kind": "shell_exited", "exit_status": "0", "signal": None}
+            ],
+        )
+    )
+    monkeypatch.setattr(rollouter_mod, "get_agent", lambda name: agent)
+    rollout, submitted, _, reason, diagnostics = _run_rollout(rollouter)
+    assert rollout.status == RolloutStatus.COMPLETED
+    assert rollout.turns[-1].env_rewards == {"tmax_reward": 0.0}
+    assert diagnostics.infra_failed is False
+    assert diagnostics.failure == {"origin": "agent", "reason": "terminal_exited"}
+    assert diagnostics.terminal_events[0]["exit_status"] == "0"
+    assert not submitted and reason == "terminal_exited"
+    rollouter_mod.grade_tmax.assert_not_awaited()
+
+
+def test_signal_death_retains_unknown_origin_and_evidence(monkeypatch) -> None:
+    from torchtitan.experiments.rl.harness.agents.terminus_terminal import (
+        TerminalUnavailable,
+    )
+
+    rollouter = _stub_rollouter(monkeypatch, ctrf_result=None)
+    events = [{"kind": "shell_exited", "signal": "9"}]
+    agent = AsyncMock(
+        side_effect=TerminalUnavailable("terminal_signal_unknown", events)
+    )
+    monkeypatch.setattr(rollouter_mod, "get_agent", lambda name: agent)
+    _, _, _, _, diagnostics = _run_rollout(rollouter)
+    assert diagnostics.infra_failed is True
+    assert diagnostics.failure == {
+        "origin": "unknown",
+        "reason": "terminal_signal_unknown",
+        "stage": "agent",
+    }
+    assert diagnostics.terminal_events == events
+
+
 def test_successful_ctrf_read_is_recorded(monkeypatch) -> None:
     report = {"tests": 4, "passed": 3, "failed": ["t::test_check_04_no_shortcut"]}
     rollouter = _stub_rollouter(monkeypatch, ctrf_result=report)

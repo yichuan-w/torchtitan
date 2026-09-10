@@ -356,6 +356,12 @@ class _SandboxEnvironment:
         # before the sandbox goes away. None until then.
         self.pane_path: str | None = None
         self._pane_name = agent_dir.name + ".pane"
+        from .terminus_terminal import TerminalLifecycle
+
+        self.terminal = TerminalLifecycle(self._terminal_exec)
+
+    async def _terminal_exec(self, command: str):
+        return await self._exec_raw(command, timeout_sec=5)
 
     async def exec(
         self,
@@ -365,11 +371,28 @@ class _SandboxEnvironment:
         timeout_sec: int | None = None,
         user: str | int | None = None,
     ):
-        from harbor.environments.base import ExecResult  # type: ignore
-
         if cwd:
             command = f"cd {shlex.quote(cwd)} && {command}"
         command = self._bound_pane_pipe(command)
+        return await self.terminal.run(
+            command,
+            lambda cmd: self._exec_raw(
+                cmd, env=env, timeout_sec=timeout_sec, user=user
+            ),
+        )
+
+    async def _exec_raw(
+        self,
+        command: str,
+        *,
+        env: dict[str, str] | None = None,
+        timeout_sec: int | None = None,
+        user: str | int | None = None,
+    ):
+        from harbor.environments.base import ExecResult  # type: ignore
+
+        if self.terminal.prepared:
+            env = {**(env or {}), "TMUX_TMPDIR": self.terminal.directory}
         started_at = time.time()
         try:
             exit_code, stdout, stderr = await self._sandbox.exec(
@@ -511,6 +534,10 @@ async def terminus_agent(
         SafeTerminusXMLParser,
         TerminusXMLPlainParser,
     )
+    from torchtitan.experiments.rl.harness.agents.terminus_terminal import (
+        TerminalExited,
+        TerminalUnavailable,
+    )
 
     # Quiet litellm's per-turn token_counter for our placeholder model name (see
     # _register_titan_actor_with_litellm). Idempotent, cheap after the first call.
@@ -578,7 +605,9 @@ async def terminus_agent(
             # no retry loop here.
             stage = "setup"
             logger.info("[terminus] session=%s stage=%s start", task.session_id, stage)
+            await env.terminal.prepare()
             await agent.setup(env)
+            await env.terminal.bind(agent._session._session_name)
             stage = "run"
             logger.info("[terminus] session=%s stage=%s start", task.session_id, stage)
             # A check before the next LLM call cannot interrupt a pending call or
@@ -613,6 +642,13 @@ async def terminus_agent(
             # not the task, is what stopped the agent.
             turns = _episodes(agent)
             finish_reason = "hit_context_limit"
+        except TerminalExited:
+            if stage != "run":
+                raise TerminalUnavailable(
+                    "terminal_exited_during_setup", env.terminal.events
+                )
+            turns = _episodes(agent)
+            finish_reason = "terminal_exited"
         except asyncio.CancelledError:
             logger.warning(
                 "[terminus] session=%s cancelled stage=%s episodes=%d",
@@ -654,6 +690,7 @@ async def terminus_agent(
         # The pane lives in the sandbox, which is still up when this returns;
         # the rollouter reads it if this run collects transcripts.
         pane_path=env.pane_path,
+        terminal_events=env.terminal.events,
     )
 
 

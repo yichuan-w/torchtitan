@@ -99,6 +99,9 @@ class AgentRun:
     whether this run collects transcripts and where they go, and the sandbox is
     still up when the harness returns, so it can read the file then."""
 
+    terminal_events: list[dict] = field(default_factory=list)
+    """Terminal recovery and shell exit observations, without inferred blame."""
+
 
 AgentFn = Callable[[AgentTask], Awaitable[AgentRun]]
 

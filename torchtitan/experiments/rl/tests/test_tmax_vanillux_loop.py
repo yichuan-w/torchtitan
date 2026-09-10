@@ -565,6 +565,8 @@ def test_rollout_record_is_one_header_line_then_one_line_per_turn(
         "submitted",
         "format_errors",
         "infra_failed",
+        "failure",
+        "terminal_events",
         "error",
         "sandbox",
         "secs",
@@ -587,6 +589,8 @@ def test_rollout_record_is_one_header_line_then_one_line_per_turn(
         "submitted": True,
         "format_errors": 0,
         "infra_failed": False,
+        "failure": {},
+        "terminal_events": [],
         "error": "",
         "sandbox": {
             "id": "sandbox-abc",
