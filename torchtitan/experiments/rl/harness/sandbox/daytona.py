@@ -24,6 +24,7 @@ import re
 import shlex
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
@@ -546,6 +547,7 @@ class DaytonaSandbox:
         memory: int | None = None,
         disk_gb: int | None = None,
         issue_tracker: SandboxIssueTracker | None = None,
+        failure_diagnostics_dir: Path | None = None,
         **_ignored,
     ) -> None:
         # Per-task overrides for vCPU / memory (GiB) / disk (GiB). None means fall
@@ -570,6 +572,8 @@ class DaytonaSandbox:
         self.disk_gb = disk_gb
         self.allocated_disk_gb: int | None = None
         self.issue_tracker = issue_tracker or SandboxIssueTracker()
+        self._failure_diagnostics_dir = failure_diagnostics_dir
+        self._started_at = datetime.now(timezone.utc).isoformat()
         # Daytona is optional and imported lazily, so its SDK types are not
         # available for static annotations in this module.
         self._client: Any = None
@@ -925,6 +929,27 @@ class DaytonaSandbox:
         return self
 
     async def __aexit__(self, exc_type, exc, tb) -> None:
+        try:
+            if (
+                exc is not None
+                and self._sb is not None
+                and self._failure_diagnostics_dir
+            ):
+                from torchtitan.experiments.rl.harness.sandbox.daytona_diagnostics import (
+                    collect_failure_diagnostics,
+                )
+
+                await collect_failure_diagnostics(
+                    self._client,
+                    self._sb,
+                    self._failure_diagnostics_dir,
+                    self._started_at,
+                    exc,
+                )
+        finally:
+            await self._cleanup()
+
+    async def _cleanup(self) -> None:
         import asyncio
         import random
 
