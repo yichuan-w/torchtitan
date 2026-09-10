@@ -417,6 +417,9 @@ class Run:
     def signal(self, task: str, group: int) -> Path:
         return self.signals / f"{safe(task)}--g{group}.json"
 
+    def daytona_diagnostics(self, task: str, group: int, idx: int) -> Path:
+        return self.rollouts / safe(task) / f"g{group}-r{idx}.daytona"
+
     def advisory(self, name: str) -> Path:
         return self.advisories / f"{name}.jsonl"
 

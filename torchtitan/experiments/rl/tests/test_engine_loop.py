@@ -54,6 +54,7 @@ def _bare_generator(
     generator._close_request = CloseRequest() if close_requested else None
     generator._model_state_dict_pull_request = model_state_dict_pull_request
     generator._queued_generation_requests = pending or []
+    generator._pending_abort_request_ids = []
     # overlap_weight_fetch state. pending_weight_fetch is polled via .done() only, so a
     # SimpleNamespace(done=lambda: ...) stands in for the real asyncio.Task.
     generator.config = SimpleNamespace(overlap_weight_fetch=overlap_weight_fetch)
@@ -135,16 +136,20 @@ def test_step_with_empty_queue_when_only_in_flight_work_remains() -> None:
 
 
 def test_step_routes_requests_across_dp_ranks() -> None:
-    # Least-loaded over 3 idle DP ranks: r0 -> rank 0, r1 -> rank 1 (rank 0 now loaded).
+    # Exact ties are random; consecutive requests must use distinct idle ranks.
     requests = [_request("r0"), _request("r1")]
     generator = _bare_generator(pending=requests, dp_size=3)
     decision = asyncio.run(generator._decide_next_action())
     assert decision.action is LoopAction.STEP
-    assert decision.requests_per_dp_rank == [[requests[0]], [requests[1]], []]
     # Each request reserves one load unit on its chosen DP rank.
     dp_router = generator._request_dispatcher._rank0_dp_router
-    assert dp_router._reservations == {"r0": 0, "r1": 1}
-    assert [h.reserved_load for h in dp_router._handles] == [1, 1, 0]
+    assert set(dp_router._reservations) == {"r0", "r1"}
+    assert len(set(dp_router._reservations.values())) == 2
+    assert sorted(h.reserved_load for h in dp_router._handles) == [0, 1, 1]
+    assert sum(map(len, decision.requests_per_dp_rank)) == 2
+    for request in requests:
+        rank = dp_router._reservations[request.request_id]
+        assert decision.requests_per_dp_rank[rank] == [request]
 
 
 def test_step_sticky_session_reuses_dp_rank() -> None:
@@ -157,7 +162,10 @@ def test_step_sticky_session_reuses_dp_rank() -> None:
 
     first_decision = asyncio.run(generator._decide_next_action())
     assert first_decision.action is LoopAction.STEP
-    assert first_decision.requests_per_dp_rank == [[first], [], []]
+    reservations = generator._request_dispatcher._rank0_dp_router._reservations
+    pinned_rank = reservations["r0"]
+    assert first_decision.requests_per_dp_rank[pinned_rank] == [first]
+    assert sum(map(len, first_decision.requests_per_dp_rank)) == 1
 
     same_session = _request("r1", routing_session_id="s0")
     new_session = _request("r2", routing_session_id="s1")
@@ -165,17 +173,12 @@ def test_step_sticky_session_reuses_dp_rank() -> None:
 
     second_decision = asyncio.run(generator._decide_next_action())
     assert second_decision.action is LoopAction.STEP
-    assert second_decision.requests_per_dp_rank == [
-        [same_session],
-        [new_session],
-        [],
-    ]
     # r0 and r1 share session s0 -> same DP rank; r2's new session falls back.
-    assert generator._request_dispatcher._rank0_dp_router._reservations == {
-        "r0": 0,
-        "r1": 0,
-        "r2": 1,
-    }
+    assert reservations["r1"] == pinned_rank
+    assert reservations["r2"] != pinned_rank
+    assert second_decision.requests_per_dp_rank[pinned_rank] == [same_session]
+    assert second_decision.requests_per_dp_rank[reservations["r2"]] == [new_session]
+    assert sum(map(len, second_decision.requests_per_dp_rank)) == 2
 
 
 # --- overlap_weight_fetch: fetch runs during generation; only apply pauses it. ---

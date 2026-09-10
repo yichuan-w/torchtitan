@@ -1292,6 +1292,13 @@ class TMaxRollouter(Rollouter):
                     memory=sample.daytona_mem_gb,
                     disk_gb=sample.daytona_disk_gb,
                     issue_tracker=issue_tracker,
+                    failure_diagnostics_dir=(
+                        run.daytona_diagnostics(
+                            sample.instance_id, group_id, rollout_idx
+                        )
+                        if run is not None
+                        else None
+                    ),
                 ) as sandbox:
                     # Sandbox is up: shrink the guard back to the agent's own
                     # envelope. Boot-queue time must not eat the agent's budget --

@@ -60,6 +60,13 @@ twice, and runnable non-interactively from any working directory. Above all,
 **derive every output from the inputs as they are at run time**. The reference's
 implementation does not impose additional requirements on the student.
 
+When a change introduces new valid input or option cases, run the reference
+workflow on cases that change the shape of the result, including an empty result
+when possible. Verify both the changed behavior and retained output requirements
+in each case, such as required headers or schema even when there are no records.
+Passing the seed verifier does not validate newly introduced cases. Record the
+commands and observed results in your final response.
+
 **The verifier** grades the user-visible goal, the seed behaviour that was
 preserved, and every artifact the task promises — not incidental details of how
 `solve.sh` happens to do it. Keep every existing test that still holds under the
@@ -73,11 +80,30 @@ For easier jobs, a removed goal or relaxed constraint may lose its corresponding
 checks only when declared in `run/simplify.json`. Preserve semantic correctness
 and checks for every remaining public requirement.
 
-When the public task requires a reusable program, test its submitted entry point
-on permitted inputs that distinguish correct behavior from plausible faulty
-implementations. Derive expected results independently and restore changed inputs
-after testing. Never invoke `solution/solve.sh` from the verifier or assume the
-student saved a workflow the instruction never requested.
+When assigned to write or repair the verifier, map each retained or added requirement
+to a check of the behavior or result it promises. Check against task inputs or an
+independently computed expectation. File existence, non-empty content, success words
+in a log, or agreement between two solver-written reports cannot alone establish
+correctness. A reference solution passing does not establish that incorrect solutions
+are rejected.
+
+For a task that requires a reusable program, invoke the submitted program through
+the entry point specified by the task on fresh valid inputs and check the outputs.
+Ensure retained outputs cannot let a no-op program pass; restore inputs after the
+check. For a task asking only for a final artifact or state, verify that result
+without inventing a requirement to save a script. Never invoke `solution/solve.sh`
+from the verifier: it is absent during training. Do not accept solver-written claims
+as proof that a required execution, measurement or tool interaction occurred.
+
+Before finishing a verifier edit, inspect whether a no-op, a hardcoded answer or
+fabricated evidence could still pass, and whether an equivalent legal solution could
+fail. Choose examples relevant to this task. Accept alternative paths, formats and
+implementations wherever the public task leaves them open. In your final response,
+identify one concrete incorrect solution and the check that rejects it, and one
+legal alternative the checks allow; distinguish code inspection from executed tests.
+Keep the existing sandbox checks and job limits. In blind-verifier mode, leave
+`tests/` unchanged as the job instructs; make the requirements checkable for the
+separate verifier author.
 
 Do not add a report, execution log, or reusable-program requirement merely to
 satisfy a verifier role. A difficulty change must make a task-relevant decision

@@ -113,52 +113,18 @@ _MAX_CONTEXT_BYTES = 1 << 20
 
 _DEFAULT_WORKDIR = "/app"
 
-# A latency optimization, NOT a requirement. Terminus-2 installs tmux itself at
-# session bring-up (harbor ``TmuxSession.start`` -> ``_attempt_tmux_installation``:
-# package manager first, then a from-source build), so an image without tmux is not
-# unsolvable. Measured against un-injected TerminalWorld-Seeds images, harbor's
-# runtime install succeeded on 6/6 bases -- ubuntu:16.04 5.0s, centos:7 (yum) 10.9s,
-# ubuntu:22.04 9.1s. Baking the step in moves those seconds off every rollout and
-# onto the once-per-Dockerfile Daytona build, at the cost of coupling the JSONL to
-# one harness; hence opt-in, off by default.
-#
-# The archive-mirror rewrites keep the EOL bases (centos:7, ubuntu:16.04, debian
-# buster/stretch) buildable if their default mirrors go away.
-# Non-fatal by design: the whole install runs in a subshell whose failure is caught by
-# `|| echo ...`, so the RUN always exits 0 and a tmux preinstall failure never fails the
-# image build. Rationale: some source bases have a broken package path we don't control
-# (e.g. an EOL mirror, or a distro whose pkg manager we don't branch on), and a hard
-# `exit 1` there dropped the ENTIRE image to BUILD_FAILED -- e.g. tw_473991 (archlinux)
-# fell through to the old `else: exit 1` because pacman had no branch, and its 192
-# rollouts all BUILD_FAILED and burned Daytona create quota. When tmux is not baked in,
-# Terminus self-installs it at runtime, so a miss is degraded-but-recoverable, not fatal.
-# @andy: once the environment/base images are fixed so every task builds tmux, flip this
-# back to strict (drop the `|| echo` catch and restore `exit 1` in the else) to surface
-# real regressions instead of silently shipping images without tmux.
+# tmux is an admission requirement for terminal-agent images. Fail the build
+# when installation fails; runtime fallback would retry the same broken package
+# sources independently in every sibling rollout.
 _AGENT_RUNTIME_BLOCK = """
-# harbor-agent-runtime: tmux is required by the terminal agent (non-fatal preinstall)
+# harbor-agent-runtime: tmux is required by the terminal agent
 RUN ( if command -v tmux >/dev/null 2>&1; then \\
         exit 0; \\
       elif command -v apt-get >/dev/null 2>&1; then \\
-        (apt-get update || ( \\
-          sed -i -e 's|http://deb.debian.org/debian|http://archive.debian.org/debian|g' \\
-                 -e 's|http://security.debian.org/debian-security|http://archive.debian.org/debian-security|g' \\
-                 -e 's|http://deb.debian.org/debian-security|http://archive.debian.org/debian-security|g' \\
-                 -e 's|http://archive.ubuntu.com/ubuntu|http://old-releases.ubuntu.com/ubuntu|g' \\
-                 -e 's|http://security.ubuntu.com/ubuntu|http://old-releases.ubuntu.com/ubuntu|g' \\
-                 -e 's|http://.*archive.ubuntu.com/ubuntu|http://old-releases.ubuntu.com/ubuntu|g' \\
-                 /etc/apt/sources.list 2>/dev/null; \\
-          echo 'Acquire::Check-Valid-Until "false";' > /etc/apt/apt.conf.d/99harbor-archive; \\
-          apt-get update \\
-        )) && (apt-get install -y tmux || apt-get install -y --allow-unauthenticated tmux) \\
+        apt-get update && apt-get install -y tmux \\
         && rm -rf /var/lib/apt/lists/*; \\
       elif command -v yum >/dev/null 2>&1; then \\
-        (yum install -y tmux || ( \\
-          sed -i -e 's|^mirrorlist=|#mirrorlist=|g' \\
-                 -e 's|^#baseurl=http://mirror.centos.org|baseurl=http://vault.centos.org|g' \\
-                 /etc/yum.repos.d/CentOS-*.repo 2>/dev/null; \\
-          yum install -y tmux \\
-        )) && yum clean all; \\
+        yum install -y tmux && yum clean all; \\
       elif command -v dnf >/dev/null 2>&1; then \\
         dnf install -y tmux && dnf clean all; \\
       elif command -v microdnf >/dev/null 2>&1; then \\
@@ -172,8 +138,18 @@ RUN ( if command -v tmux >/dev/null 2>&1; then \\
       else \\
         echo 'ERROR: no supported package manager to install tmux' >&2; exit 1; \\
       fi ) \\
-    || echo 'harbor-agent-runtime: tmux preinstall failed (non-fatal); Terminus will self-install at runtime' >&2
+    && tmux -V
 """
+
+
+def _inject_agent_runtime(dockerfile: str) -> str:
+    """Require tmux in the final stage using the task's declared package sources.
+
+    Source repairs belong in the task Dockerfile before its first package
+    operation. A network or signing failure must not rewrite healthy sources
+    or disable security repositories in an otherwise unrelated build.
+    """
+    return dockerfile.rstrip("\n") + "\n" + _AGENT_RUNTIME_BLOCK
 
 
 def _join_continuations(dockerfile: str) -> str:
@@ -376,7 +352,10 @@ def _grading_fixtures(task_dir: str) -> tuple[dict[str, str], str | None]:
     fixtures: dict[str, str] = {}
     total = 0
     base = os.path.join(task_dir, "tests")
-    for dirpath, _dirs, files in os.walk(base):
+    for dirpath, dirs, files in os.walk(base):
+        # Host-side verifier inspection can leave Python bytecode caches. They
+        # are regenerated by Python and are not task fixtures.
+        dirs[:] = [name for name in dirs if name != "__pycache__"]
         for fn in sorted(files):
             abspath = os.path.join(dirpath, fn)
             rel = os.path.relpath(abspath, task_dir)
@@ -468,7 +447,7 @@ def _to_row(
     task_dir: str,
     *,
     task_id: str | None = None,
-    inject_agent_runtime: bool = False,
+    inject_agent_runtime: bool = True,
     resources: dict[str, int] | None = None,
     pretest: tuple[str, str] | None = None,
 ) -> tuple[dict | None, str]:
@@ -502,10 +481,10 @@ def _to_row(
     fixtures, reason = _grading_fixtures(task_dir)
     if reason:
         return None, reason
-    # After _build_context: the appended step has no COPY sources of its own, and a
-    # trailing RUN in the final stage leaves WORKDIR/ENTRYPOINT/CMD untouched.
+    # After _build_context: the injected steps have no COPY sources of their own,
+    # and the trailing RUN in the final stage leaves WORKDIR/ENTRYPOINT/CMD untouched.
     if inject_agent_runtime:
-        dockerfile = dockerfile.rstrip("\n") + "\n" + _AGENT_RUNTIME_BLOCK
+        dockerfile = _inject_agent_runtime(dockerfile)
 
     with open(paths["instruction"], encoding="utf-8") as f:
         instruction = _strip_canary(f.read())
@@ -623,7 +602,7 @@ def build_rows(
     limit: int | None = None,
     seed: int = 42,
     max_oracle_commands: int | None = None,
-    inject_agent_runtime: bool = False,
+    inject_agent_runtime: bool = True,
     resource_map: dict[str, dict[str, int]] | None = None,
     pretest_map: dict[str, tuple[str, str]] | None = None,
 ) -> tuple[list[dict], dict[str, int]]:
@@ -698,10 +677,10 @@ def main() -> None:
     )
     ap.add_argument(
         "--inject-agent-runtime",
-        action="store_true",
-        help="append a tmux install step to each Dockerfile -- required for corpora "
-        "that ship the upstream task content verbatim (TerminalWorld-Seeds) rather "
-        "than RTS, whose Dockerfiles already carry it",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+        help="require tmux in the final image (default: enabled); disable only "
+        "when preparing data for a harness that does not use tmux",
     )
     ap.add_argument(
         "--metadata-parquet",

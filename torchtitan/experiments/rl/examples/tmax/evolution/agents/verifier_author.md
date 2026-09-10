@@ -68,6 +68,31 @@ and explores the container. Concretely:
   not there for you either. Invoke the workflow the way the instruction tells a
   user to.
 
+Map each retained or added requirement to a check of its promised behavior or
+result, using task inputs or an independently computed expectation. File existence,
+non-empty content, success words in a log, or agreement between two solver-written
+reports cannot alone establish correctness. Solver-written claims do not prove
+that a required execution, measurement or tool interaction occurred.
+
+If the task requires a reusable program, run the submitted program through the
+specified entry point on fresh valid inputs and check its outputs. Ensure retained
+outputs cannot let a no-op program pass, and restore inputs after the check. If the
+task asks only for a final artifact or state, check that result without inventing
+a requirement to save a script. Accept alternative paths, formats and implementations
+wherever the public task leaves them open.
+
+Cover valid boundary cases introduced by the change, including empty results when
+possible. In each case, check the changed behavior together with retained output
+requirements, such as required headers or schema even when there are no records.
+Check these properties before parsing or normalization discards them; an empty
+parsed collection alone does not prove that the required output structure exists.
+
+Before finishing, inspect whether a no-op, a hardcoded answer or fabricated evidence
+could still pass, and whether an equivalent legal solution could fail. Choose examples
+relevant to this task. In your final response, identify one concrete incorrect solution
+and the check that rejects it, and one legal alternative the checks allow; distinguish
+code inspection from executed tests. Keep the existing sandbox checks and job limits.
+
 ## The container
 
 ```

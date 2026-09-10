@@ -188,7 +188,7 @@ def publish(wb, result: dict, snapshot: Path, charts: dict) -> None:
             fields={column: column for column in columns},
             string_fields={
                 "task": focus,
-                "cohort": f"Same {len(result['unchanged']['cohort'])} tasks; latest epoch may be incomplete",
+                "cohort": f"Same {len(result['unchanged']['cohort'])} unchanged tasks at every epoch",
             },
         )
     wb.log(payload)

@@ -24,6 +24,7 @@ import re
 import shlex
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
@@ -165,8 +166,13 @@ def _build_exec_command(
         argv = ["env", "--", *(f"{key}={value}" for key, value in env.items()), *argv]
     argv = [
         "timeout",
-        "--signal=TERM",
-        f"--kill-after={_COMMAND_KILL_GRACE_SEC}s",
+        # Use the short options shared by GNU coreutils and BusyBox.  Some
+        # TerminalWorld images provide BusyBox's timeout, which rejects the
+        # GNU-only --signal/--kill-after spellings before running the payload.
+        "-s",
+        "TERM",
+        "-k",
+        f"{_COMMAND_KILL_GRACE_SEC}s",
         f"{timeout}s",
         *argv,
     ]
@@ -328,38 +334,43 @@ def _strip_comments_in_continuation(dockerfile: str) -> str:
     return "".join(kept)
 
 
-_PROXY_ENV_NAMES = ("http_proxy", "https_proxy", "HTTP_PROXY", "HTTPS_PROXY")
 _proxy_patch_done = False
 
 
 def _keep_proxy_for_context_upload() -> None:
-    """Let a task's build context reach Daytona's object store through the proxy.
+    """Keep the process environment while Daytona creates its object-store client.
 
     The SDK uploads COPY sources to S3 with an obstore client that it constructs
-    inside ``isolated_env()`` -- a helper that clears ``os.environ`` wholesale, so
-    ``https_proxy`` never reaches it. On a host whose only egress is an HTTP
-    proxy, every context upload then dies with "Generic S3 error: Error performing
-    HEAD https://s3...". Re-inject just the proxy variables. No-op when no proxy is
-    configured (direct egress).
+    inside ``isolated_env()``. Daytona 0.203.0 implements that helper by clearing
+    and rebuilding the process-wide ``os.environ`` twice. A rollout worker creates
+    many sandboxes concurrently and also has Python/HTTP runtime threads; one such
+    clear raced a thread doing ``pwd.getpwuid()``, crashing in
+    ``_nss_sss_getpwuid_r -> getenv`` with SIGSEGV. It also removes the HTTP proxy
+    while constructing obstore, breaking context uploads on proxy-only hosts.
+
+    ObjectStorage passes endpoint and credentials explicitly to ``S3Store``, so it
+    does not need to hide the ambient environment. Replace the SDK context manager
+    with a no-op and rebind the copies imported by both object-storage modules.
+    This keeps proxy variables available and, critically, never mutates process
+    environment from a concurrent request.
     """
     global _proxy_patch_done
     if _proxy_patch_done:
-        return
-    proxy = {n: _getenv(n) for n in _PROXY_ENV_NAMES if _getenv(n)}
-    if not proxy:
-        _proxy_patch_done = True
         return
     try:
         from daytona._sync import object_storage as sync_store  # type: ignore
         from daytona._utils import environment as env_mod  # type: ignore
     except ImportError:
         return
-    original = env_mod.isolated_env
 
+    from contextlib import contextmanager
+
+    @contextmanager
     def isolated_env(temp_env=None):
-        merged = dict(temp_env or {})
-        merged.update(proxy)
-        return original(merged)
+        # Daytona's callers pass credentials directly to S3Store. Keep accepting
+        # the argument for SDK compatibility, but never rewrite process-wide env.
+        del temp_env
+        yield
 
     env_mod.isolated_env = isolated_env
     # object_storage imported the symbol by value, so rebind it there as well.
@@ -371,7 +382,10 @@ def _keep_proxy_for_context_upload() -> None:
     except ImportError:
         pass
     _proxy_patch_done = True
-    logger.info("[daytona] proxy re-injected for build-context upload")
+    logger.info(
+        "[daytona] disabled process-global environment clearing for "
+        "build-context upload"
+    )
 
 
 def _eager_rebuild_daytona_models() -> None:
@@ -505,6 +519,17 @@ class DaytonaSandbox:
       ``TT_DAYTONA_RPC_RETRIES``            -- retries for idempotent RPCs; default 2.
       ``TT_DAYTONA_HEARTBEAT_SEC``          -- activity refresh interval; default
                                                180s, or 0 to disable.
+      ``TT_DAYTONA_TTL_MIN``                -- hard wall-clock lifetime in minutes,
+                                               counted from creation whatever the
+                                               sandbox's state; 0 (default)
+                                               disables it. The only reaper that
+                                               reaches a sandbox that never
+                                               started (BUILD_FAILED, ERROR),
+                                               which auto-stop and auto-delete
+                                               both miss. It deletes LIVE
+                                               sandboxes at the same age, so set
+                                               it above the longest legitimate
+                                               rollout, not near it.
     """
 
     api_key_env = ("DAYTONA_API_KEY",)
@@ -522,6 +547,7 @@ class DaytonaSandbox:
         memory: int | None = None,
         disk_gb: int | None = None,
         issue_tracker: SandboxIssueTracker | None = None,
+        failure_diagnostics_dir: Path | None = None,
         **_ignored,
     ) -> None:
         # Per-task overrides for vCPU / memory (GiB) / disk (GiB). None means fall
@@ -546,6 +572,8 @@ class DaytonaSandbox:
         self.disk_gb = disk_gb
         self.allocated_disk_gb: int | None = None
         self.issue_tracker = issue_tracker or SandboxIssueTracker()
+        self._failure_diagnostics_dir = failure_diagnostics_dir
+        self._started_at = datetime.now(timezone.utc).isoformat()
         # Daytona is optional and imported lazily, so its SDK types are not
         # available for static annotations in this module.
         self._client: Any = None
@@ -822,13 +850,34 @@ class DaytonaSandbox:
             )
         if int(_getenv("TT_DAYTONA_RPC_RETRIES", default="2")) < 0:
             raise ValueError("TT_DAYTONA_RPC_RETRIES must be non-negative")
+        # Neither auto_stop nor auto_delete reaches a sandbox that never started:
+        # both are defined on a RUNNING sandbox going idle, and a BUILD_FAILED or
+        # ERROR one is already in a terminal state, so it stays for good. That is
+        # where a stopped run's residue actually comes from -- a task whose image
+        # does not build leaves one corpse per create retry. ttl_minutes is the
+        # only cloud-side reaper that covers it: wall-clock from creation
+        # regardless of state (verified on this account 2026-09-07, a
+        # BUILD_FAILED sandbox with ttl=2 was gone inside 142s while an
+        # otherwise identical one without it stayed).
+        #
+        # It also kills LIVE sandboxes at the same age, so it is off by default
+        # (0) and must be set well above the longest a rollout can legitimately
+        # take -- boot allowance + SWE_TIME_BUDGET_SEC + the verifier -- or it
+        # takes running work with it.
+        ttl_min = int(_getenv("TT_DAYTONA_TTL_MIN", default="0"))
+        if ttl_min < 0:
+            raise ValueError(f"TT_DAYTONA_TTL_MIN must be non-negative, got {ttl_min}")
         # Some Daytona regions reject non-ephemeral creates outright ("Only
         # ephemeral sandboxes are permitted in this region"). Opt-in via
-        # TT_DAYTONA_EPHEMERAL. Ephemeral already means delete-on-stop, and the
-        # SDK rejects the pair -- passing both only warns ("'ephemeral' and
-        # 'auto_delete_interval' cannot be used together") and drops the TTL, so
-        # send auto_delete_interval only on the non-ephemeral path.
+        # TT_DAYTONA_EPHEMERAL. Ephemeral already means delete-on-stop -- the SDK
+        # forces auto_delete_interval to 0, which is sooner than any value we
+        # could pass, and warns if one is given ("'ephemeral' and
+        # 'auto_delete_interval' cannot be used together") -- so send
+        # auto_delete_interval only on the non-ephemeral path. ttl_minutes has no
+        # such conflict and goes on both.
         create_kwargs = {}
+        if ttl_min > 0:
+            create_kwargs["ttl_minutes"] = ttl_min
         if _getenv("TT_DAYTONA_EPHEMERAL", default="0") == "1":
             create_kwargs["ephemeral"] = True
         else:
@@ -880,6 +929,27 @@ class DaytonaSandbox:
         return self
 
     async def __aexit__(self, exc_type, exc, tb) -> None:
+        try:
+            if (
+                exc is not None
+                and self._sb is not None
+                and self._failure_diagnostics_dir
+            ):
+                from torchtitan.experiments.rl.harness.sandbox.daytona_diagnostics import (
+                    collect_failure_diagnostics,
+                )
+
+                await collect_failure_diagnostics(
+                    self._client,
+                    self._sb,
+                    self._failure_diagnostics_dir,
+                    self._started_at,
+                    exc,
+                )
+        finally:
+            await self._cleanup()
+
+    async def _cleanup(self) -> None:
         import asyncio
         import random
 

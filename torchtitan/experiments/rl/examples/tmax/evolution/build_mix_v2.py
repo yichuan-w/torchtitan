@@ -120,7 +120,7 @@ def tw_rows(ids_path: Path, disk_results: Path, tasks_parquet: Path,
         try:
             row = pack.to_row(str(src))
         except Exception as e:  # noqa: BLE001
-            missing.append(f"{tid} (pack: {type(e).__name__})")
+            missing.append(f"{tid} (pack: {type(e).__name__}: {e})")
             continue
         md = row["metadata"]
         d = declared.get(tid, {})
@@ -227,6 +227,8 @@ def main() -> None:
     ap.add_argument("--tw-ids", default=None,
                     help="default: the TW dataset's metadata/train_ready_ids.txt under "
                          "$TRL_BASE/data/sources/tw-extract")
+    ap.add_argument("--tw-tasks", type=Path,
+                    help="TW task packages; default: the source dataset's tasks directory")
     ap.add_argument("--tmax-tasks", default=None,
                     help="the reaudit task packages, one directory per task_id; default: "
                          "$TRL_BASE/data/sources/tmax-extract/tasks (the loop's r0 source)")
@@ -266,7 +268,8 @@ def main() -> None:
         print(f"WARNING: {tmax_peaks} missing -- every tmax row falls back to the "
               f"fleet default size", file=sys.stderr)
 
-    tw, tw_missing = tw_rows(tw_ids, disk_results, tasks_parquet, tw_src / "tasks")
+    tw_tasks = args.tw_tasks or tw_src / "tasks"
+    tw, tw_missing = tw_rows(tw_ids, disk_results, tasks_parquet, tw_tasks)
     tm, tm_missing = tmax_rows(tmax_tasks, tmax_parquet,
                                tmax_peaks if tmax_peaks.exists() else None)
     rows = tw + tm
@@ -280,6 +283,7 @@ def main() -> None:
         "tmax_hooked": sum(1 for r in tm if r["metadata"]["tmax"].get("pre_test_sh")),
         "total": len(rows), "holdout_n": args.holdout_n, "shuffle_seed": args.seed,
         "inputs": {
+            "tw_tasks": {"path": str(tw_tasks), "sha": _sha_tree(tw_tasks)},
             "tw_ids": {"path": str(tw_ids), "sha": _sha(tw_ids)},
             "tasks_parquet": {"path": str(tasks_parquet), "sha": _sha(tasks_parquet)},
             "tmax_tasks": {"path": str(tmax_tasks), "sha": _sha_tree(tmax_tasks)},

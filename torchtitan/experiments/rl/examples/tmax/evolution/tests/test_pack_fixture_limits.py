@@ -1,3 +1,9 @@
+# Copyright (c) Meta Platforms, Inc. and affiliates.
+# All rights reserved.
+#
+# This source code is licensed under the BSD-style license found in the
+# LICENSE file in the root directory of this source tree.
+
 """What may sit under tests/ beside the verifier. Grading fixtures ride inside
 the mix row as text and are uploaded at grade time, so they are bounded the way
 the Dockerfile's COPY sources already are, and a binary one is refused with its
@@ -17,6 +23,17 @@ import pack_to_dataset as pack
 @pytest.fixture(autouse=True)
 def _checkout(monkeypatch):
     monkeypatch.setenv("TRL_TT", str(Path(__file__).resolve().parents[7]))
+
+
+def test_packer_defaults_to_its_own_checkout(monkeypatch):
+    monkeypatch.delenv("TRL_TT", raising=False)
+    assert Path(pack._checkout_root()) == Path(__file__).resolve().parents[7]
+
+
+def test_invalid_explicit_checkout_does_not_fall_back(monkeypatch, tmp_path):
+    monkeypatch.setenv("TRL_TT", str(tmp_path))
+    with pytest.raises(ModuleNotFoundError, match="no torchtitan checkout"):
+        pack._checkout_root()
 
 
 def _package(tmp_path: Path) -> Path:
@@ -59,3 +76,15 @@ def test_a_binary_fixture_is_refused_by_name(tmp_path) -> None:
     (pkg / "tests/ref.bin").write_bytes(b"\x00\xff\xfe binary \x80")
     with pytest.raises(ValueError, match="tests_fixture_binary.*tests/ref.bin"):
         pack.to_row(str(pkg), task_id="t")
+
+
+def test_host_python_caches_are_not_task_fixtures(tmp_path):
+    pkg = _package(tmp_path)
+    cache = pkg / "tests/__pycache__"
+    cache.mkdir()
+    (cache / "test_state.cpython-312.pyc").write_bytes(b"\xff\x00")
+    (pkg / "tests/test_state.py").write_text("def test_state(): assert True\n")
+    row = pack.to_row(str(pkg), task_id="t")
+    assert row["metadata"]["tmax"]["fixtures"] == {
+        "tests/test_state.py": "def test_state(): assert True\n"
+    }

@@ -49,6 +49,7 @@ class _Actor:
         raises_pull: bool = False,
     ):
         self.generate = _Endpoint(name, wait=wait_generate)
+        self.cancel_generation = _Endpoint(None)
         self.pull_model_state_dict = _Endpoint(None, wait=wait_pull, raises=raises_pull)
 
 
@@ -60,6 +61,44 @@ def _router(actors, *, strategy=None, hot_swap=False) -> InterGeneratorRouter:
         ),
         generators=actors,
     )
+
+
+def test_independent_generators_return_without_waiting_for_slow_peer():
+    async def run():
+        actors = [_Actor(f"gen{i}", wait_generate=True) for i in range(5)]
+        router = _router(actors, strategy=StickySessionRoutingStrategy.Config())
+        tasks = [
+            asyncio.create_task(
+                router.route("generate", routing_ctx=RoutingContext(session_id=f"s{i}"))
+            )
+            for i in range(5)
+        ]
+        await asyncio.wait_for(
+            asyncio.gather(*(a.generate.started.wait() for a in actors)), 2
+        )
+        assert [h.reserved_load for h in router._generators] == [1] * 5
+        # Keep engine 0 blocked. Other engines return and free their reservations.
+        for actor in actors[1:]:
+            actor.generate.release.set()
+        done, pending = await asyncio.wait(tasks, timeout=2)
+        assert len(done) == 4
+        assert len(pending) == 1
+        assert [h.reserved_load for h in router._generators] == [1, 0, 0, 0, 0]
+        # Later turns retain their original engine even while a peer is blocked.
+        for i, task in enumerate(tasks):
+            if task in done:
+                result = await asyncio.wait_for(
+                    router.route(
+                        "generate", routing_ctx=RoutingContext(session_id=f"s{i}")
+                    ),
+                    2,
+                )
+                assert result == task.result()
+        actors[0].generate.release.set()
+        assert sorted(await asyncio.gather(*tasks)) == [f"gen{i}" for i in range(5)]
+        assert all(h.reserved_load == 0 for h in router._generators)
+
+    asyncio.run(run())
 
 
 def test_least_loaded_routes_to_lowest_reserved_load():
@@ -118,6 +157,32 @@ def test_round_robin_cycles_through_generators():
         ]
         # Cycles through all three in order, then wraps back to the first.
         assert results == ["gen0", "gen1", "gen2", "gen0"]
+
+    asyncio.run(_run())
+
+
+@pytest.mark.parametrize("syncing", [False, True])
+def test_cancel_reaches_original_actor_after_routing_changes(syncing):
+    async def _run():
+        actors = [_Actor("gen0", wait_generate=True), _Actor("gen1")]
+        router = _router(actors, strategy=RoundRobinRoutingStrategy.Config())
+        request = asyncio.create_task(
+            router.route(
+                "generate",
+                request_id="r0",
+                routing_ctx=RoutingContext(),
+            )
+        )
+        await actors[0].generate.started.wait()
+        if syncing:
+            router._set_state(router._generators[0], _GeneratorState.SYNCING)
+        request.cancel()
+        with pytest.raises(asyncio.CancelledError):
+            await request
+        await asyncio.gather(*router._cancel_tasks)
+        assert actors[0].cancel_generation.calls == [((), {"request_id": "r0"})]
+        assert actors[1].cancel_generation.calls == []
+        assert await router.route("generate", routing_ctx=RoutingContext()) == "gen1"
 
     asyncio.run(_run())
 

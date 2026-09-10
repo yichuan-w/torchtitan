@@ -732,32 +732,43 @@ def rl_grpo_qwen3_5_9b_tmax() -> Controller.Config:
     # gets it. SWE_GDN_BI below sets it independently, and still wins.
     _prefix_cache_env = os.environ.get("SWE_GEN_PREFIX_CACHE", "")
     _prefix_cache = None if _prefix_cache_env == "" else _prefix_cache_env == "1"
-    # DP routing across the generator's engines. tmax DEFAULTS to
-    # StickySession(fallback=RoundRobin): deal new sessions out evenly BY COUNT so no
-    # single engine piles up. The upstream default (fallback=LeastLoaded) concentrated
-    # ~2x load on engine 0 -- reserved_load is per-turn (transient, ~0 between an
-    # agent's turns) but the sticky pin is per-session (persistent), so LeastLoaded's
-    # min() froze the frequent between-turn ties onto the lowest index. Measured on a
-    # 4-engine 9B run: engine 0 ran ~2.0x the others under LeastLoaded, ~1.2x under
-    # RoundRobin. The sticky pin is kept either way for prefix-cache reuse.
-    # SWE_DP_ROUTER=leastloaded restores the upstream LeastLoaded fallback for A/B.
-    _dp_router = config.generator.intra_generator_router
-    if os.environ.get("SWE_DP_ROUTER", "roundrobin").lower() not in (
-        "leastloaded",
-        "least",
-        "ll",
-    ):
-        from torchtitan.experiments.rl.routing.strategies import (
-            RoundRobinRoutingStrategy,
-            StickySessionRoutingStrategy,
-        )
+    # Keep sticky affinity and overload protection for either cold-session
+    # fallback. LeastLoaded rotates ties; request count is not KV occupancy.
+    from torchtitan.experiments.rl.routing.strategies import (
+        LeastLoadedRoutingStrategy,
+        RoundRobinRoutingStrategy,
+        StickySessionRoutingStrategy,
+    )
 
-        _dp_router = dataclasses.replace(
-            _dp_router,
-            strategy=StickySessionRoutingStrategy.Config(
-                fallback_strategy=RoundRobinRoutingStrategy.Config()
-            ),
-        )
+    # Sticky routing is always the outer strategy here.  This knob selects
+    # only where a new/unpinned session goes (and where a broken pin is
+    # reattached).  Keep SWE_DP_ROUTER as a compatibility alias for older
+    # runbooks, but make the narrower name the documented one.
+    _routing_name = os.environ.get(
+        "SWE_DP_FALLBACK_ROUTER",
+        os.environ.get("SWE_DP_ROUTER", "roundrobin"),
+    ).lower()
+    _fallback = (
+        LeastLoadedRoutingStrategy.Config()
+        if _routing_name in ("leastloaded", "least", "ll")
+        else RoundRobinRoutingStrategy.Config()
+    )
+    _dp_router = dataclasses.replace(
+        config.generator.intra_generator_router,
+        strategy=StickySessionRoutingStrategy.Config(
+            fallback_strategy=_fallback,
+            # Keep session affinity stable by default.  Rebalancing is an
+            # opt-in policy because reserved request count is not KV usage.
+            rebalance_load_ratio=float(os.environ.get("SWE_DP_STICKY_REBALANCE", "0.0")),
+            rebalance_min_gap=8,
+            max_sessions=int(os.environ.get("SWE_DP_STICKY_MAX_SESSIONS", "16384")),
+        ),
+    )
+    # Use the same session affinity at the controller boundary. With DP=1
+    # replicas this is the only routing decision; no GPU owns peer results.
+    config.generator_router = dataclasses.replace(
+        config.generator_router, strategy=_dp_router.strategy
+    )
 
     config.generator = dataclasses.replace(
         config.generator,
@@ -885,6 +896,12 @@ def rl_grpo_qwen3_5_9b_tmax() -> Controller.Config:
                 config.generator.parallelism, data_parallel_degree=_gdp
             ),
         )
+    # Separate proc meshes have independent engine loops and process groups.
+    # Five single-GPU engines: SWE_NUM_GENERATORS=5 SWE_GEN_DP=1.
+    _num_generators = int(os.environ.get("SWE_NUM_GENERATORS", "1"))
+    if _num_generators < 1:
+        raise ValueError("SWE_NUM_GENERATORS must be at least 1")
+    config.num_generators = _num_generators
     # Optional AC-policy override for a fwd/bwd speed experiment. The base is FullAC
     # (recompute the whole forward -- needed to fit seq 65536). SWE_AC=selective swaps
     # in per-op SAC, which saves the expensive aten op outputs (projections, flash-attn
@@ -968,18 +985,23 @@ def rl_grpo_qwen3_5_9b_tmax() -> Controller.Config:
             enable_prefix_caching=True,
             cudagraph=VLLMCudagraphConfig(enable=True, mode="FULL_DECODE_ONLY"),
         )
-    # torch.compile the torchtitan model (trainer + the wrapper generator, which
-    # register_to_vllm compiles via compile_config). At TP=1 the inductor
-    # allreduce-fusion landmine that gates vLLM's own compile does not apply, and
-    # "aot_eager" is a safe, no-codegen backend (AOT trace, eager exec) whose
-    # faster forward lets more agent turns finish inside the per-task budget. So
-    # it defaults ON when TP==1. This recipe is FSDP/DP (always TP=1), so the
-    # default reaches the training trainer too; SWE_GEN_COMPILE=0 turns it off,
-    # =1 forces it on regardless of TP. SWE_GEN_COMPILE_BACKEND picks the backend
-    # (aot_eager default; "inductor" for more speedup at TP=1).
-    _tp1 = config.generator.parallelism.tensor_parallel_degree == 1
-    _compile_env = os.environ.get("SWE_GEN_COMPILE", "").strip()
-    if _compile_env == "1" or (_compile_env == "" and _tp1):
+    # torch.compile the torchtitan model. OFF by default, and it must stay that
+    # way for any config that trains: ``config.compile`` is one field shared by
+    # the trainer and the wrapper generator, so turning it on for the generator
+    # turns it on for the trainer too. The trainer cannot take it -- dynamo traces
+    # Qwen3.5's causal_conv1d (fla's CausalConv1dFunction, an autograd.Function
+    # carrying torch.compiler.disable) from inside the activation-checkpoint HOP,
+    # where falling back to a graph break is not available, so it raises
+    # torch._dynamo.exc.Unsupported and every forward_backward dies. f3738819
+    # defaulted this ON at TP==1 and cost a 150-step run 18 restarts and 8 hours
+    # without a single completed step; the gate is back to opt-in.
+    #
+    # SWE_GEN_COMPILE=1 opts in -- meant for the single-GPU eval, where nothing
+    # trains and a faster forward fits more agent turns inside the task budget.
+    # SWE_GEN_COMPILE_BACKEND picks the backend: aot_eager (default, AOT trace +
+    # eager exec, no codegen) or "inductor", which is only safe at TP=1 because
+    # of the allreduce-fusion landmine that gates vLLM's own compile.
+    if os.environ.get("SWE_GEN_COMPILE", "0") == "1":
         config.compile = dataclasses.replace(
             config.compile,
             enable=True,
