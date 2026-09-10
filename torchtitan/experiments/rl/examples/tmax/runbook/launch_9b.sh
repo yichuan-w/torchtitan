@@ -76,6 +76,10 @@ fi
 . "$TRL_VENV/bin/activate"
 cd "$TRL_TT"
 
+# Trainer fp32 lm_head matmuls use TF32 by default in this 9B recipe.
+# Explicit SWE_LMHEAD_TF32=0 retains full fp32 input precision.
+export SWE_LMHEAD_TF32=${SWE_LMHEAD_TF32:-1}
+
 # ---- the run directory -------------------------------------------------------
 # runs/<prefix>--<UTC stamp>: the name is the identity, and stamps sort by time.
 # Not `mkdir -p`: two launches in one second must not share a directory.
