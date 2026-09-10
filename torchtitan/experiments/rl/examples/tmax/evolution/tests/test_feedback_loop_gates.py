@@ -747,20 +747,19 @@ def test_easier_records_decision_and_can_decline(tmp_path, monkeypatch):
     assert rec["status"] == "kept" and "repair_required" in rec["reason"]
 
 
-@pytest.mark.parametrize("repair_declines", [False, True])
-def test_spec_defect_is_repaired_from_the_input_revision(
-    tmp_path, monkeypatch, repair_declines
+def test_spec_defect_keeps_the_input_revision_without_starting_repair(
+    tmp_path, monkeypatch
 ):
     rw, r0 = _rewrite(tmp_path, monkeypatch)
     ec = _fake_ec()
     report = (
         "BLOCKED: repair_required: " + "visible contract disagrees with the check " * 8
     )
-    repair = {
-        "diagnosis": "unstated output format",
-        "validation": "valid output accepted",
+    original = {
+        str(path.relative_to(r0)): path.read_bytes()
+        for path in r0.rglob("*")
+        if path.is_file()
     }
-    calls = []
 
     def simplify(rewrite, task, **kwargs):
         (rewrite.package / "run").mkdir()
@@ -770,45 +769,26 @@ def test_spec_defect_is_repaired_from_the_input_revision(
         (rewrite.package / "environment/partial-edit.txt").write_text("unfinished")
         raise ec.Blocked(report[:200])
 
-    def repair_task(rewrite, task, job, *, observed):
-        assert job == "repair_spec" and observed == report
-        assert not (rewrite.package / "environment/partial-edit.txt").exists()
-        assert (
-            rewrite.path / "before-spec-repair/environment/partial-edit.txt"
-        ).read_text() == "unfinished"
-        assert (rewrite.package / "instruction.md").read_text() == SEED["instruction"]
-        assert (rewrite.traces / "attempt-01.jsonl").read_text() == '{"reward": 0}\n'
-        calls.append("repair")
-        if repair_declines:
-            raise ec.Blocked("GIVE UP: the suspected defect is unsupported")
-        return {
-            **task,
-            "instruction": "Write the report as plain text to /app/report.txt.",
-            "_spec_repair": repair,
-            "_agent_validated": True,
-        }
+    def unexpected(*args, **kwargs):
+        pytest.fail("a declined simplify started repair or validation")
 
-    def revalidate(work, image, tid, task, **kwargs):
-        calls.append("validate")
-        assert task["_spec_repair"] == repair
-        assert kwargs["orig"]["instruction"] == SEED["instruction"]
-        return {"ok": True, "fast_path": "daytona_oracle"}
-
-    ec.simplify_codex, ec.evolve_agentic = simplify, repair_task
+    ec.simplify_codex, ec.evolve_agentic = simplify, unexpected
     monkeypatch.setitem(sys.modules, "evolve_codex", ec)
     monkeypatch.setenv("SWE_RETUNE_AGENT", "codex")
-    monkeypatch.setattr(fb, "revalidate", revalidate)
+    monkeypatch.setattr(fb, "revalidate", unexpected)
     monkeypatch.setattr(fb.shutil, "which", lambda _n: None)
     rec = fb.process_one(rw, {**SIGNAL, "solved": 0}, job="easier", seed_dir=r0)
-    assert rec["action"] == "repair" and "simplify" not in rec
+    assert rec["action"] == "simplify" and "simplify" not in rec
     assert rec["spec_repair"]["reported"] == report
-    assert (r0 / "instruction.md").read_text() == SEED["instruction"]
-    if repair_declines:
-        assert calls == ["repair"] and rec["status"] == "kept"
-        assert rec["stage"] == "spec_repair"
-    else:
-        assert calls == ["repair", "validate"] and rec["status"] == "accepted"
-        assert rec["family"] == "repair" and rec["agent_validated"]
+    assert rec["status"] == "kept" and rec["stage"] == "repair_required"
+    assert rec["reason"] == report[:300]
+    assert {
+        str(path.relative_to(r0)): path.read_bytes()
+        for path in r0.rglob("*")
+        if path.is_file()
+    } == original
+    assert (rw.package / "environment/partial-edit.txt").read_text() == "unfinished"
+    assert (rw.traces / "attempt-01.jsonl").read_text() == '{"reward": 0}\n'
 
 
 def test_format_trace_prefers_failures() -> None:

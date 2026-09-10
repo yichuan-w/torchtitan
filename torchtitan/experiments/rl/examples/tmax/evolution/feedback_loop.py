@@ -766,25 +766,8 @@ def process_one(
                     if not str(e).startswith("BLOCKED: repair_required:"):
                         return _done(rec, "kept", stage="agent", reason=str(e))
                     report = (work / "run" / "verdict.txt").read_text()
-                    rec["action"] = "repair"
                     rec["spec_repair"] = {"reported": report}
-                    # Preserve the declined package, including any partial edits,
-                    # and repair from the exact input revision.
-                    declined = rewrite.path / "before-spec-repair"
-                    work.rename(declined)
-                    shutil.copytree(seed_dir, work)
-                    shutil.copytree(declined / "traces", rewrite.traces)
-                    try:
-                        new = ec.evolve_agentic(
-                            rewrite, task, "repair_spec", observed=report
-                        )
-                    except ec.Blocked as repair_error:
-                        return _done(
-                            rec, "kept", stage="spec_repair", reason=str(repair_error)
-                        )
-                    rec["spec_repair"].update(new["_spec_repair"])
-                    rec["family"] = "repair"
-                    rec["agent_validated"] = new.get("_agent_validated")
+                    return _done(rec, "kept", stage="repair_required", reason=report)
                 except Exception as e:  # noqa: BLE001 -- the task stays as it is
                     return _done(
                         rec, "failed", stage="agent", reason=f"{type(e).__name__}: {e}"
