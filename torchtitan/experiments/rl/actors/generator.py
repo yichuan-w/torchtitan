@@ -518,16 +518,22 @@ class RequestDispatcher:
         self._broadcast_group = broadcast_group
 
         # Confirm our derived layout matches what vLLM computed independently.
-        assert vllm_parallel_config.data_parallel_size == self._dp_degree, (
-            f"DP layout mismatch on rank {self._rank}: our dp_size "
-            f"({self._dp_degree}) != vLLM data_parallel_size "
-            f"({vllm_parallel_config.data_parallel_size})"
-        )
-        assert vllm_parallel_config.data_parallel_rank == self._dp_rank, (
-            f"DP layout mismatch on rank {self._rank}: our dp_rank "
-            f"({self._dp_rank}) != vLLM data_parallel_rank "
-            f"({vllm_parallel_config.data_parallel_rank})"
-        )
+        # With the custom router, each actor owns an independent vLLM instance;
+        # vLLM's internal DP must therefore stay at one.  Keep accepting the
+        # old multi-engine layout for callers that still construct it directly.
+        if vllm_parallel_config.data_parallel_size == 1:
+            assert vllm_parallel_config.data_parallel_rank == 0
+        else:
+            assert vllm_parallel_config.data_parallel_size == self._dp_degree, (
+                f"DP layout mismatch on rank {self._rank}: our dp_size "
+                f"({self._dp_degree}) != vLLM data_parallel_size "
+                f"({vllm_parallel_config.data_parallel_size})"
+            )
+            assert vllm_parallel_config.data_parallel_rank == self._dp_rank, (
+                f"DP layout mismatch on rank {self._rank}: our dp_rank "
+                f"({self._dp_rank}) != vLLM data_parallel_rank "
+                f"({vllm_parallel_config.data_parallel_rank})"
+            )
 
         # RANK-0 OUTBOX: futures the engine loop resolves so the awaiting endpoint
         # returns. Only rank 0 ever populates this.
@@ -1216,11 +1222,11 @@ class VLLMGenerator(Actor, Configurable):
             trust_remote_code=True,
             dtype=config.model_dtype,
             tensor_parallel_size=config.parallelism.tensor_parallel_degree,
-            data_parallel_size=config.parallelism.data_parallel_degree,
-            # RequestDispatcher performs the cross-DP assignment.  Keep vLLM's
-            # frontend in external-LB mode so it does not create a second
-            # internal DPLB and silently move requests to another replica.
-            data_parallel_external_lb=config.parallelism.data_parallel_degree > 1,
+            # RequestDispatcher performs the cross-DP assignment.  Each actor
+            # therefore runs an independent vLLM instance; enabling vLLM DP here
+            # would create a second load balancer (and is rejected for non-MoE
+            # checkpoints).
+            data_parallel_size=1,
             # NOTE: Monarch launches the generator workers and sets the torch
             # elastic distributed env; with external_launcher, vLLM uses that
             # world to build its process groups. vLLM does not take an
@@ -1728,12 +1734,15 @@ class VLLMGenerator(Actor, Configurable):
                             if input_processor is not None and hasattr(
                                 input_processor, "process_inputs"
                             ):
+                                vllm_dp_rank = (
+                                    self._engine.vllm_config.parallel_config.data_parallel_rank
+                                )
                                 engine_request = input_processor.process_inputs(
                                     request.request_id,
                                     engine_input,
                                     sampling_params,
                                     supported_tasks=self._engine.get_supported_tasks(),
-                                    data_parallel_rank=self._request_dispatcher._dp_rank,
+                                    data_parallel_rank=vllm_dp_rank,
                                 )
                                 self._engine.add_request(
                                     request_id=request.request_id,
