@@ -6,6 +6,7 @@
 
 import asyncio
 import json
+from dataclasses import dataclass
 from types import SimpleNamespace
 from unittest.mock import AsyncMock
 
@@ -15,6 +16,11 @@ from aiohttp import web
 from torchtitan.experiments.rl.harness.agents import claude_code
 from torchtitan.experiments.rl.harness.sandbox import daytona_diagnostics as diagnostics
 from torchtitan.experiments.rl.harness.sandbox.daytona import DaytonaSandbox
+
+
+@dataclass
+class _Metrics:
+    disk_used: int = 42
 
 
 @pytest.mark.parametrize("mode", ["partial", "timeout", "large"])
@@ -70,7 +76,9 @@ def test_provider_capture_preserves_results_and_excludes_discovery_secrets(
         try:
             await diagnostics.collect_failure_diagnostics(
                 client,
-                SimpleNamespace(id="sb"),
+                SimpleNamespace(
+                    id="sb", get_metrics_latest=AsyncMock(return_value=_Metrics())
+                ),
                 tmp_path,
                 "2026-09-10T08:00:00Z",
                 ValueError("failed"),
@@ -80,6 +88,7 @@ def test_provider_capture_preserves_results_and_excludes_discovery_secrets(
         raw = (tmp_path / "sb.json").read_text()
         assert "private-key" not in raw and "config-secret" not in raw
         record = json.loads(raw)
+        assert record["requests"]["metrics_latest"]["payload"]["disk_used"] == 42
         assert record["status"] == ("timeout" if mode == "timeout" else "finished")
         assert record["requests"]["audit"]["payload"]["items"] == [{"action": "create"}]
         assert record["requests"]["metrics"]["http_status"] == 503

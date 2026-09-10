@@ -11,6 +11,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+from dataclasses import asdict
 from datetime import datetime, timezone
 from pathlib import Path
 from urllib.parse import quote
@@ -86,9 +87,24 @@ async def collect_failure_diagnostics(
                     finally:
                         save()
 
-                key, config = await asyncio.gather(
+                async def latest_metrics():
+                    entry = {"status": "pending"}
+                    record["requests"]["metrics_latest"] = entry
+                    try:
+                        async with asyncio.timeout(5):
+                            metrics = await sandbox.get_metrics_latest()
+                        entry.update(status="ok", payload=asdict(metrics))
+                    except Exception as exc:
+                        entry.update(
+                            status="request_error", error_type=type(exc).__name__
+                        )
+                    finally:
+                        save()
+
+                key, config, _ = await asyncio.gather(
                     get("key", api + "/api-keys/current"),
                     get("config", api + "/config", authenticated=False),
+                    latest_metrics(),
                 )
                 organization = (key or {}).get("organizationId")
                 if not organization:
