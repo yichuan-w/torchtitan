@@ -21,6 +21,7 @@ from unittest.mock import AsyncMock
 
 import pytest
 
+from torchtitan.experiments.rl.actors.generator import SamplingConfig
 from torchtitan.experiments.rl.examples.tmax import (
     grading as grading_mod,
     rollouter as rollouter_mod,
@@ -213,7 +214,7 @@ def _run_rollout(rollouter: TMaxRollouter, *, group_id: int = 0):
             ),
             group_id=group_id,
             rollout_idx=0,
-            sampling=object(),
+            sampling=SamplingConfig(),
             renderer=object(),
         )
     )
