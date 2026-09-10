@@ -102,6 +102,7 @@ def _install_fake_harbor(monkeypatch, built: list, **agent_kwargs) -> None:
     # The real exception types: terminus.py branches on them, so substituting
     # look-alikes would let a wrong branch pass.
     from harbor.llms.base import ContextLengthExceededError
+
     from torchtitan.experiments.rl.harness.agents.terminus_terminal import (
         TerminalLifecycle,
     )

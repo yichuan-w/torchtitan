@@ -21,8 +21,10 @@ from unittest.mock import AsyncMock
 
 import pytest
 
-from torchtitan.experiments.rl.examples.tmax import grading as grading_mod
-from torchtitan.experiments.rl.examples.tmax import rollouter as rollouter_mod
+from torchtitan.experiments.rl.examples.tmax import (
+    grading as grading_mod,
+    rollouter as rollouter_mod,
+)
 from torchtitan.experiments.rl.examples.tmax.data import TMaxSample
 from torchtitan.experiments.rl.examples.tmax.grading import (
     ctrf_pass_fraction,

@@ -530,13 +530,14 @@ async def terminus_agent(
     from harbor.llms.base import ContextLengthExceededError  # type: ignore
     from harbor.models.agent.context import AgentContext  # type: ignore
 
-    from torchtitan.experiments.rl.harness.agents.terminus_xml import (
-        SafeTerminusXMLParser,
-        TerminusXMLPlainParser,
-    )
     from torchtitan.experiments.rl.harness.agents.terminus_terminal import (
         TerminalExited,
         TerminalUnavailable,
+    )
+
+    from torchtitan.experiments.rl.harness.agents.terminus_xml import (
+        SafeTerminusXMLParser,
+        TerminusXMLPlainParser,
     )
 
     # Quiet litellm's per-turn token_counter for our placeholder model name (see
@@ -642,11 +643,11 @@ async def terminus_agent(
             # not the task, is what stopped the agent.
             turns = _episodes(agent)
             finish_reason = "hit_context_limit"
-        except TerminalExited:
+        except TerminalExited as exc:
             if stage != "run":
                 raise TerminalUnavailable(
                     "terminal_exited_during_setup", env.terminal.events
-                )
+                ) from exc
             turns = _episodes(agent)
             finish_reason = "terminal_exited"
         except asyncio.CancelledError:
