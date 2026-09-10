@@ -1217,6 +1217,10 @@ class VLLMGenerator(Actor, Configurable):
             dtype=config.model_dtype,
             tensor_parallel_size=config.parallelism.tensor_parallel_degree,
             data_parallel_size=config.parallelism.data_parallel_degree,
+            # RequestDispatcher performs the cross-DP assignment.  Keep vLLM's
+            # frontend in external-LB mode so it does not create a second
+            # internal DPLB and silently move requests to another replica.
+            data_parallel_external_lb=config.parallelism.data_parallel_degree > 1,
             # NOTE: Monarch launches the generator workers and sets the torch
             # elastic distributed env; with external_launcher, vLLM uses that
             # world to build its process groups. vLLM does not take an
