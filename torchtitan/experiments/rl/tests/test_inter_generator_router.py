@@ -63,6 +63,44 @@ def _router(actors, *, strategy=None, hot_swap=False) -> InterGeneratorRouter:
     )
 
 
+def test_independent_generators_return_without_waiting_for_slow_peer():
+    async def run():
+        actors = [_Actor(f"gen{i}", wait_generate=True) for i in range(5)]
+        router = _router(actors, strategy=StickySessionRoutingStrategy.Config())
+        tasks = [
+            asyncio.create_task(
+                router.route("generate", routing_ctx=RoutingContext(session_id=f"s{i}"))
+            )
+            for i in range(5)
+        ]
+        await asyncio.wait_for(
+            asyncio.gather(*(a.generate.started.wait() for a in actors)), 2
+        )
+        assert [h.reserved_load for h in router._generators] == [1] * 5
+        # Keep engine 0 blocked. Other engines return and free their reservations.
+        for actor in actors[1:]:
+            actor.generate.release.set()
+        done, pending = await asyncio.wait(tasks, timeout=2)
+        assert len(done) == 4
+        assert len(pending) == 1
+        assert [h.reserved_load for h in router._generators] == [1, 0, 0, 0, 0]
+        # Later turns retain their original engine even while a peer is blocked.
+        for i, task in enumerate(tasks):
+            if task in done:
+                result = await asyncio.wait_for(
+                    router.route(
+                        "generate", routing_ctx=RoutingContext(session_id=f"s{i}")
+                    ),
+                    2,
+                )
+                assert result == task.result()
+        actors[0].generate.release.set()
+        assert sorted(await asyncio.gather(*tasks)) == [f"gen{i}" for i in range(5)]
+        assert all(h.reserved_load == 0 for h in router._generators)
+
+    asyncio.run(run())
+
+
 def test_least_loaded_routes_to_lowest_reserved_load():
     async def _run():
         actors = [

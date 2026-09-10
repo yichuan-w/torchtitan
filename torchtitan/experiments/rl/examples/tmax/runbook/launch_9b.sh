@@ -111,10 +111,15 @@ fi
 # training one, which is what train.py assumes too.
 _eval_n=${SWE_NUM_EVAL_GENERATORS:-0}
 _eval_dp=${SWE_EVAL_GEN_DP:-0}
+_gen_n=${SWE_NUM_GENERATORS:-1}
+if ! [[ "$_gen_n" =~ ^[1-9][0-9]*$ ]]; then
+    echo "[launch] SWE_NUM_GENERATORS must be a positive integer." >&2
+    exit 2
+fi
 [ "$_eval_dp" -eq 0 ] && _eval_dp=${SWE_GEN_DP:-3}
-_want=$(( ${SWE_DP_SHARD:-2} + ${SWE_GEN_DP:-3} + _eval_n * _eval_dp ))
+_want=$(( ${SWE_DP_SHARD:-2} + _gen_n * ${SWE_GEN_DP:-3} + _eval_n * _eval_dp ))
 if [ "$_want" -ne "$_n" ]; then
-    echo "[launch] SWE_DP_SHARD($SWE_DP_SHARD) + SWE_GEN_DP($SWE_GEN_DP)" >&2
+    echo "[launch] SWE_DP_SHARD(${SWE_DP_SHARD:-2}) + $_gen_n generator(s) x SWE_GEN_DP(${SWE_GEN_DP:-3})" >&2
     echo "[launch]   + $_eval_n eval generator(s) x $_eval_dp GPU = $_want" >&2
     echo "[launch] but RL_GPUS lists $_n GPUs. They must match." >&2
     exit 2

@@ -764,6 +764,11 @@ def rl_grpo_qwen3_5_9b_tmax() -> Controller.Config:
             max_sessions=int(os.environ.get("SWE_DP_STICKY_MAX_SESSIONS", "16384")),
         ),
     )
+    # Use the same session affinity at the controller boundary. With DP=1
+    # replicas this is the only routing decision; no GPU owns peer results.
+    config.generator_router = dataclasses.replace(
+        config.generator_router, strategy=_dp_router.strategy
+    )
 
     config.generator = dataclasses.replace(
         config.generator,
@@ -891,6 +896,12 @@ def rl_grpo_qwen3_5_9b_tmax() -> Controller.Config:
                 config.generator.parallelism, data_parallel_degree=_gdp
             ),
         )
+    # Separate proc meshes have independent engine loops and process groups.
+    # Five single-GPU engines: SWE_NUM_GENERATORS=5 SWE_GEN_DP=1.
+    _num_generators = int(os.environ.get("SWE_NUM_GENERATORS", "1"))
+    if _num_generators < 1:
+        raise ValueError("SWE_NUM_GENERATORS must be at least 1")
+    config.num_generators = _num_generators
     # Optional AC-policy override for a fwd/bwd speed experiment. The base is FullAC
     # (recompute the whole forward -- needed to fit seq 65536). SWE_AC=selective swaps
     # in per-op SAC, which saves the expensive aten op outputs (projections, flash-attn

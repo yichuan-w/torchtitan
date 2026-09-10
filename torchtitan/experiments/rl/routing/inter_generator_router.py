@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import time
 from collections.abc import Sequence
 from dataclasses import dataclass, field
 from enum import auto, Enum
@@ -98,6 +99,7 @@ class InterGeneratorRouter(Configurable):
             h.idle.set()
 
         self._strategy = config.strategy.build()
+        self._load_log_at = 0.0
         self._cancel_tasks: set[asyncio.Task] = set()
         self._serving = asyncio.Event()
         self._refresh_serving_status()
@@ -129,6 +131,7 @@ class InterGeneratorRouter(Configurable):
         if h.reserved_load == 0:
             h.idle.clear()
         h.reserved_load += cost
+        self._log_load()
 
     def _release(self, h: _GeneratorHandle, cost: int) -> None:
         """Release estimated generation work after a routed call finishes."""
@@ -139,6 +142,19 @@ class InterGeneratorRouter(Configurable):
         ), f"generator reserved_load went negative: {h.reserved_load}"
         if h.reserved_load == 0:
             h.idle.set()
+        self._log_load()
+
+    def _log_load(self) -> None:
+        now = time.monotonic()
+        if now - self._load_log_at < 30:
+            return
+        self._load_log_at = now
+        logger.info(
+            "[routing] controller replicas=%d reserved_load=%s actors=%s",
+            len(self._generators),
+            [h.reserved_load for h in self._generators],
+            [str(h.actor) for h in self._generators],
+        )
 
     async def route(
         self,

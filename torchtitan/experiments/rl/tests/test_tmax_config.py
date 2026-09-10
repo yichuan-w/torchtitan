@@ -18,6 +18,36 @@ from torchtitan.experiments.rl.examples.tmax.config_registry import (
 from torchtitan.experiments.rl.rollout.types import Rollout, RolloutStatus
 
 
+def test_five_independent_generators_keep_controller_affinity(monkeypatch):
+    from torchtitan.experiments.rl.routing.strategies import (
+        LeastLoadedRoutingStrategy,
+        StickySessionRoutingStrategy,
+    )
+    from torchtitan.experiments.rl.train import _compute_generator_world_size
+
+    monkeypatch.setenv("SWE_NUM_GENERATORS", "5")
+    monkeypatch.setenv("SWE_GEN_DP", "1")
+    monkeypatch.setenv("SWE_DP_FALLBACK_ROUTER", "leastloaded")
+    monkeypatch.setenv("SWE_DP_STICKY_REBALANCE", "0")
+    monkeypatch.setenv("SWE_NUM_EVAL_GENERATORS", "1")
+    monkeypatch.setenv("SWE_EVAL_GEN_DP", "1")
+    config = rl_grpo_qwen3_5_9b_tmax()
+    assert config.num_generators == 5
+    assert _compute_generator_world_size(config.generator.parallelism) == 1
+    strategy = config.generator_router.strategy
+    assert isinstance(strategy, StickySessionRoutingStrategy.Config)
+    assert isinstance(strategy.fallback_strategy, LeastLoadedRoutingStrategy.Config)
+    assert strategy.rebalance_load_ratio == 0
+    assert config.num_eval_generators == 1
+    assert config.eval_generator_data_parallel_degree == 1
+
+
+def test_invalid_generator_replica_count(monkeypatch):
+    monkeypatch.setenv("SWE_NUM_GENERATORS", "0")
+    with pytest.raises(ValueError, match="SWE_NUM_GENERATORS"):
+        rl_grpo_qwen3_5_9b_tmax()
+
+
 @pytest.mark.parametrize("override,expected", [(None, 1.0), ("0.9", 0.9)])
 def test_evolution_harder_ratio_env(monkeypatch, override, expected):
     if override is None:

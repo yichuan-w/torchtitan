@@ -542,6 +542,9 @@ class RequestDispatcher:
         self._result_port: Port | None = None
         self._rank0_result_receiver: PortReceiver | None = None
         self._rank0_drain_task: asyncio.Task | None = None
+        self._finished_count = 0
+        self._received_counts = [0] * self._dp_degree
+        self._late_result_count = 0
 
         # --- DP routing ---
         # RANK-0 DP routing: pick a DP rank per request, reserving its load until
@@ -697,6 +700,7 @@ class RequestDispatcher:
             return
 
         completions = self._build_completions(request_outputs, policy_version)
+        self._finished_count += len(completions)
         if self._rank == 0:
             self._rank0_resolve_futures(completions)
         elif completions:
@@ -758,6 +762,17 @@ class RequestDispatcher:
         without) the rank-0 future bookkeeping.
         """
         for request_id, completion, metrics_inputs in completions:
+            # Compare with peer finished counts to detect results in transit.
+            # Cancelled results may arrive after their reservation was released.
+            dp_rank = (
+                self._rank0_dp_router._reservations.get(request_id)
+                if self._rank0_dp_router is not None
+                else 0
+            )
+            if dp_rank is None:
+                self._late_result_count += 1
+            else:
+                self._received_counts[dp_rank] += 1
             # in flight when this one finished (includes itself; counted before the pop)
             inflight_requests_at_completion = float(len(self._rank0_generation_futures))
             generation_future = self._rank0_generation_futures.get(request_id)
@@ -1418,6 +1433,9 @@ class VLLMGenerator(Actor, Configurable):
 
         # Background asyncio.Task running _engine_loop; None until the first generate/pull starts it.
         self._engine_loop_task: asyncio.Task | None = None
+        self._load_log_at = 0.0
+        self._admitted_count = 0
+        self._admitted_prompt_tokens = 0
 
         logger.info("Generator initialized with vLLM engine")
 
@@ -1716,6 +1734,8 @@ class VLLMGenerator(Actor, Configurable):
                                 prompt=engine_input,
                                 params=self._build_sampling_params(request.sampling),
                             )
+                            self._admitted_count += 1
+                            self._admitted_prompt_tokens += len(request.prompt_token_ids)
 
                 # Barrier (NCCL): engine.step() runs SPMD in lockstep.
                 # The step burst `max_engine_steps_between_decisions` gives the generator time to buffer
@@ -1731,11 +1751,57 @@ class VLLMGenerator(Actor, Configurable):
                             request_outputs, self.policy_version
                         )
                         await asyncio.sleep(0)  # let pending generate() calls enqueue
+                self._log_local_load()
 
         except Exception as exc:
             logger.exception("engine loop crashed; failing all outstanding futures")
             self._fail_outstanding_futures(exc)
             raise
+
+    def _log_local_load(self) -> None:
+        """Compare local GPU work with reservations awaiting result delivery.
+
+        Snapshots use no collective and are not simultaneous: compare sustained
+        differences. Preemption counts cover only requests still in the scheduler.
+        """
+        now = time.monotonic()
+        if now - self._load_log_at < 30:
+            return
+        self._load_log_at = now
+        dispatcher = self._request_dispatcher
+        core = getattr(self._engine.engine_core, "engine_core", None)
+        scheduler = getattr(core, "scheduler", None)
+        if scheduler is None:
+            return
+        requests = list(scheduler.requests.values())
+        lengths = [r.num_tokens for r in requests]
+        logger.info(
+            "[generator-load] dp=%d admitted=%d admitted_prompt_tokens=%d "
+            "finished=%d local_unfinished=%d running=%d waiting=%d "
+            "skipped_waiting=%d context_tokens=%d max_context=%d "
+            "live_request_preemptions=%d",
+            dispatcher._dp_rank,
+            self._admitted_count,
+            self._admitted_prompt_tokens,
+            dispatcher._finished_count,
+            self._engine.get_num_unfinished_requests(),
+            len(scheduler.running),
+            len(scheduler.waiting),
+            len(getattr(scheduler, "skipped_waiting", ())),
+            sum(lengths),
+            max(lengths, default=0),
+            sum(r.num_preemptions for r in requests),
+        )
+        router = dispatcher._rank0_dp_router
+        if router is not None:
+            logger.info(
+                "[generator-load] reserved=%s received=%s late_results=%d "
+                "intake_queued=%d",
+                [h.reserved_load for h in router._handles],
+                dispatcher._received_counts,
+                dispatcher._late_result_count,
+                len(self._queued_generation_requests),
+            )
 
     async def _decide_next_action(self) -> LoopDecision:
         """RANK 0: picks the next action. Sleeps until there is something to do."""
