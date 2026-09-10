@@ -82,6 +82,12 @@ Read every supplied attempt's outcome and locate its first unresolved obstacle,
 including attempts that never reach the proposed intervention. In bottleneck,
 state how many attempts encounter each obstacle and cite their trace locations;
 do not infer a shared bottleneck from only the furthest-progressing attempts.
+Before attributing a failure to ignoring or overwriting an existing file,
+establish that the student had it: cite a recorded observation before the
+student created it, or its installation through the container build or task
+setup, in the evidence observation. A file under environment/ is not by itself
+proof that it was copied into the container. When delivery is unverified,
+mark it unknown and do not base the intervention on its presence.
 Identify a recurring obstacle, then state the skill this variant retains. Aim for some successful
 and some unsuccessful student attempts, rather than preserving every difficult
 part of a task that the student cannot yet solve. A timeout or 0/k alone
