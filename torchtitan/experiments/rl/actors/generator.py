@@ -1708,11 +1708,42 @@ class VLLMGenerator(Actor, Configurable):
                                 engine_input[
                                     "cache_salt"
                                 ] = request.routing_session_id.split("/rollout=", 1)[0]
-                            self._engine.add_request(
-                                request_id=request.request_id,
-                                prompt=engine_input,
-                                params=self._build_sampling_params(request.sampling),
+                            sampling_params = self._build_sampling_params(
+                                request.sampling
                             )
+                            # The dispatcher has already selected the DP replica for
+                            # this request.  LLMEngine.add_request() does not expose
+                            # data_parallel_rank, so passing the rendered dict leaves
+                            # it as None and vLLM's DPLBAsyncMPClient silently routes
+                            # the request a second time.  Build the EngineCoreRequest
+                            # through vLLM's input processor so the selected rank is
+                            # carried all the way to the engine core.
+                            input_processor = getattr(
+                                self._engine, "input_processor", None
+                            )
+                            if input_processor is not None and hasattr(
+                                input_processor, "process_inputs"
+                            ):
+                                engine_request = input_processor.process_inputs(
+                                    request.request_id,
+                                    engine_input,
+                                    sampling_params,
+                                    supported_tasks=self._engine.get_supported_tasks(),
+                                    data_parallel_rank=self._request_dispatcher._dp_rank,
+                                )
+                                self._engine.add_request(
+                                    request_id=request.request_id,
+                                    prompt=engine_request,
+                                    params=sampling_params,
+                                )
+                            else:
+                                # Compatibility path for the lightweight fake
+                                # engines used by tests and older vLLM builds.
+                                self._engine.add_request(
+                                    request_id=request.request_id,
+                                    prompt=engine_input,
+                                    params=sampling_params,
+                                )
 
                 # Barrier (NCCL): engine.step() runs SPMD in lockstep.
                 # The step burst `max_engine_steps_between_decisions` gives the generator time to buffer
