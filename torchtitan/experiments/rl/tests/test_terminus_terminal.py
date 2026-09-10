@@ -28,6 +28,7 @@ def terminal(*responses):
     lifecycle.server_pid = "123"
     lifecycle.pane_pid = "456"
     lifecycle.starttime = "999"
+    lifecycle.pane_starttime = "1000"
     lifecycle.socket = lifecycle.directory + "/tmux-0/default"
     return lifecycle, execute
 
@@ -115,10 +116,54 @@ def test_waits_for_the_shell_exit_status_after_pty_close():
 
 
 def test_missing_exit_status_remains_unknown_after_bounded_reads():
-    lifecycle, probe = terminal(*[result("123|456|1||") for _ in range(4)])
+    lifecycle, probe = terminal(
+        *[result("123|456|1||") for _ in range(4)], result(code=1)
+    )
     with pytest.raises(TerminalUnavailable, match="terminal_exit_unknown"):
         asyncio.run(lifecycle.run("tmux has-session -t agent", AsyncMock()))
-    assert probe.await_count == 4
+    assert probe.await_count == 5
+
+
+def zombie_stat(*, state="Z", parent="123", starttime="1000", status="0"):
+    fields = [state, parent] + ["0"] * 48
+    fields[19], fields[49] = starttime, status
+    return "456 (shell with ) spaces) " + " ".join(fields)
+
+
+@pytest.mark.parametrize("status", [0, 7])
+def test_unreaped_normal_exit_is_scored_using_original_process(status):
+    lifecycle, _ = terminal(
+        *[result("123|456|1||") for _ in range(4)],
+        result(zombie_stat(status=str(status << 8))),
+    )
+    with pytest.raises(TerminalExited, match=f"status {status}"):
+        asyncio.run(lifecycle.run("tmux send-keys -t agent Enter", AsyncMock()))
+    assert lifecycle.events[-1]["source"] == "proc"
+
+
+def test_unreaped_sigkill_keeps_cause_unknown():
+    lifecycle, _ = terminal(
+        *[result("123|456|1||") for _ in range(4)],
+        result(zombie_stat(status="9")),
+    )
+    with pytest.raises(TerminalUnavailable, match="terminal_signal_unknown"):
+        asyncio.run(lifecycle.run("tmux has-session -t agent", AsyncMock()))
+    assert lifecycle.events[0]["signal"] == "9"
+
+
+@pytest.mark.parametrize(
+    "stat",
+    [
+        zombie_stat(state="S"),
+        zombie_stat(parent="999"),
+        zombie_stat(starttime="2000"),
+        "456 (bash) Z 123",
+    ],
+)
+def test_unverified_process_exit_cannot_become_a_policy_verdict(stat):
+    lifecycle, _ = terminal(*[result("123|456|1||") for _ in range(4)], result(stat))
+    with pytest.raises(TerminalUnavailable, match="terminal_exit_unknown"):
+        asyncio.run(lifecycle.run("tmux has-session -t agent", AsyncMock()))
 
 
 def test_changed_shell_is_not_accepted_as_the_original_session():

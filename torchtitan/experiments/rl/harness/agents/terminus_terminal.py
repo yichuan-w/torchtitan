@@ -9,6 +9,7 @@
 from __future__ import annotations
 
 import asyncio
+import os
 import shlex
 import time
 import uuid
@@ -39,6 +40,7 @@ class TerminalLifecycle:
         self.pane_pid = ""
         self.socket = ""
         self.starttime = ""
+        self.pane_starttime = ""
         self.events: list[dict] = []
 
     def _event(self, kind: str, **details: Any) -> None:
@@ -79,8 +81,47 @@ class TerminalLifecycle:
         self.starttime = (result.stdout or "").strip()
         if result.return_code or not self.starttime.isdigit():
             raise self._unavailable("terminal_starttime_unavailable")
+        pane_stat = await self._pane_stat()
+        if pane_stat and pane_stat[1] == self.server_pid:
+            self.pane_starttime = pane_stat[19]
         self.session = session
         await self._ensure_live()
+
+    async def _pane_stat(self) -> list[str]:
+        result = await self.execute(f"cat /proc/{self.pane_pid}/stat")
+        prefix, separator, tail = (result.stdout or "").rpartition(") ")
+        fields = tail.split()
+        if (
+            result.return_code
+            or not separator
+            or not prefix.startswith(self.pane_pid + " (")
+            or len(fields) < 50
+            or not fields[19].isdigit()
+        ):
+            return []
+        return fields
+
+    async def _unreaped_exit(self) -> tuple[str, str]:
+        # Older tmux can report a closed PTY without reaping its child. Linux
+        # retains waitpid's status in field 52 until that zombie is reaped.
+        fields = await self._pane_stat()
+        if (
+            not fields
+            or fields[0] != "Z"
+            or fields[1] != self.server_pid
+            or not self.pane_starttime
+            or fields[19] != self.pane_starttime
+            or not fields[49].isdigit()
+        ):
+            return "", ""
+        wait_status = int(fields[49])
+        if not 0 <= wait_status <= 65535:
+            return "", ""
+        if os.WIFEXITED(wait_status):
+            return str(os.WEXITSTATUS(wait_status)), ""
+        if os.WIFSIGNALED(wait_status):
+            return "", str(os.WTERMSIG(wait_status))
+        return "", ""
 
     @staticmethod
     def _control(command: str) -> tuple[bool, bool]:
@@ -163,8 +204,15 @@ class TerminalLifecycle:
             await asyncio.sleep(0.1)
             result = await self._probe()
         if dead == "1":
+            source = "tmux"
+            if not status and not signal:
+                status, signal = await self._unreaped_exit()
+                source = "proc" if status or signal else "unknown"
             self._event(
-                "shell_exited", exit_status=status or None, signal=signal or None
+                "shell_exited",
+                exit_status=status or None,
+                signal=signal or None,
+                source=source,
             )
             if not signal and status.isdigit():
                 raise TerminalExited(f"shell exited with status {status}")
