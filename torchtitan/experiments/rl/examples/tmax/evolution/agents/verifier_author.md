@@ -74,6 +74,12 @@ task asks only for a final artifact or state, check that result without inventin
 a requirement to save a script. Accept alternative paths, formats and implementations
 wherever the public task leaves them open.
 
+Cover valid boundary cases introduced by the change, including empty results when
+possible. In each case, check the changed behavior together with retained output
+requirements, such as required headers or schema even when there are no records.
+Check these properties before parsing or normalization discards them; an empty
+parsed collection alone does not prove that the required output structure exists.
+
 Before finishing, inspect whether a no-op, a hardcoded answer or fabricated evidence
 could still pass, and whether an equivalent legal solution could fail. Choose examples
 relevant to this task. In your final response, identify one concrete incorrect solution
