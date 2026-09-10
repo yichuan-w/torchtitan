@@ -21,6 +21,7 @@ dead session as a real attempt, which then scores 0 and looks like a model failu
 from __future__ import annotations
 
 import asyncio
+import importlib
 import shlex
 import subprocess
 import sys
@@ -100,6 +101,8 @@ def _install_fake_harbor(monkeypatch, built: list, **agent_kwargs) -> None:
     # The real exception types: terminus.py branches on them, so substituting
     # look-alikes would let a wrong branch pass.
     from harbor.llms.base import ContextLengthExceededError
+
+    importlib.import_module("torchtitan.experiments.rl.harness.agents.terminus_xml")
 
     for name in ("harbor", "harbor.agents", "harbor.agents.terminus_2"):
         monkeypatch.setitem(sys.modules, name, types.ModuleType(name))
@@ -502,6 +505,48 @@ def test_the_counting_parser_delegates_everything_else():
     wrapped = _CountingParser(_Inner())
     assert hasattr(wrapped, "salvage_truncated_response")
     assert wrapped.salvage_truncated_response("x") == ("<response/>", False)
+
+
+@pytest.mark.parametrize("parser_name", ["xml", "json"])
+def test_harness_repairs_xml_parser_and_preserves_json(monkeypatch, parser_name):
+    from harbor.agents.terminus_2.terminus_json_plain_parser import (
+        TerminusJSONPlainParser,
+    )
+
+    import torchtitan.experiments.rl.harness.agents.terminus as terminus
+    from torchtitan.experiments.rl.harness.agents.terminus_xml import (
+        SafeTerminusXMLParser,
+        TerminusXMLPlainParser,
+    )
+
+    original = (
+        TerminusXMLPlainParser() if parser_name == "xml" else TerminusJSONPlainParser()
+    )
+    initialize = _FakeTerminus2.__init__
+
+    def initialize_parser(self, **kwargs):
+        initialize(self, **kwargs)
+        self._parser = original
+
+    monkeypatch.setattr(_FakeTerminus2, "__init__", initialize_parser)
+    monkeypatch.setattr(terminus, "_PARSER", parser_name)
+    built = []
+    _run(monkeypatch, max_turns=1, built=built, episodes=1, pending_completion=False)
+    parser = built[0]._parser
+    assert isinstance(parser, terminus._CountingParser)
+    if parser_name == "json":
+        assert parser._inner is original
+    else:
+        assert isinstance(parser._inner, SafeTerminusXMLParser)
+        response = (
+            '<response><analysis/><plan/><commands><keystrokes duration="1">'
+            "printf '%s' '< >'\n</keystrokes></commands></response>"
+        )
+        assert (
+            parser.parse_response(response).commands[0].keystrokes
+            == "printf '%s' '< >'\n"
+        )
+        assert parser.format_errors == 0
 
 
 # --------------------------------------------------------------------------

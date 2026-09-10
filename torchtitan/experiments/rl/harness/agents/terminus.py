@@ -507,6 +507,11 @@ async def terminus_agent(
     from harbor.llms.base import ContextLengthExceededError  # type: ignore
     from harbor.models.agent.context import AgentContext  # type: ignore
 
+    from torchtitan.experiments.rl.harness.agents.terminus_xml import (
+        SafeTerminusXMLParser,
+        TerminusXMLPlainParser,
+    )
+
     # Quiet litellm's per-turn token_counter for our placeholder model name (see
     # _register_titan_actor_with_litellm). Idempotent, cheap after the first call.
     _register_titan_actor_with_litellm()
@@ -563,6 +568,8 @@ async def terminus_agent(
                     "[terminus] no parser to wrap; format_errors will read 0"
                 )
             else:
+                if isinstance(inner_parser, TerminusXMLPlainParser):
+                    inner_parser = SafeTerminusXMLParser()
                 parser = _CountingParser(inner_parser)
                 agent._parser = parser
             _count_subagent_calls(agent, llm)
