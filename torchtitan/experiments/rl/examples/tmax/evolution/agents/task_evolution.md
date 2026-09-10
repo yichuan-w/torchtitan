@@ -80,13 +80,30 @@ checks only when declared in `run/simplify.json`. Preserve semantic correctness
 and shortcut rejection for every remaining goal. An extracted subtask does not
 need an extra intermediate artifact merely to fill a role.
 
-`no_shortcut` is the one usually missing and it has to be earned in behaviour: change
-an input the answer depends on and re-run the workflow, asserting the output followed
-and restoring what you changed; or recompute the expected answer inside the verifier
-from the current inputs; or require an intermediate artifact whose content must agree
-with the final one. Asserting a file is non-empty, or lacks the word "placeholder", is
-not this check. Never invoke `solution/solve.sh` from the verifier — it is not there
-when the agent runs. Invoke the workflow the way the instruction tells a user to.
+When assigned to write or repair the verifier, map each retained or added requirement
+to a check of the behavior or result it promises. Check against task inputs or an
+independently computed expectation. File existence, non-empty content, success words
+in a log, or agreement between two solver-written reports cannot alone establish
+correctness. A reference solution passing does not establish that incorrect solutions
+are rejected.
+
+For a task that requires a reusable program, invoke the submitted program through
+the entry point specified by the task on fresh valid inputs and check the outputs.
+Ensure retained outputs cannot let a no-op program pass; restore inputs after the
+check. For a task asking only for a final artifact or state, verify that result
+without inventing a requirement to save a script. Never invoke `solution/solve.sh`
+from the verifier: it is absent during training. Do not accept solver-written claims
+as proof that a required execution, measurement or tool interaction occurred.
+
+Before finishing a verifier edit, inspect whether a no-op, a hardcoded answer or
+fabricated evidence could still pass, and whether an equivalent legal solution could
+fail. Choose examples relevant to this task. Accept alternative paths, formats and
+implementations wherever the public task leaves them open. In your final response,
+identify one concrete incorrect solution and the check that rejects it, and one
+legal alternative the checks allow; distinguish code inspection from executed tests.
+Keep the existing sandbox checks and job limits. In blind-verifier mode, leave
+`tests/` unchanged as the job instructs; make the requirements checkable for the
+separate verifier author.
 
 **`instruction.md`** is a fair public request from someone who wants the work done.
 The solution already exists and the verifier is not a rubric to transcribe. Dumping
