@@ -62,6 +62,13 @@ property decides whether the reference passes its own verifier, because a
 `no_shortcut` check that perturbs an input and re-runs will catch an answer that
 was written once and never recomputed.
 
+When a change introduces new valid input or option cases, run the reference
+workflow on cases that change the shape of the result, including an empty result
+when possible. Verify both the changed behavior and retained output requirements
+in each case, such as required headers or schema even when there are no records.
+Passing the seed verifier does not validate newly introduced cases. Record the
+commands and observed results in your final response.
+
 **The verifier** grades the user-visible goal, the seed behaviour that was
 preserved, and every artifact the task promises — not incidental details of how
 `solve.sh` happens to do it. For harder jobs, four roles have to be covered. They are roles, not
