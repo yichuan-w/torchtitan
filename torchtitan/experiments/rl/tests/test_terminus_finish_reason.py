@@ -62,6 +62,7 @@ class _FakeTerminus2:
         self._subagent_calls = subagent_calls
         self._n_episodes = 0
         self._llm = None
+        self._session = types.SimpleNamespace(_session_name="test-session")
         # The real Terminus2 builds one in __init__; terminus.py wraps it to count
         # the turns it could not turn into an action.
         self._parser = _FakeParser(parse_results)
@@ -101,6 +102,13 @@ def _install_fake_harbor(monkeypatch, built: list, **agent_kwargs) -> None:
     # The real exception types: terminus.py branches on them, so substituting
     # look-alikes would let a wrong branch pass.
     from harbor.llms.base import ContextLengthExceededError
+
+    from torchtitan.experiments.rl.harness.agents.terminus_terminal import (
+        TerminalLifecycle,
+    )
+
+    monkeypatch.setattr(TerminalLifecycle, "prepare", AsyncMock())
+    monkeypatch.setattr(TerminalLifecycle, "bind", AsyncMock())
 
     importlib.import_module("torchtitan.experiments.rl.harness.agents.terminus_xml")
 
@@ -153,6 +161,38 @@ def _run(monkeypatch, *, max_turns: int, built: list | None = None, **agent_kwar
             )
         )
     )
+
+
+def test_normal_shell_exit_returns_a_non_submit_attempt(monkeypatch):
+    from torchtitan.experiments.rl.harness.agents.terminus_terminal import (
+        TerminalExited,
+    )
+
+    run = _run(
+        monkeypatch,
+        max_turns=5,
+        episodes=2,
+        pending_completion=True,
+        raises=TerminalExited("shell exited with status 0"),
+    )
+    assert run.finish_reason == "terminal_exited"
+    assert run.submitted is False
+    assert run.turns == 2
+
+
+def test_signal_death_does_not_become_a_policy_failure(monkeypatch):
+    from torchtitan.experiments.rl.harness.agents.terminus_terminal import (
+        TerminalUnavailable,
+    )
+
+    with pytest.raises(TerminalUnavailable, match="terminal_signal_unknown"):
+        _run(
+            monkeypatch,
+            max_turns=5,
+            episodes=2,
+            pending_completion=True,
+            raises=TerminalUnavailable("terminal_signal_unknown", []),
+        )
 
 
 def test_confirmed_task_complete_is_a_submit(monkeypatch):

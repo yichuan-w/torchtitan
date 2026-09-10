@@ -319,6 +319,7 @@ def test_finish_reason_metrics_are_exhaustive_fractions() -> None:
         # reports it, so the fraction is present and zero rather than absent.
         "rollout/finish_hit_context_limit_frac": 0.0,
         "rollout/finish_stopped_early_frac": 0.2,
+        "rollout/finish_terminal_exited_frac": 0.0,
         "rollout/finish_error_frac": 0.2,
     }
     assert sum(fractions.values()) == pytest.approx(1.0)
@@ -565,6 +566,8 @@ def test_rollout_record_is_one_header_line_then_one_line_per_turn(
         "submitted",
         "format_errors",
         "infra_failed",
+        "failure",
+        "terminal_events",
         "error",
         "sandbox",
         "secs",
@@ -587,6 +590,8 @@ def test_rollout_record_is_one_header_line_then_one_line_per_turn(
         "submitted": True,
         "format_errors": 0,
         "infra_failed": False,
+        "failure": {},
+        "terminal_events": [],
         "error": "",
         "sandbox": {
             "id": "sandbox-abc",

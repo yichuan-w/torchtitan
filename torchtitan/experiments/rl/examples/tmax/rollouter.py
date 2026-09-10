@@ -139,6 +139,7 @@ _FINISH_REASONS = (
     # from hit_max_turns (it had episodes left) and from error (nothing broke).
     "hit_context_limit",
     "stopped_early",
+    "terminal_exited",
     "error",
 )
 
@@ -267,6 +268,8 @@ class _SandboxRolloutDiagnostics:
     issues: tuple[SandboxIssue, ...]
     num_dropped_details: int
     infra_failed: bool = False
+    failure: dict = field(default_factory=dict)
+    terminal_events: list[dict] = field(default_factory=list)
 
 
 def _sandbox_issue_metrics(
@@ -584,6 +587,8 @@ def _write_rollout_record(
             "submitted": bool(submitted),
             "format_errors": int(fmt_errors),
             "infra_failed": sandbox_diagnostics.infra_failed,
+            "failure": sandbox_diagnostics.failure,
+            "terminal_events": sandbox_diagnostics.terminal_events,
             "error": error_msg,
             "sandbox": {
                 "id": sandbox_diagnostics.sandbox_id,
@@ -977,7 +982,7 @@ class TMaxRollouter(Rollouter):
             logger.warning(
                 f"[tmax] group={group_id}: "
                 f"{sum(infra_failed_flags)}/{len(infra_failed_flags)} "
-                f"infrastructure failures excluded from the advantage baseline"
+                f"unscored failures excluded from the advantage baseline"
             )
 
         # Group reward-shape metrics. With evolution_harder_ratio < 1, evolution
@@ -1227,6 +1232,9 @@ class TMaxRollouter(Rollouter):
         exec_trace: list[dict] = []
         pane_text: str | None = None
         infra_failed = False
+        failure: dict = {}
+        terminal_events: list[dict] = []
+        failure_stage = "setup"
         # Per-test verifier breakdown; stays None unless the rollout was graded with
         # the CTRF read enabled and the task wrote a parsable report.
         ctrf: dict | None = None
@@ -1338,6 +1346,7 @@ class TMaxRollouter(Rollouter):
                             )
                     except Exception:  # noqa: BLE001 -- never fail a rollout on this
                         pass
+                    failure_stage = "agent"
                     agent_run = await get_agent(self._agent_name)(
                         AgentTask(
                             sandbox=root_sb,
@@ -1361,6 +1370,9 @@ class TMaxRollouter(Rollouter):
                     # spun out its turn budget on empty replies reads as a short one.
                     agent_turns = agent_run.turns
                     exec_trace = agent_run.exec_trace
+                    terminal_events = agent_run.terminal_events
+                    if not submitted:
+                        failure = {"origin": "agent", "reason": finish_reason}
                     if collect_pane and agent_run.pane_path:
                         # The transcript lives in the sandbox, which goes away
                         # with this block; its loss must not fail a graded rollout.
@@ -1379,6 +1391,7 @@ class TMaxRollouter(Rollouter):
                     # the harness has no submit signal -- grade anyway rather than
                     # scoring every rollout 0 (see AgentRun.submitted).
                     if submitted:
+                        failure_stage = "verifier"
                         reward = await grade_tmax(
                             sandbox,
                             sample.tmax,
@@ -1425,12 +1438,21 @@ class TMaxRollouter(Rollouter):
             else:
                 logger.exception("[tmax] %s: sandbox timeout", rollout_id)
                 error_msg = "sandbox_timeout"
+            failure = {"origin": "unknown", "reason": error_msg, "stage": failure_stage}
         except Exception as e:
             infra_failed = True
             reward = 0.0
             logger.exception("[tmax] %s: rollout failed", rollout_id)
             status = RolloutStatus.ERROR
             error_msg = f"{type(e).__name__}: {e}"
+            # infra_failed remains the compatibility flag for an unscored
+            # attempt. A transport/terminal exception alone establishes no blame.
+            failure = {
+                "origin": "unknown",
+                "reason": getattr(e, "failure_reason", type(e).__name__),
+                "stage": failure_stage,
+            }
+            terminal_events = getattr(e, "terminal_events", terminal_events)
         finally:
             self._rollout_gate.release()
             captured = await adapter.finish_session(rollout_id)
@@ -1448,6 +1470,8 @@ class TMaxRollouter(Rollouter):
             issues=issue_tracker.issues,
             num_dropped_details=issue_tracker.num_dropped_details,
             infra_failed=infra_failed,
+            failure=failure,
+            terminal_events=terminal_events,
         )
 
         turns = _captured_to_turns(captured, group_id, rollout_idx)
@@ -1514,6 +1538,7 @@ class TMaxRollouter(Rollouter):
                         "reward": reward,
                         "finish_reason": finish_reason,
                         "infra_failed": diagnostics.infra_failed,
+                        "failure": diagnostics.failure,
                         "issue_counts": diagnostics.issue_counts,
                         "num_dropped_details": diagnostics.num_dropped_details,
                     },
@@ -1600,6 +1625,8 @@ class TMaxRollouter(Rollouter):
                     "format_errors": fmt_errors,
                     "submitted": submitted,
                     "infra_failed": diagnostics.infra_failed,
+                    "failure": diagnostics.failure,
+                    "terminal_events": diagnostics.terminal_events,
                     "ctrf": ctrf,
                     "verifier": verifier,
                     "sparse_reward": sparse_reward,
