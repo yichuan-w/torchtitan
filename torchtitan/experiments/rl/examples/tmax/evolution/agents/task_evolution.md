@@ -57,10 +57,8 @@ state, the way a strong agent's successful run would. Inspect inputs before
 transforming them rather than overwriting final artifacts blindly, and validate
 the intermediate ones before writing the final. Keep it deterministic, safe to run
 twice, and runnable non-interactively from any working directory. Above all,
-**derive every output from the inputs as they are at run time** — this single
-property decides whether the reference passes its own verifier, because a
-`no_shortcut` check that perturbs an input and re-runs will catch an answer that
-was written once and never recomputed.
+**derive every output from the inputs as they are at run time**. The reference's
+implementation does not impose additional requirements on the student.
 
 When a change introduces new valid input or option cases, run the reference
 workflow on cases that change the shape of the result, including an empty result
@@ -71,21 +69,16 @@ commands and observed results in your final response.
 
 **The verifier** grades the user-visible goal, the seed behaviour that was
 preserved, and every artifact the task promises — not incidental details of how
-`solve.sh` happens to do it. For harder jobs, four roles have to be covered. They are roles, not
-a count: keep every existing test function that still holds under the new axis
-and add what the axis needs, so the verifier never checks less than the seed's
-did. The roles:
-
-- `required_evidence` — the agent had to find something, not guess it;
-- `intermediate_artifact` — it produced the middle of the workflow, not only the end;
-- `final_semantics` — the end state means what it should, checked by content;
-- `no_shortcut` — an answer that was copied, hardcoded, or written for the verifier
-  is caught.
+`solve.sh` happens to do it. Keep every existing test that still holds under the
+new instruction and add checks for the changed requirement. For a final-artifact
+task, check the artifact's semantics on the supplied inputs. Check intermediate
+artifacts, execution evidence, or method restrictions only when the public task
+requires them. A correct final artifact is not a negative control merely because
+it was produced by a different method.
 
 For easier jobs, a removed goal or relaxed constraint may lose its corresponding
 checks only when declared in `run/simplify.json`. Preserve semantic correctness
-and shortcut rejection for every remaining goal. An extracted subtask does not
-need an extra intermediate artifact merely to fill a role.
+and checks for every remaining public requirement.
 
 When assigned to write or repair the verifier, map each retained or added requirement
 to a check of the behavior or result it promises. Check against task inputs or an
@@ -111,6 +104,10 @@ legal alternative the checks allow; distinguish code inspection from executed te
 Keep the existing sandbox checks and job limits. In blind-verifier mode, leave
 `tests/` unchanged as the job instructs; make the requirements checkable for the
 separate verifier author.
+
+Do not add a report, execution log, or reusable-program requirement merely to
+satisfy a verifier role. A difficulty change must make a task-relevant decision
+affect the correctness of a required deliverable.
 
 **`instruction.md`** is a fair public request from someone who wants the work done.
 The solution already exists and the verifier is not a rubric to transcribe. Dumping
@@ -220,14 +217,13 @@ whole session and gains nothing.
 **A harder task preserves the original goal and changes one bottleneck.** Follow
 the prompt's hardening mode. Student-guided changes must require a new inference
 or decision in the core workflow; an unrelated deliverable is insufficient.
-The reference solution
-may grow by 3 to 8 non-comment lines over the seed's; the verifier may gain at
-most 5 assertions. `./sandbox check` fails outside that and the caller rejects
-the rewrite. The numbers come from this corpus: the seed at its own size was
-solved every time, the 0/16 share doubles once a task outgrows the 14 to 20
-line band, and the rewrites that grew to 125 lines came back 0/16 five times in
-six. Size is not difficulty, but a rewrite outside that band has left the
-region where the policy can be taught.
+In student-guided mode, the reference solution may stay the same length or
+shrink, and may grow by at most 8 non-comment lines. In operator mode it must
+grow by 3 to 8 lines. The verifier may gain at most 5 assertions in either
+mode. `./sandbox check` and the caller enforce these size bounds. Preserve
+necessary facts in the instruction or discoverable workspace; remove a
+solution hint only when the task remains unambiguous. Measure difficulty by
+student re-testing, not by added lines.
 
 **A verifier may not depend on a name the task never states.** You write the
 solution first and the verifier against it, so the verifier inherits the

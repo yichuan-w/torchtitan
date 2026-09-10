@@ -8,6 +8,7 @@ import asyncio
 
 import pytest
 
+from torchtitan.experiments.rl.actors.generator import SamplingConfig
 from torchtitan.experiments.rl.examples.tmax.rollouter import (
     _RolloutIssueGate,
     TMaxRollouter,
@@ -194,7 +195,7 @@ def test_run_group_drains_remaining_siblings_when_one_fails(
                 sample=None,
                 group_id=7,
                 group_size=3,
-                sampling=None,
+                sampling=SamplingConfig(),
                 renderer=None,
             )
         )
@@ -248,7 +249,7 @@ def test_run_group_parent_cancellation_does_not_recancel_cleanup(
                 sample=None,
                 group_id=7,
                 group_size=3,
-                sampling=None,
+                sampling=SamplingConfig(),
                 renderer=None,
             )
         )

@@ -55,6 +55,9 @@ class AgentTask:
     max_turns: int | None = None
     """Turn cap; None keeps the harness default."""
 
+    max_context_tokens: int = 0
+    """Adapter context cap; zero means no configured cap."""
+
     exec_timeout: int | None = None
     """Per-command timeout; None keeps the harness default."""
 

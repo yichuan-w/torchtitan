@@ -476,7 +476,7 @@ def handle(
     process_one runs: the agent's tool and the loop's probe both grade with
     it, the way training does.
     """
-    d = sig.data
+    d = dict(sig.data)
     tid, rev = str(d["task"]), int(d["rev"])
     job = "harder" if d["direction"] == "harder" else "easier"
     task = root.evolution.task(tid)
@@ -526,6 +526,24 @@ def handle(
             layout.link_or_copy(
                 run_dir / rel, rewrite.traces / f"attempt-{i:02d}.jsonl"
             )
+        if (
+            job == "harder"
+            and os.environ.get("SWE_RETUNE_AGENT", "chat") == "codex"
+            and not ops.harder_uses_operators()
+            and d.get("student_feedback") is None
+        ):
+            d["student_feedback"] = {
+                "measurement": {
+                    key: d[key] for key in ("run", "group", "rev", "solved", "total")
+                },
+                "measurement_scope": "One rollout group from the named training run.",
+            }
+            parent_instruction = task.rev(rev - 1) / "instruction.md"
+            if rev > 0 and parent_instruction.exists():
+                d["student_feedback"]["previous_revision"] = {
+                    "rev": rev - 1,
+                    "instruction": parent_instruction.read_text(),
+                }
         rec = fb.process_one(
             rewrite,
             d,
@@ -543,6 +561,8 @@ def handle(
     for key in (
         "operator",
         "harder_mode",
+        "require_solution_growth",
+        "student_feedback",
         "family",
         "hint",
         "simplify",
@@ -646,7 +666,7 @@ def reusable_rewrite(
     New rollout paths and timestamps are expected on every draw. They do not
     change the feedback identity; raw signals remain available for inspection.
     """
-    keys = ("task", "rev", "direction", "solved", "total")
+    keys = ("task", "rev", "direction", "solved", "total", "student_feedback")
     for previous in reversed(list(ledger.values())):
         if (
             previous.get("outcome") != "handled"
@@ -672,6 +692,8 @@ def reusable_rewrite(
                 else "operators"
             )
             if meta.get("harder_mode", "operators") != mode:
+                return None
+            if mode == "student" and meta.get("require_solution_growth", True):
                 return None
         if meta.get("status") in {"accepted", "rejected", "kept", "blocked"}:
             return reference

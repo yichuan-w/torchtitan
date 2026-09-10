@@ -79,7 +79,7 @@ import os
 import statistics
 import time
 from collections.abc import Mapping
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from typing import TYPE_CHECKING
 
 from renderers import Message, Renderer
@@ -869,7 +869,12 @@ class TMaxRollouter(Rollouter):
                     sample=sample,
                     group_id=group_id,
                     rollout_idx=i,
-                    sampling=sampling,
+                    # Match Rollouter: siblings need distinct request RNG seeds.
+                    sampling=(
+                        sampling
+                        if sampling.seed is None
+                        else replace(sampling, seed=sampling.seed + i)
+                    ),
                     renderer=renderer,
                 ),
                 name=f"tmax_rollout_{group_id}_{i}",
@@ -1355,6 +1360,7 @@ class TMaxRollouter(Rollouter):
                             adapter=adapter,
                             time_budget_sec=budget_sec,
                             workdir=sample.workdir,
+                            max_context_tokens=self._max_context_tokens,
                         )
                     )
                     # None = the harness has no submit signal at all; grade anyway
@@ -1620,6 +1626,7 @@ class TMaxRollouter(Rollouter):
                 # (e.g. a turn truncated inside <think> that never emitted a
                 # tool_call is a format_errors=1 / stopped_early rollout).
                 diagnostics={
+                    "sampling_seed": sampling.seed,
                     "finish_reason": finish_reason,
                     "agent_turns": agent_turns,
                     "format_errors": fmt_errors,

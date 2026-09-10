@@ -77,8 +77,14 @@ def test_blind_layout_hides_the_solution_and_the_harness_files(tmp_path) -> None
         "traces/attempt-01.jsonl": "{}",
         "run/checks.jsonl": "{}",
         "run/verdict.txt": "x",
+        "run/hardening.md": "reference strategy",
+        "run/student_feedback.json": "student attempts",
+        "run/notes/oracle.txt": "reference output",
+        "run/check.blind1.txt": "oracle diagnostics",
         "run/seed_size.json": "{}",
         "run/resources.json": "{}",
+        "run/seed_literals.json": "{}",
+        "run/pretest.json": "{}",
         "AGENTS.md": "author spec",
         "sandbox": "#!/bin/bash",
     }.items():
@@ -89,6 +95,12 @@ def test_blind_layout_hides_the_solution_and_the_harness_files(tmp_path) -> None
     seen = {str(p.relative_to(vpkg)) for p in vpkg.rglob("*") if p.is_file()}
     assert "solution/solve.sh" not in seen and "traces/attempt-01.jsonl" not in seen
     assert "run/checks.jsonl" not in seen and "run/verdict.txt" not in seen
+    assert {path for path in seen if path.startswith("run/")} == {
+        "run/seed_size.json",
+        "run/resources.json",
+        "run/seed_literals.json",
+        "run/pretest.json",
+    }
     assert {
         "instruction.md",
         "tests/test_state.py",
@@ -129,6 +141,8 @@ def _wire(monkeypatch, sessions: list, checks: list, verifier_text=NEW_VERIFIER)
     monkeypatch.setattr(ec, "_codex_bin", lambda: Path(sys.executable))
     monkeypatch.setattr(ec, "VERIFIER_AUTHOR", "blind")
     monkeypatch.setattr(ec, "_sandbox_down", lambda _pkg: None)
+    # These tests isolate author/reference reconciliation; independent replay has separate tests.
+    monkeypatch.setattr(ec, "_independent_verifier", lambda *args, **kwargs: None)
 
     def fake_run_codex(run, cwd, prompt, resume=None):
         role = "verifier" if not (cwd / "solution").exists() else "author"
@@ -163,6 +177,11 @@ def _wire(monkeypatch, sessions: list, checks: list, verifier_text=NEW_VERIFIER)
 
     monkeypatch.setattr(ec, "_run_codex", fake_run_codex)
     monkeypatch.setattr(ec, "_harness_check", fake_harness_check)
+    replays = []
+    monkeypatch.setattr(
+        ec, "verify_probes", lambda pkg, env, timeout: replays.append(pkg)
+    )
+    return replays
 
 
 def test_blind_mode_runs_two_sessions_and_the_second_never_sees_the_solution(
@@ -170,7 +189,7 @@ def test_blind_mode_runs_two_sessions_and_the_second_never_sees_the_solution(
 ) -> None:
     rw = _rewrite(tmp_path, monkeypatch)
     sessions, checks = [], []
-    _wire(monkeypatch, sessions, checks)
+    replays = _wire(monkeypatch, sessions, checks)
 
     out = ec.evolve_agentic(rw, dict(SEED), "harder")
 
@@ -179,6 +198,7 @@ def test_blind_mode_runs_two_sessions_and_the_second_never_sees_the_solution(
     assert sessions[0]["cwd"] == rw.package
     # The verifier's author works in a copy under its own session.
     assert sessions[1]["cwd"] == sessions[1]["session"].package
+    assert replays == [sessions[1]["cwd"]]
     assert sessions[1]["session"].path.parent == rw.sessions
     assert "Leave `tests/` exactly as it is" in sessions[0]["prompt"]
     assert "not shown the reference solution" in sessions[1]["prompt"]
@@ -217,11 +237,16 @@ def test_harder_menu_is_opt_in(tmp_path, monkeypatch, mode):
         operator=[("test_family", "test_operator", "test_definition")],
     )
     prompt = sessions[0]["prompt"]
+    size = json.loads((rw.package / "run/seed_size.json").read_text())
     if mode == "1":
+        assert size.get("require_growth", True)
+        assert "must grow by 3 to 8" in prompt
         assert "test_definition" in prompt and "Pick from that list" in prompt
         assert "operator-misfit" in prompt
         assert out["_operator"] == "test_operator"
     else:
+        assert size["require_growth"] is False
+        assert "may stay the same length or shrink" in prompt
         assert "test_definition" not in prompt and "Pick from that list" not in prompt
         assert "run/hardening.md" in prompt
         assert "new inference or decision" in prompt
@@ -233,6 +258,25 @@ def test_harder_menu_is_opt_in(tmp_path, monkeypatch, mode):
         assert out["_harder_mode"] == "student"
 
 
+@pytest.mark.parametrize("job", ["harder", "easier"])
+def test_measured_feedback_reaches_proposer_only(tmp_path, monkeypatch, job):
+    monkeypatch.setenv("EVOLVE_HARDER_OPERATORS", "0")
+    rw = _rewrite(tmp_path, monkeypatch)
+    sessions, checks = [], []
+    _wire(monkeypatch, sessions, checks)
+    if job == "easier":
+        monkeypatch.setattr(
+            ec.so, "read_decision", lambda *_: {"operator": "add_scaffold"}
+        )
+    feedback = {"solved": 16 if job == "harder" else 0, "scored": 16, "action": job}
+    ec.evolve_agentic(rw, {**SEED, "_student_feedback": feedback}, job)
+    assert "Read run/student_feedback.json" in sessions[0]["prompt"]
+    assert (
+        json.loads((rw.package / "run/student_feedback.json").read_text()) == feedback
+    )
+    assert "student_feedback" not in (rw.package / "instruction.md").read_text()
+
+
 def test_operator_mode_still_requires_declaration(tmp_path, monkeypatch):
     monkeypatch.setenv("EVOLVE_HARDER_OPERATORS", "1")
     rw = _rewrite(tmp_path, monkeypatch)
@@ -241,6 +285,58 @@ def test_operator_mode_still_requires_declaration(tmp_path, monkeypatch):
         ec.evolve_agentic(
             rw, dict(SEED), "harder", operator=[("family", "op", "definition")]
         )
+
+
+def test_failed_semantic_replay_prevents_accepting_verifier(tmp_path, monkeypatch):
+    rw = _rewrite(tmp_path, monkeypatch)
+    _wire(monkeypatch, [], [])
+
+    def reject(pkg, env, timeout):
+        raise RuntimeError("Semantic probe wrong-2/grade passed unexpectedly")
+
+    monkeypatch.setattr(ec, "verify_probes", reject)
+    with pytest.raises(RuntimeError, match="wrong-2/grade"):
+        ec.evolve_agentic(rw, dict(SEED), "harder")
+    assert (rw.package / "tests/test_state.py").read_text() == SEED["test_state_py"]
+
+
+@pytest.mark.parametrize("repair", [False, True])
+def test_failed_verifier_process_is_recorded_before_replay(
+    tmp_path, monkeypatch, repair
+):
+    rw = _rewrite(tmp_path, monkeypatch)
+    replays = _wire(monkeypatch, [], [])
+    cleanups = []
+    monkeypatch.setattr(ec, "_sandbox_down", lambda pkg: cleanups.append(pkg))
+    monkeypatch.setattr(ec, "_session_id", lambda sd: "verifier-session")
+
+    def failed_process(run, cwd, prompt, resume=None):
+        run.meta["exit_code"] = 1
+        run.dir.stdout.write_text("usage limit exceeded\n")
+        return type("P", (), {"returncode": 1})()
+
+    monkeypatch.setattr(ec, "_run_codex", failed_process)
+    fmap = ec.ev.file_map(SEED)
+    with pytest.raises(RuntimeError, match="Verifier .* exited 1; see"):
+        if repair:
+            with ec.session(rw, "verifier", timeout=ec.AGENT_TIMEOUT) as previous:
+                ec._blind_layout(rw.package, previous.dir.package)
+            ec._blind_repair(rw, previous.dir, fmap, "reference failed", 1)
+        else:
+            ec._blind_verifier(rw, dict(SEED), fmap)
+
+    failed = [
+        sd
+        for sd in rw.session_dirs()
+        if json.loads(sd.meta.read_text())["status"] == "failed"
+    ]
+    assert len(failed) == 1
+    meta = json.loads(failed[0].meta.read_text())
+    assert meta["exit_code"] == 1
+    assert "exited 1" in meta["error"]
+    assert failed[0].stdout.read_text() == "usage limit exceeded\n"
+    assert len(cleanups) == 1 and replays == []
+    assert (rw.package / "tests/test_state.py").read_text() == SEED["test_state_py"]
 
 
 def test_same_mode_runs_one_session_that_writes_everything(
@@ -272,7 +368,7 @@ def test_a_disagreement_gets_one_repair_of_the_verifier_then_is_discarded(
 ) -> None:
     rw = _rewrite(tmp_path, monkeypatch)
     sessions, checks = [], []
-    _wire(monkeypatch, sessions, checks)
+    replays = _wire(monkeypatch, sessions, checks)
     verdicts = iter(["fail", "fail"])
 
     def failing_check(pkg, name="check"):
@@ -295,6 +391,7 @@ def test_a_disagreement_gets_one_repair_of_the_verifier_then_is_discarded(
     assert [s["role"] for s in sessions] == ["author", "verifier", "verifier"]
     assert sessions[2]["resume"] == "sid-v"
     assert sessions[2]["cwd"] == sessions[1]["cwd"]
+    assert replays == [sessions[1]["cwd"], sessions[2]["cwd"]]
     assert "does not agree with the task's reference solution" in sessions[2]["prompt"]
     assert (
         (sessions[2]["cwd"] / "run" / "failure.txt")

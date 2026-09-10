@@ -448,7 +448,11 @@ def _step_audit(pkg: Path) -> list[str]:
         seed = json.loads((pkg / "run" / "seed_size.json").read_text())
     except (OSError, ValueError):
         return []
-    return ts.violations(seed, ts.size_of_package(pkg, _verifier_rel(pkg)))
+    return ts.violations(
+        seed,
+        ts.size_of_package(pkg, _verifier_rel(pkg)),
+        require_growth=seed.get("require_growth", True),
+    )
 
 
 def cmd_check(pkg: Path, solve_timeout: int, at_max: bool = False) -> int:

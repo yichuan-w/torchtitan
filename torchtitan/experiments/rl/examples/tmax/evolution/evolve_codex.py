@@ -35,10 +35,12 @@ endpoint synth_client uses, and the key injected via env.
 from __future__ import annotations
 
 import contextlib
+import hashlib
 import json
 import os
 import shutil
 import subprocess
+import tempfile
 import time
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -50,6 +52,7 @@ import task_size as ts
 import verifier_literals as vl
 from synth_operators import harder_uses_operators
 from torchtitan.experiments.rl.examples.tmax import layout
+from verifier_probes import SemanticProbeMisses, verify_probes
 
 
 class Filtered(RuntimeError):
@@ -436,7 +439,9 @@ def _session_id(sd: layout.SessionDir) -> str:
 # --------------------------------------------------------------------------
 
 
-def _write_seed_literals(pkg: Path, verifier_rel: str) -> None:
+def _write_seed_literals(
+    pkg: Path, verifier_rel: str, *, require_growth: bool = True
+) -> None:
     """What the seed's verifier already depends on unseen, for `./sandbox
     check`'s names audit to subtract: the agent answers for the names its
     rewrite added, not for the seed's. Written once, before the session,
@@ -447,9 +452,10 @@ def _write_seed_literals(pkg: Path, verifier_rel: str) -> None:
     path.parent.mkdir(exist_ok=True)
     path.write_text(json.dumps(vl.audit_package(pkg, verifier_rel)) + "\n")
     # And the seed's size, for the one-rung check the same tool runs.
-    (pkg / "run" / "seed_size.json").write_text(
-        json.dumps(ts.size_of_package(pkg, verifier_rel)) + "\n"
-    )
+    size = ts.size_of_package(pkg, verifier_rel)
+    if not require_growth:
+        size["require_growth"] = False
+    (pkg / "run" / "seed_size.json").write_text(json.dumps(size) + "\n")
 
 
 def _write_resources(pkg: Path, task: dict) -> None:
@@ -501,7 +507,9 @@ def _prepare_package(pkg: Path, task: dict) -> dict:
     pkg.chmod(0o700)
     (pkg / "run").mkdir(exist_ok=True)
     fmap = ev.file_map(task)
-    _write_seed_literals(pkg, fmap["test_state_py"])
+    _write_seed_literals(
+        pkg, fmap["test_state_py"], require_growth=task.get("_harder_mode") != "student"
+    )
     _write_resources(pkg, task)
     _write_pretest(pkg, task)
     shutil.copy2(SPEC, pkg / "AGENTS.md")
@@ -841,18 +849,12 @@ SANDBOX = Path(__file__).resolve().parent / "agent_sandbox.sh"
 # which is what the split was for. "same" remains for comparison.
 VERIFIER_AUTHOR = os.environ.get("SWE_VERIFIER_AUTHOR", "blind")
 VERIFIER_SPEC = Path(__file__).resolve().parent / "agents" / "verifier_author.md"
-# What the verifier's author must not see. Everything else in the package is
-# what an agent attempting the task could read.
+# Hide author-only files; run metadata is filtered separately in _blind_layout.
 HIDDEN_FROM_VERIFIER = (
     "solution",
     "traces",
     "AGENTS.md",
     "sandbox",
-    "run/checks.jsonl",
-    "run/verdict.txt",
-    "run/failure.txt",
-    "run/sandbox.json",
-    "run/sandbox.log",
 )
 AGENT_TIMEOUT = int(os.environ.get("EVOLVE_AGENT_TIMEOUT", "2400"))
 
@@ -889,10 +891,33 @@ in `traces/`. Start by identifying the successful strategy and a task-relevant
 judgment it currently bypasses. Inspect failures as well: distinguish a missing
 skill from unclear requirements or infrastructure trouble.
 
-Before editing, write `run/hardening.md`: cite attempt filenames and concrete
+A strategy not exercised in these attempts is not evidence that the student
+cannot use it. When prior measured feedback is supplied, compare its prediction
+with the actual attempts. A previous change solved consistently is demonstrated
+student capability; use that result to revise the difficulty hypothesis.
+
+Before editing, compare two candidate changes in `run/hardening.md`, then
+implement only one. For each candidate, cite attempt filenames and concrete
 actions or observations; explain the current strategy, the changed condition,
-and the new inference or decision needed to reach the original goal. State why
+and the new inference or decision needed to reach the original goal. Sketch
+the smallest correct adaptation from the observed strategy,
+distinguishing demonstrated skills from new decisions and dependencies between
+steps. Using the student's observed checking behavior, explain whether feedback
+available in the task would expose mistakes in that adaptation and allow their
+correction. Use this evidence to choose the change's magnitude; failure of the
+unchanged strategy alone does not establish difficulty of adaptation. State why
 the old strategy with a routine post-processing step would be insufficient.
+Choose the candidate whose required decisions are least covered by demonstrated
+student skills while remaining a modest step from those skills; explain the
+comparison before implementing it. If both reduce to routine adaptations, revise
+the candidates before selecting one. This comparison is proposal reasoning,
+not permission to generate or evaluate multiple task versions.
+For each strategy predicted to fail, include a concrete proposed input, the
+correct observable result, and the result that strategy would produce. If the
+results agree, that case does not support the prediction. For a strategy that
+discards information, include cases requiring different outcomes and check
+that the grader distinguishes them; a wrong reason for the right output is
+not a measured failure.
 Use that analysis to design the patch; no operator menu or operator declaration
 is required.
 
@@ -904,7 +929,20 @@ checksum appended after the original solution is not enough merely because it
 reads the original outputs. Choose the mechanism the traces justify, rather
 than applying an example mechanically.
 
-Preserve the original user goal and a solvable, discoverable specification.
+Prefer changes to inputs or objectives that require the successful strategy to
+adapt, rather than merely declaring that strategy disallowed. If correctness
+depends on a method or source restriction, make it enforceable in the runnable
+environment or checkable by the grader; otherwise reformulate it as an
+observable task condition. When reviewing measured feedback, check successful
+attempts for violations of those restrictions.
+
+Preserve the original user goal, existing tool hints and discovery aids, and
+requirements unrelated to the chosen change. Keep the specification solvable
+and discoverable. Locate the difficulty in deciding the correct outcome under
+the changed conditions, not in removing useful hints or adding an implementation
+restriction. Existing method requirements remain part of the original task;
+repair missing checks for validity, but do not count stricter enforcement of
+an unchanged requirement as the hardening mechanism.
 Aim for a modest reduction in this student's solve rate toward mixed success,
 not universal failure. Describe this as a hypothesis for student re-testing;
 passing the reference solution only establishes validity. If the traces do not
@@ -918,9 +956,8 @@ hardening threshold.
 
 {guidance}
 
-The size of the rewrite is checked, not trusted. The reference solution may
-grow by {min_added} to {max_added} non-comment lines over the seed's
-{seed_lines}; the verifier may gain at most {max_asserts} assertions over the
+The size of the rewrite is checked, not trusted. {growth_bound}
+The seed has {seed_lines} non-comment solution lines; the verifier may gain at most {max_asserts} assertions over the
 seed's {seed_asserts}. `./sandbox check` fails outside that and the caller
 rejects the rewrite. Measured on this corpus: rewrites that grew to 125 lines
 came back 0/16 five times in six, while the seed at its own size was solved
@@ -988,9 +1025,8 @@ hardening threshold.
 
 {guidance}
 
-The size of the rewrite is checked, not trusted. The reference solution may
-grow by {min_added} to {max_added} non-comment lines over the seed's
-{seed_lines}; the verifier may gain at most {max_asserts} assertions over the
+The size of the rewrite is checked, not trusted. {growth_bound}
+The seed has {seed_lines} non-comment solution lines; the verifier may gain at most {max_asserts} assertions over the
 seed's {seed_asserts}. `./sandbox check` fails outside that and the caller
 rejects the rewrite. Measured on this corpus: rewrites that grew to 125 lines
 came back 0/16 five times in six, while the seed at its own size was solved
@@ -1090,7 +1126,12 @@ name open, check the value.
 
 Then do the task yourself through `./sandbox exec`, the way the instruction
 describes it, and `./sandbox grade`: it must pass. `./sandbox reset` and grade
-the untouched workspace: it must fail. Both, before you finish."""
+the untouched workspace: it must fail. Save the correct script, a separate
+single-error script for each independently falsifiable clause of the changed
+requirement, and their cases contract under run/verifier-probes as AGENTS.md
+specifies. The caller replays every script in a fresh Daytona environment before
+accepting your verifier; each wrong script must execute successfully and then
+fail grading."""
 
 _VERIFIER_REPAIR_JOB = """The verifier you wrote does not agree with the task's reference solution, which
 you cannot see: the caller ran that solution in a fresh container (exit
@@ -1152,6 +1193,14 @@ def _blind_layout(pkg: Path, vpkg: Path) -> None:
 
     def ignore(d, names):
         rel = Path(d).relative_to(pkg)
+        if rel == Path("run"):
+            # Preserve harness inputs, excluding author analysis and oracle output.
+            return set(names) - {
+                "seed_size.json",
+                "resources.json",
+                "seed_literals.json",
+                "pretest.json",
+            }
         return {
             n
             for n in names
@@ -1184,6 +1233,121 @@ def _take_verifier(vpkg: Path, pkg: Path, seed_rel: str, seed_text: str) -> str:
     return rel
 
 
+def _probe_hashes(package: Path, exclude: tuple[str, ...] = ()) -> dict[str, str]:
+    return {
+        str(p.relative_to(package)): hashlib.sha256(p.read_bytes()).hexdigest()
+        for p in package.rglob("*")
+        if p.is_file()
+        and p.relative_to(package).parts[0] not in exclude
+        and "__pycache__" not in p.parts
+    }
+
+
+def _independent_verifier(
+    rewrite: layout.RewriteDir,
+    vsession: layout.SessionDir,
+    *,
+    allow_repair: bool = True,
+) -> None:
+    vpkg = vsession.package
+    pointer = vsession.path / "independent-probes.json"
+    if pointer.exists():
+        probe = Path(json.loads(pointer.read_text())["package"])
+    else:
+        with session(rewrite, "probe", timeout=AGENT_TIMEOUT) as run:
+            probe = run.dir.package
+            _blind_layout(vpkg, probe)
+            shutil.rmtree(probe / "tests")
+            (probe / "tests").mkdir()
+            (probe / "tests/test.sh").write_text(
+                "#!/bin/sh\nmkdir -p /logs/verifier\necho 0 > /logs/verifier/reward.txt\nexit 2\n"
+            )
+            for name in ("seed_size.json", "seed_literals.json"):
+                (probe / "run" / name).unlink(missing_ok=True)
+            shutil.copy2(
+                VERIFIER_SPEC.with_name("independent_verifier_probes.md"),
+                probe / "AGENTS.md",
+            )
+
+            before = _probe_hashes(probe, ("run",))
+            run.meta["public_inputs_sha256"] = before
+            try:
+                result = _run_codex(
+                    run,
+                    probe,
+                    "Create independent semantic controls from the public task.\n"
+                    + _budget(AGENT_TIMEOUT),
+                )
+                if result.returncode:
+                    raise RuntimeError(
+                        f"Independent probe author exited {result.returncode}"
+                    )
+            finally:
+                _sandbox_down(probe)
+            _check_verdict(probe)
+            if _probe_hashes(probe, ("run",)) != before:
+                raise RuntimeError("Independent probe author changed public task files")
+        layout.write_json_atomic(
+            pointer,
+            {
+                "package": str(probe),
+                "controls_sha256": _probe_hashes(probe / "run/verifier-probes"),
+            },
+        )
+
+    controls_sha256 = json.loads(pointer.read_text())["controls_sha256"]
+    public_sha256 = _probe_hashes(vpkg, ("run", "tests"))
+    for attempt in range(2 if allow_repair else 1):
+        if _probe_hashes(probe / "run/verifier-probes") != controls_sha256:
+            raise RuntimeError("Independent controls changed during verifier repair")
+        replay = Path(tempfile.mkdtemp(prefix="replay-", dir=probe.parent))
+        _blind_layout(vpkg, replay)
+        shutil.copytree(probe / "run/verifier-probes", replay / "run/verifier-probes")
+        try:
+            verify_probes(replay, _harness_env(), AGENT_TIMEOUT)
+        except SemanticProbeMisses as error:
+            if not allow_repair or attempt:
+                raise
+            (vpkg / "run/independent-failures.jsonl").write_text(
+                error.log_path.read_text()
+            )
+            (vpkg / "run/verdict.txt").unlink(missing_ok=True)
+            with session(
+                rewrite, "probe-repair", timeout=AGENT_TIMEOUT, resumes=vsession
+            ) as run:
+                try:
+                    result = _run_codex(
+                        run,
+                        vpkg,
+                        "The independent correct control passed, and controls labeled negative also passed. "
+                        "Read run/independent-failures.jsonl for their public requirements, scripts, and grading evidence. "
+                        "First establish whether each negative control's actual state at grading violates the public task. "
+                        "For a final-artifact task, an earlier failure on changed inputs "
+                        "does not invalidate a correct final artifact; "
+                        "require reusable behavior only when the public task explicitly requires it. "
+                        "If a control is valid or its violation cannot be established, "
+                        "write BLOCKED: <evidence> to run/verdict.txt and stop. "
+                        "Otherwise repair the verifier to reject the demonstrated violations while accepting valid deliverables. "
+                        "Preserve the public task and follow AGENTS.md, including your own replay controls.\n"
+                        + _budget(AGENT_TIMEOUT),
+                        resume=_session_id(vsession),
+                    )
+                    if result.returncode:
+                        raise RuntimeError(
+                            f"Verifier probe repair exited {result.returncode}"
+                        ) from error
+                finally:
+                    _sandbox_down(vpkg)
+            _check_verdict(vpkg)
+            if _probe_hashes(vpkg, ("run", "tests")) != public_sha256:
+                raise RuntimeError(
+                    "Verifier repair changed public task files"
+                ) from error
+            verify_probes(vpkg, _harness_env(), AGENT_TIMEOUT)
+        else:
+            return
+
+
 def _blind_verifier(
     rewrite: layout.RewriteDir, task: dict, fmap: dict
 ) -> tuple[layout.SessionDir, str]:
@@ -1211,10 +1375,16 @@ def _blind_verifier(
             max_asserts=ts.MAX_ADDED_ASSERTS,
         ) + _budget(AGENT_TIMEOUT)
         try:
-            _run_codex(run, vpkg, prompt)
+            result = _run_codex(run, vpkg, prompt)
+            if result.returncode:
+                raise RuntimeError(
+                    f"Verifier author exited {result.returncode}; see {run.dir.stdout}"
+                )
         finally:
             _sandbox_down(vpkg)
     _check_verdict(vpkg)
+    verify_probes(vpkg, _harness_env(), AGENT_TIMEOUT)
+    _independent_verifier(rewrite, run.dir)
     rel = _take_verifier(vpkg, pkg, seed_rel, seed_text)
     return run.dir, rel
 
@@ -1239,10 +1409,16 @@ def _blind_repair(
             AGENT_TIMEOUT
         )
         try:
-            _run_codex(run, vpkg, prompt, resume=sid)
+            result = _run_codex(run, vpkg, prompt, resume=sid)
+            if result.returncode:
+                raise RuntimeError(
+                    f"Verifier repair exited {result.returncode}; see {run.dir.stdout}"
+                )
         finally:
             _sandbox_down(vpkg)
     _check_verdict(vpkg)
+    verify_probes(vpkg, _harness_env(), AGENT_TIMEOUT)
+    _independent_verifier(rewrite, vsession, allow_repair=False)
     before = (pkg / _verifier_on_disk(pkg, seed_rel)).read_text()
     return _take_verifier(vpkg, pkg, _verifier_on_disk(pkg, seed_rel), before)
 
@@ -1297,6 +1473,9 @@ def evolve_agentic(
     when the agent declined.
     """
     _require_codex()
+    use_operators = job == "harder" and harder_uses_operators()
+    if job == "harder":
+        task = {**task, "_harder_mode": "operators" if use_operators else "student"}
     pkg = rewrite.package
     fmap = _prepare_package(pkg, task)
     if job == "easier":
@@ -1312,7 +1491,6 @@ def evolve_agentic(
     # `operator` is the scored shortlist, in score order, each entry
     # (family, operator_id, definition) -- the same order operator_shortlist
     # and pick_operator both return.
-    use_operators = job == "harder" and harder_uses_operators()
     cands = list(operator or []) if use_operators else []
     if use_operators and not cands:
         raise ValueError("operator mode requires a nonempty harder shortlist")
@@ -1335,8 +1513,15 @@ def evolve_agentic(
                 ),
                 seed_lines=seed_size["solution_lines"],
                 seed_asserts=seed_size["verifier_asserts"],
-                min_added=ts.MIN_ADDED,
-                max_added=ts.MAX_ADDED,
+                growth_bound=(
+                    f"The reference solution must grow by {ts.MIN_ADDED} to {ts.MAX_ADDED} non-comment lines."
+                    if use_operators
+                    else (
+                        "The reference solution may stay the same length or shrink, "
+                        f"and may grow by at most {ts.MAX_ADDED} non-comment lines. "
+                        "Do not add code to meet a minimum length."
+                    )
+                ),
                 max_asserts=ts.MAX_ADDED_ASSERTS,
             ),
             "easier": _EASIER_JOB.format(
@@ -1349,6 +1534,25 @@ def evolve_agentic(
         + _traces_spec(rewrite.traces)
         + _budget(AGENT_TIMEOUT)
     )
+
+    if (
+        not use_operators
+        and job in ("harder", "easier")
+        and task.get("_student_feedback")
+    ):
+        feedback = task["_student_feedback"]
+        (pkg / "run" / "student_feedback.json").write_text(
+            json.dumps(feedback, indent=2) + "\n"
+        )
+        prompt += (
+            "\n\nMEASURED STUDENT FEEDBACK\n"
+            "Read run/student_feedback.json before proposing the next change. "
+            "It records prior measurements and the requested adjustment. "
+            "Use the corresponding attempts to explain why the previous "
+            "change was too easy, too hard, or execution-heavy, and revise "
+            "that mechanism. Do not add the feedback, scores, or evaluator "
+            "details to the task instruction or environment.\n"
+        )
 
     with session(rewrite, "agent", timeout=AGENT_TIMEOUT) as run:
         try:

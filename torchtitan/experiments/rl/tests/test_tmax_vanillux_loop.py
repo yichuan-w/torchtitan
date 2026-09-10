@@ -23,6 +23,7 @@ from unittest.mock import AsyncMock, Mock
 
 import pytest
 
+from torchtitan.experiments.rl.actors.generator import SamplingConfig
 from torchtitan.experiments.rl.examples.tmax import (
     layout,
     rollout_record,
@@ -37,7 +38,7 @@ from torchtitan.experiments.rl.examples.tmax.rollouter import (
     _write_rollout_record,
     TMaxRollouter,
 )
-from torchtitan.experiments.rl.harness import CapturedTurn
+from torchtitan.experiments.rl.harness import AgentTask, CapturedTurn
 from torchtitan.experiments.rl.observability.metrics import Mean
 from torchtitan.experiments.rl.rollout.types import Rollout, RolloutStatus
 
@@ -112,6 +113,7 @@ def _run_loop(
     *,
     time_budget_sec: int = 60,
     max_turns: int = 1,
+    max_context_tokens: int = 0,
 ) -> tuple[int, bool, int, str]:
     sandbox: Any = object()
     adapter: Any = _FakeAdapter(responses)
@@ -123,6 +125,7 @@ def _run_loop(
             adapter=adapter,
             time_budget_sec=time_budget_sec,
             max_turns=max_turns,
+            max_context_tokens=max_context_tokens,
         )
     )
 
@@ -302,6 +305,81 @@ def test_format_error_stops_early(monkeypatch: pytest.MonkeyPatch) -> None:
     assert _run_loop([response]) == (1, False, 1, "stopped_early")
 
 
+@pytest.mark.parametrize("feedback", [False, True])
+@pytest.mark.parametrize("output_tokens", [0, 64])
+def test_context_exhaustion_is_not_a_format_error(monkeypatch, feedback, output_tokens):
+    monkeypatch.setattr(vanillux_loop, "_FORMAT_ERROR_FEEDBACK", feedback)
+    response = {
+        "content": [
+            {"type": "text", "text": "partial action" if output_tokens else ""}
+        ],
+        "stop_reason": "max_tokens",
+        "usage": {
+            "input_tokens": 32768 - output_tokens,
+            "output_tokens": output_tokens,
+        },
+    }
+    assert _run_loop([response], max_context_tokens=32768) == (
+        1,
+        False,
+        0,
+        "hit_context_limit",
+    )
+
+
+@pytest.mark.parametrize("context_cap", [0, 32768])
+def test_per_turn_truncation_is_not_context_exhaustion(monkeypatch, context_cap):
+    monkeypatch.setattr(vanillux_loop, "_FORMAT_ERROR_FEEDBACK", False)
+    response = {
+        "content": [{"type": "text", "text": "partial action"}],
+        "stop_reason": "max_tokens",
+        "usage": {"input_tokens": 1000, "output_tokens": 8192},
+    }
+    assert _run_loop([response], max_context_tokens=context_cap) == (
+        1,
+        False,
+        1,
+        "stopped_early",
+    )
+
+
+def test_agent_passes_context_budget_to_loop():
+    response = {
+        "content": [{"type": "text", "text": "partial action"}],
+        "stop_reason": "max_tokens",
+        "usage": {"input_tokens": 32700, "output_tokens": 68},
+    }
+    result = asyncio.run(
+        vanillux_loop.vanillux_agent(
+            AgentTask(
+                sandbox=object(),
+                instruction="test task",
+                session_id="test",
+                adapter=_FakeAdapter([response]),
+                time_budget_sec=60,
+                max_context_tokens=32768,
+            )
+        )
+    )
+    assert (result.finish_reason, result.format_errors) == ("hit_context_limit", 0)
+
+
+def test_complete_tool_at_context_wall_still_executes(monkeypatch):
+    async def run_bash(sb, command, timeout):
+        return vanillux_loop.SUBMIT_MARKER, 0
+
+    monkeypatch.setattr(vanillux_loop, "_run_bash", run_bash)
+    response = _tool_response()
+    response.update(
+        stop_reason="max_tokens",
+        usage={
+            "input_tokens": 32700,
+            "output_tokens": 68,
+        },
+    )
+    assert _run_loop([response], max_context_tokens=32768) == (1, True, 0, "submit")
+
+
 def test_finish_reason_metrics_are_exhaustive_fractions() -> None:
     metrics = _finish_reason_metrics(
         ["submit", "submit", "hit_time_budget", "stopped_early", "error"]
@@ -354,7 +432,12 @@ def test_sandbox_issue_metrics_count_events_and_affected_rollouts() -> None:
     }
 
 
-def _run_group_with_one_infra_failure(monkeypatch: pytest.MonkeyPatch, group_id: int):
+def _run_group_with_one_infra_failure(
+    monkeypatch: pytest.MonkeyPatch,
+    group_id: int,
+    sampling: SamplingConfig | None = None,
+    group_size: int = 2,
+):
     """Two siblings, the second an infrastructure failure, scored 1.0 / 0.0."""
     # No run directory: the group-level signal writer has nowhere to write and
     # returns before it reads the placeholder sample.
@@ -393,24 +476,45 @@ def _run_group_with_one_infra_failure(monkeypatch: pytest.MonkeyPatch, group_id:
     async def score_group(rollouts, sample):
         del sample
         return [
-            Mock(reward=1.0, reward_breakdown={}),
-            Mock(reward=0.0, reward_breakdown={}),
+            Mock(reward=0.0 if i == 1 else 1.0, reward_breakdown={})
+            for i in range(len(rollouts))
         ]
 
     rollouter.score_group = AsyncMock(side_effect=score_group)
-    rollouter.advantage_estimator = Mock(return_value=[0.5, -0.5])
+    rollouter.advantage_estimator = Mock(
+        return_value=[0.5, -0.5] + [0.0] * (group_size - 2)
+    )
 
     group = asyncio.run(
         rollouter.run_group_rollouts(
             generate_fn=AsyncMock(),
             sample=object(),
             group_id=group_id,
-            group_size=2,
-            sampling=object(),
+            group_size=group_size,
+            sampling=sampling if sampling is not None else SamplingConfig(),
             renderer=object(),
         )
     )
     return rollouter, group
+
+
+@pytest.mark.parametrize("group_id", [-1, 0])
+@pytest.mark.parametrize("seed", [None, 150001])
+def test_tmax_siblings_receive_distinct_sampling_seeds(monkeypatch, group_id, seed):
+    sampling = SamplingConfig(seed=seed, temperature=0.8, top_p=0.95)
+    rollouter, _ = _run_group_with_one_infra_failure(
+        monkeypatch, group_id, sampling, 16
+    )
+    received = [
+        call.kwargs["sampling"] for call in rollouter._run_agent_rollout.await_args_list
+    ]
+    assert [config.seed for config in received] == (
+        [None] * 16 if seed is None else list(range(seed, seed + 16))
+    )
+    assert sampling.seed == seed
+    assert all(
+        config.temperature == 0.8 and config.top_p == 0.95 for config in received
+    )
 
 
 def test_infra_failure_is_unscored_not_a_zero_in_a_training_group(
