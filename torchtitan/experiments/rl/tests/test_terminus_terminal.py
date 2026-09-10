@@ -108,6 +108,19 @@ def test_sigkill_is_unknown_not_a_policy_verdict():
     assert exc.value.terminal_events[0]["signal"] == "9"
 
 
+def test_waits_for_the_shell_exit_status_after_pty_close():
+    lifecycle, _ = terminal(result("123|456|1||"), result("123|456|1|0|"))
+    with pytest.raises(TerminalExited):
+        asyncio.run(lifecycle.run("tmux has-session -t agent", AsyncMock()))
+
+
+def test_missing_exit_status_remains_unknown_after_bounded_reads():
+    lifecycle, probe = terminal(*[result("123|456|1||") for _ in range(4)])
+    with pytest.raises(TerminalUnavailable, match="terminal_exit_unknown"):
+        asyncio.run(lifecycle.run("tmux has-session -t agent", AsyncMock()))
+    assert probe.await_count == 4
+
+
 def test_changed_shell_is_not_accepted_as_the_original_session():
     lifecycle, _ = terminal(result("123|789|0||"))
     with pytest.raises(TerminalUnavailable, match="terminal_identity_changed"):

@@ -149,12 +149,19 @@ class TerminalLifecycle:
             result = await self._probe()
             if result.return_code == 0:
                 self._event("socket_restored", server_pid=self.server_pid)
-        if result.return_code != 0:
-            raise self._unavailable("terminal_state_unavailable")
-        fields = (result.stdout or "").strip().split("|")
-        if len(fields) != 5 or fields[:2] != [self.server_pid, self.pane_pid]:
-            raise self._unavailable("terminal_identity_changed")
-        _, _, dead, status, signal = fields
+        for attempt in range(4):
+            if result.return_code != 0:
+                raise self._unavailable("terminal_state_unavailable")
+            fields = (result.stdout or "").strip().split("|")
+            if len(fields) != 5 or fields[:2] != [self.server_pid, self.pane_pid]:
+                raise self._unavailable("terminal_identity_changed")
+            _, _, dead, status, signal = fields
+            if dead != "1" or status or signal or attempt == 3:
+                break
+            # Closing the PTY and reaping its child are separate events. Read
+            # again before assigning an outcome to a pane without exit status.
+            await asyncio.sleep(0.1)
+            result = await self._probe()
         if dead == "1":
             self._event(
                 "shell_exited", exit_status=status or None, signal=signal or None
@@ -162,7 +169,9 @@ class TerminalLifecycle:
             if not signal and status.isdigit():
                 raise TerminalExited(f"shell exited with status {status}")
             # SIGKILL is also used by the OOM killer. Do not infer policy blame.
-            raise self._unavailable("terminal_signal_unknown")
+            raise self._unavailable(
+                "terminal_signal_unknown" if signal else "terminal_exit_unknown"
+            )
         if dead != "0":
             raise self._unavailable("terminal_state_invalid")
 
