@@ -188,12 +188,12 @@ async def run(output: Path) -> None:
                     result = asdict(result)
                 else:
                     result = await wrapper.exec(command, timeout=30, check=False)
-                    assert result == (7, "original"), result
+                    assert result == (7, "original", ""), result
             if pending:
                 await asyncio.gather(*pending)
                 pending.clear()
             count = await wrapper.exec(f"cat {marker}", check=True)
-            assert count == (0, "x"), count
+            assert count == (0, "x", ""), count
             assert injected
             if name in ("before_accept", "delayed_accept"):
                 assert len(calls) >= 2 and all(call == calls[0] for call in calls)
