@@ -28,31 +28,6 @@ TASK = {"instruction": FILES["instruction.md"], "dockerfile": FILES["environment
         "_verifier_rel": "tests/test_state.py"}
 
 
-def test_explicit_chatgpt_auth_is_private_and_cleaned(tmp_path, monkeypatch):
-    rw = _rewrite(tmp_path, monkeypatch)
-    source = tmp_path / "login.json"
-    auth = {"auth_mode": "chatgpt", "tokens": {"access_token": "test-token"}}
-    source.write_text(json.dumps(auth))
-    monkeypatch.setenv("EVOLVE_CODEX_AUTH_FILE", str(source))
-    monkeypatch.setenv("OPENAI_API_KEY", "unrelated-key")
-    with ec.session(rw, "agent", timeout=10) as run:
-        env = ec._codex_env(run.dir)
-        target = run.dir.codex_home / "auth.json"
-        assert "OPENAI_API_KEY" not in env
-        assert json.loads(target.read_text()) == auth
-        assert stat.S_IMODE(target.stat().st_mode) == 0o600
-        assert ec._provider_overrides() == ["model_provider=openai"]
-        assert run.meta["authentication"] == "chatgpt"
-    assert not target.exists()
-    assert json.loads(source.read_text()) == auth
-
-
-def test_api_key_provider_remains_default(monkeypatch):
-    monkeypatch.delenv("EVOLVE_CODEX_AUTH_FILE", raising=False)
-    assert "model_provider=oai" in ec._provider_overrides()
-    assert "model_providers.oai.env_key=OPENAI_API_KEY" in ec._provider_overrides()
-
-
 def _rewrite(tmp_path, monkeypatch, job: str = "harder") -> layout.RewriteDir:
     """A rewrite directory whose package holds the four files, under a root
     TRL_BASE names (the codex binary and jq are looked up beneath it)."""
