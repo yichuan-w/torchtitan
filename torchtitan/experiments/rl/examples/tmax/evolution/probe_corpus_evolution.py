@@ -94,8 +94,14 @@ def main():
             "created": layout.stamp(),
             "attempts": [str(record.relative_to(run.path))],
             "student_feedback": {
-                "measurement_scope": "The trace is a scripted reference execution, not a student model. Do not infer student difficulty or learning from it.",
-                "requested_adjustment": "Exercise a modest task extension to verify corpus compatibility with the evolution, validation and fold pipeline.",
+                "measurement_scope": (
+                    "The trace is a scripted reference execution, not a student model. "
+                    "Do not infer student difficulty or learning from it."
+                ),
+                "requested_adjustment": (
+                    "Exercise a modest task extension to verify corpus compatibility "
+                    "with the evolution, validation and fold pipeline."
+                ),
             },
         },
     )
