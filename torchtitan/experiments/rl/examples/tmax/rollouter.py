@@ -805,12 +805,11 @@ class TMaxRollouter(Rollouter):
         if not 0 < config.evolution_harder_ratio <= 1:
             raise ValueError("evolution_harder_ratio must be in (0, 1]")
         super().__init__(config)
-        # Which agent scaffold drives the rollout. Defaults to the vanillux loop the
-        # tmax models are SFT'd under; TMAX_AGENT=terminus swaps in Terminus-2 (a
-        # different output format -- see harness/agents/terminus.py).
-        self._agent_name = os.environ.get("TMAX_AGENT", "vanillux")
+        # Training and evaluation share Terminus unless a run explicitly selects
+        # another scaffold with its corresponding action format.
+        self._agent_name = os.environ.get("TMAX_AGENT", "terminus")
         if self._agent_name != "vanillux":
-            # Import for the side effect of registering; only the default is wired
+            # Import for the side effect of registering; only vanillux is wired
             # in by the tmax module itself.
             import torchtitan.experiments.rl.harness.agents.terminus  # noqa: F401
         self._time_budget_sec = config.time_budget_sec
