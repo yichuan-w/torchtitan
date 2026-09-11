@@ -1371,7 +1371,12 @@ def test_duplicate_launchers_execute_body_once(
     monkeypatch.setattr(daytona_backend, "_EXEC_STAGING_DIR", str(tmp_path))
     marker = tmp_path / "count"
     observed = _build_observable_exec(
-        f"printf x >> {shlex.quote(str(marker))}; sleep 0.2; printf original; exit 7",
+        _build_exec_command(
+            f"printf x >> {shlex.quote(str(marker))}; sleep 0.2; printf original; exit 7",
+            user="root",
+            env=None,
+            timeout=5,
+        ),
         "concurrent",
     )
     if uploaded:
