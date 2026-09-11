@@ -95,7 +95,13 @@ def test_runtime_checks_fresh_sandboxes_and_resumes_exact_rows(tmp_path, monkeyp
         json.loads(line)
         for line in (tmp_path / "progress.jsonl").read_text().splitlines()
     ]
-    assert [r["state"] for r in records] == ["start", "pass", "skip"]
+    assert [r["state"] for r in records] == [
+        "prepare",
+        "start",
+        "pass",
+        "prepare",
+        "skip",
+    ]
     row["metadata"]["dockerfile"] += "\nRUN tmux -V"
     asyncio.run(verify_runtime([row], str(tmp_path)))
     assert len(boots) == 4

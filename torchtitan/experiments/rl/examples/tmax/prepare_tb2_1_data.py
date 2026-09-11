@@ -44,6 +44,7 @@ import json
 import math
 import os
 import re
+import subprocess
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
@@ -101,6 +102,18 @@ async def verify_runtime(rows: list[dict], evidence_dir: str) -> None:
 
     root = Path(evidence_dir)
     root.mkdir(parents=True, exist_ok=True)
+    checkout = Path(__file__).resolve().parents[5]
+    provenance = {
+        "code_commit": subprocess.check_output(
+            ["git", "rev-parse", "HEAD"], cwd=checkout, text=True
+        ).strip(),
+        "dependency_lock_sha256": hashlib.sha256(
+            (
+                checkout / "torchtitan/experiments/rl/examples/tmax/runbook/uv.lock"
+            ).read_bytes()
+        ).hexdigest(),
+        "probe_command": _TMUX_PROBE,
+    }
     with (root / "progress.jsonl").open("a") as log:
 
         def event(task: str, state: str, **extra) -> None:
@@ -118,6 +131,7 @@ async def verify_runtime(rows: list[dict], evidence_dir: str) -> None:
         for row in rows:
             md = row["metadata"]
             tid = md["instance_id"]
+            event(tid, "prepare", source_image=md["image"], **provenance)
             # Pin each source before building so a resumed run cannot switch bases.
             if "dockerfile" not in md:
                 source_image = md["image"]
@@ -187,6 +201,7 @@ async def verify_runtime(rows: list[dict], evidence_dir: str) -> None:
                             status="pass",
                             row=row,
                             probes=probes,
+                            **provenance,
                             time=datetime.now(timezone.utc).isoformat(),
                         ),
                         indent=2,
