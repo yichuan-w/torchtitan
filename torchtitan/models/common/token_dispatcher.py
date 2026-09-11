@@ -281,6 +281,7 @@ class AllToAllTokenDispatcher(BaseEPTokenDispatcher):
         the count exchange independently from the true token-exchange
         scheduling markers.
         """
+        assert self.ep_mesh is not None, "wire_meshes must precede token exchange"
         if (
             torch.compiler.is_compiling() or torch.compiler._is_non_strict_tracing()
         ) and get_spmd_backend() != "spmd_types":
@@ -347,6 +348,7 @@ class AllToAllTokenDispatcher(BaseEPTokenDispatcher):
         input_splits: list[int],
     ) -> torch.Tensor:
         """Launch the dispatch all-to-all that moves routed tokens to experts."""
+        assert self.ep_mesh is not None, "wire_meshes must precede token exchange"
         if (
             torch.compiler.is_compiling() or torch.compiler._is_non_strict_tracing()
         ) and get_spmd_backend() != "spmd_types":
@@ -374,6 +376,7 @@ class AllToAllTokenDispatcher(BaseEPTokenDispatcher):
         output_splits: list[int],
     ) -> torch.Tensor:
         """Launch the combine all-to-all that returns expert outputs to tokens."""
+        assert self.ep_mesh is not None, "wire_meshes must precede token exchange"
         if (
             torch.compiler.is_compiling() or torch.compiler._is_non_strict_tracing()
         ) and get_spmd_backend() != "spmd_types":
