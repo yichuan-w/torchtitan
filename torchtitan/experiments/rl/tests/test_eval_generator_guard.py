@@ -23,6 +23,7 @@ So the retry is only safe with a timeout, and a hang has to count as a failure.
 from __future__ import annotations
 
 import asyncio
+from types import SimpleNamespace
 
 import pytest
 
@@ -32,6 +33,51 @@ from torchtitan.experiments.rl.controller import (
     _EVAL_GUARD_MAX_FAILURES,
     Controller,
 )
+from torchtitan.experiments.rl.rollout import Rollout, RolloutGroup, RolloutStatus
+
+
+@pytest.mark.parametrize("failure", [None, "infra", "group", "short"])
+def test_incomplete_validation_withholds_scores_but_keeps_trials(failure):
+    group = RolloutGroup(
+        group_id=-1,
+        rollouts=[
+            Rollout(
+                group_id=-1,
+                rollout_id=0,
+                status=RolloutStatus.COMPLETED,
+                reward=0.0,
+                diagnostics={"infra_failed": failure == "infra"},
+            )
+        ],
+    )
+
+    async def run_group(**kwargs):
+        if failure == "group":
+            raise RuntimeError("sandbox unavailable")
+        return group
+
+    collector = SimpleNamespace(
+        _rollouter=SimpleNamespace(get_validation_sample=lambda: "task"),
+        _allocate_validation_group_ids=lambda count: [-1],
+        _eval_rollout_workers=[],
+        _run_validation_group=run_group,
+    )
+    samples, groups, metrics = asyncio.run(
+        Controller._collect_validation_rollouts(
+            collector,
+            num_groups=1,
+            group_size=2 if failure == "short" else 1,
+            sampling=None,
+            step=40,
+        )
+    )
+    keys = {metric.key for metric in metrics}
+    assert "validation/valid" in keys
+    assert ("validation_reward" in keys) == (failure is None)
+    assert "validation/pass_at_k" not in keys
+    assert len(groups) == (0 if failure == "group" else 1)
+    if groups:
+        assert groups[0].rollouts[0].reward == 0.0
 
 
 class _Guard:

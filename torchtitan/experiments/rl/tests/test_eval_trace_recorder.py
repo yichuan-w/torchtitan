@@ -217,11 +217,12 @@ def test_transcript_keeps_both_sides_of_a_history_rewrite(tmp_path):
     assert "<out> done" in text, "the post-rewrite prompt must be shown in full"
 
 
-def test_task_without_reward_counts_as_fail(tmp_path):
+def test_task_without_reward_invalidates_score(tmp_path):
     _, summary = _record(tmp_path, [_group(-1, [None, None])], ["task-a"])
     assert summary.num_pass == 0
-    assert summary.avg_at_k == 0.0  # no scored trials
-    assert summary.pass_at_k == 0.0
+    assert not summary.valid
+    assert summary.avg_at_k is None
+    assert summary.pass_at_k is None
 
 
 def test_long_transcript_is_truncated(tmp_path):
