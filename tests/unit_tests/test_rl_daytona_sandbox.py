@@ -1307,10 +1307,12 @@ def test_lost_execute_response_recovers_from_receipt_without_provider_id(
 
 
 @pytest.mark.parametrize("lose_every_response", [False, True])
+@pytest.mark.parametrize("missing_output", [False, True])
 def test_execute_retry_waits_for_original_receipt(
     fake_daytona: None,
     monkeypatch: pytest.MonkeyPatch,
     lose_every_response: bool,
+    missing_output: bool,
 ) -> None:
     monkeypatch.setattr(daytona_backend, "_COMMAND_RECOVERY_DELAYS_SEC", (0.0,))
     monkeypatch.setattr(daytona_backend, "_COMMAND_SUBMIT_DELAYS_SEC", (0.0, 0.0))
@@ -1327,6 +1329,8 @@ def test_execute_retry_waits_for_original_receipt(
     async def download(path, timeout):
         nonlocal reads
         if path.endswith(".output"):
+            if missing_output:
+                raise FileNotFoundError(path)
             return b"original output"
         reads += 1
         if reads < 4:
@@ -1341,13 +1345,28 @@ def test_execute_retry_waits_for_original_receipt(
             "append once; exit 7", command_timeout=5, request_timeout=30
         )
     )
-    assert result == (7, "original output")
+    expected_output = (
+        daytona_backend._MISSING_OUTPUT_MESSAGE if missing_output else "original output"
+    )
+    assert result == (7, expected_output)
     calls = process.execute_session_command.await_args_list
     assert len(calls) == 2
     assert calls[0].args[0] == calls[1].args[0]
     assert calls[0].args[1].command == calls[1].args[1].command
     process.get_session_command.assert_not_awaited()
     process.get_session_command_logs.assert_not_awaited()
+    process.delete_session.assert_not_awaited()
+
+
+def test_empty_execute_response_recovers_from_receipt(fake_daytona: None) -> None:
+    process = _process()
+    process.execute_session_command.return_value = SimpleNamespace(cmd_id="")
+    sandbox = _sandbox_with_process(process)
+    result = asyncio.run(
+        sandbox._session_exec("append once", command_timeout=5, request_timeout=30)
+    )
+    assert result == (0, "ok")
+    process.execute_session_command.assert_awaited_once()
     process.delete_session.assert_not_awaited()
 
 

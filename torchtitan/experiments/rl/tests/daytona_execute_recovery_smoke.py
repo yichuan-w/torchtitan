@@ -98,6 +98,7 @@ async def run(output: Path) -> None:
             event("case_start", case=name)
             calls = []
             armed = name not in ("capture", "send")
+            terminal_started = False
             injected = False
             marker = f"/var/tmp/{name}.count"
 
@@ -126,7 +127,7 @@ async def run(output: Path) -> None:
             async def terminal_exec(command, *args, **kwargs):
                 nonlocal armed
                 target = "capture-pane" if name == "capture" else "send-keys"
-                armed = target in command
+                armed = terminal_started and target in command
                 return await original_exec(command, *args, **kwargs)
 
             command = f"printf x >> {marker}; sleep 4; printf original; exit 7"
@@ -137,6 +138,8 @@ async def run(output: Path) -> None:
                     return 1024
 
                 async def complete(self, session, body):
+                    nonlocal terminal_started
+                    terminal_started = True
                     step = len(transcript)
                     action = (
                         f'<keystrokes duration="0.3">printf x >> {marker}; PROBE=kept; cd /var\n</keystrokes>'
