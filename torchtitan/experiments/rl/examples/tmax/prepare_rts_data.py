@@ -376,7 +376,7 @@ def _grading_fixtures(task_dir: str) -> tuple[dict[str, str], str | None]:
 
 
 def _load_resource_map(parquet_path: str) -> dict[str, dict[str, int]]:
-    """Read seed allocations, using measured peaks only for undeclared fields."""
+    """Read seed allocations; use peaks only when allocation columns are absent."""
     import pandas as pd  # local import: only needed with --metadata-parquet
 
     from torchtitan.experiments.rl.examples.tmax.evolution.seed_resources import (
@@ -681,7 +681,8 @@ def main() -> None:
         default=None,
         metavar="PATH",
         help="dataset metadata/tasks.parquet -- read per-task req_cpus / "
-        "req_memory_mb / est_disk_mb and emit daytona_cpu/mem_gb/disk_gb so each "
+        "req_memory_mb / est_disk_mb (or peak_ram_mb / peak_disk_mb when allocation "
+        "columns are absent) and emit daytona_cpu/mem_gb/disk_gb so each "
         "sandbox is sized to the task instead of the flat TT_DAYTONA_* defaults "
         "(missing fields fall back to those defaults), and the pre_test_sh / "
         "pre_test_env_identity columns when the dataset carries them",
