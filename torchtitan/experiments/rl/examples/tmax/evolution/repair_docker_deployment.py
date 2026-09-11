@@ -100,13 +100,15 @@ def repair(source: Path, output: Path) -> None:
     )
     (env / "Dockerfile").write_text(dockerfile)
     (env / "start-services.sh").write_text(START)
-    instruction = output / "instruction.md"
-    instruction.write_text(
-        instruction.read_text().replace("6379:6739", "6379:6379")
-        + "\nThe environment provides `myvm1` as a local SSH deployment target with a "
-        "running single-node Docker Swarm. Its home directory is `/root`. "
-        "Wait for `docker-machine ssh myvm1 'docker info'` to succeed before deployment.\n"
-    )
+    for name in ("instruction.md", "instruction.md.bak-canary"):
+        instruction = output / name
+        if instruction.exists():
+            instruction.write_text(
+                instruction.read_text().replace("6379:6739", "6379:6379")
+                + "\nThe environment provides `myvm1` as a local SSH deployment target with a "
+                "running single-node Docker Swarm. Its home directory is `/root`. "
+                "Wait for `docker-machine ssh myvm1 'docker info'` to succeed before deployment.\n"
+            )
     solution = output / "solution" / "solve.sh"
     solution.write_text(
         solution.read_text()
