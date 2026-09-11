@@ -1385,8 +1385,25 @@ class DaytonaSandbox:
                 if remaining <= delay:
                     break
                 await asyncio.sleep(delay)
+                exit_code = await read_status()
+                if exit_code is not None:
+                    break
+                if loop.time() >= deadline:
+                    break
                 submission_replayed = True
             try:
+                if attempt:
+                    # The detached wrapper can outlive its Daytona session.
+                    # A fresh session still shares the original command claim.
+                    sid = uuid.uuid4().hex
+                    await asyncio.wait_for(
+                        self._sb.process.create_session(sid),
+                        timeout=max(
+                            0.001, min(_SESSION_RPC_TIMEOUT_SEC, deadline - loop.time())
+                        ),
+                    )
+                    if loop.time() >= deadline:
+                        break
                 resp = await asyncio.wait_for(
                     self._sb.process.execute_session_command(
                         sid, request, timeout=request_timeout

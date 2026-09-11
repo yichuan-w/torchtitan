@@ -196,7 +196,9 @@ async def run(output: Path) -> None:
             assert count == (0, "x", ""), count
             assert injected
             if name in ("before_accept", "delayed_accept"):
-                assert len(calls) >= 2 and all(call == calls[0] for call in calls)
+                assert len(calls) >= 2
+                assert all(call["command"] == calls[0]["command"] for call in calls)
+                assert len({call["session_id"] for call in calls}) == len(calls)
             receipt = {
                 "case": name,
                 "input": command,

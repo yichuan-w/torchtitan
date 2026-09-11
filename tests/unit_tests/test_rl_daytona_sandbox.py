@@ -1351,8 +1351,9 @@ def test_execute_retry_waits_for_original_receipt(
     assert result == (7, expected_output)
     calls = process.execute_session_command.await_args_list
     assert len(calls) == 2
-    assert calls[0].args[0] == calls[1].args[0]
+    assert calls[0].args[0] != calls[1].args[0]
     assert calls[0].args[1].command == calls[1].args[1].command
+    assert process.create_session.await_count == 2
     process.get_session_command.assert_not_awaited()
     process.get_session_command_logs.assert_not_awaited()
     process.delete_session.assert_not_awaited()
