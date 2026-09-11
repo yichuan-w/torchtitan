@@ -12,6 +12,9 @@ import shutil
 from pathlib import Path
 
 
+WEB_IMAGE = "docker/getting-started@sha256:d79336f4812b6547a53e735480dde67f8f8f7071b414fbd9297609ffb989abc1"
+
+
 START = r"""#!/bin/bash
 set -euo pipefail
 mkdir -p /run/sshd /root/.ssh /root/.docker/machine/machines/myvm1
@@ -70,7 +73,8 @@ REMOTE_TEST = """def test_remote_deployment():
         short = service["Spec"]["Name"].removeprefix("getstartedlab_")
         assert service["Spec"]["Mode"]["Replicated"]["Replicas"] == expected[short]
         template = service["Spec"]["TaskTemplate"]
-        assert template["ContainerSpec"]["Image"].split("@")[0] == images[short]
+        image = template["ContainerSpec"]["Image"]
+        assert (image if "@" in images[short] else image.split("@")[0]) == images[short]
         assert network in [item["Target"] for item in template["Networks"]]
         assert any(p["PublishedPort"] == ports[short] and p["TargetPort"] == ports[short]
                    for p in service["Spec"]["EndpointSpec"]["Ports"])
@@ -158,6 +162,16 @@ fi
         .replace("cpus = 1", "cpus = 2")
         .replace('memory = "2G"', 'memory = "4G"')
     )
+    for file in (
+        output / "instruction.md",
+        output / "instruction.md.bak-canary",
+        solution,
+        tests,
+    ):
+        if file.exists():
+            file.write_text(
+                file.read_text().replace("johndmulhausen/get-started:part1", WEB_IMAGE)
+            )
     print(json.dumps({"source": str(source), "output": str(output)}))
 
 
