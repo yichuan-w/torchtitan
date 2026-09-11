@@ -69,13 +69,19 @@ and explores the container. Concretely:
   user to.
 
 Map each retained or added requirement to a check of its promised behavior or
-result, using task inputs or an independently computed expectation. File existence,
+result, naming the source of its expected answer. For supplied-data tasks, derive
+expectations from the original fixture or expected values prepared before solver
+execution and supplied with the grader. Never use solver-writable replacement
+inputs as the authority for correctness; copying or hashing them at grading time
+does not recover the original data. Input changes alone are not grounds for
+rejection unless the public task forbids them. File existence,
 non-empty content, success words in a log, or agreement between two solver-written
 reports cannot alone establish correctness. Solver-written claims do not prove
 that a required execution, measurement or tool interaction occurred.
 
 If the task requires a reusable program, run the submitted program through the
-specified entry point on fresh valid inputs and check its outputs. Ensure retained
+specified entry point on fresh valid inputs prepared by the grader, with expected
+outputs derived before invoking the submitted program. Ensure retained
 outputs cannot let a no-op program pass, and restore inputs after the check. If the
 task asks only for a final artifact or state, check that result without inventing
 a requirement to save a script. Accept alternative paths, formats and implementations
@@ -92,6 +98,11 @@ could still pass, and whether an equivalent legal solution could fail. Choose ex
 relevant to this task. In your final response, identify one concrete incorrect solution
 and the check that rejects it, and one legal alternative the checks allow; distinguish
 code inspection from executed tests. Keep the existing sandbox checks and job limits.
+Where correctness depends on supplied data, include a replay control that replaces
+the working input and leaves an answer wrong for the original fixture. Reject it
+at the corresponding content check. Also execute a control that leaves a correct
+deliverable despite an input change when the public task permits that change; do not add an input
+immutability requirement to make the negative control fail.
 
 ## The container
 

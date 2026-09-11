@@ -29,8 +29,8 @@ one line of JSON, so COPY sources together stay under 1 MiB, and files under
 `tests/` are text and together stay under 1 MiB; a binary under `tests/` is
 refused by name, and `./sandbox up` says so. `AGENTS.md`,
 `sandbox` and `traces/` are the harness and do not travel. Which files you
-*should* touch depends on the job in your prompt, and that prompt says so. If your
-variant relies on files or command outputs the solver must leave untouched, list
+*should* touch depends on the job in your prompt, and that prompt says so. If the
+public instruction requires files or command outputs to remain unchanged, list
 them in `tests/protected_paths.json` as `{"paths": [...], "cmds": [...]}`; the
 harness digests them before and after the episode and any change scores 0.
 
@@ -81,14 +81,20 @@ checks only when declared in `run/simplify.json`. Preserve semantic correctness
 and checks for every remaining public requirement.
 
 When assigned to write or repair the verifier, map each retained or added requirement
-to a check of the behavior or result it promises. Check against task inputs or an
-independently computed expectation. File existence, non-empty content, success words
+to a check of the behavior or result it promises, naming the source of its expected
+answer. For supplied-data tasks, derive expectations from the original fixture or
+expected values prepared before solver execution and supplied with the grader.
+Never use solver-writable replacement inputs as the authority for correctness;
+copying or hashing them at grading time does not recover the original data. Input
+changes alone are not grounds for rejection unless the public task forbids them.
+File existence, non-empty content, success words
 in a log, or agreement between two solver-written reports cannot alone establish
 correctness. A reference solution passing does not establish that incorrect solutions
 are rejected.
 
 For a task that requires a reusable program, invoke the submitted program through
-the entry point specified by the task on fresh valid inputs and check the outputs.
+the entry point specified by the task on fresh valid inputs prepared by the grader,
+with expected outputs derived before invoking the submitted program.
 Ensure retained outputs cannot let a no-op program pass; restore inputs after the
 check. For a task asking only for a final artifact or state, verify that result
 without inventing a requirement to save a script. Never invoke `solution/solve.sh`
@@ -101,6 +107,11 @@ fail. Choose examples relevant to this task. Accept alternative paths, formats a
 implementations wherever the public task leaves them open. In your final response,
 identify one concrete incorrect solution and the check that rejects it, and one
 legal alternative the checks allow; distinguish code inspection from executed tests.
+Where correctness depends on supplied data, execute a control that replaces the
+working input and leaves an answer wrong for the original fixture. It must fail
+at the corresponding content check. Also accept a correct deliverable despite an
+input change when the public task permits that change; do not add an input
+immutability requirement to make the negative control fail.
 Keep the existing sandbox checks and job limits. In blind-verifier mode, leave
 `tests/` unchanged as the job instructs; make the requirements checkable for the
 separate verifier author.
