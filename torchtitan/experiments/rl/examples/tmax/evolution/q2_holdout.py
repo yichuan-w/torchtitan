@@ -101,6 +101,16 @@ def main():
             rewrite.package / "AGENTS.md",
         )
     before = ec._probe_hashes(rewrite.package, ("run",))
+    item = config["tasks"][args.run_id]
+    request = (
+        REQUEST
+        + "\nOriginal public task, for identifying retained and removed requirements:\n"
+        + item["row"]["metadata"]["problem_statement"]
+        + "\nRequested change:\n"
+        + item["change"]
+        + "\nThe current instruction.md determines acceptance. Report any mismatch "
+        "with the requested change in coverage.json; do not silently repair it.\n"
+    )
     revision = subprocess.check_output(
         ["git", "-C", str(Path(__file__).resolve().parent), "rev-parse", "HEAD"],
         text=True,
@@ -109,7 +119,7 @@ def main():
         config=config,
         execution=settings,
         evaluator_revision=revision,
-        request=REQUEST,
+        request=request,
         role=(rewrite.package / "AGENTS.md").read_text(),
         public_hashes=before,
     )
@@ -120,7 +130,7 @@ def main():
     with ec.session(rewrite, "probe", timeout=ec.AGENT_TIMEOUT) as session:
         try:
             result = ec._run_codex(
-                session, rewrite.package, REQUEST + ec._budget(ec.AGENT_TIMEOUT)
+                session, rewrite.package, request + ec._budget(ec.AGENT_TIMEOUT)
             )
         finally:
             ec._sandbox_down(rewrite.package)
@@ -131,7 +141,7 @@ def main():
     probes = rewrite.package / "run/verifier-probes"
     contract = json.loads((probes / "contract.json").read_text())
     coverage = json.loads((probes / "coverage.json").read_text())
-    assert set(coverage) == {
+    assert set(coverage) >= {
         "retained",
         "changed",
         "boundary",
