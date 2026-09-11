@@ -113,9 +113,10 @@ repos:
         - "--exclude=tcp://localhost:.*"
         # CI cannot reach loopback, private networks, or example proxy hosts.
         - "--exclude-all-private"
-        - '--exclude=^https?://(fwdproxy|host)([:/]|$)'
+        - '--exclude=^https?://(fwdproxy|host|wandb)([:/]|$)'
         # API bases and interpolated source strings are not webpage links.
         - '--exclude=^https://us\.api\.openai\.com/v1/?$'
+        - '--exclude=^https://github\.com/openai/codex/releases/latest/download/?$'
         - '--exclude=(%7B|\{|\$\()'
         # Repair scripts retain these dead URLs as exact replacement targets.
         - '--exclude=^https://core\.tcl\.tk/tcl/?$'
