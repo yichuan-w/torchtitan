@@ -389,13 +389,19 @@ _DAYTONA_DISK_GB_FLOOR = 10
 
 def _load_resource_map(parquet_path: str) -> dict[str, dict[str, int]]:
     """Map task_id -> {daytona_cpu, daytona_mem_gb, daytona_disk_gb} from the
-    dataset's own resource columns (req_cpus / req_memory_mb / est_disk_mb),
-    each clamped to the floors above. A missing/null cell is omitted so the sandbox
+    dataset's own resource columns. Runtime peaks use the shared sizing policy;
+    legacy allocation columns use the floors above. A missing/null cell is omitted so the sandbox
     falls back to that field's TT_DAYTONA_* env default."""
     import pandas as pd  # local import: only needed with --metadata-parquet
 
+    from torchtitan.experiments.rl.examples.tmax.evolution.derive_sizing import (
+        size_from_oracle,
+    )
+
     df = pd.read_parquet(parquet_path)
-    id_col = "task_id" if "task_id" in df.columns else df.columns[0]
+    id_col = next(
+        (key for key in ("task_id", "instance_id") if key in df.columns), df.columns[0]
+    )
     out: dict[str, dict[str, int]] = {}
     for _, row in df.iterrows():
         tid = row.get(id_col)
@@ -415,6 +421,24 @@ def _load_resource_map(parquet_path: str) -> dict[str, dict[str, int]]:
             res["daytona_disk_gb"] = max(
                 _DAYTONA_DISK_GB_FLOOR, math.ceil(float(disk_mb) / 1024)
             )
+        peaks = {}
+        for key in ("peak_ram_mb", "peak_disk_mb"):
+            value = row.get(key)
+            if (
+                value is not None
+                and not pd.isna(value)
+                and math.isfinite(float(value))
+                and float(value) > 0
+            ):
+                peaks[key] = float(value)
+        if peaks:
+            sized = size_from_oracle(
+                peaks.get("peak_ram_mb"), peaks.get("peak_disk_mb"), None
+            )
+            if "peak_ram_mb" in peaks:
+                res["daytona_mem_gb"] = sized["mem_gb"]
+            if "peak_disk_mb" in peaks:
+                res["daytona_disk_gb"] = sized["disk_gb"]
         if res:
             out[tid] = res
     return out
