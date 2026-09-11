@@ -60,12 +60,20 @@ REMOTE_TEST = """def test_remote_deployment():
     )
     remote("test -d /root/data && test -f /root/docker-compose-WITH-REDIS.yml")
     expected = {"web": 5, "visualizer": 1, "redis": 1}
+    images = {"web": "johndmulhausen/get-started:part1", "visualizer": "dockersamples/visualizer:stable", "redis": "redis:latest"}
+    ports = {"web": 80, "visualizer": 8080, "redis": 6379}
     names = ["getstartedlab_" + name for name in expected]
     services = json.loads(remote("docker service inspect " + " ".join(names)))
+    network = json.loads(remote("docker network inspect getstartedlab_webnet"))[0]["Id"]
     assert len(services) == 3
     for service in services:
         short = service["Spec"]["Name"].removeprefix("getstartedlab_")
         assert service["Spec"]["Mode"]["Replicated"]["Replicas"] == expected[short]
+        template = service["Spec"]["TaskTemplate"]
+        assert template["ContainerSpec"]["Image"].split("@")[0] == images[short]
+        assert network in [item["Target"] for item in template["Networks"]]
+        assert any(p["PublishedPort"] == ports[short] and p["TargetPort"] == ports[short]
+                   for p in service["Spec"]["EndpointSpec"]["Ports"])
     deadline = time.monotonic() + 120
     while True:
         running = {}
@@ -75,7 +83,9 @@ REMOTE_TEST = """def test_remote_deployment():
             running[name] = sum(task["Status"]["State"] == "running" for task in tasks)
         if running == {"getstartedlab_" + k: v for k, v in expected.items()}:
             break
-        assert time.monotonic() < deadline, f"Services did not converge: {running}"
+        if time.monotonic() >= deadline:
+            raise AssertionError(f"Services did not converge: {running}\\n" +
+                                 remote("docker service ps --no-trunc " + " ".join(names)))
         time.sleep(2)
 """
 
