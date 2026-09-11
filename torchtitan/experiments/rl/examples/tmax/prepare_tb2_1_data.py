@@ -49,6 +49,7 @@ import sys
 from datetime import datetime, timezone
 from pathlib import Path
 
+from torchtitan.experiments.rl.examples.tmax.layout import write_json_atomic
 from torchtitan.experiments.rl.examples.tmax.prepare_rts_data import (
     _DAYTONA_CPU_FLOOR,
     _DAYTONA_DISK_GB_FLOOR,
@@ -145,7 +146,6 @@ async def verify_runtime(rows: list[dict], evidence_dir: str) -> None:
                     pinned_image = pin_file.read_text()
                 elif "@sha256:" in source_image:
                     pinned_image = source_image
-                    pin_file.write_text(pinned_image)
                 else:
                     registry, repo, tag = split(source_image.removeprefix("docker.io/"))
                     auth = await asyncio.to_thread(token, registry, repo)
@@ -158,7 +158,10 @@ async def verify_runtime(rows: list[dict], evidence_dir: str) -> None:
                     if not digest:
                         raise RuntimeError(f"Cannot pin source image {source_image}")
                     pinned_image = f"{registry}/{repo}@{digest}"
-                    pin_file.write_text(pinned_image)
+                if not pin_file.exists():
+                    pending_pin = pin_file.with_suffix(".incoming")
+                    pending_pin.write_text(pinned_image)
+                    pending_pin.replace(pin_file)
                 md["dockerfile"] = f"FROM {pinned_image}\n" + _TMUX_INSTALL
             digest = hashlib.sha256(
                 json.dumps(row, sort_keys=True).encode()
@@ -198,17 +201,15 @@ async def verify_runtime(rows: list[dict], evidence_dir: str) -> None:
                             raise RuntimeError(
                                 f"tmux probe failed: {code}: {stdout} {stderr}"
                             )
-                evidence.write_text(
-                    json.dumps(
-                        dict(
-                            status="pass",
-                            row=row,
-                            probes=probes,
-                            **provenance,
-                            time=datetime.now(timezone.utc).isoformat(),
-                        ),
-                        indent=2,
-                    )
+                write_json_atomic(
+                    evidence,
+                    dict(
+                        status="pass",
+                        row=row,
+                        probes=probes,
+                        **provenance,
+                        time=datetime.now(timezone.utc).isoformat(),
+                    ),
                 )
                 event(tid, "pass", evidence=str(evidence), probes=probes)
             except Exception as error:
