@@ -180,6 +180,7 @@ _TRANSPORT_ISSUE_KINDS = {
     "execute_missing_command_id",
     "execute_response_recovered",
     "execute_response_unconfirmed",
+    "execute_submit_retry",
     "file_upload_failed",
     "file_upload_retry",
     "heartbeat_retry",
