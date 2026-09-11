@@ -24,6 +24,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--rows", type=Path, required=True)
     parser.add_argument("--source", type=Path, required=True)
+    parser.add_argument("--bin-dir", type=Path, required=True)
     parser.add_argument("--task", required=True)
     parser.add_argument("--reference-log", type=Path, required=True)
     parser.add_argument("--out", type=Path, required=True)
@@ -47,7 +48,7 @@ def main():
         args.out,
         mix=seed,
         sources=[args.source],
-        bin_dir=None,
+        bin_dir=args.bin_dir,
         name=None,
         purpose="Reference-driven evolution compatibility probe; not a student measurement",
         profile=os.environ.get("TRL_PROFILE"),
