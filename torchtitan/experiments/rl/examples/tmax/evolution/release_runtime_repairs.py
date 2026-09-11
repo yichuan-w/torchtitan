@@ -262,7 +262,11 @@ def build(args) -> dict:
         "initial_passed": sum(item["initial"]["ok"] for item in evidence),
         "selected_passed": len(evidence),
         "semantic_verifier_certification": False,
-        "validation_scope": "One selected passing Terminus oracle result per admitted task, with preserved initial results and targeted corrections. No general verifier non-hackability claim.",
+        "validation_scope": (
+            "One selected passing Terminus oracle result per admitted task, "
+            "with preserved initial results and targeted corrections. "
+            "No general verifier non-hackability claim."
+        ),
         "repairs": repairs,
         "package_sha256": {
             tid: package_hash(files) for tid, files in sorted(packages.items())
