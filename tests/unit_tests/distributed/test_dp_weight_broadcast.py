@@ -47,7 +47,8 @@ class _Collectives:
             output[-1] = (1, "ValueError: store unavailable")
             self.remote_failure_active = False
 
-    def all_reduce(self, tensor, *, op, group) -> None:
+    def all_reduce(self, tensor, *, op, group, async_op=False) -> None:
+        assert async_op is False
         self.all_reduce_calls += 1
         if self.all_reduce_calls == self.fail_all_reduce_call:
             tensor.fill_(1)
@@ -74,7 +75,9 @@ def _control_group(*, world_size: int = 2):
 
 
 def _patch_collectives(monkeypatch, collectives: _Collectives) -> None:
-    monkeypatch.setattr(weight_broadcast.dist, "get_world_size", collectives.get_world_size)
+    monkeypatch.setattr(
+        weight_broadcast.dist, "get_world_size", collectives.get_world_size
+    )
     monkeypatch.setattr(weight_broadcast.dist, "get_rank", collectives.get_rank)
     monkeypatch.setattr(weight_broadcast.dist, "all_reduce", collectives.all_reduce)
     monkeypatch.setattr(

@@ -533,10 +533,9 @@ class GatedDeltaNet(Module):
             def _varlen_conv(
                 x_in: torch.Tensor, w_in: torch.Tensor, b_in: torch.Tensor | None
             ) -> torch.Tensor:
-                # fla's causal_conv1d is untyped (pyrefly reads it as a Tensor).
                 y = _fla_causal_conv1d(
                     x_in.reshape(1, bs * seqlen, -1),
-                    weight=w_in.squeeze(1),  # pyrefly: ignore [not-callable]
+                    weight=w_in.squeeze(1),
                     bias=b_in,
                     activation="silu",
                     cu_seqlens=cu_seqlens,
@@ -555,11 +554,7 @@ class GatedDeltaNet(Module):
             # mapped.
             x_plc = x.placements
             w_plc = conv.weight.placements  # pyrefly: ignore [missing-attribute]
-            b_plc = (
-                conv.bias.placements  # pyrefly: ignore [missing-attribute]
-                if isinstance(conv.bias, DTensor)
-                else None
-            )
+            b_plc = conv.bias.placements if isinstance(conv.bias, DTensor) else None
             conv_dt = local_map(
                 _varlen_conv,
                 out_placements=(x_plc,),
@@ -581,7 +576,6 @@ class GatedDeltaNet(Module):
 
             def _conv(x_local: torch.Tensor, w_local: torch.Tensor) -> torch.Tensor:
                 # groups == local out-channels (depthwise, channel-sharded)
-                # pyrefly: ignore [no-matching-overload]
                 return F.conv1d(
                     x_local,
                     w_local,

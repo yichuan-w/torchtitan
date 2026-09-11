@@ -49,7 +49,7 @@ else
             _run=$(dirname "$CKPT")
             while :; do
                 case "$(basename "$_run")" in
-                    checkpoints|checkpoint|rl|outputs) _run=$(dirname "$_run") ;;
+                    checkpoints|checkpoint|rl|outputs|weights) _run=$(dirname "$_run") ;;
                     *) break ;;
                 esac
             done
@@ -71,7 +71,13 @@ exec > >(tee -a "$EVAL/stdout.log") 2>&1
 
 set -a; . ~/.config/daytona/env; set +a
 export SWE_VAL_SAMPLES=${SWE_VAL_SAMPLES:-$(grep -c "" "$SWE_TB2_DATA")}
+HF_ASSETS=/scratch/gpfs/TRIDAO/al9080/models/Qwen3.5-9B
 export SWE_TB2_CKPT=$CKPT
+if [ -n "$CKPT" ] && [ -f "$CKPT/model.safetensors.index.json" ]; then
+    HF_ASSETS=$CKPT
+    # HF exports load through hf_assets_path; SWE_TB2_CKPT selects native DCP.
+    export SWE_TB2_CKPT=""
+fi
 export SWE_PROMPT_DATA=$SWE_TB2_DATA
 export SWE_DP_SHARD=1 SWE_GEN_DP=1 SWE_GEN_BACKEND=vllm_native
 export SWE_ROLLOUT_CONCURRENCY=${SWE_ROLLOUT_CONCURRENCY:-445} SWE_NUM_ROLLOUT_WORKERS=8
@@ -126,4 +132,4 @@ exec python -m torchtitan.experiments.rl.train \
     --config rl_grpo_qwen3_5_9b_tmax_tb2_eval \
     --num-generators 1 \
     --dump_folder "$EVAL/trainer" \
-    --hf_assets_path /scratch/gpfs/TRIDAO/al9080/models/Qwen3.5-9B
+    --hf_assets_path "$HF_ASSETS"
