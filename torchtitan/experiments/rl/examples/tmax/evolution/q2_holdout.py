@@ -94,7 +94,9 @@ def main():
         ec._blind_layout(public, rewrite.package)
         shutil.rmtree(rewrite.package / "tests")
         (rewrite.package / "tests").mkdir()
-        (rewrite.package / "tests/test.sh").write_text("#!/bin/sh\nexit 2\n")
+        (rewrite.package / "tests/test.sh").write_text(
+            "#!/bin/sh\nmkdir -p /logs/verifier\necho 0 > /logs/verifier/reward.txt\nexit 2\n"
+        )
         for name in ("seed_size.json", "seed_literals.json"):
             (rewrite.package / "run" / name).unlink(missing_ok=True)
         shutil.copy2(
