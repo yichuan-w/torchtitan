@@ -995,7 +995,7 @@ retained goal. A change to guidance alone may leave the verifier unchanged.
 The reference solution need not grow: removing a hint or restoring one
 condition can change difficulty without adding several commands. If the
 evidence does not support an intermediate task, write GIVE UP with the reason.
-"""
+""" + so.CALIBRATION_GUIDANCE
 
 
 _HARDER_JOB = """This task was solved {solved} of {attempts} attempts and met the

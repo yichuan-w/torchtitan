@@ -62,6 +62,44 @@ CARDS = {
 }
 
 
+CALIBRATION_GUIDANCE = """Compare two intervention strengths by the observed decisions
+they remove and the decisions left along the complete path to submission.
+Historical progress under another policy does not estimate the current
+student's success. Work absent from a trace is unknown; use the latest
+measured behavior rather than an obstacle newer traces already solve.
+
+When the latest variant is all-solved, partially undo its help within the
+original requirements. Prefer a strict subset of the help. Compare decisions
+automated, not code size or command count: splitting a helper into extra calls
+does not restore a decision if its checks still force the correct outcome.
+Identify a decision the student will now make and a plausible incorrect choice
+the remaining aid permits. For an all-solved starter, restore one coherent
+part of the supplied implementation while retaining help with another observed
+obstacle. A placeholder is insufficient if every student fills it correctly.
+
+When the latest variant is all-failed, target the remaining observed obstacle
+without repeating advice the student already followed. If history contains
+both extremes, state what help the intervention adds to the all-failed variant
+and what decision it leaves unaided compared with the all-solved variant.
+Consider feedback at the mistaken decision when a warning in the instruction
+does not change behavior. Expose the unmet condition while leaving the student
+to choose and implement the correction; do not complete the task for them.
+Check the diagnostic against the attempts' reactions. An artifact's existence
+may become true while the actual requirement remains unmet. Replace such a
+misleading cue or choose a different intervention. If students follow the cue
+but stop after local success, target the next missing required transition.
+Preserve the successful tool output contract; additional diagnostics must not
+contaminate it. Keep the existing operator scope and hint limits.
+
+For supplied state, identify how the student discovers and uses the actual
+target resource. Check that the retained verifier distinguishes success there
+from the same message produced elsewhere, while allowing other correct
+implementations. Report grading defects separately without repairing them or
+treating false passes as useful difficulty. Predictions remain hypotheses;
+oracle and untouched-state checks establish only candidate validity.
+"""
+
+
 def prompt(hint: str) -> str:
     if hint not in ("none", "vague", "specific"):
         raise ValueError(f"unknown simplify hint level: {hint}")
@@ -143,6 +181,8 @@ would make a copied constant or no-op fail. If attempts already solve the
 retained component, extraction alone is likely to overshoot to all-solved;
 prefer removing only part of the barrier. Choose a different card or GIVE UP
 if the same failed method would remain unchanged on the retained goal.
+
+{CALIBRATION_GUIDANCE}
 
 Make only that change. Update instruction, environment, reference solution
 and verifier together where needed. Checks may be removed only for the
