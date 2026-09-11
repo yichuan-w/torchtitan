@@ -51,6 +51,11 @@ class _StatusError(RuntimeError):
         self.status_code = status_code
 
 
+@pytest.fixture(autouse=True)
+def isolated_exec_claims(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    monkeypatch.setattr(daytona_backend, "_EXEC_CLAIM_DIR", str(tmp_path / "claims"))
+
+
 @pytest.fixture
 def fake_daytona(monkeypatch: pytest.MonkeyPatch) -> None:
     module = types.ModuleType("daytona")
@@ -1254,23 +1259,130 @@ def test_poll_deadline_does_not_delete_a_possibly_successful_session(
     process.delete_session.assert_not_awaited()
 
 
-def test_unconfirmed_execute_is_cleaned_up_without_replay(
+def test_unconfirmed_execute_waits_for_deadline_before_cleanup(
     fake_daytona: None,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setattr(daytona_backend, "_COMMAND_RECOVERY_DELAYS_SEC", (0.0,))
+    monkeypatch.setattr(daytona_backend, "_COMMAND_SUBMIT_DELAYS_SEC", (0.0,) * 3)
+    monkeypatch.setattr(daytona_backend, "_COMMAND_KILL_GRACE_SEC", 0)
+    monkeypatch.setattr(daytona_backend, "_SESSION_POLL_GRACE_SEC", 0)
     process = _process()
     process.execute_session_command.side_effect = ConnectionError("not accepted")
     sandbox = _sandbox_with_process(process)
+    sandbox._sb.fs.download_file.side_effect = FileNotFoundError("not found")
 
+    started = time.monotonic()
     with pytest.raises(ConnectionError, match="not accepted"):
         asyncio.run(
             sandbox._session_exec(
                 "echo once",
-                command_timeout=5,
+                command_timeout=1,
                 request_timeout=30,
             )
         )
 
-    process.execute_session_command.assert_awaited_once()
+    assert time.monotonic() - started >= 1
+    assert process.execute_session_command.await_count == 3
     process.delete_session.assert_awaited_once()
+
+
+@pytest.mark.parametrize("session_missing", [False, True])
+def test_lost_execute_response_recovers_from_receipt_without_provider_id(
+    fake_daytona: None, monkeypatch: pytest.MonkeyPatch, session_missing: bool
+) -> None:
+    monkeypatch.setattr(daytona_backend, "_COMMAND_RECOVERY_DELAYS_SEC", (0.0,))
+    process = _process()
+    process.execute_session_command.side_effect = _StatusError("bad gateway", 502)
+    if session_missing:
+        process.get_session.side_effect = _StatusError("session not found", 404)
+    sandbox = _sandbox_with_process(process)
+    result = asyncio.run(
+        sandbox._session_exec("append once", command_timeout=5, request_timeout=30)
+    )
+    assert result == (0, "ok")
+    process.execute_session_command.assert_awaited_once()
+    process.get_session_command.assert_not_awaited()
+    process.delete_session.assert_not_awaited()
+
+
+@pytest.mark.parametrize("lose_every_response", [False, True])
+def test_execute_retry_waits_for_original_receipt(
+    fake_daytona: None,
+    monkeypatch: pytest.MonkeyPatch,
+    lose_every_response: bool,
+) -> None:
+    monkeypatch.setattr(daytona_backend, "_COMMAND_RECOVERY_DELAYS_SEC", (0.0,))
+    monkeypatch.setattr(daytona_backend, "_COMMAND_SUBMIT_DELAYS_SEC", (0.0, 0.0))
+    monkeypatch.setattr(daytona_backend, "_PROVIDER_STATUS_FIRST_POLL_SEC", 0)
+    process = _process()
+
+    async def execute(*args, **kwargs):
+        if lose_every_response or process.execute_session_command.await_count == 1:
+            raise _StatusError("bad gateway", 502)
+        return SimpleNamespace(cmd_id="duplicate-launcher")
+
+    reads = 0
+
+    async def download(path, timeout):
+        nonlocal reads
+        if path.endswith(".output"):
+            return b"original output"
+        reads += 1
+        if reads < 4:
+            raise FileNotFoundError(path)
+        return b"7\n"
+
+    process.execute_session_command.side_effect = execute
+    sandbox = _sandbox_with_process(process)
+    sandbox._sb.fs.download_file.side_effect = download
+    result = asyncio.run(
+        sandbox._session_exec(
+            "append once; exit 7", command_timeout=5, request_timeout=30
+        )
+    )
+    assert result == (7, "original output")
+    calls = process.execute_session_command.await_args_list
+    assert len(calls) == 2
+    assert calls[0].args[0] == calls[1].args[0]
+    assert calls[0].args[1].command == calls[1].args[1].command
+    process.get_session_command.assert_not_awaited()
+    process.get_session_command_logs.assert_not_awaited()
+    process.delete_session.assert_not_awaited()
+
+
+def test_permanent_execute_error_is_not_retried(fake_daytona: None) -> None:
+    process = _process()
+    process.execute_session_command.side_effect = _StatusError("forbidden", 403)
+    sandbox = _sandbox_with_process(process)
+    with pytest.raises(_StatusError, match="forbidden"):
+        asyncio.run(
+            sandbox._session_exec("append once", command_timeout=5, request_timeout=30)
+        )
+    process.execute_session_command.assert_awaited_once()
+
+
+@pytest.mark.parametrize("uploaded", [False, True])
+def test_duplicate_launchers_execute_body_once(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, uploaded: bool
+) -> None:
+    monkeypatch.setattr(daytona_backend, "_EXEC_RESULT_DIR", str(tmp_path / "results"))
+    monkeypatch.setattr(daytona_backend, "_EXEC_OUTPUT_DIR", str(tmp_path / "output"))
+    monkeypatch.setattr(daytona_backend, "_EXEC_STAGING_DIR", str(tmp_path))
+    marker = tmp_path / "count"
+    observed = _build_observable_exec(
+        f"printf x >> {shlex.quote(str(marker))}; sleep 0.2; printf original; exit 7",
+        "concurrent",
+    )
+    if uploaded:
+        Path(observed.wrapper_path).parent.mkdir(parents=True, exist_ok=True)
+        Path(observed.wrapper_path).write_bytes(observed.wrapper)
+    command = observed.uploaded_command if uploaded else observed.inline_command
+    processes = [subprocess.Popen(["bash", "-c", command]) for _ in range(4)]
+    codes = sorted(process.wait(timeout=10) for process in processes)
+    assert codes == [0, 0, 0, 7]
+    assert marker.read_text() == "x"
+    assert Path(observed.status_path).read_text().strip() == "7"
+    assert Path(observed.output_path).read_text() == "original"
+    assert subprocess.run(["bash", "-c", command], timeout=5).returncode == 0
+    assert marker.read_text() == "x"
