@@ -88,8 +88,6 @@ SIMPLIFY_ENABLED = os.environ.get("SWE_EVOLVE_SIMPLIFY", "1").lower() not in (
     "false",
     "no",
 )
-# Where a seed package comes from, under $TRL_BASE/data/sources/<corpus>/tasks.
-SOURCE_CORPORA = ("swe-extract", "tw-extract", "tmax-extract")
 # What a seed copy leaves behind: backups of the pre-canary-strip instruction
 # are not part of the task and would show the agent text the pool deliberately
 # removed; the other two are records of an older loop's, not the package's.
@@ -416,15 +414,21 @@ def materialize_r0(root: layout.Root, task: layout.TaskDir, tid: str) -> Path:
     """r0 is the seed package, copied once from whichever corpus carries it.
     Copied whole into r0.incoming and renamed, so a crash mid-copy cannot
     leave a half package that a later round would evolve."""
-    for corpus in SOURCE_CORPORA:
-        src = root.data / "sources" / corpus / "tasks" / tid
-        if (src / "instruction.md").exists():
-            break
-    else:
-        raise NoSeed(
-            f"no seed package for {tid} under data/sources/"
-            f"{{{','.join(SOURCE_CORPORA)}}}/tasks"
+    sources = root.data / "sources"
+    candidates = (
+        sorted(
+            corpus / "tasks" / tid
+            for corpus in sources.iterdir()
+            if (corpus / "tasks" / tid / "instruction.md").is_file()
         )
+        if sources.is_dir()
+        else []
+    )
+    if not candidates:
+        raise NoSeed(f"no seed package for {tid} under data/sources/*/tasks")
+    if len(candidates) != 1:
+        raise NoSeed(f"ambiguous seed package for {tid}: {candidates}")
+    src = candidates[0]
     dest = task.rev(0)
     incoming = dest.with_name("r0.incoming")
     shutil.rmtree(incoming, ignore_errors=True)

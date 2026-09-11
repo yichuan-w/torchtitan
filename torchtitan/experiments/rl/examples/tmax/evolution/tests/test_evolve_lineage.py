@@ -11,10 +11,13 @@ from __future__ import annotations
 
 import json
 import os
+import shutil
 import subprocess
 import sys
 import time
 from pathlib import Path
+
+import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
@@ -254,6 +257,19 @@ def _ledger(root: layout.Root) -> list[dict]:
     return layout.read_jsonl(root.evolution.ledger)
 
 
+def test_seed_lookup_rejects_ambiguous_sources(tmp_path, monkeypatch):
+    root = _root(tmp_path, monkeypatch)
+    shutil.copytree(root.data / "sources/tw-extract", root.data / "sources/rebench")
+    with pytest.raises(od.NoSeed, match="ambiguous seed package"):
+        od.materialize_r0(root, root.evolution.task("tw_a"), "tw_a")
+
+
+def test_seed_lookup_reports_missing_source_directory(tmp_path, monkeypatch):
+    root = layout.Root(tmp_path / "empty")
+    with pytest.raises(od.NoSeed, match="no seed package"):
+        od.materialize_r0(root, root.evolution.task("missing"), "missing")
+
+
 def test_round_persists_simplify_choice(tmp_path, monkeypatch):
     root = _root(tmp_path, monkeypatch)
     _signal(root, direction="easier")
@@ -264,10 +280,15 @@ def test_round_persists_simplify_choice(tmp_path, monkeypatch):
     assert meta["simplify"] == choice
 
 
+@pytest.mark.parametrize(
+    "corpus", ["tw-extract", "swe-extract", "rebench-extract", "extract"]
+)
 def test_round_materializes_r0_handles_the_signal_and_folds_r1(
-    tmp_path, monkeypatch
+    tmp_path, monkeypatch, corpus
 ) -> None:
     root = _root(tmp_path, monkeypatch)
+    if corpus != "tw-extract":
+        (root.data / "sources/tw-extract").rename(root.data / "sources" / corpus)
     sid = _signal(root)
     seen = _stub(monkeypatch)
 
