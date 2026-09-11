@@ -80,9 +80,12 @@ _DEFAULT_WORKDIR = "/app"
 _EXPECTED_TASKS = 89
 
 # Run before evaluation, once per cached image. A failed install must fail the build.
-_TMUX_INSTALL = """RUN if ! command -v tmux >/dev/null 2>&1; then apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends tmux; fi
-RUN tmux -V
-"""
+_TMUX_INSTALL = (
+    "RUN if ! command -v tmux >/dev/null 2>&1; then "
+    "apt-get update && DEBIAN_FRONTEND=noninteractive "
+    "apt-get install -y --no-install-recommends tmux; fi\n"
+    "RUN tmux -V\n"
+)
 _TMUX_PROBE = (
     "tmux -V && tmux -L tb-runtime-check new-session -d -s check "
     "'sleep 30' && tmux -L tb-runtime-check has-session -t check "
@@ -92,13 +95,13 @@ _TMUX_PROBE = (
 
 async def verify_runtime(rows: list[dict], evidence_dir: str) -> None:
     """Build and check two fresh sandboxes per task; resume from exact-row evidence."""
-    from torchtitan.experiments.rl.harness.agents.claude_code import boot_agent_sandbox
     from torchtitan.experiments.rl.examples.tmax.evolution.resolve_base_images import (
-        MEDIA,
         head_digest,
+        MEDIA,
         split,
         token,
     )
+    from torchtitan.experiments.rl.harness.agents.claude_code import boot_agent_sandbox
 
     root = Path(evidence_dir)
     root.mkdir(parents=True, exist_ok=True)

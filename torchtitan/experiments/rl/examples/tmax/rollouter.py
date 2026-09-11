@@ -978,9 +978,9 @@ class TMaxRollouter(Rollouter):
         # NaN is "no verdict", distinct from 0.0 = "verdict: failed"; the advantage
         # estimator and the sample builder both drop it before computing any group
         # statistic, so a group of 8 with one infra failure baselines over the
-        # surviving 7. Validation deliberately keeps 0.0: avg@k is defined over
-        # attempts, so a NaN there would move the denominator and stop the number
-        # being comparable to the published one (and index.json cannot encode it).
+        # surviving 7. Validation retains the raw 0.0 and infra_failed diagnostic.
+        # The controller withholds aggregate scores if any attempt is unscored;
+        # the trace recorder preserves every trial and marks the summary invalid.
         if group_id >= 0 and any(infra_failed_flags):
             for rollout, infra_failed in zip(rollouts, infra_failed_flags, strict=True):
                 if infra_failed:

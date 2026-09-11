@@ -124,8 +124,8 @@ from torchtitan.experiments.rl.controller_metrics import (
 )
 from torchtitan.experiments.rl.eval_trace_recorder import (
     EvalSummary,
-    ValidationTraceRecorder,
     validation_is_valid,
+    ValidationTraceRecorder,
 )
 from torchtitan.experiments.rl.losses import GRPOLoss
 from torchtitan.experiments.rl.observability import metrics as m
