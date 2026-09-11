@@ -37,12 +37,16 @@ eval. Output is ~26 MB; the base64 fixtures dominate.
 from __future__ import annotations
 
 import argparse
+import asyncio
 import base64
+import hashlib
 import json
 import math
 import os
 import re
 import sys
+from datetime import datetime, timezone
+from pathlib import Path
 
 from torchtitan.experiments.rl.examples.tmax.prepare_rts_data import (
     _DAYTONA_CPU_FLOOR,
@@ -73,6 +77,126 @@ _DEFAULT_WORKDIR = "/app"
 # TB-2.1 ships exactly this many tasks. Asserted so a layout change surfaces as an
 # error rather than as a short eval file.
 _EXPECTED_TASKS = 89
+
+# Run before evaluation, once per cached image. A failed install must fail the build.
+_TMUX_INSTALL = """RUN if ! command -v tmux >/dev/null 2>&1; then apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends tmux; fi
+RUN tmux -V
+"""
+_TMUX_PROBE = (
+    "tmux -V && tmux -L tb-runtime-check new-session -d -s check "
+    "'sleep 30' && tmux -L tb-runtime-check has-session -t check "
+    "&& tmux -L tb-runtime-check kill-server"
+)
+
+
+async def verify_runtime(rows: list[dict], evidence_dir: str) -> None:
+    """Build and check two fresh sandboxes per task; resume from exact-row evidence."""
+    from torchtitan.experiments.rl.harness.agents.claude_code import boot_agent_sandbox
+    from torchtitan.experiments.rl.examples.tmax.evolution.resolve_base_images import (
+        MEDIA,
+        head_digest,
+        split,
+        token,
+    )
+
+    root = Path(evidence_dir)
+    root.mkdir(parents=True, exist_ok=True)
+    with (root / "progress.jsonl").open("a") as log:
+
+        def event(task: str, state: str, **extra) -> None:
+            record = dict(
+                time=datetime.now(timezone.utc).isoformat(),
+                task=task,
+                state=state,
+                **extra,
+            )
+            line = json.dumps(record)
+            print(line, flush=True)
+            log.write(line + "\n")
+            log.flush()
+
+        for row in rows:
+            md = row["metadata"]
+            tid = md["instance_id"]
+            # Pin each source before building so a resumed run cannot switch bases.
+            if "dockerfile" not in md:
+                source_image = md["image"]
+                pin_file = root / (
+                    hashlib.sha256(source_image.encode()).hexdigest() + ".pin"
+                )
+                if pin_file.exists():
+                    pinned_image = pin_file.read_text()
+                elif "@sha256:" in source_image:
+                    pinned_image = source_image
+                    pin_file.write_text(pinned_image)
+                else:
+                    registry, repo, tag = split(source_image.removeprefix("docker.io/"))
+                    auth = await asyncio.to_thread(token, registry, repo)
+                    headers = {"Accept": MEDIA, "Authorization": f"Bearer {auth}"}
+                    digest = await asyncio.to_thread(
+                        head_digest,
+                        f"https://{registry}/v2/{repo}/manifests/{tag}",
+                        headers,
+                    )
+                    if not digest:
+                        raise RuntimeError(f"Cannot pin source image {source_image}")
+                    pinned_image = f"{registry}/{repo}@{digest}"
+                    pin_file.write_text(pinned_image)
+                md["dockerfile"] = f"FROM {pinned_image}\n" + _TMUX_INSTALL
+            digest = hashlib.sha256(
+                json.dumps(row, sort_keys=True).encode()
+            ).hexdigest()
+            evidence = root / f"{digest}.json"
+            if evidence.exists():
+                saved = json.loads(evidence.read_text())
+                if saved.get("row") == row and saved.get("status") == "pass":
+                    event(tid, "skip", evidence=str(evidence))
+                    continue
+                raise ValueError(f"Invalid runtime evidence: {evidence}")
+            event(tid, "start", row_sha256=digest)
+            probes = []
+            try:
+                for attempt in range(2):
+                    async with boot_agent_sandbox(
+                        md["image"],
+                        dockerfile=md["dockerfile"],
+                        install_claude=False,
+                        cpu=md.get("daytona_cpu"),
+                        memory=md.get("daytona_mem_gb"),
+                        disk_gb=md.get("daytona_disk_gb"),
+                    ) as sandbox:
+                        code, stdout, stderr = await sandbox.exec(
+                            _TMUX_PROBE, user="root", timeout=60, check=False
+                        )
+                        probes.append(
+                            dict(
+                                attempt=attempt,
+                                sandbox_id=sandbox.sandbox_id,
+                                code=code,
+                                stdout=stdout,
+                                stderr=stderr,
+                            )
+                        )
+                        if code:
+                            raise RuntimeError(
+                                f"tmux probe failed: {code}: {stdout} {stderr}"
+                            )
+                evidence.write_text(
+                    json.dumps(
+                        dict(
+                            status="pass",
+                            row=row,
+                            probes=probes,
+                            time=datetime.now(timezone.utc).isoformat(),
+                        ),
+                        indent=2,
+                    )
+                )
+                event(tid, "pass", evidence=str(evidence), probes=probes)
+            except Exception as error:
+                event(tid, "fail", error=str(error), row=row, probes=probes)
+                raise
+
 
 # Suffix carrying a base64-encoded binary grading fixture (see _BINARY_DECODE_PREAMBLE).
 _B64_SUFFIX = ".b64"
@@ -418,6 +542,10 @@ def main() -> None:
     )
     ap.add_argument("--out", required=True, help="output tb2_1_eval.jsonl path")
     ap.add_argument(
+        "--input-jsonl",
+        help="preserve the exact existing eval rows; requires --verify-runtime",
+    )
+    ap.add_argument(
         "--tasks-root",
         default=None,
         metavar="PATH",
@@ -431,6 +559,12 @@ def main() -> None:
         help="emit only the first N tasks (smoke); relaxes the task-count check",
     )
     ap.add_argument("--image-prefix", default=_DEFAULT_IMAGE_PREFIX)
+    ap.add_argument(
+        "--verify-runtime",
+        metavar="EVIDENCE_DIR",
+        help="preinstall tmux in cached derived images and check two fresh Daytona "
+        "sandboxes per task before publishing the output; resumes from evidence",
+    )
     ap.add_argument(
         "--no-binary-fixtures",
         action="store_true",
@@ -446,12 +580,25 @@ def main() -> None:
     )
     args = ap.parse_args()
 
-    rows, skipped = build_rows(
-        tasks_root=args.tasks_root,
-        limit=args.limit,
-        image_prefix=args.image_prefix,
-        include_binary=not args.no_binary_fixtures,
-    )
+    if args.input_jsonl:
+        if not args.verify_runtime or args.tasks_root or args.no_binary_fixtures:
+            ap.error(
+                "--input-jsonl requires --verify-runtime and cannot convert task fixtures"
+            )
+        with open(args.input_jsonl) as source:
+            rows = [json.loads(line) for line in source if line.strip()]
+        if any("dockerfile" in row["metadata"] for row in rows):
+            ap.error("--input-jsonl expects original image rows, without a Dockerfile")
+        if args.limit:
+            rows = rows[: args.limit]
+        skipped = {}
+    else:
+        rows, skipped = build_rows(
+            tasks_root=args.tasks_root,
+            limit=args.limit,
+            image_prefix=args.image_prefix,
+            include_binary=not args.no_binary_fixtures,
+        )
     if skipped:
         for tid, reason in sorted(skipped.items()):
             print(f"WARNING: skipped {tid}: {reason}", file=sys.stderr)
@@ -468,6 +615,10 @@ def main() -> None:
         )
         sys.exit(1)
 
+    if args.verify_runtime:
+        if Path(args.out).exists():
+            raise SystemExit(f"Refusing to overwrite {args.out}; use a new output path")
+        asyncio.run(verify_runtime(rows, args.verify_runtime))
     _write_jsonl(rows, args.out)
     print(f"wrote {len(rows)} tasks -> {args.out}")
 

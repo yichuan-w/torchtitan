@@ -125,6 +125,7 @@ from torchtitan.experiments.rl.controller_metrics import (
 from torchtitan.experiments.rl.eval_trace_recorder import (
     EvalSummary,
     ValidationTraceRecorder,
+    validation_is_valid,
 )
 from torchtitan.experiments.rl.losses import GRPOLoss
 from torchtitan.experiments.rl.observability import metrics as m
@@ -1441,6 +1442,22 @@ class Controller(Configurable):
         metrics.append(
             m.Metric("validation/group_failures", m.Sum(float(num_failed_groups)))
         )
+        valid = validation_is_valid(
+            rollout_groups, num_groups=num_groups, group_size=group_size
+        )
+        if not valid:
+            metrics = [
+                metric
+                for metric in metrics
+                if not (
+                    metric.key.startswith("validation_reward")
+                    or metric.key == "validation/pass_at_k"
+                )
+            ]
+            logger.error(
+                "step %d: incomplete validation; benchmark scores withheld", step
+            )
+        metrics.append(m.Metric("validation/valid", m.NoReduce(float(valid))))
         return kept_samples, rollout_groups, metrics
 
     # TODO: we currently determine validation.num_samples
@@ -1488,7 +1505,7 @@ class Controller(Configurable):
         summary = self._record_validation_traces(
             step=step, samples=samples, rollout_groups=rollout_groups
         )
-        if summary is not None:
+        if summary is not None and summary.valid:
             metrics.append(
                 m.Metric("validation/trace_pass_at_k", m.NoReduce(summary.pass_at_k))
             )
@@ -1512,6 +1529,11 @@ class Controller(Configurable):
                     _task_id(sample, index) for index, sample in enumerate(samples)
                 ],
                 decode=self.renderer._tokenizer.decode,
+                valid=validation_is_valid(
+                    rollout_groups,
+                    num_groups=self.config.async_loop.validation.num_samples,
+                    group_size=self.config.async_loop.validation.group_size,
+                ),
             )
         except Exception:
             logger.exception("validation trace report failed at step %d", step)

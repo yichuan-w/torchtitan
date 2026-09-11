@@ -129,6 +129,31 @@ def test_summary_reports_avg_and_pass_at_k(tmp_path):
     assert summary.pass_at_k == 0.5  # 1 / 2 tasks
 
 
+def test_infra_failure_invalidates_whole_score_and_keeps_raw_trials(tmp_path):
+    groups = [_group(-1, [1.0, 0.0])]
+    groups[0].rollouts[1].diagnostics["infra_failed"] = True
+    _, summary = _record(tmp_path, groups, ["task-a"])
+    assert not summary.valid
+    assert summary.avg_at_k is None
+    assert summary.pass_at_k is None
+    root = tmp_path / "validation_traces" / "step-20"
+    rows = json.loads((root / "index.json").read_text())
+    assert [r["state"] for r in rows] == ["PASS", "INFRA_FAILED"]
+    assert [r["reward"] for r in rows] == [1.0, 0.0]
+    assert "rerun the full task set" in (root / "INDEX.md").read_text()
+
+
+def test_missing_group_or_trial_invalidates_validation():
+    from torchtitan.experiments.rl.eval_trace_recorder import validation_is_valid
+
+    groups = [_group(-1, [1.0, 0.0])]
+    assert validation_is_valid(groups, num_groups=1, group_size=2)
+    assert not validation_is_valid(groups, num_groups=2, group_size=2)
+    assert not validation_is_valid(groups, num_groups=1, group_size=3)
+    groups[0].rollouts[1].reward = float("nan")
+    assert not validation_is_valid(groups, num_groups=1, group_size=2)
+
+
 def test_report_layout_and_index(tmp_path):
     _, summary = _record(tmp_path, [_group(-1, [1.0, 0.0])], ["adaptive-sampler"])
     step_dir = tmp_path / "validation_traces" / "step-20"
