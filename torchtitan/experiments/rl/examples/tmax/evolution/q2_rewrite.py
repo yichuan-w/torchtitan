@@ -225,10 +225,11 @@ def main():
                 prompt = (
                     "Simplify this task as follows: "
                     + item["change"]
-                    + "\n"
-                    + ec.so.prompt("vague")
-                    + "\nRun ./sandbox check after adapting the task. "
-                    "A separate verifier author will subsequently check the revised public requirements."
+                    + "\nAdapt the instruction, reference and verifier together, as in the easier path. "
+                    "Declare the removed requirements and retained skill in run/simplify.json. "
+                    "This controlled request supplies the change; do not invent student trace evidence "
+                    "or claim a measured difficulty effect. Keep checks for every retained requirement. "
+                    "Run ./sandbox check after adapting the task."
                 )
             prompt = (
                 "Controlled Q2 rewrite. There are no student measurements or traces; "
@@ -247,15 +248,21 @@ def main():
             ec._require_checked(rewrite.package)
             save("author.json", dict(session=str(session.dir.path)))
             log.info("item=%s status=author_pass", args.run_id)
-        if not (directory / "verifier.json").exists():
-            vsession, rel = ec._blind_verifier(rewrite, task, fmap)
-            fmap["test_state_py"] = rel
-            save("verifier.json", dict(session=str(vsession.path), verifier_rel=rel))
+        if item["job"] == "harder":
+            if not (directory / "verifier.json").exists():
+                vsession, rel = ec._blind_verifier(rewrite, task, fmap)
+                fmap["test_state_py"] = rel
+                save(
+                    "verifier.json", dict(session=str(vsession.path), verifier_rel=rel)
+                )
+            else:
+                saved = json.loads((directory / "verifier.json").read_text())
+                vsession = layout.SessionDir(Path(saved["session"]))
+                fmap["test_state_py"] = saved["verifier_rel"]
+            ec._reconcile_blind(rewrite, vsession, fmap)
         else:
-            saved = json.loads((directory / "verifier.json").read_text())
-            vsession = layout.SessionDir(Path(saved["session"]))
-            fmap["test_state_py"] = saved["verifier_rel"]
-        ec._reconcile_blind(rewrite, vsession, fmap)
+            ec._harness_check(rewrite.package, name="check.easier")
+            ec._require_checked(rewrite.package)
         pretest = task.get("_pretest")
         row = pack.to_row(
             str(rewrite.package),
