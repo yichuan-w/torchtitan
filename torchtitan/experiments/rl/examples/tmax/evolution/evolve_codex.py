@@ -1226,17 +1226,19 @@ def _blind_layout(pkg: Path, vpkg: Path) -> None:
 
 
 def _take_verifier(vpkg: Path, pkg: Path, seed_rel: str, seed_text: str) -> str:
-    """Copy the verifier the blind author wrote into the author's package,
-    replacing the seed's, and return its path. Raises when nothing changed."""
+    """Copy the blind verifier and its test assets; return the entry point."""
     rel = _verifier_on_disk(vpkg, seed_rel)
     text = (vpkg / rel).read_text()
-    if rel == seed_rel and text == seed_text:
+    if (
+        rel == seed_rel
+        and text == seed_text
+        and _probe_hashes(vpkg / "tests") == _probe_hashes(pkg / "tests")
+    ):
         raise RuntimeError("verifier author changed nothing")
-    if rel != seed_rel:
-        (pkg / seed_rel).unlink(missing_ok=True)
-    dest = pkg / rel
-    dest.parent.mkdir(parents=True, exist_ok=True)
-    dest.write_text(text)
+    # Shell graders consume sibling patches and fixtures. Transfer exactly the
+    # test tree that passed the independent probes, including file deletions.
+    shutil.rmtree(pkg / "tests")
+    shutil.copytree(vpkg / "tests", pkg / "tests")
     # The author's last check graded the seed's verifier; it says nothing
     # about this one, so it must not satisfy _require_checked.
     (pkg / "run" / "checks.jsonl").unlink(missing_ok=True)
