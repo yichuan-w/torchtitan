@@ -227,6 +227,9 @@ def session(
         "model": CODEX_MODEL,
         "reasoning_effort": CODEX_EFFORT,
         "driver": CODEX_DRIVER,
+        "authentication": "chatgpt"
+        if os.environ.get("EVOLVE_CODEX_AUTH_FILE")
+        else "api_key",
         "started": layout.stamp(),
         "finished": None,
         "status": "running",
@@ -285,12 +288,25 @@ def _harness_env() -> dict:
 def _codex_env(sd: layout.SessionDir) -> dict:
     env = _harness_env()
     env["CODEX_HOME"] = str(sd.codex_home)
-    env["OPENAI_API_KEY"] = llm._api_key()
+    if auth_file := os.environ.get("EVOLVE_CODEX_AUTH_FILE"):
+        auth = json.loads(Path(auth_file).read_text())
+        if auth.get("auth_mode") != "chatgpt" or not auth.get("tokens", {}).get(
+            "access_token"
+        ):
+            raise ValueError("EVOLVE_CODEX_AUTH_FILE must contain a ChatGPT login")
+        target = sd.codex_home / "auth.json"
+        target.write_text(json.dumps(auth))
+        target.chmod(0o600)
+        env.pop("OPENAI_API_KEY", None)
+    else:
+        env["OPENAI_API_KEY"] = llm._api_key()
     return env
 
 
 def _provider_overrides() -> list[str]:
     """The provider settings both drivers pass; the SDK takes them as a list."""
+    if os.environ.get("EVOLVE_CODEX_AUTH_FILE"):
+        return ["model_provider=openai"]
     return [
         "model_providers.oai.name=openai",
         f"model_providers.oai.base_url={API_BASE}",
@@ -331,16 +347,10 @@ def _codex_cmd(cwd: Path, resume: str | None = None) -> list[str]:
         "--dangerously-bypass-approvals-and-sandbox",
         "--skip-git-repo-check",
         "-c",
-        "model_providers.oai.name=openai",
-        "-c",
-        f"model_providers.oai.base_url={API_BASE}",
-        "-c",
-        "model_providers.oai.env_key=OPENAI_API_KEY",
-        "-c",
-        "model_provider=oai",
-        "-c",
         f"model_reasoning_effort={CODEX_EFFORT}",
     ]
+    for override in _provider_overrides():
+        cmd += ["-c", override]
     # `exec resume` takes no -C (codex-cli 0.149: it continues in the
     # session's recorded cwd); the subprocess is started in the package
     # either way.
