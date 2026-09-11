@@ -45,6 +45,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--campaign", type=Path, required=True)
     parser.add_argument("--run-id", required=True)
+    parser.add_argument("--freeze-interrupted-controls", action="store_true")
     args = parser.parse_args()
     campaign = args.campaign.resolve()
     config = json.loads((campaign / "input.json").read_text())
@@ -123,19 +124,43 @@ def main():
         role=(rewrite.package / "AGENTS.md").read_text(),
         public_hashes=before,
     )
-    freeze(rewrite.path / "input.json", json.dumps(audit_input, indent=2) + "\n")
-    logging.info(
-        "item=%s status=holdout_author_start revision=%s", args.run_id, revision
-    )
-    with ec.session(rewrite, "probe", timeout=ec.AGENT_TIMEOUT) as session:
-        try:
-            result = ec._run_codex(
-                session, rewrite.package, request + ec._budget(ec.AGENT_TIMEOUT)
+    if args.freeze_interrupted_controls:
+        audit_input = json.loads((rewrite.path / "input.json").read_text())
+        assert before == audit_input["public_hashes"]
+        session_file = sorted((rewrite.path / "sessions").glob("*/session.json"))[-1]
+        interrupted = json.loads(session_file.read_text())
+        assert interrupted["exit_code"] == 1
+        assert (
+            "You've hit your usage limit"
+            in (session_file.parent / "stdout.txt").read_text()
+        )
+        freeze(
+            rewrite.path / "interrupted-author.json",
+            json.dumps(
+                dict(
+                    reason="usage_limit",
+                    session=str(session_file.parent),
+                    export_revision=revision,
+                    witnesses="pending_execution_in_acceptance_run",
+                ),
+                indent=2,
             )
-        finally:
-            ec._sandbox_down(rewrite.package)
-    if result.returncode:
-        raise RuntimeError(f"Control author exited {result.returncode}")
+            + "\n",
+        )
+    else:
+        freeze(rewrite.path / "input.json", json.dumps(audit_input, indent=2) + "\n")
+        logging.info(
+            "item=%s status=holdout_author_start revision=%s", args.run_id, revision
+        )
+        with ec.session(rewrite, "probe", timeout=ec.AGENT_TIMEOUT) as session:
+            try:
+                result = ec._run_codex(
+                    session, rewrite.package, request + ec._budget(ec.AGENT_TIMEOUT)
+                )
+            finally:
+                ec._sandbox_down(rewrite.package)
+        if result.returncode:
+            raise RuntimeError(f"Control author exited {result.returncode}")
     ec._check_verdict(rewrite.package)
     assert ec._probe_hashes(rewrite.package, ("run",)) == before
     probes = rewrite.package / "run/verifier-probes"
@@ -173,9 +198,9 @@ def main():
         if p.is_file()
     }
     reference["reference.sh"] = reference.pop("solve.sh")
-    reference[
-        "solve.sh"
-    ] = "set -e\nbash /solution/reference.sh\necho Q2_REFERENCE_DONE\n"
+    reference["solve.sh"] = (
+        "set -e\nbash /solution/reference.sh\necho Q2_REFERENCE_DONE\n"
+    )
     cases.insert(
         0,
         dict(
