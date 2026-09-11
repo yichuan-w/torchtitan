@@ -36,7 +36,6 @@ import re
 import tarfile
 from pathlib import Path, PurePosixPath
 
-
 BASELINE_JSONL = "data/oracle-validated-20260909.jsonl"
 BASELINE_ARCHIVES = {
     "terminalworld": "data/tasks-terminalworld-terminus-20260909.tar",
@@ -115,9 +114,11 @@ def read_manifest_package(task: dict, field: str, row: dict) -> dict[str, bytes]
     return files
 
 
-def read_archives(baseline: Path) -> tuple[dict, dict, dict]:
+def read_archives(
+    baseline: Path, archives: dict | None = None
+) -> tuple[dict, dict, dict]:
     packages, modes, families = {}, {}, {}
-    for family, filename in BASELINE_ARCHIVES.items():
+    for family, filename in (archives or BASELINE_ARCHIVES).items():
         with tarfile.open(baseline / filename, "r:") as archive:
             for member in archive:
                 name = relative_file(
