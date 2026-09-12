@@ -248,7 +248,7 @@ def main():
             ec._require_checked(rewrite.package)
             save("author.json", dict(session=str(session.dir.path)))
             log.info("item=%s status=author_pass", args.run_id)
-        if item["job"] == "harder":
+        if item["job"] in ("harder", "easier"):
             if not (directory / "verifier.json").exists():
                 vsession, rel = ec._blind_verifier(rewrite, task, fmap)
                 fmap["test_state_py"] = rel

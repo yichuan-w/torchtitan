@@ -32,6 +32,7 @@ solve_daytona's verified incantation: a fresh CODEX_HOME (a stray ChatGPT token
 otherwise wins and 401s), a model_provider whose base_url is the same us.api
 endpoint synth_client uses, and the key injected via env.
 """
+
 from __future__ import annotations
 
 import contextlib
@@ -1112,15 +1113,15 @@ fresh one.
 
 Confirm with `./sandbox check` before you stop."""
 
-_VERIFIER_JOB = """The task in this package was just made one rung harder through a
-change to its requirements or workflow. Write the verifier for the task as the
+_VERIFIER_JOB = """The task in this package was revised through a change to its
+requirements or workflow. Write the verifier for the task as the
 instruction states it.
 
-You are shown the instruction, `environment/`, and the seed's verifier at
-`{verifier_rel}` (what the task checked before this rung; it has {seed_asserts}
-assertions). You are not shown the reference solution, on purpose; AGENTS.md says
-why. Keep every existing check that still holds and add at most {max_asserts}
-assertions for the new requirement, each satisfiable by an agent that has read
+You are shown the instruction, `environment/`, and the current verifier at
+`{verifier_rel}`. The original seed had {seed_asserts} assertions. You are not shown the reference solution, on purpose; AGENTS.md says
+why. Keep every existing check that still holds under the revised instruction;
+remove checks only for requirements that the instruction removed. Use at most
+{max_asserts} assertions above the original seed count, each satisfiable by an agent that has read
 only the instruction and explored the container. Where the instruction leaves a
 name open, check the value.
 
@@ -1141,8 +1142,8 @@ is in `run/failure.txt`.
 Read it first. The instruction is the contract. The usual cause is a check that
 demands something the instruction does not ask for, or a name the instruction
 leaves open: loosen that check to what the instruction actually promises, or
-check the value instead of the name. Do not drop a check the seed's verifier
-already had, and do not weaken a check the instruction plainly requires. If the
+check the value instead of the name. Preserve seed checks for requirements retained
+in the revised instruction, and do not weaken a check the instruction plainly requires. If the
 run failed a check the instruction does require, the solution is what is wrong:
 write `BLOCKED: <which check, and what the run showed>` to `run/verdict.txt` and
 stop, and the caller sends the solution back.
@@ -1500,7 +1501,7 @@ def evolve_agentic(
         task["test_state_py"],
         "python" if ev._verifier_rel(task).endswith(".py") else "shell",
     )
-    blind = job == "harder" and VERIFIER_AUTHOR == "blind"
+    blind = job in ("harder", "easier") and VERIFIER_AUTHOR == "blind"
     prompt = (
         {
             "harder": (_HARDER_JOB_BLIND if blind else _HARDER_JOB).format(

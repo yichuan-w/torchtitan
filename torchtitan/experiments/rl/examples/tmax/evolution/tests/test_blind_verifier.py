@@ -7,6 +7,7 @@
 """SWE_VERIFIER_AUTHOR=blind: the verifier is written by a session that never
 sees the solution, in a package copy under its own session directory, and
 the two meet only in the harness's own check."""
+
 from __future__ import annotations
 
 import json
@@ -184,14 +185,24 @@ def _wire(monkeypatch, sessions: list, checks: list, verifier_text=NEW_VERIFIER)
     return replays
 
 
+@pytest.mark.parametrize("job", ["harder", "easier"])
 def test_blind_mode_runs_two_sessions_and_the_second_never_sees_the_solution(
-    tmp_path, monkeypatch
+    tmp_path, monkeypatch, job
 ) -> None:
     rw = _rewrite(tmp_path, monkeypatch)
     sessions, checks = [], []
     replays = _wire(monkeypatch, sessions, checks)
 
-    out = ec.evolve_agentic(rw, dict(SEED), "harder")
+    if job == "easier":
+        monkeypatch.setattr(
+            ec.so,
+            "read_decision",
+            lambda *args: {
+                "operator": "test_simplification",
+                "retained_skill": "compare files",
+            },
+        )
+    out = ec.evolve_agentic(rw, dict(SEED), job)
 
     assert [s["role"] for s in sessions] == ["author", "verifier"]
     assert sessions[0]["saw_solution"] is True and sessions[1]["saw_solution"] is False
@@ -200,7 +211,8 @@ def test_blind_mode_runs_two_sessions_and_the_second_never_sees_the_solution(
     assert sessions[1]["cwd"] == sessions[1]["session"].package
     assert replays == [sessions[1]["cwd"]]
     assert sessions[1]["session"].path.parent == rw.sessions
-    assert "Leave `tests/` exactly as it is" in sessions[0]["prompt"]
+    if job == "harder":
+        assert "Leave `tests/` exactly as it is" in sessions[0]["prompt"]
     assert "not shown the reference solution" in sessions[1]["prompt"]
 
     # The verifier came back into the author's package, and the harness ran

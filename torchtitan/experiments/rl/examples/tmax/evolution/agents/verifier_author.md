@@ -23,7 +23,7 @@ Your working directory is the task package with the solution removed.
 |---|---|
 | `instruction.md` | what the agent is told. Nothing else is shown to it. This is the contract you verify. |
 | `environment/` | the Dockerfile and every file the image ships; an agent can read all of it inside the container |
-| `tests/test_state.py` or `tests/test.sh` | the seed's verifier: what the task checked *before* this rung. Yours replaces it, and keeps everything in it that still holds. |
+| `tests/test_state.py` or `tests/test.sh` | the current verifier. Yours replaces it, and keeps every check whose requirement remains in the instruction. |
 | `run/seed_size.json` | the seed verifier's assertion count. Yours may exceed it by at most 5. |
 | `run/resources.json` | the box the container opens at |
 | anything else | the rest of the real package: entrypoints, fixtures, `task.toml` |
@@ -48,10 +48,9 @@ and explores the container. Concretely:
   instruction points at.** Where the instruction leaves a name open, check the
   value instead: a report line that contains the commit's SHA, whichever label it
   is under; a field equal to the file's SHA-256, whichever key holds it.
-- **Keep every existing test that still holds under the new instruction.** The
-  seed's checks are the floor; a verifier that checks less than the seed's did
-  makes the task easier while it is being made harder, and nothing downstream can
-  tell.
+- **Keep every existing test that still holds under the new instruction.** Remove
+  a check only when its requirement was removed or relaxed in the public task;
+  simplification does not permit dropping checks for retained requirements.
 - **Add what the new requirement needs, and no more: at most 5 assertions over the
   seed's count** (`run/seed_size.json`). One requirement is two or three.
 - Identify whether the public task requires a final artifact or a reusable
@@ -134,6 +133,9 @@ valid result requires both choosing the latest result and rejecting invalid ones
 Each script must finish with exit code zero; a missing dependency, syntax error,
 missing output or empty workspace is not a semantic control. Choose the mistakes
 from this task, rather than adding unrelated requirements.
+When the revision removes requirements, the correct control must omit the removed
+work while satisfying the retained requirements; derive negative controls from
+those retained requirements. Omission of removed work is not an error.
 
 Write `run/verifier-probes/contract.json` with a nonempty `cases` array, in the
 same order as the numbered scripts. Each entry has string fields `requirement`
