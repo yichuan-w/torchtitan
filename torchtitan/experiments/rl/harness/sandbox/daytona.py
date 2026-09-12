@@ -230,7 +230,6 @@ def _build_observable_exec(full: str, command_key: str) -> _ObservableExecComman
         f"(exec 7>&-; exec 8< {quoted_output_fifo}; "
         f"stdbuf -o0 head -c {_EXEC_RAW_OUTPUT_LIMIT_BYTES} <&8 >&9; "
         "exec 9>&-; cat <&8 > /dev/null) </dev/null > /dev/null 2>&1 & "
-        "_tt_drain_pid=$!; "
         "_tt_run >&7 2>&1 7>&-; "
         f"printf %s {quoted_receipt} >&7; exec 7>&-; "
         f"_tt_collect_end=$(($(date +%s) + {_SESSION_POLL_GRACE_SEC})); "
@@ -243,8 +242,7 @@ def _build_observable_exec(full: str, command_key: str) -> _ObservableExecComman
         # Reserve the receipt length so a receipt cut by the output cap cannot
         # leak into the returned tail. Capped output is already marked truncated.
         f"_tt_exec_size={_EXEC_RAW_OUTPUT_LIMIT_BYTES - len(output_receipt)}; break; fi; "
-        'if ! kill -0 "$_tt_drain_pid" 2>/dev/null '
-        '|| [ "$(date +%s)" -ge "$_tt_collect_end" ]; then '
+        'if [ "$(date +%s)" -ge "$_tt_collect_end" ]; then '
         "exit 125; fi; sleep 0.02; "
         "done; "
         f"mkdir -p {quoted_result_dir} 2>/dev/null || :; "
