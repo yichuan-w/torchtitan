@@ -129,13 +129,14 @@ def test_summary_reports_avg_and_pass_at_k(tmp_path):
     assert summary.pass_at_k == 0.5  # 1 / 2 tasks
 
 
-def test_infra_failure_invalidates_whole_score_and_keeps_raw_trials(tmp_path):
+def test_infra_failure_marks_incomplete_but_logs_scores_and_raw_trials(tmp_path):
     groups = [_group(-1, [1.0, 0.0])]
     groups[0].rollouts[1].diagnostics["infra_failed"] = True
     _, summary = _record(tmp_path, groups, ["task-a"])
     assert not summary.valid
-    assert summary.avg_at_k is None
-    assert summary.pass_at_k is None
+    assert summary.avg_at_k == 0.5
+    assert summary.pass_at_k == 1.0
+    assert summary.num_unscored == 1
     root = tmp_path / "validation_traces" / "step-20"
     rows = json.loads((root / "index.json").read_text())
     assert [r["state"] for r in rows] == ["PASS", "INFRA_FAILED"]
@@ -221,8 +222,58 @@ def test_task_without_reward_invalidates_score(tmp_path):
     _, summary = _record(tmp_path, [_group(-1, [None, None])], ["task-a"])
     assert summary.num_pass == 0
     assert not summary.valid
-    assert summary.avg_at_k is None
-    assert summary.pass_at_k is None
+    assert summary.avg_at_k == 0.0
+    assert summary.pass_at_k == 0.0
+    assert summary.num_unscored == 2
+
+
+def test_missing_trials_keep_the_requested_denominator(tmp_path):
+    recorder = ValidationTraceRecorder.Config(enable=True).build(dump_dir=str(tmp_path))
+    summary = recorder.record(
+        policy_version=20,
+        groups=[_group(-1, [1.0, 0.0])],
+        task_ids=["task-a"],
+        decode=_decode,
+        expected_num_tasks=2,
+        expected_num_trials=10,
+    )
+    assert not summary.valid
+    assert summary.avg_at_k == 0.1
+    assert summary.pass_at_k == 0.5
+    assert summary.num_unscored == 8
+    stored = json.loads(
+        (tmp_path / "validation_traces/step-20/summary.json").read_text()
+    )
+    assert stored["expected_num_tasks"] == 2
+    assert stored["expected_num_trials"] == 10
+    assert stored["avg_at_k"] == 0.1
+
+
+def test_all_groups_missing_still_logs_zero_scores(tmp_path):
+    recorder = ValidationTraceRecorder.Config(enable=True).build(dump_dir=str(tmp_path))
+    summary = recorder.record(
+        policy_version=20,
+        groups=[],
+        task_ids=[],
+        decode=_decode,
+        expected_num_tasks=2,
+        expected_num_trials=10,
+    )
+    assert not summary.valid
+    assert summary.avg_at_k == 0.0
+    assert summary.pass_at_k == 0.0
+    assert summary.num_unscored == 10
+
+
+def test_nonfinite_and_infra_rewards_cannot_count_as_passes(tmp_path):
+    groups = [_group(-1, [float("inf"), float("nan"), 1.0])]
+    groups[0].rollouts[2].diagnostics["infra_failed"] = True
+    _, summary = _record(tmp_path, groups, ["task-a"])
+    assert not summary.valid
+    assert summary.avg_at_k == 0.0
+    assert summary.pass_at_k == 0.0
+    assert summary.num_pass == 0
+    assert summary.num_unscored == 3
 
 
 def test_long_transcript_is_truncated(tmp_path):

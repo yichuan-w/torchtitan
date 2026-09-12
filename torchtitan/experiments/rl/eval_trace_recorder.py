@@ -24,7 +24,6 @@ from __future__ import annotations
 import json
 import logging
 import math
-import statistics
 from collections import Counter
 from dataclasses import asdict, dataclass
 from pathlib import Path
@@ -50,6 +49,9 @@ class EvalSummary:
     """Fraction of tasks with at least one passing trial."""
     report_dir: str
     valid: bool = True
+    expected_num_tasks: int = 0
+    expected_num_trials: int = 0
+    num_unscored: int = 0
 
 
 def validation_is_valid(groups, *, num_groups: int, group_size: int) -> bool:
@@ -115,6 +117,8 @@ class ValidationTraceRecorder(Configurable):
         task_ids: list[str],
         decode,
         valid: bool = True,
+        expected_num_tasks: int | None = None,
+        expected_num_trials: int | None = None,
     ) -> EvalSummary | None:
         """Write the report for one validation pass.
 
@@ -151,6 +155,8 @@ class ValidationTraceRecorder(Configurable):
             rows=rows,
             report_dir=str(step_dir),
             valid=valid,
+            expected_num_tasks=expected_num_tasks,
+            expected_num_trials=expected_num_trials,
         )
         (step_dir / "index.json").write_text(json.dumps(rows, indent=2, sort_keys=True))
         (step_dir / "summary.json").write_text(
@@ -178,6 +184,8 @@ class ValidationTraceRecorder(Configurable):
         rel_path = f"traces/{_slug(task_id)}/{trial}.md"
         reward = rollout.reward
         state = "PASS" if reward is not None and reward > 0 else "FAIL"
+        if reward is None or not math.isfinite(reward):
+            state = "UNSCORED"
         if rollout.diagnostics.get("infra_failed", False):
             state = "INFRA_FAILED"
         prompt_tokens = sum(len(turn.prompt_token_ids) for turn in rollout.turns)
@@ -289,12 +297,28 @@ class ValidationTraceRecorder(Configurable):
         rows: list[dict],
         report_dir: str,
         valid: bool = True,
+        expected_num_tasks: int | None = None,
+        expected_num_trials: int | None = None,
     ) -> EvalSummary:
-        rewards = [row["reward"] for row in rows if row["reward"] is not None]
+        expected_num_tasks = (
+            num_tasks if expected_num_tasks is None else expected_num_tasks
+        )
+        expected_num_trials = (
+            len(rows) if expected_num_trials is None else expected_num_trials
+        )
+        rewards = [
+            row["reward"]
+            for row in rows
+            if row["reward"] is not None
+            and math.isfinite(row["reward"])
+            and not row.get("infra_failed", False)
+        ]
         passing_tasks = {row["task"] for row in rows if row["state"] == "PASS"}
         valid = (
             valid
             and bool(rows)
+            and num_tasks == expected_num_tasks
+            and len(rows) == expected_num_trials
             and all(
                 not row.get("infra_failed", False)
                 and row["reward"] is not None
@@ -307,10 +331,17 @@ class ValidationTraceRecorder(Configurable):
             num_tasks=num_tasks,
             num_trials=len(rows),
             num_pass=sum(1 for row in rows if row["state"] == "PASS"),
-            avg_at_k=statistics.fmean(rewards) if valid else None,
-            pass_at_k=len(passing_tasks) / num_tasks if valid else None,
+            avg_at_k=sum(rewards) / expected_num_trials
+            if expected_num_trials
+            else None,
+            pass_at_k=len(passing_tasks) / expected_num_tasks
+            if expected_num_tasks
+            else None,
             report_dir=report_dir,
             valid=valid,
+            expected_num_tasks=expected_num_tasks,
+            expected_num_trials=expected_num_trials,
+            num_unscored=expected_num_trials - len(rewards),
         )
 
     @staticmethod
@@ -323,16 +354,19 @@ class ValidationTraceRecorder(Configurable):
             f"trials = {summary.num_trials} rollouts.",
             "",
             f"- Valid benchmark score: {summary.valid}",
-            f"- avg@k (mean reward over all trials): {summary.avg_at_k}",
+            f"- Requested: {summary.expected_num_tasks} tasks, {summary.expected_num_trials} trials",
+            f"- Unscored trials (counted as zero): {summary.num_unscored}",
+            f"- avg@k (mean reward over requested trials): {summary.avg_at_k}",
             f"- pass@k (tasks with >=1 pass): {summary.pass_at_k} "
             f"({len(({row['task'] for row in rows if row['state'] == 'PASS'}))}"
-            f"/{summary.num_tasks})",
+            f"/{summary.expected_num_tasks})",
             "",
         ]
         if not summary.valid:
             lines += [
-                "Evaluation incomplete: repair infrastructure and rerun the full "
-                "task set at the same checkpoint. Raw trial rewards follow.",
+                "Evaluation incomplete: scores count failed or missing trials as zero. "
+                "Repair infrastructure and rerun the full task set at the same "
+                "checkpoint for a complete benchmark score. Raw trial rewards follow.",
                 "",
             ]
         # Diagnostic keys the rollouter supplied, as their own columns. Discovered
