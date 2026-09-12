@@ -39,6 +39,14 @@ To add SWE-Smith, append this source to the configuration:
 }
 ```
 
+When an upstream snapshot includes `metadata/cache_manifest.jsonl`, preparation
+downloads and verifies the listed offline cache archives at the same commit. Tasks
+marked `prefetched_cache_required` receive a Dockerfile step that fetches the
+fixed-version archive, checks its SHA256 and unpacks it while building the image.
+Both the cache archives and the prepared source Dockerfiles are retained in the
+release so evolution starts from the same setup. Published
+`validated_test_timeout_s` values become the row's verifier timeout.
+
 Publication adds a release path to an existing HF dataset. Supply a project-scoped
 token file with write access to that destination:
 
