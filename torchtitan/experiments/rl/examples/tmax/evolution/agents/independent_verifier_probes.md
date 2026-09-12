@@ -7,6 +7,14 @@ task and test your implementations. The file `tests/test.sh` is a placeholder,
 so `grade`, `check`, and `oracle` cannot validate your work.
 
 Save a complete correct implementation as `run/verifier-probes/correct.sh`.
+Use that implementation to test choices the public task leaves open. Where
+permitted, use different internal names or equivalent data representations
+instead of relying on conventional defaults; preserve every explicitly required
+name, type, ordering rule, and interface. In a top-level `correct` object in
+`contract.json`, record the choices exercised and why they satisfy the public
+requirements. If no such choice is available, record that and use the required
+representation. Verify the positive deliverable against the public requirements
+before presenting it to the withheld grader.
 Then save `wrong-1.sh`, `wrong-2.sh`, and so on. Each wrong implementation should
 make a specific semantic mistake while otherwise completing the task. Derive
 these mistakes from the public requirements, including independently falsifiable
