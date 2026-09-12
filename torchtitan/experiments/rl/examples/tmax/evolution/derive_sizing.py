@@ -1,4 +1,10 @@
 #!/usr/bin/env python3
+# Copyright (c) Meta Platforms, Inc. and affiliates.
+# All rights reserved.
+#
+# This source code is licensed under the BSD-style license found in the
+# LICENSE file in the root directory of this source tree.
+
 """Size each task from three sources at once, because one of them under-reads.
 
 The first pass sized from the agent measurement alone and broke 16 of 663 tasks:
