@@ -589,6 +589,34 @@ def test_wrapped_command_reports_missing_decoder(tmp_path: Path) -> None:
 
 
 @pytest.mark.skipif(shutil.which("timeout") is None, reason="GNU timeout is required")
+def test_observable_waits_for_delayed_output_collector(monkeypatch, tmp_path):
+    monkeypatch.setattr(daytona_backend, "_EXEC_OUTPUT_DIR", str(tmp_path / "output"))
+    monkeypatch.setattr(daytona_backend, "_EXEC_RESULT_DIR", str(tmp_path / "result"))
+    monkeypatch.setattr(daytona_backend, "_EXEC_CLAIM_DIR", str(tmp_path / "claims"))
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    real_head = shlex.quote(shutil.which("head"))
+    delayed_head = bin_dir / "head"
+    delayed_head.write_text(
+        "#!/bin/sh\n"
+        f'if [ "$2" = "{daytona_backend._EXEC_RAW_OUTPUT_LIMIT_BYTES}" ]; then sleep 0.4; fi\n'
+        f'exec {real_head} "$@"\n'
+    )
+    delayed_head.chmod(0o755)
+    monkeypatch.setenv("PATH", str(bin_dir) + os.pathsep + os.environ["PATH"])
+    full = _build_exec_command(
+        "printf '123|456|0||\\n'", user="root", env=None, timeout=2
+    )
+    observed, status_path, output_path = _build_observable_exec_command(
+        full, "slow_reader"
+    )
+    completed = subprocess.run(["bash", "-c", observed], capture_output=True, timeout=5)
+    assert completed.returncode == 0
+    assert Path(status_path).read_text().strip() == "0"
+    assert Path(output_path).read_bytes() == b"123|456|0||\n"
+
+
+@pytest.mark.skipif(shutil.which("timeout") is None, reason="GNU timeout is required")
 def test_observable_command_materializes_bounded_output(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
