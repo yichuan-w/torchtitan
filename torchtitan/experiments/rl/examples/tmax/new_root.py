@@ -142,6 +142,11 @@ def main() -> None:
     ap.add_argument("--base", required=True, type=Path, help="the new root (TRL_BASE)")
     ap.add_argument("--mix", type=Path, help="seed mix jsonl; becomes v0001")
     ap.add_argument(
+        "--data-release",
+        type=Path,
+        help="verified data_release.py output; supplies mix and sources",
+    )
+    ap.add_argument(
         "--fork-from",
         type=Path,
         help="another root whose mix history and revisions to copy",
@@ -158,6 +163,17 @@ def main() -> None:
     ap.add_argument("--purpose", default="")
     ap.add_argument("--profile")
     a = ap.parse_args()
+    if a.data_release:
+        if a.mix or a.sources or a.fork_from:
+            ap.error(
+                "--data-release cannot be combined with --mix, --sources or --fork-from"
+            )
+        sys.path.insert(0, str(Path(__file__).resolve().parent / "evolution"))
+        import data_release
+
+        data_release.verify(a.data_release)
+        a.mix = a.data_release / "mix.jsonl"
+        a.sources = sorted((a.data_release / "sources").iterdir())
     root = create(
         a.base,
         mix=a.mix,

@@ -386,7 +386,7 @@ def verify_and_extract(tar_path: str, rows: list[dict], out_root: str) -> str:
 def to_row(
     task_dir: str,
     *,
-    inject_agent_runtime: bool = False,
+    inject_agent_runtime: bool = True,
     resources: dict[str, int] | None = None,
     pretest: tuple[str, str] | None = None,
     protected_paths: list[str] | None = None,
@@ -524,7 +524,7 @@ def build_rows(
     limit: int | None = None,
     seed: int = 42,
     max_oracle_commands: int | None = None,
-    inject_agent_runtime: bool = False,
+    inject_agent_runtime: bool = True,
 ) -> tuple[list[dict], dict[str, int]]:
     """Every split row to a trainer row, applying prepare_rts_data's filters. Same shuffle rule:
     task order is shuffled with ``seed`` before the ``limit`` cut."""
@@ -579,7 +579,7 @@ def prepare(
     limit: int | None = None,
     seed: int = 42,
     max_oracle_commands: int | None = None,
-    inject_agent_runtime: bool = False,
+    inject_agent_runtime: bool = True,
     smoke_size: int = 0,
     peaks_path: str | None = None,
 ) -> dict:
@@ -693,7 +693,9 @@ def main() -> None:
     ap.add_argument("--limit", type=int, default=None, help="emit at most N tasks")
     ap.add_argument("--seed", type=int, default=42, help="task-order shuffle seed")
     ap.add_argument("--max-oracle-commands", type=int, default=None, metavar="N")
-    ap.add_argument("--inject-agent-runtime", action="store_true")
+    ap.add_argument(
+        "--inject-agent-runtime", action=argparse.BooleanOptionalAction, default=True
+    )
     ap.add_argument(
         "--smoke-size",
         type=int,
