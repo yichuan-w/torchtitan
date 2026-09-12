@@ -339,7 +339,7 @@ def build(config, out, cache=None, token=None):
             "files": {
                 str(p.relative_to(stage)): digest(p)
                 for p in sorted(stage.rglob("*"))
-                if p.is_file() and p.name != "manifest.json"
+                if p.is_file() and p != stage / "manifest.json"
             },
         }
         release_id = hashlib.sha256(encoded(manifest)).hexdigest()
