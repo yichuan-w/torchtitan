@@ -5,6 +5,7 @@
 # LICENSE file in the root directory of this source tree.
 
 import json
+import shutil
 from types import SimpleNamespace
 
 import evolve_codex as ec
@@ -22,6 +23,12 @@ def setup(tmp_path, monkeypatch):
     with ec.session(rewrite, "verifier", timeout=60) as run:
         ec._blind_layout(rewrite.package, run.dir.package)
     verifier = run.dir
+    controls = verifier.package / "run/verifier-probes"
+    controls.mkdir()
+    (controls / "correct.sh").write_text("original correct")
+    (controls / "wrong-1.sh").write_text("original wrong")
+    (controls / "contract.json").write_text('{}')
+    shutil.copytree(controls, verifier.path / "original-verifier-probes")
     calls = []
 
     def author(run, package, prompt, resume=None):
@@ -85,7 +92,7 @@ def test_semantic_failure_gets_one_repair_and_replays_unchanged_controls(
     replays = []
 
     def grade(package, env, timeout):
-        if package == verifier.package:
+        if package.name.startswith("original-replay-"):
             return
         replays.append(ec._probe_hashes(package / "run/verifier-probes"))
         if len(replays) == 1:
@@ -102,7 +109,7 @@ def test_persistent_semantic_failure_stops_after_one_repair(setup, monkeypatch):
     rewrite, verifier, calls, _ = setup
 
     def grade(package, env, timeout):
-        if package != verifier.package:
+        if not package.name.startswith("original-replay-"):
             miss(package)
 
     monkeypatch.setattr(ec, "verify_probes", grade)
@@ -153,7 +160,9 @@ def test_repair_cannot_change_public_task_or_independent_controls(
     monkeypatch.setattr(
         ec,
         "verify_probes",
-        lambda package, *args: miss(package) if package != verifier.package else None,
+        lambda package, *args: (
+            None if package.name.startswith("original-replay-") else miss(package)
+        ),
     )
     with pytest.raises(RuntimeError, match="changed"):
         ec._independent_verifier(rewrite, verifier)
@@ -172,3 +181,41 @@ def test_independent_failure_prevents_acceptance(tmp_path, monkeypatch):
     assert (rewrite.package / "tests/test_state.py").read_text() == SEED[
         "test_state_py"
     ]
+
+
+def test_replacing_own_negative_cannot_hide_a_repair_regression(setup, monkeypatch):
+    rewrite, verifier, calls, author = setup
+
+    def repair(run, package, prompt, resume=None):
+        result = author(run, package, prompt, resume)
+        if run.meta["kind"] == "probe-repair":
+            (package / "tests/test_state.py").write_text("weakened verifier")
+            (package / "run/verifier-probes/wrong-1.sh").write_text("replacement")
+        return result
+
+    def grade(package, *args):
+        if (package / "tests/test_state.py").read_text() != "weakened verifier":
+            miss(package, "correct")
+        if (package / "run/verifier-probes/wrong-1.sh").read_text() == "original wrong":
+            miss(package, "original-negative")
+
+    monkeypatch.setattr(ec, "_run_codex", repair)
+    monkeypatch.setattr(ec, "verify_probes", grade)
+    with pytest.raises(ec.SemanticProbeMisses, match="original-negative"):
+        ec._independent_verifier(rewrite, verifier)
+    assert [call[0] for call in calls] == ["probe", "probe-repair"]
+
+
+def test_original_controls_are_frozen_before_first_replay(setup, monkeypatch):
+    _, verifier, _, _ = setup
+    shutil.rmtree(verifier.path / "original-verifier-probes")
+    seen = []
+
+    def grade(package, *args):
+        seen.append((package / "run/verifier-probes/correct.sh").read_text())
+
+    monkeypatch.setattr(ec, "verify_probes", grade)
+    ec._verify_original_probes(verifier)
+    (verifier.package / "run/verifier-probes/correct.sh").write_text("replacement")
+    ec._verify_original_probes(verifier)
+    assert seen == ["original correct", "original correct"]

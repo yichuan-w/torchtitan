@@ -166,6 +166,11 @@ def _wire(monkeypatch, sessions: list, checks: list, verifier_text=NEW_VERIFIER)
             # refused as "changed nothing", which is its own failure.
             text = verifier_text + ("\n# repaired\n" if resume else "")
             (cwd / "tests" / "test_state.py").write_text(text)
+            controls = cwd / "run/verifier-probes"
+            controls.mkdir(exist_ok=True)
+            (controls / "correct.sh").write_text("original correct")
+            (controls / "wrong-1.sh").write_text("original wrong")
+            (controls / "contract.json").write_text('{}')
         run.meta["exit_code"] = 0
         return type("P", (), {"returncode": 0, "stdout": "", "stderr": ""})()
 
@@ -403,7 +408,10 @@ def test_a_disagreement_gets_one_repair_of_the_verifier_then_is_discarded(
     assert [s["role"] for s in sessions] == ["author", "verifier", "verifier"]
     assert sessions[2]["resume"] == "sid-v"
     assert sessions[2]["cwd"] == sessions[1]["cwd"]
-    assert replays == [sessions[1]["cwd"], sessions[2]["cwd"]]
+    assert replays[0] == sessions[1]["cwd"]
+    assert len(replays) == 2
+    assert replays[1].name.startswith("original-replay-")
+    assert (replays[1] / "tests/test_state.py").read_text().endswith("# repaired\n")
     assert "does not agree with the task's reference solution" in sessions[2]["prompt"]
     assert (
         (sessions[2]["cwd"] / "run" / "failure.txt")

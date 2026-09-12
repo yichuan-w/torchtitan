@@ -1244,6 +1244,18 @@ def _probe_hashes(package: Path, exclude: tuple[str, ...] = ()) -> dict[str, str
     }
 
 
+def _verify_original_probes(vsession: layout.SessionDir) -> None:
+    original = vsession.path / "original-verifier-probes"
+    if not original.exists():
+        shutil.copytree(vsession.package / "run/verifier-probes", original)
+        package = vsession.package
+    else:
+        package = Path(tempfile.mkdtemp(prefix="original-replay-", dir=vsession.path))
+        _blind_layout(vsession.package, package)
+        shutil.copytree(original, package / "run/verifier-probes")
+    verify_probes(package, _harness_env(), AGENT_TIMEOUT)
+
+
 def _independent_verifier(
     rewrite: layout.RewriteDir,
     vsession: layout.SessionDir,
@@ -1330,6 +1342,7 @@ def _independent_verifier(
                         "If the correct control is invalid, a negative control is valid, or a control's classification cannot be established, "
                         "write BLOCKED: <evidence> to run/verdict.txt and stop. "
                         "Otherwise repair the verifier to accept the demonstrated valid deliverable and reject the demonstrated violations. "
+                        "The caller also replays your original pre-repair controls unchanged; replacing a saved control does not remove that regression check. "
                         "Do not impose a representation or implementation restriction absent from the public task. "
                         "Preserve the public task and follow AGENTS.md, including your own replay controls.\n"
                         + _budget(AGENT_TIMEOUT),
@@ -1346,7 +1359,7 @@ def _independent_verifier(
                 raise RuntimeError(
                     "Verifier repair changed public task files"
                 ) from error
-            verify_probes(vpkg, _harness_env(), AGENT_TIMEOUT)
+            _verify_original_probes(vsession)
         else:
             return
 
@@ -1386,7 +1399,7 @@ def _blind_verifier(
         finally:
             _sandbox_down(vpkg)
     _check_verdict(vpkg)
-    verify_probes(vpkg, _harness_env(), AGENT_TIMEOUT)
+    _verify_original_probes(run.dir)
     _independent_verifier(rewrite, run.dir)
     rel = _take_verifier(vpkg, pkg, seed_rel, seed_text)
     return run.dir, rel
@@ -1420,7 +1433,7 @@ def _blind_repair(
         finally:
             _sandbox_down(vpkg)
     _check_verdict(vpkg)
-    verify_probes(vpkg, _harness_env(), AGENT_TIMEOUT)
+    _verify_original_probes(vsession)
     _independent_verifier(rewrite, vsession, allow_repair=False)
     before = (pkg / _verifier_on_disk(pkg, seed_rel)).read_text()
     return _take_verifier(vpkg, pkg, _verifier_on_disk(pkg, seed_rel), before)
