@@ -141,6 +141,9 @@ def run(args):
                 charged = min(reserved, (time.monotonic() - started) / 3600 * rate)
                 status = "verified"
             except Exception as error:
+                # Stop admitting work on an unresolved failure; otherwise a
+                # registry outage could consume the batch on identical errors.
+                stop.set()
                 out.mkdir(parents=True, exist_ok=True)
                 # SDK exceptions can include the push command's bearer token.
                 release.write_json(
@@ -159,9 +162,13 @@ def run(args):
                 )
 
         pending = set()
+        stop = threading.Event()
         admitted = 0
         with concurrent.futures.ThreadPoolExecutor(max_workers=args.workers) as pool:
             for row in rows:
+                if stop.is_set():
+                    images.log(args.out, "failure-stop")
+                    break
                 if args.limit is not None and admitted >= args.limit:
                     break
                 key = images.image_key(row)
@@ -180,6 +187,9 @@ def run(args):
                     )
                     for future in done:
                         future.result()
+                if stop.is_set():
+                    images.log(args.out, "failure-stop")
+                    break
                 reserved, rate = reservation(row)
                 if not ledger.reserve(key, reserved):
                     # Completed workers may return unused reservations.
