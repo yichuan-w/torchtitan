@@ -47,6 +47,7 @@ from __future__ import annotations
 import argparse
 import base64
 import json
+import math
 import os
 import random
 import re
@@ -375,15 +376,26 @@ def _grading_fixtures(task_dir: str) -> tuple[dict[str, str], str | None]:
     return fixtures, None
 
 
+# Per-task Daytona sizing floors. The dataset's declared/estimated numbers are
+# lower bounds (TerminalWorld's est_disk_mb is explicitly "a floor with slack"),
+# and an RL agent explores far more than the oracle solution, so clamp each
+# resource up to a safe minimum. CPU is the binding Daytona quota, so honoring the
+# median req_cpus=1 (vs the flat default 2) is where the savings come from; disk
+# keeps a generous floor because agent writes dwarf the oracle's est_disk_mb.
+_DAYTONA_CPU_FLOOR = 1
+_DAYTONA_MEM_GB_FLOOR = 2
+_DAYTONA_DISK_GB_FLOOR = 10
+
+
 def _load_resource_map(parquet_path: str) -> dict[str, dict[str, int]]:
-    """Read seed allocations; use peaks only when allocation columns are absent."""
+    """Map task_id -> {daytona_cpu, daytona_mem_gb, daytona_disk_gb} from the
+    dataset's own resource columns. Runtime peaks use the shared sizing policy;
+    legacy allocation columns use the floors above. A missing/null cell is omitted so the sandbox
+    falls back to that field's TT_DAYTONA_* env default."""
     import pandas as pd  # local import: only needed with --metadata-parquet
 
-    from torchtitan.experiments.rl.examples.tmax.evolution.seed_resources import (
-        DISK_CAP_GB,
-        measured_gib,
-        MEM_CAP_GB,
-        policy_gib,
+    from torchtitan.experiments.rl.examples.tmax.evolution.derive_sizing import (
+        size_from_oracle,
     )
 
     df = pd.read_parquet(parquet_path)
@@ -398,17 +410,35 @@ def _load_resource_map(parquet_path: str) -> dict[str, dict[str, int]]:
         res: dict[str, int] = {}
         cpus = row.get("req_cpus")
         if cpus is not None and not pd.isna(cpus):
-            res["daytona_cpu"] = max(1, int(round(float(cpus))))
-        for declared, peak, target, cap in (
-            ("req_memory_mb", "peak_ram_mb", "daytona_mem_gb", MEM_CAP_GB),
-            ("est_disk_mb", "peak_disk_mb", "daytona_disk_gb", DISK_CAP_GB),
-        ):
-            # Published allocations already include headroom and policy decisions.
-            size = policy_gib(row.get(declared), cap)
-            if declared not in df.columns:
-                size = measured_gib(row.get(peak), cap)
-            if size is not None:
-                res[target] = size
+            res["daytona_cpu"] = max(_DAYTONA_CPU_FLOOR, int(round(float(cpus))))
+        mem_mb = row.get("req_memory_mb")
+        if mem_mb is not None and not pd.isna(mem_mb):
+            res["daytona_mem_gb"] = max(
+                _DAYTONA_MEM_GB_FLOOR, math.ceil(float(mem_mb) / 1024)
+            )
+        disk_mb = row.get("est_disk_mb")
+        if disk_mb is not None and not pd.isna(disk_mb):
+            res["daytona_disk_gb"] = max(
+                _DAYTONA_DISK_GB_FLOOR, math.ceil(float(disk_mb) / 1024)
+            )
+        peaks = {}
+        for key in ("peak_ram_mb", "peak_disk_mb"):
+            value = row.get(key)
+            if (
+                value is not None
+                and not pd.isna(value)
+                and math.isfinite(float(value))
+                and float(value) > 0
+            ):
+                peaks[key] = float(value)
+        if peaks:
+            sized = size_from_oracle(
+                peaks.get("peak_ram_mb"), peaks.get("peak_disk_mb"), None
+            )
+            if "peak_ram_mb" in peaks:
+                res["daytona_mem_gb"] = sized["mem_gb"]
+            if "peak_disk_mb" in peaks:
+                res["daytona_disk_gb"] = sized["disk_gb"]
         if res:
             out[tid] = res
     return out
@@ -681,8 +711,7 @@ def main() -> None:
         default=None,
         metavar="PATH",
         help="dataset metadata/tasks.parquet -- read per-task req_cpus / "
-        "req_memory_mb / est_disk_mb (or peak_ram_mb / peak_disk_mb when allocation "
-        "columns are absent) and emit daytona_cpu/mem_gb/disk_gb so each "
+        "req_memory_mb / est_disk_mb and emit daytona_cpu/mem_gb/disk_gb so each "
         "sandbox is sized to the task instead of the flat TT_DAYTONA_* defaults "
         "(missing fields fall back to those defaults), and the pre_test_sh / "
         "pre_test_env_identity columns when the dataset carries them",
