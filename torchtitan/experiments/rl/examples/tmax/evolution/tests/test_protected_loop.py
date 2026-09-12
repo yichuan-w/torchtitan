@@ -285,6 +285,8 @@ def _fake_revalidator(events: list) -> types.ModuleType:
 
     async def grade_tmax(_sb, _tmax, *, workdir, baseline_digests=None, **_kw):
         events.append(("grade_tmax", workdir, baseline_digests))
+        if _kw.get("diagnostics") is not None:
+            _kw["diagnostics"].update(exit_code=0, output_tail="verifier passed")
         return 1.0
 
     dr.boot_agent_sandbox = boot_agent_sandbox
@@ -358,6 +360,7 @@ def test_sandbox_tool_takes_the_baseline_at_up_for_grade_and_before_solve_for_or
         del events[:]
         r = server.request("oracle", solve_timeout=5)
         assert r["ok"] and r["reward"] == 1.0
+        assert r["grading"] == {"exit_code": 0, "output_tail": "verifier passed"}
         kinds = [e[0] for e in events]
         assert kinds == ["write_file", "capture_baseline", "exec", "grade_tmax"], kinds
         assert (

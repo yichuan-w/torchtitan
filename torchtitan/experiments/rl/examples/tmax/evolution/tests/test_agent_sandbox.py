@@ -151,7 +151,13 @@ def test_check_returns_nonzero_when_the_oracle_fails(
         if req["op"] == "grade":  # null probe: untouched fails, correct
             return {"ok": True, "reward": 0.0}
         if req["op"] == "oracle":  # reference solution does not pass
-            return {"ok": True, "reward": 0.0, "solve_exit": 7, "tail": "boom"}
+            return {
+                "ok": True,
+                "reward": 0.0,
+                "solve_exit": 0,
+                "tail": "reference completed",
+                "grading": {"exit_code": 1, "output_tail": "AssertionError: balance"},
+            }
         return {"ok": True}
 
     server = _FakeServer(handler)
@@ -170,9 +176,15 @@ def test_check_returns_nonzero_when_the_oracle_fails(
 
     assert rc == 1
     out = capsys.readouterr().out
-    assert "VERDICT: fail" in out and "solve_exit=7" in out
+    assert "VERDICT: fail" in out and "solve_exit=0" in out
+    assert "reference completed" in out
+    assert "AssertionError: balance" in out
     record = json.loads((pkg / "run" / "checks.jsonl").read_text().strip())
     assert record["verdict"] == "fail" and record["stage"] == "oracle"
+    assert record["grading"] == {
+        "exit_code": 1,
+        "output_tail": "AssertionError: balance",
+    }
 
 
 def test_request_without_a_server_is_an_error_not_a_hang(tmp_path) -> None:

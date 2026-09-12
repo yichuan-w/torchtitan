@@ -531,6 +531,7 @@ def cmd_check(pkg: Path, solve_timeout: int, at_max: bool = False) -> int:
             "stage": "step_size" if oracle_ok and step else "oracle",
             "reward": reward,
             "solve_exit": r.get("solve_exit"),
+            "grading": r.get("grading"),
             "null_reward": null_reward,
             "resources": box,
             "at_max": at_max,
@@ -572,6 +573,9 @@ def cmd_check(pkg: Path, solve_timeout: int, at_max: bool = False) -> int:
         tail = r.get("tail") or ""
         print("--- what the run printed (tail) ---")
         print(tail if tail.strip() else "(empty)")
+        grading = r.get("grading") or {}
+        print(f"--- verifier output (exit {grading.get('exit_code')}) ---")
+        print(grading.get("output_tail") or "(unavailable)")
         if starved and at_max:
             print(
                 f"\nOut of {starved} at the platform ceiling: the task needs more "
@@ -723,9 +727,14 @@ async def _serve(pkg: Path, sock: str, resources: dict | None = None) -> int:
                 measured = await dr.measure(
                     sb, time.time() - t0, tail=(out or "") + (err or "")
                 )
+                grading = {}
                 reward = (
                     await dr.grade_tmax(
-                        sb, tmax, workdir=workdir, baseline_digests=baseline
+                        sb,
+                        tmax,
+                        workdir=workdir,
+                        baseline_digests=baseline,
+                        diagnostics=grading,
                     )
                     if execution["submitted"]
                     else 0.0
@@ -734,6 +743,7 @@ async def _serve(pkg: Path, sock: str, resources: dict | None = None) -> int:
                     "ok": True,
                     "solve_exit": code,
                     "reward": reward,
+                    "grading": grading,
                     "execution_harness": "terminus",
                     "terminal": execution["terminal"],
                     "transcript": execution["transcript"],
