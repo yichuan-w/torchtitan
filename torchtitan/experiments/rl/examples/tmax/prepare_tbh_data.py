@@ -46,6 +46,7 @@ from torchtitan.experiments.rl.examples.tmax.prepare_rts_data import (
     _build_context,
     _DAYTONA_CPU_FLOOR,
     _DAYTONA_MEM_GB_FLOOR,
+    _inject_agent_runtime,
 )
 from torchtitan.experiments.rl.examples.tmax.prepare_tmax_data import _REWARD_PATH
 
@@ -204,7 +205,7 @@ def _to_row(task_id: str, task_dir: str, *, source: str) -> tuple[dict | None, s
         "instance_id": task_id,
         # Empty: the backend builds `dockerfile` with `build_context` instead.
         "image": "",
-        "dockerfile": dockerfile,
+        "dockerfile": _inject_agent_runtime(dockerfile),
         "build_context": build_context,
         "workdir": _DEFAULT_WORKDIR,
         "problem_statement": instruction,
@@ -264,7 +265,11 @@ def _verify_parquet(rows: list[dict], parquet_path: str) -> int:
             continue
         for got, want, what in (
             (row["prompt"], rec["instruction"], "instruction"),
-            (row["metadata"]["dockerfile"], rec["dockerfile"], "dockerfile"),
+            (
+                row["metadata"]["dockerfile"],
+                _inject_agent_runtime(rec["dockerfile"]),
+                "dockerfile",
+            ),
         ):
             if got != want:
                 print(f"MISMATCH {rec['task_id']}: {what}", file=sys.stderr)

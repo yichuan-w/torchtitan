@@ -79,7 +79,9 @@ def test_row_ships_dockerfile_and_build_context_not_an_image(tmp_path):
 
     assert skipped == {}
     assert md["image"] == ""
-    assert md["dockerfile"] == _DOCKERFILE
+    assert md["dockerfile"].startswith(_DOCKERFILE)
+    assert "# harbor-agent-runtime: tmux is required" in md["dockerfile"]
+    assert "&& tmux -V" in md["dockerfile"]
     # Every local COPY source ships, base64 so binaries survive.
     assert set(md["build_context"]) == {
         "base_install.sh",
