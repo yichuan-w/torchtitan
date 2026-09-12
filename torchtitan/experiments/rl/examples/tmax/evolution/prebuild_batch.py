@@ -159,8 +159,11 @@ def run(args):
                 )
 
         pending = set()
+        admitted = 0
         with concurrent.futures.ThreadPoolExecutor(max_workers=args.workers) as pool:
             for row in rows:
+                if args.limit is not None and admitted >= args.limit:
+                    break
                 key = images.image_key(row)
                 if key in ledger.entries:
                     images.log(
@@ -191,6 +194,7 @@ def run(args):
                         )
                         break
                 pending.add(pool.submit(worker, row, key, reserved, rate))
+                admitted += 1
             for future in pending:
                 future.result()
         counts = {
@@ -223,6 +227,7 @@ def main():
     parser.add_argument("--token-file", type=Path, required=True)
     parser.add_argument("--budget", type=float, required=True)
     parser.add_argument("--workers", type=int, default=8)
+    parser.add_argument("--limit", type=int, help="Maximum new tasks for a smoke run")
     args = parser.parse_args()
     if not 1 <= args.workers <= 8 or not 0 < args.budget <= 100:
         parser.error("workers must be 1..8 and budget must be in (0, 100]")
