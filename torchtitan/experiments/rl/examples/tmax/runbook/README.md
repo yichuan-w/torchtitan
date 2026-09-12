@@ -49,7 +49,7 @@ The preparers are alternatives for different inputs, not a chain:
 | Input | Tool | Output |
 | --- | --- | --- |
 | TerminalWorld / RTS task packages | `prepare_rts_data.py` | Rows for that corpus; quality filtering and sizing are separate. |
-| Published TMax reaudit | `prepare_tmax_reaudit_data.py` | Pinned, checked TMax rows, including integrity hooks and protected lists. |
+| Published TMax reaudit | `prepare_tmax_reaudit_data.py` | One resolved HF snapshot, checked TMax rows, integrity hooks and protected lists. |
 | Original AI2 TMax corpus | `prepare_tmax_data.py` | Original-corpus rows; this is not the reaudit input. |
 | Extracted TW + TMax reaudit packages | `evolution/build_mix_v2.py` | Combined seed mix and input manifest. It packs both corpora directly, so no preceding `prepare_rts_data.py` is needed. |
 | Terminal-Bench 2.1 | `prepare_tb2_1_data.py` | Separate evaluation JSONL. Never concatenate it into training data. |
@@ -65,15 +65,16 @@ download pinned task packages → extract/check → build_mix_v2 → apply audit
 This step assumes the model, locked training environment, credentials, and
 source packages are already provisioned. For a new machine, use the environment
 instructions in [RUNBOOK.md](RUNBOOK.md) once. The data source root must contain
-`data/sources/tw-extract/{tasks,metadata}`, `data/sources/tmax-extract/tasks`,
-`data/sources/tmax-clean/splits/{reaudit,reaudit_full}.parquet`, and
-`results/disk_full.jsonl`. Use a fresh extraction directory when the dataset
-revision changes; mixing old and new task files is invalid.
+`data/sources/tw-extract/{tasks,metadata}` and `results/disk_full.jsonl`.
+Prepare TMax separately with `--source-dir` below: each HF commit gets its own
+source directories, including both parquets and the verified task packages.
 
 Set these preparation-only paths in your run config:
 
 ```bash
 SEED_SOURCE_ROOT=/absolute/path/to/prepared-sources
+TMAX_SNAPSHOTS=/absolute/path/to/tmax-snapshots
+REAUDIT_JSONL=/absolute/path/to/new-reaudit.jsonl
 AUDITED_SIZING=/absolute/path/to/sizing.jsonl
 SEED_MIX=/absolute/path/to/new-seed.jsonl
 AGENT_BIN=/absolute/path/to/bin
@@ -94,17 +95,58 @@ export TRL_TT="$PWD" PYTHONPATH="$PWD"
 TMAX="$TRL_TT/torchtitan/experiments/rl/examples/tmax"
 PY="$TRL_VENV/bin/python"
 
-TRL_BASE="$SEED_SOURCE_ROOT" "$PY" "$TMAX/evolution/build_mix_v2.py" --out "$SEED_MIX" --apply
-"$PY" "$TMAX/evolution/apply_audit_sizing.py" --sizing "$AUDITED_SIZING" --mix "$SEED_MIX" --include-holdout --apply
+"$PY" -m torchtitan.experiments.rl.examples.tmax.prepare_tmax_reaudit_data \
+  --out "$REAUDIT_JSONL" --source-dir "$TMAX_SNAPSHOTS"
+TMAX_SOURCES=$("$PY" - "$REAUDIT_JSONL" <<'PY'
+import json, pathlib, sys
+manifest = pathlib.Path(sys.argv[1]).with_suffix(".manifest.json")
+print(pathlib.Path(json.loads(manifest.read_text())["sources"]["tmax-clean"]).parent)
+PY
+)
+TRL_BASE="$SEED_SOURCE_ROOT" "$PY" "$TMAX/evolution/build_mix_v2.py" \
+  --tmax-tasks "$TMAX_SOURCES/tmax-extract/tasks" \
+  --tmax-parquet "$TMAX_SOURCES/tmax-clean/splits/reaudit.parquet" \
+  --tmax-peaks "$TMAX_SOURCES/tmax-clean/splits/reaudit_full.parquet" \
+  --out "$SEED_MIX" --apply
+"$PY" "$TMAX/evolution/apply_audit_sizing.py" --sizing "$AUDITED_SIZING" \
+  --tmax-peaks "$TMAX_SOURCES/tmax-clean/splits/reaudit_full.parquet" \
+  --mix "$SEED_MIX" --include-holdout --apply
 "$PY" "$TMAX/new_root.py" --base "$TRL_BASE" --mix "$SEED_MIX" \
   --profile "$TRL_PROFILE" --bin "$AGENT_BIN" \
   --sources "$SEED_SOURCE_ROOT/data/sources/tw-extract" \
-            "$SEED_SOURCE_ROOT/data/sources/tmax-extract" \
-            "$SEED_SOURCE_ROOT/data/sources/tmax-clean" \
+            "$TMAX_SOURCES/tmax-extract" \
+            "$TMAX_SOURCES/tmax-clean" \
   --purpose "TerminalWorld + TMax with TB 2.1 evaluation and evolution"
 cp "$AUDITED_SIZING" "$TRL_BASE/data/mix/seed-sizing.jsonl"
 bash "$TMAX/runbook/start.sh" /absolute/path/run.env --dry-run
 ```
+
+The preparer defaults to HF `main`, resolves it once, and downloads all three
+files at that commit. Pass `--revision <commit-or-tag>` to reproduce a release.
+No source-code SHA or row/column-count update is needed for compatible data
+publishes. The output manifest records the commit and file hashes; package
+content hashes, task membership, required columns and hook pairing still have
+to agree. Local `--parquet/--tar [--peaks]` inputs are also supported, with their
+hashes recorded and no claimed Hub identity.
+
+TMax RAM and disk allocations come from that snapshot's current total peaks.
+No environment baseline is subtracted, and older agent/oracle sizing cannot
+override them. The preparer, mix builder, `derive_sizing --peer`, and final apply
+step share `resource_sizing.py`: 1.3 times the measured peak, rounded up to GiB,
+with a 1 GiB floor and 8/10 GiB caps. Censored RAM remains null in the measurement
+table and receives an explicit **6 GiB allocation policy**; disk is sized
+independently. Missing uncensored measurements use the explicit 2 GiB fallback.
+The new full table drops historical resource/baseline columns and carries separate
+`peak_ram_is_measurement` / `peak_disk_is_measurement` flags. Previous HF revisions
+remain available for existing experiments.
+
+An existing `--source-dir/<commit>` is never overwritten. To reuse one, skip
+the download/preparation command and set `TMAX_SOURCES` to that version's
+`data/sources` directory. Keep it for the lifetime of experiments that reference
+it: `new_root` resolves these source links once, and breeding copies its r0
+packages from them. A new HF publish does not refresh existing roots, mixes,
+holdouts or audited sizing files. Schema changes that remove/change required
+fields still need a consumer update.
 
 Inspect the preparation counts and manifest before starting: unresolved task
 IDs or missing measurement files must be resolved, not accepted as a smaller
@@ -135,21 +177,42 @@ evaluation too. The longer [RUNBOOK.md](RUNBOOK.md) covers tuning and debugging.
 
 ## Watch accuracy while tasks evolve
 
-The runbook starts one W&B companion named `accuracy-<training-run-id>`, in the
-training run's project. Open its single `Accuracy` panel. It updates every five
-minutes without restarting training.
+The runbook starts one W&B companion named `accuracy-<training-run-id>` in the
+training run's project. It updates every five minutes without restarting training.
+Select the trainer and companion in the project workspace to see training,
+evaluation and task evolution together.
 
-The default view compares the first and latest results on the same unchanged
-tasks. The slope and percentage-point label show the change directly. Both ends
-use the same task IDs and sample hashes; infrastructure failures and missing
-scores are excluded. The participating tasks can change between updates, so
-compare the two points within a snapshot. These are training tasks; fixed TB
-pass@5 remains the measure of generalization.
+The observer publishes three W&B Custom Charts, backed by complete snapshots.
+They are separate from the standard history line plots used for training metrics.
+Use full-width panels to keep titles and event rows readable. Event details
+appear on hover instead of overlapping text labels.
 
-To inspect one task and its rewrites, enter its task ID in the same panel and click Show.
-Each point names its task revision. A change across revisions also reflects a
-changed problem. The policy label is the version at group start, not an exact
-single-policy evaluation. Click All unchanged tasks to return to the overview.
+- **Unchanged task accuracy** compares epochs using the intersection of tasks
+  with scored results in every observed epoch, the same original content hash,
+  and no fold by snapshot time. Every point uses the same cohort. Later folds or
+  new epochs can change the intersection, so each snapshot recomputes the whole
+  curve. Hover for task count, valid attempts and the range of generator versions
+  at group claim. The latest epoch can still be incomplete. This observes unchanged
+  training tasks; fixed TB pass@5 remains the independent evaluation.
+- **Rewrite accuracy** plots the last scored old-version observation completed
+  before publication against the first scored new-version observation. Points
+  below the diagonal have lower observed accuracy after rewriting. Hover for task,
+  revisions, attempt counts and the two model versions. Model updates between
+  observations confound the effect of rewriting. A missing new observation
+  produces no point, not zero accuracy.
+- **Task timeline** selects a task through **Edit panel → Chart fields → task**:
+  enter the ID in the first text field, leave the data-column dropdown unchanged,
+  then click **Apply**. W&B hides Vega's inline input. The chart shows rewrite
+  start/end, fold publication, task admission and actual training updates, with
+  global epoch boundaries. Hover for revision, epoch, Step and trace-access
+  evidence. Admission with the new content revision proves that the new version
+  was taken; publication alone does not.
+
+Trace evidence distinguishes returned rollout-body content, a read command without
+confirmed body output, no matching evidence, and missing session records. It covers
+recorded Codex agent sessions. Reading traces does not establish that they caused
+a particular edit; the source tool calls and outputs remain in the observer's
+local `trace-evidence/` cache for inspection.
 
 The observer is enabled by `RL_OBSERVE_REWARDS=1` in the shared defaults. Set it
 to 0 in the run config to disable it. Logs, input caches, snapshots, and the W&B
@@ -168,3 +231,7 @@ directory you own:
 Keep that output directory when restarting to reuse the cached inputs. Omit
 `--upload --watch` for one local snapshot. Stop only the observer with
 `systemctl --user stop observe-<run-directory-name>`.
+
+Before uploading, smoke-test one real task with a separate output directory and
+`--task <task-id>` (without `--upload --watch`). This writes its timeline and
+comparison to the snapshot JSON and cannot replace the full W&B view.

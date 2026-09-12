@@ -50,5 +50,8 @@ export TRL_PROFILE TRL_BASE TRL_VENV TRL_TT=$TT PYTHONPATH=$TT
 # The easier arm stays off: 0/k signals get a `deferred` ledger line and are
 # replayed when it is turned on.
 export SWE_RETUNE_AGENT=codex SWE_SIMPLIFY_HINT=vague SWE_EVOLVE_SIMPLIFY=0
+# Default hardening follows student traces without an operator menu or declaration.
+# Set to 1 before launch to restore the fixed shortlist.
+export EVOLVE_HARDER_OPERATORS=${EVOLVE_HARDER_OPERATORS:-0}
 export TT_DAYTONA_CPU TT_DAYTONA_MEM_GB TT_DAYTONA_DISK_GB
 mkdir -p "$TRL_BASE/evolution"

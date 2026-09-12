@@ -55,6 +55,9 @@ class AgentTask:
     max_turns: int | None = None
     """Turn cap; None keeps the harness default."""
 
+    max_context_tokens: int = 0
+    """Adapter context cap; zero means no configured cap."""
+
     exec_timeout: int | None = None
     """Per-command timeout; None keeps the harness default."""
 
@@ -98,6 +101,9 @@ class AgentRun:
     when it keeps none. Reported rather than fetched: only the rollouter knows
     whether this run collects transcripts and where they go, and the sandbox is
     still up when the harness returns, so it can read the file then."""
+
+    terminal_events: list[dict] = field(default_factory=list)
+    """Terminal recovery and shell exit observations, without inferred blame."""
 
 
 AgentFn = Callable[[AgentTask], Awaitable[AgentRun]]

@@ -1,4 +1,10 @@
 #!/usr/bin/env python3
+# Copyright (c) Meta Platforms, Inc. and affiliates.
+# All rights reserved.
+#
+# This source code is licensed under the BSD-style license found in the
+# LICENSE file in the root directory of this source tree.
+
 """How much a task asks, in two numbers, and how far a rewrite may raise them.
 
 The size of the reference solution (non-empty, non-comment lines of
@@ -26,9 +32,11 @@ outside the table, and 85% of the ones training sampled again came back
 0/16. Seed verifiers have a median of 6 assertions in 3 test functions, so
 one requirement is two or three assertions.
 
-So a rewrite is one rung up: at least MIN_ADDED lines more than the seed
-(it did get harder), at most MAX_ADDED more (one requirement), and at most
-MAX_ADDED_ASSERTS more assertions. The band is relative to the seed, with no
+Legacy operator rewrites require at least MIN_ADDED lines more than the seed.
+Student-guided rewrites may keep or reduce the solution length: a changed
+decision can require the same amount of code. Both modes allow at most
+MAX_ADDED more lines and MAX_ADDED_ASSERTS more assertions. These are size
+bounds, not evidence that a rewrite is harder. The band is relative to the seed, with no
 absolute ceiling: the seed at its size scored 16/16, which is the proof the
 policy handles that size, and one rung above it is what is asked. (An
 absolute ceiling of 20 was tried first; with a 17-line seed it left one
@@ -48,7 +56,9 @@ MAX_ADDED_ASSERTS = 5
 
 
 def solution_lines(src: str) -> int:
-    return sum(1 for l in src.splitlines() if l.strip() and not l.strip().startswith("#"))
+    return sum(
+        1 for l in src.splitlines() if l.strip() and not l.strip().startswith("#")
+    )
 
 
 def verifier_asserts(src: str, kind: str = "python") -> int:
@@ -58,18 +68,24 @@ def verifier_asserts(src: str, kind: str = "python") -> int:
         except SyntaxError:
             tree = None
         if tree is not None:
-            return sum(1 for n in ast.walk(tree) if isinstance(n, (ast.Assert, ast.Raise)))
+            return sum(
+                1 for n in ast.walk(tree) if isinstance(n, (ast.Assert, ast.Raise))
+            )
     return len(re.findall(r"^\s*(assert|raise|exit 1|return 1)\b", src, re.M))
 
 
 def size_of(solve_sh: str, verifier: str, kind: str = "python") -> dict:
-    return {"solution_lines": solution_lines(solve_sh),
-            "verifier_asserts": verifier_asserts(verifier, kind)}
+    return {
+        "solution_lines": solution_lines(solve_sh),
+        "verifier_asserts": verifier_asserts(verifier, kind),
+    }
 
 
 def size_of_package(pkg: Path, verifier_rel: str) -> dict:
     kind = "python" if verifier_rel.endswith(".py") else "shell"
-    return size_of(_read(pkg / "solution" / "solve.sh"), _read(pkg / verifier_rel), kind)
+    return size_of(
+        _read(pkg / "solution" / "solve.sh"), _read(pkg / verifier_rel), kind
+    )
 
 
 def _read(p: Path) -> str:
@@ -79,26 +95,35 @@ def _read(p: Path) -> str:
         return ""
 
 
-def violations(seed: dict, new: dict) -> list[str]:
+def violations(seed: dict, new: dict, *, require_growth: bool = True) -> list[str]:
     """Why `new` is not one rung above `seed`, in the words the agent reads;
     empty when it is."""
     out = []
     s, n = seed["solution_lines"], new["solution_lines"]
-    if n < s + MIN_ADDED:
-        out.append(f"the reference solution has {n} lines against the seed's {s}; a harder task "
-                   f"needs at least {MIN_ADDED} more, or the policy has nothing new to do")
+    if require_growth and n < s + MIN_ADDED:
+        out.append(
+            f"the reference solution has {n} lines against the seed's {s}; a harder task "
+            f"in operator mode requires at least {MIN_ADDED} more"
+        )
     if n > s + MAX_ADDED:
-        out.append(f"the reference solution has {n} lines against the seed's {s}; one rung is at "
-                   f"most {MAX_ADDED} more (in this corpus the 0/16 share doubles once a task "
-                   f"outgrows the 14-20 line band, and rewrites that grew to 125 lines scored "
-                   f"0/16 five times in six)")
+        out.append(
+            f"the reference solution has {n} lines against the seed's {s}; one rung is at "
+            f"most {MAX_ADDED} more (in this corpus the 0/16 share doubles once a task "
+            f"outgrows the 14-20 line band, and rewrites that grew to 125 lines scored "
+            f"0/16 five times in six)"
+        )
     sa, na = seed["verifier_asserts"], new["verifier_asserts"]
     if na > sa + MAX_ADDED_ASSERTS:
-        out.append(f"the verifier has {na} assertions against the seed's {sa}; one requirement is "
-                   f"two or three, so at most {MAX_ADDED_ASSERTS} more")
+        out.append(
+            f"the verifier has {na} assertions against the seed's {sa}; one requirement is "
+            f"two or three, so at most {MAX_ADDED_ASSERTS} more"
+        )
     return out
 
 
 def why(vs: list[str]) -> str:
-    return ("The rewrite is more than one rung above the seed: " + "; ".join(vs)
-            + ". Keep the seed's deliverable and add one requirement; take the rest back out.")
+    return (
+        "The rewrite violates the configured size bounds: "
+        + "; ".join(vs)
+        + ". Revise the solution and verifier to satisfy these bounds while preserving the task's goal."
+    )

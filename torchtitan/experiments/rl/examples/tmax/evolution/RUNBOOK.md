@@ -217,6 +217,13 @@ path arguments. It reads `runs/*/signals/` and the rollout records they referenc
 its own state under `evolution/` (`loop.log`, `loop.lock`, `loop.env`, `ledger.jsonl`,
 `status.json`, `tasks/`) and publishes new mix versions under `data/mix/`.
 
+Repeated signals reuse the last completed rewrite decision when task ID, revision,
+direction, solved count, and total count match. Run IDs, timestamps, and rollout
+paths do not make feedback new. The ledger records reused signals with the original
+rewrite reference; training continues normally. Changed feedback starts a new
+attempt. Failed or interrupted executions remain retryable, and explicit `--signal`
+replay bypasses reuse.
+
 One script starts it and restarts it:
 
 ```bash
@@ -244,6 +251,13 @@ signals are ledgered as `deferred` and replay when it is switched on). The codex
 `$TRL_BASE/bin/codex`, with `jq` beside it on the agent's PATH for reading the records.
 The worker count is not a throughput knob: the loop is signal-starved (89% of rounds carry
 ≤8 signals) and it only drains rare bursts faster.
+
+For a ChatGPT login, set `EVOLVE_CODEX_AUTH_FILE` to the project's private Codex
+`auth.json` and set `SYNTH_MODEL` to a model available to that account. The Codex
+arm uses the built-in OpenAI provider and ignores an inherited API key. Each
+session copies the login into its private home, then removes that copy during
+cleanup. The source login is unchanged. Keep credentials outside the versioned
+experiment artifacts; provision them separately from code and recorded inputs.
 
 After changing a prompt or a script, pull the checkout and run the same command: job
 prompts are module constants and need the restart; `AGENTS.md` is copied from disk at

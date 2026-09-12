@@ -25,6 +25,8 @@ from __future__ import annotations
 
 import math
 
+import pytest
+
 from torchtitan.experiments.rl.components.training_sample_builder import (
     TrainingSampleBuilder,
 )
@@ -195,6 +197,24 @@ def test_a_group_with_no_failures_packs_everything():
     assert (
         _metric(result, "training_sample_builder/num_unscored_rollouts_dropped") is None
     )
+
+
+@pytest.mark.parametrize("drop_empty", [False, True])
+@pytest.mark.parametrize("failed_reward", [0.0, math.nan])
+def test_empty_sibling_group_drop_depends_on_scoring_and_config(
+    drop_empty, failed_reward
+):
+    group = _group([1.0, 0.0, failed_reward])
+    group.rollouts[-1].turns = []
+    for rollout, advantage in zip(group.rollouts, _estimator()(group), strict=True):
+        rollout.advantage = advantage
+    builder = TrainingSampleBuilder.Config(
+        drop_zero_std_reward_groups=True,
+        drop_groups_with_untrainable_rollouts=drop_empty,
+    ).build()
+    result = builder.build_from_group(rollout_group=group)
+    expected = 0 if drop_empty and not math.isnan(failed_reward) else 2
+    assert len(result.training_samples) == expected
 
 
 def test_rollout_reward_metrics_skip_unscored_rollouts():

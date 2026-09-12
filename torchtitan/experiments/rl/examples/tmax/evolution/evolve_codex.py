@@ -1,4 +1,10 @@
 #!/usr/bin/env python3
+# Copyright (c) Meta Platforms, Inc. and affiliates.
+# All rights reserved.
+#
+# This source code is licensed under the BSD-style license found in the
+# LICENSE file in the root directory of this source tree.
+
 """Agentic retune: change a task with the Codex CLI instead of one chat call.
 
 The chat retune (evolve.simplify) crams the failure traces into a single prompt
@@ -29,19 +35,24 @@ endpoint synth_client uses, and the key injected via env.
 from __future__ import annotations
 
 import contextlib
+import hashlib
 import json
 import os
 import shutil
 import subprocess
+import tempfile
 import time
 from dataclasses import dataclass, field
 from pathlib import Path
 
 import evolve as ev
+import simplify_operators as so
 import synth_client as llm
 import task_size as ts
 import verifier_literals as vl
+from synth_operators import harder_uses_operators
 from torchtitan.experiments.rl.examples.tmax import layout
+from verifier_probes import SemanticProbeMisses, verify_probes
 
 
 class Filtered(RuntimeError):
@@ -62,7 +73,7 @@ CYBER_FLAG = "flagged for possible cybersecurity risk"
 CYBER_RETRIES = int(os.environ.get("CODEX_CYBER_RETRIES", "2"))
 
 
-class Blocked(Exception):
+class Blocked(Exception):  # noqa: N818 -- existing exception name used by callers
     """The agent declined the job rather than forcing a pass.
 
     Distinct from a crash: nothing went wrong, the task simply stays as it is.
@@ -87,7 +98,8 @@ MAX_TOOL_CALLS = int(os.environ.get("CODEX_RETUNE_MAX_CALLS", "25"))
 # virtualenv (TRL_SDK_PY) rather than the training one.
 CODEX_DRIVER = os.environ.get("EVOLVE_CODEX_DRIVER", "exec")
 SDK_PY = os.environ.get(
-    "TRL_SDK_PY", "/scratch/gpfs/TRIDAO/al9080/terminal-rl/sdkvenv/bin/python")
+    "TRL_SDK_PY", "/scratch/gpfs/TRIDAO/al9080/terminal-rl/sdkvenv/bin/python"
+)
 SESSION_DRIVER = Path(__file__).resolve().parent / "codex_session.py"
 TIMEOUT_SEC = int(os.environ.get("CODEX_RETUNE_TIMEOUT", "600"))
 # What the harness puts into the package and takes out again before a revision
@@ -114,6 +126,7 @@ def _require_codex() -> None:
 # --------------------------------------------------------------------------
 # One codex invocation, one session directory
 # --------------------------------------------------------------------------
+
 
 @dataclass
 class SessionRun:
@@ -183,8 +196,13 @@ def cyber_filtered(session: layout.SessionDir) -> bool:
 
 
 @contextlib.contextmanager
-def session(rewrite: layout.RewriteDir, kind: str, *, timeout: int,
-            resumes: layout.SessionDir | None = None):
+def session(
+    rewrite: layout.RewriteDir,
+    kind: str,
+    *,
+    timeout: int,
+    resumes: layout.SessionDir | None = None,
+):
     """One codex invocation: create its directory, record it at start and end.
 
     ``kind`` is agent, repair, verifier or oracle (LAYOUT.md). ``session.json``
@@ -205,10 +223,20 @@ def session(rewrite: layout.RewriteDir, kind: str, *, timeout: int,
     sd.path.chmod(0o700)
     sd.codex_home.mkdir(mode=0o700)
     meta = {
-        "kind": kind, "model": CODEX_MODEL, "reasoning_effort": CODEX_EFFORT,
-        "driver": CODEX_DRIVER, "started": layout.stamp(), "finished": None,
-        "status": "running", "exit_code": None, "error": None,
-        "timeout_sec": timeout, "filtered": False,
+        "kind": kind,
+        "model": CODEX_MODEL,
+        "reasoning_effort": CODEX_EFFORT,
+        "driver": CODEX_DRIVER,
+        "authentication": "chatgpt"
+        if os.environ.get("EVOLVE_CODEX_AUTH_FILE")
+        else "api_key",
+        "started": layout.stamp(),
+        "finished": None,
+        "status": "running",
+        "exit_code": None,
+        "error": None,
+        "timeout_sec": timeout,
+        "filtered": False,
     }
     if resumes is not None:
         meta["resumed"] = f"sessions/{resumes.path.name}"
@@ -242,6 +270,7 @@ def session(rewrite: layout.RewriteDir, kind: str, *, timeout: int,
 # Running the CLI
 # --------------------------------------------------------------------------
 
+
 def _harness_env() -> dict:
     """What ./sandbox needs from the environment, codex or not."""
     env = dict(os.environ)
@@ -259,12 +288,25 @@ def _harness_env() -> dict:
 def _codex_env(sd: layout.SessionDir) -> dict:
     env = _harness_env()
     env["CODEX_HOME"] = str(sd.codex_home)
-    env["OPENAI_API_KEY"] = llm._api_key()
+    if auth_file := os.environ.get("EVOLVE_CODEX_AUTH_FILE"):
+        auth = json.loads(Path(auth_file).read_text())
+        if auth.get("auth_mode") != "chatgpt" or not auth.get("tokens", {}).get(
+            "access_token"
+        ):
+            raise ValueError("EVOLVE_CODEX_AUTH_FILE must contain a ChatGPT login")
+        target = sd.codex_home / "auth.json"
+        target.write_text(json.dumps(auth))
+        target.chmod(0o600)
+        env.pop("OPENAI_API_KEY", None)
+    else:
+        env["OPENAI_API_KEY"] = llm._api_key()
     return env
 
 
 def _provider_overrides() -> list[str]:
     """The provider settings both drivers pass; the SDK takes them as a list."""
+    if os.environ.get("EVOLVE_CODEX_AUTH_FILE"):
+        return ["model_provider=openai"]
     return [
         "model_providers.oai.name=openai",
         f"model_providers.oai.base_url={API_BASE}",
@@ -274,12 +316,24 @@ def _provider_overrides() -> list[str]:
 
 
 def _session_cmd(run: SessionRun, cwd: Path, *, resume: str | None) -> list[str]:
-    cmd = [SDK_PY, str(SESSION_DRIVER), "--pkg", str(cwd),
-           "--codex-home", str(run.dir.codex_home),
-           "--events", str(run.dir.path / "events.jsonl"),
-           "--prompt-file", str(run.dir.prompt),
-           "--timeout", str(run.meta["timeout_sec"]),
-           "--model", CODEX_MODEL, "--effort", str(CODEX_EFFORT)]
+    cmd = [
+        SDK_PY,
+        str(SESSION_DRIVER),
+        "--pkg",
+        str(cwd),
+        "--codex-home",
+        str(run.dir.codex_home),
+        "--events",
+        str(run.dir.path / "events.jsonl"),
+        "--prompt-file",
+        str(run.dir.prompt),
+        "--timeout",
+        str(run.meta["timeout_sec"]),
+        "--model",
+        CODEX_MODEL,
+        "--effort",
+        str(CODEX_EFFORT),
+    ]
     if resume:
         cmd += ["--resume", resume]
     return cmd
@@ -290,13 +344,13 @@ def _codex_cmd(cwd: Path, resume: str | None = None) -> list[str]:
     if resume:
         cmd += ["resume", resume]
     cmd += [
-        "--dangerously-bypass-approvals-and-sandbox", "--skip-git-repo-check",
-        "-c", "model_providers.oai.name=openai",
-        "-c", f"model_providers.oai.base_url={API_BASE}",
-        "-c", "model_providers.oai.env_key=OPENAI_API_KEY",
-        "-c", "model_provider=oai",
-        "-c", f"model_reasoning_effort={CODEX_EFFORT}",
+        "--dangerously-bypass-approvals-and-sandbox",
+        "--skip-git-repo-check",
+        "-c",
+        f"model_reasoning_effort={CODEX_EFFORT}",
     ]
+    for override in _provider_overrides():
+        cmd += ["-c", override]
     # `exec resume` takes no -C (codex-cli 0.149: it continues in the
     # session's recorded cwd); the subprocess is started in the package
     # either way.
@@ -313,8 +367,9 @@ def _read_stream(path: Path) -> str:
         return ""
 
 
-def _run_codex(run: SessionRun, cwd: Path, prompt: str, *,
-               resume: str | None = None) -> subprocess.CompletedProcess:
+def _run_codex(
+    run: SessionRun, cwd: Path, prompt: str, *, resume: str | None = None
+) -> subprocess.CompletedProcess:
     """Run codex over ``cwd`` with the session's private CODEX_HOME.
 
     A stray ChatGPT token in the shared home otherwise wins and 401s, which is
@@ -341,8 +396,13 @@ def _run_codex(run: SessionRun, cwd: Path, prompt: str, *,
     try:
         with sd.stdout.open("w") as out_f, sd.stderr.open("w") as err_f:
             proc = subprocess.Popen(
-                cmd, stdin=subprocess.PIPE, stdout=out_f, stderr=err_f,
-                text=True, cwd=str(cwd), env=env,
+                cmd,
+                stdin=subprocess.PIPE,
+                stdout=out_f,
+                stderr=err_f,
+                text=True,
+                cwd=str(cwd),
+                env=env,
             )
             try:
                 proc.communicate(input=prompt, timeout=timeout)
@@ -354,11 +414,13 @@ def _run_codex(run: SessionRun, cwd: Path, prompt: str, *,
         run.meta["exit_code"] = proc.returncode
         # The partial streams are on disk; hand them to the caller too, which
         # is where the old in-memory capture put them.
-        raise subprocess.TimeoutExpired(cmd, timeout, output=_read_stream(sd.stdout),
-                                        stderr=_read_stream(sd.stderr)) from exc
+        raise subprocess.TimeoutExpired(
+            cmd, timeout, output=_read_stream(sd.stdout), stderr=_read_stream(sd.stderr)
+        ) from exc
     run.meta["exit_code"] = proc.returncode
-    return subprocess.CompletedProcess(cmd, proc.returncode,
-                                       _read_stream(sd.stdout), _read_stream(sd.stderr))
+    return subprocess.CompletedProcess(
+        cmd, proc.returncode, _read_stream(sd.stdout), _read_stream(sd.stderr)
+    )
 
 
 def _session_id(sd: layout.SessionDir) -> str:
@@ -386,7 +448,10 @@ def _session_id(sd: layout.SessionDir) -> str:
 # The package as the agent sees it
 # --------------------------------------------------------------------------
 
-def _write_seed_literals(pkg: Path, verifier_rel: str) -> None:
+
+def _write_seed_literals(
+    pkg: Path, verifier_rel: str, *, require_growth: bool = True
+) -> None:
     """What the seed's verifier already depends on unseen, for `./sandbox
     check`'s names audit to subtract: the agent answers for the names its
     rewrite added, not for the seed's. Written once, before the session,
@@ -397,8 +462,10 @@ def _write_seed_literals(pkg: Path, verifier_rel: str) -> None:
     path.parent.mkdir(exist_ok=True)
     path.write_text(json.dumps(vl.audit_package(pkg, verifier_rel)) + "\n")
     # And the seed's size, for the one-rung check the same tool runs.
-    (pkg / "run" / "seed_size.json").write_text(
-        json.dumps(ts.size_of_package(pkg, verifier_rel)) + "\n")
+    size = ts.size_of_package(pkg, verifier_rel)
+    if not require_growth:
+        size["require_growth"] = False
+    (pkg / "run" / "seed_size.json").write_text(json.dumps(size) + "\n")
 
 
 def _write_resources(pkg: Path, task: dict) -> None:
@@ -433,9 +500,12 @@ def _write_pretest(pkg: Path, task: dict) -> None:
     lists = task.get("_protected") or {}
     if not (hook and hook[0]) and not lists:
         return
-    layout.write_pretest(pkg / "run" / "pretest.json", *(hook or ("", "")),
-                         protected_paths=lists.get("protected_paths"),
-                         protected_cmds=lists.get("protected_cmds"))
+    layout.write_pretest(
+        pkg / "run" / "pretest.json",
+        *(hook or ("", "")),
+        protected_paths=lists.get("protected_paths"),
+        protected_cmds=lists.get("protected_cmds"),
+    )
 
 
 def _prepare_package(pkg: Path, task: dict) -> dict:
@@ -447,7 +517,9 @@ def _prepare_package(pkg: Path, task: dict) -> dict:
     pkg.chmod(0o700)
     (pkg / "run").mkdir(exist_ok=True)
     fmap = ev.file_map(task)
-    _write_seed_literals(pkg, fmap["test_state_py"])
+    _write_seed_literals(
+        pkg, fmap["test_state_py"], require_growth=task.get("_harder_mode") != "student"
+    )
     _write_resources(pkg, task)
     _write_pretest(pkg, task)
     shutil.copy2(SPEC, pkg / "AGENTS.md")
@@ -487,8 +559,11 @@ def support_changes(pkg: Path, seed_dir: Path | None) -> list[str]:
     for rel in sorted(set(now) | set(before)):
         if rel in mapped:
             continue
-        if rel not in now or rel not in before or \
-                now[rel].read_bytes() != before[rel].read_bytes():
+        if (
+            rel not in now
+            or rel not in before
+            or now[rel].read_bytes() != before[rel].read_bytes()
+        ):
             changed.append(rel)
     return changed
 
@@ -522,8 +597,10 @@ def _require_checked(pkg: Path) -> None:
     folded sessions had the record anyway, so this bites rarely and keeps the
     promise true."""
     if not _agent_checked(pkg):
-        raise RuntimeError("agent finished without a passing ./sandbox check "
-                           "(run/checks.jsonl); the rewrite is discarded")
+        raise RuntimeError(
+            "agent finished without a passing ./sandbox check "
+            "(run/checks.jsonl); the rewrite is discarded"
+        )
 
 
 def _check_verdict(pkg: Path) -> None:
@@ -588,8 +665,14 @@ def _sandbox_down(pkg: Path) -> None:
     except ValueError:
         pass
     try:
-        subprocess.run([str(pkg / "sandbox"), "down"], cwd=pkg, env=_harness_env(),
-                       capture_output=True, text=True, timeout=300)
+        subprocess.run(
+            [str(pkg / "sandbox"), "down"],
+            cwd=pkg,
+            env=_harness_env(),
+            capture_output=True,
+            text=True,
+            timeout=300,
+        )
     except Exception:  # noqa: BLE001 -- cleanup must not turn a verdict into a crash
         pass
 
@@ -601,8 +684,14 @@ def _harness_check(pkg: Path, name: str = "check") -> str:
     same one _require_checked reads, and the text is kept as run/<name>.txt
     for whoever reads a rejected rewrite."""
     try:
-        p = subprocess.run([str(pkg / "sandbox"), "check"], cwd=pkg, env=_harness_env(),
-                           capture_output=True, text=True, timeout=AGENT_TIMEOUT)
+        p = subprocess.run(
+            [str(pkg / "sandbox"), "check"],
+            cwd=pkg,
+            env=_harness_env(),
+            capture_output=True,
+            text=True,
+            timeout=AGENT_TIMEOUT,
+        )
         text = (p.stdout or "") + (("\n" + p.stderr) if p.stderr else "")
     except subprocess.TimeoutExpired as exc:
         text = f"./sandbox check timed out after {AGENT_TIMEOUT}s\n{exc.stdout or ''}"
@@ -616,40 +705,6 @@ def _harness_check(pkg: Path, name: str = "check") -> str:
 # --------------------------------------------------------------------------
 # Prompts
 # --------------------------------------------------------------------------
-
-_AGENTS_MD = """# Your job: make ONE terminal task easier, by rewriting its instruction only
-
-You are re-tuning a training task an agent kept failing. Files in this directory:
-
-- `instruction.md` — the task as given to the agent. THIS is the only file you edit.
-- `environment/Dockerfile` — how the task's container is built (context, read-only).
-- `{verifier}` — the private verifier that grades a solution (context, read-only).
-- `solution/solve.sh` — a reference solution, if present (context, read-only).
-- `traces/attempt-NN.jsonl` — the FULL failed attempts, one file each: every turn's
-  commands and the terminal output that followed (format under TRACES in the prompt).
-
-The agent solved this {solved} of {attempts} attempts — too hard. Rewrite
-`instruction.md` so a capable agent lands it about half the time.
-
-## How to make it easier ({level})
-{level_rule}
-
-## Hard rule — never leak the verifier
-Never name the verifier in the instruction: no test file paths (tests/...), no
-test or function names, no `pytest` / `test.sh` command to run. Point at the
-BEHAVIOUR to fix or where in the source to look — naming the check that grades it
-hands over the answer, and the task is then rejected. The verifier is given to you
-only so you know what NOT to reveal; never weaken or reference it.
-
-## Work efficiently
-Read the traces to find where the agent actually got stuck, then make the smallest
-edit that clears that one failure. At most {max_calls} tool calls. When done, the
-rewritten `instruction.md` is your entire output — do not print it, just save it.
-"""
-
-_PROMPT = ("Read AGENTS.md and the files it points to, then rewrite instruction.md "
-           "in place to make this task easier as instructed. Save it and stop.")
-
 
 _ORACLE_AGENTS_MD = """# Your job: make the reference solution pass the verifier
 
@@ -690,9 +745,11 @@ If the failure is environmental rather than logical — a missing tool, no netwo
 At most {max_calls} tool calls. Save your edits in place; do not print the files.
 """
 
-_ORACLE_PROMPT = ("Read AGENTS.md, then read run/failure.txt and fix the task so "
-                  "the reference solution passes the verifier. Save your edits "
-                  "in place and stop.")
+_ORACLE_PROMPT = (
+    "Read AGENTS.md, then read run/failure.txt and fix the task so "
+    "the reference solution passes the verifier. Save your edits "
+    "in place and stop."
+)
 
 
 _TRACES_SPEC = r"""
@@ -723,35 +780,28 @@ def _traces_spec(traces: Path) -> str:
 # Instruction-only easier rewrite, and the fresh-session oracle repair
 # --------------------------------------------------------------------------
 
-def simplify_codex(rewrite: layout.RewriteDir, task: dict, solved: int = 0,
-                   attempts: int = 16, hint: str = "vague") -> dict:
-    """Codex-driven counterpart of evolve.simplify: the instruction rewritten in
-    place, with the failed attempts on disk under ``traces/``. Returns a new
-    task dict with `instruction` rewritten and `_hint="codex"`. Raises on
-    hard failure."""
-    _require_codex()
-    pkg = rewrite.package
-    fmap = ev.file_map(task)
-    level = "specific" if any(rewrite.traces.glob("attempt-*.jsonl")) else "vague"
-    if hint == "none":
-        level = "none"
-    (pkg / "AGENTS.md").write_text(_AGENTS_MD.format(
-        verifier=ev._verifier_rel(task), solved=solved, attempts=attempts,
-        level=level, level_rule=ev.HINT_LEVELS[level], max_calls=MAX_TOOL_CALLS))
-    with session(rewrite, "agent", timeout=TIMEOUT_SEC) as run:
-        p = _run_codex(run, pkg, _PROMPT + _traces_spec(rewrite.traces))
-    new_instruction = (pkg / fmap["instruction"]).read_text()
-    if not new_instruction.strip():
-        raise RuntimeError("codex emptied the instruction")
-    if new_instruction == task["instruction"]:
-        raise RuntimeError(f"codex left the instruction unchanged "
-                           f"(exit {p.returncode}): {p.stdout[-200:]}")
-    return {**task, "instruction": new_instruction, "_hint": "codex",
-            "_session": str(run.dir.path)}
+
+def simplify_codex(
+    rewrite: layout.RewriteDir,
+    task: dict,
+    solved: int = 0,
+    attempts: int = 16,
+    hint: str = "vague",
+) -> dict:
+    """Choose one trace-supported operator and validate the resulting package."""
+    so.prompt(hint)
+    if not any(rewrite.traces.glob("attempt-*.jsonl")):
+        raise Blocked("simplify requires attempt traces")
+    return evolve_agentic(
+        rewrite,
+        {**task, "_solved": solved, "_attempts": attempts, "_simplify_hint": hint},
+        "easier",
+    )
 
 
-def repair_oracle_codex(rewrite: layout.RewriteDir, task: dict, observed: str,
-                        exit_code: int = 1) -> dict:
+def repair_oracle_codex(
+    rewrite: layout.RewriteDir, task: dict, observed: str, exit_code: int = 1
+) -> dict:
     """Fresh-session repair of a task whose reference solution failed the run.
 
     The chat repair reads the two files and guesses which side is wrong. Here the
@@ -767,16 +817,21 @@ def repair_oracle_codex(rewrite: layout.RewriteDir, task: dict, observed: str,
     (pkg / "run").mkdir(exist_ok=True)
     (pkg / "run" / "failure.txt").write_text(observed or "(no output captured)")
     (pkg / "run" / "verdict.txt").unlink(missing_ok=True)
-    (pkg / "AGENTS.md").write_text(_ORACLE_AGENTS_MD.format(
-        verifier=ev._verifier_rel(task), exit_code=exit_code,
-        max_calls=MAX_TOOL_CALLS))
+    (pkg / "AGENTS.md").write_text(
+        _ORACLE_AGENTS_MD.format(
+            verifier=ev._verifier_rel(task),
+            exit_code=exit_code,
+            max_calls=MAX_TOOL_CALLS,
+        )
+    )
     with session(rewrite, "oracle", timeout=TIMEOUT_SEC) as run:
         p = _run_codex(run, pkg, _ORACLE_PROMPT)
     _check_verdict(pkg)
     out = {**task, **{key: (pkg / rel).read_text() for key, rel in fmap.items()}}
     if all(out[key] == task[key] for key in fmap):
-        raise RuntimeError(f"codex changed nothing (exit {p.returncode}): "
-                           f"{p.stdout[-200:]}")
+        raise RuntimeError(
+            f"codex changed nothing (exit {p.returncode}): " f"{p.stdout[-200:]}"
+        )
     out["_repaired"] = "codex_oracle_observed"
     out["_session"] = str(run.dir.path)
     return out
@@ -804,34 +859,28 @@ SANDBOX = Path(__file__).resolve().parent / "agent_sandbox.sh"
 # which is what the split was for. "same" remains for comparison.
 VERIFIER_AUTHOR = os.environ.get("SWE_VERIFIER_AUTHOR", "blind")
 VERIFIER_SPEC = Path(__file__).resolve().parent / "agents" / "verifier_author.md"
-# What the verifier's author must not see. Everything else in the package is
-# what an agent attempting the task could read.
-HIDDEN_FROM_VERIFIER = ("solution", "traces", "AGENTS.md", "sandbox",
-                        "run/checks.jsonl", "run/verdict.txt", "run/failure.txt",
-                        "run/sandbox.json", "run/sandbox.log")
+# Hide author-only files; run metadata is filtered separately in _blind_layout.
+HIDDEN_FROM_VERIFIER = (
+    "solution",
+    "traces",
+    "AGENTS.md",
+    "sandbox",
+)
 AGENT_TIMEOUT = int(os.environ.get("EVOLVE_AGENT_TIMEOUT", "2400"))
 
-_HARDER_JOB = """This task was solved {solved} of {attempts} attempts, so it is too
-easy to teach anything. Make it one rung harder, along exactly one of these
+_OPERATOR_HARDER_GUIDANCE = """Make it one rung harder, along exactly one of these
 axes:
 
 {candidates}
 
 One rung, not a new task. Keep everything the seed asks for and add ONE
 requirement that the agent which solved it never had to meet. The attempts
-that solved it are in `traces/`, one file per attempt (format under TRACES at
-the end). What made the task easy is visible there: the guidance the
+are in `traces/`, one file per attempt (format under TRACES at
+the end). Some may have failed; inspect those failures too. What made the
+successful attempts easy is visible there: the guidance the
 instruction handed over, the step the agent never had to work out. Before you
 choose the axis, list the commands of two or three attempts end to end; the
 attempt that solved it in the fewest turns says which step was free.
-
-The size of the rewrite is checked, not trusted. The reference solution may
-grow by {min_added} to {max_added} non-comment lines over the seed's
-{seed_lines}; the verifier may gain at most {max_asserts} assertions over the
-seed's {seed_asserts}. `./sandbox check` fails outside that and the caller
-rejects the rewrite. Measured on this corpus: rewrites that grew to 125 lines
-came back 0/16 five times in six, while the seed at its own size was solved
-every time. A harder task is one more thing to get right, not a new workflow.
 
 Pick from that list and nothing else. The list is not a menu of equals — it is
 ordered, and the order was computed against the whole task pool: which
@@ -841,19 +890,102 @@ supports, so that substituting whichever is easiest to write cannot quietly
 collapse the pool onto a few kinds of change. Then write that axis's id, alone
 on one line, to `run/operator.txt`, before you start changing anything.
 
+If none of the listed axes fits this task, write
+`GIVE UP: operator-misfit — <why>` and stop. Say which ones you considered
+and what was missing for each.
+"""
+
+
+_STUDENT_HARDER_GUIDANCE = """Choose one change from the student's actual attempts
+in `traces/`. Start by identifying the successful strategy and a task-relevant
+judgment it currently bypasses. Inspect failures as well: distinguish a missing
+skill from unclear requirements or infrastructure trouble.
+
+A strategy not exercised in these attempts is not evidence that the student
+cannot use it. When prior measured feedback is supplied, compare its prediction
+with the actual attempts. A previous change solved consistently is demonstrated
+student capability; use that result to revise the difficulty hypothesis.
+
+Before editing, compare two candidate changes in `run/hardening.md`, then
+implement only one. For each candidate, cite attempt filenames and concrete
+actions or observations; explain the current strategy, the changed condition,
+and the new inference or decision needed to reach the original goal. Sketch
+the smallest correct adaptation from the observed strategy,
+distinguishing demonstrated skills from new decisions and dependencies between
+steps. Using the student's observed checking behavior, explain whether feedback
+available in the task would expose mistakes in that adaptation and allow their
+correction. Use this evidence to choose the change's magnitude; failure of the
+unchanged strategy alone does not establish difficulty of adaptation. State why
+the old strategy with a routine post-processing step would be insufficient.
+Choose the candidate whose required decisions are least covered by demonstrated
+student skills while remaining a modest step from those skills; explain the
+comparison before implementing it. If both reduce to routine adaptations, revise
+the candidates before selecting one. This comparison is proposal reasoning,
+not permission to generate or evaluate multiple task versions.
+For each strategy predicted to fail, include a concrete proposed input, the
+correct observable result, and the result that strategy would produce. If the
+results agree, that case does not support the prediction. For a strategy that
+discards information, include cases requiring different outcomes and check
+that the grader distinguishes them; a wrong reason for the right output is
+not a measured failure.
+Use that analysis to design the patch; no operator menu or operator declaration
+is required.
+
+Make the change interact with the core workflow. An upstream discovery can
+determine a downstream transformation, or conflicting evidence can require a
+decision before an existing action. More dependencies, files, commands, checks,
+or execution time alone are not evidence of difficulty. A separate report or
+checksum appended after the original solution is not enough merely because it
+reads the original outputs. Choose the mechanism the traces justify, rather
+than applying an example mechanically.
+
+Prefer changes to inputs or objectives that require the successful strategy to
+adapt, rather than merely declaring that strategy disallowed. If correctness
+depends on a method or source restriction, make it enforceable in the runnable
+environment or checkable by the grader; otherwise reformulate it as an
+observable task condition. When reviewing measured feedback, check successful
+attempts for violations of those restrictions.
+
+Preserve the original user goal, existing tool hints and discovery aids, and
+requirements unrelated to the chosen change. Keep the specification solvable
+and discoverable. Locate the difficulty in deciding the correct outcome under
+the changed conditions, not in removing useful hints or adding an implementation
+restriction. Existing method requirements remain part of the original task;
+repair missing checks for validity, but do not count stricter enforcement of
+an unchanged requirement as the hardening mechanism.
+Aim for a modest reduction in this student's solve rate toward mixed success,
+not universal failure. Describe this as a hypothesis for student re-testing;
+passing the reference solution only establishes validity. If the traces do not
+support a useful change within the size limits, write
+`GIVE UP: no-supported-hardening — <why>` and stop.
+"""
+
+
+_HARDER_JOB = """This task was solved {solved} of {attempts} attempts and met the
+hardening threshold.
+
+{guidance}
+
+The size of the rewrite is checked, not trusted. {growth_bound}
+The seed has {seed_lines} non-comment solution lines; the verifier may gain at most {max_asserts} assertions over the
+seed's {seed_asserts}. `./sandbox check` fails outside that and the caller
+rejects the rewrite. Measured on this corpus: rewrites that grew to 125 lines
+came back 0/16 five times in six, while the seed at its own size was solved
+every time. These limits bound the patch size; student re-testing measures difficulty.
+
 Then do the work in this order, one file at a time. The order is not
 arbitrary — each file is written against the one before it, and the synthesis
 pipeline that produced these tasks runs the same sequence for that reason:
 
-  1. `solution/solve.sh` — what the answer now is under this axis: the seed's
-     solution plus the one new step, not a rewrite of it.
-  2. the verifier — written against that answer and against the axis, not
+  1. `solution/solve.sh` — adapt the existing solution to the changed condition.
+     Preserve the parts that still apply.
+  2. the verifier — written against that answer and the requirement, not
      against incidental details of the workspace.
   3. `instruction.md` — what the agent is told. It has to make everything the
      verifier requires discoverable: findable in the workspace, or stated here.
   4. `environment/Dockerfile` — the environment the other three assume.
 
-Add whatever new files the change needs — a fixture the Dockerfile COPYs, a
+Add whatever new files the change needs — a fixture the Dockerfile copies, a
 config, a data file. Anything you write in the package comes back with it.
 
 Constraints on the environment, because step 4 is yours now and these are what
@@ -869,8 +1001,8 @@ the pipeline that built these tasks learned the hard way:
   a COPY source under `environment/` or is produced by a RUN; a large reference
   the verifier needs is checked by hash, not shipped.
 - Preserve the seed's base image and installation style; make the smallest change
-  the axis needs. An environment rewritten wholesale is a new task, not a harder
-  one.
+  the changed condition needs. An environment rewritten wholesale is a new task,
+  not a harder one.
 - No internet-only runtime behaviour, no proxies, credentials or external
   services. The sandbox may have none of them and the reference solution will
   fail where an agent would too.
@@ -896,49 +1028,26 @@ promised and the workspace never reveals — that one would fail a real agent to
 Do this literally, check by check; an impression that it all hangs together is
 what produces the failure.
 
-If, having read the package, you judge that none of the listed axes fits this
-task, write `GIVE UP: operator-misfit — <why>` and stop. Say which ones you
-considered and what was missing for each; a later round will come back with
-different counts, and that note is what it reads.
-
 Aim for a task a capable agent lands about half the time."""
 
-_HARDER_JOB_BLIND = """This task was solved {solved} of {attempts} attempts, so it is too
-easy to teach anything. Make it one rung harder, along exactly one of these
-axes:
+_HARDER_JOB_BLIND = """This task was solved {solved} of {attempts} attempts and met the
+hardening threshold.
 
-{candidates}
+{guidance}
 
-One rung, not a new task. Keep everything the seed asks for and add ONE
-requirement that the agent which solved it never had to meet. The attempts
-that solved it are in `traces/`, one file per attempt (format under TRACES at
-the end). What made the task easy is visible there: the guidance the
-instruction handed over, the step the agent never had to work out. Before you
-choose the axis, list the commands of two or three attempts end to end; the
-attempt that solved it in the fewest turns says which step was free.
-
-The size of the rewrite is checked, not trusted. The reference solution may
-grow by {min_added} to {max_added} non-comment lines over the seed's
-{seed_lines}; the verifier may gain at most {max_asserts} assertions over the
+The size of the rewrite is checked, not trusted. {growth_bound}
+The seed has {seed_lines} non-comment solution lines; the verifier may gain at most {max_asserts} assertions over the
 seed's {seed_asserts}. `./sandbox check` fails outside that and the caller
 rejects the rewrite. Measured on this corpus: rewrites that grew to 125 lines
 came back 0/16 five times in six, while the seed at its own size was solved
-every time. A harder task is one more thing to get right, not a new workflow.
-
-Pick from that list and nothing else. The list is not a menu of equals — it is
-ordered, and the order was computed against the whole task pool: which
-transformations are under-represented right now, and which ones this task has a
-foothold for. Work down it and take the first axis this package genuinely
-supports, so that substituting whichever is easiest to write cannot quietly
-collapse the pool onto a few kinds of change. Then write that axis's id, alone
-on one line, to `run/operator.txt`, before you start changing anything.
+every time. These limits bound the patch size; student re-testing measures difficulty.
 
 Then do the work in this order, one file at a time. The order is not
 arbitrary — each file is written against the one before it, and the synthesis
 pipeline that produced these tasks runs the same sequence for that reason:
 
-  1. `solution/solve.sh` — what the answer now is under this axis: the seed's
-     solution plus the one new step, not a rewrite of it.
+  1. `solution/solve.sh` — adapt the existing solution to the changed condition.
+     Preserve the parts that still apply.
   2. `instruction.md` — what the agent is told. Everything the new requirement
      needs checked has to be discoverable from it and from the files the image
      ships, because that is all the verifier's author will see (below).
@@ -954,7 +1063,7 @@ will, from the instruction alone. A name your solution invents and the
 instruction never states will not be checked, so state it, or make the result
 checkable by value.
 
-Add whatever new files the change needs — a fixture the Dockerfile COPYs, a
+Add whatever new files the change needs — a fixture the Dockerfile copies, a
 config, a data file. Anything you write in the package comes back with it.
 
 Constraints on the environment, because step 4 is yours now and these are what
@@ -970,8 +1079,8 @@ the pipeline that built these tasks learned the hard way:
   a COPY source under `environment/` or is produced by a RUN; a large reference
   the verifier needs is checked by hash, not shipped.
 - Preserve the seed's base image and installation style; make the smallest change
-  the axis needs. An environment rewritten wholesale is a new task, not a harder
-  one.
+  the changed condition needs. An environment rewritten wholesale is a new task,
+  not a harder one.
 - No internet-only runtime behaviour, no proxies, credentials or external
   services. The sandbox may have none of them and the reference solution will
   fail where an agent would too.
@@ -987,25 +1096,11 @@ the pipeline that built these tasks learned the hard way:
 - Guard edits against paths you did not create (`test -f` first); prefer adding a
   local fixture over patching something the image cloned.
 
-If, having read the package, you judge that none of the listed axes fits this
-task, write `GIVE UP: operator-misfit — <why>` and stop. Say which ones you
-considered and what was missing for each; a later round will come back with
-different counts, and that note is what it reads.
-
 Aim for a task a capable agent lands about half the time."""
 
-_EASIER_JOB = """This task was solved {solved} of {attempts} attempts — the agent
-never got there, so it teaches nothing either.
-
-The failed attempts are in `traces/`, one file per attempt (format under
-TRACES at the end). Read the last turns of several of them to find where the
-agent actually got stuck: the same failing command, the same missing file, the
-same misreading of the instruction. Then make the smallest change that clears
-that one obstacle. Prefer adding to the instruction
-what a fair task would have said; only take structure out of the task itself if
-the instruction cannot carry it.
-
-Aim for a task a capable agent lands about half the time."""
+_EASIER_JOB = """This task was solved {solved} of {attempts} attempts.
+Diagnose the attempts and reduce one obstacle while retaining a stated skill.
+{cards}"""
 
 _REPAIR_JOB = """Your rewrite did not survive the caller's check. It rebuilt the
 package from scratch, ran `solution/solve.sh` against the verifier (exit
@@ -1027,8 +1122,8 @@ fresh one.
 
 Confirm with `./sandbox check` before you stop."""
 
-_VERIFIER_JOB = """The task in this package was just made one rung harder: `instruction.md` now
-asks for one more thing than the seed did. Write the verifier for the task as the
+_VERIFIER_JOB = """The task in this package was just made one rung harder through a
+change to its requirements or workflow. Write the verifier for the task as the
 instruction states it.
 
 You are shown the instruction, `environment/`, and the seed's verifier at
@@ -1041,7 +1136,12 @@ name open, check the value.
 
 Then do the task yourself through `./sandbox exec`, the way the instruction
 describes it, and `./sandbox grade`: it must pass. `./sandbox reset` and grade
-the untouched workspace: it must fail. Both, before you finish."""
+the untouched workspace: it must fail. Save the correct script, a separate
+single-error script for each independently falsifiable clause of the changed
+requirement, and their cases contract under run/verifier-probes as AGENTS.md
+specifies. The caller replays every script in a fresh Daytona environment before
+accepting your verifier; each wrong script must execute successfully and then
+fail grading."""
 
 _VERIFIER_REPAIR_JOB = """The verifier you wrote does not agree with the task's reference solution, which
 you cannot see: the caller ran that solution in a fresh container (exit
@@ -1103,7 +1203,19 @@ def _blind_layout(pkg: Path, vpkg: Path) -> None:
 
     def ignore(d, names):
         rel = Path(d).relative_to(pkg)
-        return {n for n in names if str(rel / n) in hidden or (str(rel) == "." and n in hidden)}
+        if rel == Path("run"):
+            # Preserve harness inputs, excluding author analysis and oracle output.
+            return set(names) - {
+                "seed_size.json",
+                "resources.json",
+                "seed_literals.json",
+                "pretest.json",
+            }
+        return {
+            n
+            for n in names
+            if str(rel / n) in hidden or (str(rel) == "." and n in hidden)
+        }
 
     shutil.copytree(pkg, vpkg, dirs_exist_ok=True, ignore=ignore)
     vpkg.chmod(0o700)
@@ -1114,25 +1226,143 @@ def _blind_layout(pkg: Path, vpkg: Path) -> None:
 
 
 def _take_verifier(vpkg: Path, pkg: Path, seed_rel: str, seed_text: str) -> str:
-    """Copy the verifier the blind author wrote into the author's package,
-    replacing the seed's, and return its path. Raises when nothing changed."""
+    """Copy the blind verifier and its test assets; return the entry point."""
     rel = _verifier_on_disk(vpkg, seed_rel)
     text = (vpkg / rel).read_text()
-    if rel == seed_rel and text == seed_text:
+    if (
+        rel == seed_rel
+        and text == seed_text
+        and _probe_hashes(vpkg / "tests") == _probe_hashes(pkg / "tests")
+    ):
         raise RuntimeError("verifier author changed nothing")
-    if rel != seed_rel:
-        (pkg / seed_rel).unlink(missing_ok=True)
-    dest = pkg / rel
-    dest.parent.mkdir(parents=True, exist_ok=True)
-    dest.write_text(text)
+    # Shell graders consume sibling patches and fixtures. Transfer exactly the
+    # test tree that passed the independent probes, including file deletions.
+    shutil.rmtree(pkg / "tests")
+    shutil.copytree(vpkg / "tests", pkg / "tests")
     # The author's last check graded the seed's verifier; it says nothing
     # about this one, so it must not satisfy _require_checked.
     (pkg / "run" / "checks.jsonl").unlink(missing_ok=True)
     return rel
 
 
-def _blind_verifier(rewrite: layout.RewriteDir, task: dict,
-                    fmap: dict) -> tuple[layout.SessionDir, str]:
+def _probe_hashes(package: Path, exclude: tuple[str, ...] = ()) -> dict[str, str]:
+    return {
+        str(p.relative_to(package)): hashlib.sha256(p.read_bytes()).hexdigest()
+        for p in package.rglob("*")
+        if p.is_file()
+        and p.relative_to(package).parts[0] not in exclude
+        and "__pycache__" not in p.parts
+    }
+
+
+def _independent_verifier(
+    rewrite: layout.RewriteDir,
+    vsession: layout.SessionDir,
+    *,
+    allow_repair: bool = True,
+) -> None:
+    vpkg = vsession.package
+    pointer = vsession.path / "independent-probes.json"
+    if pointer.exists():
+        probe = Path(json.loads(pointer.read_text())["package"])
+    else:
+        with session(rewrite, "probe", timeout=AGENT_TIMEOUT) as run:
+            probe = run.dir.package
+            _blind_layout(vpkg, probe)
+            shutil.rmtree(probe / "tests")
+            (probe / "tests").mkdir()
+            (probe / "tests/test.sh").write_text(
+                "#!/bin/sh\nmkdir -p /logs/verifier\necho 0 > /logs/verifier/reward.txt\nexit 2\n"
+            )
+            for name in ("seed_size.json", "seed_literals.json"):
+                (probe / "run" / name).unlink(missing_ok=True)
+            shutil.copy2(
+                VERIFIER_SPEC.with_name("independent_verifier_probes.md"),
+                probe / "AGENTS.md",
+            )
+
+            before = _probe_hashes(probe, ("run",))
+            run.meta["public_inputs_sha256"] = before
+            try:
+                result = _run_codex(
+                    run,
+                    probe,
+                    "Create independent semantic controls from the public task.\n"
+                    + _budget(AGENT_TIMEOUT),
+                )
+                if result.returncode:
+                    raise RuntimeError(
+                        f"Independent probe author exited {result.returncode}"
+                    )
+            finally:
+                _sandbox_down(probe)
+            _check_verdict(probe)
+            if _probe_hashes(probe, ("run",)) != before:
+                raise RuntimeError("Independent probe author changed public task files")
+        layout.write_json_atomic(
+            pointer,
+            {
+                "package": str(probe),
+                "controls_sha256": _probe_hashes(probe / "run/verifier-probes"),
+            },
+        )
+
+    controls_sha256 = json.loads(pointer.read_text())["controls_sha256"]
+    public_sha256 = _probe_hashes(vpkg, ("run", "tests"))
+    for attempt in range(2 if allow_repair else 1):
+        if _probe_hashes(probe / "run/verifier-probes") != controls_sha256:
+            raise RuntimeError("Independent controls changed during verifier repair")
+        replay = Path(tempfile.mkdtemp(prefix="replay-", dir=probe.parent))
+        _blind_layout(vpkg, replay)
+        shutil.copytree(probe / "run/verifier-probes", replay / "run/verifier-probes")
+        try:
+            verify_probes(replay, _harness_env(), AGENT_TIMEOUT)
+        except SemanticProbeMisses as error:
+            if not allow_repair or attempt:
+                raise
+            (vpkg / "run/independent-failures.jsonl").write_text(
+                error.log_path.read_text()
+            )
+            (vpkg / "run/verdict.txt").unlink(missing_ok=True)
+            with session(
+                rewrite, "probe-repair", timeout=AGENT_TIMEOUT, resumes=vsession
+            ) as run:
+                try:
+                    result = _run_codex(
+                        run,
+                        vpkg,
+                        "The independent correct control passed, and controls labeled negative also passed. "
+                        "Read run/independent-failures.jsonl for their public requirements, scripts, and grading evidence. "
+                        "First establish whether each negative control's actual state at grading violates the public task. "
+                        "For a final-artifact task, an earlier failure on changed inputs "
+                        "does not invalidate a correct final artifact; "
+                        "require reusable behavior only when the public task explicitly requires it. "
+                        "If a control is valid or its violation cannot be established, "
+                        "write BLOCKED: <evidence> to run/verdict.txt and stop. "
+                        "Otherwise repair the verifier to reject the demonstrated violations while accepting valid deliverables. "
+                        "Preserve the public task and follow AGENTS.md, including your own replay controls.\n"
+                        + _budget(AGENT_TIMEOUT),
+                        resume=_session_id(vsession),
+                    )
+                    if result.returncode:
+                        raise RuntimeError(
+                            f"Verifier probe repair exited {result.returncode}"
+                        ) from error
+                finally:
+                    _sandbox_down(vpkg)
+            _check_verdict(vpkg)
+            if _probe_hashes(vpkg, ("run", "tests")) != public_sha256:
+                raise RuntimeError(
+                    "Verifier repair changed public task files"
+                ) from error
+            verify_probes(vpkg, _harness_env(), AGENT_TIMEOUT)
+        else:
+            return
+
+
+def _blind_verifier(
+    rewrite: layout.RewriteDir, task: dict, fmap: dict
+) -> tuple[layout.SessionDir, str]:
     """Second session: write the verifier without seeing the solution.
 
     Lays the author's package out again under the verifier session's own
@@ -1145,25 +1375,39 @@ def _blind_verifier(rewrite: layout.RewriteDir, task: dict,
     pkg = rewrite.package
     seed_rel = fmap["test_state_py"]
     seed_text = task["test_state_py"]
-    seed_size = ts.size_of(task["solve_sh"], seed_text,
-                           "python" if seed_rel.endswith(".py") else "shell")
+    seed_size = ts.size_of(
+        task["solve_sh"], seed_text, "python" if seed_rel.endswith(".py") else "shell"
+    )
     with session(rewrite, "verifier", timeout=AGENT_TIMEOUT) as run:
         vpkg = run.dir.package
         _blind_layout(pkg, vpkg)
-        prompt = _VERIFIER_JOB.format(verifier_rel=seed_rel,
-                                      seed_asserts=seed_size["verifier_asserts"],
-                                      max_asserts=ts.MAX_ADDED_ASSERTS) + _budget(AGENT_TIMEOUT)
+        prompt = _VERIFIER_JOB.format(
+            verifier_rel=seed_rel,
+            seed_asserts=seed_size["verifier_asserts"],
+            max_asserts=ts.MAX_ADDED_ASSERTS,
+        ) + _budget(AGENT_TIMEOUT)
         try:
-            _run_codex(run, vpkg, prompt)
+            result = _run_codex(run, vpkg, prompt)
+            if result.returncode:
+                raise RuntimeError(
+                    f"Verifier author exited {result.returncode}; see {run.dir.stdout}"
+                )
         finally:
             _sandbox_down(vpkg)
     _check_verdict(vpkg)
+    verify_probes(vpkg, _harness_env(), AGENT_TIMEOUT)
+    _independent_verifier(rewrite, run.dir)
     rel = _take_verifier(vpkg, pkg, seed_rel, seed_text)
     return run.dir, rel
 
 
-def _blind_repair(rewrite: layout.RewriteDir, vsession: layout.SessionDir,
-                  fmap: dict, observed: str, exit_code: int) -> str:
+def _blind_repair(
+    rewrite: layout.RewriteDir,
+    vsession: layout.SessionDir,
+    fmap: dict,
+    observed: str,
+    exit_code: int,
+) -> str:
     """Resume the verifier's session with the failure the hidden solution
     produced against its verifier, and take the repaired verifier back."""
     pkg, vpkg = rewrite.package, vsession.package
@@ -1173,18 +1417,27 @@ def _blind_repair(rewrite: layout.RewriteDir, vsession: layout.SessionDir,
     (vpkg / "run" / "failure.txt").write_text(observed or "(no output captured)")
     (vpkg / "run" / "verdict.txt").unlink(missing_ok=True)
     with session(rewrite, "repair", timeout=AGENT_TIMEOUT, resumes=vsession) as run:
-        prompt = _VERIFIER_REPAIR_JOB.format(exit_code=exit_code) + _budget(AGENT_TIMEOUT)
+        prompt = _VERIFIER_REPAIR_JOB.format(exit_code=exit_code) + _budget(
+            AGENT_TIMEOUT
+        )
         try:
-            _run_codex(run, vpkg, prompt, resume=sid)
+            result = _run_codex(run, vpkg, prompt, resume=sid)
+            if result.returncode:
+                raise RuntimeError(
+                    f"Verifier repair exited {result.returncode}; see {run.dir.stdout}"
+                )
         finally:
             _sandbox_down(vpkg)
     _check_verdict(vpkg)
+    verify_probes(vpkg, _harness_env(), AGENT_TIMEOUT)
+    _independent_verifier(rewrite, vsession, allow_repair=False)
     before = (pkg / _verifier_on_disk(pkg, seed_rel)).read_text()
     return _take_verifier(vpkg, pkg, _verifier_on_disk(pkg, seed_rel), before)
 
 
-def _reconcile_blind(rewrite: layout.RewriteDir, vsession: layout.SessionDir,
-                     fmap: dict) -> None:
+def _reconcile_blind(
+    rewrite: layout.RewriteDir, vsession: layout.SessionDir, fmap: dict
+) -> None:
     """Hidden solution against blind verifier, with one bounded repair.
 
     The two sessions never saw each other's file, so the first time they meet
@@ -1203,13 +1456,21 @@ def _reconcile_blind(rewrite: layout.RewriteDir, vsession: layout.SessionDir,
     _blind_repair(rewrite, vsession, fmap, text[-4000:], code)
     text = _harness_check(pkg, name="check.blind2")
     if not _agent_checked(pkg):
-        raise RuntimeError("blind verifier and reference solution still disagree after "
-                           "one repair: " + text[-300:].replace("\n", " | "))
+        raise RuntimeError(
+            "blind verifier and reference solution still disagree after "
+            "one repair: " + text[-300:].replace("\n", " | ")
+        )
 
 
-def evolve_agentic(rewrite: layout.RewriteDir, task: dict, job: str, *,
-                   observed: str = "", exit_code: int = 1,
-                   operator: list[tuple[str, str, str]] | None = None) -> dict:
+def evolve_agentic(
+    rewrite: layout.RewriteDir,
+    task: dict,
+    job: str,
+    *,
+    observed: str = "",
+    exit_code: int = 1,
+    operator: list[tuple[str, str, str]] | None = None,
+) -> dict:
     """Run one agent session over the rewrite's package, with its container as
     a tool.
 
@@ -1224,32 +1485,86 @@ def evolve_agentic(rewrite: layout.RewriteDir, task: dict, job: str, *,
     when the agent declined.
     """
     _require_codex()
+    use_operators = job == "harder" and harder_uses_operators()
+    if job == "harder":
+        task = {**task, "_harder_mode": "operators" if use_operators else "student"}
     pkg = rewrite.package
     fmap = _prepare_package(pkg, task)
+    if job == "easier":
+        # Growth is required only for harder jobs; the caller checks direction independently.
+        (pkg / "run" / "seed_size.json").unlink(missing_ok=True)
     if observed:
         (pkg / "run" / "failure.txt").write_text(observed)
 
     solved = task.get("_solved", 0)
-    attempts_n = task.get("_attempts", len(list(rewrite.traces.glob("attempt-*.jsonl"))) or 16)
+    attempts_n = task.get(
+        "_attempts", len(list(rewrite.traces.glob("attempt-*.jsonl"))) or 16
+    )
     # `operator` is the scored shortlist, in score order, each entry
     # (family, operator_id, definition) -- the same order operator_shortlist
     # and pick_operator both return.
-    cands = list(operator or [])
+    cands = list(operator or []) if use_operators else []
+    if use_operators and not cands:
+        raise ValueError("operator mode requires a nonempty harder shortlist")
     allowed = {op: fam for fam, op, _ in cands}
-    seed_size = ts.size_of(task["solve_sh"], task["test_state_py"],
-                           "python" if ev._verifier_rel(task).endswith(".py") else "shell")
+    seed_size = ts.size_of(
+        task["solve_sh"],
+        task["test_state_py"],
+        "python" if ev._verifier_rel(task).endswith(".py") else "shell",
+    )
     blind = job == "harder" and VERIFIER_AUTHOR == "blind"
-    prompt = {
-        "harder": (_HARDER_JOB_BLIND if blind else _HARDER_JOB).format(
-                                     solved=solved, attempts=attempts_n,
-                                     candidates=_candidates(cands),
-                                     seed_lines=seed_size["solution_lines"],
-                                     seed_asserts=seed_size["verifier_asserts"],
-                                     min_added=ts.MIN_ADDED, max_added=ts.MAX_ADDED,
-                                     max_asserts=ts.MAX_ADDED_ASSERTS),
-        "easier": _EASIER_JOB.format(solved=solved, attempts=attempts_n),
-        "repair": _REPAIR_JOB.format(exit_code=exit_code),
-    }[job] + _traces_spec(rewrite.traces) + _budget(AGENT_TIMEOUT)
+    prompt = (
+        {
+            "harder": (_HARDER_JOB_BLIND if blind else _HARDER_JOB).format(
+                solved=solved,
+                attempts=attempts_n,
+                guidance=(
+                    _OPERATOR_HARDER_GUIDANCE.format(candidates=_candidates(cands))
+                    if use_operators
+                    else _STUDENT_HARDER_GUIDANCE
+                ),
+                seed_lines=seed_size["solution_lines"],
+                seed_asserts=seed_size["verifier_asserts"],
+                growth_bound=(
+                    f"The reference solution must grow by {ts.MIN_ADDED} to {ts.MAX_ADDED} non-comment lines."
+                    if use_operators
+                    else (
+                        "The reference solution may stay the same length or shrink, "
+                        f"and may grow by at most {ts.MAX_ADDED} non-comment lines. "
+                        "Do not add code to meet a minimum length."
+                    )
+                ),
+                max_asserts=ts.MAX_ADDED_ASSERTS,
+            ),
+            "easier": _EASIER_JOB.format(
+                solved=solved,
+                attempts=attempts_n,
+                cards=so.prompt(task.get("_simplify_hint", "vague")),
+            ),
+            "repair": _REPAIR_JOB.format(exit_code=exit_code),
+        }[job]
+        + _traces_spec(rewrite.traces)
+        + _budget(AGENT_TIMEOUT)
+    )
+
+    if (
+        not use_operators
+        and job in ("harder", "easier")
+        and task.get("_student_feedback")
+    ):
+        feedback = task["_student_feedback"]
+        (pkg / "run" / "student_feedback.json").write_text(
+            json.dumps(feedback, indent=2) + "\n"
+        )
+        prompt += (
+            "\n\nMEASURED STUDENT FEEDBACK\n"
+            "Read run/student_feedback.json before proposing the next change. "
+            "It records prior measurements and the requested adjustment. "
+            "Use the corresponding attempts to explain why the previous "
+            "change was too easy, too hard, or execution-heavy, and revise "
+            "that mechanism. Do not add the feedback, scores, or evaluator "
+            "details to the task instruction or environment.\n"
+        )
 
     with session(rewrite, "agent", timeout=AGENT_TIMEOUT) as run:
         try:
@@ -1273,17 +1588,27 @@ def evolve_agentic(rewrite: layout.RewriteDir, task: dict, job: str, *,
         # the rewrite's. Say which it was, so the caller starts a fresh
         # session instead of recording the task as unevolvable.
         if cyber_filtered(run.dir):
-            raise Filtered(f"the provider's cybersecurity classifier stopped the "
-                           f"session ({type(exc).__name__}: {exc})"[:300]) from exc
+            raise Filtered(
+                f"the provider's cybersecurity classifier stopped the "
+                f"session ({type(exc).__name__}: {exc})"[:300]
+            ) from exc
         raise
     if all(out[key] == task[key] for key in fmap) and not out["_support_changed"]:
-        raise RuntimeError(f"agent changed nothing (exit {p.returncode}): "
-                           f"{p.stdout[-200:]}")
+        raise RuntimeError(
+            f"agent changed nothing (exit {p.returncode}): " f"{p.stdout[-200:]}"
+        )
     if not out["instruction"].strip():
         raise RuntimeError("agent emptied the instruction")
     out["_hint"] = f"agent_{job}"
     out["_agent_validated"] = _agent_checked(pkg)
     out["_session"] = str(run.dir.path)
+    if job == "harder":
+        out["_harder_mode"] = "operators" if use_operators else "student"
+    if job == "easier":
+        decision = so.read_decision(pkg, task.get("_simplify_hint", "vague"))
+        decision["hint_level"] = task.get("_simplify_hint", "vague")
+        out["_simplify"] = decision
+        out["_operator"], out["_family"] = decision["operator"], "simplify"
     if vsession is not None:
         out["_verifier_author"] = "blind"
         out["_verifier_session"] = str(vsession.path)
@@ -1295,20 +1620,24 @@ def evolve_agentic(rewrite: layout.RewriteDir, task: dict, job: str, *,
         # declaration fails the session rather than defaulting to the top
         # candidate: a wrong operator on a folded task is worse for the
         # balance than no task, because it is counted.
-        declared = (pkg / "run" / "operator.txt")
-        chosen = (declared.read_text().strip().split()[0]
-                  if declared.exists() and declared.read_text().strip()
-                  else "")
+        declared = pkg / "run" / "operator.txt"
+        chosen = (
+            declared.read_text().strip().split()[0]
+            if declared.exists() and declared.read_text().strip()
+            else ""
+        )
         if chosen not in allowed:
             raise RuntimeError(
                 f"agent did not declare which axis it used "
-                f"(run/operator.txt={chosen!r}, offered={sorted(allowed)})")
+                f"(run/operator.txt={chosen!r}, offered={sorted(allowed)})"
+            )
         out["_operator"], out["_family"] = chosen, allowed[chosen]
     return out
 
 
-def _resume_blind(rewrite: layout.RewriteDir, task: dict, observed: str,
-                  exit_code: int) -> dict:
+def _resume_blind(
+    rewrite: layout.RewriteDir, task: dict, observed: str, exit_code: int
+) -> dict:
     vsession = layout.SessionDir(Path(task.get("_verifier_session") or ""))
     if not vsession.package.is_dir():
         raise RuntimeError(f"no verifier session to resume at {vsession.path}")
@@ -1319,16 +1648,19 @@ def _resume_blind(rewrite: layout.RewriteDir, task: dict, observed: str,
     fmap["test_state_py"] = _blind_repair(rewrite, vsession, fmap, observed, exit_code)
     text = _harness_check(pkg, name=f"check.resume{time.time_ns() % 100000}")
     if not _agent_checked(pkg):
-        raise RuntimeError("blind verifier and reference solution still disagree on resume: "
-                           + text[-300:].replace("\n", " | "))
+        raise RuntimeError(
+            "blind verifier and reference solution still disagree on resume: "
+            + text[-300:].replace("\n", " | ")
+        )
     out = _collect(task, pkg, fmap)
     out["_repaired"] = "codex_resume_verifier"
     out["_agent_validated"] = True
     return out
 
 
-def resume_agentic(rewrite: layout.RewriteDir, task: dict, observed: str,
-                   exit_code: int = 1) -> dict:
+def resume_agentic(
+    rewrite: layout.RewriteDir, task: dict, observed: str, exit_code: int = 1
+) -> dict:
     """Continue the session that wrote this task, with the caller's failure.
 
     The caller rebuilt the package and ran the reference solution against the
@@ -1365,8 +1697,10 @@ def resume_agentic(rewrite: layout.RewriteDir, task: dict, observed: str,
     _require_checked(pkg)
     out = _collect(task, pkg, fmap)
     if all(out[key] == task[key] for key in fmap) and not out["_support_changed"]:
-        raise RuntimeError(f"agent changed nothing on resume "
-                           f"(exit {p.returncode}): {p.stdout[-200:]}")
+        raise RuntimeError(
+            f"agent changed nothing on resume "
+            f"(exit {p.returncode}): {p.stdout[-200:]}"
+        )
     out["_repaired"] = "codex_resume"
     out["_agent_validated"] = _agent_checked(pkg)
     # The repair's codex/ shares the thread's jsonl with the agent's, so a

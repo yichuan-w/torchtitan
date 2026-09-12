@@ -1,4 +1,10 @@
 #!/usr/bin/env python3
+# Copyright (c) Meta Platforms, Inc. and affiliates.
+# All rights reserved.
+#
+# This source code is licensed under the BSD-style license found in the
+# LICENSE file in the root directory of this source tree.
+
 """A task package as one training row.
 
 TMaxDataset reads a jsonl whose rows are {prompt, label, metadata:{instance_id,
@@ -36,26 +42,28 @@ import os
 from dataclasses import dataclass, field
 from pathlib import Path
 
-_TT_CANDIDATES = [
-    os.environ.get("TRL_TT", ""),
-    os.path.expanduser("~/torchtitan"),
-    os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(
-        os.path.abspath(__file__)))), "torchtitan"),
-]
-
 
 def _checkout_root() -> str:
-    # TRL_TT is read here, not at import: the loop's launcher exports it
-    # before this module loads, but a caller that sets it afterwards (a test,
-    # a tool run by hand) has to be honoured too.
-    candidates = [os.environ.get("TRL_TT", ""), *_TT_CANDIDATES[1:]]
-    root = next((c for c in candidates if c and os.path.isdir(
-        os.path.join(c, "torchtitan"))), None)
+    # An explicit checkout is honored or rejected; otherwise use this script's
+    # own tree. Falling back to ~/torchtitan silently bypasses worktree fixes.
+    configured = os.environ.get("TRL_TT")
+    candidates = [Path(configured)] if configured else Path(__file__).resolve().parents
+    root = next(
+        (
+            c
+            for c in candidates
+            if (
+                c / "torchtitan/experiments/rl/examples/tmax/prepare_rts_data.py"
+            ).is_file()
+        ),
+        None,
+    )
     if root is None:
         raise ModuleNotFoundError(
             "no torchtitan checkout found (set TRL_TT); refusing to fold with "
-            "a local approximation of prepare_rts_data")
-    return root
+            "a local approximation of prepare_rts_data"
+        )
+    return str(root)
 
 
 def _tmax_modules(*leaves: str):
@@ -75,7 +83,8 @@ def _tmax_modules(*leaves: str):
         if dotted in sys.modules:
             continue
         spec = importlib.util.spec_from_file_location(
-            dotted, os.path.join(d, leaf + ".py"))
+            dotted, os.path.join(d, leaf + ".py")
+        )
         mod = importlib.util.module_from_spec(spec)
         sys.modules[dotted] = mod
         spec.loader.exec_module(mod)
@@ -95,6 +104,18 @@ def _rts_module():
     return _tmax_modules("prepare_tmax_data", "prepare_rts_data")
 
 
+def declared_solve_budget(src: Path, floor: int) -> int:
+    """Respect a package's declared reference execution budget during validation."""
+    import tomllib
+
+    path = src / "task.toml"
+    if not path.exists():
+        return floor
+    with path.open("rb") as stream:
+        declared = (tomllib.load(stream).get("agent") or {}).get("timeout_sec")
+    return max(floor, int(declared)) if declared is not None else floor
+
+
 def _ib_module():
     """integrity_baseline: the shape of the protected keys, from the one module
     that also digests them at rollout and grading."""
@@ -109,6 +130,7 @@ class Protected:
     """A row's protected lists as the loop carries them: off the reaudit
     parquet's cells, off a mix row being folded, or off a package's own
     tests/protected_paths.json. Iterated as lists, never joined and re-split."""
+
     paths: list = field(default_factory=list)
     cmds: list = field(default_factory=list)
 
@@ -139,11 +161,15 @@ class Protected:
         lists = _tmax_modules("layout").read_protected_lists(Path(path))
         if not lists:
             return None
-        return cls(list(lists.get("protected_paths") or []),
-                   list(lists.get("protected_cmds") or []))
+        return cls(
+            list(lists.get("protected_paths") or []),
+            list(lists.get("protected_cmds") or []),
+        )
 
 
-def effective_protected(inherited: "Protected | None", package_dir: str) -> "Protected | None":
+def effective_protected(
+    inherited: "Protected | None", package_dir: str
+) -> "Protected | None":
     """THE resolver every build of a variant's row goes through: the package's
     own tests/protected_paths.json when it ships one (the authoring agent's
     lists override), else the lists the variant INHERITS from the row it
@@ -162,7 +188,9 @@ def _json_list(cell, column: str) -> list:
         got = json.loads(cell)
     except ValueError:
         raise ValueError(f"{column} is not JSON") from None
-    if not isinstance(got, list) or not all(isinstance(p, str) and p.strip() for p in got):
+    if not isinstance(got, list) or not all(
+        isinstance(p, str) and p.strip() for p in got
+    ):
         raise ValueError(f"{column} must be a JSON list of non-empty strings")
     return got
 
@@ -182,11 +210,17 @@ def package_protected(task_dir: str) -> Protected | None:
     except (OSError, ValueError) as e:
         raise ValueError(f"{PROTECTED_FILE}: not JSON ({e})") from None
     if not isinstance(got, dict) or set(got) - {"paths", "cmds"}:
-        raise ValueError(f'{PROTECTED_FILE}: must be an object with only "paths" and "cmds"')
+        raise ValueError(
+            f'{PROTECTED_FILE}: must be an object with only "paths" and "cmds"'
+        )
     for key in ("paths", "cmds"):
         v = got.get(key, [])
-        if not isinstance(v, list) or not all(isinstance(x, str) and x.strip() for x in v):
-            raise ValueError(f"{PROTECTED_FILE}: {key} must be a list of non-empty strings")
+        if not isinstance(v, list) or not all(
+            isinstance(x, str) and x.strip() for x in v
+        ):
+            raise ValueError(
+                f"{PROTECTED_FILE}: {key} must be a list of non-empty strings"
+            )
     return Protected(list(got.get("paths", [])), list(got.get("cmds", [])))
 
 
@@ -201,10 +235,14 @@ def fixture_ceiling() -> int:
     return _rts_module()._MAX_CONTEXT_BYTES
 
 
-def to_row(task_dir: str, *, task_id: str | None = None,
-           inject_agent_runtime: bool = True,
-           pretest: tuple[str, str] | None = None,
-           protected: Protected | None = None) -> dict:
+def to_row(
+    task_dir: str,
+    *,
+    task_id: str | None = None,
+    inject_agent_runtime: bool = True,
+    pretest: tuple[str, str] | None = None,
+    protected: Protected | None = None,
+) -> dict:
     """One package -> one data_path row, exactly as prepare_rts_data builds it
     (entrypoint, oracle_commands, tmux runtime injection included), so a folded
     row is indistinguishable from a freshly prepared one. A revision directory
@@ -215,9 +253,12 @@ def to_row(task_dir: str, *, task_id: str | None = None,
     is the row's protected lists the same way; the package's own
     tests/protected_paths.json, when present, replaces it (see
     ``package_protected``). Malformed lists refuse the package by id."""
-    row, reason = _rts_to_row()(task_dir, task_id=task_id,
-                                inject_agent_runtime=inject_agent_runtime,
-                                pretest=pretest)
+    row, reason = _rts_to_row()(
+        task_dir,
+        task_id=task_id,
+        inject_agent_runtime=inject_agent_runtime,
+        pretest=pretest,
+    )
     if row is None:
         raise ValueError(f"{task_dir}: {reason}")
     ident = task_id or os.path.basename(task_dir.rstrip("/"))
@@ -257,7 +298,9 @@ def main() -> None:
     replaced = added = 0
     for d in sorted(os.listdir(args.evolved)):
         td = os.path.join(args.evolved, d)
-        if not os.path.isdir(td) or not os.path.exists(os.path.join(td, "instruction.md")):
+        if not os.path.isdir(td) or not os.path.exists(
+            os.path.join(td, "instruction.md")
+        ):
             continue
         if keep and d not in keep:
             continue
@@ -273,7 +316,9 @@ def main() -> None:
     with open(args.out, "w") as f:
         for iid in order:
             f.write(rows[iid])
-    print(f"folded: {replaced} replaced, {added} added -> {args.out} ({len(order)} rows)")
+    print(
+        f"folded: {replaced} replaced, {added} added -> {args.out} ({len(order)} rows)"
+    )
 
 
 if __name__ == "__main__":

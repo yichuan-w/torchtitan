@@ -1,3 +1,9 @@
+# Copyright (c) Meta Platforms, Inc. and affiliates.
+# All rights reserved.
+#
+# This source code is licensed under the BSD-style license found in the
+# LICENSE file in the root directory of this source tree.
+
 """The one-rung size rule: what it counts and where it draws the lines."""
 from __future__ import annotations
 
@@ -13,9 +19,14 @@ VER = "import os\nassert os.path.exists('/app/out.txt')\nif bad:\n    raise Asse
 
 
 def test_counts_non_comment_lines_and_asserts() -> None:
-    assert ts.solution_lines(SOL) == 3          # the shebang is a comment too
+    assert ts.solution_lines(SOL) == 3  # the shebang is a comment too
     assert ts.verifier_asserts(VER) == 2
-    assert ts.verifier_asserts("#!/bin/bash\ntest -f x || exit 1\n[ -s y ] || exit 1\n", "shell") == 0
+    assert (
+        ts.verifier_asserts(
+            "#!/bin/bash\ntest -f x || exit 1\n[ -s y ] || exit 1\n", "shell"
+        )
+        == 0
+    )
     assert ts.size_of(SOL, VER) == {"solution_lines": 3, "verifier_asserts": 2}
 
 
@@ -39,10 +50,31 @@ def test_a_large_seed_keeps_its_own_band() -> None:
     assert ts.violations(seed, {"solution_lines": 19, "verifier_asserts": 12}) != []
 
 
+def test_student_size_bounds_allow_replacement_but_limit_growth() -> None:
+    seed = {"solution_lines": 9, "verifier_asserts": 6}
+    for lines in (4, 9, 17):
+        assert (
+            ts.violations(
+                seed,
+                {"solution_lines": lines, "verifier_asserts": 6},
+                require_growth=False,
+            )
+            == []
+        )
+    assert ts.violations(
+        seed, {"solution_lines": 18, "verifier_asserts": 6}, require_growth=False
+    )
+    assert ts.violations(
+        seed, {"solution_lines": 9, "verifier_asserts": 12}, require_growth=False
+    )
+
+
 def test_size_of_package_reads_the_files(tmp_path) -> None:
     (tmp_path / "solution").mkdir()
     (tmp_path / "tests").mkdir()
     (tmp_path / "solution" / "solve.sh").write_text(SOL)
     (tmp_path / "tests" / "test_state.py").write_text(VER)
     assert ts.size_of_package(tmp_path, "tests/test_state.py") == {
-        "solution_lines": 3, "verifier_asserts": 2}
+        "solution_lines": 3,
+        "verifier_asserts": 2,
+    }

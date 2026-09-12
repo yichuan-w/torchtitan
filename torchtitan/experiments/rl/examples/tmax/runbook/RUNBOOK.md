@@ -652,8 +652,8 @@ these are the variables that touch them.
 | `SWE_LR` | `3e-6` | `0` (keep `1e-6`) | learning rate. |
 | `SWE_LOSS` | unset | `dppo` | `dppo` / `dapo` / `grpo`. |
 | `SWE_MAX_CONTEXT_LEN` | `63488` | **four different defaults** by entry point (32768 / 63488 / 22528 / 20480) | per-session context budget. Always set it explicitly. |
-| `TMAX_AGENT` | `terminus` | `vanillux` | agent scaffold. Changes the action distribution. |
-| `SWE_AGENT_TIMEOUT_FLOOR_SEC` | `900` | `7200` | floor on a task's declared budget, never a ceiling. |
+| `TMAX_AGENT` | `terminus` | `terminus` | agent scaffold. Changes the action distribution. |
+| `SWE_AGENT_TIMEOUT_FLOOR_SEC` | `7200` | `7200` | floor on a task's declared budget, never a ceiling. 900 capped TB-2.0 tasks and caused ~60% eval timeouts. |
 | `SWE_WRONG_SUBMIT_PENALTY` | `0.3` | `0` | reward penalty for submitting a wrong answer. |
 | `SWE_REWARD_DENSE` | unset | `0` | dense per-test reward instead of binary. |
 | `TMAX_FORMAT_ERROR_FEEDBACK` | unset | `0` | at `0`, a turn with no tool call ends the rollout immediately (open-instruct parity). |

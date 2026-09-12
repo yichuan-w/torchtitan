@@ -10,9 +10,9 @@ Terminus-2's episode loop has three exits and only one is a submit:
 
 1. it runs the episodes out (``_n_episodes == max_turns``);
 2. it returns early on a CONFIRMED ``<task_complete>true</task_complete>`` -- the
-   second consecutive one, at which point ``_pending_completion`` is still set;
+   second accepted one, with no intervening action withdrawing completion;
 3. it returns early because ``is_session_alive()`` went false, i.e. the tmux
-   session died under it, with no completion claimed at all.
+   session died under it, possibly with one unconfirmed completion pending.
 
 Reading "ended before the cap" as the submit signal folds 3 into 2 and reports a
 dead session as a real attempt, which then scores 0 and looks like a model failure.
@@ -21,7 +21,11 @@ dead session as a real attempt, which then scores 0 and looks like a model failu
 from __future__ import annotations
 
 import asyncio
+import importlib
+import shlex
+import subprocess
 import sys
+import time
 import types
 from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock
@@ -58,6 +62,7 @@ class _FakeTerminus2:
         self._subagent_calls = subagent_calls
         self._n_episodes = 0
         self._llm = None
+        self._session = types.SimpleNamespace(_session_name="test-session")
         # The real Terminus2 builds one in __init__; terminus.py wraps it to count
         # the turns it could not turn into an action.
         self._parser = _FakeParser(parse_results)
@@ -97,6 +102,15 @@ def _install_fake_harbor(monkeypatch, built: list, **agent_kwargs) -> None:
     # The real exception types: terminus.py branches on them, so substituting
     # look-alikes would let a wrong branch pass.
     from harbor.llms.base import ContextLengthExceededError
+
+    from torchtitan.experiments.rl.harness.agents.terminus_terminal import (
+        TerminalLifecycle,
+    )
+
+    monkeypatch.setattr(TerminalLifecycle, "prepare", AsyncMock())
+    monkeypatch.setattr(TerminalLifecycle, "bind", AsyncMock())
+
+    importlib.import_module("torchtitan.experiments.rl.harness.agents.terminus_xml")
 
     for name in ("harbor", "harbor.agents", "harbor.agents.terminus_2"):
         monkeypatch.setitem(sys.modules, name, types.ModuleType(name))
@@ -149,9 +163,138 @@ def _run(monkeypatch, *, max_turns: int, built: list | None = None, **agent_kwar
     )
 
 
+def test_normal_shell_exit_returns_a_non_submit_attempt(monkeypatch):
+    from torchtitan.experiments.rl.harness.agents.terminus_terminal import (
+        TerminalExited,
+    )
+
+    run = _run(
+        monkeypatch,
+        max_turns=5,
+        episodes=2,
+        pending_completion=True,
+        raises=TerminalExited("shell exited with status 0"),
+    )
+    assert run.finish_reason == "terminal_exited"
+    assert run.submitted is False
+    assert run.turns == 2
+
+
+def test_signal_death_does_not_become_a_policy_failure(monkeypatch):
+    from torchtitan.experiments.rl.harness.agents.terminus_terminal import (
+        TerminalUnavailable,
+    )
+
+    with pytest.raises(TerminalUnavailable, match="terminal_signal_unknown"):
+        _run(
+            monkeypatch,
+            max_turns=5,
+            episodes=2,
+            pending_completion=True,
+            raises=TerminalUnavailable("terminal_signal_unknown", []),
+        )
+
+
 def test_confirmed_task_complete_is_a_submit(monkeypatch):
-    run = _run(monkeypatch, max_turns=10, episodes=4, pending_completion=True)
+    run = _run(
+        monkeypatch,
+        max_turns=10,
+        episodes=4,
+        pending_completion=True,
+        parse_results=[_parse_result(is_task_complete=True)] * 2,
+    )
     assert (run.finish_reason, run.submitted, run.turns) == ("submit", True, 4)
+
+
+def test_session_death_after_first_completion_does_not_submit(monkeypatch):
+    run = _run(
+        monkeypatch,
+        max_turns=10,
+        episodes=4,
+        pending_completion=True,
+        parse_results=[_parse_result(is_task_complete=True)],
+    )
+    assert (run.finish_reason, run.submitted) == ("stopped_early", False)
+
+
+def test_confirmation_on_last_episode_submits(monkeypatch):
+    run = _run(
+        monkeypatch,
+        max_turns=2,
+        episodes=2,
+        pending_completion=True,
+        parse_results=[_parse_result(is_task_complete=True)] * 2,
+    )
+    assert (run.finish_reason, run.submitted) == ("submit", True)
+
+
+def test_an_action_withdraws_pending_completion(monkeypatch):
+    run = _run(
+        monkeypatch,
+        max_turns=10,
+        episodes=4,
+        pending_completion=True,
+        parse_results=[
+            _parse_result(is_task_complete=True),
+            _parse_result(commands=["pwd"]),
+            _parse_result(is_task_complete=True),
+        ],
+    )
+    assert (run.finish_reason, run.submitted) == ("stopped_early", False)
+
+
+def test_a_parsing_error_cannot_confirm_completion(monkeypatch):
+    run = _run(
+        monkeypatch,
+        max_turns=10,
+        episodes=4,
+        pending_completion=True,
+        parse_results=[
+            _parse_result(is_task_complete=True),
+            _parse_result(is_task_complete=True, error="invalid commands"),
+        ],
+    )
+    assert (run.finish_reason, run.submitted) == ("stopped_early", False)
+
+
+def test_pane_capture_creates_directory_and_keeps_runs_separate():
+    from torchtitan.experiments.rl.harness.agents.terminus import _SandboxEnvironment
+
+    first = _SandboxEnvironment(MagicMock(), agent_dir=Path("/tmp/run-first"))
+    second = _SandboxEnvironment(MagicMock(), agent_dir=Path("/tmp/run-second"))
+    command = "tmux pipe-pane -t agent 'cat > /logs/agent/terminus_2.pane'"
+    wrapped = first._bound_pane_pipe(command)
+    second._bound_pane_pipe(command)
+    assert wrapped.startswith("mkdir -p /logs/agent && ")
+    assert "dd bs=1 count=8388608" in wrapped
+    assert first.pane_path != second.pane_path
+    assert first.pane_path in wrapped
+
+
+def test_pane_output_is_visible_before_eof_and_stops_at_cap(monkeypatch, tmp_path):
+    from torchtitan.experiments.rl.harness.agents import terminus
+
+    monkeypatch.setattr(terminus, "_PANE_CAP_BYTES", 4096)
+    env = terminus._SandboxEnvironment(MagicMock(), agent_dir=Path("/tmp/run"))
+    wrapped = env._bound_pane_pipe(
+        f"tmux pipe-pane -t agent 'cat > {tmp_path}/original.pane'"
+    )
+    pipe_command = shlex.split(wrapped)[-1]
+    with subprocess.Popen(["sh", "-c", pipe_command], stdin=subprocess.PIPE) as process:
+        process.stdin.write(b"observed\n")
+        process.stdin.flush()
+        deadline = time.monotonic() + 3
+        path = Path(env.pane_path)
+        while (
+            not path.exists() or path.stat().st_size < 9
+        ) and time.monotonic() < deadline:
+            time.sleep(0.01)
+        assert path.read_bytes() == b"observed\n"
+        process.stdin.write(b"x" * 4096)
+        process.stdin.flush()
+        process.wait(timeout=3)
+        assert process.returncode == 0
+        assert path.stat().st_size == 4096
 
 
 def test_a_dead_session_is_stopped_early_not_a_submit(monkeypatch):
@@ -172,16 +315,25 @@ def test_max_turns_wins_over_a_pending_completion(monkeypatch):
     assert run.submitted is False
 
 
-def test_an_error_keeps_the_episodes_it_got_through(monkeypatch):
-    """Reporting 0 turns here misattributes turns that are still trained on."""
-    run = _run(
-        monkeypatch,
-        max_turns=10,
-        episodes=6,
-        pending_completion=False,
-        raises=RuntimeError("adapter returned no completion"),
+def test_an_unexpected_error_is_not_a_scored_attempt(monkeypatch):
+    with pytest.raises(RuntimeError, match="adapter returned no completion"):
+        _run(
+            monkeypatch,
+            max_turns=10,
+            episodes=6,
+            pending_completion=False,
+            raises=RuntimeError("adapter returned no completion"),
+        )
+
+
+def test_tmux_setup_failure_propagates(monkeypatch):
+    monkeypatch.setattr(
+        _FakeTerminus2,
+        "setup",
+        AsyncMock(side_effect=RuntimeError("Failed to start tmux session")),
     )
-    assert (run.finish_reason, run.submitted, run.turns) == ("error", False, 6)
+    with pytest.raises(RuntimeError, match="Failed to start tmux session"):
+        _run(monkeypatch, max_turns=10, episodes=0, pending_completion=False)
 
 
 def test_sandbox_api_error_is_not_returned_as_an_unsuccessful_attempt(monkeypatch):
@@ -289,10 +441,11 @@ def test_the_summarize_flag_restores_upstream_behavior(monkeypatch):
 # --------------------------------------------------------------------------
 
 
-def _parse_result(*, commands=(), is_task_complete=False):
+def _parse_result(*, commands=(), is_task_complete=False, error=None):
     result = MagicMock()
     result.commands = list(commands)
     result.is_task_complete = is_task_complete
+    result.error = error
     return result
 
 
@@ -329,17 +482,18 @@ def test_a_turn_with_no_parsable_action_is_counted(monkeypatch):
 
 
 def test_format_errors_survive_a_crash(monkeypatch):
-    """They describe turns already captured for training, so an exception later in
-    the trajectory must not discard them."""
-    run = _run(
-        monkeypatch,
-        max_turns=150,
-        episodes=2,
-        pending_completion=False,
-        parse_results=[_parse_result(), _parse_result()],
-        raises=RuntimeError("boom"),
-    )
-    assert (run.finish_reason, run.format_errors) == ("error", 2)
+    built = []
+    with pytest.raises(RuntimeError, match="boom"):
+        _run(
+            monkeypatch,
+            max_turns=150,
+            episodes=2,
+            pending_completion=False,
+            parse_results=[_parse_result(), _parse_result()],
+            raises=RuntimeError("boom"),
+            built=built,
+        )
+    assert built[0]._parser.format_errors == 2
 
 
 def test_captured_subagent_calls_are_reported(monkeypatch, caplog):
@@ -391,6 +545,48 @@ def test_the_counting_parser_delegates_everything_else():
     wrapped = _CountingParser(_Inner())
     assert hasattr(wrapped, "salvage_truncated_response")
     assert wrapped.salvage_truncated_response("x") == ("<response/>", False)
+
+
+@pytest.mark.parametrize("parser_name", ["xml", "json"])
+def test_harness_repairs_xml_parser_and_preserves_json(monkeypatch, parser_name):
+    from harbor.agents.terminus_2.terminus_json_plain_parser import (
+        TerminusJSONPlainParser,
+    )
+
+    import torchtitan.experiments.rl.harness.agents.terminus as terminus
+    from torchtitan.experiments.rl.harness.agents.terminus_xml import (
+        SafeTerminusXMLParser,
+        TerminusXMLPlainParser,
+    )
+
+    original = (
+        TerminusXMLPlainParser() if parser_name == "xml" else TerminusJSONPlainParser()
+    )
+    initialize = _FakeTerminus2.__init__
+
+    def initialize_parser(self, **kwargs):
+        initialize(self, **kwargs)
+        self._parser = original
+
+    monkeypatch.setattr(_FakeTerminus2, "__init__", initialize_parser)
+    monkeypatch.setattr(terminus, "_PARSER", parser_name)
+    built = []
+    _run(monkeypatch, max_turns=1, built=built, episodes=1, pending_completion=False)
+    parser = built[0]._parser
+    assert isinstance(parser, terminus._CountingParser)
+    if parser_name == "json":
+        assert parser._inner is original
+    else:
+        assert isinstance(parser._inner, SafeTerminusXMLParser)
+        response = (
+            '<response><analysis/><plan/><commands><keystrokes duration="1">'
+            "printf '%s' '< >'\n</keystrokes></commands></response>"
+        )
+        assert (
+            parser.parse_response(response).commands[0].keystrokes
+            == "printf '%s' '< >'\n"
+        )
+        assert parser.format_errors == 0
 
 
 # --------------------------------------------------------------------------
@@ -488,14 +684,14 @@ def test_external_cancellation_is_not_agent_exhaustion(monkeypatch, caplog):
 
 
 def test_underlying_timeout_is_not_agent_exhaustion(monkeypatch):
-    run = _run(
-        monkeypatch,
-        max_turns=10,
-        episodes=2,
-        pending_completion=False,
-        raises=TimeoutError("sandbox transport"),
-    )
-    assert run.finish_reason == "error"
+    with pytest.raises(TimeoutError, match="sandbox transport"):
+        _run(
+            monkeypatch,
+            max_turns=10,
+            episodes=2,
+            pending_completion=False,
+            raises=TimeoutError("sandbox transport"),
+        )
 
 
 # --------------------------------------------------------------------------

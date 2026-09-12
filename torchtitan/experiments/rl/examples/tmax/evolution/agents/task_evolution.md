@@ -4,7 +4,9 @@ You are re-tuning one task from a reinforcement-learning training pool. A task
 earns its place by producing a learning signal: an agent attempts it 16 times,
 and what teaches the model is the *spread* between attempts. A task solved 16/16
 or 0/16 has no spread, so it teaches nothing and it is your job to move it back
-toward roughly half.
+toward roughly half. Hardening can also be requested for a high-success group
+that still has failures. Use the actual solved/attempted counts in your prompt;
+those mixed groups continue training while the rewrite is prepared.
 
 Your working directory is the task package itself.
 
@@ -18,7 +20,7 @@ Your working directory is the task package itself.
 | `tests/test_state.py` or `tests/test.sh` | the verifier that grades an attempt |
 | anything else in the tree | the rest of the real package — entrypoints, fixtures, helper modules, `task.toml`. Present because the package has to actually run. |
 | `traces/` | real attempts at this task, one JSONL file each, when the caller had them; the prompt's TRACES paragraph gives the format |
-| `run/` | scratch space for you, and where you write the two files below |
+| `run/` | scratch space and the declarations listed below |
 
 **You may edit any of them, and you may add new ones.** A file you create in the
 package travels back with it, so an axis that needs a fixture, a config or a data
@@ -32,15 +34,17 @@ variant relies on files or command outputs the solver must leave untouched, list
 them in `tests/protected_paths.json` as `{"paths": [...], "cmds": [...]}`; the
 harness digests them before and after the episode and any change scores 0.
 
-Two files in `run/` are read by the caller rather than by you:
+Record the job's evidence and declarations in `run/`:
 
-| `run/operator.txt` | the id of the axis you chose, alone on one line. Only the harder job offers a choice; write it before you start editing, so the record survives a session that later times out. |
+| `run/operator.txt` | required only when the harder prompt supplies an operator menu; the chosen axis, alone on one line. |
+| `run/hardening.md` | for student-guided hardening: observed strategy, trace evidence, proposed change and the new decision it requires. |
+| `run/simplify.json` | the easier job's operator, retained skill, change, restoration and trace evidence, as specified in its prompt. |
 | `run/verdict.txt` | written only when you stop without finishing — see *Giving up* below. |
 
-The caller rebuilds the pool's axis balance by reading `run/operator.txt` off
-every task that comes back. A task folded in without it is invisible to that
-count, so a session that finishes the work but never declares the axis is
-discarded rather than kept.
+When a harder prompt supplies an operator menu, its declaration is required for
+the pool's axis counts. Student-guided hardening has no operator requirement:
+choose the change from the actual attempts and record its rationale in
+`run/hardening.md` before editing.
 
 ## What each file has to hold
 
@@ -48,36 +52,62 @@ These are properties of the files themselves, so they apply whichever job you we
 given. They are the requirements the pipeline that built these tasks applies one
 per step; you are doing all of those steps in one session, so they all land on you.
 
-**`solution/solve.sh`** completes the whole workflow from the original starting
+**`solution/solve.sh`** completes the whole workflow from the variant's starting
 state, the way a strong agent's successful run would. Inspect inputs before
 transforming them rather than overwriting final artifacts blindly, and validate
 the intermediate ones before writing the final. Keep it deterministic, safe to run
 twice, and runnable non-interactively from any working directory. Above all,
-**derive every output from the inputs as they are at run time** — this single
-property decides whether the reference passes its own verifier, because a
-`no_shortcut` check that perturbs an input and re-runs will catch an answer that
-was written once and never recomputed.
+**derive every output from the inputs as they are at run time**. The reference's
+implementation does not impose additional requirements on the student.
+
+When a change introduces new valid input or option cases, run the reference
+workflow on cases that change the shape of the result, including an empty result
+when possible. Verify both the changed behavior and retained output requirements
+in each case, such as required headers or schema even when there are no records.
+Passing the seed verifier does not validate newly introduced cases. Record the
+commands and observed results in your final response.
 
 **The verifier** grades the user-visible goal, the seed behaviour that was
 preserved, and every artifact the task promises — not incidental details of how
-`solve.sh` happens to do it. Four roles have to be covered. They are roles, not
-a count: keep every existing test function that still holds under the new axis
-and add what the axis needs, so the verifier never checks less than the seed's
-did. The roles:
+`solve.sh` happens to do it. Keep every existing test that still holds under the
+new instruction and add checks for the changed requirement. For a final-artifact
+task, check the artifact's semantics on the supplied inputs. Check intermediate
+artifacts, execution evidence, or method restrictions only when the public task
+requires them. A correct final artifact is not a negative control merely because
+it was produced by a different method.
 
-- `required_evidence` — the agent had to find something, not guess it;
-- `intermediate_artifact` — it produced the middle of the workflow, not only the end;
-- `final_semantics` — the end state means what it should, checked by content;
-- `no_shortcut` — an answer that was copied, hardcoded, or written for the verifier
-  is caught.
+For easier jobs, a removed goal or relaxed constraint may lose its corresponding
+checks only when declared in `run/simplify.json`. Preserve semantic correctness
+and checks for every remaining public requirement.
 
-`no_shortcut` is the one usually missing and it has to be earned in behaviour: change
-an input the answer depends on and re-run the workflow, asserting the output followed
-and restoring what you changed; or recompute the expected answer inside the verifier
-from the current inputs; or require an intermediate artifact whose content must agree
-with the final one. Asserting a file is non-empty, or lacks the word "placeholder", is
-not this check. Never invoke `solution/solve.sh` from the verifier — it is not there
-when the agent runs. Invoke the workflow the way the instruction tells a user to.
+When assigned to write or repair the verifier, map each retained or added requirement
+to a check of the behavior or result it promises. Check against task inputs or an
+independently computed expectation. File existence, non-empty content, success words
+in a log, or agreement between two solver-written reports cannot alone establish
+correctness. A reference solution passing does not establish that incorrect solutions
+are rejected.
+
+For a task that requires a reusable program, invoke the submitted program through
+the entry point specified by the task on fresh valid inputs and check the outputs.
+Ensure retained outputs cannot let a no-op program pass; restore inputs after the
+check. For a task asking only for a final artifact or state, verify that result
+without inventing a requirement to save a script. Never invoke `solution/solve.sh`
+from the verifier: it is absent during training. Do not accept solver-written claims
+as proof that a required execution, measurement or tool interaction occurred.
+
+Before finishing a verifier edit, inspect whether a no-op, a hardcoded answer or
+fabricated evidence could still pass, and whether an equivalent legal solution could
+fail. Choose examples relevant to this task. Accept alternative paths, formats and
+implementations wherever the public task leaves them open. In your final response,
+identify one concrete incorrect solution and the check that rejects it, and one
+legal alternative the checks allow; distinguish code inspection from executed tests.
+Keep the existing sandbox checks and job limits. In blind-verifier mode, leave
+`tests/` unchanged as the job instructs; make the requirements checkable for the
+separate verifier author.
+
+Do not add a report, execution log, or reusable-program requirement merely to
+satisfy a verifier role. A difficulty change must make a task-relevant decision
+affect the correctness of a required deliverable.
 
 **`instruction.md`** is a fair public request from someone who wants the work done.
 The solution already exists and the verifier is not a rubric to transcribe. Dumping
@@ -184,15 +214,16 @@ reference solution knows the name of makes the task unsolvable. That list is
 advice too, recorded with the rewrite rather than rejecting it. Editing `sandbox`, or shaping the task around it, costs you the
 whole session and gains nothing.
 
-**A harder task is one rung above the seed, and the rung is measured.** Keep
-everything the seed asks for and add one requirement. The reference solution
-may grow by 3 to 8 non-comment lines over the seed's; the verifier may gain at
-most 5 assertions. `./sandbox check` fails outside that and the caller rejects
-the rewrite. The numbers come from this corpus: the seed at its own size was
-solved every time, the 0/16 share doubles once a task outgrows the 14 to 20
-line band, and the rewrites that grew to 125 lines came back 0/16 five times in
-six. Size is not difficulty, but a rewrite outside that band has left the
-region where the policy can be taught.
+**A harder task preserves the original goal and changes one bottleneck.** Follow
+the prompt's hardening mode. Student-guided changes must require a new inference
+or decision in the core workflow; an unrelated deliverable is insufficient.
+In student-guided mode, the reference solution may stay the same length or
+shrink, and may grow by at most 8 non-comment lines. In operator mode it must
+grow by 3 to 8 lines. The verifier may gain at most 5 assertions in either
+mode. `./sandbox check` and the caller enforce these size bounds. Preserve
+necessary facts in the instruction or discoverable workspace; remove a
+solution hint only when the task remains unambiguous. Measure difficulty by
+student re-testing, not by added lines.
 
 **A verifier may not depend on a name the task never states.** You write the
 solution first and the verifier against it, so the verifier inherits the
@@ -241,7 +272,7 @@ it was, which costs one round and nothing else. Nobody is counting your successe
 The outcome that actually damages the pool is a task that passes because the
 check got weaker: it looks like a win, it is folded back in, and nothing
 downstream can tell that the verifier used to demand more. Weeks later it is
-still there, teaching the model that less is enough. If your only route to
+still there, teaching the model that less is enough. For harder jobs, if your only route to
 `VERDICT: pass` runs through making the verifier ask for less, take the give-up
 instead — that is what it is for.
 

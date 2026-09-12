@@ -278,12 +278,20 @@ class _CountingParser:
     def __init__(self, inner: Any) -> None:
         self._inner = inner
         self.format_errors = 0
+        self.completion_signals = 0
 
     def __getattr__(self, name: str) -> Any:
         return getattr(self._inner, name)
 
     def parse_response(self, content: str) -> Any:
         result = self._inner.parse_response(content)
+        # Harbor leaves a pending completion unchanged on parsing errors. Only
+        # successfully parsed responses can confirm it or withdraw it.
+        if not getattr(result, "error", None):
+            if getattr(result, "is_task_complete", False):
+                self.completion_signals += 1
+            else:
+                self.completion_signals = 0
         if not getattr(result, "commands", None) and not getattr(
             result, "is_task_complete", False
         ):
@@ -347,6 +355,13 @@ class _SandboxEnvironment:
         # Set when Terminus-2 starts its pane, so the transcript can be fetched
         # before the sandbox goes away. None until then.
         self.pane_path: str | None = None
+        self._pane_name = agent_dir.name + ".pane"
+        from .terminus_terminal import TerminalLifecycle
+
+        self.terminal = TerminalLifecycle(self._terminal_exec)
+
+    async def _terminal_exec(self, command: str):
+        return await self._exec_raw(command, timeout_sec=5)
 
     async def exec(
         self,
@@ -356,11 +371,28 @@ class _SandboxEnvironment:
         timeout_sec: int | None = None,
         user: str | int | None = None,
     ):
-        from harbor.environments.base import ExecResult  # type: ignore
-
         if cwd:
             command = f"cd {shlex.quote(cwd)} && {command}"
         command = self._bound_pane_pipe(command)
+        return await self.terminal.run(
+            command,
+            lambda cmd: self._exec_raw(
+                cmd, env=env, timeout_sec=timeout_sec, user=user
+            ),
+        )
+
+    async def _exec_raw(
+        self,
+        command: str,
+        *,
+        env: dict[str, str] | None = None,
+        timeout_sec: int | None = None,
+        user: str | int | None = None,
+    ):
+        from harbor.environments.base import ExecResult  # type: ignore
+
+        if self.terminal.prepared:
+            env = {**(env or {}), "TMUX_TMPDIR": self.terminal.directory}
         started_at = time.time()
         try:
             exit_code, stdout, stderr = await self._sandbox.exec(
@@ -393,8 +425,8 @@ class _SandboxEnvironment:
         """Cap the pane transcript, and remember where it is.
 
         Terminus-2 builds its tmux session with an unbounded
-        ``pipe-pane 'cat > <path>'``. Rewriting it to ``head -c`` stops the file
-        at _PANE_CAP_BYTES: head exits at the cap, tmux's pipe takes EPIPE, and
+        ``pipe-pane 'cat > <path>'``. A bounded ``dd`` stops the file
+        at _PANE_CAP_BYTES: dd exits at the cap, tmux's pipe takes EPIPE, and
         the terminal keeps working with nothing more written. Left alone, a
         command that floods the terminal fills the task's own disk.
 
@@ -404,10 +436,18 @@ class _SandboxEnvironment:
         m = self._PANE_PIPE.search(command)
         if m is None:
             return command
-        path = m.group("path")
-        self.pane_path = path
-        bounded = f"head -c {_PANE_CAP_BYTES} > {shlex.quote(path)}"
-        return command.replace(f"'cat > {path}'", f"'{bounded}'", 1)
+        original = m.group("path")
+        path = Path(original).with_name(self._pane_name)
+        self.pane_path = str(path)
+        # Harbor assumes its log directory already exists. Each run also needs
+        # its own file when previous sessions keep background services alive.
+        # One-byte blocks make the cap exact even with short pipe reads and
+        # write small observations immediately; head buffers them until EOF.
+        bounded = (
+            f"dd bs=1 count={_PANE_CAP_BYTES} > {shlex.quote(str(path))} 2>/dev/null"
+        )
+        command = command.replace(f"'cat > {original}'", shlex.quote(bounded), 1)
+        return f"mkdir -p {shlex.quote(str(path.parent))} && {command}"
 
     def _trace_exec(self, command: str, started_at: float, exit_code: int) -> None:
         """Keep one exec in the session's trace.
@@ -482,11 +522,23 @@ def _count_subagent_calls(agent: Any, llm: _AdapterLLM) -> None:
     agent._run_subagent = counting
 
 
-async def terminus_agent(task: AgentTask) -> AgentRun:
+async def terminus_agent(
+    task: AgentTask, *, terminal_session_name: str | None = None
+) -> AgentRun:
     """Drive Terminus-2 against the task's sandbox and the adapter's policy."""
     from harbor.agents.terminus_2 import Terminus2  # type: ignore
     from harbor.llms.base import ContextLengthExceededError  # type: ignore
     from harbor.models.agent.context import AgentContext  # type: ignore
+
+    from torchtitan.experiments.rl.harness.agents.terminus_terminal import (
+        TerminalExited,
+        TerminalUnavailable,
+    )
+
+    from torchtitan.experiments.rl.harness.agents.terminus_xml import (
+        SafeTerminusXMLParser,
+        TerminusXMLPlainParser,
+    )
 
     # Quiet litellm's per-turn token_counter for our placeholder model name (see
     # _register_titan_actor_with_litellm). Idempotent, cheap after the first call.
@@ -521,6 +573,10 @@ async def terminus_agent(task: AgentTask) -> AgentRun:
                     _PROACTIVE_SUMMARIZE_THRESHOLD if _SUMMARIZE else 0
                 ),
             )
+            if terminal_session_name is not None:
+                # Repeated validation in one sandbox retains prior sessions and
+                # their services until grading, instead of killing their panes.
+                agent.name = lambda: terminal_session_name
             # Swap the LiteLLM backend for the in-process adapter before setup;
             # Terminus-2 only reads self._llm through ``call`` and the limit getters.
             llm = _AdapterLLM(
@@ -540,6 +596,8 @@ async def terminus_agent(task: AgentTask) -> AgentRun:
                     "[terminus] no parser to wrap; format_errors will read 0"
                 )
             else:
+                if isinstance(inner_parser, TerminusXMLPlainParser):
+                    inner_parser = SafeTerminusXMLParser()
                 parser = _CountingParser(inner_parser)
                 agent._parser = parser
             _count_subagent_calls(agent, llm)
@@ -548,7 +606,9 @@ async def terminus_agent(task: AgentTask) -> AgentRun:
             # no retry loop here.
             stage = "setup"
             logger.info("[terminus] session=%s stage=%s start", task.session_id, stage)
+            await env.terminal.prepare()
             await agent.setup(env)
+            await env.terminal.bind(agent._session._session_name)
             stage = "run"
             logger.info("[terminus] session=%s stage=%s start", task.session_id, stage)
             # A check before the next LLM call cannot interrupt a pending call or
@@ -563,17 +623,13 @@ async def terminus_agent(task: AgentTask) -> AgentRun:
                         raise
                     raise _TimeBudgetExhausted("agent execution budget spent") from None
             turns = _episodes(agent)
-            # Terminus-2's loop has THREE exits, and only one of them is a submit:
-            # it runs the episodes out; it returns early on a confirmed
-            # <task_complete>true</task_complete> (the second consecutive one, at
-            # which point ``_pending_completion`` is still set); or it returns early
-            # because ``is_session_alive()`` went false, i.e. the tmux session died
-            # under it. Reading "ended before the cap" as the submit signal folds that
-            # third case into "submit" and scores a dead session as a real attempt.
-            if turns >= max_episodes:
-                finish_reason = "hit_max_turns"
-            elif getattr(agent, "_pending_completion", False):
+            # A pending completion also survives session death after the first
+            # signal. Require both signals and a normal return from agent.run.
+            # Confirmation on the last allowed episode still counts as a submit.
+            if parser is not None and parser.completion_signals >= 2:
                 finish_reason = "submit"
+            elif turns >= max_episodes:
+                finish_reason = "hit_max_turns"
             else:
                 finish_reason = "stopped_early"
             submitted = finish_reason == "submit"
@@ -587,6 +643,13 @@ async def terminus_agent(task: AgentTask) -> AgentRun:
             # not the task, is what stopped the agent.
             turns = _episodes(agent)
             finish_reason = "hit_context_limit"
+        except TerminalExited as exc:
+            if stage != "run":
+                raise TerminalUnavailable(
+                    "terminal_exited_during_setup", env.terminal.events
+                ) from exc
+            turns = _episodes(agent)
+            finish_reason = "terminal_exited"
         except asyncio.CancelledError:
             logger.warning(
                 "[terminus] session=%s cancelled stage=%s episodes=%d",
@@ -595,10 +658,6 @@ async def terminus_agent(task: AgentTask) -> AgentRun:
                 _episodes(agent),
             )
             raise
-        except _SandboxExecutionError:
-            # The rollouter excludes failed API calls from training. Returning
-            # submitted=False here would instead turn a missing result into 0.
-            raise
         except Exception as e:
             logger.warning(
                 "[terminus] session=%s failed: %s: %s",
@@ -606,10 +665,9 @@ async def terminus_agent(task: AgentTask) -> AgentRun:
                 type(e).__name__,
                 str(e)[:200],
             )
-            # Keep the episodes the agent did get through; the turns it captured are
-            # still trained on, so reporting 0 here misattributes them.
-            turns = _episodes(agent)
-            finish_reason = "error"
+            # The rollouter retains captured turns for diagnostics and marks the
+            # rollout unscored. An agent/runtime error is not a wrong answer.
+            raise
         finally:
             if parser is not None:
                 format_errors = parser.format_errors
@@ -633,6 +691,7 @@ async def terminus_agent(task: AgentTask) -> AgentRun:
         # The pane lives in the sandbox, which is still up when this returns;
         # the rollouter reads it if this run collects transcripts.
         pane_path=env.pane_path,
+        terminal_events=env.terminal.events,
     )
 
 

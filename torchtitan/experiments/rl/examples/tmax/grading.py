@@ -224,6 +224,7 @@ async def grade_tmax(
     workdir: str,
     timeout_sec: int | None = None,
     baseline_digests: dict[str, str] | None = None,
+    diagnostics: dict | None = None,
 ) -> float:
     """Grade a tmax task in the (already-run) sandbox ``sb`` and return reward.
 
@@ -345,7 +346,11 @@ async def grade_tmax(
     # scored below 1: reward.txt holds the number and nothing else. Kept for
     # a failed episode so a reference solution that fails can be read from
     # the log instead of re-run in a fresh sandbox.
-    verifier_tail = ((out or "") + (err or ""))[-400:]
+    verifier_output = (out or "") + (err or "")
+    verifier_tail = verifier_output[-400:]
+    if diagnostics is not None:
+        # Post-episode evidence for the task editor, never an agent observation.
+        diagnostics.update(exit_code=rc, output_tail=verifier_output[-16000:])
     reward_txt = await sb.read_file(reward_path, user="root")
     if (reward_txt or "").strip() == nonce:
         logger.info(

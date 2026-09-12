@@ -1,4 +1,10 @@
 #!/usr/bin/env python3
+# Copyright (c) Meta Platforms, Inc. and affiliates.
+# All rights reserved.
+#
+# This source code is licensed under the BSD-style license found in the
+# LICENSE file in the root directory of this source tree.
+
 """The feedback pipeline: adjust one task from a solver's rollouts.
 
 This is the training pipeline's task-adjustment stage, and it does one thing:
@@ -35,12 +41,14 @@ import sys
 import time
 from pathlib import Path
 
-import synth_loop as sl
-import synth_client as llm
-import evolve as ev
 import derive_sizing as ds
+import evolve as ev
+import synth_client as llm
+
+import synth_loop as sl
 import task_size as ts
 import verifier_literals as vl
+from synth_operators import harder_uses_operators
 from torchtitan.experiments.rl.examples.tmax import layout, rollout_record
 
 log = logging.getLogger("feedback")
@@ -52,24 +60,32 @@ log = logging.getLogger("feedback")
 # the venv's when TRL_VENV names one, else the one this process runs in; when
 # the credential file is absent this host simply has no build story and
 # structural retunes are declined as before.
-DAYTONA_VENV_PY = (str(Path(os.environ["TRL_VENV"]) / "bin" / "python")
-                   if os.environ.get("TRL_VENV") else sys.executable)
+DAYTONA_VENV_PY = (
+    str(Path(os.environ["TRL_VENV"]) / "bin" / "python")
+    if os.environ.get("TRL_VENV")
+    else sys.executable
+)
 DAYTONA_ENV_FILE = os.environ.get(
-    "DAYTONA_ENV_FILE", os.path.expanduser("~/.config/daytona/env"))
+    "DAYTONA_ENV_FILE", os.path.expanduser("~/.config/daytona/env")
+)
 
 
 _INFRA_RE = re.compile(
     r"Timeout|Bad ?Gateway|InternalServer|50[234]|[Cc]onnection|timed? ?out|"
-    r"no stdout|TooManyRequests|429")
+    r"no stdout|TooManyRequests|429"
+)
 
 
 RESOURCE_KEYS = ("cpu", "mem_gb", "disk_gb")
 
 
-def daytona_probe(work: Path, shortcut: str | None = None,
-                  resources: dict | None = None,
-                  require_paths: list[str] | None = None,
-                  pretest_file: Path | None = None) -> dict | None:
+def daytona_probe(
+    work: Path,
+    shortcut: str | None = None,
+    resources: dict | None = None,
+    require_paths: list[str] | None = None,
+    pretest_file: Path | None = None,
+) -> dict | None:
     """Run daytona_revalidate.py on this package; None when unconfigured.
 
     `resources` is the box to run it in: the size the row is provisioned at in
@@ -94,20 +110,33 @@ def daytona_probe(work: Path, shortcut: str | None = None,
     # stays quiet; an absent script is this repo's bug and has to say so.
     script = Path(__file__).resolve().parent / "daytona_revalidate.py"
     if not script.exists():
-        log.error("daytona_revalidate.py not found at %s -- structural retunes "
-                  "cannot be revalidated and will ALL be rejected. This is a "
-                  "packaging error, not a missing credential: the script must "
-                  "sit beside feedback_loop.py (it imports pack_to_dataset as a "
-                  "sibling).", script)
+        log.error(
+            "daytona_revalidate.py not found at %s -- structural retunes "
+            "cannot be revalidated and will ALL be rejected. This is a "
+            "packaging error, not a missing credential: the script must "
+            "sit beside feedback_loop.py (it imports pack_to_dataset as a "
+            "sibling).",
+            script,
+        )
         return None
     if not (os.path.exists(DAYTONA_VENV_PY) and os.path.exists(DAYTONA_ENV_FILE)):
-        log.info("Daytona probe unconfigured (venv=%s env_file=%s); structural "
-                 "retunes stay unshipped on this host.",
-                 os.path.exists(DAYTONA_VENV_PY),
-                 os.path.exists(DAYTONA_ENV_FILE))
+        log.info(
+            "Daytona probe unconfigured (venv=%s env_file=%s); structural "
+            "retunes stay unshipped on this host.",
+            os.path.exists(DAYTONA_VENV_PY),
+            os.path.exists(DAYTONA_ENV_FILE),
+        )
         return None
-    cmd = ["bash", "-c", '. "$1" && shift && exec "$@"', "-",
-           DAYTONA_ENV_FILE, DAYTONA_VENV_PY, str(script), str(work)]
+    cmd = [
+        "bash",
+        "-c",
+        '. "$1" && shift && exec "$@"',
+        "-",
+        DAYTONA_ENV_FILE,
+        DAYTONA_VENV_PY,
+        str(script),
+        str(work),
+    ]
     if shortcut:
         cmd += ["--shortcut", shortcut]
     for key in RESOURCE_KEYS:
@@ -126,20 +155,27 @@ def daytona_probe(work: Path, shortcut: str | None = None,
     last: dict = {"ok": False, "stage": "daytona_error", "why": "not run"}
     for attempt in (1, 2):
         try:
-            p = subprocess.run(cmd, capture_output=True, text=True,
-                               timeout=2400)
+            p = subprocess.run(cmd, capture_output=True, text=True, timeout=2400)
             lines = p.stdout.strip().splitlines()
             if not lines:
                 # The script died before its JSON verdict; splitlines()[-1]
                 # used to raise a bare IndexError here and eat the real cause.
-                last = {"ok": False, "stage": "daytona_error",
-                        "why": (f"no stdout (exit {p.returncode}): "
-                                f"{p.stderr.strip()[-160:]}")}
+                last = {
+                    "ok": False,
+                    "stage": "daytona_error",
+                    "why": (
+                        f"no stdout (exit {p.returncode}): "
+                        f"{p.stderr.strip()[-160:]}"
+                    ),
+                }
             else:
                 last = json.loads(lines[-1])
         except Exception as e:  # noqa: BLE001
-            last = {"ok": False, "stage": "daytona_error",
-                    "why": f"{type(e).__name__}: {e}"[:200]}
+            last = {
+                "ok": False,
+                "stage": "daytona_error",
+                "why": f"{type(e).__name__}: {e}"[:200],
+            }
         if last.get("ok") or not _INFRA_RE.search(str(last.get("why", ""))):
             return last
         if attempt == 1:
@@ -174,6 +210,7 @@ def format_trace(records: list[tuple[dict, list[dict]]], keep: int = 3) -> str:
     the others do not. The records are whole; the trimming here is for the
     chat prompt, which has a budget the files do not.
     """
+
     def reward(head: dict) -> float | None:
         try:
             return float(head.get("reward"))
@@ -185,8 +222,9 @@ def format_trace(records: list[tuple[dict, list[dict]]], keep: int = 3) -> str:
     picks = (fails or graded or records)[:keep]
     out = []
     for head, turns in picks:
-        out.append(f"--- attempt reward={head.get('reward')} "
-                   f"turns={head.get('turns')} ---")
+        out.append(
+            f"--- attempt reward={head.get('reward')} " f"turns={head.get('turns')} ---"
+        )
         for t in turns:
             typed = "".join(t.get("keystrokes") or [t.get("raw", "")])
             out.append(f"$ {typed.rstrip()}")
@@ -206,7 +244,11 @@ def context_text(work: Path) -> str:
     if not root.is_dir():
         return ""
     for f in sorted(root.rglob("*")):
-        if f.is_file() and f.name != "Dockerfile" and f.stat().st_size <= CONTEXT_FILE_MAX:
+        if (
+            f.is_file()
+            and f.name != "Dockerfile"
+            and f.stat().st_size <= CONTEXT_FILE_MAX
+        ):
             out.append(f.read_text(errors="replace"))
     return "\n".join(out)
 
@@ -226,16 +268,23 @@ def new_dark_paths(work: Path, task: dict, orig: dict) -> list[str]:
     ctx = context_text(work)
     seen = {**task, "instruction": task["instruction"] + "\n" + ctx}
     before = set(sl.audit(orig)["dark_paths"])
-    return [p for p in sl.audit(seen)["dark_paths"]
-            if p not in before and ":" not in p and not any(c in p for c in "*?[")]
+    return [
+        p
+        for p in sl.audit(seen)["dark_paths"]
+        if p not in before and ":" not in p and not any(c in p for c in "*?[")
+    ]
 
 
 def seed_literals(task: dict, src_dir: Path) -> list[str]:
     """What the seed's verifier already depends on unseen, so a rewrite
     answers for the names it added and not for the seed's."""
-    return vl.unseen(task["test_state_py"], vl.kind_of(ev._verifier_rel(task)),
-                     vl.visible_text(src_dir, instruction=task["instruction"],
-                                     dockerfile=task["dockerfile"]))
+    return vl.unseen(
+        task["test_state_py"],
+        vl.kind_of(ev._verifier_rel(task)),
+        vl.visible_text(
+            src_dir, instruction=task["instruction"], dockerfile=task["dockerfile"]
+        ),
+    )
 
 
 def new_dark_literals(work: Path, task: dict, baseline) -> list[str]:
@@ -245,19 +294,31 @@ def new_dark_literals(work: Path, task: dict, baseline) -> list[str]:
     the report key the policy has to guess, the line label the regex anchors
     on. Five of eight hardened tasks reviewed on wd-20260903b failed on this
     with the work otherwise done."""
-    return vl.unseen(task["test_state_py"], vl.kind_of(ev._verifier_rel(task)),
-                     vl.visible_text(work, instruction=task["instruction"],
-                                     dockerfile=task["dockerfile"]), baseline)
+    return vl.unseen(
+        task["test_state_py"],
+        vl.kind_of(ev._verifier_rel(task)),
+        vl.visible_text(
+            work, instruction=task["instruction"], dockerfile=task["dockerfile"]
+        ),
+        baseline,
+    )
 
 
 def _kind(task: dict) -> str:
     return "python" if ev._verifier_rel(task).endswith(".py") else "shell"
 
 
-def revalidate(work: Path, image: str, tid: str, task: dict,
-               orig: dict | None = None, changed: list[str] | None = None,
-               resources: dict | None = None, baseline=None,
-               pretest_file: Path | None = None) -> dict:
+def revalidate(
+    work: Path,
+    image: str,
+    tid: str,
+    task: dict,
+    orig: dict | None = None,
+    changed: list[str] | None = None,
+    resources: dict | None = None,
+    baseline=None,
+    pretest_file: Path | None = None,
+) -> dict:
     """After an adjustment: still builds, still self-consistent, and the
     verifier still fails an untouched workspace. Building here checks the task
     is well-formed; it never runs the solver.
@@ -281,15 +342,18 @@ def revalidate(work: Path, image: str, tid: str, task: dict,
     verifier path, or a path the instruction stopped revealing that the verifier
     still needs. Judged before/after, so an SWE test.sh that always references
     repo internals is not mistaken for a fresh dark path."""
-    if changed == ["instruction"] and orig is not None:
+    if changed == ["instruction"] and orig is not None and not task.get("_simplify"):
         if not task["instruction"].strip():
             return {"ok": False, "stage": "empty", "why": "instruction emptied"}
         before, after = sl.audit(orig), sl.audit(task)
         new_leaks = [x for x in after["leaks"] if x not in before["leaks"]]
         new_dark = [p for p in after["dark_paths"] if p not in before["dark_paths"]]
         if new_leaks or new_dark:
-            return {"ok": False, "stage": "audit",
-                    "why": f"leaks={new_leaks} dark={new_dark}"[:200]}
+            return {
+                "ok": False,
+                "stage": "audit",
+                "why": f"leaks={new_leaks} dark={new_dark}"[:200],
+            }
         return {"ok": True, "fast_path": "instruction_only"}
     # A structural change (a stage cut, the verifier tightened) has to be re-run
     # to be trusted, and that needs a build. On a host without docker -- della,
@@ -312,27 +376,49 @@ def revalidate(work: Path, image: str, tid: str, task: dict,
         dark = new_dark_paths(work, task, orig) if orig is not None else []
         # Static, so it costs nothing to ask before the probe; reported with
         # whichever failure comes first, so one repair round sees everything.
-        names = new_dark_literals(work, task, baseline or ()) if orig is not None else []
+        names = (
+            new_dark_literals(work, task, baseline or ()) if orig is not None else []
+        )
         # One rung above the seed, by the size rule task_size.py documents;
         # the agent's own check applies it first, this is the backstop.
-        step = (ts.violations(ts.size_of(orig["solve_sh"], orig["test_state_py"], _kind(orig)),
-                              ts.size_of(task["solve_sh"], task["test_state_py"], _kind(task)))
-                if orig is not None else [])
-        dv = daytona_probe(work, resources=resources, require_paths=dark,
-                           pretest_file=pretest_file)
+        step = (
+            ts.violations(
+                ts.size_of(orig["solve_sh"], orig["test_state_py"], _kind(orig)),
+                ts.size_of(task["solve_sh"], task["test_state_py"], _kind(task)),
+                require_growth=orig.get("_harder_mode") != "student",
+            )
+            if orig is not None and task.get("_direction") != "easier"
+            else []
+        )
+        dv = daytona_probe(
+            work, resources=resources, require_paths=dark, pretest_file=pretest_file
+        )
         if dv is None:
-            return {"ok": False, "stage": "no_docker",
-                    "why": "structural change needs a build; neither docker "
-                           "nor Daytona is configured here"}
-        also = (("\n\nAlso: " + vl.why(names)) if names else "") + \
-               (("\n\nAlso: " + ts.why(step)) if step else "")
+            return {
+                "ok": False,
+                "stage": "no_docker",
+                "why": "structural change needs a build; neither docker "
+                "nor Daytona is configured here",
+            }
+        also = (("\n\nAlso: " + vl.why(names)) if names else "") + (
+            ("\n\nAlso: " + ts.why(step)) if step else ""
+        )
         if not dv.get("ok"):
-            return {"ok": False, "stage": dv.get("stage", "daytona"),
-                    "why": str(dv.get("why") or f"reward={dv.get('reward')} "
-                               f"solve_exit={dv.get('solve_exit')}")[:200] + also,
-                    "literals": names, "tail": dv.get("tail", ""),
-                    "solve_exit": dv.get("solve_exit"), "measured": dv.get("measured"),
-                    "resources": dv.get("resources")}
+            return {
+                "ok": False,
+                "stage": dv.get("stage", "daytona"),
+                "why": str(
+                    dv.get("why")
+                    or f"reward={dv.get('reward')} "
+                    f"solve_exit={dv.get('solve_exit')}"
+                )[:200]
+                + also,
+                "literals": names,
+                "tail": dv.get("tail", ""),
+                "solve_exit": dv.get("solve_exit"),
+                "measured": dv.get("measured"),
+                "resources": dv.get("resources"),
+            }
         missing = dv.get("paths_missing") or []
         # The two audits of what the verifier demands unseen are advice, not
         # a verdict. Measured on wd-20260904a over 464 rewrites, the names
@@ -345,29 +431,54 @@ def revalidate(work: Path, image: str, tid: str, task: dict,
         # agent's next prompt, and the size rule below stays the gate.
         advice = {"dark_paths": missing, "dark_literals": names}
         if step:
-            return {"ok": False, "stage": "step_size", "step": step, "why": ts.why(step),
-                    "advice": advice, "solve_exit": dv.get("solve_exit"),
-                    "measured": dv.get("measured"), "resources": dv.get("resources")}
-        null = daytona_probe(work, shortcut=":", resources=resources,
-                             pretest_file=pretest_file) or {}
+            return {
+                "ok": False,
+                "stage": "step_size",
+                "step": step,
+                "why": ts.why(step),
+                "advice": advice,
+                "solve_exit": dv.get("solve_exit"),
+                "measured": dv.get("measured"),
+                "resources": dv.get("resources"),
+            }
+        null = (
+            daytona_probe(
+                work, shortcut=":", resources=resources, pretest_file=pretest_file
+            )
+            or {}
+        )
         if null.get("passed"):
-            return {"ok": False, "stage": "null_pass",
-                    "why": "verifier passes on the untouched workspace"}
-        return {"ok": True, "fast_path": "daytona_oracle", "advice": advice,
-                "reward": dv.get("reward"), "measured": dv.get("measured"),
-                "resources": dv.get("resources")}
+            return {
+                "ok": False,
+                "stage": "null_pass",
+                "why": "verifier passes on the untouched workspace",
+            }
+        return {
+            "ok": True,
+            "fast_path": "daytona_oracle",
+            "advice": advice,
+            "reward": dv.get("reward"),
+            "measured": dv.get("measured"),
+            "resources": dv.get("resources"),
+        }
     sl.sh(["docker", "rmi", "-f", image], 300)
     ok, tail = sl.build_image(work, image)
     if not ok:
         return {"ok": False, "stage": "build", "why": tail[-200:]}
     oracle = sl.oracle_check(work, image, tid)
     if not oracle.get("ok"):
-        return {"ok": False, "stage": "oracle",
-                "why": oracle.get("test_tail", "")[-200:]}
+        return {
+            "ok": False,
+            "stage": "oracle",
+            "why": oracle.get("test_tail", "")[-200:],
+        }
     null = sl.shortcut_check(work, image, tid, ":")
     if null.get("passed"):
-        return {"ok": False, "stage": "null_pass",
-                "why": "verifier passes on the untouched workspace"}
+        return {
+            "ok": False,
+            "stage": "null_pass",
+            "why": "verifier passes on the untouched workspace",
+        }
     return {"ok": True}
 
 
@@ -380,21 +491,29 @@ def verdicts_of(v: dict | None) -> dict:
     if v.get("ok"):
         oracle = "skipped" if v.get("fast_path") == "instruction_only" else "pass"
     elif stage == "step_size":
-        oracle = "pass"                     # the solution passed; the size did not
+        oracle = "pass"  # the solution passed; the size did not
     elif stage in ("daytona_oracle", "oracle", "build", "null_pass"):
         oracle = "fail"
     elif stage in ("daytona_error", "no_docker"):
         oracle = "error"
     else:
-        oracle = "skipped" if v else None   # audit/empty: nothing was built
-    return {"oracle": oracle,
-            "dark_paths": list(advice.get("dark_paths") or v.get("paths_missing") or []),
-            "dark_literals": list(advice.get("dark_literals") or v.get("literals") or []),
-            "step": list(v.get("step") or [])}
+        oracle = "skipped" if v else None  # audit/empty: nothing was built
+    return {
+        "oracle": oracle,
+        "dark_paths": list(advice.get("dark_paths") or v.get("paths_missing") or []),
+        "dark_literals": list(advice.get("dark_literals") or v.get("literals") or []),
+        "step": list(v.get("step") or []),
+    }
 
 
-def provision(measured: dict | None, floor: dict | None, *, box: dict | None = None,
-              at_max: bool = False, by: str = "") -> dict | None:
+def provision(
+    measured: dict | None,
+    floor: dict | None,
+    *,
+    box: dict | None = None,
+    at_max: bool = False,
+    by: str = "",
+) -> dict | None:
     """A size for the rewritten row from one measurement, and where it came from.
 
     `floor` is what training gave the seed (the row's own daytona_* filled out
@@ -411,29 +530,42 @@ def provision(measured: dict | None, floor: dict | None, *, box: dict | None = N
     the box the loop's probe runs in; the probe's reading, taken in a
     container the agent never touched, is what the row is provisioned from.
     """
-    floor = {k: v for k, v in (floor or {}).items()
-             if k in RESOURCE_KEYS and v is not None}
+    floor = {
+        k: v for k, v in (floor or {}).items() if k in RESOURCE_KEYS and v is not None
+    }
     m = measured or {}
     sized = None
     if any(m.get(k) is not None for k in ("mem_peak_mb", "df_used_mb", "cpu_seconds")):
-        sized = ds.size_from_oracle(m.get("mem_peak_mb"), m.get("df_used_mb"),
-                                    m.get("cpu_seconds"))
+        sized = ds.size_from_oracle(
+            m.get("mem_peak_mb"), m.get("df_used_mb"), m.get("cpu_seconds")
+        )
     if sized is None and not floor:
         return None
     size = dict(floor)
     if sized:
         for k in RESOURCE_KEYS:
             size[k] = max(floor.get(k) or 0, sized[k])
-    return {**size, "source": f"measured:{by}" if sized else "inherited",
-            "floor": floor, "sized": sized, "measured": m or None,
-            "box": box, "at_max": bool(at_max)}
+    return {
+        **size,
+        "source": f"measured:{by}" if sized else "inherited",
+        "floor": floor,
+        "sized": sized,
+        "measured": m or None,
+        "box": box,
+        "at_max": bool(at_max),
+    }
 
 
 def _probe_box(new: dict, floor: dict | None) -> dict | None:
     """Where to run the loop's probe: the seed's box, raised to what the agent's
     last passing check measured. The agent's reading picks the box only."""
-    return provision(new.get("_measured"), floor, box=new.get("_box"),
-                     at_max=bool(new.get("_at_max")), by="agent_check")
+    return provision(
+        new.get("_measured"),
+        floor,
+        box=new.get("_box"),
+        at_max=bool(new.get("_at_max")),
+        by="agent_check",
+    )
 
 
 def _size_from_probe(rec: dict, verdict: dict, floor: dict | None) -> None:
@@ -443,11 +575,13 @@ def _size_from_probe(rec: dict, verdict: dict, floor: dict | None) -> None:
     the record; the loop writes it into rewrite.json and the folded row."""
     if verdict.get("ok") and verdict.get("measured"):
         rec["resources"] = provision(
-            verdict["measured"], floor, box=verdict.get("resources"), by="loop_probe")
+            verdict["measured"], floor, box=verdict.get("resources"), by="loop_probe"
+        )
 
 
-def _evolve_retrying_the_filter(ec, rec: dict, tid: str, rewrite: layout.RewriteDir,
-                                agent_task: dict, shortlist) -> dict:
+def _evolve_retrying_the_filter(
+    ec, rec: dict, tid: str, rewrite: layout.RewriteDir, agent_task: dict, shortlist
+) -> dict:
     """One agent session, retried when the provider's classifier stops it.
 
     The cybersecurity classifier fires late in a session whose context carries
@@ -465,9 +599,13 @@ def _evolve_retrying_the_filter(ec, rec: dict, tid: str, rewrite: layout.Rewrite
             rec["cyber_filtered"] = attempt
             if attempt > ec.CYBER_RETRIES:
                 raise
-            log.info("%s: the provider's cybersecurity classifier stopped the session "
-                     "(attempt %d of %d); starting a fresh one", tid, attempt,
-                     ec.CYBER_RETRIES + 1)
+            log.info(
+                "%s: the provider's cybersecurity classifier stopped the session "
+                "(attempt %d of %d); starting a fresh one",
+                tid,
+                attempt,
+                ec.CYBER_RETRIES + 1,
+            )
 
 
 def _write_back(work: Path, new: dict) -> None:
@@ -491,17 +629,24 @@ def _changed(task: dict, new: dict) -> list[str]:
     return changed
 
 
-def _done(rec: dict, status: str, *, stage: str | None = None,
-          reason: str | None = None) -> dict:
+def _done(
+    rec: dict, status: str, *, stage: str | None = None, reason: str | None = None
+) -> dict:
     """In place, so what the `finally` below adds (usage, timing) is on the
     dict the caller holds."""
     rec.update({"status": status, "stage": stage, "reason": (reason or "")[:300]})
     return rec
 
 
-def process_one(rewrite: layout.RewriteDir, signal: dict, *, job: str,
-                seed_dir: Path, resources: dict | None = None,
-                history: tuple[dict, dict] | None = None) -> dict:
+def process_one(
+    rewrite: layout.RewriteDir,
+    signal: dict,
+    *,
+    job: str,
+    seed_dir: Path,
+    resources: dict | None = None,
+    history: tuple[dict, dict] | None = None,
+) -> dict:
     """Retune one task in its rewrite directory, from the signal that asked.
 
     `job` is "harder" (an all-pass group) or "easier" (all-fail). `seed_dir`
@@ -529,13 +674,25 @@ def process_one(rewrite: layout.RewriteDir, signal: dict, *, job: str,
     # downstream leak/dark audit -- only the writing differs.
     arm = os.environ.get("SWE_RETUNE_AGENT", "chat")
     used_ops, used_fams = history or ({}, {})
-    rec: dict = {"task": tid, "job": job, "arm": arm, "solved": solved, "graded": graded,
-                 "verdicts": verdicts_of(None), "resources": None, "t_start": time.time()}
+    rec: dict = {
+        "task": tid,
+        "job": job,
+        "arm": arm,
+        "solved": solved,
+        "graded": graded,
+        "verdicts": verdicts_of(None),
+        "resources": None,
+        "t_start": time.time(),
+    }
     mark = dict(llm.USAGE)
     try:
         if not graded:
-            return _done(rec, "failed", stage="ungraded",
-                         reason="the signal carries no graded attempt")
+            return _done(
+                rec,
+                "failed",
+                stage="ungraded",
+                reason="the signal carries no graded attempt",
+            )
         ec = None
         if arm == "codex":
             import evolve_codex as ec  # noqa: PLC0415 -- optional arm, faked in tests
@@ -544,6 +701,10 @@ def process_one(rewrite: layout.RewriteDir, signal: dict, *, job: str,
         task["_task_id"] = tid
         task["_seed_dir"] = str(seed_dir)
         task["_solved"], task["_attempts"] = solved, graded
+        if signal.get("student_feedback") is not None:
+            task["_student_feedback"] = signal["student_feedback"]
+            rec["student_feedback"] = signal["student_feedback"]
+        task["_direction"] = job
         task["_resources"] = resources
         # The row's pin hook, as the loop snapshotted it beside rewrite.json
         # (None for a row without one). The agent's tool gets a copy under
@@ -554,13 +715,15 @@ def process_one(rewrite: layout.RewriteDir, signal: dict, *, job: str,
         # the agent's tool must validate the variant with the lists it will be
         # folded with, or a reward-1 variant folds into a reward-0 row.
         task["_protected"] = layout.read_protected_lists(rewrite.pretest)
-        pretest_file = rewrite.pretest if (task["_pretest"] or task["_protected"]) else None
+        pretest_file = (
+            rewrite.pretest if (task["_pretest"] or task["_protected"]) else None
+        )
         # The names the seed's verifier already depended on unseen, taken from
         # the input revision before anything here is rewritten.
         baseline = seed_literals(task, seed_dir)
         rec["action"] = "simplify" if job == "easier" else "evolve"
 
-        if job == "easier":                                   # 0/k -> easier
+        if job == "easier":  # 0/k -> easier
             # SWE_SIMPLIFY_HINT selects how much guidance a simplify may write
             # into the instruction (none|vague|specific). Default is vague:
             # the specific level bakes "where to look" hints into hundreds of
@@ -569,37 +732,62 @@ def process_one(rewrite: layout.RewriteDir, signal: dict, *, job: str,
             hint_lvl = os.environ.get("SWE_SIMPLIFY_HINT", "vague")
             if arm == "codex":
                 try:
-                    new = ec.simplify_codex(rewrite, task, solved=solved, attempts=graded,
-                                            hint=hint_lvl)
+                    new = ec.simplify_codex(
+                        rewrite, task, solved=solved, attempts=graded, hint=hint_lvl
+                    )
+                except ec.Blocked as e:
+                    return _done(rec, "kept", stage="agent", reason=str(e))
                 except Exception as e:  # noqa: BLE001 -- the task stays as it is
-                    return _done(rec, "failed", stage="agent",
-                                 reason=f"{type(e).__name__}: {e}")
+                    return _done(
+                        rec, "failed", stage="agent", reason=f"{type(e).__name__}: {e}"
+                    )
             else:
                 trace = "" if arm == "none" else format_trace(read_traces(rewrite))
-                new = ev.simplify(task, solved=solved, attempts=graded, trajectory=trace,
-                                  hint=("none" if arm == "none" else hint_lvl))
+                new = ev.simplify(
+                    task,
+                    solved=solved,
+                    attempts=graded,
+                    trajectory=trace,
+                    hint=("none" if arm == "none" else hint_lvl),
+                )
             rec["hint"] = new.get("_hint")
-        else:                                                 # k/k -> harder
-            # Which axis to evolve along is not the agent's call. The choice is
-            # scored against the whole pool -- L(o) for whether this seed has a
-            # foothold at all, D(f) for family balance, P(o) for how often the
-            # operator has been used -- and letting a model that sees only this
-            # one task pick from all forty collapses the pool onto whichever
-            # transformation is easiest to write. The scan also raises Blocked
-            # when the seed supports nothing, which is worth knowing BEFORE
-            # spending a session and two container builds on it.
+            if new.get("_simplify"):
+                rec["simplify"] = new["_simplify"]
+                rec["operator"], rec["family"] = new["_operator"], new["_family"]
+                rec["agent_validated"] = new.get("_agent_validated")
+        else:  # k/k -> harder
+            # Agentic hardening follows the student by default. The fixed menu
+            # remains available for comparison; the legacy chat arm requires it.
+            shortlist = None
+            fam = operator = None
+            use_operators = arm != "codex" or harder_uses_operators()
+            rec["harder_mode"] = "operators" if use_operators else "student"
+            task["_harder_mode"] = rec["harder_mode"]
+            rec["require_solution_growth"] = use_operators
             try:
-                shortlist = llm.operator_shortlist(
-                    {"task_id": tid, "instruction": task["instruction"],
-                     "dockerfile": task["dockerfile"],
-                     "solution": task["solve_sh"], "env_files": {}}, used_ops, used_fams)
+                shortlist = (
+                    llm.operator_shortlist(
+                        {
+                            "task_id": tid,
+                            "instruction": task["instruction"],
+                            "dockerfile": task["dockerfile"],
+                            "solution": task["solve_sh"],
+                            "env_files": {},
+                        },
+                        used_ops,
+                        used_fams,
+                    )
+                    if use_operators
+                    else None
+                )
             except llm.Blocked as e:
                 return _done(rec, "blocked", stage="operator", reason=str(e))
             # The head of the list is what the chat operator below gets, since
             # it cannot choose; the agent gets the whole list and reports back
             # which one it used.
-            fam, operator, definition = shortlist[0]
-            rec["operator"], rec["family"] = operator, fam
+            if shortlist:
+                fam, operator, definition = shortlist[0]
+                rec["operator"], rec["family"] = operator, fam
             if arm == "codex":
                 # No chat fallback. Measured over 434 agent sessions, every
                 # fallback followed a timeout or a "verifier weakened" verdict
@@ -609,7 +797,9 @@ def process_one(rewrite: layout.RewriteDir, signal: dict, *, job: str,
                 # output into the fold as if the agent had written it. A
                 # failed session leaves the task as it was, and says why.
                 try:
-                    new = _evolve_retrying_the_filter(ec, rec, tid, rewrite, task, shortlist)
+                    new = _evolve_retrying_the_filter(
+                        ec, rec, tid, rewrite, task, shortlist
+                    )
                     rec["hint"] = new.get("_hint")
                     rec["agent_validated"] = new.get("_agent_validated")
                 except ec.Blocked as e:
@@ -620,22 +810,35 @@ def process_one(rewrite: layout.RewriteDir, signal: dict, *, job: str,
                     # meant to avoid.
                     return _done(rec, "kept", stage="agent", reason=str(e))
                 except Exception as e:  # noqa: BLE001 -- the task stays as it is
-                    return _done(rec, "failed", stage="agent",
-                                 reason=f"{type(e).__name__}: {e}")
+                    return _done(
+                        rec, "failed", stage="agent", reason=f"{type(e).__name__}: {e}"
+                    )
             else:
                 try:
                     new = ev.evolve(task, seed_id=tid, operator=operator)
                 except llm.Blocked as e:
                     return _done(rec, "blocked", stage="operator", reason=str(e))
-            rec["operator"], rec["family"] = (new.get("_operator", operator),
-                                              new.get("_family", fam))
+            if use_operators:
+                rec["operator"], rec["family"] = (
+                    new.get("_operator", operator),
+                    new.get("_family", fam),
+                )
 
         _write_back(work, new)
         changed = _changed(task, new)
         box = _probe_box(new, resources)
         rec["resources"] = box
-        v = revalidate(work, image, tid, new, orig=task, changed=changed,
-                       resources=box, baseline=baseline, pretest_file=pretest_file)
+        v = revalidate(
+            work,
+            image,
+            tid,
+            new,
+            orig=task,
+            changed=changed,
+            resources=box,
+            baseline=baseline,
+            pretest_file=pretest_file,
+        )
         rec["revalidate"] = v
         _size_from_probe(rec, v, resources)
         if (
@@ -690,9 +893,17 @@ def process_one(rewrite: layout.RewriteDir, signal: dict, *, job: str,
                     box = _probe_box(fixed, resources)
                     rec["resources"] = box
                     changed = _changed(task, fixed)
-                    v2 = revalidate(work, image, tid, fixed, orig=task, changed=changed,
-                                    resources=box, baseline=baseline,
-                                    pretest_file=pretest_file)
+                    v2 = revalidate(
+                        work,
+                        image,
+                        tid,
+                        fixed,
+                        orig=task,
+                        changed=changed,
+                        resources=box,
+                        baseline=baseline,
+                        pretest_file=pretest_file,
+                    )
                     _size_from_probe(rec, v2, resources)
                     rec["oracle_repair"] = {"files": repaired + support, "ok": v2["ok"]}
                     v = v2
@@ -700,8 +911,12 @@ def process_one(rewrite: layout.RewriteDir, signal: dict, *, job: str,
         rec["changed"] = changed
         rec["verdicts"] = verdicts_of(v)
         if not v["ok"]:
-            return _done(rec, "rejected", stage=v.get("stage", "revalidate"),
-                         reason=v.get("why", ""))
+            return _done(
+                rec,
+                "rejected",
+                stage=v.get("stage", "revalidate"),
+                reason=v.get("why", ""),
+            )
         return _done(rec, "accepted", stage=v.get("fast_path", "ok"))
     except Exception as e:  # noqa: BLE001
         return _done(rec, "failed", stage="error", reason=f"{type(e).__name__}: {e}")

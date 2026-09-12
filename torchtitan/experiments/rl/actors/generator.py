@@ -90,8 +90,14 @@ def _flash_attention_kernels_available() -> bool:
 
 # Scheduler token budget for GDN models under align-mode prefix caching. Chunked
 # prefill is required there, so this is a real per-step budget rather than a
-# "never chunk" sentinel.
-_GDN_ALIGN_MAX_NUM_BATCHED_TOKENS = 8192
+# "never chunk" sentinel. SWE_GDN_MAX_NUM_BATCHED_TOKENS overrides it: a larger
+# budget admits cold-prefilled requests faster (a queue of ~18K-token re-prefills
+# behind an 8192 budget drains at ~2.7 req/s per engine, measured 09-08) but costs
+# a few GB of KV per card -- vLLM sizes its non-KV reserve from a dummy forward
+# of this many tokens -- and makes prefill-heavy lockstep steps longer.
+_GDN_ALIGN_MAX_NUM_BATCHED_TOKENS = int(
+    os.environ.get("SWE_GDN_MAX_NUM_BATCHED_TOKENS", "8192")
+)
 
 
 def _state_dict_local_gib(state_dict: dict) -> float:
@@ -536,6 +542,9 @@ class RequestDispatcher:
         self._result_port: Port | None = None
         self._rank0_result_receiver: PortReceiver | None = None
         self._rank0_drain_task: asyncio.Task | None = None
+        self._finished_count = 0
+        self._received_counts = [0] * self._dp_degree
+        self._late_result_count = 0
 
         # --- DP routing ---
         # RANK-0 DP routing: pick a DP rank per request, reserving its load until
@@ -550,6 +559,8 @@ class RequestDispatcher:
         self, request_id: str, metrics_prefix: str
     ) -> asyncio.Future[Completion]:
         """RANK 0: register a future for ``request_id`` and return it to await."""
+        if self._rank0_drain_task is not None and self._rank0_drain_task.done():
+            raise RuntimeError("generator peer result drain has stopped")
         if request_id in self._rank0_generation_futures:
             raise ValueError(f"request_id {request_id!r} is already in flight")
         future: asyncio.Future[Completion] = asyncio.get_running_loop().create_future()
@@ -569,10 +580,8 @@ class RequestDispatcher:
     def rank0_discard_future(self, request_id: str) -> None:
         """RANK 0: drop the future of a request that will never be admitted.
 
-        Only for requests removed from the queue BEFORE routing: an admitted
-        request's future must stay registered, because
-        ``process_finished_requests`` pops it unconditionally when the engine
-        finishes the request.
+        Only for requests removed from the queue before routing. Admitted
+        requests also own a DP reservation, released by completion or abort.
         """
         entry = self._rank0_generation_futures.pop(request_id, None)
         if entry is not None and not entry.future.done():
@@ -691,6 +700,7 @@ class RequestDispatcher:
             return
 
         completions = self._build_completions(request_outputs, policy_version)
+        self._finished_count += len(completions)
         if self._rank == 0:
             self._rank0_resolve_futures(completions)
         elif completions:
@@ -752,9 +762,34 @@ class RequestDispatcher:
         without) the rank-0 future bookkeeping.
         """
         for request_id, completion, metrics_inputs in completions:
+            # Compare with peer finished counts to detect results in transit.
+            # Cancelled results may arrive after their reservation was released.
+            dp_rank = (
+                self._rank0_dp_router._reservations.get(request_id)
+                if self._rank0_dp_router is not None
+                else 0
+            )
+            if dp_rank is None:
+                self._late_result_count += 1
+            else:
+                self._received_counts[dp_rank] += 1
             # in flight when this one finished (includes itself; counted before the pop)
             inflight_requests_at_completion = float(len(self._rank0_generation_futures))
-            generation_future = self._rank0_generation_futures.pop(request_id)
+            generation_future = self._rank0_generation_futures.get(request_id)
+            if generation_future is None:
+                # A peer can finish and send before the abort broadcast, while
+                # rank 0 settles the abort before receiving that peer's output.
+                # The abort already released the reservation. Ignore only this
+                # late result, preserving the rest of the completion batch.
+                logger.debug("Ignoring settled generation result %s", request_id)
+                continue
+            if generation_future.future.done():
+                # Cancellation of the endpoint's await may cancel its future.
+                # Never let set_result kill the shared peer-result drain.
+                if self._rank0_dp_router is not None:
+                    self._rank0_dp_router.release(request_id)
+                del self._rank0_generation_futures[request_id]
+                continue
 
             # Replace the placeholder min (the builder set min == max) with the true admitted
             # version stamped on the future at admission.
@@ -773,19 +808,27 @@ class RequestDispatcher:
                 )
             completion.metrics = metrics
 
-            generation_future.future.set_result(completion)
-            # Free the request's reserved load on its DP rank so load-aware
-            # routing sees the accurate loads on DPs.
+            # Keep the future registered until every fallible preparation step
+            # succeeds, so loop failure can still settle it with an exception.
             if self._rank0_dp_router is not None:
                 self._rank0_dp_router.release(request_id)
+            del self._rank0_generation_futures[request_id]
+            generation_future.future.set_result(completion)
 
     async def _rank0_drain_results(self) -> None:
         """RANK 0 background task which receives and resolves completions pushed
         by peer TP rank 0s.
         """
-        while True:
-            completions = await self._rank0_result_receiver.recv()
-            self._rank0_resolve_futures(completions)
+        try:
+            while True:
+                completions = await self._rank0_result_receiver.recv()
+                self._rank0_resolve_futures(completions)
+        except Exception as exc:
+            # This task remains referenced until shutdown, so asyncio's default
+            # "exception was never retrieved" reporting may arrive hours late.
+            logger.exception("generator peer result drain crashed")
+            self.fail_generation_futures(exc)
+            raise
 
     def fail_generation_futures(self, exc: BaseException) -> None:
         """RANK 0: fail every unresolved generation future after an exception or
@@ -794,6 +837,8 @@ class RequestDispatcher:
             if not generation_future.future.done():
                 generation_future.future.set_exception(exc)
         self._rank0_generation_futures.clear()
+        if self._rank0_dp_router is not None:
+            self._rank0_dp_router.release_all()
 
     async def shutdown(self) -> None:
         """Stop rank 0's drain task, if any (no-op elsewhere)."""
@@ -1388,6 +1433,9 @@ class VLLMGenerator(Actor, Configurable):
 
         # Background asyncio.Task running _engine_loop; None until the first generate/pull starts it.
         self._engine_loop_task: asyncio.Task | None = None
+        self._load_log_at = 0.0
+        self._admitted_count = 0
+        self._admitted_prompt_tokens = 0
 
         logger.info("Generator initialized with vLLM engine")
 
@@ -1494,14 +1542,9 @@ class VLLMGenerator(Actor, Configurable):
     async def cancel_generation(self, *, request_id: str) -> bool:
         """Best-effort cancel for a caller that has given up on its request.
 
-        A rollout dying at its budget/guard only cancels the caller's await;
-        the queued ``GenerationRequest`` would still be admitted and generated
-        at full cost for nobody. Measured 08-29: thousands of such orphans
-        queued across the engines (Waiting ~1083/engine against a 1536-rollout
-        cap) starved every live first turn past its budget -- a self-feeding
-        avalanche that no restart knob could stop. This drops the request while
-        it is still QUEUED (where orphans do their damage); one already inside
-        an engine finishes naturally, bounded by max_num_seqs.
+        Drop a queued request immediately; broadcast cancellation of admitted
+        work to every engine on the next decision. Completed and already
+        cancelled requests require no further work.
 
         Returns True when a queued request was dropped. Rank 0 owns the queue.
         """
@@ -1517,7 +1560,7 @@ class VLLMGenerator(Actor, Configurable):
             if dropped:
                 self._queued_generation_requests = kept
                 self._request_dispatcher.rank0_discard_future(request_id)
-            else:
+            elif request_id in self._request_dispatcher._rank0_generation_futures:
                 # Already admitted into an engine: queue a lockstep abort. The
                 # engine-side abort is what actually frees the decode slot.
                 self._pending_abort_request_ids.append(request_id)
@@ -1528,6 +1571,45 @@ class VLLMGenerator(Actor, Configurable):
         """Start the single background engine loop on first use (idempotent); runs until `close()`."""
         if self._engine_loop_task is None:
             self._engine_loop_task = asyncio.create_task(self._engine_loop())
+        elif self._engine_loop_task.done():
+            cause = (
+                None
+                if self._engine_loop_task.cancelled()
+                else self._engine_loop_task.exception()
+            )
+            raise RuntimeError("generator engine loop has stopped") from cause
+
+    async def _abort_requests(self, request_ids: list[str]) -> None:
+        """All ranks confirm abort before rank 0 releases request ownership."""
+        abort_error = None
+        try:
+            self._engine.abort_request(request_ids)
+        except Exception as exc:
+            abort_error = exc
+            logger.exception("engine abort_request failed")
+        failed = torch.tensor(int(abort_error is not None), dtype=torch.int32)
+        # Every rank participates even when its local abort raised; otherwise a
+        # peer could enter engine.step while the failed rank exits the loop.
+        await asyncio.to_thread(
+            dist.all_reduce,
+            failed,
+            op=dist.ReduceOp.MAX,
+            group=self._broadcast_group,
+        )
+        if failed.item():
+            raise RuntimeError(
+                "generator engine abort failed on at least one rank"
+            ) from abort_error
+        if self._rank == 0:
+            settled = sum(
+                self._request_dispatcher.rank0_settle_aborted(rid)
+                for rid in request_ids
+            )
+            logger.info(
+                "[generator] aborted %d requests (%d pending)",
+                len(request_ids),
+                settled,
+            )
 
     @sl.log_trace_span("engine_loop")
     async def _engine_loop(self) -> None:
@@ -1605,26 +1687,7 @@ class VLLMGenerator(Actor, Configurable):
 
                 if decision.action is LoopAction.STEP:
                     if decision.abort_request_ids:
-                        # Every rank aborts; each engine ignores ids it does not
-                        # hold. Rank 0 also settles the futures + DP-router
-                        # reservations for ids the engine had not yet finished.
-                        try:
-                            self._engine.abort_request(
-                                list(decision.abort_request_ids)
-                            )
-                        except Exception:  # noqa: BLE001 -- abort is best-effort
-                            logger.exception("engine abort_request failed")
-                        if self._rank == 0:
-                            settled = sum(
-                                self._request_dispatcher.rank0_settle_aborted(rid)
-                                for rid in decision.abort_request_ids
-                            )
-                            logger.info(
-                                "[generator] aborted %d orphaned requests "
-                                "(%d still pending futures)",
-                                len(decision.abort_request_ids),
-                                settled,
-                            )
+                        await self._abort_requests(list(decision.abort_request_ids))
                     # Rank 0 owns all futures, so it stamps the admitted (min) version for the whole decision.
                     # TODO: move under the engine_step call (register at generation_start, not admission).
                     # The way to do it is probably to change to RequestOutputKind.CUMULATIVE and mark per token.
@@ -1663,11 +1726,16 @@ class VLLMGenerator(Actor, Configurable):
                                 engine_input[
                                     "cache_salt"
                                 ] = request.routing_session_id.split("/rollout=", 1)[0]
+                            sampling_params = self._build_sampling_params(
+                                request.sampling
+                            )
                             self._engine.add_request(
                                 request_id=request.request_id,
                                 prompt=engine_input,
                                 params=self._build_sampling_params(request.sampling),
                             )
+                            self._admitted_count += 1
+                            self._admitted_prompt_tokens += len(request.prompt_token_ids)
 
                 # Barrier (NCCL): engine.step() runs SPMD in lockstep.
                 # The step burst `max_engine_steps_between_decisions` gives the generator time to buffer
@@ -1683,11 +1751,57 @@ class VLLMGenerator(Actor, Configurable):
                             request_outputs, self.policy_version
                         )
                         await asyncio.sleep(0)  # let pending generate() calls enqueue
+                self._log_local_load()
 
         except Exception as exc:
             logger.exception("engine loop crashed; failing all outstanding futures")
             self._fail_outstanding_futures(exc)
             raise
+
+    def _log_local_load(self) -> None:
+        """Compare local GPU work with reservations awaiting result delivery.
+
+        Snapshots use no collective and are not simultaneous: compare sustained
+        differences. Preemption counts cover only requests still in the scheduler.
+        """
+        now = time.monotonic()
+        if now - self._load_log_at < 30:
+            return
+        self._load_log_at = now
+        dispatcher = self._request_dispatcher
+        core = getattr(self._engine.engine_core, "engine_core", None)
+        scheduler = getattr(core, "scheduler", None)
+        if scheduler is None:
+            return
+        requests = list(scheduler.requests.values())
+        lengths = [r.num_tokens for r in requests]
+        logger.info(
+            "[generator-load] dp=%d admitted=%d admitted_prompt_tokens=%d "
+            "finished=%d local_unfinished=%d running=%d waiting=%d "
+            "skipped_waiting=%d context_tokens=%d max_context=%d "
+            "live_request_preemptions=%d",
+            dispatcher._dp_rank,
+            self._admitted_count,
+            self._admitted_prompt_tokens,
+            dispatcher._finished_count,
+            self._engine.get_num_unfinished_requests(),
+            len(scheduler.running),
+            len(scheduler.waiting),
+            len(getattr(scheduler, "skipped_waiting", ())),
+            sum(lengths),
+            max(lengths, default=0),
+            sum(r.num_preemptions for r in requests),
+        )
+        router = dispatcher._rank0_dp_router
+        if router is not None:
+            logger.info(
+                "[generator-load] reserved=%s received=%s late_results=%d "
+                "intake_queued=%d",
+                [h.reserved_load for h in router._handles],
+                dispatcher._received_counts,
+                dispatcher._late_result_count,
+                len(self._queued_generation_requests),
+            )
 
     async def _decide_next_action(self) -> LoopDecision:
         """RANK 0: picks the next action. Sleeps until there is something to do."""
@@ -1702,6 +1816,7 @@ class VLLMGenerator(Actor, Configurable):
                 # during the transfer) until it can broadcast PULL_APPLY.
                 or self._pending_weight_fetch is not None
                 or self._queued_generation_requests
+                or self._pending_abort_request_ids
                 # In-flight requests (on any DP rank) keep rank 0 issuing STEP.
                 or self._request_dispatcher.rank0_has_pending_futures()
             )
