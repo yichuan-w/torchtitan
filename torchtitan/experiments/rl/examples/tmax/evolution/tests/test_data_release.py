@@ -144,6 +144,9 @@ def test_offline_cache_and_validated_grader_budget_survive_preparation(
     files = release.fetch_source(source, None, None)
     metadata = files["tasks.parquet"]["path"]
     table = pq.read_table(metadata)
+    table = table.rename_columns(
+        ["task_id" if name == "instance_id" else name for name in table.column_names]
+    )
     table = table.append_column("image", pa.array(["image_a", "image_b"]))
     table = table.append_column("prefetched_cache_required", pa.array([True, False]))
     table = table.append_column("validated_test_timeout_s", pa.array([2700, 600]))

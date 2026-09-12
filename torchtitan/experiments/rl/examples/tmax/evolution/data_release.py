@@ -196,7 +196,7 @@ def prepare_source(source, files, stage, checkpoints, log):
     for filename in source["archives"]:
         extract(files[filename]["path"], home)
     metadata = pq.read_table(files[source["metadata"]]["path"]).to_pylist()
-    id_key = "task_id" if source["adapter"] == "tmax_reaudit" else "instance_id"
+    id_key = "task_id" if metadata and "task_id" in metadata[0] else "instance_id"
     ids = [record[id_key] for record in metadata]
     if len(ids) != len(set(ids)) or any(
         not isinstance(tid, str) or Path(tid).name != tid for tid in ids
