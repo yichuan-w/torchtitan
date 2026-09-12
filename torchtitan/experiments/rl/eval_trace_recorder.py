@@ -44,9 +44,9 @@ class EvalSummary:
     num_trials: int
     num_pass: int
     avg_at_k: float | None
-    """Mean reward over every trial -- the avg@k solve rate for group_size=k."""
+    """Mean reward over requested trials; unscored trials count as zero."""
     pass_at_k: float | None
-    """Fraction of tasks with at least one passing trial."""
+    """Fraction of requested tasks with at least one measured passing trial."""
     report_dir: str
     valid: bool = True
     expected_num_tasks: int = 0
@@ -55,7 +55,7 @@ class EvalSummary:
 
 
 def validation_is_valid(groups, *, num_groups: int, group_size: int) -> bool:
-    """A benchmark score requires every requested trial to have a measured reward."""
+    """Whether every requested trial has a measured reward."""
     return (
         len(groups) == num_groups
         and num_groups > 0
