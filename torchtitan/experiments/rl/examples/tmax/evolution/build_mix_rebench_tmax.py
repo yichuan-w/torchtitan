@@ -21,6 +21,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import math
 import random
 import sys
 import time
@@ -31,18 +32,21 @@ import build_mix_v2 as v2  # noqa: E402
 import pack_to_dataset as pack  # noqa: E402
 from torchtitan.experiments.rl.examples.tmax import layout  # noqa: E402
 
-from torchtitan.experiments.rl.examples.tmax.evolution.seed_resources import (  # noqa: E402
-    DISK_CAP_GB,
-    MEM_CAP_GB,
-    policy_gib as _policy_gib,
-)
-
+DISK_CAP_GB = 10
+MEM_CAP_GB = 8
 # Andy's data tree. Live extracts under data/tmax-extract stay untouched.
 ANDY_DATA = Path("/scratch/gpfs/TRIDAO/al9080/terminal-rl/data")
 TMAX_REV = "a84676aa19ae12713492245ffac98559e572ea86"
 REBENCH_REV = "a6d8f8ead159520d079f81fa07fcb1aaa2ff1b04"
 TMAX_ROOT = ANDY_DATA / f"tmax-reaudit-{TMAX_REV[:8]}"
 REBENCH_ROOT = ANDY_DATA / f"rebench-{REBENCH_REV[:8]}"
+
+
+def _policy_gib(mb: object, cap: int) -> int | None:
+    """``req_*`` / ``est_*`` are already allocation MiB. Convert to GiB, no 1.3."""
+    if not isinstance(mb, (int, float)) or mb <= 0:
+        return None
+    return min(max(math.ceil(mb / 1024), 1), cap)
 
 
 def rebench_rows(tasks: Path, parquet: Path) -> tuple[list[dict], list[str]]:

@@ -46,12 +46,16 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import pack_to_dataset as pack  # noqa: E402
 from torchtitan.experiments.rl.examples.tmax import layout  # noqa: E402
-from torchtitan.experiments.rl.examples.tmax.evolution.seed_resources import (  # noqa: E402
-    measured_gib as _measured_gib,
-)
 
 DISK_CAP_GB = 10
 FLEET_MEM_GB, FLEET_DISK_GB = 2, 2
+
+
+def _measured_gib(mb: float | None, cap: int) -> int | None:
+    """Measured peak to a provisioned size: x1.3 headroom, floor 1 GiB."""
+    if not isinstance(mb, (int, float)) or mb <= 0:
+        return None
+    return min(max(math.ceil(mb * 1.3 / 1024), 1), cap)
 
 
 def _sha(path: Path) -> str:
