@@ -28,6 +28,7 @@ Only two payloads cross the Monarch RPC boundary: the raw ``sample`` in, and the
 
 from __future__ import annotations
 
+import asyncio
 import logging
 import os
 from concurrent.futures import ThreadPoolExecutor
