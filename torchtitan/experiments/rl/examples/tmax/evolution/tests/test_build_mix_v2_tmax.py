@@ -41,20 +41,29 @@ def _inputs(tmp_path: Path) -> tuple[Path, Path, Path]:
     for tid in ("task_a", "task_b"):
         _package(tasks, tid)
     reaudit = tmp_path / "reaudit.parquet"
-    pq.write_table(pa.table({
-        "task_id": ["task_a", "task_b", "task_c"],
-        "terminal_domain": ["data-science", "security", "debugging"],
-        "pre_test_sh": [HOOK, "", ""],
-        "pre_test_env_identity": [STAMP, "", ""],
-    }), reaudit)
+    pq.write_table(
+        pa.table(
+            {
+                "task_id": ["task_a", "task_b", "task_c"],
+                "terminal_domain": ["data-science", "security", "debugging"],
+                "pre_test_sh": [HOOK, "", ""],
+                "pre_test_env_identity": [STAMP, "", ""],
+            }
+        ),
+        reaudit,
+    )
     peaks = tmp_path / "reaudit_full.parquet"
-    pq.write_table(pa.table({
-        "task_id": ["task_a", "task_b", "task_c"],
-        "peak_ram_mb": [3000.0, 5000.0, None],
-        "peak_disk_mb": [300.0, 5000.0, None],
-        "ram_at_ceiling": [False, True, None],
-        "disk_at_ceiling": [False, False, None],
-    }), peaks)
+    pq.write_table(
+        pa.table(
+            {
+                "task_id": ["task_a", "task_b", "task_c"],
+                "peak_ram_mb": [3000.0, None, None],
+                "peak_disk_mb": [300.0, 5000.0, None],
+                "peak_ram_mb_censored": [False, True, False],
+            }
+        ),
+        peaks,
+    )
     return tasks, reaudit, peaks
 
 
@@ -63,7 +72,7 @@ def test_tmax_rows_come_from_the_packages_with_hook_domain_and_size(tmp_path) ->
 
     rows, missing = bm.tmax_rows(tasks, reaudit, peaks)
 
-    assert missing == ["task_c"]                      # in the parquet, no package
+    assert missing == ["task_c"]  # in the parquet, no package
     by_id = {r["metadata"]["instance_id"]: r for r in rows}
     assert sorted(by_id) == ["task_a", "task_b"]
     a = by_id["task_a"]["metadata"]
@@ -74,12 +83,17 @@ def test_tmax_rows_come_from_the_packages_with_hook_domain_and_size(tmp_path) ->
     assert a["tmax"]["pretest_env_identity"] == STAMP
     assert a["tmax"]["pretest_episode_env_identity"] == STAMP
     # Measured peaks size the sandbox: 3000 MB * 1.3 -> 4 GiB, 300 MB -> the 1 GiB floor.
-    assert (a.get("daytona_cpu"), a["daytona_mem_gb"], a["daytona_disk_gb"]) == (None, 4, 1)
+    assert (a.get("daytona_cpu"), a["daytona_mem_gb"], a["daytona_disk_gb"]) == (
+        1,
+        4,
+        1,
+    )
     b = by_id["task_b"]["metadata"]
     assert "pre_test_sh" not in b["tmax"]
     assert b["terminal_domain"] == "security"
-    # A reading taken at the ceiling is the cap, not the requirement: left to the fleet default.
-    assert not {"daytona_mem_gb", "daytona_disk_gb"} & set(b)
+    # RAM is a policy allocation; the independent disk measurement still sizes disk.
+    assert (b["daytona_mem_gb"], b["daytona_disk_gb"]) == (6, 7)
+    assert b["tmax_resource_sizing"]["memory_source"] == "policy:censored_ram_6_gib"
 
 
 def test_tmax_rows_without_a_peaks_file_size_nothing(tmp_path) -> None:
@@ -96,5 +110,7 @@ def test_tree_digest_changes_with_any_package_byte(tmp_path) -> None:
     tasks, _reaudit, _peaks = _inputs(tmp_path)
     before = bm._sha_tree(tasks)
     assert before == bm._sha_tree(tasks)
-    (tasks / "task_a" / "tests" / "test.sh").write_text("echo 0 > /logs/verifier/reward.txt\n")
+    (tasks / "task_a" / "tests" / "test.sh").write_text(
+        "echo 0 > /logs/verifier/reward.txt\n"
+    )
     assert bm._sha_tree(tasks) != before

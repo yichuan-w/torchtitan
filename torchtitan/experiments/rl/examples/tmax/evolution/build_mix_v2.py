@@ -20,8 +20,8 @@ experiment start. This builds a fresh mix from first sources only:
              The split's parquet carries the pin hook (pre_test_sh and the
              environment stamp) and the domain; the `reaudit_full` parquet
              carries the measured peaks that size daytona_mem_gb /
-             daytona_disk_gb, and a task without a reading, or one read at
-             the ceiling, keeps the fleet default.
+             daytona_disk_gb. Censored RAM gets the explicit 6 GiB policy;
+             its independently measured disk remains usable.
 
 Output: rows shuffled with a fixed seed; the LAST --holdout-n rows are the
 held-out validation slice (same convention as take7). A manifest,
@@ -189,27 +189,11 @@ def tmax_rows(
     prot_paths = _column(t, "protected_paths")
     prot_cmds = _column(t, "protected_cmds")
 
-    peaks: dict[str, dict] = {}
-    if peaks_parquet is not None:
-        p = pq.read_table(
-            peaks_parquet,
-            columns=[
-                "task_id",
-                "peak_ram_mb",
-                "peak_disk_mb",
-                "ram_at_ceiling",
-                "disk_at_ceiling",
-            ],
-        )
-        for i in range(p.num_rows):
-            peaks[p.column("task_id")[i].as_py()] = {
-                "peak_ram_mb": p.column("peak_ram_mb")[i].as_py(),
-                "peak_disk_mb": p.column("peak_disk_mb")[i].as_py(),
-                "at_ceiling": bool(
-                    p.column("ram_at_ceiling")[i].as_py()
-                    or p.column("disk_at_ceiling")[i].as_py()
-                ),
-            }
+    peaks = (
+        pack._tmax_modules("resource_sizing").load_allocations(str(peaks_parquet))
+        if peaks_parquet is not None
+        else {}
+    )
 
     rows, missing = [], []
     for i, tid in enumerate(ids):
@@ -232,16 +216,11 @@ def tmax_rows(
         if domain[i]:
             md["terminal_domain"] = domain[i]
         meta = peaks.get(tid)
-        # A ceiling flag means the reading is the cap, not the requirement, so
-        # sizing from it would provision off a truncated number. Leave those to
-        # the fleet default until an un-pressured run exists.
-        if meta and not meta["at_ceiling"]:
-            mem = _measured_gib(meta["peak_ram_mb"], 8)
-            if mem:
-                md["daytona_mem_gb"] = mem
-            dsk = _measured_gib(meta["peak_disk_mb"], DISK_CAP_GB)
-            if dsk:
-                md["daytona_disk_gb"] = dsk
+        if meta:
+            md["daytona_cpu"] = meta["cpu"]
+            md["daytona_mem_gb"] = meta["mem_gb"]
+            md["daytona_disk_gb"] = meta["disk_gb"]
+            md["tmax_resource_sizing"] = meta
         rows.append(row)
     return rows, missing
 
