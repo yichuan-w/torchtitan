@@ -162,6 +162,13 @@ def test_versioned_source_keeps_its_corpus_alias_when_created_and_forked(tmp_pat
         profile=None,
         fork_from=root.path,
     )
+    # Refreshing a discovery alias for a later experiment must not move the
+    # parent packages of an existing experiment or a fork of it.
+    newer = tmp_path / "tw-extract-version3"
+    (newer / "tasks/tw_1").mkdir(parents=True)
+    (newer / "tasks/tw_1/instruction.md").write_text("new task")
+    alias.unlink()
+    alias.symlink_to(newer)
     for experiment in (root, fork):
         source = experiment.data / "sources/tw-extract"
         assert source.resolve() == versioned

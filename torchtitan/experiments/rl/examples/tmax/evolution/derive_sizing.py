@@ -17,10 +17,9 @@ So the recommendation is the max of what three independent sources say:
           inside a B-second budget on fewer than C/B cores, which is a bound the
           agent's peak-core reading does not provide. tw_177860 timed out at
           900s on 1 core and finished in 360s on 4.
-  peer    another group's independent measurement of the same task, where one
-          exists. The TMax half has no runnable reference solution, so this is
-          the only second source it can get; it moves 5 of 400 tasks and leaves
-          the rest where the agent measurement put them.
+  peer    TMax's current campaign total peaks. These replace previous TMax
+          measurements entirely through resource_sizing; no env subtraction.
+          Censored RAM gets a 6 GiB allocation policy, not a measured value.
   author  the task's own req_memory_mb / req_cpus -- off by default, see below
 
 The declaration is not a floor by default, and that is the one judgement call
@@ -72,9 +71,13 @@ UNVERIFIED_MEM_FLOOR_GB = 2
 SOLVE_BUDGET_S = 900
 
 
-def size_from_oracle(mem_peak_mb: float | None, df_used_mb: float | None,
-                     cpu_seconds: float | None, *,
-                     solve_budget_s: int = SOLVE_BUDGET_S) -> dict:
+def size_from_oracle(
+    mem_peak_mb: float | None,
+    df_used_mb: float | None,
+    cpu_seconds: float | None,
+    *,
+    solve_budget_s: int = SOLVE_BUDGET_S,
+) -> dict:
     """The oracle terms of main()'s rule, for one reference-solution run.
 
     main() sizes a seed from three sources at once; this is what the oracle
@@ -94,12 +97,16 @@ def size_from_oracle(mem_peak_mb: float | None, df_used_mb: float | None,
     A reading taken in a box the solution outgrew is the box, not the task;
     callers check `oom_kill` / disk exhaustion / timeout before trusting it.
     """
-    mem_gb = max(math.ceil((mem_peak_mb or 0) * HEADROOM / 1024), 1,
-                 UNVERIFIED_MEM_FLOOR_GB)
+    mem_gb = max(
+        math.ceil((mem_peak_mb or 0) * HEADROOM / 1024), 1, UNVERIFIED_MEM_FLOOR_GB
+    )
     disk_gb = max(math.ceil((df_used_mb or 0) * HEADROOM / 1024), DISK_FLOOR_GB)
     cpu = max(math.ceil((cpu_seconds or 0) / solve_budget_s), 1)
-    return {"cpu": min(cpu, CPU_CAP), "mem_gb": min(mem_gb, MEM_CAP),
-            "disk_gb": min(disk_gb, DISK_CAP)}
+    return {
+        "cpu": min(cpu, CPU_CAP),
+        "mem_gb": min(mem_gb, MEM_CAP),
+        "disk_gb": min(disk_gb, DISK_CAP),
+    }
 
 
 def load(path: str, key: str = "task_id") -> dict:
@@ -119,14 +126,22 @@ def main() -> None:
     ap.add_argument("--oracle", required=True, nargs="+", help="oracle at-max jsonl(s)")
     # The mix rows do not carry the author's declarations; tasks.parquet does,
     # and it is the artifact the dataset card publishes them from.
-    ap.add_argument("--decl", required=True, help="tasks.parquet, for req_memory_mb/req_cpus")
+    ap.add_argument(
+        "--decl", required=True, help="tasks.parquet, for req_memory_mb/req_cpus"
+    )
     ap.add_argument("--out", required=True)
     # Fangzhou's train split. The dataset's top-level metadata/tasks.parquet is
     # the legacy cut: same id format, 641 rows, and zero of them are ours.
-    ap.add_argument("--peer", default=None,
-                    help="parquet with task_id + peak_ram_task_mb + peak_disk_mb/disk_env_mb")
-    ap.add_argument("--decl-floor", action="store_true",
-                    help="raise sizes to the task's own declaration (see module docstring)")
+    ap.add_argument(
+        "--peer",
+        default=None,
+        help="latest TMax peaks parquet; overrides old TMax measurements",
+    )
+    ap.add_argument(
+        "--decl-floor",
+        action="store_true",
+        help="raise sizes to the task's own declaration (see module docstring)",
+    )
     a = ap.parse_args()
 
     agent = load(a.agent)
@@ -144,18 +159,17 @@ def main() -> None:
                 cur["reward"] = r["reward"]
     peer = {}
     if a.peer:
-        import pandas as pd
-        pf = pd.read_parquet(a.peer)
-        for r in pf.itertuples():
-            ram = float(getattr(r, "peak_ram_task_mb", 0) or 0)
-            disk = float(getattr(r, "peak_disk_mb", 0) or 0) - float(
-                getattr(r, "disk_env_mb", 0) or 0)
-            peer[r.task_id] = (max(ram, 0), max(disk, 0))
+        from pack_to_dataset import _tmax_modules
+
+        peer = _tmax_modules("resource_sizing").load_allocations(a.peer)
     import pandas as pd
+
     df = pd.read_parquet(a.decl)
     cols = [c for c in ("req_memory_mb", "req_cpus") if c in df.columns]
-    decl = {r.task_id: {c: getattr(r, c) for c in cols}
-            for r in df[["task_id", *cols]].itertuples()}
+    decl = {
+        r.task_id: {c: getattr(r, c) for c in cols}
+        for r in df[["task_id", *cols]].itertuples()
+    }
 
     rows, stats = [], collections.Counter()
     # Union, not just the agent measurement's keys. A task that could not boot
@@ -165,9 +179,16 @@ def main() -> None:
     # measurement exists to replace. tw_627786 and tw_693888 arrived this way:
     # both were excluded for needing more disk than a sandbox has, both were
     # repaired, and both now have an oracle reading and no agent one.
-    for tid in sorted(set(agent) | set(oracle)):
-        ag = agent.get(tid) or {"peak_ram_mb": 0.0, "peak_disk_mb": 0.0,
-                                "peak_cpu_cores": 0.0}
+    for tid in sorted(set(agent) | set(oracle) | set(peer)):
+        if tid in peer:
+            rows.append({"task_id": tid, **peer[tid]})
+            stats["TMax uses latest campaign only"] += 1
+            continue
+        ag = agent.get(tid) or {
+            "peak_ram_mb": 0.0,
+            "peak_disk_mb": 0.0,
+            "peak_cpu_cores": 0.0,
+        }
         orc = oracle.get(tid) or {}
         md = decl.get(tid) or {}
         # A peak from a run that failed is still memory the task really used, so
@@ -189,7 +210,7 @@ def main() -> None:
         ag_disk = max(ag["peak_disk_mb"] - CODEX_DISK, 0)
         or_ram = orc.get("mem_peak_mb") or 0
         or_disk = orc.get("df_used_mb") or 0
-        pe_ram, pe_disk = peer.get(tid, (0, 0))
+        pe_ram = pe_disk = 0  # TMax peer rows were handled above.
         or_cpu = (orc.get("cpu_seconds") or 0) / SOLVE_BUDGET_S
         dec_ram = md.get("req_memory_mb") or 0
         dec_cpu = md.get("req_cpus") or 0
@@ -201,32 +222,49 @@ def main() -> None:
             mem_gb = max(mem_gb, UNVERIFIED_MEM_FLOOR_GB)
         if a.decl_floor and dec_ram:
             mem_gb = max(mem_gb, math.ceil(dec_ram / 1024))
-        disk_gb = max(math.ceil(max(ag_disk, or_disk, pe_disk) * HEADROOM / 1024),
-                      DISK_FLOOR_GB)
+        disk_gb = max(
+            math.ceil(max(ag_disk, or_disk, pe_disk) * HEADROOM / 1024), DISK_FLOOR_GB
+        )
         cpu = max(math.ceil(ag["peak_cpu_cores"]), math.ceil(or_cpu), 1)
         if a.decl_floor and dec_cpu:
             cpu = max(cpu, int(dec_cpu))
-        mem_gb, disk_gb, cpu = (min(mem_gb, MEM_CAP), min(disk_gb, DISK_CAP),
-                                min(cpu, CPU_CAP))
+        mem_gb, disk_gb, cpu = (
+            min(mem_gb, MEM_CAP),
+            min(disk_gb, DISK_CAP),
+            min(cpu, CPU_CAP),
+        )
 
         if math.ceil(or_cpu) > math.ceil(ag["peak_cpu_cores"]):
             stats["cpu 由 oracle 的 cpu-seconds 决定"] += 1
         if a.decl_floor and dec_ram and math.ceil(dec_ram / 1024) >= mem_gb:
             stats["内存由声明决定"] += 1
-        elif or_ram > max(ag_ram, pe_ram): stats["内存由 oracle 决定"] += 1
-        elif pe_ram > ag_ram: stats["内存由第二方测量决定"] += 1
-        else: stats["内存由 agent 决定"] += 1
+        elif or_ram > max(ag_ram, pe_ram):
+            stats["内存由 oracle 决定"] += 1
+        elif pe_ram > ag_ram:
+            stats["内存由第二方测量决定"] += 1
+        else:
+            stats["内存由 agent 决定"] += 1
         if not used_oracle:
             stats[f"无 oracle 读数, 内存下限抬到 {UNVERIFIED_MEM_FLOOR_GB} GiB"] += 1
-        rows.append({"task_id": tid, "cpu": cpu, "mem_gb": mem_gb, "disk_gb": disk_gb,
-                     "agent_ram_mb": round(ag_ram, 1), "oracle_ram_mb": round(or_ram, 1),
-                     "decl_ram_mb": dec_ram, "peer_ram_mb": round(pe_ram, 1),
-                     "peer_disk_mb": round(pe_disk, 1),
-                     "agent_disk_mb": round(ag_disk, 1),
-                     "oracle_disk_mb": round(or_disk, 1),
-                     "agent_cpu": round(ag["peak_cpu_cores"], 2),
-                     "oracle_cpu_seconds": orc.get("cpu_seconds"),
-                     "oracle_cpu_min_cores": round(or_cpu, 2), "decl_cpu": dec_cpu})
+        rows.append(
+            {
+                "task_id": tid,
+                "cpu": cpu,
+                "mem_gb": mem_gb,
+                "disk_gb": disk_gb,
+                "agent_ram_mb": round(ag_ram, 1),
+                "oracle_ram_mb": round(or_ram, 1),
+                "decl_ram_mb": dec_ram,
+                "peer_ram_mb": round(pe_ram, 1),
+                "peer_disk_mb": round(pe_disk, 1),
+                "agent_disk_mb": round(ag_disk, 1),
+                "oracle_disk_mb": round(or_disk, 1),
+                "agent_cpu": round(ag["peak_cpu_cores"], 2),
+                "oracle_cpu_seconds": orc.get("cpu_seconds"),
+                "oracle_cpu_min_cores": round(or_cpu, 2),
+                "decl_cpu": dec_cpu,
+            }
+        )
 
     Path(a.out).write_text("".join(json.dumps(r) + "\n" for r in rows))
     for k, v in stats.most_common():
