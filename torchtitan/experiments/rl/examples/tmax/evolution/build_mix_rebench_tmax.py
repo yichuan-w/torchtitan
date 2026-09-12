@@ -113,12 +113,22 @@ def tmax_rows(tasks: Path, reaudit_parquet: Path) -> tuple[list[dict], list[str]
 
 def main() -> None:
     ap = argparse.ArgumentParser()
-    ap.add_argument("--rebench-tasks", type=Path, default=REBENCH_ROOT / "extract" / "tasks")
-    ap.add_argument("--rebench-parquet", type=Path,
-                    default=REBENCH_ROOT / "clean" / "metadata" / "tasks.parquet")
-    ap.add_argument("--tmax-tasks", type=Path, default=TMAX_ROOT / "tmax-extract" / "tasks")
-    ap.add_argument("--tmax-parquet", type=Path,
-                    default=TMAX_ROOT / "tmax-clean" / "splits" / "reaudit.parquet")
+    ap.add_argument(
+        "--rebench-tasks", type=Path, default=REBENCH_ROOT / "extract" / "tasks"
+    )
+    ap.add_argument(
+        "--rebench-parquet",
+        type=Path,
+        default=REBENCH_ROOT / "clean" / "metadata" / "tasks.parquet",
+    )
+    ap.add_argument(
+        "--tmax-tasks", type=Path, default=TMAX_ROOT / "tmax-extract" / "tasks"
+    )
+    ap.add_argument(
+        "--tmax-parquet",
+        type=Path,
+        default=TMAX_ROOT / "tmax-clean" / "splits" / "reaudit.parquet",
+    )
     ap.add_argument("--out", type=Path, required=True)
     ap.add_argument("--holdout-n", type=int, default=64)
     ap.add_argument("--seed", type=int, default=20260910)
@@ -145,21 +155,36 @@ def main() -> None:
         "holdout_n": args.holdout_n,
         "shuffle_seed": args.seed,
         "inputs": {
-            "rebench_tasks": {"path": str(args.rebench_tasks),
-                              "sha": v2._sha_tree(args.rebench_tasks)},
-            "rebench_parquet": {"path": str(args.rebench_parquet),
-                                "sha": v2._sha(args.rebench_parquet)},
-            "tmax_tasks": {"path": str(args.tmax_tasks),
-                           "sha": v2._sha_tree(args.tmax_tasks)},
-            "tmax_parquet": {"path": str(args.tmax_parquet),
-                             "sha": v2._sha(args.tmax_parquet)},
+            "rebench_tasks": {
+                "path": str(args.rebench_tasks),
+                "sha": v2._sha_tree(args.rebench_tasks),
+            },
+            "rebench_parquet": {
+                "path": str(args.rebench_parquet),
+                "sha": v2._sha(args.rebench_parquet),
+            },
+            "tmax_tasks": {
+                "path": str(args.tmax_tasks),
+                "sha": v2._sha_tree(args.tmax_tasks),
+            },
+            "tmax_parquet": {
+                "path": str(args.tmax_parquet),
+                "sha": v2._sha(args.tmax_parquet),
+            },
         },
     }
-    print(json.dumps({k: v for k, v in manifest.items() if k != "inputs"},
-                     ensure_ascii=False, indent=2))
+    print(
+        json.dumps(
+            {k: v for k, v in manifest.items() if k != "inputs"},
+            ensure_ascii=False,
+            indent=2,
+        )
+    )
     if rb_missing or tm_missing:
-        print(f"WARNING: {len(rb_missing)} rebench + {len(tm_missing)} tmax unresolved",
-              file=sys.stderr)
+        print(
+            f"WARNING: {len(rb_missing)} rebench + {len(tm_missing)} tmax unresolved",
+            file=sys.stderr,
+        )
     if not args.apply:
         print("dry run -- pass --apply to write")
         return
