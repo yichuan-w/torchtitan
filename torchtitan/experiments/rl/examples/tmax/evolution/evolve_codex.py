@@ -1320,15 +1320,17 @@ def _independent_verifier(
                     result = _run_codex(
                         run,
                         vpkg,
-                        "The independent correct control passed, and controls labeled negative also passed. "
+                        "Independent controls received grades inconsistent with their declared expectations. "
                         "Read run/independent-failures.jsonl for their public requirements, scripts, and grading evidence. "
-                        "First establish whether each negative control's actual state at grading violates the public task. "
+                        "First establish whether the control labeled correct actually satisfies every public requirement, "
+                        "and whether each negative control's actual state at grading violates the public task. "
                         "For a final-artifact task, an earlier failure on changed inputs "
                         "does not invalidate a correct final artifact; "
                         "require reusable behavior only when the public task explicitly requires it. "
-                        "If a control is valid or its violation cannot be established, "
+                        "If the correct control is invalid, a negative control is valid, or a control's classification cannot be established, "
                         "write BLOCKED: <evidence> to run/verdict.txt and stop. "
-                        "Otherwise repair the verifier to reject the demonstrated violations while accepting valid deliverables. "
+                        "Otherwise repair the verifier to accept the demonstrated valid deliverable and reject the demonstrated violations. "
+                        "Do not impose a representation or implementation restriction absent from the public task. "
                         "Preserve the public task and follow AGENTS.md, including your own replay controls.\n"
                         + _budget(AGENT_TIMEOUT),
                         resume=_session_id(vsession),

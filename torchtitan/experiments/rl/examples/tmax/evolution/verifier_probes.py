@@ -5,6 +5,7 @@
 # LICENSE file in the root directory of this source tree.
 
 """Replay verifier-authored semantic controls in fresh Daytona sandboxes."""
+
 from __future__ import annotations
 
 import datetime
@@ -147,10 +148,9 @@ def verify_probes(pkg: Path, env: dict[str, str], timeout: int) -> None:
             )
         if result.returncode != expected:
             message = f"Semantic probe {case}/{phase}: expected exit {expected}, got {result.returncode}"
-            if (
-                phase == "grade"
-                and case.startswith("wrong-")
-                and result.returncode == 0
+            if phase == "grade" and (
+                (case.startswith("wrong-") and result.returncode == 0)
+                or (case == "correct" and result.returncode == 1)
             ):
                 # Collect all semantic misses for repair; setup and grading errors still abort.
                 missed.append(message)

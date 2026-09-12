@@ -56,10 +56,12 @@ def setup(tmp_path, monkeypatch):
     return rewrite, verifier, calls, author
 
 
-def miss(package):
+def miss(package, case="wrong-1"):
     path = package / "run/verifier-probe-results.jsonl"
-    path.write_text('{"case":"wrong-1","returncode":0}\n')
-    raise ec.SemanticProbeMisses(["wrong-1/grade passed"], path)
+    path.write_text(
+        json.dumps(dict(case=case, returncode=int(case == "correct"))) + "\n"
+    )
+    raise ec.SemanticProbeMisses([f"{case}/grade mismatch"], path)
 
 
 def test_independent_author_cannot_see_grader_or_reference_and_is_reused(setup):
@@ -75,8 +77,9 @@ def test_independent_author_cannot_see_grader_or_reference_and_is_reused(setup):
     }
 
 
+@pytest.mark.parametrize("case", ["wrong-1", "correct"])
 def test_semantic_failure_gets_one_repair_and_replays_unchanged_controls(
-    setup, monkeypatch
+    setup, monkeypatch, case
 ):
     rewrite, verifier, calls, _ = setup
     replays = []
@@ -86,7 +89,7 @@ def test_semantic_failure_gets_one_repair_and_replays_unchanged_controls(
             return
         replays.append(ec._probe_hashes(package / "run/verifier-probes"))
         if len(replays) == 1:
-            miss(package)
+            miss(package, case)
 
     monkeypatch.setattr(ec, "verify_probes", grade)
     ec._independent_verifier(rewrite, verifier)

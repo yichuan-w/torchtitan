@@ -152,8 +152,26 @@ class SemanticProbeTests(unittest.TestCase):
         self.assertEqual(records[-1]["phase"], "down")
 
     def test_correct_solution_rejection_fails_gate(self):
-        with self.assertRaisesRegex(RuntimeError, "correct/grade"):
+        with self.assertRaisesRegex(probes.SemanticProbeMisses, "correct/grade"):
             self.execute(3, 1)
+
+    def test_positive_rejection_still_checks_negative_controls(self):
+        with self.assertRaises(probes.SemanticProbeMisses) as error:
+            self.execute(3, 1)
+        self.assertIn("correct/grade", str(error.exception))
+        records = [
+            json.loads(line)
+            for line in (self.pkg / "run/verifier-probe-results.jsonl")
+            .read_text()
+            .splitlines()
+        ]
+        self.assertTrue(any(row.get("case") == "wrong-2" for row in records))
+        self.assertFalse(any(row.get("status") == "passed" for row in records))
+
+    def test_positive_grading_error_is_not_a_semantic_miss(self):
+        with self.assertRaises(RuntimeError) as error:
+            self.execute(3, 2)
+        self.assertNotIsInstance(error.exception, probes.SemanticProbeMisses)
 
     def transport_commands(self, phase="grade", failures=1, mutate=False, stderr=None):
         self.calls = []
