@@ -36,9 +36,8 @@ of those and timed out. This hands the agent the container itself.
                             Dockerfile (--max as for up)
     ./sandbox check         reset; grade, which must FAIL (a verifier that
                             passes an untouched workspace pays for nothing);
-                            oracle, which must pass; then the names audit:
-                            every key, label or filename the verifier depends
-                            on has to be stated where an agent can read it.
+                            oracle, which must pass; then an advisory names
+                            audit for possible unstated requirements.
                             Prints VERDICT: pass|fail.
                             The oracle run is measured (memory peak, cpu
                             seconds, disk). A run the box cut short -- OOM
@@ -514,8 +513,7 @@ def cmd_check(pkg: Path, solve_timeout: int, at_max: bool = False) -> int:
     starved = "" if oracle_ok else _starved(r, solve_timeout)
     # The reference solution passing says the verifier and the solution agree.
     # It says nothing about whether an agent that reads only the instruction
-    # could have; that is what the names audit asks, and it is part of the
-    # verdict because the caller enforces the same rule.
+    # could have; the names audit suggests possible mismatches for review.
     names = _names_audit(pkg)
     step = _step_audit(pkg)
     # The names audit is advice: it is printed and recorded, and the verdict
