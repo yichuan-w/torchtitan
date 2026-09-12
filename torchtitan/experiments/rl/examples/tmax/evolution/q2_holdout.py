@@ -131,16 +131,17 @@ def main():
         assert before == audit_input["public_hashes"]
         session_file = sorted((rewrite.path / "sessions").glob("*/session.json"))[-1]
         interrupted = json.loads(session_file.read_text())
-        assert interrupted["exit_code"] == 1
-        assert (
+        usage_limit = interrupted["exit_code"] == 1 and (
             "You've hit your usage limit"
             in (session_file.parent / "stdout.txt").read_text()
         )
+        timed_out = interrupted.get("status") == "timed_out"
+        assert usage_limit or timed_out
         freeze(
             rewrite.path / "interrupted-author.json",
             json.dumps(
                 dict(
-                    reason="usage_limit",
+                    reason="usage_limit" if usage_limit else "author_timeout",
                     session=str(session_file.parent),
                     export_revision=revision,
                     witnesses="pending_execution_in_acceptance_run",
