@@ -29,8 +29,10 @@ import shutil
 import sys
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[5]))
-from torchtitan.experiments.rl.examples.tmax import layout  # noqa: E402
+sys.path.insert(0, str(Path(__file__).resolve().parent / "evolution"))
+import pack_to_dataset as pack  # noqa: E402
+
+layout = pack._tmax_modules("layout")
 
 
 def _rows_with_rev(mix: Path) -> list[str]:
