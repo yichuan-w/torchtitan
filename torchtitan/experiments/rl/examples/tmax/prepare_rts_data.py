@@ -242,6 +242,8 @@ def _build_context(env_dir: str, dockerfile: str) -> dict[str, str]:
             continue
         parts = [p for p in shlex.split(rest) if not _COPY_FLAG.match(p)]
         for src in parts[:-1]:
+            if src.startswith(("https://", "http://")):
+                continue
             abspath = os.path.normpath(os.path.join(env_dir, src))
             if not os.path.exists(abspath):
                 raise FileNotFoundError(src)

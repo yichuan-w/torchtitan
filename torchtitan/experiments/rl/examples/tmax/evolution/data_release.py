@@ -117,7 +117,11 @@ def fetch_source(source, cache, token):
         raise ValueError("upstream did not resolve to the requested commit")
     entries = {item.rfilename: item for item in info.siblings}
     files = {}
-    for filename in [source["metadata"], *source["archives"]]:
+    filenames = [source["metadata"], *source["archives"]]
+    cache_manifest = "metadata/cache_manifest.jsonl"
+    if cache_manifest in entries:
+        filenames.append(cache_manifest)
+    for filename in filenames:
         local = Path(
             hf_hub_download(
                 source["repo"],
@@ -138,6 +142,16 @@ def fetch_source(source, cache, token):
         if expected and expected != actual:
             raise ValueError(f"upstream checksum mismatch: {filename}")
         files[filename] = {"path": local, "sha256": actual}
+        if filename == cache_manifest:
+            for line in local.read_text().splitlines():
+                item = json.loads(line)
+                if (
+                    not item["file"].startswith("caches/")
+                    or ".." in Path(item["file"]).parts
+                    or not re.fullmatch(r"[0-9a-f]{64}", item["sha256"])
+                ):
+                    raise ValueError("invalid offline cache manifest entry")
+                filenames.append(item["file"])
     return files
 
 
@@ -192,9 +206,34 @@ def prepare_source(source, files, stage, checkpoints, log):
     if actual_ids != set(ids):
         raise ValueError(f"{source['name']}: package and metadata membership differ")
     shutil.copyfile(files[source["metadata"]]["path"], home / "metadata.parquet")
+    caches = {}
+    cache_manifest = files.get("metadata/cache_manifest.jsonl")
+    if cache_manifest:
+        for line in cache_manifest["path"].read_text().splitlines():
+            item = json.loads(line)
+            if files[item["file"]]["sha256"] != item["sha256"]:
+                raise ValueError(f"cache checksum mismatch: {item['file']}")
+            caches[item["image"]] = item
+            dest = home / item["file"]
+            dest.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copyfile(files[item["file"]]["path"], dest)
     rows = []
     for record in sorted(metadata, key=lambda r: r[id_key]):
         tid = record[id_key]
+        task = home / "tasks" / tid
+        if record.get("prefetched_cache_required"):
+            item = caches.get(record.get("image") or record.get("base_image"))
+            if item is None:
+                raise ValueError(f"{tid}: required offline cache is missing")
+            dockerfile = task / "environment/Dockerfile"
+            url = f"https://huggingface.co/datasets/{source['repo']}/resolve/{source['revision']}/{item['file']}"
+            dockerfile.write_text(
+                dockerfile.read_text().rstrip()
+                + "\n"
+                + f"ADD {url} /tmp/seed-cache.tar.gz\n"
+                + f"RUN echo '{item['sha256']}  /tmp/seed-cache.tar.gz' | sha256sum -c - "
+                + "&& tar -xzf /tmp/seed-cache.tar.gz -C / && rm /tmp/seed-cache.tar.gz\n"
+            )
         checkpoint = checkpoints / source["name"] / (tid + ".json")
         log(source=source["name"], task=tid, status="start")
         if checkpoint.exists():
@@ -211,7 +250,7 @@ def prepare_source(source, files, stage, checkpoints, log):
                     record.get("protected_paths"), record.get("protected_cmds")
                 )
             row = pack.to_row(
-                str(home / "tasks" / tid),
+                str(task),
                 inject_agent_runtime=True,
                 pretest=pretest,
                 protected=protected,
@@ -235,6 +274,8 @@ def prepare_source(source, files, stage, checkpoints, log):
                 )
             }
             md["rev"] = 0
+            if record.get("validated_test_timeout_s"):
+                md["verifier_timeout_sec"] = record["validated_test_timeout_s"]
             write_json(checkpoint, row)
             log(source=source["name"], task=tid, status="complete")
         rows.append(row)

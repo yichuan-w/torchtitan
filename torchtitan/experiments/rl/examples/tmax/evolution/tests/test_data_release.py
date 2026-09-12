@@ -134,3 +134,55 @@ def test_archive_cannot_escape_destination(tmp_path):
     with pytest.raises(ValueError, match="unsafe archive"):
         release.extract(archive, tmp_path / "unpacked")
     assert not (tmp_path / "outside").exists()
+
+
+def test_offline_cache_and_validated_grader_budget_survive_preparation(
+    tmp_path, monkeypatch
+):
+    config = fixture(tmp_path, monkeypatch)
+    source = config["sources"][0]
+    files = release.fetch_source(source, None, None)
+    metadata = files["tasks.parquet"]["path"]
+    table = pq.read_table(metadata)
+    table = table.append_column("image", pa.array(["image_a", "image_b"]))
+    table = table.append_column("prefetched_cache_required", pa.array([True, False]))
+    table = table.append_column("validated_test_timeout_s", pa.array([2700, 600]))
+    pq.write_table(table, metadata)
+    files["tasks.parquet"]["sha256"] = release.digest(metadata)
+    cache = tmp_path / "cache.tar.gz"
+    cache.write_bytes(b"offline-cache-fixture")
+    manifest = tmp_path / "cache_manifest.jsonl"
+    manifest.write_text(
+        json.dumps(
+            {
+                "image": "image_a",
+                "file": "caches/cache.tar.gz",
+                "sha256": release.digest(cache),
+            }
+        )
+        + "\n"
+    )
+    files["metadata/cache_manifest.jsonl"] = {
+        "path": manifest,
+        "sha256": release.digest(manifest),
+    }
+    files["caches/cache.tar.gz"] = {"path": cache, "sha256": release.digest(cache)}
+    monkeypatch.setattr(release, "fetch_source", lambda *_: files)
+    output = release.build(config, tmp_path / "out")
+    row = next(
+        row
+        for row in map(json.loads, (output / "mix.jsonl").read_text().splitlines())
+        if row["label"] == "task_a"
+    )
+    assert row["metadata"]["verifier_timeout_sec"] == 2700
+    assert (
+        f"/resolve/{source['revision']}/caches/cache.tar.gz"
+        in row["metadata"]["dockerfile"]
+    )
+    assert release.digest(cache) in row["metadata"]["dockerfile"]
+    assert "build_context" not in row["metadata"]
+    assert (
+        "sha256sum -c -"
+        in (output / "sources/swe/tasks/task_a/environment/Dockerfile").read_text()
+    )
+    assert release.build(config, tmp_path / "out") == output
