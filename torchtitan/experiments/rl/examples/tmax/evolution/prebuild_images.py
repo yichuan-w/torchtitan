@@ -52,14 +52,17 @@ def execute(sb, command, out, name, timeout=60):
     return result.result
 
 
-def build(source, task, out, repository):
+def build(source, task, out, repository, *, prepared=None):
     from daytona import CreateSandboxFromImageParams, Daytona, Image, Resources
 
-    manifest = release.verify(source)
-    rows = [
-        json.loads(line) for line in (source / "mix.jsonl").read_text().splitlines()
-    ]
-    row = next(row for row in rows if row["metadata"]["instance_id"] == task)
+    if prepared is None:
+        manifest = release.verify(source)
+        rows = [
+            json.loads(line) for line in (source / "mix.jsonl").read_text().splitlines()
+        ]
+        row = next(row for row in rows if row["metadata"]["instance_id"] == task)
+    else:
+        manifest, row = prepared
     tag = repository + ":" + image_key(row)
     inputs = {
         "release_sha256": manifest["release_sha256"],
@@ -127,7 +130,7 @@ def build(source, task, out, repository):
             out / "built.json", {"id": sb.id, "image": json.loads(details)[0]}
         )
     except BaseException:
-        client.delete(sb)
+        sb.delete(timeout=120, wait=True)
         raise
 
 
@@ -181,7 +184,8 @@ def push(out, token):
     if len(refs) != 1 or not re.fullmatch(r".+@sha256:[0-9a-f]{64}", refs[0]):
         raise ValueError("registry did not return one immutable image reference")
     release.write_json(out / "publication.json", {"image": refs[0], "input": inputs})
-    client.delete(sb)
+    sb.delete(timeout=120, wait=True)
+    release.write_json(out / "builder-deleted.json", {"id": sb.id})
 
 
 def verify(out):
@@ -208,6 +212,7 @@ def verify(out):
         ),
         timeout=600,
     )
+    release.write_json(out / "verifier-sandbox.json", {"id": sb.id})
     try:
         output = execute(
             sb,
@@ -225,7 +230,8 @@ def verify(out):
             },
         )
     finally:
-        client.delete(sb)
+        sb.delete(timeout=120, wait=True)
+        release.write_json(out / "verifier-deleted.json", {"id": sb.id})
 
 
 def main():
