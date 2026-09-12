@@ -251,7 +251,7 @@ def test_hooked_and_unhooked_rows_carry_exactly_what_grading_reads():
     assert (
         md["instance_id"] == HOOKED[0]
         and md["image"] == ""
-        and md["dockerfile"] == _DOCKERFILE.decode()
+        and md["dockerfile"] == RTS._inject_agent_runtime(_DOCKERFILE.decode())
     )
 
 
