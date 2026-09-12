@@ -52,6 +52,14 @@ These are properties of the files themselves, so they apply whichever job you we
 given. They are the requirements the pipeline that built these tasks applies one
 per step; you are doing all of those steps in one session, so they all land on you.
 
+Derive retained requirements from the original public instruction and files the
+solver can discover in the starting workspace, then apply the requested change.
+The reference solution and seed verifier are implementations to inspect, not
+authority for additional requirements. Keep choices the original public task
+leaves open unless the requested change restricts them. Making an incidental
+schema, representation, or method mandatory in the new instruction changes the
+task; it does not repair a hidden assumption in the verifier.
+
 **`solution/solve.sh`** completes the whole workflow from the variant's starting
 state, the way a strong agent's successful run would. Inspect inputs before
 transforming them rather than overwriting final artifacts blindly, and validate
@@ -236,24 +244,13 @@ necessary facts in the instruction or discoverable workspace; remove a
 solution hint only when the task remains unambiguous. Measure difficulty by
 student re-testing, not by added lines.
 
-**A verifier may not depend on a name the task never states.** You write the
-solution first and the verifier against it, so the verifier inherits the
-solution's private vocabulary: the keys of the report it parses, the label a
-regex anchors on, the file name an artifact must have. The instruction comes
-last and describes those in prose, and a policy that does every bit of the work
-then writes `source_basename:` where the verifier reads `report["source"]`, or
-`- Commit: <sha>` where the verifier wants a line starting `Commit:`, and scores
-zero. Of eight hardened tasks reviewed that the policy failed 16 of 16 times,
-five failed on exactly this, three with all the work done. So: every key, label
-and file name the verifier reads has to appear, spelled the same, in the
-instruction or in a file the image ships that the instruction points at; or the
-verifier checks the value rather than the name (a report line that contains the
-commit's SHA, a field whose value equals the file's SHA-256, whichever key it is
-under). `./sandbox check` runs this audit after the oracle and prints what it
-finds. It is advice, not the verdict: the audit is a heuristic over string
-literals and it flags things an agent does know (environment variable names,
-standard column names), so read each name it lists and fix the ones that are
-real. The caller records the same list beside the rewrite.
+**Check names against the public contract.** Require an exact key, label, or
+filename only when the original public task or requested change requires it.
+Otherwise check the promised value or behavior while accepting permitted names
+and representations. `./sandbox check` prints a heuristic names audit after the
+oracle; the caller records the same list beside the rewrite. Review its findings
+for actual mismatches. A flagged language keyword or internal test value need not
+become a task requirement, and a false positive may remain in the recorded advice.
 
 **Run `./sandbox check` before you finish.** A rewrite that has not passed it is
 discarded whole, and the task goes back into training exactly as it was, so an
@@ -284,7 +281,7 @@ The outcome that actually damages the pool is a task that passes because the
 check got weaker: it looks like a win, it is folded back in, and nothing
 downstream can tell that the verifier used to demand more. Weeks later it is
 still there, teaching the model that less is enough. For harder jobs, if your only route to
-`VERDICT: pass` runs through making the verifier ask for less, take the give-up
+`VERDICT: pass` removes a check for a required public behavior, take the give-up
 instead — that is what it is for.
 
 ## Rules that always hold
@@ -296,9 +293,10 @@ grades it. A task whose instruction names its verifier is rejected.
 
 **The task must stay solvable from the workspace alone.** Someone reading only
 `instruction.md` and exploring the container must be able to get there. Never
-leave it ambiguous between several plausible outcomes, and never remove a fact
-the verifier depends on that nothing in the workspace reveals — that is unfair
-rather than hard, and it fails a capable agent as surely as a weak one.
+remove facts needed to satisfy a public requirement. Where the original task
+permits several correct outcomes, preserve those alternatives and check their
+shared requirements rather than choosing the reference implementation for the
+student.
 
 **Difficulty lives in the task, not in the grading.** Weakening the verifier to
 fit a solution that does not work makes the task worthless; that is the one
