@@ -23,7 +23,21 @@ class _Metrics:
     disk_used: int = 42
 
 
-@pytest.mark.parametrize("mode", ["partial", "timeout", "large"])
+@pytest.mark.parametrize(
+    "mode",
+    [
+        "partial",
+        "timeout",
+        "large",
+        "pages",
+        "stalled",
+        "deleted",
+        "hosted",
+        "auth",
+        "page_failure",
+        "page_timeout",
+    ],
+)
 def test_provider_capture_preserves_results_and_excludes_discovery_secrets(
     tmp_path, monkeypatch, mode
 ):
@@ -44,12 +58,34 @@ def test_provider_capture_preserves_results_and_excludes_discovery_secrets(
                     {"organizationId": "org", "value": "private-key"}
                 )
             if request.path.endswith("/logs"):
+                if mode == "auth" and requests.count(request.path) == 1:
+                    return web.json_response({"message": "Unauthorized"}, status=401)
+                if mode == "hosted" and request.path.startswith("/api/sandbox/"):
+                    return web.json_response(
+                        {
+                            "message": "Telemetry endpoints are disabled when Analytics API is configured"
+                        },
+                        status=403,
+                    )
+                if mode == "deleted" and request.path.startswith("/api/sandbox/"):
+                    return web.json_response({"message": "deleted"}, status=404)
                 if mode == "large":
                     return web.json_response(["x" * 4096])
                 return web.json_response([{"body": "daemon failure"}])
             if request.path.endswith("/traces"):
                 if mode == "timeout":
                     await asyncio.sleep(1)
+                if mode in ("pages", "stalled", "page_failure", "page_timeout"):
+                    page = int(request.query["page"])
+                    assert int(request.query["offset"]) == (page - 1) * 2
+                    items = [{"traceId": "a"}, {"traceId": "b"}]
+                    if page > 1 and mode == "page_failure":
+                        return web.json_response({"message": "unavailable"}, status=503)
+                    if page > 1 and mode == "page_timeout":
+                        await asyncio.sleep(1)
+                    if page > 1 and mode == "pages":
+                        items = [{"traceId": "c"}]
+                    return web.json_response(items)
                 return web.json_response([])
             if request.path.endswith("/metrics"):
                 return web.json_response({"message": "unavailable"}, status=503)
@@ -69,10 +105,12 @@ def test_provider_capture_preserves_results_and_excludes_discovery_secrets(
                 default_headers={"Authorization": "Bearer private-key"}
             ),
         )
-        if mode == "timeout":
+        if mode in ("timeout", "page_timeout"):
             monkeypatch.setattr(diagnostics, "_COLLECTION_TIMEOUT_SEC", 0.1)
         if mode == "large":
             monkeypatch.setattr(diagnostics, "_RESPONSE_LIMIT_BYTES", 1024)
+        if mode in ("pages", "stalled", "page_failure", "page_timeout"):
+            monkeypatch.setattr(diagnostics, "_PAGE_SIZE", 2)
         try:
             await diagnostics.collect_failure_diagnostics(
                 client,
@@ -89,14 +127,36 @@ def test_provider_capture_preserves_results_and_excludes_discovery_secrets(
         assert "private-key" not in raw and "config-secret" not in raw
         record = json.loads(raw)
         assert record["requests"]["metrics_latest"]["payload"]["disk_used"] == 42
-        assert record["status"] == ("timeout" if mode == "timeout" else "finished")
+        assert record["status"] == (
+            "timeout" if mode in ("timeout", "page_timeout") else "partial"
+        )
         assert record["requests"]["audit"]["payload"]["items"] == [{"action": "create"}]
         assert record["requests"]["metrics"]["http_status"] == 503
         if mode == "large":
             assert record["requests"]["logs"]["status"] == "response_too_large"
         else:
             assert record["requests"]["logs"]["payload"] == [{"body": "daemon failure"}]
-        assert "/organization/org/sandbox/sb/telemetry/logs" in requests
+        assert "/api/sandbox/sb/telemetry/logs" in requests
+        if mode in ("deleted", "hosted"):
+            assert "/organization/org/sandbox/sb/telemetry/logs" in requests
+        if mode == "auth":
+            assert record["requests"]["logs"]["attempts"] == 2
+        if mode == "pages":
+            assert record["requests"]["traces"]["payload"] == [
+                {"traceId": "a"},
+                {"traceId": "b"},
+                {"traceId": "c"},
+            ]
+            assert record["requests"]["traces"]["complete"] is True
+        if mode == "stalled":
+            assert record["requests"]["traces"]["status"] == "pagination_stalled"
+            assert record["requests"]["traces"]["complete"] is False
+        if mode in ("page_failure", "page_timeout"):
+            assert record["requests"]["traces"]["payload"] == [
+                {"traceId": "a"},
+                {"traceId": "b"},
+            ]
+            assert record["requests"]["traces"]["complete"] is False
 
     asyncio.run(run())
 
