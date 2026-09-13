@@ -16,6 +16,7 @@ import argparse
 import base64
 import hashlib
 import json
+import os
 import random
 import re
 import shlex
@@ -110,6 +111,8 @@ def recover_artifacts(previous, out):
         if (previous / "input.json").exists()
         else None
     )
+    if (previous / "owner-repair.json").exists():
+        shutil.copy2(previous / "owner-repair.json", out / "owner-repair.json")
     builder_path = previous / "builder.json"
     sb = None
     if builder_path.exists():
@@ -126,6 +129,19 @@ def recover_artifacts(previous, out):
         release.write_json(out / "builder-deleted.json", {"confirmed_absent": True})
         return
     if sb is not None and inputs is not None:
+        state = getattr(sb.state, "value", sb.state)
+        if state in ("stopped", "archived"):
+            sb.start(timeout=300)
+            log(out, "builder-restarted", id=sb.id)
+        execute(
+            sb,
+            "docker info >/dev/null 2>&1 || "
+            "(nohup dockerd > /tmp/dockerd.log 2>&1 < /dev/null & "
+            "for i in $(seq 1 30); do docker info >/dev/null 2>&1 && exit 0; "
+            "sleep 1; done; exit 1)",
+            out,
+            "recover-daemon",
+        )
         result = sb.process.exec(
             "docker image inspect " + shlex.quote(inputs["tag"]), timeout=60
         )
@@ -215,7 +231,51 @@ def build(source, task, out, repository, *, prepared=None):
         dockerfile = md.get("dockerfile") or "FROM " + md["image"] + "\n"
         sb.fs.upload_file(dockerfile.encode(), "/tmp/task-build/Dockerfile")
         command = "docker build -t " + shlex.quote(tag) + " /tmp/task-build"
-        execute(sb, command, out, "build", timeout=900)
+        try:
+            execute(sb, command, out, "build", timeout=900)
+        except RuntimeError:
+            error = (out / "build.log").read_text()
+            if "failed to Lchown" not in error or "subordinate IDs" not in error:
+                raise
+            base_image = dockerfile.splitlines()[0].split()[1]
+            normalized = "localhost/owner-normalized:base"
+            execute(
+                sb,
+                "apk add --no-cache buildah fuse-overlayfs",
+                out,
+                "owner-tools",
+                timeout=300,
+            )
+            buildah = "buildah --storage-driver overlay --storage-opt overlay.ignore_chown_errors=true --storage-opt overlay.mount_program=/usr/bin/fuse-overlayfs "
+            execute(
+                sb,
+                buildah + "from --name normalized-source " + shlex.quote(base_image),
+                out,
+                "normalize-from",
+                timeout=900,
+            )
+            execute(
+                sb,
+                buildah
+                + "commit --format docker --squash normalized-source docker-daemon:"
+                + normalized,
+                out,
+                "normalize-direct",
+                timeout=900,
+            )
+            sb.fs.upload_file(
+                dockerfile.replace(base_image, normalized, 1).encode(),
+                "/tmp/task-build/Dockerfile",
+            )
+            execute(sb, command, out, "build-owner-repaired", timeout=900)
+            release.write_json(
+                out / "owner-repair.json",
+                {
+                    "input": inputs,
+                    "method": "Buildah ignore_chown_errors and squash",
+                    "semantic_validation_required": True,
+                },
+            )
         details = execute(
             sb, "docker image inspect " + shlex.quote(tag), out, "inspect"
         )
@@ -245,7 +305,7 @@ sys.exit(1 if failed else 0)
 """
 
 
-def push(out, token):
+def push(out, token, *, token_file=None):
     if (out / "publication.json").exists():
         log(out, "resume", stage="push")
         return
@@ -254,16 +314,53 @@ def push(out, token):
     client = get_client()
     sb = client.get(built["id"])
     repository, tag = inputs["tag"].rsplit(":", 1)
-    auth = base64.urlsafe_b64encode(
-        json.dumps(
-            {"serveraddress": repository.split("/")[0], "registrytoken": token}
-        ).encode()
-    ).decode()
     sb.fs.upload_file(PUSH_SCRIPT.encode(), "/tmp/push-image.py")
-    command = shlex.join(
-        ["python3", "/tmp/push-image.py", auth, f"/images/{repository}/push?tag={tag}"]
-    )
-    execute(sb, command, out, "push", timeout=900)
+    deadline = time.monotonic() + 1800
+    attempt = 0
+    while True:
+        attempt += 1
+        if token_file is not None:
+            token = token_file.read_text().strip()
+        auth = base64.urlsafe_b64encode(
+            json.dumps(
+                {"serveraddress": repository.split("/")[0], "registrytoken": token}
+            ).encode()
+        ).decode()
+        command = shlex.join(
+            [
+                "python3",
+                "/tmp/push-image.py",
+                auth,
+                f"/images/{repository}/push?tag={tag}",
+            ]
+        )
+        name = "push" if attempt == 1 else f"push-retry-{attempt}"
+        try:
+            execute(
+                sb,
+                command,
+                out,
+                name,
+                timeout=min(900, max(1, int(deadline - time.monotonic()))),
+            )
+            break
+        except RuntimeError:
+            output = (out / f"{name}.log").read_text().lower()
+            if not any(
+                reason in output
+                for reason in (
+                    "toomanyrequests",
+                    "unknown blob",
+                    "unauthorized",
+                    "authentication required",
+                )
+            ):
+                raise
+            delay = random.uniform(60, 120)
+            if time.monotonic() + delay >= deadline:
+                raise
+            log(out, "push-retry-wait", attempt=attempt, delay_s=delay)
+            time.sleep(delay)
     raw = execute(
         sb,
         "docker image inspect --format '{{json .RepoDigests}}' "
@@ -277,6 +374,65 @@ def push(out, token):
     release.write_json(out / "publication.json", {"image": refs[0], "input": inputs})
     sb.delete(timeout=120, wait=True)
     release.write_json(out / "builder-deleted.json", {"id": sb.id})
+
+
+def validate_owner_repair(out, source):
+    if not (out / "owner-repair.json").exists():
+        return
+    publication = json.loads((out / "publication.json").read_text())
+    md = publication["input"]["row"]["metadata"]
+    package = out / "semantic-package"
+    shutil.copytree(
+        source / "sources" / md["corpus"] / "tasks" / md["instance_id"], package
+    )
+    (package / "environment/Dockerfile").write_text(
+        "FROM " + publication["image"] + "\n"
+    )
+    env = dict(
+        os.environ,
+        TT_SANDBOX_BACKEND="daytona",
+        TT_DAYTONA_EPHEMERAL="1",
+        TT_DAYTONA_TTL_MIN="30",
+        TT_DAYTONA_CREATE_RETRIES="0",
+        TMAX_AGENT="terminus",
+    )
+    command = [
+        sys.executable,
+        str(Path(__file__).with_name("daytona_revalidate.py")),
+        str(package),
+        "--cpu",
+        str(md["daytona_cpu"]),
+        "--mem-gb",
+        str(md["daytona_mem_gb"]),
+        "--disk-gb",
+        str(md["daytona_disk_gb"]),
+    ]
+    results = {}
+    for probe, extra in (("oracle", []), ("null", ["--shortcut", "true"])):
+        log(out, "semantic-start", probe=probe)
+        with (out / f"{probe}.log").open("x") as stream:
+            completed = subprocess.run(
+                command + extra,
+                env=env,
+                stdout=stream,
+                stderr=subprocess.STDOUT,
+                timeout=1900,
+            )
+        verdict = json.loads((out / f"{probe}.log").read_text().splitlines()[-1])
+        results[probe] = {"exit_code": completed.returncode, "verdict": verdict}
+        release.write_json(
+            out / f"{probe}-result.json",
+            {"input": publication, "command": command + extra, **results[probe]},
+        )
+    release.write_json(out / "semantic-validation.json", results)
+    if not all(
+        results[probe]["exit_code"] == 0
+        and results[probe]["verdict"]["ok"]
+        and results[probe]["verdict"]["reward"] == reward
+        for probe, reward in (("oracle", 1), ("null", 0))
+    ):
+        raise RuntimeError("owner repair failed oracle/null validation")
+    log(out, "semantic-end", status="passed")
 
 
 def verify(out):
