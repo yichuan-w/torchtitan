@@ -21,6 +21,9 @@ serialization, and verify that the represented result is unchanged. Changing
 only report labels or paths does not cover this choice. Use the public task to
 identify fixed properties; an encoder's defaults do not make unspecified
 properties mandatory. Record the equivalence check in the `correct` object.
+Include a legal nondefault container or serialization supported by the task's
+required tool when available; changing numeric precision alone does not exercise
+container parsing. Verify the decoded content and record the chosen variant.
 Include a transformation error that preserves the required format and metadata
 while changing the represented content. For numerical results, use a small
 deviation beyond the error allowed by the public task and permitted encodings;

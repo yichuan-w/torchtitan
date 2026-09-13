@@ -85,6 +85,11 @@ encoder's sample width, container layout, or serialization is not a required
 property unless the public task makes it one; hashing decoded bytes still fixes
 a representation if equivalent values can have different byte encodings. Use
 byte equality only for content required to remain byte-for-byte unchanged.
+Choose parsers and decoders that support the representations allowed by the
+public task, including container variants supported by a required tool. A
+helper library's unsupported-format error does not establish an invalid
+deliverable. When available, exercise a legal nondefault container or
+serialization in the correct control and record how its decoded content was checked.
 Normalization must preserve the values the task requires. Derive any numerical
 tolerance from the public requirements and the error introduced by permitted
 representations; arbitrary coarse rounding can erase incorrect content. Record
