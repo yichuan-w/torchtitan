@@ -3,7 +3,7 @@
 # This source code is licensed under the BSD-style license found in the
 # LICENSE file in the root directory of this source tree.
 
-"""Resume a prepared image batch within a conservative sandbox compute budget.
+"""Resume a prepared image batch, with an optional compute budget.
 
 The token file must contain a current repository-scoped registry bearer token.
 Refresh it atomically outside this process; no long-lived registry credential
@@ -57,7 +57,7 @@ class Ledger:
         with self.lock:
             if key in self.entries:
                 return False
-            if (
+            if self.budget is not None and (
                 sum(item["charged_usd"] for item in self.entries.values()) + amount
                 > self.budget
             ):
@@ -70,6 +70,14 @@ class Ledger:
         with self.lock:
             self.entries[key] = {"status": status, "charged_usd": amount}
             release.write_json(self.path, self.entries)
+
+
+def validate_resume(previous, current):
+    runtime = {"workers", "code_commit", "budget_usd"}
+    if {k: v for k, v in previous.items() if k not in runtime} != {
+        k: v for k, v in current.items() if k not in runtime
+    }:
+        raise ValueError("batch data changed; use a separate output directory")
 
 
 def run(args):
@@ -96,9 +104,11 @@ def run(args):
             "rows": rows,
         }
         input_path = args.out / "batch-input.json"
-        if input_path.exists() and json.loads(input_path.read_text()) != inputs:
-            raise ValueError("batch inputs changed; use a separate output directory")
-        release.write_json(input_path, inputs)
+        if input_path.exists():
+            validate_resume(json.loads(input_path.read_text()), inputs)
+        else:
+            release.write_json(input_path, inputs)
+        release.write_json(args.out / f"execution-{time.time_ns()}.json", inputs)
         ledger = Ledger(args.out / "budget.json", args.budget)
         images.log(
             args.out,
@@ -235,12 +245,14 @@ def main():
     parser.add_argument("--out", type=Path, required=True)
     parser.add_argument("--repository", required=True)
     parser.add_argument("--token-file", type=Path, required=True)
-    parser.add_argument("--budget", type=float, required=True)
-    parser.add_argument("--workers", type=int, default=8)
+    parser.add_argument(
+        "--budget", type=float, help="Optional total compute spending cap"
+    )
+    parser.add_argument("--workers", type=int, default=1000)
     parser.add_argument("--limit", type=int, help="Maximum new tasks for a smoke run")
     args = parser.parse_args()
-    if not 1 <= args.workers <= 8 or not 0 < args.budget <= 100:
-        parser.error("workers must be 1..8 and budget must be in (0, 100]")
+    if not 1 <= args.workers <= 1000 or (args.budget is not None and args.budget <= 0):
+        parser.error("workers must be 1..1000; an explicit budget must be positive")
     run(args)
 
 
