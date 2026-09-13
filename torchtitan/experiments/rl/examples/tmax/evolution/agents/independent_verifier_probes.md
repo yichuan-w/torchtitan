@@ -38,6 +38,13 @@ Changing whitespace or key order does not exercise numeric equality. Check that
 the correct value is unchanged and that the wrong value exceeds the error allowed
 by the public task and permitted encodings. Record both values, the deviation,
 and the allowance in the contract.
+For transformations, include decoded numeric content such as sample values in
+this check, even when the public task describes an operation rather than naming
+numeric fields. Encoding resolution alone does not grant an error allowance.
+Where the expected value is exact under the required operation and chosen
+encoding, test an adjacent representable wrong value for fixed-precision content,
+subject to any explicit public tolerance; for example, change an exactly zero
+sample to a nonzero sample.
 Then save `wrong-1.sh`, `wrong-2.sh`, and so on. Each wrong implementation should
 make a specific semantic mistake while otherwise completing the task. Derive
 these mistakes from the public requirements, including independently falsifiable

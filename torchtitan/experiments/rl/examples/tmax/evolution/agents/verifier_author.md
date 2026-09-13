@@ -102,8 +102,16 @@ An explicit JSON-number requirement still excludes strings. Stringifying numbers
 does not normalize numeric equality. Do not truncate or round away a real
 difference. Derive any tolerance from the public requirements and permitted
 encoding error, and record the bound and its basis in the replay contract.
+Encoding resolution alone does not justify an error allowance. Unless the public
+task permits error, preserve an exact expected value when the required operation
+and chosen encoding introduce no error; zero can remain exact across sample
+formats. Justify a nonzero encoding bound from the actual expected content and
+permitted encoding operation, not merely the format's quantization step.
 Exercise the same numeric field and encoding in a correct control with an
-equivalent value and a wrong control with a small deviation beyond that bound.
+equivalent value and a wrong control with a small deviation that violates the
+public requirement; for fixed-precision content, use an adjacent representable
+wrong value. Check whether an overly broad bound would
+accept that wrong value instead of choosing only a larger error the grader rejects.
 This applies to parsed numeric fields as well as transformed signals; changing
 JSON whitespace or key order does not cover numeric equality. For the correct
 control, use a different legal
