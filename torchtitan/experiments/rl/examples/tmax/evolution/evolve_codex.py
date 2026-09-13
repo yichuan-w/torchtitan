@@ -32,6 +32,7 @@ solve_daytona's verified incantation: a fresh CODEX_HOME (a stray ChatGPT token
 otherwise wins and 401s), a model_provider whose base_url is the same us.api
 endpoint synth_client uses, and the key injected via env.
 """
+
 from __future__ import annotations
 
 import contextlib
@@ -1122,15 +1123,15 @@ fresh one.
 
 Confirm with `./sandbox check` before you stop."""
 
-_VERIFIER_JOB = """The task in this package was just made one rung harder through a
-change to its requirements or workflow. Write the verifier for the task as the
+_VERIFIER_JOB = """The task in this package was revised through a change to its
+requirements or workflow. Write the verifier for the task as the
 instruction states it.
 
-You are shown the instruction, `environment/`, and the seed's verifier at
-`{verifier_rel}` (what the task checked before this rung; it has {seed_asserts}
-assertions). You are not shown the reference solution, on purpose; AGENTS.md says
-why. Keep every existing check that still holds and add at most {max_asserts}
-assertions for the new requirement, each satisfiable by an agent that has read
+You are shown the instruction, `environment/`, and the current verifier at
+`{verifier_rel}`. The original seed had {seed_asserts} assertions. You are not shown the reference solution, on purpose; AGENTS.md says
+why. Keep every existing check that still holds under the revised instruction;
+remove checks only for requirements that the instruction removed. Use at most
+{max_asserts} assertions above the original seed count, each satisfiable by an agent that has read
 only the instruction and explored the container. Where the instruction leaves a
 name open, check the value.
 
@@ -1151,8 +1152,8 @@ is in `run/failure.txt`.
 Read it first. The instruction is the contract. The usual cause is a check that
 demands something the instruction does not ask for, or a name the instruction
 leaves open: loosen that check to what the instruction actually promises, or
-check the value instead of the name. Do not drop a check the seed's verifier
-already had, and do not weaken a check the instruction plainly requires. If the
+check the value instead of the name. Preserve seed checks for requirements retained
+in the revised instruction, and do not weaken a check the instruction plainly requires. If the
 run failed a check the instruction does require, the solution is what is wrong:
 write `BLOCKED: <which check, and what the run showed>` to `run/verdict.txt` and
 stop, and the caller sends the solution back.
@@ -1255,6 +1256,18 @@ def _probe_hashes(package: Path, exclude: tuple[str, ...] = ()) -> dict[str, str
     }
 
 
+def _verify_original_probes(vsession: layout.SessionDir) -> None:
+    original = vsession.path / "original-verifier-probes"
+    if not original.exists():
+        shutil.copytree(vsession.package / "run/verifier-probes", original)
+        package = vsession.package
+    else:
+        package = Path(tempfile.mkdtemp(prefix="original-replay-", dir=vsession.path))
+        _blind_layout(vsession.package, package)
+        shutil.copytree(original, package / "run/verifier-probes")
+    verify_probes(package, _harness_env(), AGENT_TIMEOUT)
+
+
 def _independent_verifier(
     rewrite: layout.RewriteDir,
     vsession: layout.SessionDir,
@@ -1297,8 +1310,17 @@ def _independent_verifier(
             finally:
                 _sandbox_down(probe)
             _check_verdict(probe)
-            if _probe_hashes(probe, ("run",)) != before:
-                raise RuntimeError("Independent probe author changed public task files")
+            after = _probe_hashes(probe, ("run",))
+            changed = sorted(
+                name
+                for name in before.keys() | after.keys()
+                if before.get(name) != after.get(name)
+            )
+            if changed:
+                raise RuntimeError(
+                    "Independent probe author changed files outside run/: "
+                    + ", ".join(changed)
+                )
         layout.write_json_atomic(
             pointer,
             {
@@ -1331,15 +1353,18 @@ def _independent_verifier(
                     result = _run_codex(
                         run,
                         vpkg,
-                        "The independent correct control passed, and controls labeled negative also passed. "
+                        "Independent controls received grades inconsistent with their declared expectations. "
                         "Read run/independent-failures.jsonl for their public requirements, scripts, and grading evidence. "
-                        "First establish whether each negative control's actual state at grading violates the public task. "
+                        "First establish whether the control labeled correct actually satisfies every public requirement, "
+                        "and whether each negative control's actual state at grading violates the public task. "
                         "For a final-artifact task, an earlier failure on changed inputs "
                         "does not invalidate a correct final artifact; "
                         "require reusable behavior only when the public task explicitly requires it. "
-                        "If a control is valid or its violation cannot be established, "
+                        "If the correct control is invalid, a negative control is valid, or a control's classification cannot be established, "
                         "write BLOCKED: <evidence> to run/verdict.txt and stop. "
-                        "Otherwise repair the verifier to reject the demonstrated violations while accepting valid deliverables. "
+                        "Otherwise repair the verifier to accept the demonstrated valid deliverable and reject the demonstrated violations. "
+                        "The caller also replays your original pre-repair controls unchanged; replacing a saved control does not remove that regression check. "
+                        "Do not impose a representation or implementation restriction absent from the public task. "
                         "Preserve the public task and follow AGENTS.md, including your own replay controls.\n"
                         + _budget(AGENT_TIMEOUT),
                         resume=_session_id(vsession),
@@ -1355,7 +1380,7 @@ def _independent_verifier(
                 raise RuntimeError(
                     "Verifier repair changed public task files"
                 ) from error
-            verify_probes(vpkg, _harness_env(), AGENT_TIMEOUT)
+            _verify_original_probes(vsession)
         else:
             return
 
@@ -1395,7 +1420,7 @@ def _blind_verifier(
         finally:
             _sandbox_down(vpkg)
     _check_verdict(vpkg)
-    verify_probes(vpkg, _harness_env(), AGENT_TIMEOUT)
+    _verify_original_probes(run.dir)
     _independent_verifier(rewrite, run.dir)
     rel = _take_verifier(vpkg, pkg, seed_rel, seed_text)
     return run.dir, rel
@@ -1429,7 +1454,7 @@ def _blind_repair(
         finally:
             _sandbox_down(vpkg)
     _check_verdict(vpkg)
-    verify_probes(vpkg, _harness_env(), AGENT_TIMEOUT)
+    _verify_original_probes(vsession)
     _independent_verifier(rewrite, vsession, allow_repair=False)
     before = (pkg / _verifier_on_disk(pkg, seed_rel)).read_text()
     return _take_verifier(vpkg, pkg, _verifier_on_disk(pkg, seed_rel), before)
@@ -1512,7 +1537,7 @@ def evolve_agentic(
         task["test_state_py"],
         "python" if ev._verifier_rel(task).endswith(".py") else "shell",
     )
-    blind = job == "harder" and VERIFIER_AUTHOR == "blind"
+    blind = job in ("harder", "easier") and VERIFIER_AUTHOR == "blind"
     prompt = (
         {
             "harder": (_HARDER_JOB_BLIND if blind else _HARDER_JOB).format(

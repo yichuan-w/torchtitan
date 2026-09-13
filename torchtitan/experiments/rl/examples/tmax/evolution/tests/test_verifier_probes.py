@@ -8,6 +8,7 @@ import importlib.util
 import json
 import subprocess
 import tempfile
+import threading
 import unittest
 from pathlib import Path
 from unittest.mock import patch
@@ -55,10 +56,10 @@ class SemanticProbeTests(unittest.TestCase):
             calls.append(args[1:])
             if args[1] == "exec" and args[2].startswith("if ["):
                 return subprocess.CompletedProcess(args, 0, '{"tests": []}', "")
-            index = sum(
-                not (call[0] == "exec" and call[1].startswith("if [")) for call in calls
-            )
-            code = 1 if index > 3 and args[1] == "grade" else 0
+            case = Path(kwargs["cwd"]).name
+            base = {"correct": 0, "wrong-1": 3, "wrong-2": 6}.get(case, 0)
+            index = base + {"reset": 1, "exec": 2, "grade": 3, "down": 100}[args[1]]
+            code = int(case.startswith("wrong-") and args[1] == "grade")
             if index in (
                 failure_phase if isinstance(failure_phase, tuple) else (failure_phase,)
             ):
@@ -71,13 +72,22 @@ class SemanticProbeTests(unittest.TestCase):
 
     def test_fresh_environments_and_daytona_only_execution(self):
         calls = self.execute()
-        self.assertEqual(
+        self.assertCountEqual(
             [call[0] for call in calls],
-            ["reset", "exec", "grade", "exec"] * 3 + ["down"],
+            ["reset", "exec", "grade", "exec", "down"] * 3 + ["down"],
         )
-        self.assertEqual(calls[1][1], "write_correct_graph")
-        self.assertEqual(calls[5][1], "write_wrong_weight_graph")
-        self.assertEqual(calls[9][1], "write_pending_audit_graph")
+        self.assertCountEqual(
+            [
+                call[1]
+                for call in calls
+                if call[0] == "exec" and not call[1].startswith("if [")
+            ],
+            [
+                "write_correct_graph",
+                "write_wrong_weight_graph",
+                "write_pending_audit_graph",
+            ],
+        )
         records = [
             json.loads(line)
             for line in (self.pkg / "run/verifier-probe-results.jsonl")
@@ -148,25 +158,46 @@ class SemanticProbeTests(unittest.TestCase):
             .read_text()
             .splitlines()
         ]
-        self.assertFalse(any(row.get("case") == "wrong-2" for row in records))
+        self.assertTrue(any(row.get("case") == "wrong-2" for row in records))
+        self.assertFalse(any(row.get("status") == "passed" for row in records))
         self.assertEqual(records[-1]["phase"], "down")
 
     def test_correct_solution_rejection_fails_gate(self):
-        with self.assertRaisesRegex(RuntimeError, "correct/grade"):
+        with self.assertRaisesRegex(probes.SemanticProbeMisses, "correct/grade"):
             self.execute(3, 1)
+
+    def test_positive_rejection_still_checks_negative_controls(self):
+        with self.assertRaises(probes.SemanticProbeMisses) as error:
+            self.execute(3, 1)
+        self.assertIn("correct/grade", str(error.exception))
+        records = [
+            json.loads(line)
+            for line in (self.pkg / "run/verifier-probe-results.jsonl")
+            .read_text()
+            .splitlines()
+        ]
+        self.assertTrue(any(row.get("case") == "wrong-2" for row in records))
+        self.assertFalse(any(row.get("status") == "passed" for row in records))
+
+    def test_positive_grading_error_is_not_a_semantic_miss(self):
+        with self.assertRaises(RuntimeError) as error:
+            self.execute(3, 2)
+        self.assertNotIsInstance(error.exception, probes.SemanticProbeMisses)
 
     def transport_commands(self, phase="grade", failures=1, mutate=False, stderr=None):
         self.calls = []
-        self.current_script = None
+        self.current_scripts = {}
         self.transport_failures = 0
 
         def command(args, **kwargs):
             self.calls.append(args[1:])
             operation = args[1]
+            workspace = str(kwargs["cwd"])
             if operation == "exec" and not args[2].startswith("if ["):
-                self.current_script = args[2]
+                self.current_scripts[workspace] = args[2]
+            current_script = self.current_scripts.get(workspace)
             if (
-                self.current_script == "write_pending_audit_graph"
+                current_script == "write_pending_audit_graph"
                 and operation == ("exec" if phase == "setup" else "grade")
                 and not (operation == "exec" and args[2].startswith("if ["))
                 and self.transport_failures < failures
@@ -184,9 +215,7 @@ class SemanticProbeTests(unittest.TestCase):
                     stderr
                     or "sandbox error: DaytonaBadGatewayError: Failed to execute session command: \n",
                 )
-            code = int(
-                operation == "grade" and self.current_script != "write_correct_graph"
-            )
+            code = int(operation == "grade" and current_script != "write_correct_graph")
             return subprocess.CompletedProcess(args, code, "probe output", "")
 
         return command
@@ -205,7 +234,7 @@ class SemanticProbeTests(unittest.TestCase):
                     for call in self.calls
                     if call[0] == "exec" and not call[1].startswith("if [")
                 ]
-                self.assertEqual(
+                self.assertCountEqual(
                     setups,
                     [
                         "write_correct_graph",
@@ -256,6 +285,77 @@ class SemanticProbeTests(unittest.TestCase):
             with self.assertRaisesRegex(RuntimeError, "wrong-2/setup"):
                 probes.verify_probes(self.pkg, {}, 60)
         self.assertEqual(sum(call[0] == "reset" for call in self.calls), 3)
+
+    def test_cases_overlap_without_sharing_container_state(self):
+        barrier = threading.Barrier(3, timeout=5)
+        original_state = self.pkg / "run/sandbox.json"
+        original_state.write_text('{"id":"original-container"}')
+        (self.pkg / "run/resources.json").write_text('{"cpus":2}')
+        (self.pkg / "instruction.md").write_text("public task")
+        scripts = {}
+        cleaned = set()
+
+        def command(args, **kwargs):
+            workspace = Path(kwargs["cwd"])
+            operation = args[1]
+            if operation == "reset":
+                self.assertNotEqual(workspace, self.pkg)
+                self.assertFalse((workspace / "run/sandbox.json").exists())
+                self.assertEqual(
+                    (workspace / "instruction.md").read_text(), "public task"
+                )
+                self.assertEqual(
+                    (workspace / "run/resources.json").read_text(), '{"cpus":2}'
+                )
+                (workspace / "run/sandbox.json").write_text(workspace.name)
+                barrier.wait()
+            if operation == "exec" and not args[2].startswith("if ["):
+                scripts[workspace] = args[2]
+            if operation == "down":
+                cleaned.add(workspace)
+            self.assertEqual(original_state.read_text(), '{"id":"original-container"}')
+            code = int(
+                operation == "grade" and scripts[workspace] != "write_correct_graph"
+            )
+            return subprocess.CompletedProcess(args, code, "output", "")
+
+        with patch.object(probes.subprocess, "run", side_effect=command):
+            probes.verify_probes(self.pkg, {}, 60)
+        self.assertEqual(len(scripts), 3)
+        self.assertEqual(cleaned, set(scripts) | {self.pkg})
+
+    def test_grade_diagnostics_survive_missing_ctrf(self):
+        def command(args, **kwargs):
+            workspace = Path(kwargs["cwd"])
+            code = int(args[1] == "grade" and workspace.name != "correct")
+            if args[1] == "grade":
+                (workspace / "run/last-grade.json").write_text(
+                    json.dumps(
+                        {
+                            "reward": 1 - code,
+                            "grading": {
+                                "exit_code": code,
+                                "output_tail": workspace.name,
+                            },
+                        }
+                    )
+                )
+            return subprocess.CompletedProcess(args, code, "", "")
+
+        with patch.object(probes.subprocess, "run", side_effect=command):
+            probes.verify_probes(self.pkg, {}, 60)
+        records = [
+            json.loads(line)
+            for line in (self.pkg / "run/verifier-probe-results.jsonl")
+            .read_text()
+            .splitlines()
+        ]
+        diagnostics = [
+            row for row in records if row.get("phase") == "grade_diagnostics"
+        ]
+        self.assertEqual(len(diagnostics), 3)
+        for row in diagnostics:
+            self.assertEqual(row["result"]["grading"]["output_tail"], row["case"])
 
 
 if __name__ == "__main__":

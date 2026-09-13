@@ -7,6 +7,7 @@
 """SWE_VERIFIER_AUTHOR=blind: the verifier is written by a session that never
 sees the solution, in a package copy under its own session directory, and
 the two meet only in the harness's own check."""
+
 from __future__ import annotations
 
 import json
@@ -165,6 +166,11 @@ def _wire(monkeypatch, sessions: list, checks: list, verifier_text=NEW_VERIFIER)
             # refused as "changed nothing", which is its own failure.
             text = verifier_text + ("\n# repaired\n" if resume else "")
             (cwd / "tests" / "test_state.py").write_text(text)
+            controls = cwd / "run/verifier-probes"
+            controls.mkdir(exist_ok=True)
+            (controls / "correct.sh").write_text("original correct")
+            (controls / "wrong-1.sh").write_text("original wrong")
+            (controls / "contract.json").write_text('{}')
         run.meta["exit_code"] = 0
         return type("P", (), {"returncode": 0, "stdout": "", "stderr": ""})()
 
@@ -184,14 +190,24 @@ def _wire(monkeypatch, sessions: list, checks: list, verifier_text=NEW_VERIFIER)
     return replays
 
 
+@pytest.mark.parametrize("job", ["harder", "easier"])
 def test_blind_mode_runs_two_sessions_and_the_second_never_sees_the_solution(
-    tmp_path, monkeypatch
+    tmp_path, monkeypatch, job
 ) -> None:
     rw = _rewrite(tmp_path, monkeypatch)
     sessions, checks = [], []
     replays = _wire(monkeypatch, sessions, checks)
 
-    out = ec.evolve_agentic(rw, dict(SEED), "harder")
+    if job == "easier":
+        monkeypatch.setattr(
+            ec.so,
+            "read_decision",
+            lambda *args: {
+                "operator": "test_simplification",
+                "retained_skill": "compare files",
+            },
+        )
+    out = ec.evolve_agentic(rw, dict(SEED), job)
 
     assert [s["role"] for s in sessions] == ["author", "verifier"]
     assert sessions[0]["saw_solution"] is True and sessions[1]["saw_solution"] is False
@@ -200,7 +216,8 @@ def test_blind_mode_runs_two_sessions_and_the_second_never_sees_the_solution(
     assert sessions[1]["cwd"] == sessions[1]["session"].package
     assert replays == [sessions[1]["cwd"]]
     assert sessions[1]["session"].path.parent == rw.sessions
-    assert "Leave `tests/` exactly as it is" in sessions[0]["prompt"]
+    if job == "harder":
+        assert "Leave `tests/` exactly as it is" in sessions[0]["prompt"]
     assert "not shown the reference solution" in sessions[1]["prompt"]
 
     # The verifier came back into the author's package, and the harness ran
@@ -391,7 +408,10 @@ def test_a_disagreement_gets_one_repair_of_the_verifier_then_is_discarded(
     assert [s["role"] for s in sessions] == ["author", "verifier", "verifier"]
     assert sessions[2]["resume"] == "sid-v"
     assert sessions[2]["cwd"] == sessions[1]["cwd"]
-    assert replays == [sessions[1]["cwd"], sessions[2]["cwd"]]
+    assert replays[0] == sessions[1]["cwd"]
+    assert len(replays) == 2
+    assert replays[1].name.startswith("original-replay-")
+    assert (replays[1] / "tests/test_state.py").read_text().endswith("# repaired\n")
     assert "does not agree with the task's reference solution" in sessions[2]["prompt"]
     assert (
         (sessions[2]["cwd"] / "run" / "failure.txt")

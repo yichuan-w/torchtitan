@@ -9,6 +9,9 @@ that still has failures. Use the actual solved/attempted counts in your prompt;
 those mixed groups continue training while the rewrite is prepared.
 
 Your working directory is the task package itself.
+Use this package and its supplied traces as the task evidence. Do not search or
+read sibling tasks, prior experiment outputs, campaign files, or other sessions
+for examples or answers. Public tool documentation remains available.
 
 ## The package
 
@@ -29,8 +32,8 @@ one line of JSON, so COPY sources together stay under 1 MiB, and files under
 `tests/` are text and together stay under 1 MiB; a binary under `tests/` is
 refused by name, and `./sandbox up` says so. `AGENTS.md`,
 `sandbox` and `traces/` are the harness and do not travel. Which files you
-*should* touch depends on the job in your prompt, and that prompt says so. If your
-variant relies on files or command outputs the solver must leave untouched, list
+*should* touch depends on the job in your prompt, and that prompt says so. If the
+public instruction requires files or command outputs to remain unchanged, list
 them in `tests/protected_paths.json` as `{"paths": [...], "cmds": [...]}`; the
 harness digests them before and after the episode and any change scores 0.
 
@@ -52,6 +55,14 @@ These are properties of the files themselves, so they apply whichever job you we
 given. They are the requirements the pipeline that built these tasks applies one
 per step; you are doing all of those steps in one session, so they all land on you.
 
+Derive retained requirements from the original public instruction and files the
+solver can discover in the starting workspace, then apply the requested change.
+The reference solution and seed verifier are implementations to inspect, not
+authority for additional requirements. Keep choices the original public task
+leaves open unless the requested change restricts them. Making an incidental
+schema, representation, or method mandatory in the new instruction changes the
+task; it does not repair a hidden assumption in the verifier.
+
 **`solution/solve.sh`** completes the whole workflow from the variant's starting
 state, the way a strong agent's successful run would. Inspect inputs before
 transforming them rather than overwriting final artifacts blindly, and validate
@@ -59,6 +70,13 @@ the intermediate ones before writing the final. Keep it deterministic, safe to r
 twice, and runnable non-interactively from any working directory. Above all,
 **derive every output from the inputs as they are at run time**. The reference's
 implementation does not impose additional requirements on the student.
+
+When the public task requires a submitted artifact or script to recreate another
+artifact or state, execute that reproduction on a fresh target and compare the
+state the task requires. A full-state promise includes generated fields; if their
+defaults depend on the clock, compare executions at different times. Fix reference
+nondeterminism instead of excluding a required field from the comparison. Record
+the reproduction commands and observed comparison in your final response.
 
 When a change introduces new valid input or option cases, run the reference
 workflow on cases that change the shape of the result, including an empty result
@@ -81,14 +99,20 @@ checks only when declared in `run/simplify.json`. Preserve semantic correctness
 and checks for every remaining public requirement.
 
 When assigned to write or repair the verifier, map each retained or added requirement
-to a check of the behavior or result it promises. Check against task inputs or an
-independently computed expectation. File existence, non-empty content, success words
+to a check of the behavior or result it promises, naming the source of its expected
+answer. For supplied-data tasks, derive expectations from the original fixture or
+expected values prepared before solver execution and supplied with the grader.
+Never use solver-writable replacement inputs as the authority for correctness;
+copying or hashing them at grading time does not recover the original data. Input
+changes alone are not grounds for rejection unless the public task forbids them.
+File existence, non-empty content, success words
 in a log, or agreement between two solver-written reports cannot alone establish
 correctness. A reference solution passing does not establish that incorrect solutions
 are rejected.
 
 For a task that requires a reusable program, invoke the submitted program through
-the entry point specified by the task on fresh valid inputs and check the outputs.
+the entry point specified by the task on fresh valid inputs prepared by the grader,
+with expected outputs derived before invoking the submitted program.
 Ensure retained outputs cannot let a no-op program pass; restore inputs after the
 check. For a task asking only for a final artifact or state, verify that result
 without inventing a requirement to save a script. Never invoke `solution/solve.sh`
@@ -101,6 +125,11 @@ fail. Choose examples relevant to this task. Accept alternative paths, formats a
 implementations wherever the public task leaves them open. In your final response,
 identify one concrete incorrect solution and the check that rejects it, and one
 legal alternative the checks allow; distinguish code inspection from executed tests.
+Where correctness depends on supplied data, execute a control that replaces the
+working input and leaves an answer wrong for the original fixture. It must fail
+at the corresponding content check. Also accept a correct deliverable despite an
+input change when the public task permits that change; do not add an input
+immutability requirement to make the negative control fail.
 Keep the existing sandbox checks and job limits. In blind-verifier mode, leave
 `tests/` unchanged as the job instructs; make the requirements checkable for the
 separate verifier author.
@@ -225,24 +254,13 @@ necessary facts in the instruction or discoverable workspace; remove a
 solution hint only when the task remains unambiguous. Measure difficulty by
 student re-testing, not by added lines.
 
-**A verifier may not depend on a name the task never states.** You write the
-solution first and the verifier against it, so the verifier inherits the
-solution's private vocabulary: the keys of the report it parses, the label a
-regex anchors on, the file name an artifact must have. The instruction comes
-last and describes those in prose, and a policy that does every bit of the work
-then writes `source_basename:` where the verifier reads `report["source"]`, or
-`- Commit: <sha>` where the verifier wants a line starting `Commit:`, and scores
-zero. Of eight hardened tasks reviewed that the policy failed 16 of 16 times,
-five failed on exactly this, three with all the work done. So: every key, label
-and file name the verifier reads has to appear, spelled the same, in the
-instruction or in a file the image ships that the instruction points at; or the
-verifier checks the value rather than the name (a report line that contains the
-commit's SHA, a field whose value equals the file's SHA-256, whichever key it is
-under). `./sandbox check` runs this audit after the oracle and prints what it
-finds. It is advice, not the verdict: the audit is a heuristic over string
-literals and it flags things an agent does know (environment variable names,
-standard column names), so read each name it lists and fix the ones that are
-real. The caller records the same list beside the rewrite.
+**Check names against the public contract.** Require an exact key, label, or
+filename only when the original public task or requested change requires it.
+Otherwise check the promised value or behavior while accepting permitted names
+and representations. `./sandbox check` prints a heuristic names audit after the
+oracle; the caller records the same list beside the rewrite. Review its findings
+for actual mismatches. A flagged language keyword or internal test value need not
+become a task requirement, and a false positive may remain in the recorded advice.
 
 **Run `./sandbox check` before you finish.** A rewrite that has not passed it is
 discarded whole, and the task goes back into training exactly as it was, so an
@@ -273,7 +291,7 @@ The outcome that actually damages the pool is a task that passes because the
 check got weaker: it looks like a win, it is folded back in, and nothing
 downstream can tell that the verifier used to demand more. Weeks later it is
 still there, teaching the model that less is enough. For harder jobs, if your only route to
-`VERDICT: pass` runs through making the verifier ask for less, take the give-up
+`VERDICT: pass` removes a check for a required public behavior, take the give-up
 instead — that is what it is for.
 
 ## Rules that always hold
@@ -285,9 +303,10 @@ grades it. A task whose instruction names its verifier is rejected.
 
 **The task must stay solvable from the workspace alone.** Someone reading only
 `instruction.md` and exploring the container must be able to get there. Never
-leave it ambiguous between several plausible outcomes, and never remove a fact
-the verifier depends on that nothing in the workspace reveals — that is unfair
-rather than hard, and it fails a capable agent as surely as a weak one.
+remove facts needed to satisfy a public requirement. Where the original task
+permits several correct outcomes, preserve those alternatives and check their
+shared requirements rather than choosing the reference implementation for the
+student.
 
 **Difficulty lives in the task, not in the grading.** Weakening the verifier to
 fit a solution that does not work makes the task worthless; that is the one

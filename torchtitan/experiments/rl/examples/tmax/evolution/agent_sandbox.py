@@ -36,9 +36,8 @@ of those and timed out. This hands the agent the container itself.
                             Dockerfile (--max as for up)
     ./sandbox check         reset; grade, which must FAIL (a verifier that
                             passes an untouched workspace pays for nothing);
-                            oracle, which must pass; then the names audit:
-                            every key, label or filename the verifier depends
-                            on has to be stated where an agent can read it.
+                            oracle, which must pass; then an advisory names
+                            audit for possible unstated requirements.
                             Prints VERDICT: pass|fail.
                             The oracle run is measured (memory peak, cpu
                             seconds, disk). A run the box cut short -- OOM
@@ -67,6 +66,7 @@ to learn whether the agent ever saw its own rewrite pass, and what the
 reference solution cost when it did: that measurement, not a number anyone
 wrote down, is what sizes the rewritten task's sandbox.
 """
+
 from __future__ import annotations
 
 import argparse
@@ -401,6 +401,7 @@ def cmd_grade(pkg: Path) -> int:
     if not r.get("ok"):
         print(f"sandbox error: {r.get('error')}", file=sys.stderr)
         return 2
+    (pkg / "run" / "last-grade.json").write_text(json.dumps(r) + "\n")
     print(f"grade: reward={r.get('reward')}")
     return 0 if float(r.get("reward") or 0) >= 1.0 else 1
 
@@ -514,8 +515,7 @@ def cmd_check(pkg: Path, solve_timeout: int, at_max: bool = False) -> int:
     starved = "" if oracle_ok else _starved(r, solve_timeout)
     # The reference solution passing says the verifier and the solution agree.
     # It says nothing about whether an agent that reads only the instruction
-    # could have; that is what the names audit asks, and it is part of the
-    # verdict because the caller enforces the same rule.
+    # could have; the names audit suggests possible mismatches for review.
     names = _names_audit(pkg)
     step = _step_audit(pkg)
     # The names audit is advice: it is printed and recorded, and the verdict
@@ -531,6 +531,7 @@ def cmd_check(pkg: Path, solve_timeout: int, at_max: bool = False) -> int:
             "stage": "step_size" if oracle_ok and step else "oracle",
             "reward": reward,
             "solve_exit": r.get("solve_exit"),
+            "grading": r.get("grading"),
             "null_reward": null_reward,
             "resources": box,
             "at_max": at_max,
@@ -572,6 +573,9 @@ def cmd_check(pkg: Path, solve_timeout: int, at_max: bool = False) -> int:
         tail = r.get("tail") or ""
         print("--- what the run printed (tail) ---")
         print(tail if tail.strip() else "(empty)")
+        grading = r.get("grading") or {}
+        print(f"--- verifier output (exit {grading.get('exit_code')}) ---")
+        print(grading.get("output_tail") or "(unavailable)")
         if starved and at_max:
             print(
                 f"\nOut of {starved} at the platform ceiling: the task needs more "
@@ -661,8 +665,9 @@ async def _serve(pkg: Path, sock: str, resources: dict | None = None) -> int:
         log(f"integrity baseline: {n_paths} paths, {n_cmds} cmds")
     elif pretest:
         tm = md["tmax"]
-        stamped, episode = tm.get("pretest_env_identity"), tm.get(
-            "pretest_episode_env_identity"
+        stamped, episode = (
+            tm.get("pretest_env_identity"),
+            tm.get("pretest_episode_env_identity"),
         )
         log(
             f"pin hook: stamped={stamped or '?'} episode={episode or '?'} -> "
@@ -723,9 +728,14 @@ async def _serve(pkg: Path, sock: str, resources: dict | None = None) -> int:
                 measured = await dr.measure(
                     sb, time.time() - t0, tail=(out or "") + (err or "")
                 )
+                grading = {}
                 reward = (
                     await dr.grade_tmax(
-                        sb, tmax, workdir=workdir, baseline_digests=baseline
+                        sb,
+                        tmax,
+                        workdir=workdir,
+                        baseline_digests=baseline,
+                        diagnostics=grading,
                     )
                     if execution["submitted"]
                     else 0.0
@@ -734,6 +744,7 @@ async def _serve(pkg: Path, sock: str, resources: dict | None = None) -> int:
                     "ok": True,
                     "solve_exit": code,
                     "reward": reward,
+                    "grading": grading,
                     "execution_harness": "terminus",
                     "terminal": execution["terminal"],
                     "transcript": execution["transcript"],
@@ -766,10 +777,15 @@ async def _serve(pkg: Path, sock: str, resources: dict | None = None) -> int:
                             "error": "the protected lists changed since up; "
                             "run ./sandbox reset to take a fresh baseline",
                         }
+                    grading = {}
                     reward = await dr.grade_tmax(
-                        sb, tmax, workdir=workdir, baseline_digests=boot_baseline
+                        sb,
+                        tmax,
+                        workdir=workdir,
+                        baseline_digests=boot_baseline,
+                        diagnostics=grading,
                     )
-                    return {"ok": True, "reward": reward}
+                    return {"ok": True, "reward": reward, "grading": grading}
                 if op == "down":
                     stop.set()
                     return {"ok": True}

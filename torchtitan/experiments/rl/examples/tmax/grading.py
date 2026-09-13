@@ -291,6 +291,12 @@ async def grade_tmax(
             timeout=timeout,
         )
         if _differing:
+            if diagnostics is not None:
+                diagnostics.update(
+                    stage="integrity_baseline",
+                    verifier_ran=False,
+                    differing=describe_differences(_protected, _differing),
+                )
             logger.info(
                 "[tmax] integrity baseline difference for %s in %d protected entr(y/ies): %s; scoring 0",
                 tmax.get("task_id", "?"),
