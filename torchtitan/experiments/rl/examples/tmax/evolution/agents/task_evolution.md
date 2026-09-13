@@ -71,6 +71,13 @@ twice, and runnable non-interactively from any working directory. Above all,
 **derive every output from the inputs as they are at run time**. The reference's
 implementation does not impose additional requirements on the student.
 
+When the public task requires a submitted artifact or script to recreate another
+artifact or state, execute that reproduction on a fresh target and compare the
+state the task requires. A full-state promise includes generated fields; if their
+defaults depend on the clock, compare executions at different times. Fix reference
+nondeterminism instead of excluding a required field from the comparison. Record
+the reproduction commands and observed comparison in your final response.
+
 When a change introduces new valid input or option cases, run the reference
 workflow on cases that change the shape of the result, including an empty result
 when possible. Verify both the changed behavior and retained output requirements
