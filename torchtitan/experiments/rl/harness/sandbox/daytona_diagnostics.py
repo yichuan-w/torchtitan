@@ -19,8 +19,9 @@ from urllib.parse import quote
 import aiohttp
 
 logger = logging.getLogger(__name__)
-_COLLECTION_TIMEOUT_SEC = 10
+_COLLECTION_TIMEOUT_SEC = 60
 _RESPONSE_LIMIT_BYTES = 4 * 1024 * 1024
+_PAGE_SIZE = 1000
 
 
 async def collect_failure_diagnostics(
@@ -55,6 +56,13 @@ async def collect_failure_diagnostics(
 
                 async def get(name, url, params=None, *, authenticated=True):
                     entry = {"status": "pending"}
+                    previous = record["requests"].get(name, {})
+                    if "pages" in previous:
+                        entry.update(
+                            payload=previous["payload"],
+                            pages=previous["pages"],
+                            complete=False,
+                        )
                     record["requests"][name] = entry
                     try:
                         async with http.get(
@@ -87,6 +95,53 @@ async def collect_failure_diagnostics(
                     finally:
                         save()
 
+                async def pages(name, url, params, fallback=None):
+                    items = []
+                    page = 1
+                    while True:
+                        payload = await get(name, url, {**params, "page": page})
+                        entry = record["requests"][name]
+                        if entry.get("http_status") == 404 and fallback:
+                            # Deleted sandboxes can still have retained analytics.
+                            url, fallback = fallback, None
+                            continue
+                        if payload is None:
+                            entry["error_response"] = entry.get("payload")
+                            entry.update(payload=items, pages=page - 1, complete=False)
+                            save()
+                            return
+                        batch = (
+                            payload
+                            if isinstance(payload, list)
+                            else payload.get("items")
+                        )
+                        if not isinstance(batch, list):
+                            entry.update(
+                                status="invalid_response", payload=items, complete=False
+                            )
+                            save()
+                            return
+                        if page > 1 and batch and batch == items[-len(batch) :]:
+                            entry.update(
+                                status="pagination_stalled",
+                                payload=items,
+                                complete=False,
+                            )
+                            save()
+                            return
+                        items.extend(batch)
+                        complete = (
+                            page >= payload["totalPages"]
+                            if isinstance(payload, dict) and "totalPages" in payload
+                            else len(batch) < params["limit"]
+                        )
+                        entry.update(payload=list(items), pages=page, complete=complete)
+                        entry.pop("possibly_truncated", None)
+                        save()
+                        if complete:
+                            return
+                        page += 1
+
                 async def latest_metrics():
                     entry = {"status": "pending"}
                     record["requests"]["metrics_latest"] = entry
@@ -113,25 +168,41 @@ async def collect_failure_diagnostics(
                 organization = quote(organization, safe="")
                 sandbox_id = quote(sandbox.id, safe="")
                 analytics = (config or {}).get("analyticsApiUrl")
-                base = (
+                retained_base = (
                     f"{analytics.rstrip('/')}/organization/{organization}/sandbox/{sandbox_id}"
                     if analytics
                     else f"{api}/sandbox/{sandbox_id}"
                 )
+                base = f"{api}/sandbox/{sandbox_id}"
                 window = {"from": started_at, "to": now}
                 await asyncio.gather(
-                    get(
+                    pages(
                         "audit",
                         f"{api}/audit/organizations/{organization}",
                         {"targetId[eq]": sandbox.id, "limit": 100, **window},
                     ),
-                    get("logs", base + "/telemetry/logs", {"limit": 1000, **window}),
-                    get(
-                        "traces", base + "/telemetry/traces", {"limit": 1000, **window}
+                    pages(
+                        "logs",
+                        base + "/telemetry/logs",
+                        {"limit": _PAGE_SIZE, **window},
+                        retained_base + "/telemetry/logs" if analytics else None,
+                    ),
+                    pages(
+                        "traces",
+                        base + "/telemetry/traces",
+                        {"limit": _PAGE_SIZE, **window},
+                        retained_base + "/telemetry/traces" if analytics else None,
                     ),
                     get("metrics", base + "/telemetry/metrics", window),
                 )
-                record["status"] = "finished"
+                record["status"] = (
+                    "finished"
+                    if all(
+                        entry.get("status") == "ok" and entry.get("complete", True)
+                        for entry in record["requests"].values()
+                    )
+                    else "partial"
+                )
     except TimeoutError:
         record["status"] = "timeout"
     except asyncio.CancelledError:
