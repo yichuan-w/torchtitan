@@ -125,6 +125,18 @@ def _tmax_rollouter() -> TMaxRollouter.Config:
     """Train/validation datasets for the tmax rollouter (rubric + env defaults live
     on the rollouter Config). Train and validation read the same JSONL but disjoint
     slices via holdout_n (last N rows = validation)."""
+    holdout_n = int(os.environ.get("SWE_HOLDOUT_N", _TMAX_9B_HOLDOUT_N))
+    if holdout_n < 0:
+        raise ValueError("SWE_HOLDOUT_N must be nonnegative")
+    if (
+        holdout_n == 0
+        and not _TB2_VAL_DATA
+        and int(os.environ.get("SWE_VAL_SAMPLES", _TMAX_9B_VAL_SAMPLES)) > 0
+    ):
+        raise ValueError(
+            "SWE_HOLDOUT_N=0 requires a separate SWE_TB2_VAL_DATA dataset "
+            "or disabled validation (SWE_VAL_SAMPLES=0)"
+        )
     return TMaxRollouter.Config(
         train_dataset=TMaxDataset.Config(
             data_path=_DEFAULT_DATA,
@@ -132,7 +144,7 @@ def _tmax_rollouter() -> TMaxRollouter.Config:
             # SWE_DISABLE_SHUFFLE=1 -> take training rows in file order (0,1,2,...)
             # for deterministic per-rollout inspection / open-instruct cross-check.
             shuffle=(os.environ.get("SWE_DISABLE_SHUFFLE", "0") != "1"),
-            holdout_n=_TMAX_9B_HOLDOUT_N,
+            holdout_n=holdout_n,
             split="train",
             include_ids_path=_INCLUDE_IDS,
             skip_ids_path=_SKIP_IDS,
@@ -149,7 +161,7 @@ def _tmax_rollouter() -> TMaxRollouter.Config:
                 data_path=_DEFAULT_DATA,
                 seed=99,
                 shuffle=False,
-                holdout_n=_TMAX_9B_HOLDOUT_N,
+                holdout_n=holdout_n,
                 split="validation",
                 skip_ids_path=_SKIP_IDS,
             )
