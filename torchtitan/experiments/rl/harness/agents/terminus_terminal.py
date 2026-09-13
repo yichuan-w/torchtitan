@@ -46,8 +46,8 @@ class TerminalLifecycle:
     def _event(self, kind: str, **details: Any) -> None:
         self.events.append({"time": time.time(), "kind": kind, **details})
 
-    def _unavailable(self, reason: str) -> TerminalUnavailable:
-        self._event(reason)
+    def _unavailable(self, reason: str, **details: Any) -> TerminalUnavailable:
+        self._event(reason, **details)
         return TerminalUnavailable(reason, self.events)
 
     async def prepare(self) -> None:
@@ -192,10 +192,25 @@ class TerminalLifecycle:
                 self._event("socket_restored", server_pid=self.server_pid)
         for attempt in range(4):
             if result.return_code != 0:
-                raise self._unavailable("terminal_state_unavailable")
+                raise self._unavailable(
+                    "terminal_state_unavailable",
+                    return_code=result.return_code,
+                    stdout=(result.stdout or "")[-1000:],
+                    stderr=(result.stderr or "")[-1000:],
+                )
             fields = (result.stdout or "").strip().split("|")
-            if len(fields) != 5 or fields[:2] != [self.server_pid, self.pane_pid]:
-                raise self._unavailable("terminal_identity_changed")
+            if len(fields) != 5:
+                raise self._unavailable(
+                    "terminal_identity_unavailable",
+                    stdout=(result.stdout or "")[-1000:],
+                    stderr=(result.stderr or "")[-1000:],
+                )
+            if fields[:2] != [self.server_pid, self.pane_pid]:
+                raise self._unavailable(
+                    "terminal_identity_changed",
+                    expected=[self.server_pid, self.pane_pid],
+                    observed=fields[:2],
+                )
             _, _, dead, status, signal = fields
             if dead != "1" or status or signal or attempt == 3:
                 break

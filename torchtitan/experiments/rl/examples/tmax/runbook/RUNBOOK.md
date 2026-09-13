@@ -437,10 +437,13 @@ the full lineage from version 1 to now is the manifests' `parent_version` chain.
 
 ### The holdout
 
-**The last 64 rows of the training JSONL, in file order, are the validation
-slice.** The count is `_TMAX_9B_HOLDOUT_N = 64` in
-`examples/tmax/config_registry.py` — a module constant, **not configurable** by
-env var or config field. The split happens in `data.py` before any id filtering,
+`SWE_HOLDOUT_N` defaults to 0: every row is available for training. Supply a
+separate benchmark file through `SWE_TB2_VAL_DATA` for validation. Zero is also
+allowed when validation is disabled with `SWE_VAL_SAMPLES=0`; otherwise a
+positive holdout is required to keep validation separate from training.
+Set `SWE_HOLDOUT_N=64` for an existing mix whose final 64 rows form its frozen
+evaluation set.
+The split happens in `data.py` before any id filtering,
 so it is stable regardless of which ids you include or skip:
 
 ```python
