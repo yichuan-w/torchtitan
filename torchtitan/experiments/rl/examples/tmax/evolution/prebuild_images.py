@@ -61,15 +61,20 @@ def execute(sb, command, out, name, timeout=60):
     return result.result
 
 
-_clients = threading.local()
+_client = None
+_client_lock = threading.Lock()
 
 
 def get_client():
-    from daytona import Daytona
+    from daytona import Daytona, DaytonaConfig
 
-    if not hasattr(_clients, "client"):
-        _clients.client = Daytona()
-    return _clients.client
+    global _client
+    # The sync SDK locks its subscriptions and pools connections. Per-worker
+    # clients retain thousands of idle sockets across successive task waves.
+    with _client_lock:
+        if _client is None:
+            _client = Daytona(DaytonaConfig(connection_pool_maxsize=1000))
+        return _client
 
 
 def create_sandbox(client, params, out, *, timeout):

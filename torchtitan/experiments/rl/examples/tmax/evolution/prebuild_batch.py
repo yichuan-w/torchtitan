@@ -83,6 +83,18 @@ class Ledger:
             )
             release.write_json(self.path, self.entries)
 
+    def recover_interrupted(self):
+        # Called only while holding batch.lock: no previous worker can be live.
+        interrupted = [k for k, v in self.entries.items() if v["status"] == "running"]
+        if interrupted:
+            release.write_json(
+                self.path.with_name(f"interrupted-{time.time_ns()}.json"), self.entries
+            )
+            for key in interrupted:
+                self.entries[key]["status"] = "failed"
+            release.write_json(self.path, self.entries)
+        return interrupted
+
 
 def validate_resume(previous, current):
     runtime = {"workers", "code_commit", "budget_usd"}
@@ -136,6 +148,8 @@ def run(args):
             },
         )
         ledger = Ledger(args.out / "budget.json", args.budget)
+        for key in ledger.recover_interrupted():
+            images.log(args.out, "task-interrupted", key=key)
         images.log(
             args.out,
             "batch-start",
