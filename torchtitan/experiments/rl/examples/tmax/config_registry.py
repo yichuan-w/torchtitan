@@ -125,6 +125,18 @@ def _tmax_rollouter() -> TMaxRollouter.Config:
     """Train/validation datasets for the tmax rollouter (rubric + env defaults live
     on the rollouter Config). Train and validation read the same JSONL but disjoint
     slices via holdout_n (last N rows = validation)."""
+    holdout_n = int(os.environ.get("SWE_HOLDOUT_N", _TMAX_9B_HOLDOUT_N))
+    if holdout_n < 0:
+        raise ValueError("SWE_HOLDOUT_N must be nonnegative")
+    if (
+        holdout_n == 0
+        and not _TB2_VAL_DATA
+        and int(os.environ.get("SWE_VAL_SAMPLES", _TMAX_9B_VAL_SAMPLES)) > 0
+    ):
+        raise ValueError(
+            "SWE_HOLDOUT_N=0 requires a separate SWE_TB2_VAL_DATA dataset "
+            "or disabled validation (SWE_VAL_SAMPLES=0)"
+        )
     return TMaxRollouter.Config(
         train_dataset=TMaxDataset.Config(
             data_path=_DEFAULT_DATA,
@@ -132,7 +144,7 @@ def _tmax_rollouter() -> TMaxRollouter.Config:
             # SWE_DISABLE_SHUFFLE=1 -> take training rows in file order (0,1,2,...)
             # for deterministic per-rollout inspection / open-instruct cross-check.
             shuffle=(os.environ.get("SWE_DISABLE_SHUFFLE", "0") != "1"),
-            holdout_n=_TMAX_9B_HOLDOUT_N,
+            holdout_n=holdout_n,
             split="train",
             include_ids_path=_INCLUDE_IDS,
             skip_ids_path=_SKIP_IDS,
@@ -149,7 +161,7 @@ def _tmax_rollouter() -> TMaxRollouter.Config:
                 data_path=_DEFAULT_DATA,
                 seed=99,
                 shuffle=False,
-                holdout_n=_TMAX_9B_HOLDOUT_N,
+                holdout_n=holdout_n,
                 split="validation",
                 skip_ids_path=_SKIP_IDS,
             )
@@ -759,7 +771,9 @@ def rl_grpo_qwen3_5_9b_tmax() -> Controller.Config:
             fallback_strategy=_fallback,
             # Keep session affinity stable by default.  Rebalancing is an
             # opt-in policy because reserved request count is not KV usage.
-            rebalance_load_ratio=float(os.environ.get("SWE_DP_STICKY_REBALANCE", "0.0")),
+            rebalance_load_ratio=float(
+                os.environ.get("SWE_DP_STICKY_REBALANCE", "0.0")
+            ),
             rebalance_min_gap=8,
             max_sessions=int(os.environ.get("SWE_DP_STICKY_MAX_SESSIONS", "16384")),
         ),
@@ -774,7 +788,10 @@ def rl_grpo_qwen3_5_9b_tmax() -> Controller.Config:
         config.generator,
         intra_generator_router=_dp_router,
         sampling=dataclasses.replace(
-            config.generator.sampling, max_tokens=_TMAX_9B_PER_TURN_TOKENS
+            config.generator.sampling,
+            max_tokens=int(
+                os.environ.get("TMAX_TURN_MAX_TOKENS", _TMAX_9B_PER_TURN_TOKENS)
+            ),
         ),
         cudagraph=VLLMCudagraphConfig(enable=_cudagraph_on, mode="FULL_DECODE_ONLY"),
         enable_prefix_caching=_prefix_cache,
@@ -1108,9 +1125,7 @@ def rl_grpo_qwen3_5_9b_tmax_tb2_eval() -> Controller.Config:
         # from SWE_AGENT_TIMEOUT_FLOOR_SEC / SWE_TIME_BUDGET_SEC, so the training
         # launcher's own values (e.g. a 900 floor) can never reach the eval. An
         # eval-only override lives in SWE_EVAL_BUDGET_FLOOR_SEC if ever needed.
-        agent_budget_floor_sec=int(
-            os.environ.get("SWE_EVAL_BUDGET_FLOOR_SEC", "7200")
-        ),
+        agent_budget_floor_sec=int(os.environ.get("SWE_EVAL_BUDGET_FLOOR_SEC", "7200")),
         time_budget_sec=int(os.environ.get("SWE_EVAL_TIME_BUDGET_SEC", "3600")),
     )
     config.async_loop = dataclasses.replace(
