@@ -127,7 +127,13 @@ def run(args):
             release.write_json(input_path, inputs)
         release.write_json(
             args.out / f"execution-{time.time_ns()}.json",
-            {**inputs, "retry_failed": args.retry_failed, "nofile_soft": soft},
+            {
+                **inputs,
+                "retry_failed": args.retry_failed,
+                "nofile_soft": soft,
+                "task": args.task,
+                "limit": args.limit,
+            },
         )
         ledger = Ledger(args.out / "budget.json", args.budget)
         images.log(
@@ -203,6 +209,11 @@ def run(args):
         admitted = 0
         with concurrent.futures.ThreadPoolExecutor(max_workers=args.workers) as pool:
             for row in rows:
+                if (
+                    args.task is not None
+                    and row["metadata"]["instance_id"] != args.task
+                ):
+                    continue
                 if stop.is_set():
                     images.log(args.out, "failure-stop")
                     break
@@ -288,6 +299,9 @@ def main():
     )
     parser.add_argument("--workers", type=int, default=1000)
     parser.add_argument("--limit", type=int, help="Maximum new tasks for a smoke run")
+    parser.add_argument(
+        "--task", help="Attempt only this task for a recovery smoke check"
+    )
     parser.add_argument(
         "--retry-failed",
         action="store_true",

@@ -103,6 +103,30 @@ def create_sandbox(client, params, out, *, timeout):
 def recover_artifacts(previous, out):
     from daytona.common.errors import DaytonaNotFoundError
 
+    try:
+        _recover_artifacts(previous, out)
+    except DaytonaNotFoundError:
+        log(out, "recovery-not-found", previous=str(previous))
+
+
+def delete_confirmed(sb, out, name):
+    from daytona.common.errors import DaytonaError, DaytonaNotFoundError
+
+    try:
+        sb.delete(timeout=120, wait=True)
+    except DaytonaError as error:
+        try:
+            get_client().get(sb.id)
+        except DaytonaNotFoundError:
+            pass
+        else:
+            raise error
+    release.write_json(out / name, {"id": sb.id, "confirmed_absent": True})
+
+
+def _recover_artifacts(previous, out):
+    from daytona.common.errors import DaytonaNotFoundError
+
     out.mkdir(parents=True, exist_ok=False)
     log(out, "recovery-start", previous=str(previous))
     client = get_client()
@@ -125,7 +149,7 @@ def recover_artifacts(previous, out):
         for name in ("input.json", "publication.json"):
             shutil.copy2(previous / name, out / name)
         if sb is not None:
-            sb.delete(timeout=120, wait=True)
+            delete_confirmed(sb, out, "builder-deleted.json")
         release.write_json(out / "builder-deleted.json", {"confirmed_absent": True})
         return
     if sb is not None and inputs is not None:
@@ -241,7 +265,7 @@ def build(source, task, out, repository, *, prepared=None):
             normalized = "localhost/owner-normalized:base"
             execute(
                 sb,
-                "apk add --no-cache buildah fuse-overlayfs",
+                "apk add --no-cache buildah fuse-overlayfs netavark",
                 out,
                 "owner-tools",
                 timeout=300,
@@ -372,8 +396,7 @@ def push(out, token, *, token_file=None):
     if len(refs) != 1 or not re.fullmatch(r".+@sha256:[0-9a-f]{64}", refs[0]):
         raise ValueError("registry did not return one immutable image reference")
     release.write_json(out / "publication.json", {"image": refs[0], "input": inputs})
-    sb.delete(timeout=120, wait=True)
-    release.write_json(out / "builder-deleted.json", {"id": sb.id})
+    delete_confirmed(sb, out, "builder-deleted.json")
 
 
 def validate_owner_repair(out, source):
@@ -479,8 +502,7 @@ def verify(out):
             },
         )
     finally:
-        sb.delete(timeout=120, wait=True)
-        release.write_json(out / "verifier-deleted.json", {"id": sb.id})
+        delete_confirmed(sb, out, "verifier-deleted.json")
 
 
 def main():
