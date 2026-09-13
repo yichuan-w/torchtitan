@@ -98,6 +98,12 @@ submitted value to the source fixture's precision can erase a real error even
 when the subsequent comparison is exact. Decode permitted higher-precision
 outputs without reducing their precision, and test a correct value and an
 adjacent wrong value in that higher-precision encoding when available.
+Preserve submitted precision from the first parse: converting an already rounded
+floating-point value to a decimal type cannot recover discarded digits. For
+decimal-text encodings that permit it, test a correct value and a distinct wrong
+value that a default binary floating-point parser would round to the same value.
+Establish their difference directly from the decimal tokens and record it in the
+replay contract; a test that changes only digits the parser retains misses this loss.
 Choose parsers and decoders that support the representations allowed by the
 public task, including container variants supported by a required tool. A
 helper library's unsupported-format error does not establish an invalid
