@@ -109,6 +109,23 @@ def test_exec_passes_through_output_and_exit_code(tmp_path, capsys) -> None:
     assert "err\n" in captured.err and "[exit 3]" in captured.err
 
 
+def test_grade_preserves_verifier_output_without_changing_stdout(tmp_path, capsys):
+    pkg = tmp_path / "pkg"
+    result = {
+        "ok": True,
+        "reward": 0.0,
+        "grading": {"exit_code": 1, "output_tail": "AssertionError: missing entry"},
+    }
+    server = _FakeServer(lambda req: result)
+    try:
+        asb._write_state(pkg, {"status": "ready", "sock": server.path})
+        assert asb.cmd_grade(pkg) == 1
+    finally:
+        server.close()
+    assert capsys.readouterr().out == "grade: reward=0.0\n"
+    assert json.loads((pkg / "run/last-grade.json").read_text()) == result
+
+
 def test_check_records_a_null_probe_pass_as_a_failure(
     tmp_path, monkeypatch, capsys
 ) -> None:

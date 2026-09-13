@@ -108,6 +108,8 @@ def verify_probes(pkg: Path, env: dict[str, str], timeout: int) -> None:
             attempt=attempt,
             workspace=str(workspace),
         )
+        if phase == "grade":
+            (workspace / "run" / "last-grade.json").unlink(missing_ok=True)
         try:
             result = subprocess.run(
                 [str(workspace / "sandbox"), *args],
@@ -142,6 +144,15 @@ def verify_probes(pkg: Path, env: dict[str, str], timeout: int) -> None:
                 f"Semantic probe {case}/{phase}: {result.stderr.strip()}"
             )
         if phase == "grade":
+            diagnostic_path = workspace / "run" / "last-grade.json"
+            if diagnostic_path.exists():
+                record(
+                    case=case,
+                    phase="grade_diagnostics",
+                    status="finished",
+                    attempt=attempt,
+                    result=json.loads(diagnostic_path.read_text()),
+                )
             # Some graders provide only a reward; preserve details where available.
             record(case=case, phase="grade_details", status="start", attempt=attempt)
             details = subprocess.run(

@@ -10,6 +10,7 @@ tests/protected_paths.json -- land on the row through the one shared helper, and
 two graders, the sandbox tool and the Daytona revalidator, take a baseline at their seams and
 hand it to grade_tmax by keyword. The baseline itself is integrity_baseline's and is tested
 there; here the fakes record WHERE it is taken and WHAT grading receives."""
+
 from __future__ import annotations
 
 import asyncio
@@ -143,7 +144,9 @@ def test_malformed_lists_refuse_by_id(tmp_path) -> None:
             pack.to_row(str(pkg), protected=bad)
 
 
-def test_protected_reads_cells_by_the_prep_scripts_rules_and_rows_by_their_keys() -> None:
+def test_protected_reads_cells_by_the_prep_scripts_rules_and_rows_by_their_keys() -> (
+    None
+):
     assert pack.Protected.from_cells(None, None) is None
     assert pack.Protected.from_cells("", "  ") is None
     assert pack.Protected.from_cells("[]", "[]") is None  # empty lists are nothing
@@ -352,7 +355,11 @@ def test_sandbox_tool_takes_the_baseline_at_up_for_grade_and_before_solve_for_or
 
         # grade: the digests taken at up
         del events[:]
-        assert server.request("grade") == {"ok": True, "reward": 1.0}
+        assert server.request("grade") == {
+            "ok": True,
+            "reward": 1.0,
+            "grading": {"exit_code": 0, "output_tail": "verifier passed"},
+        }
         assert events == [("grade_tmax", workdir, boot[4])]
         assert events[0][2] is boot[4]
 
@@ -413,7 +420,11 @@ def test_sandbox_tool_inherits_the_lists_from_run_pretest_json(
         assert [e[0] for e in events] == ["seed_workspace", "capture_baseline"]
         assert events[1][1] == 4  # the inherited entries were digested at up
         del events[:]
-        assert server.request("grade") == {"ok": True, "reward": 1.0}
+        assert server.request("grade") == {
+            "ok": True,
+            "reward": 1.0,
+            "grading": {"exit_code": 0, "output_tail": "verifier passed"},
+        }
         assert events[0][2] is not None and len(events[0][2]) == 4
         del events[:]
         assert server.request("oracle", solve_timeout=5)["ok"]
@@ -446,7 +457,11 @@ def test_sandbox_tool_without_lists_is_unchanged(tmp_path, monkeypatch, capsys) 
             ("capture_baseline", 0, workdir, asb.EXEC_TIMEOUT, None),
         ]
         del events[:]
-        assert server.request("grade") == {"ok": True, "reward": 1.0}
+        assert server.request("grade") == {
+            "ok": True,
+            "reward": 1.0,
+            "grading": {"exit_code": 0, "output_tail": "verifier passed"},
+        }
         assert events[0][0] == "grade_tmax" and events[0][2] is None
         del events[:]
         assert server.request("oracle", solve_timeout=5)["ok"]

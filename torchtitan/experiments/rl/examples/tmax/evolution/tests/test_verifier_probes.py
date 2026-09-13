@@ -324,6 +324,39 @@ class SemanticProbeTests(unittest.TestCase):
         self.assertEqual(len(scripts), 3)
         self.assertEqual(cleaned, set(scripts) | {self.pkg})
 
+    def test_grade_diagnostics_survive_missing_ctrf(self):
+        def command(args, **kwargs):
+            workspace = Path(kwargs["cwd"])
+            code = int(args[1] == "grade" and workspace.name != "correct")
+            if args[1] == "grade":
+                (workspace / "run/last-grade.json").write_text(
+                    json.dumps(
+                        {
+                            "reward": 1 - code,
+                            "grading": {
+                                "exit_code": code,
+                                "output_tail": workspace.name,
+                            },
+                        }
+                    )
+                )
+            return subprocess.CompletedProcess(args, code, "", "")
+
+        with patch.object(probes.subprocess, "run", side_effect=command):
+            probes.verify_probes(self.pkg, {}, 60)
+        records = [
+            json.loads(line)
+            for line in (self.pkg / "run/verifier-probe-results.jsonl")
+            .read_text()
+            .splitlines()
+        ]
+        diagnostics = [
+            row for row in records if row.get("phase") == "grade_diagnostics"
+        ]
+        self.assertEqual(len(diagnostics), 3)
+        for row in diagnostics:
+            self.assertEqual(row["result"]["grading"]["output_tail"], row["case"])
+
 
 if __name__ == "__main__":
     unittest.main()

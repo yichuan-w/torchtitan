@@ -66,6 +66,7 @@ to learn whether the agent ever saw its own rewrite pass, and what the
 reference solution cost when it did: that measurement, not a number anyone
 wrote down, is what sizes the rewritten task's sandbox.
 """
+
 from __future__ import annotations
 
 import argparse
@@ -400,6 +401,7 @@ def cmd_grade(pkg: Path) -> int:
     if not r.get("ok"):
         print(f"sandbox error: {r.get('error')}", file=sys.stderr)
         return 2
+    (pkg / "run" / "last-grade.json").write_text(json.dumps(r) + "\n")
     print(f"grade: reward={r.get('reward')}")
     return 0 if float(r.get("reward") or 0) >= 1.0 else 1
 
@@ -663,8 +665,9 @@ async def _serve(pkg: Path, sock: str, resources: dict | None = None) -> int:
         log(f"integrity baseline: {n_paths} paths, {n_cmds} cmds")
     elif pretest:
         tm = md["tmax"]
-        stamped, episode = tm.get("pretest_env_identity"), tm.get(
-            "pretest_episode_env_identity"
+        stamped, episode = (
+            tm.get("pretest_env_identity"),
+            tm.get("pretest_episode_env_identity"),
         )
         log(
             f"pin hook: stamped={stamped or '?'} episode={episode or '?'} -> "
@@ -774,10 +777,15 @@ async def _serve(pkg: Path, sock: str, resources: dict | None = None) -> int:
                             "error": "the protected lists changed since up; "
                             "run ./sandbox reset to take a fresh baseline",
                         }
+                    grading = {}
                     reward = await dr.grade_tmax(
-                        sb, tmax, workdir=workdir, baseline_digests=boot_baseline
+                        sb,
+                        tmax,
+                        workdir=workdir,
+                        baseline_digests=boot_baseline,
+                        diagnostics=grading,
                     )
-                    return {"ok": True, "reward": reward}
+                    return {"ok": True, "reward": reward, "grading": grading}
                 if op == "down":
                     stop.set()
                     return {"ok": True}
