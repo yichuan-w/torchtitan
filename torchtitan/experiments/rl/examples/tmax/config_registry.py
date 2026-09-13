@@ -771,7 +771,9 @@ def rl_grpo_qwen3_5_9b_tmax() -> Controller.Config:
             fallback_strategy=_fallback,
             # Keep session affinity stable by default.  Rebalancing is an
             # opt-in policy because reserved request count is not KV usage.
-            rebalance_load_ratio=float(os.environ.get("SWE_DP_STICKY_REBALANCE", "0.0")),
+            rebalance_load_ratio=float(
+                os.environ.get("SWE_DP_STICKY_REBALANCE", "0.0")
+            ),
             rebalance_min_gap=8,
             max_sessions=int(os.environ.get("SWE_DP_STICKY_MAX_SESSIONS", "16384")),
         ),
@@ -1123,9 +1125,7 @@ def rl_grpo_qwen3_5_9b_tmax_tb2_eval() -> Controller.Config:
         # from SWE_AGENT_TIMEOUT_FLOOR_SEC / SWE_TIME_BUDGET_SEC, so the training
         # launcher's own values (e.g. a 900 floor) can never reach the eval. An
         # eval-only override lives in SWE_EVAL_BUDGET_FLOOR_SEC if ever needed.
-        agent_budget_floor_sec=int(
-            os.environ.get("SWE_EVAL_BUDGET_FLOOR_SEC", "7200")
-        ),
+        agent_budget_floor_sec=int(os.environ.get("SWE_EVAL_BUDGET_FLOOR_SEC", "7200")),
         time_budget_sec=int(os.environ.get("SWE_EVAL_TIME_BUDGET_SEC", "3600")),
     )
     config.async_loop = dataclasses.replace(
