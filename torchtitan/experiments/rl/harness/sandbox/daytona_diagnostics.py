@@ -107,6 +107,7 @@ async def collect_failure_diagnostics(
 
                 async def pages(name, url, params, fallback=None):
                     items = []
+                    collected_payload = []
                     page = 1
                     while True:
                         payload = await get(
@@ -133,7 +134,11 @@ async def collect_failure_diagnostics(
                             continue
                         if payload is None:
                             entry["error_response"] = entry.get("payload")
-                            entry.update(payload=items, pages=page - 1, complete=False)
+                            entry.update(
+                                payload=collected_payload,
+                                pages=page - 1,
+                                complete=False,
+                            )
                             save()
                             return
                         batch = (
@@ -143,25 +148,34 @@ async def collect_failure_diagnostics(
                         )
                         if not isinstance(batch, list):
                             entry.update(
-                                status="invalid_response", payload=items, complete=False
+                                status="invalid_response",
+                                payload=collected_payload,
+                                complete=False,
                             )
                             save()
                             return
                         if page > 1 and batch and batch == items[-len(batch) :]:
                             entry.update(
                                 status="pagination_stalled",
-                                payload=items,
+                                payload=collected_payload,
                                 complete=False,
                             )
                             save()
                             return
                         items.extend(batch)
+                        collected_payload = (
+                            {**payload, "items": list(items)}
+                            if isinstance(payload, dict)
+                            else list(items)
+                        )
                         complete = (
                             page >= payload["totalPages"]
                             if isinstance(payload, dict) and "totalPages" in payload
                             else len(batch) < params["limit"]
                         )
-                        entry.update(payload=list(items), pages=page, complete=complete)
+                        entry.update(
+                            payload=collected_payload, pages=page, complete=complete
+                        )
                         entry.pop("possibly_truncated", None)
                         save()
                         if complete:

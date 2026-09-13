@@ -113,7 +113,7 @@ def test_provider_capture_preserves_results_and_excludes_discovery_secrets(
         record = json.loads(raw)
         assert record["requests"]["metrics_latest"]["payload"]["disk_used"] == 42
         assert record["status"] == ("timeout" if mode == "timeout" else "partial")
-        assert record["requests"]["audit"]["payload"] == [{"action": "create"}]
+        assert record["requests"]["audit"]["payload"]["items"] == [{"action": "create"}]
         assert record["requests"]["metrics"]["http_status"] == 503
         if mode == "large":
             assert record["requests"]["logs"]["status"] == "response_too_large"
