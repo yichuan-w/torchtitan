@@ -101,8 +101,16 @@ async def collect_failure_diagnostics(
                     while True:
                         payload = await get(name, url, {**params, "page": page})
                         entry = record["requests"][name]
-                        if entry.get("http_status") == 404 and fallback:
-                            # Deleted sandboxes can still have retained analytics.
+                        analytics_required = (
+                            entry.get("http_status") == 403
+                            and isinstance(entry.get("payload"), dict)
+                            and entry["payload"].get("message")
+                            == "Telemetry endpoints are disabled when Analytics API is configured"
+                        )
+                        if fallback and (
+                            entry.get("http_status") == 404 or analytics_required
+                        ):
+                            # Hosted deployments serve telemetry from analytics.
                             url, fallback = fallback, None
                             continue
                         if payload is None:
@@ -193,7 +201,7 @@ async def collect_failure_diagnostics(
                         {"limit": _PAGE_SIZE, **window},
                         retained_base + "/telemetry/traces" if analytics else None,
                     ),
-                    get("metrics", base + "/telemetry/metrics", window),
+                    get("metrics", retained_base + "/telemetry/metrics", window),
                 )
                 record["status"] = (
                     "finished"
