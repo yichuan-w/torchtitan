@@ -1,3 +1,9 @@
+# Copyright (c) Meta Platforms, Inc. and affiliates.
+# All rights reserved.
+#
+# This source code is licensed under the BSD-style license found in the
+# LICENSE file in the root directory of this source tree.
+
 """The pin hook rides on a row, not on a package: pack.to_row is handed the
 hook the row carries and re-derives this package's environment identity from
 its Dockerfile, so a folded row grades exactly as the seed row did (or skips
