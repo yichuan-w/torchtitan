@@ -433,6 +433,29 @@ def materialize_r0(root: layout.Root, task: layout.TaskDir, tid: str) -> Path:
     incoming = dest.with_name("r0.incoming")
     shutil.rmtree(incoming, ignore_errors=True)
     shutil.copytree(src, incoming, ignore=SEED_IGNORE)
+    for row in layout.read_jsonl(root.mix.live):
+        md = row.get("metadata") or {}
+        if md.get("instance_id") != tid or not md.get("prebuilt_provenance"):
+            continue
+        image = md.get("image", "")
+        if "@sha256:" not in image or md.get("dockerfile"):
+            raise ValueError(f"{tid}: malformed prebuilt seed row")
+        dockerfile = incoming / "environment" / "Dockerfile"
+        if not dockerfile.exists():
+            dockerfile = incoming / "Dockerfile"
+        if not dockerfile.exists():
+            raise ValueError(f"{tid}: prebuilt source has no Dockerfile")
+        # Keep the audited source recipe out of the build context used by r0.
+        layout.write_json_atomic(
+            incoming / ".prebuilt-source.json",
+            {
+                "image": image,
+                "source_dockerfile": dockerfile.read_text(),
+                "provenance": md["prebuilt_provenance"],
+            },
+        )
+        dockerfile.write_text(f"FROM {image}\n")
+        break
     os.rename(incoming, dest)
     log.info("%s: r0 materialized from %s", tid, src.relative_to(root.path))
     return dest

@@ -69,7 +69,10 @@ EVAL=$TRL_BASE/evals/$STAMP--$RUN_NAME-step$STEP$SET_SUFFIX
 mkdir -p "$EVAL" || exit 2
 exec > >(tee -a "$EVAL/stdout.log") 2>&1
 
-set -a; . ~/.config/daytona/env; set +a
+if [ -n "${DAYTONA_ENV_FILE:-}" ]; then
+    set -a; . "$DAYTONA_ENV_FILE"; set +a
+fi
+: "${DAYTONA_API_KEY:?supply project Daytona credentials or DAYTONA_ENV_FILE}"
 export SWE_VAL_SAMPLES=${SWE_VAL_SAMPLES:-$(grep -c "" "$SWE_TB2_DATA")}
 HF_ASSETS=/scratch/gpfs/TRIDAO/al9080/models/Qwen3.5-9B
 export SWE_TB2_CKPT=$CKPT

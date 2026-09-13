@@ -112,6 +112,26 @@ def _signal(
     return layout.signal_id(run, task, group)
 
 
+def test_prebuilt_seed_uses_digest_without_changing_original(tmp_path, monkeypatch):
+    root = _root(tmp_path, monkeypatch)
+    row = json.loads(root.mix.live.read_text())
+    image = "ghcr.io/example/tasks@sha256:" + "a" * 64
+    row["metadata"].update(
+        image=image, prebuilt_provenance={"verification_sha256": "proof"}
+    )
+    root.mix.publish([json.dumps(row)])
+    task = root.evolution.task("tw_a")
+    task.path.mkdir(parents=True, exist_ok=True)
+    result = od.materialize_r0(root, task, "tw_a")
+    assert (result / "environment/Dockerfile").read_text() == f"FROM {image}\n"
+    original = root.data / "sources/tw-extract/tasks/tw_a/environment/Dockerfile"
+    assert original.read_text() == SEED["environment/Dockerfile"]
+    assert (
+        json.loads((result / ".prebuilt-source.json").read_text())["source_dockerfile"]
+        == original.read_text()
+    )
+
+
 def test_measured_feedback_survives_the_fold(tmp_path, monkeypatch):
     root = _root(tmp_path, monkeypatch)
     _signal(root)
