@@ -15,6 +15,12 @@ name, type, ordering rule, and interface. In a top-level `correct` object in
 requirements. If no such choice is available, record that and use the required
 representation. Verify the positive deliverable against the public requirements
 before presenting it to the withheld grader.
+For a transformation task that permits alternative representations, exercise a
+choice in the transformed content itself, such as a lossless change in numeric encoding or
+serialization, and verify that the represented result is unchanged. Changing
+only report labels or paths does not cover this choice. Use the public task to
+identify fixed properties; an encoder's defaults do not make unspecified
+properties mandatory. Record the equivalence check in the `correct` object.
 Then save `wrong-1.sh`, `wrong-2.sh`, and so on. Each wrong implementation should
 make a specific semantic mistake while otherwise completing the task. Derive
 these mistakes from the public requirements, including independently falsifiable

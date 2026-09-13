@@ -80,9 +80,16 @@ that a required execution, measurement or tool interaction occurred.
 For a transformation task, check that the transformed content corresponds to the
 original input under the requested operation. Output format, dimensions, channel
 count, or other metadata alone cannot establish that correspondence. Compare
-content using the equivalences the public task permits; byte equality is appropriate
-only for content the task requires to remain byte-for-byte unchanged. Include a
-control with unrelated content that still has the required output format.
+content after normalizing representations the public task leaves open. A default
+encoder's sample width, container layout, or serialization is not a required
+property unless the public task makes it one; hashing decoded bytes still fixes
+a representation if equivalent values can have different byte encodings. Use
+byte equality only for content required to remain byte-for-byte unchanged.
+Include a control with unrelated content in the required output format. For the
+correct control, use a different legal representation of the transformed content
+and establish that it preserves the requested result; varying only a report label
+does not exercise the transformation check. If the task permits no alternative,
+identify the public clause fixing the representation.
 
 If the task requires a reusable program, run the submitted program through the
 specified entry point on fresh valid inputs prepared by the grader, with expected
