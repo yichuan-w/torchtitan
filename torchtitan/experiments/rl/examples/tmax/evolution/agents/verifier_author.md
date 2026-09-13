@@ -85,9 +85,14 @@ rejection unless the public task forbids them. File existence,
 non-empty content, success words in a log, or agreement between two solver-written
 reports cannot alone establish correctness. Solver-written claims do not prove
 that a required execution, measurement or tool interaction occurred.
-For a transformation task, check that the transformed content corresponds to the
-original input under the requested operation. Output format, dimensions, channel
-count, or other metadata alone cannot establish that correspondence. Compare
+For a transformation task, compare the complete submitted content with the result
+of the requested operation on the original input. Additional program tests do not
+replace this check of the submitted artifacts. Where records must remain unchanged,
+compare their complete bytes, including details, whitespace and newlines; checking
+record identifiers alone is insufficient. A checksum matching a submitted file
+establishes their agreement, not that the file contains the required content.
+Output format, dimensions, channel count, or other metadata alone cannot establish
+that correspondence. Compare
 content after normalizing representations the public task leaves open. A default
 encoder's sample width, container layout, or serialization is not a required
 property unless the public task makes it one; hashing decoded bytes still fixes
