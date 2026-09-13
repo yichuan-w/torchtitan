@@ -18,6 +18,10 @@ name, type, ordering rule, and interface. In a top-level `correct` object in
 requirements. If no such choice is available, record that and use the required
 representation. Verify the positive deliverable against the public requirements
 before presenting it to the withheld grader.
+For compiled programs, exercise a permitted language mode or build option beyond
+the compiler defaults when available. Compile and run the correct implementation
+with that option in the supplied environment, and record the command and checked
+behavior in the `correct` object; preserve any options the public task fixes.
 For a transformation task that permits alternative representations, exercise a
 choice in the transformed content itself, such as a lossless change in numeric encoding or
 serialization, and verify that the represented result is unchanged. Changing

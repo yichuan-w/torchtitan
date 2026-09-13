@@ -66,6 +66,11 @@ and explores the container. Concretely:
   independently derived expectations. Restore changed inputs after testing. A
   faulty program remains a valid negative control after restoring the original
   inputs if it still violates the reusable-program contract.
+- When rebuilding submitted source, support language modes and build options the
+  public task permits in the supplied environment. A compiler's default mode is
+  not a task requirement. When available, exercise a correct implementation that
+  needs a permitted nondefault option, and record its successful build command in the replay contract;
+  a failed default build alone does not establish invalid source.
 - Never invoke `solution/solve.sh`: it is not there when the agent runs, and it is
   not there for you either. Invoke the workflow the way the instruction tells a
   user to.
