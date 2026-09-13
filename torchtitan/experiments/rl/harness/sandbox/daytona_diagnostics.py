@@ -99,7 +99,15 @@ async def collect_failure_diagnostics(
                     items = []
                     page = 1
                     while True:
-                        payload = await get(name, url, {**params, "page": page})
+                        payload = await get(
+                            name,
+                            url,
+                            {
+                                **params,
+                                "page": page,
+                                "offset": (page - 1) * params["limit"],
+                            },
+                        )
                         entry = record["requests"][name]
                         analytics_required = (
                             entry.get("http_status") == 403
