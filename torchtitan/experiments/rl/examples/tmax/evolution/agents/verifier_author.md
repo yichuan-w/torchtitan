@@ -85,8 +85,13 @@ encoder's sample width, container layout, or serialization is not a required
 property unless the public task makes it one; hashing decoded bytes still fixes
 a representation if equivalent values can have different byte encodings. Use
 byte equality only for content required to remain byte-for-byte unchanged.
-Include a control with unrelated content in the required output format. For the
-correct control, use a different legal representation of the transformed content
+Normalization must preserve the values the task requires. Derive any numerical
+tolerance from the public requirements and the error introduced by permitted
+representations; arbitrary coarse rounding can erase incorrect content. Record
+the bound and its basis in the replay contract. Include wrong-content controls
+in the required output format, including a small change beyond that bound when
+numerical tolerance is used. For the correct control, use a different legal
+representation of the transformed content
 and establish that it preserves the requested result; varying only a report label
 does not exercise the transformation check. If the task permits no alternative,
 identify the public clause fixing the representation.

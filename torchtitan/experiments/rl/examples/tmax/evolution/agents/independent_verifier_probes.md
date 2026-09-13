@@ -21,6 +21,10 @@ serialization, and verify that the represented result is unchanged. Changing
 only report labels or paths does not cover this choice. Use the public task to
 identify fixed properties; an encoder's defaults do not make unspecified
 properties mandatory. Record the equivalence check in the `correct` object.
+Include a transformation error that preserves the required format and metadata
+while changing the represented content. For numerical results, use a small
+deviation beyond the error allowed by the public task and permitted encodings;
+record the expected value, observed deviation, and why it exceeds that allowance.
 Then save `wrong-1.sh`, `wrong-2.sh`, and so on. Each wrong implementation should
 make a specific semantic mistake while otherwise completing the task. Derive
 these mistakes from the public requirements, including independently falsifiable
