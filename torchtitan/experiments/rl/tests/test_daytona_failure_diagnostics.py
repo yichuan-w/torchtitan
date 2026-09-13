@@ -25,7 +25,18 @@ class _Metrics:
 
 @pytest.mark.parametrize(
     "mode",
-    ["partial", "timeout", "large", "pages", "stalled", "deleted", "hosted", "auth"],
+    [
+        "partial",
+        "timeout",
+        "large",
+        "pages",
+        "stalled",
+        "deleted",
+        "hosted",
+        "auth",
+        "page_failure",
+        "page_timeout",
+    ],
 )
 def test_provider_capture_preserves_results_and_excludes_discovery_secrets(
     tmp_path, monkeypatch, mode
@@ -64,10 +75,14 @@ def test_provider_capture_preserves_results_and_excludes_discovery_secrets(
             if request.path.endswith("/traces"):
                 if mode == "timeout":
                     await asyncio.sleep(1)
-                if mode in ("pages", "stalled"):
+                if mode in ("pages", "stalled", "page_failure", "page_timeout"):
                     page = int(request.query["page"])
                     assert int(request.query["offset"]) == (page - 1) * 2
                     items = [{"traceId": "a"}, {"traceId": "b"}]
+                    if page > 1 and mode == "page_failure":
+                        return web.json_response({"message": "unavailable"}, status=503)
+                    if page > 1 and mode == "page_timeout":
+                        await asyncio.sleep(1)
                     if page > 1 and mode == "pages":
                         items = [{"traceId": "c"}]
                     return web.json_response(items)
@@ -90,11 +105,11 @@ def test_provider_capture_preserves_results_and_excludes_discovery_secrets(
                 default_headers={"Authorization": "Bearer private-key"}
             ),
         )
-        if mode == "timeout":
+        if mode in ("timeout", "page_timeout"):
             monkeypatch.setattr(diagnostics, "_COLLECTION_TIMEOUT_SEC", 0.1)
         if mode == "large":
             monkeypatch.setattr(diagnostics, "_RESPONSE_LIMIT_BYTES", 1024)
-        if mode in ("pages", "stalled"):
+        if mode in ("pages", "stalled", "page_failure", "page_timeout"):
             monkeypatch.setattr(diagnostics, "_PAGE_SIZE", 2)
         try:
             await diagnostics.collect_failure_diagnostics(
@@ -112,7 +127,9 @@ def test_provider_capture_preserves_results_and_excludes_discovery_secrets(
         assert "private-key" not in raw and "config-secret" not in raw
         record = json.loads(raw)
         assert record["requests"]["metrics_latest"]["payload"]["disk_used"] == 42
-        assert record["status"] == ("timeout" if mode == "timeout" else "partial")
+        assert record["status"] == (
+            "timeout" if mode in ("timeout", "page_timeout") else "partial"
+        )
         assert record["requests"]["audit"]["payload"]["items"] == [{"action": "create"}]
         assert record["requests"]["metrics"]["http_status"] == 503
         if mode == "large":
@@ -133,6 +150,12 @@ def test_provider_capture_preserves_results_and_excludes_discovery_secrets(
             assert record["requests"]["traces"]["complete"] is True
         if mode == "stalled":
             assert record["requests"]["traces"]["status"] == "pagination_stalled"
+            assert record["requests"]["traces"]["complete"] is False
+        if mode in ("page_failure", "page_timeout"):
+            assert record["requests"]["traces"]["payload"] == [
+                {"traceId": "a"},
+                {"traceId": "b"},
+            ]
             assert record["requests"]["traces"]["complete"] is False
 
     asyncio.run(run())
