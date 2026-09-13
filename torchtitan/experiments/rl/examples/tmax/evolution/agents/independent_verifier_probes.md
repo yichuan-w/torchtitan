@@ -28,9 +28,14 @@ Include a legal nondefault container or serialization supported by the task's
 required tool when available; changing numeric precision alone does not exercise
 container parsing. Verify the decoded content and record the chosen variant.
 Include a transformation error that preserves the required format and metadata
-while changing the represented content. For numerical results, use a small
-deviation beyond the error allowed by the public task and permitted encodings;
-record the expected value, observed deviation, and why it exceeds that allowance.
+while changing the represented content. For every field the task defines
+numerically, including parsed numeric fields, pair a correct equivalent encoding
+with a small wrong-value deviation in that same encoding. Preserve any explicitly
+required type; where it is open, JSON `1.0` can represent the same number as `1`.
+Changing whitespace or key order does not exercise numeric equality. Check that
+the correct value is unchanged and that the wrong value exceeds the error allowed
+by the public task and permitted encodings. Record both values, the deviation,
+and the allowance in the contract.
 Then save `wrong-1.sh`, `wrong-2.sh`, and so on. Each wrong implementation should
 make a specific semantic mistake while otherwise completing the task. Derive
 these mistakes from the public requirements, including independently falsifiable

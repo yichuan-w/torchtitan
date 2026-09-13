@@ -93,12 +93,17 @@ public task, including container variants supported by a required tool. A
 helper library's unsupported-format error does not establish an invalid
 deliverable. When available, exercise a legal nondefault container or
 serialization in the correct control and record how its decoded content was checked.
-Normalization must preserve the values the task requires. Derive any numerical
-tolerance from the public requirements and the error introduced by permitted
-representations; arbitrary coarse rounding can erase incorrect content. Record
-the bound and its basis in the replay contract. Include wrong-content controls
-in the required output format, including a small change beyond that bound when
-numerical tolerance is used. For the correct control, use a different legal
+For every field the task defines numerically, compare its numeric value while
+preserving any explicitly required type. When the task leaves encoding open,
+equal values such as JSON `1` and `1.0` must compare equal; converting them to
+strings is not numeric normalization. Do not truncate or round away a real
+difference. Derive any tolerance from the public requirements and permitted
+encoding error, and record the bound and its basis in the replay contract.
+Exercise the same numeric field and encoding in a correct control with an
+equivalent value and a wrong control with a small deviation beyond that bound.
+This applies to parsed numeric fields as well as transformed signals; changing
+JSON whitespace or key order does not cover numeric equality. For the correct
+control, use a different legal
 representation of the transformed content
 and establish that it preserves the requested result; varying only a report label
 does not exercise the transformation check. If the task permits no alternative,
