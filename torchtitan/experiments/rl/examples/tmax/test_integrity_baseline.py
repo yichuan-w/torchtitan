@@ -431,6 +431,23 @@ def test_missing_baseline_raises_and_harness_failures_void_the_episode():
             raise AssertionError(f"must raise: {why}")
 
 
+def test_integrity_rejection_diagnostics_name_only_changed_entries():
+    sb = _FakeSandbox([(0, f"{_D2} 0\n{_D2} 1\nFAIL 2\n", "")])
+    diagnostics = {}
+    reward = _run(
+        G.grade_tmax(
+            sb, _TMAX, workdir="/workspace", timeout_sec=900,
+            baseline_digests=_BASE, diagnostics=diagnostics,
+        )
+    )
+    assert reward == 0.0 and not sb.tests_ran
+    assert diagnostics == {
+        "stage": "integrity_baseline",
+        "verifier_ran": False,
+        "differing": ["/app/pinned", "cmd#2"],
+    }
+
+
 def test_rows_without_protected_paths_keep_the_old_behaviour_byte_for_byte():
     """No protected paths -> no digest command runs, the baseline kwarg is ignored, and the pre_test
     block is consulted exactly as before (here: no pre_test, so straight to the verifier)."""
