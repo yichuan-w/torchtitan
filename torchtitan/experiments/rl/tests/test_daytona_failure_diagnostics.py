@@ -24,7 +24,8 @@ class _Metrics:
 
 
 @pytest.mark.parametrize(
-    "mode", ["partial", "timeout", "large", "pages", "stalled", "deleted"]
+    "mode",
+    ["partial", "timeout", "large", "pages", "stalled", "deleted", "hosted", "auth"],
 )
 def test_provider_capture_preserves_results_and_excludes_discovery_secrets(
     tmp_path, monkeypatch, mode
@@ -46,6 +47,15 @@ def test_provider_capture_preserves_results_and_excludes_discovery_secrets(
                     {"organizationId": "org", "value": "private-key"}
                 )
             if request.path.endswith("/logs"):
+                if mode == "auth" and requests.count(request.path) == 1:
+                    return web.json_response({"message": "Unauthorized"}, status=401)
+                if mode == "hosted" and request.path.startswith("/api/sandbox/"):
+                    return web.json_response(
+                        {
+                            "message": "Telemetry endpoints are disabled when Analytics API is configured"
+                        },
+                        status=403,
+                    )
                 if mode == "deleted" and request.path.startswith("/api/sandbox/"):
                     return web.json_response({"message": "deleted"}, status=404)
                 if mode == "large":
@@ -56,6 +66,7 @@ def test_provider_capture_preserves_results_and_excludes_discovery_secrets(
                     await asyncio.sleep(1)
                 if mode in ("pages", "stalled"):
                     page = int(request.query["page"])
+                    assert int(request.query["offset"]) == (page - 1) * 2
                     items = [{"traceId": "a"}, {"traceId": "b"}]
                     if page > 1 and mode == "pages":
                         items = [{"traceId": "c"}]
@@ -109,8 +120,10 @@ def test_provider_capture_preserves_results_and_excludes_discovery_secrets(
         else:
             assert record["requests"]["logs"]["payload"] == [{"body": "daemon failure"}]
         assert "/api/sandbox/sb/telemetry/logs" in requests
-        if mode == "deleted":
+        if mode in ("deleted", "hosted"):
             assert "/organization/org/sandbox/sb/telemetry/logs" in requests
+        if mode == "auth":
+            assert record["requests"]["logs"]["attempts"] == 2
         if mode == "pages":
             assert record["requests"]["traces"]["payload"] == [
                 {"traceId": "a"},

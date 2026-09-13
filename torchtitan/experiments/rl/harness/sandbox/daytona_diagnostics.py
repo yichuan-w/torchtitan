@@ -54,7 +54,9 @@ async def collect_failure_diagnostics(
                 headers = dict(client._api_client.default_headers)
                 api = client._api_url.rstrip("/")
 
-                async def get(name, url, params=None, *, authenticated=True):
+                async def get(
+                    name, url, params=None, *, authenticated=True, retried=False
+                ):
                     entry = {"status": "pending"}
                     previous = record["requests"].get(name, {})
                     if "pages" in previous:
@@ -71,6 +73,14 @@ async def collect_failure_diagnostics(
                             params=params,
                         ) as response:
                             entry["http_status"] = response.status
+                            entry["attempts"] = 2 if retried else 1
+                            if response.status == 401 and authenticated and not retried:
+                                # The provider has returned isolated 401s while
+                                # other requests with the same key succeeded.
+                                entry["status"] = "retrying_unauthorized"
+                                save()
+                                await asyncio.sleep(0.5)
+                                return await get(name, url, params, retried=True)
                             body = bytearray()
                             async for chunk in response.content.iter_chunked(65536):
                                 body.extend(chunk)
