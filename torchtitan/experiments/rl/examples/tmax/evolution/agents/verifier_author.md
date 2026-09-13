@@ -94,9 +94,12 @@ helper library's unsupported-format error does not establish an invalid
 deliverable. When available, exercise a legal nondefault container or
 serialization in the correct control and record how its decoded content was checked.
 For every field the task defines numerically, compare its numeric value while
-preserving any explicitly required type. When the task leaves encoding open,
-equal values such as JSON `1` and `1.0` must compare equal; converting them to
-strings is not numeric normalization. Do not truncate or round away a real
+preserving any explicitly required type. Derive type restrictions from the public
+task or its required schema. If a parsing task leaves a field's type open, a
+numeric string such as JSON `"1"` can preserve the same source value as `1` or
+`1.0`; accept these permitted encodings by comparing their numeric values.
+An explicit JSON-number requirement still excludes strings. Stringifying numbers
+does not normalize numeric equality. Do not truncate or round away a real
 difference. Derive any tolerance from the public requirements and permitted
 encoding error, and record the bound and its basis in the replay contract.
 Exercise the same numeric field and encoding in a correct control with an
@@ -163,7 +166,12 @@ after finding one error the verifier rejects. For example, selecting the latest
 valid result requires both choosing the latest result and rejecting invalid ones.
 Each script must finish with exit code zero; a missing dependency, syntax error,
 missing output or empty workspace is not a semantic control. Choose the mistakes
-from this task, rather than adding unrelated requirements.
+from this task, rather than adding unrelated requirements. Before saving a wrong
+control, identify the public clause its final deliverable violates after all
+permitted normalization. A type-only difference needs an explicit type requirement
+in that clause. Your grader rejecting an output does not establish that it is wrong;
+record the violated clause and the remaining value or structural difference in
+the contract before the caller freezes and replays the control.
 When the revision removes requirements, the correct control must omit the removed
 work while satisfying the retained requirements; derive negative controls from
 those retained requirements. Omission of removed work is not an error.

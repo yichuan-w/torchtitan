@@ -31,7 +31,9 @@ Include a transformation error that preserves the required format and metadata
 while changing the represented content. For every field the task defines
 numerically, including parsed numeric fields, pair a correct equivalent encoding
 with a small wrong-value deviation in that same encoding. Preserve any explicitly
-required type; where it is open, JSON `1.0` can represent the same number as `1`.
+required type. If a parsing task leaves a field's type open, JSON `"1"`, `1`, and
+`1.0` can preserve the same source value; compare their numeric values when these
+encodings are permitted. An explicit JSON-number requirement excludes strings.
 Changing whitespace or key order does not exercise numeric equality. Check that
 the correct value is unchanged and that the wrong value exceeds the error allowed
 by the public task and permitted encodings. Record both values, the deviation,
@@ -53,7 +55,9 @@ and leave the faulty program available at the entry point the task requires.
 
 Before a wrong script exits zero, check the deliverable it actually leaves
 against the public requirement and print the expected and observed behavior
-that establishes the violation. The state presented for grading must still
+that establishes the violation after permitted normalization. For a type-only
+difference, cite the explicit type requirement; an unspecified type cannot make
+an otherwise equivalent value wrong. The state presented for grading must still
 violate that requirement. An earlier incorrect output on changed inputs is
 insufficient if restoring the inputs and rerunning leaves a valid deliverable.
 If the violation cannot be established, write `BLOCKED: <reason>` to `run/verdict.txt`
