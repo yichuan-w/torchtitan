@@ -16,6 +16,7 @@ import argparse
 import base64
 import hashlib
 import json
+import os
 import random
 import re
 import shlex
@@ -373,6 +374,65 @@ def push(out, token, *, token_file=None):
     release.write_json(out / "publication.json", {"image": refs[0], "input": inputs})
     sb.delete(timeout=120, wait=True)
     release.write_json(out / "builder-deleted.json", {"id": sb.id})
+
+
+def validate_owner_repair(out, source):
+    if not (out / "owner-repair.json").exists():
+        return
+    publication = json.loads((out / "publication.json").read_text())
+    md = publication["input"]["row"]["metadata"]
+    package = out / "semantic-package"
+    shutil.copytree(
+        source / "sources" / md["corpus"] / "tasks" / md["instance_id"], package
+    )
+    (package / "environment/Dockerfile").write_text(
+        "FROM " + publication["image"] + "\n"
+    )
+    env = dict(
+        os.environ,
+        TT_SANDBOX_BACKEND="daytona",
+        TT_DAYTONA_EPHEMERAL="1",
+        TT_DAYTONA_TTL_MIN="30",
+        TT_DAYTONA_CREATE_RETRIES="0",
+        TMAX_AGENT="terminus",
+    )
+    command = [
+        sys.executable,
+        str(Path(__file__).with_name("daytona_revalidate.py")),
+        str(package),
+        "--cpu",
+        str(md["daytona_cpu"]),
+        "--mem-gb",
+        str(md["daytona_mem_gb"]),
+        "--disk-gb",
+        str(md["daytona_disk_gb"]),
+    ]
+    results = {}
+    for probe, extra in (("oracle", []), ("null", ["--shortcut", "true"])):
+        log(out, "semantic-start", probe=probe)
+        with (out / f"{probe}.log").open("x") as stream:
+            completed = subprocess.run(
+                command + extra,
+                env=env,
+                stdout=stream,
+                stderr=subprocess.STDOUT,
+                timeout=1900,
+            )
+        verdict = json.loads((out / f"{probe}.log").read_text().splitlines()[-1])
+        results[probe] = {"exit_code": completed.returncode, "verdict": verdict}
+        release.write_json(
+            out / f"{probe}-result.json",
+            {"input": publication, "command": command + extra, **results[probe]},
+        )
+    release.write_json(out / "semantic-validation.json", results)
+    if not all(
+        results[probe]["exit_code"] == 0
+        and results[probe]["verdict"]["ok"]
+        and results[probe]["verdict"]["reward"] == reward
+        for probe, reward in (("oracle", 1), ("null", 0))
+    ):
+        raise RuntimeError("owner repair failed oracle/null validation")
+    log(out, "semantic-end", status="passed")
 
 
 def verify(out):

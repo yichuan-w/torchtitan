@@ -168,6 +168,7 @@ def run(args):
                         raise ValueError("empty registry token file")
                     images.push(out, token, token_file=args.token_file)
                 images.verify(out)
+                images.validate_owner_repair(out, args.release)
                 # Only successful, confirmed deletions return unused budget.
                 if not all(
                     (out / name).exists()
