@@ -94,9 +94,9 @@ def validate_resume(previous, current):
 
 def run(args):
     soft, _ = resource.getrlimit(resource.RLIMIT_NOFILE)
-    if soft != resource.RLIM_INFINITY and soft < args.workers * 32 + 256:
+    if soft != resource.RLIM_INFINITY and soft < args.workers * 4 + 256:
         raise RuntimeError(
-            f"workers={args.workers} requires LimitNOFILE >= {args.workers * 32 + 256}; got {soft}"
+            f"workers={args.workers} requires LimitNOFILE >= {args.workers * 4 + 256}; got {soft}"
         )
     args.out.mkdir(parents=True, exist_ok=True)
     with (args.out / "batch.lock").open("w") as lock:

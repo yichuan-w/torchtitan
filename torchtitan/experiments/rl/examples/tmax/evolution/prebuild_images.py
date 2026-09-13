@@ -22,6 +22,7 @@ import shlex
 import shutil
 import subprocess
 import sys
+import threading
 import time
 from datetime import datetime, timezone
 from pathlib import Path
@@ -55,6 +56,17 @@ def execute(sb, command, out, name, timeout=60):
     return result.result
 
 
+_clients = threading.local()
+
+
+def get_client():
+    from daytona import Daytona
+
+    if not hasattr(_clients, "client"):
+        _clients.client = Daytona()
+    return _clients.client
+
+
 def create_sandbox(client, params, out, *, timeout):
     from daytona.common.errors import DaytonaRateLimitError
 
@@ -84,12 +96,11 @@ def create_sandbox(client, params, out, *, timeout):
 
 
 def recover_artifacts(previous, out):
-    from daytona import Daytona
     from daytona.common.errors import DaytonaNotFoundError
 
     out.mkdir(parents=True, exist_ok=False)
     log(out, "recovery-start", previous=str(previous))
-    client = Daytona()
+    client = get_client()
     inputs = (
         json.loads((previous / "input.json").read_text())
         if (previous / "input.json").exists()
@@ -129,7 +140,7 @@ def recover_artifacts(previous, out):
 
 
 def build(source, task, out, repository, *, prepared=None):
-    from daytona import CreateSandboxFromImageParams, Daytona, Image, Resources
+    from daytona import CreateSandboxFromImageParams, Image, Resources
 
     if prepared is None:
         manifest = release.verify(source)
@@ -157,7 +168,7 @@ def build(source, task, out, repository, *, prepared=None):
             return
         raise ValueError("incomplete build: inspect it and use a new attempt directory")
     release.write_json(out / "input.json", inputs)
-    client = Daytona()
+    client = get_client()
     log(out, "start", stage="builder", task=task)
     sb = create_sandbox(
         client,
@@ -231,14 +242,12 @@ sys.exit(1 if failed else 0)
 
 
 def push(out, token):
-    from daytona import Daytona
-
     if (out / "publication.json").exists():
         log(out, "resume", stage="push")
         return
     inputs = json.loads((out / "input.json").read_text())
     built = json.loads((out / "built.json").read_text())
-    client = Daytona()
+    client = get_client()
     sb = client.get(built["id"])
     repository, tag = inputs["tag"].rsplit(":", 1)
     auth = base64.urlsafe_b64encode(
@@ -267,14 +276,14 @@ def push(out, token):
 
 
 def verify(out):
-    from daytona import CreateSandboxFromImageParams, Daytona, Resources
+    from daytona import CreateSandboxFromImageParams, Resources
 
     if (out / "verification.json").exists():
         log(out, "resume", stage="verify")
         return
     publication = json.loads((out / "publication.json").read_text())
     md = publication["input"]["row"]["metadata"]
-    client = Daytona()
+    client = get_client()
     log(out, "start", stage="fresh-boot", image=publication["image"])
     sb = create_sandbox(
         client,
