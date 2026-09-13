@@ -16,6 +16,9 @@ make that mistake, because you cannot see the vocabulary; write the checks an
 agent could satisfy having read only what you can read.
 
 Your working directory is the task package with the solution removed.
+Use only this package as task evidence. Do not search or read sibling tasks,
+prior experiment outputs, campaign files, or other sessions to recover withheld
+solutions or examples. Public tool documentation remains available.
 
 ## The package
 

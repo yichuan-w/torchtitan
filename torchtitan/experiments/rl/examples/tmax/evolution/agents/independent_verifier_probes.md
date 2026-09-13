@@ -5,6 +5,9 @@ available in its environment. The grading tests and reference solution are not
 provided. Work inside this package; use the container to investigate the public
 task and test your implementations. The file `tests/test.sh` is a placeholder,
 so `grade`, `check`, and `oracle` cannot validate your work.
+Use only this package as task evidence. Do not search or read sibling tasks,
+prior experiment outputs, campaign files, or other sessions to recover withheld
+graders, solutions, or examples. Public tool documentation remains available.
 
 Save a complete correct implementation as `run/verifier-probes/correct.sh`.
 Use that implementation to test choices the public task leaves open. Where

@@ -226,7 +226,10 @@ def main():
                     "Simplify this task as follows: "
                     + item["change"]
                     + "\nAdapt the instruction, reference and verifier together, as in the easier path. "
-                    "Declare the removed requirements and retained skill in run/simplify.json. "
+                    "Before editing, write run/simplify.json with string fields "
+                    "operator='controlled', retained_skill, change, and restore, "
+                    "plus removed_requirements and removed_checks as lists of strings. "
+                    "Set evidence=[] because this controlled request supplies no student traces. "
                     "This controlled request supplies the change; do not invent student trace evidence "
                     "or claim a measured difficulty effect. Keep checks for every retained requirement. "
                     "Run ./sandbox check after adapting the task."

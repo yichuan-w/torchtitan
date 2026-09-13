@@ -9,6 +9,9 @@ that still has failures. Use the actual solved/attempted counts in your prompt;
 those mixed groups continue training while the rewrite is prepared.
 
 Your working directory is the task package itself.
+Use this package and its supplied traces as the task evidence. Do not search or
+read sibling tasks, prior experiment outputs, campaign files, or other sessions
+for examples or answers. Public tool documentation remains available.
 
 ## The package
 
