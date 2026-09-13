@@ -18,6 +18,25 @@ from torchtitan.experiments.rl.examples.tmax.config_registry import (
 from torchtitan.experiments.rl.rollout.types import Rollout, RolloutStatus
 
 
+@pytest.mark.parametrize("turn_cap", [None, 8192, 32768])
+@pytest.mark.parametrize("eval_cap", [None, 24576])
+def test_tmax_9b_turn_token_override(
+    monkeypatch: pytest.MonkeyPatch, turn_cap: int | None, eval_cap: int | None
+) -> None:
+    if turn_cap is None:
+        monkeypatch.delenv("TMAX_TURN_MAX_TOKENS", raising=False)
+    else:
+        monkeypatch.setenv("TMAX_TURN_MAX_TOKENS", str(turn_cap))
+    monkeypatch.setattr(tmax_config_registry, "_TB2_VAL_DATA", "/data/tb2.jsonl")
+    monkeypatch.setattr(tmax_config_registry, "_TB2_VAL_MAX_TOKENS", eval_cap)
+
+    config = rl_grpo_qwen3_5_9b_tmax()
+
+    assert config.generator.sampling.max_tokens == (turn_cap or 16384)
+    assert config.async_loop.validation.max_tokens == eval_cap
+    assert config.async_loop.batcher.batch.seq_len == 65536
+
+
 def test_five_independent_generators_keep_controller_affinity(monkeypatch):
     from torchtitan.experiments.rl.routing.strategies import (
         LeastLoadedRoutingStrategy,
