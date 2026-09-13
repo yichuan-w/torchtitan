@@ -1,9 +1,42 @@
+import json
 import sys
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from prebuild_batch import Ledger, reservation, validate_resume
+
+
+def test_interrupted_resume_preserves_evidence(tmp_path):
+    ledger = Ledger(tmp_path / "budget.json", None)
+    ledger.reserve("unfinished", 2, attempt_dir=tmp_path / "old")
+    ledger.reserve("done", 1)
+    ledger.finish("done", "verified", 0.5)
+    before = json.loads(ledger.path.read_text())
+    assert ledger.recover_interrupted() == ["unfinished"]
+    assert json.loads(next(tmp_path.glob("interrupted-*.json")).read_text()) == before
+    assert ledger.entries["unfinished"] == {**before["unfinished"], "status": "failed"}
+    assert ledger.entries["done"] == before["done"]
+    assert ledger.recover_interrupted() == []
+
+
+def test_daytona_client_shared_across_workers():
+    import types
+    from unittest.mock import Mock, patch
+
+    import prebuild_images as images
+
+    constructor = Mock(return_value=object())
+    config = Mock()
+    with patch.object(images, "_client", None), patch.dict(
+        sys.modules,
+        {"daytona": types.SimpleNamespace(Daytona=constructor, DaytonaConfig=config)},
+    ):
+        with ThreadPoolExecutor(max_workers=100) as pool:
+            clients = list(pool.map(lambda _: images.get_client(), range(1000)))
+        assert all(client is clients[0] for client in clients)
+        constructor.assert_called_once_with(config.return_value)
+        config.assert_called_once_with(connection_pool_maxsize=1000)
 
 
 def test_concurrent_reservations_never_exceed_budget(tmp_path):
