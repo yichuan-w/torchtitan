@@ -39,11 +39,15 @@ def image_key(row):
     ).hexdigest()
 
 
+_log_lock = threading.Lock()
+
+
 def log(out, event, **fields):
     item = {"time": datetime.now(timezone.utc).isoformat(), "event": event, **fields}
-    with (out / "progress.jsonl").open("a", buffering=1) as stream:
-        stream.write(json.dumps(item) + "\n")
-    print(json.dumps(item), flush=True)
+    with _log_lock:
+        with (out / "progress.jsonl").open("a", buffering=1) as stream:
+            stream.write(json.dumps(item) + "\n")
+        print(json.dumps(item), flush=True)
 
 
 def execute(sb, command, out, name, timeout=60):
