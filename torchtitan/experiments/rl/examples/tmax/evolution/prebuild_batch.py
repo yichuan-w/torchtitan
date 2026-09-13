@@ -166,7 +166,7 @@ def run(args):
                     token = args.token_file.read_text().strip()
                     if not token:
                         raise ValueError("empty registry token file")
-                    images.push(out, token)
+                    images.push(out, token, token_file=args.token_file)
                 images.verify(out)
                 # Only successful, confirmed deletions return unused budget.
                 if not all(
