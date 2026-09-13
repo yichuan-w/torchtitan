@@ -27,7 +27,7 @@ def setup(tmp_path, monkeypatch):
     controls.mkdir()
     (controls / "correct.sh").write_text("original correct")
     (controls / "wrong-1.sh").write_text("original wrong")
-    (controls / "contract.json").write_text('{}')
+    (controls / "contract.json").write_text("{}")
     shutil.copytree(controls, verifier.path / "original-verifier-probes")
     calls = []
 
@@ -61,6 +61,21 @@ def setup(tmp_path, monkeypatch):
     monkeypatch.setattr(ec, "_run_codex", author)
     monkeypatch.setattr(ec, "verify_probes", lambda *args: None)
     return rewrite, verifier, calls, author
+
+
+def test_probe_reports_unexpected_file_without_claiming_instruction_changed(
+    setup, monkeypatch
+):
+    rewrite, verifier, _, author = setup
+
+    def stray_file(run, package, prompt, resume=None):
+        result = author(run, package, prompt, resume)
+        (package / "contract.json").touch()
+        return result
+
+    monkeypatch.setattr(ec, "_run_codex", stray_file)
+    with pytest.raises(RuntimeError, match="outside run/: contract.json"):
+        ec._independent_verifier(rewrite, verifier)
 
 
 def miss(package, case="wrong-1"):

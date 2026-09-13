@@ -1298,8 +1298,17 @@ def _independent_verifier(
             finally:
                 _sandbox_down(probe)
             _check_verdict(probe)
-            if _probe_hashes(probe, ("run",)) != before:
-                raise RuntimeError("Independent probe author changed public task files")
+            after = _probe_hashes(probe, ("run",))
+            changed = sorted(
+                name
+                for name in before.keys() | after.keys()
+                if before.get(name) != after.get(name)
+            )
+            if changed:
+                raise RuntimeError(
+                    "Independent probe author changed files outside run/: "
+                    + ", ".join(changed)
+                )
         layout.write_json_atomic(
             pointer,
             {

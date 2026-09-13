@@ -77,6 +77,12 @@ rejection unless the public task forbids them. File existence,
 non-empty content, success words in a log, or agreement between two solver-written
 reports cannot alone establish correctness. Solver-written claims do not prove
 that a required execution, measurement or tool interaction occurred.
+For a transformation task, check that the transformed content corresponds to the
+original input under the requested operation. Output format, dimensions, channel
+count, or other metadata alone cannot establish that correspondence. Compare
+content using the equivalences the public task permits; byte equality is appropriate
+only for content the task requires to remain byte-for-byte unchanged. Include a
+control with unrelated content that still has the required output format.
 
 If the task requires a reusable program, run the submitted program through the
 specified entry point on fresh valid inputs prepared by the grader, with expected

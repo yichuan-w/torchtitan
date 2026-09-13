@@ -11,7 +11,7 @@ Use that implementation to test choices the public task leaves open. Where
 permitted, use different internal names or equivalent data representations
 instead of relying on conventional defaults; preserve every explicitly required
 name, type, ordering rule, and interface. In a top-level `correct` object in
-`contract.json`, record the choices exercised and why they satisfy the public
+`run/verifier-probes/contract.json`, record the choices exercised and why they satisfy the public
 requirements. If no such choice is available, record that and use the required
 representation. Verify the positive deliverable against the public requirements
 before presenting it to the withheld grader.
@@ -53,6 +53,8 @@ To validate a saved script from this workspace, run `./sandbox reset`, then
 `./sandbox exec "$(cat run/verifier-probes/correct.sh)"` (or the wrong script).
 Stdin is not forwarded. Execute student scripts only in that container.
 Edit only files under `run/verifier-probes/`, except for an ambiguity verdict.
+Before finishing, inspect your workspace changes and remove any extra files you
+created outside that directory; keep the supplied package files unchanged.
 
 If the public specification is ambiguous enough that the two outputs cannot be
 distinguished, write `BLOCKED: <precise ambiguity>` to `run/verdict.txt` and finish.

@@ -33,6 +33,10 @@ program installed. For final-artifact tasks, leave an incorrect final artifact.
 If changing a working input is permitted, also save valid-1.sh: a self-contained
 correct solution that changes the input but leaves the required final artifacts
 correct for the original task. Execute it in a fresh container.
+For a final-artifact task on supplied data, replacing that data does not redefine
+the expected answer: a positive control must still satisfy the original inputs.
+Use empty-input boundaries only when the original task or its permitted input
+interface admits them; otherwise record that boundary as inapplicable.
 Save coverage.json in run/verifier-probes with keys retained, changed, boundary,
 input_replacement, and legal_input_change. Each value must list the control script
 names and public requirements it covers, or explain precisely why it is inapplicable.
