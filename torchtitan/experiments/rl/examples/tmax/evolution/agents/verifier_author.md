@@ -88,6 +88,11 @@ encoder's sample width, container layout, or serialization is not a required
 property unless the public task makes it one; hashing decoded bytes still fixes
 a representation if equivalent values can have different byte encodings. Use
 byte equality only for content required to remain byte-for-byte unchanged.
+Normalization must preserve differences the public task forbids. Converting a
+submitted value to the source fixture's precision can erase a real error even
+when the subsequent comparison is exact. Decode permitted higher-precision
+outputs without reducing their precision, and test a correct value and an
+adjacent wrong value in that higher-precision encoding when available.
 Choose parsers and decoders that support the representations allowed by the
 public task, including container variants supported by a required tool. A
 helper library's unsupported-format error does not establish an invalid

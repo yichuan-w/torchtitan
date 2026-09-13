@@ -45,6 +45,10 @@ Where the expected value is exact under the required operation and chosen
 encoding, test an adjacent representable wrong value for fixed-precision content,
 subject to any explicit public tolerance; for example, change an exactly zero
 sample to a nonzero sample.
+When permitted, also exercise an encoding with greater numeric precision than
+the source fixture: pair an exact correct value with an adjacent wrong value in
+that encoding. Verify the difference without converting either output to lower
+precision; such conversion can erase the error the control is meant to expose.
 Then save `wrong-1.sh`, `wrong-2.sh`, and so on. Each wrong implementation should
 make a specific semantic mistake while otherwise completing the task. Derive
 these mistakes from the public requirements, including independently falsifiable
