@@ -526,6 +526,7 @@ covers it), and `train-vitals.timer` appends a vitals snapshot every 15 min.
   first, never get in.
 - **Do not gate a commit on a piped test command.** `pytest ... | tail && git commit`
   commits on a failing test, because the exit status is `tail`'s.
+
 ## Automatic immutable releases
 
 Run `release_pipeline.py` on the machine that holds the project credentials. Its remote worker prepares the selected sources, builds and verifies the images, and checks original pre-test hooks on fresh digest sandboxes. The controller publishes the resulting release and downloads the published archive to verify its SHA.

@@ -16,10 +16,8 @@ import base64
 import fcntl
 import hashlib
 import json
-import os
 import shlex
 import subprocess
-import sys
 import time
 import urllib.parse
 import urllib.request
