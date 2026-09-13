@@ -104,9 +104,9 @@ def check_hook(row, image, out):
     )
     release.write_json(attempt / "sandbox.json", {"id": sb.id})
     try:
-        result = sb.process.exec(
-            "bash -lc " + shlex.quote(script), cwd=md.get("workdir"), timeout=120
-        )
+        # grade_tmax executes the pin hook in the sandbox's default directory.
+        # A row's agent workdir need not exist before agent setup has run.
+        result = sb.process.exec("bash -lc " + shlex.quote(script), timeout=120)
         (attempt / "pretest.log").write_text(result.result or "")
         evidence = {**expected, "exit_code": result.exit_code}
         release.write_json(attempt / "result.json", evidence)
