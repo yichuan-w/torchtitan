@@ -61,6 +61,7 @@ fi
 # so one copy (rltrain.env names the same file as SWE_TB2_VAL_DATA).
 TB2_DEFAULT=/scratch/gpfs/TRIDAO/al9080/terminal-rl/data/evalsets/tb2_eval.jsonl
 export SWE_TB2_DATA=${SWE_TB2_DATA:-$TB2_DEFAULT}
+export SWE_TB2_VAL_DATA=$SWE_TB2_DATA
 [ -f "$SWE_TB2_DATA" ] || { echo "no evalset at $SWE_TB2_DATA" >&2; exit 2; }
 SET_SUFFIX=""
 [ "$SWE_TB2_DATA" = "$TB2_DEFAULT" ] || SET_SUFFIX=-$(basename "$SWE_TB2_DATA" .jsonl)
