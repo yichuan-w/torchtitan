@@ -774,7 +774,10 @@ def rl_grpo_qwen3_5_9b_tmax() -> Controller.Config:
         config.generator,
         intra_generator_router=_dp_router,
         sampling=dataclasses.replace(
-            config.generator.sampling, max_tokens=_TMAX_9B_PER_TURN_TOKENS
+            config.generator.sampling,
+            max_tokens=int(
+                os.environ.get("TMAX_TURN_MAX_TOKENS", _TMAX_9B_PER_TURN_TOKENS)
+            ),
         ),
         cudagraph=VLLMCudagraphConfig(enable=_cudagraph_on, mode="FULL_DECODE_ONLY"),
         enable_prefix_caching=_prefix_cache,
