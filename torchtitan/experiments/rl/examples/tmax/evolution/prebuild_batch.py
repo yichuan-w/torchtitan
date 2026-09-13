@@ -127,7 +127,13 @@ def run(args):
             release.write_json(input_path, inputs)
         release.write_json(
             args.out / f"execution-{time.time_ns()}.json",
-            {**inputs, "retry_failed": args.retry_failed, "nofile_soft": soft},
+            {
+                **inputs,
+                "retry_failed": args.retry_failed,
+                "nofile_soft": soft,
+                "task": args.task,
+                "limit": args.limit,
+            },
         )
         ledger = Ledger(args.out / "budget.json", args.budget)
         images.log(
@@ -178,9 +184,6 @@ def run(args):
                 charged = min(reserved, (time.monotonic() - started) / 3600 * rate)
                 status = "verified"
             except Exception as error:
-                # Stop admitting work on an unresolved failure; otherwise a
-                # registry outage could consume the batch on identical errors.
-                stop.set()
                 out.mkdir(parents=True, exist_ok=True)
                 # SDK exceptions can include the push command's bearer token.
                 release.write_json(
@@ -199,13 +202,14 @@ def run(args):
                 )
 
         pending = set()
-        stop = threading.Event()
         admitted = 0
         with concurrent.futures.ThreadPoolExecutor(max_workers=args.workers) as pool:
             for row in rows:
-                if stop.is_set():
-                    images.log(args.out, "failure-stop")
-                    break
+                if (
+                    args.task is not None
+                    and row["metadata"]["instance_id"] != args.task
+                ):
+                    continue
                 if args.limit is not None and admitted >= args.limit:
                     break
                 key = images.image_key(row)
@@ -230,9 +234,6 @@ def run(args):
                     )
                     for future in done:
                         future.result()
-                if stop.is_set():
-                    images.log(args.out, "failure-stop")
-                    break
                 reserved, rate = reservation(row)
                 original = args.out / "tasks" / key
                 previous = Path(entry.get("attempt_dir", original)) if retry else None
@@ -288,6 +289,9 @@ def main():
     )
     parser.add_argument("--workers", type=int, default=1000)
     parser.add_argument("--limit", type=int, help="Maximum new tasks for a smoke run")
+    parser.add_argument(
+        "--task", help="Attempt only this task for a recovery smoke check"
+    )
     parser.add_argument(
         "--retry-failed",
         action="store_true",
