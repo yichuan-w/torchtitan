@@ -149,8 +149,9 @@ task asks only for a final artifact or state, check that result without inventin
 a requirement to save a script. Accept alternative paths, formats and implementations
 wherever the public task leaves them open.
 
-Cover valid boundary cases introduced by the change, including empty results when
-possible. In each case, check the changed behavior together with retained output
+Cover valid boundary cases of both retained and changed requirements. For reusable
+programs, test empty inputs when permitted and nonempty inputs with no qualifying
+results; these exercise different behavior. In each case, check retained output
 requirements, such as required headers or schema even when there are no records.
 Check these properties before parsing or normalization discards them; an empty
 parsed collection alone does not prove that the required output structure exists.
