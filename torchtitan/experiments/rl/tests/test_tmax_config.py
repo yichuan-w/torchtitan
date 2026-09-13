@@ -18,6 +18,11 @@ from torchtitan.experiments.rl.examples.tmax.config_registry import (
 from torchtitan.experiments.rl.rollout.types import Rollout, RolloutStatus
 
 
+@pytest.fixture(autouse=True)
+def separate_validation_dataset(monkeypatch):
+    monkeypatch.setattr(tmax_config_registry, "_TB2_VAL_DATA", "/data/tb2.jsonl")
+
+
 @pytest.mark.parametrize("turn_cap", [None, 8192, 32768])
 @pytest.mark.parametrize("eval_cap", [None, 24576])
 def test_tmax_9b_turn_token_override(
@@ -47,7 +52,7 @@ def test_tmax_holdout_override_with_separate_eval(monkeypatch, holdout):
 
     config = tmax_config_registry._tmax_rollouter()
 
-    assert config.train_dataset.holdout_n == (64 if holdout is None else holdout)
+    assert config.train_dataset.holdout_n == (0 if holdout is None else holdout)
     assert config.validation_dataset.data_path == "/data/tb2.jsonl"
     assert config.validation_dataset.holdout_n == 0
 
@@ -62,11 +67,15 @@ def test_tmax_holdout_override_keeps_train_and_validation_disjoint(monkeypatch):
     assert config.validation_dataset.split == "validation"
 
 
+@pytest.mark.parametrize("holdout", [None, "0"])
 @pytest.mark.parametrize("validation_samples", ["0", "32"])
 def test_tmax_zero_holdout_requires_separate_or_disabled_eval(
-    monkeypatch, validation_samples
+    monkeypatch, validation_samples, holdout
 ):
-    monkeypatch.setenv("SWE_HOLDOUT_N", "0")
+    if holdout is None:
+        monkeypatch.delenv("SWE_HOLDOUT_N", raising=False)
+    else:
+        monkeypatch.setenv("SWE_HOLDOUT_N", holdout)
     monkeypatch.setenv("SWE_VAL_SAMPLES", validation_samples)
     monkeypatch.setattr(tmax_config_registry, "_TB2_VAL_DATA", "")
     if validation_samples == "0":

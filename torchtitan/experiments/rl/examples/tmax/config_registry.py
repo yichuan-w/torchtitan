@@ -115,10 +115,9 @@ _GB200_GPUS_PER_HOST = 2
 # Held-out prompts per periodic validation pass (greedy, n=1). Runs concurrently, so its
 # wall time is ~one rollout regardless of count; 32 gives a stable enough solve-rate.
 _TMAX_9B_VAL_SAMPLES = 32
-# Reserve the last N rows of the JSONL as a held-out validation slice, disjoint from
-# training, so periodic validation measures generalization (not training-set recall).
-# Must be >= _TMAX_9B_VAL_SAMPLES so a validation pass can draw distinct held-out tasks.
-_TMAX_9B_HOLDOUT_N = 64
+# Use all training rows by default with a separate benchmark for validation.
+# SWE_HOLDOUT_N opts into reserving the last N rows for same-file validation.
+_TMAX_9B_HOLDOUT_N = 0
 
 
 def _tmax_rollouter() -> TMaxRollouter.Config:
