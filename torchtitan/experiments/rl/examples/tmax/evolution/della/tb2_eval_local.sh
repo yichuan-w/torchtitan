@@ -61,15 +61,20 @@ fi
 # so one copy (rltrain.env names the same file as SWE_TB2_VAL_DATA).
 TB2_DEFAULT=/scratch/gpfs/TRIDAO/al9080/terminal-rl/data/evalsets/tb2_eval.jsonl
 export SWE_TB2_DATA=${SWE_TB2_DATA:-$TB2_DEFAULT}
+export SWE_TB2_VAL_DATA=$SWE_TB2_DATA
 [ -f "$SWE_TB2_DATA" ] || { echo "no evalset at $SWE_TB2_DATA" >&2; exit 2; }
 SET_SUFFIX=""
 [ "$SWE_TB2_DATA" = "$TB2_DEFAULT" ] || SET_SUFFIX=-$(basename "$SWE_TB2_DATA" .jsonl)
 STAMP=$(date -u +%Y%m%d-%H%M%SZ)
 EVAL=$TRL_BASE/evals/$STAMP--$RUN_NAME-step$STEP$SET_SUFFIX
 mkdir -p "$EVAL" || exit 2
+export TRL_RUN_DIR=$EVAL
 exec > >(tee -a "$EVAL/stdout.log") 2>&1
 
-set -a; . ~/.config/daytona/env; set +a
+if [ -n "${DAYTONA_ENV_FILE:-}" ]; then
+    set -a; . "$DAYTONA_ENV_FILE"; set +a
+fi
+: "${DAYTONA_API_KEY:?supply project Daytona credentials or DAYTONA_ENV_FILE}"
 export SWE_VAL_SAMPLES=${SWE_VAL_SAMPLES:-$(grep -c "" "$SWE_TB2_DATA")}
 HF_ASSETS=/scratch/gpfs/TRIDAO/al9080/models/Qwen3.5-9B
 export SWE_TB2_CKPT=$CKPT
@@ -90,8 +95,8 @@ export TMAX_AGENT=terminus TMAX_EXEC_TIMEOUT_SEC=120 TMAX_TERMINUS_MAX_TURNS=120
 export TMAX_TURN_MAX_TOKENS=32768
 export TT_DAYTONA_CPU=1 TT_DAYTONA_MEM_GB=2 TT_DAYTONA_DISK_GB=2
 # per rollout-worker process: 16 x 8 workers = 128 creates in flight per eval
-export TT_DAYTONA_CREATE_CONCURRENCY=16 TT_DAYTONA_EPHEMERAL=1
-export TT_DAYTONA_CREATE_RETRIES=8 TT_DAYTONA_LABEL=tb2_eval_local
+export TT_DAYTONA_CREATE_CONCURRENCY=${TT_DAYTONA_CREATE_CONCURRENCY:-16} TT_DAYTONA_EPHEMERAL=1
+export TT_DAYTONA_CREATE_RETRIES=${TT_DAYTONA_CREATE_RETRIES:-8} TT_DAYTONA_LABEL=tb2_eval_local
 export RL_GPUS=${RL_GPUS:-$OFF,$((OFF+1))} RL_GPU_OFFSET=$OFF
 export PATH=/scratch/gpfs/TRIDAO/al9080/titan-rl/bin:$PATH
 export PYTHONPATH=$TRL_TT${PYTHONPATH:+:$PYTHONPATH}

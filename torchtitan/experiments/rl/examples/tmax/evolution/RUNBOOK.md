@@ -526,3 +526,33 @@ covers it), and `train-vitals.timer` appends a vitals snapshot every 15 min.
   first, never get in.
 - **Do not gate a commit on a piped test command.** `pytest ... | tail && git commit`
   commits on a failing test, because the exit status is `tail`'s.
+
+## Automatic immutable releases
+
+Run `release_pipeline.py` on the machine that holds the project credentials. Its remote worker prepares the selected sources, builds and verifies the images, and checks original pre-test hooks on fresh digest sandboxes. The controller publishes the resulting release and downloads the published archive to verify its SHA.
+
+Create a project-local JSON configuration with these fields:
+
+| Field | Value |
+| --- | --- |
+| `sources` | The `data_release.py` input object, containing `seed` and a `sources` array. Each source pins its repository revision, metadata path, archives, adapter and optional count. |
+| `workers` | Worker count; defaults to 1000. |
+| `ssh_host` | SSH alias for the remote build host. |
+| `remote_checkout`, `remote_python` | Absolute paths to the deployed checkout and its Python environment. |
+| `code_commit` | Full commit SHA of the clean remote checkout. |
+| `remote_out` | Absolute remote output directory for this release. |
+| `daytona_env_file` | Local project environment file containing `DAYTONA_API_KEY` and other required `DAYTONA_` settings. |
+| `github_token_file`, `github_user` | Local project GitHub credential file and registry username. The master credential stays local; the worker receives refreshed, repository-scoped tokens. |
+| `image_repository` | Destination such as `ghcr.io/OWNER/IMAGES`. |
+| `hf_token_file`, `publish_repo` | Local project Hugging Face credential file and destination dataset repository. |
+
+From the repository root:
+
+```bash
+python torchtitan/experiments/rl/examples/tmax/evolution/release_pipeline.py \
+  --config path/to/project-release.json --out path/to/local-release-output
+```
+
+Resume with the same command and output directory. Changed inputs require a new directory. `progress.jsonl` records the stages; `publication.json` records the release SHA, publication revision and archive SHA. Individual build and verification attempts remain under the remote output directory. Failed items remain failures until their checks pass; restarting reuses verified images and completed hook checks.
+
+To adopt a previously prepared batch, set `prepared_source`, `batch_dir` and `digest_dir` to their remote paths, and `prepared_sha256` to the prepared release SHA. The controller verifies the frozen source configuration and existing release before reusing the publication. It does not change any training data path.
