@@ -12,7 +12,11 @@ import datetime
 import hashlib
 import json
 import re
+import shutil
 import subprocess
+import tempfile
+import threading
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 
@@ -48,9 +52,10 @@ def verify_probes(pkg: Path, env: dict[str, str], timeout: int) -> None:
         raise ValueError("Semantic probes require distinct, nonempty scripts")
     log_path = pkg / "run" / "verifier-probe-results.jsonl"
     missed = []
+    log_lock = threading.Lock()
 
     def record(**values):
-        with log_path.open("a") as stream:
+        with log_lock, log_path.open("a") as stream:
             stream.write(
                 json.dumps(
                     {
@@ -87,12 +92,26 @@ def verify_probes(pkg: Path, env: dict[str, str], timeout: int) -> None:
         probe_sha256=original_probe_hashes,
     )
 
-    def run(case: str, phase: str, args: list[str], expected: int, attempt: int = 1):
-        record(case=case, phase=phase, status="start", args=args, attempt=attempt)
+    def run(
+        case: str,
+        phase: str,
+        args: list[str],
+        expected: int,
+        attempt: int = 1,
+        workspace: Path = pkg,
+    ):
+        record(
+            case=case,
+            phase=phase,
+            status="start",
+            args=args,
+            attempt=attempt,
+            workspace=str(workspace),
+        )
         try:
             result = subprocess.run(
-                [str(pkg / "sandbox"), *args],
-                cwd=pkg,
+                [str(workspace / "sandbox"), *args],
+                cwd=workspace,
                 env=env,
                 capture_output=True,
                 text=True,
@@ -127,11 +146,11 @@ def verify_probes(pkg: Path, env: dict[str, str], timeout: int) -> None:
             record(case=case, phase="grade_details", status="start", attempt=attempt)
             details = subprocess.run(
                 [
-                    str(pkg / "sandbox"),
+                    str(workspace / "sandbox"),
                     "exec",
                     "if [ -f /logs/verifier/ctrf.json ]; then cat /logs/verifier/ctrf.json; fi",
                 ],
-                cwd=pkg,
+                cwd=workspace,
                 env=env,
                 capture_output=True,
                 text=True,
@@ -157,11 +176,30 @@ def verify_probes(pkg: Path, env: dict[str, str], timeout: int) -> None:
             else:
                 raise RuntimeError(f"{message}; see {log_path}")
 
-    try:
-        for case in names:
+    def replay_case(case):
+        workspace = workspaces / case
+        # Never copy a live container ID into another case's workspace.
+        shutil.copytree(
+            pkg,
+            workspace,
+            ignore=lambda directory, entries: {"run"}
+            if Path(directory) == pkg
+            else set(),
+        )
+        (workspace / "run").mkdir()
+        for name in (
+            "seed_size.json",
+            "resources.json",
+            "seed_literals.json",
+            "pretest.json",
+        ):
+            source = pkg / "run" / name
+            if source.exists():
+                shutil.copy2(source, workspace / "run" / name)
+        try:
             for attempt in (1, 2):
                 try:
-                    run(case, "reset", ["reset"], 0, attempt)
+                    run(case, "reset", ["reset"], 0, attempt, workspace)
                     # Scripts execute only through the Daytona harness, never on the host.
                     run(
                         case,
@@ -169,9 +207,15 @@ def verify_probes(pkg: Path, env: dict[str, str], timeout: int) -> None:
                         ["exec", scripts[case], "--timeout", str(timeout)],
                         0,
                         attempt,
+                        workspace,
                     )
                     run(
-                        case, "grade", ["grade"], 0 if case == "correct" else 1, attempt
+                        case,
+                        "grade",
+                        ["grade"],
+                        0 if case == "correct" else 1,
+                        attempt,
+                        workspace,
                     )
                     break
                 except _DaytonaTransportFailure as error:
@@ -203,7 +247,24 @@ def verify_probes(pkg: Path, env: dict[str, str], timeout: int) -> None:
                         package_sha256=original_hashes,
                         probe_sha256=original_probe_hashes,
                     )
+        finally:
+            run(case, "down", ["down"], 0, workspace=workspace)
+
+    try:
+        workspaces = Path(tempfile.mkdtemp(prefix="probe-cases-", dir=pkg / "run"))
+        errors = []
+        with ThreadPoolExecutor(max_workers=min(3000, len(names))) as pool:
+            futures = {case: pool.submit(replay_case, case) for case in names}
+            for case, future in futures.items():
+                try:
+                    future.result()
+                except Exception as error:
+                    record(case=case, status="error", error=str(error))
+                    errors.append(error)
+        if errors:
+            raise errors[0]
         if missed:
+            missed.sort()
             record(status="failed", errors=missed)
             raise SemanticProbeMisses(missed, log_path)
         record(status="passed")
