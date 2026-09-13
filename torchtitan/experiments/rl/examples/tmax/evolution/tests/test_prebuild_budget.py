@@ -55,3 +55,19 @@ def test_resume_allows_runtime_changes_but_preserves_data():
         except ValueError:
             continue
         raise AssertionError(f"accepted changed {key}")
+
+
+def test_retry_preserves_charges_and_verified_entries(tmp_path):
+    ledger = Ledger(tmp_path / "budget.json", None)
+    assert ledger.reserve("failed", 2)
+    ledger.finish("failed", "failed", 2)
+    assert ledger.reserve("done", 1)
+    ledger.finish("done", "verified", 0.5)
+    assert not ledger.reserve("done", 3, retry=True)
+    assert ledger.reserve("failed", 3, retry=True, attempt_dir=tmp_path / "retry")
+    assert ledger.entries["failed"]["charged_usd"] == 5
+    ledger.finish("failed", "verified", 1)
+    restored = Ledger(ledger.path, None)
+    assert restored.entries["failed"]["charged_usd"] == 3
+    assert restored.entries["failed"]["attempt_dir"] == str(tmp_path / "retry")
+    assert restored.entries["done"]["charged_usd"] == 0.5

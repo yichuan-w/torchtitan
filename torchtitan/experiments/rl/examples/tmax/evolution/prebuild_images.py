@@ -16,10 +16,13 @@ import argparse
 import base64
 import hashlib
 import json
+import random
 import re
 import shlex
+import shutil
 import subprocess
 import sys
+import time
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -50,6 +53,79 @@ def execute(sb, command, out, name, timeout=60):
     if result.exit_code:
         raise RuntimeError(f"{name} failed; see {out / (name + '.log')}")
     return result.result
+
+
+def create_sandbox(client, params, out, *, timeout):
+    from daytona.common.errors import DaytonaRateLimitError
+
+    deadline = time.monotonic() + timeout
+    attempt = 0
+    while True:
+        try:
+            return client.create(
+                params, timeout=max(1, int(deadline - time.monotonic()))
+            )
+        except DaytonaRateLimitError as error:
+            attempt += 1
+            headers = {k.lower(): v for k, v in (error.headers or {}).items()}
+            delay = (
+                float(
+                    headers.get(
+                        "retry-after-sandbox-create",
+                        headers.get("retry-after", min(2**attempt, 30)),
+                    )
+                )
+                + random.random()
+            )
+            if time.monotonic() + delay >= deadline:
+                raise
+            log(out, "rate-limit-retry", attempt=attempt, delay_s=delay)
+            time.sleep(delay)
+
+
+def recover_artifacts(previous, out):
+    from daytona import Daytona
+    from daytona.common.errors import DaytonaNotFoundError
+
+    out.mkdir(parents=True, exist_ok=False)
+    log(out, "recovery-start", previous=str(previous))
+    client = Daytona()
+    inputs = (
+        json.loads((previous / "input.json").read_text())
+        if (previous / "input.json").exists()
+        else None
+    )
+    builder_path = previous / "builder.json"
+    sb = None
+    if builder_path.exists():
+        builder_id = json.loads(builder_path.read_text())["id"]
+        try:
+            sb = client.get(builder_id)
+        except DaytonaNotFoundError:
+            log(out, "builder-absent", id=builder_id)
+    if (previous / "publication.json").exists():
+        for name in ("input.json", "publication.json"):
+            shutil.copy2(previous / name, out / name)
+        if sb is not None:
+            sb.delete(timeout=120, wait=True)
+        release.write_json(out / "builder-deleted.json", {"confirmed_absent": True})
+        return
+    if sb is not None and inputs is not None:
+        result = sb.process.exec(
+            "docker image inspect " + shlex.quote(inputs["tag"]), timeout=60
+        )
+        (out / "recover-inspect.log").write_text(result.result or "")
+        if result.exit_code == 0:
+            release.write_json(out / "input.json", inputs)
+            release.write_json(out / "builder.json", {"id": sb.id})
+            release.write_json(
+                out / "built.json", {"id": sb.id, "image": json.loads(result.result)[0]}
+            )
+            log(out, "build-reused", id=sb.id)
+            return
+        sb.delete(timeout=120, wait=True)
+        release.write_json(out / "previous-builder-deleted.json", {"id": sb.id})
+    log(out, "rebuild-required", reason="no reusable image in surviving builder")
 
 
 def build(source, task, out, repository, *, prepared=None):
@@ -83,7 +159,8 @@ def build(source, task, out, repository, *, prepared=None):
     release.write_json(out / "input.json", inputs)
     client = Daytona()
     log(out, "start", stage="builder", task=task)
-    sb = client.create(
+    sb = create_sandbox(
+        client,
         CreateSandboxFromImageParams(
             image=Image.base("docker:27-dind").run_commands(
                 "apk add --no-cache python3"
@@ -94,6 +171,7 @@ def build(source, task, out, repository, *, prepared=None):
             ttl_minutes=120,
             labels={"purpose": "prebuilt-data-image", "input": image_key(row)},
         ),
+        out,
         timeout=1200,
     )
     release.write_json(out / "builder.json", {"id": sb.id})
@@ -198,7 +276,8 @@ def verify(out):
     md = publication["input"]["row"]["metadata"]
     client = Daytona()
     log(out, "start", stage="fresh-boot", image=publication["image"])
-    sb = client.create(
+    sb = create_sandbox(
+        client,
         CreateSandboxFromImageParams(
             image=publication["image"],
             resources=Resources(
@@ -210,6 +289,7 @@ def verify(out):
             auto_stop_interval=5,
             ttl_minutes=15,
         ),
+        out,
         timeout=600,
     )
     release.write_json(out / "verifier-sandbox.json", {"id": sb.id})
