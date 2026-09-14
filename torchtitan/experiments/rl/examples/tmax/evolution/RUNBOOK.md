@@ -478,9 +478,9 @@ the loop changes: every Codex session and every `synth_client` chat call goes
 to `127.0.0.1:4000` with the proxy's master key as `OPENAI_API_KEY`.
 
 ```bash
-python -m venv $TRL_BASE/litellm-venv && $TRL_BASE/litellm-venv/bin/pip install 'litellm[proxy]'
+python -m venv <venv> && <venv>/bin/pip install 'litellm[proxy]'   # proxy.sh's default is the one on della
 umask 077; printf 'ANTHROPIC_API_KEY=%s\nLITELLM_MASTER_KEY=%s\n' "$KEY" "sk-litellm-$(openssl rand -hex 16)" > <root>/litellm.env
-PROXY_ENV=<root>/litellm.env bash $EVO/claude_proxy/proxy.sh start      # a user unit, one worker
+PROXY_VENV=<venv> PROXY_ENV=<root>/litellm.env bash $EVO/claude_proxy/proxy.sh start   # a user unit, one worker
 # the loop: source claude_proxy/claude_env.sh after evolveloop_env.sh, or CLAUDE_PROXY=1 for offline_drive.sh
 ```
 
