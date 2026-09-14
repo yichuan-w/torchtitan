@@ -550,6 +550,7 @@ def test_simplify_codex_rewrites_in_place_and_keeps_the_session(
 ) -> None:
     rw = _rewrite(tmp_path, monkeypatch, job="easier")
     _trace(rw)
+    monkeypatch.setattr(ec, "VERIFIER_AUTHOR", "joint")
     monkeypatch.setattr(ec, "_codex_bin", lambda: Path(sys.executable))
     monkeypatch.setattr(ec.llm, "_api_key", lambda: "test-key")
 

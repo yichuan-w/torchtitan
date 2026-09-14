@@ -25,9 +25,8 @@ What the seed's verifier already depended on unseen is inherited, not new.
 
 Heuristic by construction. Measured over 307 hardened packages: median 2
 flagged per task, 182 with none; the five known hidden contracts came back
-with 15 of their 18 names. A flagged name is a question for the author, and
-the answer is either to state it where the agent reads or to make the
-verifier stop depending on it.
+with 15 of their 18 names. A flagged name needs review against the public
+task; it does not establish a hidden requirement or require a change.
 """
 from __future__ import annotations
 
@@ -251,12 +250,14 @@ def audit_package(pkg: Path, verifier_rel: str, baseline=()) -> list[str]:
 
 
 def why(literals: list[str]) -> str:
-    return ("The verifier depends on names that nothing an agent can read states: "
-            + ", ".join(repr(x) for x in literals)
-            + ". They are not in the instruction, the Dockerfile or any file the "
-              "image ships; the reference solution knows them, an agent that "
-              "reads the task does not. For each one, either state it where the "
-              "agent will read it (the instruction, or a file in the image the "
-              "instruction points at), or make the verifier stop depending on it; "
-              "a value the verifier only plants as test data can also move into a "
-              "fixture the image ships.")
+    return (
+        "Advisory names audit: these verifier literals were not matched in the "
+        "scanned instruction and build-context text: "
+        + ", ".join(repr(x) for x in literals)
+        + ". This heuristic can flag language keywords, internal test data, or "
+        "equivalent wording; a flag does not establish a hidden requirement. "
+        "Review each against the public task. Correct a demonstrated mismatch "
+        "while preserving the requested change and retained requirements. Do "
+        "not add constraints or remove required checks solely to clear this "
+        "advisory; a reviewed false positive may remain."
+    )

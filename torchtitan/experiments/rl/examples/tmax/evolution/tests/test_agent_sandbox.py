@@ -109,6 +109,23 @@ def test_exec_passes_through_output_and_exit_code(tmp_path, capsys) -> None:
     assert "err\n" in captured.err and "[exit 3]" in captured.err
 
 
+def test_grade_preserves_verifier_output_without_changing_stdout(tmp_path, capsys):
+    pkg = tmp_path / "pkg"
+    result = {
+        "ok": True,
+        "reward": 0.0,
+        "grading": {"exit_code": 1, "output_tail": "AssertionError: missing entry"},
+    }
+    server = _FakeServer(lambda req: result)
+    try:
+        asb._write_state(pkg, {"status": "ready", "sock": server.path})
+        assert asb.cmd_grade(pkg) == 1
+    finally:
+        server.close()
+    assert capsys.readouterr().out == "grade: reward=0.0\n"
+    assert json.loads((pkg / "run/last-grade.json").read_text()) == result
+
+
 def test_check_records_a_null_probe_pass_as_a_failure(
     tmp_path, monkeypatch, capsys
 ) -> None:
@@ -151,7 +168,13 @@ def test_check_returns_nonzero_when_the_oracle_fails(
         if req["op"] == "grade":  # null probe: untouched fails, correct
             return {"ok": True, "reward": 0.0}
         if req["op"] == "oracle":  # reference solution does not pass
-            return {"ok": True, "reward": 0.0, "solve_exit": 7, "tail": "boom"}
+            return {
+                "ok": True,
+                "reward": 0.0,
+                "solve_exit": 0,
+                "tail": "reference completed",
+                "grading": {"exit_code": 1, "output_tail": "AssertionError: balance"},
+            }
         return {"ok": True}
 
     server = _FakeServer(handler)
@@ -170,9 +193,15 @@ def test_check_returns_nonzero_when_the_oracle_fails(
 
     assert rc == 1
     out = capsys.readouterr().out
-    assert "VERDICT: fail" in out and "solve_exit=7" in out
+    assert "VERDICT: fail" in out and "solve_exit=0" in out
+    assert "reference completed" in out
+    assert "AssertionError: balance" in out
     record = json.loads((pkg / "run" / "checks.jsonl").read_text().strip())
     assert record["verdict"] == "fail" and record["stage"] == "oracle"
+    assert record["grading"] == {
+        "exit_code": 1,
+        "output_tail": "AssertionError: balance",
+    }
 
 
 def test_request_without_a_server_is_an_error_not_a_hang(tmp_path) -> None:
