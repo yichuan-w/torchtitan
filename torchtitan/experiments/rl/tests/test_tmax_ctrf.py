@@ -275,7 +275,10 @@ def test_agent_disk_exhaustion_is_scored_not_infra(monkeypatch) -> None:
                 message="mkdir /root/.daytona/sessions/x: no space left on device",
             )
         )
-        yield AsyncMock()
+        sandbox = AsyncMock()
+        sandbox.sandbox_id = "sb-disk-full"
+        sandbox.allocated_disk_gb = 1
+        yield sandbox
 
     monkeypatch.setattr(rollouter_mod, "boot_agent_sandbox", boot_recording_disk_full)
     agent = AsyncMock(
@@ -315,7 +318,10 @@ def test_disk_exhaustion_before_the_agent_stays_infra(monkeypatch) -> None:
                 message="no space left on device",
             )
         )
-        yield AsyncMock()
+        sandbox = AsyncMock()
+        sandbox.sandbox_id = "sb-disk-full"
+        sandbox.allocated_disk_gb = 1
+        yield sandbox
 
     monkeypatch.setattr(rollouter_mod, "boot_agent_sandbox", boot_recording_disk_full)
     monkeypatch.setattr(
