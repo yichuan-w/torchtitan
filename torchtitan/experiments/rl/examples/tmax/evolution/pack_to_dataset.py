@@ -37,6 +37,7 @@ Usage:
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import os
 from dataclasses import dataclass, field
@@ -275,6 +276,45 @@ def to_row(
             row["metadata"]["tmax"].update(fields)
     except ValueError as e:
         raise ValueError(f"{ident}: protected lists: {e}") from None
+    binding = Path(task_dir) / ".prebuilt-source.json"
+    if binding.exists():
+        captured = json.loads(binding.read_text())
+        image = captured["image"]
+        recipe = next(
+            (
+                p
+                for p in (
+                    Path(task_dir) / "environment/Dockerfile",
+                    Path(task_dir) / "Dockerfile",
+                )
+                if p.is_file()
+            ),
+            None,
+        )
+        # Only an unchanged digest seed bypasses the build. A rewrite that
+        # changes its Dockerfile follows the normal build and drift checks.
+        if recipe is not None and recipe.read_text() == f"FROM {image}\n":
+            md = row["metadata"]
+            md["image"] = image
+            md.pop("dockerfile", None)
+            md.pop("build_context", None)
+            md["prebuilt_provenance"] = captured["provenance"]
+            if pretest and pretest[0]:
+                proof = captured["provenance"].get("pretest") or {}
+                if (
+                    proof.get("image") != image
+                    or proof.get("exit_code") != 0
+                    or proof.get("script_sha256")
+                    != hashlib.sha256(pretest[0].encode()).hexdigest()
+                    or proof.get("stamped_identity") != pretest[1]
+                    or proof.get("source_episode_identity") != pretest[1]
+                ):
+                    raise ValueError(
+                        f"{ident}: digest seed lacks matching pre-test evidence"
+                    )
+                md["tmax"]["pretest_episode_env_identity"] = proof[
+                    "source_episode_identity"
+                ]
     return row
 
 

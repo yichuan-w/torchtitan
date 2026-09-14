@@ -6,15 +6,22 @@
 
 from __future__ import annotations
 
+import asyncio
+
 import base64
+import json
 import shutil
 import subprocess
+import sys
+import types
+from contextlib import asynccontextmanager
 
 import pytest
 
 from torchtitan.experiments.rl.examples.tmax.prepare_tb2_1_data import (
     _B64_SUFFIX,
     build_rows,
+    verify_runtime,
 )
 
 _DOCKERFILE = """FROM ubuntu:24.04
@@ -53,6 +60,81 @@ gpus = 0
 
 # Not valid UTF-8 -- stands in for reference.jpg / weights_gtruth.pt / *.tar.gz.
 _BINARY = b"\x89PNG\r\n\x1a\n\xff\xfe\x00\x01binary payload\x00\xff"
+
+
+def test_runtime_checks_fresh_sandboxes_and_resumes_exact_rows(tmp_path, monkeypatch):
+    boots = []
+
+    @asynccontextmanager
+    async def boot(image, **kwargs):
+        assert kwargs["install_claude"] is False
+        boots.append(image)
+
+        async def execute(command, **kwargs):
+            assert "apt-get" not in command
+            assert "new-session" in command and "kill-server" in command
+            return 0, "tmux 3.4", ""
+
+        yield types.SimpleNamespace(sandbox_id=f"box-{len(boots)}", exec=execute)
+
+    monkeypatch.setitem(
+        sys.modules,
+        "torchtitan.experiments.rl.harness.agents.claude_code",
+        types.SimpleNamespace(boot_agent_sandbox=boot),
+    )
+    row = {
+        "metadata": {
+            "instance_id": "task",
+            "image": "base:v1",
+            "dockerfile": "FROM base:v1",
+        }
+    }
+    asyncio.run(verify_runtime([row], str(tmp_path)))
+    asyncio.run(verify_runtime([row], str(tmp_path)))
+    assert len(boots) == 2
+    records = [
+        json.loads(line)
+        for line in (tmp_path / "progress.jsonl").read_text().splitlines()
+    ]
+    assert [r["state"] for r in records] == [
+        "prepare",
+        "start",
+        "pass",
+        "prepare",
+        "skip",
+    ]
+    row["metadata"]["dockerfile"] += "\nRUN tmux -V"
+    asyncio.run(verify_runtime([row], str(tmp_path)))
+    assert len(boots) == 4
+
+
+def test_runtime_probe_failure_never_creates_success_evidence(tmp_path, monkeypatch):
+    @asynccontextmanager
+    async def boot(*args, **kwargs):
+        async def execute(*args, **kwargs):
+            return 127, "", "tmux: command not found"
+
+        yield types.SimpleNamespace(sandbox_id="bad-box", exec=execute)
+
+    monkeypatch.setitem(
+        sys.modules,
+        "torchtitan.experiments.rl.harness.agents.claude_code",
+        types.SimpleNamespace(boot_agent_sandbox=boot),
+    )
+    row = {
+        "metadata": {
+            "instance_id": "task",
+            "image": "base:v1",
+            "dockerfile": "FROM base:v1",
+        }
+    }
+    with pytest.raises(RuntimeError, match="tmux probe failed"):
+        asyncio.run(verify_runtime([row], str(tmp_path)))
+    assert list(tmp_path.glob("*.json")) == []
+    assert (
+        json.loads((tmp_path / "progress.jsonl").read_text().splitlines()[-1])["state"]
+        == "fail"
+    )
 
 
 def _write_task(root, task_id: str, *, task_toml: str = _TASK_TOML, binary=_BINARY):

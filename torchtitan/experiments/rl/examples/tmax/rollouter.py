@@ -541,7 +541,7 @@ def _write_rollout_record(
     verifier: dict | None = None,
     ctrf: dict | None = None,
 ) -> str | None:
-    """Write one training rollout as ``rollouts/<task>/g<group>-r<idx>.jsonl``
+    """Write one completed rollout as ``<task>/g<group>-r<idx>.jsonl``
     and return that path relative to the run, or None when nothing was written.
 
     Line 1 is the outcome and its cost; every later line is one turn, decoded
@@ -556,13 +556,13 @@ def _write_rollout_record(
 
     ``reward`` is the verifier's verdict before the rubric's shaping; ``turns``
     counts the turn lines that follow, one per adapter round trip. Validation
-    groups (negative ids) write nothing: their prompts are a held-out or
-    benchmark set the controller's validation report already owns, and a file
-    here would read as a training rollout of a task never trained on.
+    groups (negative ids) go under ``validation_rollouts/``; training groups
+    go under ``rollouts/``. Saving each completed validation attempt preserves
+    its evidence if the process exits before the controller writes its report.
     ``SWE_ROLLOUT_RECORDS=0`` switches the file off. Best-effort: a failed write
     is a warning, never a failed rollout.
     """
-    if group_id < 0 or os.environ.get("SWE_ROLLOUT_RECORDS", "1") != "1":
+    if os.environ.get("SWE_ROLLOUT_RECORDS", "1") != "1":
         return None
     path = run.rollout_record(sample.instance_id, group_id, rollout_idx)
     try:
@@ -805,12 +805,11 @@ class TMaxRollouter(Rollouter):
         if not 0 < config.evolution_harder_ratio <= 1:
             raise ValueError("evolution_harder_ratio must be in (0, 1]")
         super().__init__(config)
-        # Which agent scaffold drives the rollout. Defaults to the vanillux loop the
-        # tmax models are SFT'd under; TMAX_AGENT=terminus swaps in Terminus-2 (a
-        # different output format -- see harness/agents/terminus.py).
-        self._agent_name = os.environ.get("TMAX_AGENT", "vanillux")
+        # Training and evaluation share Terminus unless a run explicitly selects
+        # another scaffold with its corresponding action format.
+        self._agent_name = os.environ.get("TMAX_AGENT", "terminus")
         if self._agent_name != "vanillux":
-            # Import for the side effect of registering; only the default is wired
+            # Import for the side effect of registering; only vanillux is wired
             # in by the tmax module itself.
             import torchtitan.experiments.rl.harness.agents.terminus  # noqa: F401
         self._time_budget_sec = config.time_budget_sec
@@ -978,9 +977,9 @@ class TMaxRollouter(Rollouter):
         # NaN is "no verdict", distinct from 0.0 = "verdict: failed"; the advantage
         # estimator and the sample builder both drop it before computing any group
         # statistic, so a group of 8 with one infra failure baselines over the
-        # surviving 7. Validation deliberately keeps 0.0: avg@k is defined over
-        # attempts, so a NaN there would move the denominator and stop the number
-        # being comparable to the published one (and index.json cannot encode it).
+        # surviving 7. Validation retains the raw 0.0 and infra_failed diagnostic.
+        # The controller withholds aggregate scores if any attempt is unscored;
+        # the trace recorder preserves every trial and marks the summary invalid.
         if group_id >= 0 and any(infra_failed_flags):
             for rollout, infra_failed in zip(rollouts, infra_failed_flags, strict=True):
                 if infra_failed:

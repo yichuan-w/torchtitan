@@ -168,8 +168,34 @@ def test_unverified_process_exit_cannot_become_a_policy_verdict(stat):
 
 def test_changed_shell_is_not_accepted_as_the_original_session():
     lifecycle, _ = terminal(result("123|789|0||"))
-    with pytest.raises(TerminalUnavailable, match="terminal_identity_changed"):
+    with pytest.raises(TerminalUnavailable, match="terminal_identity_changed") as exc:
         asyncio.run(lifecycle.run("tmux has-session -t agent", AsyncMock()))
+    assert exc.value.terminal_events[-1]["expected"] == ["123", "456"]
+    assert exc.value.terminal_events[-1]["observed"] == ["123", "789"]
+
+
+@pytest.mark.parametrize("output", ["", "123|456|"])
+def test_missing_identity_output_is_not_reported_as_a_changed_shell(output):
+    lifecycle, _ = terminal(result(output))
+    send = AsyncMock()
+    with pytest.raises(
+        TerminalUnavailable, match="terminal_identity_unavailable"
+    ) as exc:
+        asyncio.run(lifecycle.run("tmux send-keys -t agent Enter", send))
+    send.assert_not_awaited()
+    assert exc.value.terminal_events[-1]["stdout"] == output
+
+
+def test_failed_probe_retains_its_result_for_diagnosis():
+    lifecycle, _ = terminal(result(LIVE, code=124, stderr="timed out"))
+    with pytest.raises(TerminalUnavailable, match="terminal_state_unavailable") as exc:
+        asyncio.run(lifecycle.run("tmux has-session -t agent", AsyncMock()))
+    event = exc.value.terminal_events[-1]
+    assert (event["return_code"], event["stdout"], event["stderr"]) == (
+        124,
+        LIVE,
+        "timed out",
+    )
 
 
 def test_unrelated_command_does_not_probe_terminal():

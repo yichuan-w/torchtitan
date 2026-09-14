@@ -260,7 +260,7 @@ python -m torchtitan.experiments.rl.train \
 | Variable | This run | Meaning |
 | --- | --- | --- |
 | `SWE_PROMPT_DATA` | `mix_tw_swe.jsonl` | TerminalWorld pass + SWE-Smith main pool |
-| `TMAX_AGENT` | `terminus` | Terminus-2 scaffold (default `vanillux`) |
+| `TMAX_AGENT` | `terminus` | Terminus-2 scaffold (default `terminus`) |
 | `TMAX_TERMINUS_MAX_TURNS` | 120 | Max agent turns per episode |
 | `SWE_MAX_CONTEXT_LEN` | 63488 | Agent context budget |
 | `TMAX_TURN_MAX_TOKENS` | 32768 | Per-turn generation cap |

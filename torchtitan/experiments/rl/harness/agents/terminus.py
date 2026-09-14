@@ -361,7 +361,9 @@ class _SandboxEnvironment:
         self.terminal = TerminalLifecycle(self._terminal_exec)
 
     async def _terminal_exec(self, command: str):
-        return await self._exec_raw(command, timeout_sec=5)
+        # Control commands share the sandbox CPU with the agent's processes.
+        # The enclosing agent deadline still bounds this wait.
+        return await self._exec_raw(command, timeout_sec=60)
 
     async def exec(
         self,

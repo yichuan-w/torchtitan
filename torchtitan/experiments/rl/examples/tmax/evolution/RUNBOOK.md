@@ -246,11 +246,21 @@ at the OpenAI key (without it the loop dies at startup with `no OPENAI_API_KEY`)
 `SWE_RETUNE_AGENT=codex` (agentic retune with the full rollout records as files, no chat
 fallback: a failed session leaves the task as it was and logs `agent_failed`),
 `SWE_SIMPLIFY_HINT=vague` (`specific` writes where-to-look hints into the task text, and
-the policy learns to follow hints rather than to solve) and `SWE_EVOLVE_SIMPLIFY=0` (0/k
-signals are ledgered as `deferred` and replay when it is switched on). The codex arm runs
+the policy learns to follow hints rather than to solve). `SWE_EVOLVE_SIMPLIFY` defaults
+to `0`: 0/k signals are ledgered as `deferred`. Export `SWE_EVOLVE_SIMPLIFY=1` before
+`restart_evolve.sh` to enable simplification and replay those signals; confirm the value
+in `evolution/loop.env` after launch. Enabling the arm does not establish that its
+rewrites improve student outcomes. The codex arm runs
 `$TRL_BASE/bin/codex`, with `jq` beside it on the agent's PATH for reading the records.
 The worker count is not a throughput knob: the loop is signal-starved (89% of rounds carry
 ≤8 signals) and it only drains rare bursts faster.
+
+For a ChatGPT login, set `EVOLVE_CODEX_AUTH_FILE` to the project's private Codex
+`auth.json` and set `SYNTH_MODEL` to a model available to that account. The Codex
+arm uses the built-in OpenAI provider and ignores an inherited API key. Each
+session copies the login into its private home, then removes that copy during
+cleanup. The source login is unchanged. Keep credentials outside the versioned
+experiment artifacts; provision them separately from code and recorded inputs.
 
 After changing a prompt or a script, pull the checkout and run the same command: job
 prompts are module constants and need the restart; `AGENTS.md` is copied from disk at
@@ -519,3 +529,33 @@ covers it), and `train-vitals.timer` appends a vitals snapshot every 15 min.
   first, never get in.
 - **Do not gate a commit on a piped test command.** `pytest ... | tail && git commit`
   commits on a failing test, because the exit status is `tail`'s.
+
+## Automatic immutable releases
+
+Run `release_pipeline.py` on the machine that holds the project credentials. Its remote worker prepares the selected sources, builds and verifies the images, and checks original pre-test hooks on fresh digest sandboxes. The controller publishes the resulting release and downloads the published archive to verify its SHA.
+
+Create a project-local JSON configuration with these fields:
+
+| Field | Value |
+| --- | --- |
+| `sources` | The `data_release.py` input object, containing `seed` and a `sources` array. Each source pins its repository revision, metadata path, archives, adapter and optional count. |
+| `workers` | Worker count; defaults to 1000. |
+| `ssh_host` | SSH alias for the remote build host. |
+| `remote_checkout`, `remote_python` | Absolute paths to the deployed checkout and its Python environment. |
+| `code_commit` | Full commit SHA of the clean remote checkout. |
+| `remote_out` | Absolute remote output directory for this release. |
+| `daytona_env_file` | Local project environment file containing `DAYTONA_API_KEY` and other required `DAYTONA_` settings. |
+| `github_token_file`, `github_user` | Local project GitHub credential file and registry username. The master credential stays local; the worker receives refreshed, repository-scoped tokens. |
+| `image_repository` | Destination such as `ghcr.io/OWNER/IMAGES`. |
+| `hf_token_file`, `publish_repo` | Local project Hugging Face credential file and destination dataset repository. |
+
+From the repository root:
+
+```bash
+python torchtitan/experiments/rl/examples/tmax/evolution/release_pipeline.py \
+  --config path/to/project-release.json --out path/to/local-release-output
+```
+
+Resume with the same command and output directory. Changed inputs require a new directory. `progress.jsonl` records the stages; `publication.json` records the release SHA, publication revision and archive SHA. Individual build and verification attempts remain under the remote output directory. Failed items remain failures until their checks pass; restarting reuses verified images and completed hook checks.
+
+To adopt a previously prepared batch, set `prepared_source`, `batch_dir` and `digest_dir` to their remote paths, and `prepared_sha256` to the prepared release SHA. The controller verifies the frozen source configuration and existing release before reusing the publication. It does not change any training data path.

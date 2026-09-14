@@ -48,6 +48,7 @@ Usage:
   evolve_ondella.py --once --dry --only <task>     handle, publish nothing
   evolve_ondella.py --signal <run>/<task>--g<N>    replay one handled signal (dry)
 """
+
 from __future__ import annotations
 
 import argparse
@@ -83,13 +84,11 @@ log = logging.getLogger("evolve")
 # while the fixed eval stayed flat. Off, the too-hard tail freezes instead of
 # being loosened, and the only signals that move a task are the ones asking
 # for more difficulty. A deferred signal is replayed when the switch turns on.
-SIMPLIFY_ENABLED = os.environ.get("SWE_EVOLVE_SIMPLIFY", "1").lower() not in (
+SIMPLIFY_ENABLED = os.environ.get("SWE_EVOLVE_SIMPLIFY", "0").lower() not in (
     "0",
     "false",
     "no",
 )
-# Where a seed package comes from, under $TRL_BASE/data/sources/<corpus>/tasks.
-SOURCE_CORPORA = ("swe-extract", "tw-extract", "tmax-extract")
 # What a seed copy leaves behind: backups of the pre-canary-strip instruction
 # are not part of the task and would show the agent text the pool deliberately
 # removed; the other two are records of an older loop's, not the package's.
@@ -416,19 +415,48 @@ def materialize_r0(root: layout.Root, task: layout.TaskDir, tid: str) -> Path:
     """r0 is the seed package, copied once from whichever corpus carries it.
     Copied whole into r0.incoming and renamed, so a crash mid-copy cannot
     leave a half package that a later round would evolve."""
-    for corpus in SOURCE_CORPORA:
-        src = root.data / "sources" / corpus / "tasks" / tid
-        if (src / "instruction.md").exists():
-            break
-    else:
-        raise NoSeed(
-            f"no seed package for {tid} under data/sources/"
-            f"{{{','.join(SOURCE_CORPORA)}}}/tasks"
+    sources = root.data / "sources"
+    candidates = (
+        sorted(
+            corpus / "tasks" / tid
+            for corpus in sources.iterdir()
+            if (corpus / "tasks" / tid / "instruction.md").is_file()
         )
+        if sources.is_dir()
+        else []
+    )
+    if not candidates:
+        raise NoSeed(f"no seed package for {tid} under data/sources/*/tasks")
+    if len(candidates) != 1:
+        raise NoSeed(f"ambiguous seed package for {tid}: {candidates}")
+    src = candidates[0]
     dest = task.rev(0)
     incoming = dest.with_name("r0.incoming")
     shutil.rmtree(incoming, ignore_errors=True)
     shutil.copytree(src, incoming, ignore=SEED_IGNORE)
+    for row in layout.read_jsonl(root.mix.live):
+        md = row.get("metadata") or {}
+        if md.get("instance_id") != tid or not md.get("prebuilt_provenance"):
+            continue
+        image = md.get("image", "")
+        if "@sha256:" not in image or md.get("dockerfile"):
+            raise ValueError(f"{tid}: malformed prebuilt seed row")
+        dockerfile = incoming / "environment" / "Dockerfile"
+        if not dockerfile.exists():
+            dockerfile = incoming / "Dockerfile"
+        if not dockerfile.exists():
+            raise ValueError(f"{tid}: prebuilt source has no Dockerfile")
+        # Keep the audited source recipe out of the build context used by r0.
+        layout.write_json_atomic(
+            incoming / ".prebuilt-source.json",
+            {
+                "image": image,
+                "source_dockerfile": dockerfile.read_text(),
+                "provenance": md["prebuilt_provenance"],
+            },
+        )
+        dockerfile.write_text(f"FROM {image}\n")
+        break
     os.rename(incoming, dest)
     log.info("%s: r0 materialized from %s", tid, src.relative_to(root.path))
     return dest
@@ -526,6 +554,58 @@ def handle(
             layout.link_or_copy(
                 run_dir / rel, rewrite.traces / f"attempt-{i:02d}.jsonl"
             )
+        parent_snapshot = None
+        parent_hashes = {}
+        previous_context = None
+        context_hash = None
+        for previous in task.rewrite_dirs():
+            try:
+                previous_meta = json.loads(previous.meta.read_text())
+            except (OSError, ValueError):
+                # An interrupted historical rewrite must not stop this signal.
+                log.warning("%s unreadable prior rewrite: %s", tid, previous.meta)
+                continue
+            context = (
+                {
+                    "input_rev": previous_meta["input_rev"],
+                    "simplify": previous_meta["simplify"],
+                }
+                if previous_meta.get("simplify")
+                else previous_meta.get("simplify_context")
+                if previous_meta.get("calibration")
+                else None
+            )
+            if (
+                previous_meta.get("status") == "accepted"
+                and previous_meta.get("result_rev") == rev
+                and context
+            ):
+                parent_snapshot = rewrite.traces / "previous-simplify-parent"
+                # A hardlink would let edits to the reference change the original revision.
+                shutil.copytree(task.rev(context["input_rev"]), parent_snapshot)
+                parent_hashes = {
+                    str(path.relative_to(parent_snapshot)): layout.sha256_file(path)
+                    for path in sorted(parent_snapshot.rglob("*"))
+                    if path.is_file()
+                }
+                previous_context = {
+                    **context,
+                    "result_rev": rev,
+                    "parent": {
+                        "path": str(parent_snapshot.relative_to(rewrite.package)),
+                        "sha256": parent_hashes,
+                    },
+                    "observed": {
+                        key: d[key] for key in ("direction", "solved", "total")
+                    },
+                }
+                layout.write_json_atomic(
+                    rewrite.traces / "previous-simplify.json", previous_context
+                )
+                context_hash = layout.sha256_file(
+                    rewrite.traces / "previous-simplify.json"
+                )
+                break
         if (
             job == "harder"
             and os.environ.get("SWE_RETUNE_AGENT", "chat") == "codex"
@@ -552,6 +632,35 @@ def handle(
             resources=training_box(tid, declared),
             history=history,
         )
+        if parent_snapshot is not None:
+            current_hashes = {
+                str(path.relative_to(parent_snapshot)): layout.sha256_file(path)
+                for path in sorted(parent_snapshot.rglob("*"))
+                if path.is_file()
+            }
+            context_file = rewrite.traces / "previous-simplify.json"
+            if (
+                current_hashes != parent_hashes
+                or not context_file.is_file()
+                or layout.sha256_file(context_file) != context_hash
+            ):
+                rec.update(
+                    status="rejected",
+                    stage="simplify_context",
+                    reason="The original task reference or its lineage record was changed.",
+                )
+        if rec.get("calibration"):
+            assert previous_context is not None
+            context = previous_context
+            rationale = rewrite.package / "run" / "hardening.md"
+            context.setdefault("calibrations", []).append(
+                {
+                    "input_rev": rev,
+                    "observed": context["observed"],
+                    "rationale": rationale.read_text() if rationale.exists() else None,
+                }
+            )
+            rec["simplify_context"] = context
     except Exception as e:  # noqa: BLE001 -- the rewrite records its own failure
         rec = {
             "status": "failed",
@@ -559,6 +668,8 @@ def handle(
             "reason": f"{type(e).__name__}: {e}"[:300],
         }
     for key in (
+        "action",
+        "spec_repair",
         "operator",
         "harder_mode",
         "require_solution_growth",
@@ -566,6 +677,8 @@ def handle(
         "family",
         "hint",
         "simplify",
+        "calibration",
+        "simplify_context",
         "stage",
         "reason",
         "verdicts",
@@ -637,6 +750,7 @@ def _close(root: layout.Root, h: dict, *, dry: bool) -> None:
             "event": "rewrite",
             "rewrite": f"rewrites/{rewrite.path.name}",
             "job": meta["job"],
+            "action": meta.get("action"),
             "input_rev": meta["input_rev"],
             "status": meta["status"],
         },

@@ -19,8 +19,9 @@ from urllib.parse import quote
 import aiohttp
 
 logger = logging.getLogger(__name__)
-_COLLECTION_TIMEOUT_SEC = 10
+_COLLECTION_TIMEOUT_SEC = 60
 _RESPONSE_LIMIT_BYTES = 4 * 1024 * 1024
+_PAGE_SIZE = 1000
 
 
 async def collect_failure_diagnostics(
@@ -53,8 +54,17 @@ async def collect_failure_diagnostics(
                 headers = dict(client._api_client.default_headers)
                 api = client._api_url.rstrip("/")
 
-                async def get(name, url, params=None, *, authenticated=True):
+                async def get(
+                    name, url, params=None, *, authenticated=True, retried=False
+                ):
                     entry = {"status": "pending"}
+                    previous = record["requests"].get(name, {})
+                    if "pages" in previous:
+                        entry.update(
+                            payload=previous["payload"],
+                            pages=previous["pages"],
+                            complete=False,
+                        )
                     record["requests"][name] = entry
                     try:
                         async with http.get(
@@ -63,6 +73,14 @@ async def collect_failure_diagnostics(
                             params=params,
                         ) as response:
                             entry["http_status"] = response.status
+                            entry["attempts"] = 2 if retried else 1
+                            if response.status == 401 and authenticated and not retried:
+                                # The provider has returned isolated 401s while
+                                # other requests with the same key succeeded.
+                                entry["status"] = "retrying_unauthorized"
+                                save()
+                                await asyncio.sleep(0.5)
+                                return await get(name, url, params, retried=True)
                             body = bytearray()
                             async for chunk in response.content.iter_chunked(65536):
                                 body.extend(chunk)
@@ -86,6 +104,83 @@ async def collect_failure_diagnostics(
                         return None
                     finally:
                         save()
+
+                async def pages(name, url, params, fallback=None):
+                    items = []
+                    collected_payload = []
+                    page = 1
+                    while True:
+                        payload = await get(
+                            name,
+                            url,
+                            {
+                                **params,
+                                "page": page,
+                                "offset": (page - 1) * params["limit"],
+                            },
+                        )
+                        entry = record["requests"][name]
+                        analytics_required = (
+                            entry.get("http_status") == 403
+                            and isinstance(entry.get("payload"), dict)
+                            and entry["payload"].get("message")
+                            == "Telemetry endpoints are disabled when Analytics API is configured"
+                        )
+                        if fallback and (
+                            entry.get("http_status") == 404 or analytics_required
+                        ):
+                            # Hosted deployments serve telemetry from analytics.
+                            url, fallback = fallback, None
+                            continue
+                        if payload is None:
+                            entry["error_response"] = entry.get("payload")
+                            entry.update(
+                                payload=collected_payload,
+                                pages=page - 1,
+                                complete=False,
+                            )
+                            save()
+                            return
+                        batch = (
+                            payload
+                            if isinstance(payload, list)
+                            else payload.get("items")
+                        )
+                        if not isinstance(batch, list):
+                            entry.update(
+                                status="invalid_response",
+                                payload=collected_payload,
+                                complete=False,
+                            )
+                            save()
+                            return
+                        if page > 1 and batch and batch == items[-len(batch) :]:
+                            entry.update(
+                                status="pagination_stalled",
+                                payload=collected_payload,
+                                complete=False,
+                            )
+                            save()
+                            return
+                        items.extend(batch)
+                        collected_payload = (
+                            {**payload, "items": list(items)}
+                            if isinstance(payload, dict)
+                            else list(items)
+                        )
+                        complete = (
+                            page >= payload["totalPages"]
+                            if isinstance(payload, dict) and "totalPages" in payload
+                            else len(batch) < params["limit"]
+                        )
+                        entry.update(
+                            payload=collected_payload, pages=page, complete=complete
+                        )
+                        entry.pop("possibly_truncated", None)
+                        save()
+                        if complete:
+                            return
+                        page += 1
 
                 async def latest_metrics():
                     entry = {"status": "pending"}
@@ -113,25 +208,41 @@ async def collect_failure_diagnostics(
                 organization = quote(organization, safe="")
                 sandbox_id = quote(sandbox.id, safe="")
                 analytics = (config or {}).get("analyticsApiUrl")
-                base = (
+                retained_base = (
                     f"{analytics.rstrip('/')}/organization/{organization}/sandbox/{sandbox_id}"
                     if analytics
                     else f"{api}/sandbox/{sandbox_id}"
                 )
+                base = f"{api}/sandbox/{sandbox_id}"
                 window = {"from": started_at, "to": now}
                 await asyncio.gather(
-                    get(
+                    pages(
                         "audit",
                         f"{api}/audit/organizations/{organization}",
                         {"targetId[eq]": sandbox.id, "limit": 100, **window},
                     ),
-                    get("logs", base + "/telemetry/logs", {"limit": 1000, **window}),
-                    get(
-                        "traces", base + "/telemetry/traces", {"limit": 1000, **window}
+                    pages(
+                        "logs",
+                        base + "/telemetry/logs",
+                        {"limit": _PAGE_SIZE, **window},
+                        retained_base + "/telemetry/logs" if analytics else None,
                     ),
-                    get("metrics", base + "/telemetry/metrics", window),
+                    pages(
+                        "traces",
+                        base + "/telemetry/traces",
+                        {"limit": _PAGE_SIZE, **window},
+                        retained_base + "/telemetry/traces" if analytics else None,
+                    ),
+                    get("metrics", retained_base + "/telemetry/metrics", window),
                 )
-                record["status"] = "finished"
+                record["status"] = (
+                    "finished"
+                    if all(
+                        entry.get("status") == "ok" and entry.get("complete", True)
+                        for entry in record["requests"].values()
+                    )
+                    else "partial"
+                )
     except TimeoutError:
         record["status"] = "timeout"
     except asyncio.CancelledError:

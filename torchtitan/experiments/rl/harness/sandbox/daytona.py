@@ -210,6 +210,10 @@ def _build_observable_exec(full: str, command_key: str) -> _ObservableExecComman
     quoted_status_tmp = shlex.quote(status_tmp_path)
     quoted_wrapper = shlex.quote(wrapper_path)
     truncation_marker = shlex.quote("\n[torchtitan: command output truncated]\n")
+    # A receipt in the same byte stream orders collection after foreground output.
+    # Waiting for EOF would wait for detached children that retain stdout.
+    output_receipt = f"__torchtitan_output_end_{command_key}__"
+    quoted_receipt = shlex.quote(output_receipt)
     wrapper = (
         f"rm -f {quoted_wrapper}; "
         f"_tt_run() {{ {full}; _tt_exec_rc=$?; }}; "
@@ -221,26 +225,35 @@ def _build_observable_exec(full: str, command_key: str) -> _ObservableExecComman
         f"&& rm -f {quoted_raw_output} {quoted_output_fifo} "
         f"&& mkfifo {quoted_output_fifo} 2>/dev/null "
         f"&& : > {quoted_raw_output} "
-        f"&& exec 9>> {quoted_raw_output}; then "
-        f"(exec 8< {quoted_output_fifo}; "
+        f"&& exec 9>> {quoted_raw_output} "
+        f"&& exec 7<> {quoted_output_fifo}; then "
+        f"(exec 7>&-; exec 8< {quoted_output_fifo}; "
         f"stdbuf -o0 head -c {_EXEC_RAW_OUTPUT_LIMIT_BYTES} <&8 >&9; "
         "exec 9>&-; cat <&8 > /dev/null) </dev/null > /dev/null 2>&1 & "
-        "_tt_drain_pid=$!; "
-        f"_tt_run > {quoted_output_fifo} 2>&1; "
-        "_tt_wait_i=0; "
-        'while kill -0 "$_tt_drain_pid" 2>/dev/null '
-        '&& [ "$_tt_wait_i" -lt 5 ]; do '
-        "sleep 0.02; _tt_wait_i=$((_tt_wait_i + 1)); "
+        "_tt_run >&7 2>&1 7>&-; "
+        f"printf %s {quoted_receipt} >&7; exec 7>&-; "
+        f"_tt_collect_end=$(($(date +%s) + {_SESSION_POLL_GRACE_SEC})); "
+        "while :; do "
+        f"_tt_exec_size=$(grep -aobF {quoted_receipt} /proc/$$/fd/9 "
+        "| head -n 1 | cut -d : -f 1); "
+        '[ -n "$_tt_exec_size" ] && break; '
+        "_tt_raw_size=$(stat -Lc '%s' /proc/$$/fd/9 2>/dev/null || printf '0'); "
+        f'if [ "$_tt_raw_size" -ge {_EXEC_RAW_OUTPUT_LIMIT_BYTES} ]; then '
+        # Reserve the receipt length so a receipt cut by the output cap cannot
+        # leak into the returned tail. Capped output is already marked truncated.
+        f"_tt_exec_size={_EXEC_RAW_OUTPUT_LIMIT_BYTES - len(output_receipt)}; break; fi; "
+        'if [ "$(date +%s)" -ge "$_tt_collect_end" ]; then '
+        "exit 125; fi; sleep 0.02; "
         "done; "
         f"mkdir -p {quoted_result_dir} 2>/dev/null || :; "
-        "_tt_exec_size=$(stat -Lc '%s' /proc/$$/fd/9 2>/dev/null || printf '0'); "
         f'if [ "$_tt_exec_size" -le '
         f"{_EXEC_OUTPUT_HEAD_BYTES + _EXEC_OUTPUT_TAIL_BYTES} ]; then "
         f'head -c "$_tt_exec_size" /proc/$$/fd/9 > {quoted_output_tmp}; '
         "else "
         f"head -c {_EXEC_OUTPUT_HEAD_BYTES} /proc/$$/fd/9 > {quoted_output_tmp}; "
         f"printf %s {truncation_marker} >> {quoted_output_tmp}; "
-        f"tail -c {_EXEC_OUTPUT_TAIL_BYTES} /proc/$$/fd/9 >> {quoted_output_tmp}; "
+        'head -c "$_tt_exec_size" /proc/$$/fd/9 '
+        f"| tail -c {_EXEC_OUTPUT_TAIL_BYTES} >> {quoted_output_tmp}; "
         "fi; "
         "exec 9>&-; "
         f"mv -f {quoted_output_tmp} {quoted_output}; "

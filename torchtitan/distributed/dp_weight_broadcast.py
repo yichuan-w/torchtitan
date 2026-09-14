@@ -16,6 +16,7 @@ from typing import cast, Protocol, TypeVar
 import torch
 import torch.distributed as dist
 from torch.distributed.tensor import DTensor
+
 from torchtitan.observability import structured_logger as sl
 
 
@@ -279,6 +280,7 @@ class DPWeightBroadcaster:
             self._failure_flag,
             op=dist.ReduceOp.MAX,
             group=self._control_group,
+            async_op=False,
         )
         if torch.equal(self._failure_flag, self._no_failure_flag):
             return
@@ -291,9 +293,7 @@ class DPWeightBroadcaster:
         )
         records = await self._all_gather_object(error_record, self._control_group)
         failures = [record for record in records if record[1] is not None]
-        details = "; ".join(
-            f"rank {rank}: {error}" for rank, error in failures
-        )
+        details = "; ".join(f"rank {rank}: {error}" for rank, error in failures)
         coordinated_error = RuntimeError(
             f"DP weight synchronization failed during {stage}: {details}"
         )
@@ -302,9 +302,7 @@ class DPWeightBroadcaster:
         raise coordinated_error
 
     @staticmethod
-    async def _all_gather_object(
-        value: _T, group: dist.ProcessGroup
-    ) -> list[_T]:
+    async def _all_gather_object(value: _T, group: dist.ProcessGroup) -> list[_T]:
         gathered: list[object | None] = [None] * dist.get_world_size(group)
         await asyncio.to_thread(
             dist.all_gather_object,

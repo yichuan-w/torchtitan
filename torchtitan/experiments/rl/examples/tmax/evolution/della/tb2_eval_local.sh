@@ -49,7 +49,7 @@ else
             _run=$(dirname "$CKPT")
             while :; do
                 case "$(basename "$_run")" in
-                    checkpoints|checkpoint|rl|outputs) _run=$(dirname "$_run") ;;
+                    checkpoints|checkpoint|rl|outputs|weights) _run=$(dirname "$_run") ;;
                     *) break ;;
                 esac
             done
@@ -61,17 +61,28 @@ fi
 # so one copy (rltrain.env names the same file as SWE_TB2_VAL_DATA).
 TB2_DEFAULT=/scratch/gpfs/TRIDAO/al9080/terminal-rl/data/evalsets/tb2_eval.jsonl
 export SWE_TB2_DATA=${SWE_TB2_DATA:-$TB2_DEFAULT}
+export SWE_TB2_VAL_DATA=$SWE_TB2_DATA
 [ -f "$SWE_TB2_DATA" ] || { echo "no evalset at $SWE_TB2_DATA" >&2; exit 2; }
 SET_SUFFIX=""
 [ "$SWE_TB2_DATA" = "$TB2_DEFAULT" ] || SET_SUFFIX=-$(basename "$SWE_TB2_DATA" .jsonl)
 STAMP=$(date -u +%Y%m%d-%H%M%SZ)
 EVAL=$TRL_BASE/evals/$STAMP--$RUN_NAME-step$STEP$SET_SUFFIX
 mkdir -p "$EVAL" || exit 2
+export TRL_RUN_DIR=$EVAL
 exec > >(tee -a "$EVAL/stdout.log") 2>&1
 
-set -a; . ~/.config/daytona/env; set +a
+if [ -n "${DAYTONA_ENV_FILE:-}" ]; then
+    set -a; . "$DAYTONA_ENV_FILE"; set +a
+fi
+: "${DAYTONA_API_KEY:?supply project Daytona credentials or DAYTONA_ENV_FILE}"
 export SWE_VAL_SAMPLES=${SWE_VAL_SAMPLES:-$(grep -c "" "$SWE_TB2_DATA")}
+HF_ASSETS=/scratch/gpfs/TRIDAO/al9080/models/Qwen3.5-9B
 export SWE_TB2_CKPT=$CKPT
+if [ -n "$CKPT" ] && [ -f "$CKPT/model.safetensors.index.json" ]; then
+    HF_ASSETS=$CKPT
+    # HF exports load through hf_assets_path; SWE_TB2_CKPT selects native DCP.
+    export SWE_TB2_CKPT=""
+fi
 export SWE_PROMPT_DATA=$SWE_TB2_DATA
 export SWE_DP_SHARD=1 SWE_GEN_DP=1 SWE_GEN_BACKEND=vllm_native
 export SWE_ROLLOUT_CONCURRENCY=${SWE_ROLLOUT_CONCURRENCY:-445} SWE_NUM_ROLLOUT_WORKERS=8
@@ -84,8 +95,8 @@ export TMAX_AGENT=terminus TMAX_EXEC_TIMEOUT_SEC=120 TMAX_TERMINUS_MAX_TURNS=120
 export TMAX_TURN_MAX_TOKENS=32768
 export TT_DAYTONA_CPU=1 TT_DAYTONA_MEM_GB=2 TT_DAYTONA_DISK_GB=2
 # per rollout-worker process: 16 x 8 workers = 128 creates in flight per eval
-export TT_DAYTONA_CREATE_CONCURRENCY=16 TT_DAYTONA_EPHEMERAL=1
-export TT_DAYTONA_CREATE_RETRIES=8 TT_DAYTONA_LABEL=tb2_eval_local
+export TT_DAYTONA_CREATE_CONCURRENCY=${TT_DAYTONA_CREATE_CONCURRENCY:-16} TT_DAYTONA_EPHEMERAL=1
+export TT_DAYTONA_CREATE_RETRIES=${TT_DAYTONA_CREATE_RETRIES:-8} TT_DAYTONA_LABEL=tb2_eval_local
 export RL_GPUS=${RL_GPUS:-$OFF,$((OFF+1))} RL_GPU_OFFSET=$OFF
 export PATH=/scratch/gpfs/TRIDAO/al9080/titan-rl/bin:$PATH
 export PYTHONPATH=$TRL_TT${PYTHONPATH:+:$PYTHONPATH}
@@ -126,4 +137,4 @@ exec python -m torchtitan.experiments.rl.train \
     --config rl_grpo_qwen3_5_9b_tmax_tb2_eval \
     --num-generators 1 \
     --dump_folder "$EVAL/trainer" \
-    --hf_assets_path /scratch/gpfs/TRIDAO/al9080/models/Qwen3.5-9B
+    --hf_assets_path "$HF_ASSETS"
