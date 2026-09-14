@@ -48,12 +48,16 @@ choose the change from the actual attempts and record its rationale in
 
 ## What each file has to hold
 
-These are properties of the files themselves, so they apply whichever job you were
-given. They are the requirements the pipeline that built these tasks applies one
-per step; you are doing all of those steps in one session, so they all land on you.
+Apply these requirements to files the requested change needs to modify. For easier
+jobs, preserve working files outside the declared intervention. Report a demonstrated
+seed defect through the repair path instead of combining its repair with simplification.
+For easier jobs, keep instruction passages unrelated to the intervention verbatim.
+When simplifying a passage that combines several requirements, state the retained
+requirements explicitly in that passage.
 
-**`solution/solve.sh`** completes the whole workflow from the variant's starting
-state, the way a strong agent's successful run would. Inspect inputs before
+**`solution/solve.sh`**, when the intervention requires changing it, completes the
+whole workflow from the variant's starting state, the way a strong agent's
+successful run would. Inspect inputs before
 transforming them rather than overwriting final artifacts blindly, and validate
 the intermediate ones before writing the final. Keep it deterministic, safe to run
 twice, and runnable non-interactively from any working directory. Above all,
@@ -78,7 +82,9 @@ it was produced by a different method.
 
 For easier jobs, a removed goal or relaxed constraint may lose its corresponding
 checks only when declared in `run/simplify.json`. Preserve semantic correctness
-and checks for every remaining public requirement.
+and checks for every remaining public requirement. `add_scaffold` changes only
+`instruction.md`; its environment, reference and verifier stay unchanged.
+`provide_initial_state` supplies prerequisites and leaves verifier files unchanged.
 
 When assigned to write or repair the verifier, map each retained or added requirement
 to a check of the behavior or result it promises. Check against task inputs or an

@@ -246,8 +246,11 @@ at the OpenAI key (without it the loop dies at startup with `no OPENAI_API_KEY`)
 `SWE_RETUNE_AGENT=codex` (agentic retune with the full rollout records as files, no chat
 fallback: a failed session leaves the task as it was and logs `agent_failed`),
 `SWE_SIMPLIFY_HINT=vague` (`specific` writes where-to-look hints into the task text, and
-the policy learns to follow hints rather than to solve) and `SWE_EVOLVE_SIMPLIFY=0` (0/k
-signals are ledgered as `deferred` and replay when it is switched on). The codex arm runs
+the policy learns to follow hints rather than to solve). `SWE_EVOLVE_SIMPLIFY` defaults
+to `0`: 0/k signals are ledgered as `deferred`. Export `SWE_EVOLVE_SIMPLIFY=1` before
+`restart_evolve.sh` to enable simplification and replay those signals; confirm the value
+in `evolution/loop.env` after launch. Enabling the arm does not establish that its
+rewrites improve student outcomes. The codex arm runs
 `$TRL_BASE/bin/codex`, with `jq` beside it on the agent's PATH for reading the records.
 The worker count is not a throughput knob: the loop is signal-starved (89% of rounds carry
 ≤8 signals) and it only drains rare bursts faster.
