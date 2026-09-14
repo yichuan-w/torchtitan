@@ -1,0 +1,36 @@
+# LiteLLM proxy for Gemini, the same front as config.yaml (chat and Responses
+# API) so the Codex CLI the evolve loop drives runs on Gemini unchanged.
+#   PROXY_CONFIG=gemini.yaml PROXY_ENV=<file with GEMINI_KEY1..4= and LITELLM_MASTER_KEY=> bash proxy.sh start
+# Four deployments of one model name: LiteLLM spreads requests over the four
+# keys, so a key's rate limit is a quarter of the load.
+model_list:
+  - model_name: gemini-3.8-flash
+    litellm_params:
+      model: gemini/gemini-3.8-flash
+      api_key: os.environ/GEMINI_KEY1
+      max_tokens: 32000
+  - model_name: gemini-3.8-flash
+    litellm_params:
+      model: gemini/gemini-3.8-flash
+      api_key: os.environ/GEMINI_KEY2
+      max_tokens: 32000
+  - model_name: gemini-3.8-flash
+    litellm_params:
+      model: gemini/gemini-3.8-flash
+      api_key: os.environ/GEMINI_KEY3
+      max_tokens: 32000
+  - model_name: gemini-3.8-flash
+    litellm_params:
+      model: gemini/gemini-3.8-flash
+      api_key: os.environ/GEMINI_KEY4
+      max_tokens: 32000
+litellm_settings:
+  # The output cap on the Responses route comes from the same hook as for
+  # Claude; the cache_control it adds is an Anthropic field that LiteLLM
+  # drops for Gemini (drop_params), which caches prefixes on its own.
+  callbacks: cache_hook.proxy_handler_instance
+  drop_params: true
+  num_retries: 3
+  request_timeout: 3600
+general_settings:
+  master_key: os.environ/LITELLM_MASTER_KEY
