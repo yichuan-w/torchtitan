@@ -54,6 +54,10 @@ and explores the container. Concretely:
 - **Keep every existing test that still holds under the new instruction.** Remove
   a check only when its requirement was removed or relaxed in the public task;
   simplification does not permit dropping checks for retained requirements.
+  Correct an inherited assertion that excludes a permitted representation while
+  preserving its check of the required content. When brackets in a format example
+  can denote either literal characters or placeholders, accept both readings unless
+  the instruction explicitly resolves them; verify the enclosed values either way.
 - **Add what the new requirement needs, and no more: at most 5 assertions over the
   seed's count** (`run/seed_size.json`). One requirement is two or three.
 - Identify whether the public task requires a final artifact or a reusable
@@ -109,6 +113,10 @@ decimal-text encodings that permit it, test a correct value and a distinct wrong
 value that a default binary floating-point parser would round to the same value.
 Establish their difference directly from the decimal tokens and record it in the
 replay contract; a test that changes only digits the parser retains misses this loss.
+For reusable programs, exercise the permitted range of each numeric field that
+affects the result, including identifiers used for matching or ordering. A large
+argument does not test a large output identifier. Put the distinguishing values
+in grader-owned inputs and check the exact corresponding output values.
 Choose parsers and decoders that support the representations allowed by the
 public task, including container variants supported by a required tool. A
 helper library's unsupported-format error does not establish an invalid
@@ -155,6 +163,12 @@ results; these exercise different behavior. In each case, check retained output
 requirements, such as required headers or schema even when there are no records.
 Check these properties before parsing or normalization discards them; an empty
 parsed collection alone does not prove that the required output structure exists.
+Record each applicable boundary in the replay contract's `coverage` array with
+the input, expected output, verifier test name, and observed execution result.
+Include the empty-input invocation itself in the verifier, not only in an author
+check. If a boundary is forbidden by the public task, record the excluding clause.
+Use an initially empty output location when testing whether a program fabricates
+results; require cleanup of existing output only if the public task requires it.
 
 Before finishing, inspect whether a no-op, a hardcoded answer or fabricated evidence
 could still pass, and whether an equivalent legal solution could fail. Choose examples
