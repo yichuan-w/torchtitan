@@ -250,6 +250,84 @@ def test_sandbox_execution_error_marks_rollout_unscored(monkeypatch) -> None:
     rollouter_mod.grade_tmax.assert_not_awaited()
 
 
+def test_agent_disk_exhaustion_is_scored_not_infra(monkeypatch) -> None:
+    """The agent filled the sandbox's own quota, so the harness lost the sandbox.
+
+    Every mix row passed its oracle at or under the declared disk, so the fill
+    is the agent's outcome: reward 0, kept in the batch, not an unscored
+    infra_failed that the policy is never penalised for.
+    """
+    from torchtitan.experiments.rl.harness.agents.terminus import _SandboxExecutionError
+    from torchtitan.experiments.rl.harness.sandbox.base import SandboxIssue
+
+    rollouter = _stub_rollouter(monkeypatch, ctrf_result=None)
+
+    @contextlib.asynccontextmanager
+    async def boot_recording_disk_full(*args, issue_tracker=None, **kwargs):
+        # What the Daytona backend records when session create hits ENOSPC.
+        issue_tracker.record(
+            SandboxIssue(
+                provider="daytona",
+                kind="session_disk_exhausted",
+                phase="session_create",
+                recovered=False,
+                error_type="DaytonaInternalServerError",
+                message="mkdir /root/.daytona/sessions/x: no space left on device",
+            )
+        )
+        yield AsyncMock()
+
+    monkeypatch.setattr(rollouter_mod, "boot_agent_sandbox", boot_recording_disk_full)
+    agent = AsyncMock(
+        side_effect=_SandboxExecutionError(
+            "Failed to create session: no space left on device"
+        )
+    )
+    monkeypatch.setattr(rollouter_mod, "get_agent", lambda name: agent)
+    rollout, submitted, _, reason, diagnostics = _run_rollout(rollouter)
+    assert rollout.status == RolloutStatus.COMPLETED
+    assert rollout.turns[-1].env_rewards == {"tmax_reward": 0.0}
+    assert diagnostics.infra_failed is False
+    assert diagnostics.failure == {
+        "origin": "agent",
+        "reason": "disk_exhausted",
+        "stage": "agent",
+    }
+    assert not submitted and reason == "disk_exhausted"
+    rollouter_mod.grade_tmax.assert_not_awaited()
+
+
+def test_disk_exhaustion_before_the_agent_stays_infra(monkeypatch) -> None:
+    """The same ENOSPC during setup is the environment's, not the agent's."""
+    from torchtitan.experiments.rl.harness.sandbox.base import SandboxIssue
+
+    rollouter = _stub_rollouter(monkeypatch, ctrf_result=None)
+
+    @contextlib.asynccontextmanager
+    async def boot_recording_disk_full(*args, issue_tracker=None, **kwargs):
+        issue_tracker.record(
+            SandboxIssue(
+                provider="daytona",
+                kind="session_disk_exhausted",
+                phase="session_create",
+                recovered=False,
+                error_type="DaytonaInternalServerError",
+                message="no space left on device",
+            )
+        )
+        yield AsyncMock()
+
+    monkeypatch.setattr(rollouter_mod, "boot_agent_sandbox", boot_recording_disk_full)
+    monkeypatch.setattr(
+        rollouter_mod,
+        "seed_workspace",
+        AsyncMock(side_effect=RuntimeError("no space left on device")),
+    )
+    _, _, _, _, diagnostics = _run_rollout(rollouter)
+    assert diagnostics.infra_failed is True
+    assert diagnostics.failure["origin"] == "unknown"
+
+
 def test_normal_shell_exit_keeps_the_failure_training_sample(monkeypatch) -> None:
     rollouter = _stub_rollouter(monkeypatch, ctrf_result=None)
     agent = AsyncMock(

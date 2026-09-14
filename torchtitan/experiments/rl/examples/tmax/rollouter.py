@@ -1452,19 +1452,46 @@ class TMaxRollouter(Rollouter):
                 error_msg = "sandbox_timeout"
             failure = {"origin": "unknown", "reason": error_msg, "stage": failure_stage}
         except Exception as e:
-            infra_failed = True
             reward = 0.0
-            logger.exception("[tmax] %s: rollout failed", rollout_id)
-            status = RolloutStatus.ERROR
             error_msg = f"{type(e).__name__}: {e}"
-            # infra_failed remains the compatibility flag for an unscored
-            # attempt. A transport/terminal exception alone establishes no blame.
-            failure = {
-                "origin": "unknown",
-                "reason": getattr(e, "failure_reason", type(e).__name__),
-                "stage": failure_stage,
-            }
             terminal_events = getattr(e, "terminal_events", terminal_events)
+            if failure_stage == "agent" and any(
+                kind in issue_tracker.counts for kind in _DISK_ISSUE_KINDS
+            ):
+                # The sandbox's own quota filled while the agent was driving it,
+                # and the harness then lost the sandbox (a session or command
+                # needs a directory it cannot create). Every row in a mix was
+                # oracle-validated at or under its declared disk, so the fill is
+                # the agent's doing -- an unguarded recursive CTE, a torch install
+                # the task never needed (task_000333 / task_000702 in yichuan's
+                # 09-14 run) -- and it is scored 0 like any other failed attempt.
+                # Left as infra_failed it is dropped from the batch instead, and
+                # the policy is never penalised for exhausting its disk.
+                infra_failed = False
+                status = RolloutStatus.COMPLETED
+                finish_reason = "disk_exhausted"
+                logger.warning(
+                    "[tmax] %s: disk exhausted by the agent, scored 0 (%s)",
+                    rollout_id,
+                    error_msg,
+                )
+                failure = {
+                    "origin": "agent",
+                    "reason": "disk_exhausted",
+                    "stage": failure_stage,
+                }
+            else:
+                infra_failed = True
+                logger.exception("[tmax] %s: rollout failed", rollout_id)
+                status = RolloutStatus.ERROR
+                # infra_failed remains the compatibility flag for an unscored
+                # attempt. A transport/terminal exception alone establishes no
+                # blame.
+                failure = {
+                    "origin": "unknown",
+                    "reason": getattr(e, "failure_reason", type(e).__name__),
+                    "stage": failure_stage,
+                }
         finally:
             self._rollout_gate.release()
             captured = await adapter.finish_session(rollout_id)

@@ -589,6 +589,15 @@ infra-failed rollout's reward is then overwritten to `NaN` so the advantage
 estimator drops it — a group of 16 with one infra failure baselines over the
 surviving 15 rather than treating the failure as a zero.
 
+One exception, deliberate: a sandbox lost to `no space left on device` **while the
+agent is driving it** (`session_disk_exhausted` / `command_disk_exhausted` recorded
+during the agent stage) is scored 0 with `infra_failed=False`,
+`finish_reason="disk_exhausted"`, `failure.origin="agent"`. Every row in a mix
+passed its oracle at or under its declared disk, so the fill is the agent's own
+work (an unguarded recursive CTE, a torch install the task never needed); dropped
+as infra it would never be penalised. The same ENOSPC during setup or boot stays
+infra.
+
 Memory: `TT_DAYTONA_MEM_GB` (4) is the fallback when a row declares nothing;
 `TT_DAYTONA_MAX_MEM_GB` (8) **clamps** whatever a row asks for. They are not
 synonyms. The clamp exists because five TerminalWorld tasks declare 16 GiB
