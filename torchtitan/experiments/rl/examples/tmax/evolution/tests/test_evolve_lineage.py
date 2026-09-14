@@ -1110,3 +1110,19 @@ def test_each_accepted_rewrite_is_folded_on_its_own(tmp_path, monkeypatch):
         for l in root.mix.live.read_text().splitlines()
     }
     assert live["tw_a"]["metadata"]["rev"] == 1 and live["tw_b"]["metadata"]["rev"] == 1
+
+
+def test_fold_carries_the_rows_domain_annotation(tmp_path, monkeypatch):
+    """terminal_domain lives on the row (from the corpus table), not in the
+    package, so a folded row keeps the replaced row's value."""
+    root = _root(tmp_path, monkeypatch)
+    rows = [json.loads(l) for l in root.mix.live.read_text().splitlines()]
+    rows[0]["metadata"]["terminal_domain"] = "data-science"
+    root.mix.publish([json.dumps(r) for r in rows])
+    _signal(root, task="tw_a")
+    _stub(monkeypatch)
+    r = od.run_round(root, workers=1)
+    assert r["accepted"] == 1, r
+    live = json.loads(root.mix.live.read_text().splitlines()[0])
+    assert live["metadata"]["rev"] == 1
+    assert live["metadata"]["terminal_domain"] == "data-science"
