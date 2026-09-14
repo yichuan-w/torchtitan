@@ -1072,7 +1072,18 @@ class DaytonaSandbox:
             )
         except Exception as e:
             if self.issue_tracker.num_events == num_issues_before:
-                self._record_issue("exec_failed", phase="exec", error=e)
+                # The Toolbox needs a directory for every command it runs
+                # ("failed to create log directory: mkdir ...: no space left on
+                # device"); on a full sandbox that surfaces here, after the
+                # session exists, as a plain API error. It is the same disk
+                # exhaustion the session-create path records, and the rollouter
+                # scores it as the agent's outcome only under that kind.
+                if "no space left on device" in str(e).lower():
+                    self._record_issue(
+                        "command_disk_exhausted", phase="exec", error=e
+                    )
+                else:
+                    self._record_issue("exec_failed", phase="exec", error=e)
             raise
         out_lower = out.lower()
         if rc != 0 and (
