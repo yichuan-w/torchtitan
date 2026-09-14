@@ -30,16 +30,17 @@ set -uo pipefail
 : "${TRL_BASE:?}" "${SOURCE_RUN:?}" "${SELECTED:?}"
 WORKERS=${WORKERS:-64}; MAX_ROUNDS=${MAX_ROUNDS:-6}; MAX_ATTEMPTS=${MAX_ATTEMPTS:-2}
 ATTEMPTS_SINCE=${ATTEMPTS_SINCE:-$(date -u +%Y%m%d-%H%M)}
-HERE=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
+# DRIVE_DIR, not HERE: evolveloop_env.sh sets HERE to its own directory when sourced.
+DRIVE_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 # DLOG, not LOG: evolveloop_env.sh sets LOG to the loop log when sourced.
 DLOG=$TRL_BASE/logs/offline_drive--$(date -u +%Y%m%d-%H%M%SZ).log
 mkdir -p "$TRL_BASE/logs" "$TRL_BASE/tmp" "${EVOLVE_SOCK_DIR:-/tmp}"
 L() { echo "[$(date -u +%FT%TZ)] $*" >> "$DLOG"; }
 # shellcheck disable=SC1091
-. "$HERE/della/evolveloop_env.sh"
+. "$DRIVE_DIR/della/evolveloop_env.sh"
 if [ "${CLAUDE_PROXY:-0}" = 1 ]; then
   # shellcheck disable=SC1091
-  . "$HERE/claude_proxy/claude_env.sh"
+  . "$DRIVE_DIR/claude_proxy/claude_env.sh"
 fi
 L "start workers=$WORKERS max_rounds=$MAX_ROUNDS max_attempts=$MAX_ATTEMPTS since=$ATTEMPTS_SINCE checkout=$TT@$(git -C "$TT" rev-parse --short HEAD) model=${SYNTH_MODEL:-gpt-5.6} api_base=${SYNTH_API_BASE:-openai} agent_timeout=${EVOLVE_AGENT_TIMEOUT:-2400} sock_dir=${EVOLVE_SOCK_DIR:-/tmp} tmpdir=${TMPDIR:-/tmp}"
 for k in $(seq 1 "$MAX_ROUNDS"); do
@@ -47,8 +48,11 @@ for k in $(seq 1 "$MAX_ROUNDS"); do
   while pid=$(sed -n 's/.* pid=\([0-9]*\) .*/\1/p' "$TRL_BASE/evolution/loop.lock" 2>/dev/null) \
         && [ -n "$pid" ] && kill -0 "$pid" 2>/dev/null; do sleep 60; done
   name=$(basename "$SOURCE_RUN").offline$k-$(date -u +%H%M%S)
-  out=$(python3 "$HERE/offline_stage.py" --run "$SOURCE_RUN" --selected "$SELECTED" --root "$TRL_BASE" \
-        --name "$name" --skip-accepted --only-failed --max-attempts "$MAX_ATTEMPTS" --attempts-since "$ATTEMPTS_SINCE")
+  # $PY (the training venv, from evolveloop_env.sh): the login node's python3 is
+  # 3.9 and cannot parse offline_stage.py; its traceback went to the journal and
+  # the round read "staged 0" (2026-09-14).
+  out=$("$PY" "$DRIVE_DIR/offline_stage.py" --run "$SOURCE_RUN" --selected "$SELECTED" --root "$TRL_BASE" \
+        --name "$name" --skip-accepted --only-failed --max-attempts "$MAX_ATTEMPTS" --attempts-since "$ATTEMPTS_SINCE" 2>>"$DLOG")
   L "round $k: $out"
   n=$(printf '%s' "$out" | sed -n 's/^staged \([0-9]*\) signals.*/\1/p')
   if [ "${n:-0}" -eq 0 ]; then

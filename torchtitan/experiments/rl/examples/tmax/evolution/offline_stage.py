@@ -116,9 +116,12 @@ def main() -> None:
             os.makedirs(os.path.dirname(d), exist_ok=True)
             os.link(s, d)
             n_rec += 1
-        shutil.copy2(
-            os.path.join(src, "signals", sig), os.path.join(dst, "signals", sig)
-        )
+        # The loop resolves the attempts against runs/<signal's run>/, so the
+        # signal names the staged copy, not the run it was cut from.
+        data["run"] = name
+        with open(os.path.join(dst, "signals", sig), "w") as f:
+            json.dump(data, f, indent=1, sort_keys=True)
+            f.write("\n")
         n_sig += 1
         log_line(
             f"signal={name}/{tid}--g{v['group']} solved={data['solved']}/{data['total']} "

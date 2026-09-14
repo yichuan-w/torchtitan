@@ -7,9 +7,9 @@
 #
 # The Claude proxy for the evolve loop, as a systemd user unit on this host.
 #
-#   PROXY_ENV=<file with ANTHROPIC_API_KEY= and LITELLM_MASTER_KEY=> \
-#   [PROXY_VENV=<venv with litellm[proxy]>] [PROXY_PORT=4000] [PROXY_WORKERS=1] \
-#   [PROXY_LOG=<file>] bash proxy.sh start|stop|status
+#   PROXY_ENV=<file with the provider keys config.yaml names and LITELLM_MASTER_KEY=> \
+#   [PROXY_CONFIG=config.yaml|gemini.yaml] [PROXY_VENV=<venv with litellm[proxy]>] \
+#   [PROXY_PORT=4000] [PROXY_WORKERS=1] [PROXY_LOG=<file>] bash proxy.sh start|stop|status
 #
 # Workers: with several uvicorn workers the supervisor pings each one every
 # 0.5 s and SIGKILLs any that does not answer within timeout_worker_healthcheck
@@ -23,17 +23,19 @@ set -u
 PROXY_VENV=${PROXY_VENV:-/scratch/gpfs/TRIDAO/al9080/terminal-rl/litellm-venv}
 PROXY_PORT=${PROXY_PORT:-4000}
 PROXY_WORKERS=${PROXY_WORKERS:-1}
+PROXY_CONFIG=${PROXY_CONFIG:-config.yaml}
 HERE=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 UNIT=litellm-claude-proxy-$PROXY_PORT
 case "${1:-status}" in
   start)
-    : "${PROXY_ENV:?a file holding ANTHROPIC_API_KEY= and LITELLM_MASTER_KEY=}"
+    : "${PROXY_ENV:?a file holding the provider keys and LITELLM_MASTER_KEY=}"
+    [ -f "$HERE/$PROXY_CONFIG" ] || { echo "no $PROXY_CONFIG beside proxy.sh" >&2; exit 2; }
     PROXY_LOG=${PROXY_LOG:-$(dirname "$PROXY_ENV")/proxy.log}
     systemctl --user stop "$UNIT" 2>/dev/null; systemctl --user reset-failed "$UNIT" 2>/dev/null
     extra=""; [ "$PROXY_WORKERS" -gt 1 ] && extra="--timeout_worker_healthcheck 60"
     systemd-run --user --unit="$UNIT" --collect -p EnvironmentFile="$PROXY_ENV" -p WorkingDirectory="$HERE" \
       -p Environment=TMPDIR="${TMPDIR:-/tmp}" -p Restart=on-failure -p RestartSec=3 \
-      bash -c "exec $PROXY_VENV/bin/litellm --config $HERE/config.yaml --host 127.0.0.1 --port $PROXY_PORT --num_workers $PROXY_WORKERS $extra >> $PROXY_LOG 2>&1"
+      bash -c "exec $PROXY_VENV/bin/litellm --config $HERE/$PROXY_CONFIG --host 127.0.0.1 --port $PROXY_PORT --num_workers $PROXY_WORKERS $extra >> $PROXY_LOG 2>&1"
     sleep 15; systemctl --user is-active "$UNIT"; curl -s -m 5 "http://127.0.0.1:$PROXY_PORT/health/liveliness"; echo ;;
   stop) systemctl --user stop "$UNIT" ;;
   status) systemctl --user is-active "$UNIT"; curl -s -m 5 "http://127.0.0.1:$PROXY_PORT/health/liveliness"; echo ;;
