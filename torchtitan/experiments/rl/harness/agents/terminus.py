@@ -611,6 +611,10 @@ async def terminus_agent(
             await env.terminal.prepare()
             await agent.setup(env)
             await env.terminal.bind(agent._session._session_name)
+            # Student and control plane in separate cgroups; see
+            # terminus_terminal.py. Never raises: an unsupported runtime is an
+            # event, not a failed rollout.
+            await env.terminal.isolate()
             stage = "run"
             logger.info("[terminus] session=%s stage=%s start", task.session_id, stage)
             # A check before the next LLM call cannot interrupt a pending call or

@@ -210,3 +210,93 @@ def test_each_terminal_has_a_directory_outside_tmp():
     second, _ = terminal()
     assert first.directory != second.directory
     assert first.directory.startswith("/var/tmp/terminus-")
+
+
+# --- isolation and evidence -----------------------------------------------
+
+
+def test_isolate_moves_the_pane_and_protects_the_control_plane(monkeypatch):
+    monkeypatch.delenv("TT_TERMINAL_ISOLATION", raising=False)
+    lifecycle, execute = terminal(result("isolated|134217728|10000|17"))
+    asyncio.run(lifecycle.isolate())
+    setup = execute.call_args.args[0]
+    # The pane shell is the student's; the tmux server stays with the control plane.
+    assert "echo 456 > /sys/fs/cgroup/student/cgroup.procs" in setup
+    assert "echo 123 > /sys/fs/cgroup/student" not in setup
+    assert "grep -q ':/control$' /proc/123/cgroup" in setup
+    assert "echo 128M > /sys/fs/cgroup/control/memory.min" in setup
+    assert "echo 10000 > /sys/fs/cgroup/control/cpu.weight" in setup
+    assert lifecycle.isolated
+    assert [event["kind"] for event in lifecycle.events] == ["isolated"]
+    assert lifecycle.events[0]["control_cpu_weight"] == "10000"
+    assert lifecycle.events[0]["control_procs"] == "17"
+
+
+def test_isolate_reads_its_settings_from_the_environment(monkeypatch):
+    monkeypatch.setenv("TT_CONTROL_MEMORY_MIN", "64M")
+    monkeypatch.setenv("TT_CONTROL_CPU_WEIGHT", "500")
+    lifecycle, execute = terminal(result("isolated|67108864|500|3"))
+    asyncio.run(lifecycle.isolate())
+    setup = execute.call_args.args[0]
+    assert "echo 64M > /sys/fs/cgroup/control/memory.min" in setup
+    assert "echo 500 > /sys/fs/cgroup/control/cpu.weight" in setup
+
+
+def test_invalid_cpu_weight_skips_isolation(monkeypatch):
+    monkeypatch.setenv("TT_CONTROL_CPU_WEIGHT", "0")
+    lifecycle, execute = terminal()
+    asyncio.run(lifecycle.isolate())
+    execute.assert_not_awaited()
+    assert lifecycle.events[0]["kind"] == "isolation_skipped"
+
+
+def test_unsupported_cgroups_leave_the_terminal_as_it_was(monkeypatch):
+    monkeypatch.delenv("TT_TERMINAL_ISOLATION", raising=False)
+    lifecycle, execute = terminal(result(code=3))
+    asyncio.run(lifecycle.isolate())
+    assert execute.await_count == 1
+    assert not lifecycle.isolated
+    assert [event["kind"] for event in lifecycle.events] == ["isolation_unsupported"]
+
+
+def test_partial_isolation_is_recorded_as_a_failure_not_a_success(monkeypatch):
+    monkeypatch.delenv("TT_TERMINAL_ISOLATION", raising=False)
+    lifecycle, execute = terminal(result(code=5, stderr="write error"))
+    asyncio.run(lifecycle.isolate())
+    assert execute.await_count == 1
+    assert not lifecycle.isolated
+    event = lifecycle.events[-1]
+    assert event["kind"] == "isolation_failed" and event["stderr"] == "write error"
+
+
+def test_isolation_can_be_switched_off(monkeypatch):
+    monkeypatch.setenv("TT_TERMINAL_ISOLATION", "0")
+    lifecycle, execute = terminal()
+    asyncio.run(lifecycle.isolate())
+    execute.assert_not_awaited()
+    assert [event["kind"] for event in lifecycle.events] == ["isolation_disabled"]
+
+
+def test_failed_probe_carries_a_memory_snapshot():
+    snapshot = "/sys/fs/cgroup: memory.current=4294930432 memory.events=oom_kill 0 "
+    lifecycle, execute = terminal(
+        result(code=124, stderr="timed out"), result(snapshot)
+    )
+    with pytest.raises(TerminalUnavailable, match="terminal_state_unavailable") as exc:
+        asyncio.run(lifecycle.run("tmux has-session -t agent", AsyncMock()))
+    reads = execute.call_args_list[1].args[0]
+    assert "memory.pressure" in reads and "/sys/fs/cgroup/$f" in reads
+    assert "/sys/fs/cgroup/student" not in reads
+    kinds = [event["kind"] for event in exc.value.terminal_events]
+    assert kinds == ["pressure_snapshot", "terminal_state_unavailable"]
+    assert exc.value.terminal_events[0]["stdout"] == snapshot
+
+
+def test_isolated_terminal_snapshots_both_cgroups():
+    lifecycle, execute = terminal(result(code=1), result("x"))
+    lifecycle.isolated = True
+    with pytest.raises(TerminalUnavailable):
+        asyncio.run(lifecycle.run("tmux has-session -t agent", AsyncMock()))
+    reads = execute.call_args_list[1].args[0]
+    assert "/sys/fs/cgroup/student/$f" in reads
+    assert "/sys/fs/cgroup/control/$f" in reads
