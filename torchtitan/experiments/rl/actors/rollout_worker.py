@@ -31,6 +31,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import os
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import replace
 from typing import TYPE_CHECKING
 
@@ -126,12 +127,39 @@ class RolloutWorker(Actor):
             )
         self._rollouter: Rollouter = rollouter_config.build()
         self._generator_router: InterGeneratorRouter | None = None
-        # Strong refs for fire-and-forget cancel_generation RPCs.
-        self._cancel_rpc_tasks: set[asyncio.Task] = set()
 
     @endpoint
     async def setup(self, generators: list) -> None:
         """Build this worker's generate-only router over the shared generator actors."""
+        # Renderer thread pool: render work is CPU-bound, so size to CPU count (decoupled from rollout concurrency).
+        #
+        # ``Controller.setup_async`` installs exactly this (controller.py:906-908), but on the
+        # CONTROLLER's loop. Rollouts do not run there: this actor moves ``run_group_rollouts``
+        # into a pool of CPU worker processes (module docstring above), and a worker never runs
+        # ``setup_async``, so without this line it keeps asyncio's stock ``min(32, cpu+4)``.
+        #
+        # Three things in THIS process post to that one executor:
+        #   * the renderer, per turn -- environment/token.py:125, :161, :258, :266
+        #   * the Daytona SDK's build-context upload on the create path for Dockerfile-based
+        #     images -- object_storage.py:187 (run_in_executor(None, ...)), :195, :198
+        #   * aiohttp's ThreadedResolver, which resolves DNS on the default executor because
+        #     aiodns is absent from runbook/requirements.lock.txt (aiohttp 3.14.3)
+        # These can contend at high concurrency. Increasing this shared pool can
+        # reduce DNS queueing; it does not isolate DNS or guarantee no timeouts.
+        loop = asyncio.get_running_loop()
+        cpu_count = os.cpu_count()
+        stock = min(32, (cpu_count or 1) + 4)
+        before = getattr(getattr(loop, "_default_executor", None), "_max_workers", None)
+        executor = ThreadPoolExecutor(max_workers=cpu_count)
+        loop.set_default_executor(executor)
+        logging.getLogger("torchtitan").info(
+            "[rollout_worker] default executor max_workers: installed=%s (was %s; asyncio "
+            "would default to %s) cpu_count=%s",
+            executor._max_workers,
+            before,
+            stock,
+            cpu_count,
+        )
         self._generator_router = self.config.generator_router.build(
             generators=generators
         )
@@ -200,10 +228,6 @@ class RolloutWorker(Actor):
         """
         router = self._generator_router
 
-        # Strong refs for fire-and-forget cancel RPCs (a bare create_task can be
-        # garbage-collected mid-flight).
-        cancel_tasks: set[asyncio.Task] = self._cancel_rpc_tasks
-
         @sl.log_trace_span("generate")
         async def generate(
             prompt_token_ids: list[int],
@@ -212,41 +236,18 @@ class RolloutWorker(Actor):
             routing_session_id: str | None = None,
             sampling_config: SamplingConfig | None = None,
         ):
-            try:
-                result = await router.route(
-                    "generate",
-                    prompt_token_ids,
-                    request_id=request_id,
-                    routing_session_id=routing_session_id,
-                    sampling_config=sampling_config,
-                    metrics_prefix="generator",
-                    routing_ctx=RoutingContext(
-                        estimated_cost=1,
-                        session_id=routing_session_id,
-                    ),
-                )
-            except BaseException:
-                # The rollout is giving up on this turn (budget/guard
-                # cancellation, or the RPC failed). Without a cancel, the
-                # request stays queued on the generator and is generated at
-                # full cost for nobody -- orphans like that starved every live
-                # first turn on 08-29. Fire-and-forget so a cancellation
-                # handler never blocks; sticky routing sends the cancel to the
-                # same generator the request went to.
-                async def _cancel() -> None:
-                    await router.route(
-                        "cancel_generation",
-                        request_id=request_id,
-                        routing_ctx=RoutingContext(
-                            estimated_cost=0,
-                            session_id=routing_session_id,
-                        ),
-                    )
-
-                task = asyncio.create_task(_cancel())
-                cancel_tasks.add(task)
-                task.add_done_callback(cancel_tasks.discard)
-                raise
+            result = await router.route(
+                "generate",
+                prompt_token_ids,
+                request_id=request_id,
+                routing_session_id=routing_session_id,
+                sampling_config=sampling_config,
+                metrics_prefix="generator",
+                routing_ctx=RoutingContext(
+                    estimated_cost=1,
+                    session_id=routing_session_id,
+                ),
+            )
             # route returns a per-rank ValueMesh; all ranks return the same value.
             return result.get(0)
 

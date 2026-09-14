@@ -791,6 +791,30 @@ def test_spec_defect_keeps_the_input_revision_without_starting_repair(
     assert (rw.traces / "attempt-01.jsonl").read_text() == '{"reward": 0}\n'
 
 
+@pytest.mark.parametrize("mode", ["student", "operators"])
+def test_final_size_gate_uses_callers_mode(tmp_path, monkeypatch, mode):
+    work, task = _pkg(tmp_path, SEED["instruction"], SEED["test_state_py"])
+    task.update(solve_sh=SEED["solve_sh"], _direction="harder", _harder_mode="student")
+    original = {**SEED, "_harder_mode": mode}
+    monkeypatch.setattr(fb.shutil, "which", lambda _n: None)
+    monkeypatch.setattr(
+        fb,
+        "daytona_probe",
+        lambda *a, **k: {
+            "ok": True,
+            "passed": False,
+            "reward": 1,
+            "solve_exit": 0,
+        },
+    )
+    result = fb.revalidate(
+        work, "image", "t", task, orig=original, changed=["solve_sh"]
+    )
+    assert result["ok"] is (mode == "student")
+    if mode == "operators":
+        assert result["stage"] == "step_size"
+
+
 def test_format_trace_prefers_failures() -> None:
     records = [
         (
@@ -934,7 +958,7 @@ def test_revalidate_sends_back_a_rewrite_that_jumped_too_far(
 
     v = fb.revalidate(work, "img", "tid", task, orig=SEED, changed=["solve_sh"])
     assert v["ok"] is False and v["stage"] == "step_size"
-    assert any("at most 8 more" in s for s in v["step"]) and "one rung" in v["why"]
+    assert any("at most 8 more" in s for s in v["step"]) and "size bounds" in v["why"]
 
     # One rung above the seed passes.
     task["solve_sh"] = (

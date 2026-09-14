@@ -6,7 +6,7 @@
 
 
 from dataclasses import dataclass
-from typing import Literal
+from typing import Literal, overload
 
 import torch
 import torch.nn.functional as F
@@ -389,6 +389,15 @@ class GatedDeltaKernel(Module):
         return out
 
 
+@overload
+def _tp_local_param(t: torch.Tensor) -> torch.Tensor:
+    ...
+
+
+@overload
+def _tp_local_param(t: None) -> None:
+    ...
+
 
 def _tp_local_param(t: torch.Tensor | None) -> torch.Tensor | None:
     """Rank-local out-channel slice of one conv weight.
@@ -421,7 +430,6 @@ def _tp_local_param(t: torch.Tensor | None) -> torch.Tensor | None:
     chunk = local.size(0) // tp_size
     start = mesh.get_local_rank(axis) * chunk
     return local[start : start + chunk]
-
 
 
 def _tp_local_last_dim(t: torch.Tensor) -> torch.Tensor:
@@ -513,7 +521,7 @@ class GatedDeltaNet(Module):
         )
 
     def _causal_conv(
-        self, x: torch.Tensor, conv: nn.Module, cu_seqlens: torch.Tensor | None = None
+        self, x: torch.Tensor, conv: Conv1d, cu_seqlens: torch.Tensor | None = None
     ) -> torch.Tensor:
         # Packed samples: the causal conv window must not cross sample boundaries
         # (else the first conv_kernel_size-1 tokens of each sample see the previous
@@ -525,10 +533,9 @@ class GatedDeltaNet(Module):
             def _varlen_conv(
                 x_in: torch.Tensor, w_in: torch.Tensor, b_in: torch.Tensor | None
             ) -> torch.Tensor:
-                # fla's causal_conv1d is untyped (pyrefly reads it as a Tensor).
                 y = _fla_causal_conv1d(
                     x_in.reshape(1, bs * seqlen, -1),
-                    weight=w_in.squeeze(1),  # pyrefly: ignore [not-callable]
+                    weight=w_in.squeeze(1),
                     bias=b_in,
                     activation="silu",
                     cu_seqlens=cu_seqlens,
@@ -547,11 +554,7 @@ class GatedDeltaNet(Module):
             # mapped.
             x_plc = x.placements
             w_plc = conv.weight.placements  # pyrefly: ignore [missing-attribute]
-            b_plc = (
-                conv.bias.placements  # pyrefly: ignore [missing-attribute]
-                if isinstance(conv.bias, DTensor)
-                else None
-            )
+            b_plc = conv.bias.placements if isinstance(conv.bias, DTensor) else None
             conv_dt = local_map(
                 _varlen_conv,
                 out_placements=(x_plc,),
@@ -573,7 +576,6 @@ class GatedDeltaNet(Module):
 
             def _conv(x_local: torch.Tensor, w_local: torch.Tensor) -> torch.Tensor:
                 # groups == local out-channels (depthwise, channel-sharded)
-                # pyrefly: ignore [no-matching-overload]
                 return F.conv1d(
                     x_local,
                     w_local,
@@ -617,11 +619,12 @@ class GatedDeltaNet(Module):
         )
         w = w.view(w.size(0), w.size(-1))  # [C,1,k] -> [C,k]
         biases = [self.conv_q.bias, self.conv_k.bias, self.conv_v.bias]
-        bias = (
-            torch.cat([_tp_local_param(b) for b in biases], dim=0)
-            if biases[0] is not None
-            else None
-        )
+        bias = None
+        if biases[0] is not None:
+            assert all(b is not None for b in biases)
+            bias = torch.cat(
+                [_tp_local_param(b) for b in biases if b is not None], dim=0
+            )
         return w, bias
 
     def _forward_generation(self, x: torch.Tensor) -> torch.Tensor:
@@ -690,9 +693,7 @@ class GatedDeltaNet(Module):
         # recompute then replays with the SAVED tensor and never syncs.
         if cu_seqlens is None:
             cu_seqlens = (
-                _cu_seqlens_from_positions(positions)
-                if positions is not None
-                else None
+                _cu_seqlens_from_positions(positions) if positions is not None else None
             )
         # cu_seqlens is kept under TP as well: SP allgathers the sequence at this
         # layer's boundary (in_dst_shardings maps x to Replicate), so the boundaries

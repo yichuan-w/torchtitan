@@ -50,19 +50,22 @@ def test_a_large_seed_keeps_its_own_band() -> None:
     assert ts.violations(seed, {"solution_lines": 19, "verifier_asserts": 12}) != []
 
 
-def test_calibration_allows_restoration_without_removing_upper_limits() -> None:
+def test_student_size_bounds_allow_replacement_but_limit_growth() -> None:
     seed = {"solution_lines": 9, "verifier_asserts": 6}
-    assert ts.violations(seed, seed, min_added=0) == []
-    assert (
-        ts.violations(seed, {"solution_lines": 10, "verifier_asserts": 7}, min_added=0)
-        == []
-    )
-    assert ts.violations(seed, seed)
+    for lines in (4, 9, 17):
+        assert (
+            ts.violations(
+                seed,
+                {"solution_lines": lines, "verifier_asserts": 6},
+                require_growth=False,
+            )
+            == []
+        )
     assert ts.violations(
-        seed, {"solution_lines": 18, "verifier_asserts": 6}, min_added=0
+        seed, {"solution_lines": 18, "verifier_asserts": 6}, require_growth=False
     )
     assert ts.violations(
-        seed, {"solution_lines": 9, "verifier_asserts": 12}, min_added=0
+        seed, {"solution_lines": 9, "verifier_asserts": 12}, require_growth=False
     )
 
 

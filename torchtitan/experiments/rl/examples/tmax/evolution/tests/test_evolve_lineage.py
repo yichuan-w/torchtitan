@@ -7,10 +7,13 @@
 """The loop over one experiment root: discovery through the ledger, r0 from
 the source corpus, one rewrite directory per handled signal, acceptance as a
 renamed revision and a new mix version, and status.json rebuilt from files."""
+
 from __future__ import annotations
 
+import importlib
 import json
 import os
+import shutil
 import subprocess
 import sys
 import time
@@ -111,6 +114,92 @@ def _signal(
     return layout.signal_id(run, task, group)
 
 
+def test_prebuilt_seed_uses_digest_without_changing_original(tmp_path, monkeypatch):
+    root = _root(tmp_path, monkeypatch)
+    row = json.loads(root.mix.live.read_text())
+    image = "ghcr.io/example/tasks@sha256:" + "a" * 64
+    row["metadata"].update(
+        image=image, prebuilt_provenance={"verification_sha256": "proof"}
+    )
+    root.mix.publish([json.dumps(row)])
+    task = root.evolution.task("tw_a")
+    task.path.mkdir(parents=True, exist_ok=True)
+    result = od.materialize_r0(root, task, "tw_a")
+    assert (result / "environment/Dockerfile").read_text() == f"FROM {image}\n"
+    original = root.data / "sources/tw-extract/tasks/tw_a/environment/Dockerfile"
+    assert original.read_text() == SEED["environment/Dockerfile"]
+    assert (
+        json.loads((result / ".prebuilt-source.json").read_text())["source_dockerfile"]
+        == original.read_text()
+    )
+
+
+def test_measured_feedback_survives_the_fold(tmp_path, monkeypatch):
+    root = _root(tmp_path, monkeypatch)
+    _signal(root)
+    feedback = {"solved": 16, "scored": 16, "action": "harder"}
+    seen = _stub(monkeypatch, student_feedback=feedback)
+    result = od.run_round(root, workers=1)
+    assert result["accepted"] == 1
+    saved = json.loads(seen[0]["rewrite"].meta.read_text())
+    assert saved["student_feedback"] == feedback
+    assert "student_feedback" not in root.mix.live.read_text()
+
+
+def test_training_signal_supplies_measured_feedback_and_parent_revision(
+    tmp_path, monkeypatch
+):
+    root = _root(tmp_path, monkeypatch)
+    monkeypatch.setenv("SWE_RETUNE_AGENT", "codex")
+    monkeypatch.setenv("EVOLVE_HARDER_OPERATORS", "0")
+    _signal(root)
+    seen = _stub(monkeypatch)
+    od.run_round(root, workers=1)
+    feedback = seen[0]["signal"]["student_feedback"]
+    assert feedback["measurement"] == {
+        "run": RUN,
+        "group": 7,
+        "rev": 0,
+        "solved": 2,
+        "total": 2,
+    }
+    assert "previous_revision" not in feedback
+    _signal(root, group=8, rev=1)
+    od.run_round(root, workers=1)
+    feedback = seen[1]["signal"]["student_feedback"]
+    assert feedback["measurement"]["rev"] == 1
+    assert feedback["previous_revision"] == {
+        "rev": 0,
+        "instruction": SEED["instruction.md"],
+    }
+    original = json.loads(root.run(RUN).signal("tw_a", 8).read_text())
+    assert "student_feedback" not in original
+    assert "student_feedback" not in root.mix.live.read_text()
+
+
+def test_explicit_feedback_is_preserved_and_changed_feedback_is_not_reused(
+    tmp_path, monkeypatch
+):
+    root = _root(tmp_path, monkeypatch)
+    monkeypatch.setenv("SWE_RETUNE_AGENT", "codex")
+    monkeypatch.setenv("EVOLVE_HARDER_OPERATORS", "0")
+    seen = _stub(
+        monkeypatch, status="kept", harder_mode="student", require_solution_growth=False
+    )
+    for group, solved in ((7, 16), (8, 13), (9, 13)):
+        _signal(root, group=group)
+        path = root.run(RUN).signal("tw_a", group)
+        signal = json.loads(path.read_text())
+        signal["student_feedback"] = {"independent_measurement": {"solved": solved}}
+        layout.write_json_atomic(path, signal)
+        result = od.run_round(root, workers=1)
+        assert result["reused" if group == 9 else "handled"] == 1
+    assert len(seen) == 2
+    assert seen[1]["signal"]["student_feedback"] == {
+        "independent_measurement": {"solved": 13}
+    }
+
+
 class _Seen(list):
     """The process_one calls, in order; `.rows` is what the fold asked the row
     builder for."""
@@ -200,6 +289,19 @@ def _stub(monkeypatch, status: str = "accepted", **extra) -> _Seen:
 
 def _ledger(root: layout.Root) -> list[dict]:
     return layout.read_jsonl(root.evolution.ledger)
+
+
+def test_seed_lookup_rejects_ambiguous_sources(tmp_path, monkeypatch):
+    root = _root(tmp_path, monkeypatch)
+    shutil.copytree(root.data / "sources/tw-extract", root.data / "sources/rebench")
+    with pytest.raises(od.NoSeed, match="ambiguous seed package"):
+        od.materialize_r0(root, root.evolution.task("tw_a"), "tw_a")
+
+
+def test_seed_lookup_reports_missing_source_directory(tmp_path, monkeypatch):
+    root = layout.Root(tmp_path / "empty")
+    with pytest.raises(od.NoSeed, match="no seed package"):
+        od.materialize_r0(root, root.evolution.task("missing"), "missing")
 
 
 def test_round_persists_simplify_choice(tmp_path, monkeypatch):
@@ -364,10 +466,15 @@ def test_ordinary_hardening_does_not_reuse_an_older_simplification(
     assert following[0]["previous_simplify"] is None
 
 
+@pytest.mark.parametrize(
+    "corpus", ["tw-extract", "swe-extract", "rebench-extract", "extract"]
+)
 def test_round_materializes_r0_handles_the_signal_and_folds_r1(
-    tmp_path, monkeypatch
+    tmp_path, monkeypatch, corpus
 ) -> None:
     root = _root(tmp_path, monkeypatch)
+    if corpus != "tw-extract":
+        (root.data / "sources/tw-extract").rename(root.data / "sources" / corpus)
     sid = _signal(root)
     seen = _stub(monkeypatch)
 
@@ -521,6 +628,18 @@ def test_a_task_without_a_seed_is_junk(tmp_path, monkeypatch) -> None:
     assert not root.evolution.task("nope").rev(0).exists()
 
 
+@pytest.mark.parametrize("value,enabled", [(None, False), ("0", False), ("1", True)])
+def test_simplify_requires_explicit_opt_in(monkeypatch, value, enabled):
+    with monkeypatch.context() as env:
+        if value is None:
+            env.delenv("SWE_EVOLVE_SIMPLIFY", raising=False)
+        else:
+            env.setenv("SWE_EVOLVE_SIMPLIFY", value)
+        importlib.reload(od)
+        assert od.SIMPLIFY_ENABLED is enabled
+    importlib.reload(od)
+
+
 def test_easier_is_deferred_while_the_switch_is_off_and_replayed_when_on(
     tmp_path, monkeypatch
 ) -> None:
@@ -627,6 +746,7 @@ def test_switching_harder_mode_does_not_reuse_the_old_decision(tmp_path, monkeyp
         result["harder_mode"] = (
             "operators" if od.ops.harder_uses_operators() else "student"
         )
+        result["require_solution_growth"] = od.ops.harder_uses_operators()
         return result
 
     monkeypatch.setattr(od.fb, "process_one", record_mode)
@@ -647,6 +767,23 @@ def test_failed_execution_can_retry_unchanged_feedback(tmp_path, monkeypatch) ->
     _signal(root, group=8)
     assert od.run_round(root, workers=1)["handled"] == 1
     assert len(seen) == 2
+
+
+def test_old_student_growth_policy_is_not_reused(tmp_path, monkeypatch):
+    root = _root(tmp_path, monkeypatch)
+    monkeypatch.setenv("SWE_RETUNE_AGENT", "codex")
+    monkeypatch.setenv("EVOLVE_HARDER_OPERATORS", "0")
+    old = _stub(monkeypatch, status="kept", harder_mode="student")
+    _signal(root)
+    assert od.run_round(root, workers=1)["handled"] == 1
+    current = _stub(
+        monkeypatch, status="kept", harder_mode="student", require_solution_growth=False
+    )
+    _signal(root, group=8)
+    assert od.run_round(root, workers=1)["handled"] == 1
+    _signal(root, group=9)
+    assert od.run_round(root, workers=1)["reused"] == 1
+    assert len(old) == len(current) == 1
 
 
 def test_new_revision_starts_a_new_rewrite(tmp_path, monkeypatch) -> None:

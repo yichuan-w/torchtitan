@@ -23,6 +23,9 @@ So the retry is only safe with a timeout, and a hang has to count as a failure.
 from __future__ import annotations
 
 import asyncio
+import sys
+from types import SimpleNamespace
+from unittest.mock import MagicMock
 
 import pytest
 
@@ -32,6 +35,113 @@ from torchtitan.experiments.rl.controller import (
     _EVAL_GUARD_MAX_FAILURES,
     Controller,
 )
+from torchtitan.experiments.rl.eval_trace_recorder import ValidationTraceRecorder
+from torchtitan.experiments.rl.rollout import Rollout, RolloutGroup, RolloutStatus
+
+
+@pytest.mark.parametrize(
+    "failure", [None, "infra", "group", "short", "none", "nan", "inf"]
+)
+def test_incomplete_validation_logs_scores_with_requested_denominator(
+    failure, tmp_path, monkeypatch
+):
+    reward = {"none": None, "nan": float("nan"), "inf": float("inf")}.get(failure, 1.0)
+    group = RolloutGroup(
+        group_id=-1,
+        rollouts=[
+            Rollout(
+                group_id=-1,
+                rollout_id=0,
+                status=RolloutStatus.COMPLETED,
+                reward=reward,
+                diagnostics={"infra_failed": failure == "infra"},
+            )
+        ],
+    )
+
+    async def run_group(**kwargs):
+        if kwargs["group_id"] == -2:
+            return RolloutGroup(
+                group_id=-2,
+                rollouts=[
+                    Rollout(
+                        group_id=-2,
+                        rollout_id=i,
+                        status=RolloutStatus.COMPLETED,
+                        reward=1.0,
+                    )
+                    for i in range(5)
+                ],
+            )
+        if failure == "group":
+            raise RuntimeError("sandbox unavailable")
+        if failure != "short":
+            group.rollouts.extend(
+                Rollout(
+                    group_id=-1,
+                    rollout_id=i,
+                    status=RolloutStatus.COMPLETED,
+                    reward=0.0,
+                )
+                for i in range(1, 5)
+            )
+        return group
+
+    collector = SimpleNamespace(
+        _rollouter=SimpleNamespace(
+            get_validation_sample=iter(["task-a", "task-b"]).__next__
+        ),
+        _allocate_validation_group_ids=lambda count: [-1, -2],
+        _eval_rollout_workers=[],
+        _run_validation_group=run_group,
+    )
+    samples, groups, metrics = asyncio.run(
+        Controller._collect_validation_rollouts(
+            collector,
+            num_groups=2,
+            group_size=5,
+            sampling=None,
+            step=40,
+        )
+    )
+    aggregated = controller_mod.m.MetricsProcessor._aggregate_metrics(metrics)
+    first_passes = failure in (None, "short")
+    assert aggregated["validation/valid"] == float(failure is None)
+    assert aggregated["validation_reward/_mean"] == (0.6 if first_passes else 0.5)
+    assert aggregated["validation/pass_at_k/mean"] == (1.0 if first_passes else 0.5)
+    assert len(groups) == (1 if failure == "group" else 2)
+    if failure == "infra":
+        assert groups[0].rollouts[0].reward == 1.0
+    recorder = SimpleNamespace(
+        validation_trace_recorder=ValidationTraceRecorder.Config(enable=True).build(
+            dump_dir=str(tmp_path)
+        ),
+        config=SimpleNamespace(
+            async_loop=SimpleNamespace(
+                validation=SimpleNamespace(num_samples=2, group_size=5)
+            )
+        ),
+        renderer=SimpleNamespace(_tokenizer=SimpleNamespace(decode=lambda tokens: "")),
+    )
+    summary = Controller._record_validation_traces(
+        recorder,
+        step=40,
+        samples=samples,
+        rollout_groups=groups,
+    )
+    assert summary.avg_at_k == aggregated["validation_reward/_mean"]
+    assert summary.pass_at_k == aggregated["validation/pass_at_k/mean"]
+    assert summary.valid == (failure is None)
+    fake_wandb = MagicMock()
+    fake_wandb.run = object()
+    monkeypatch.setitem(sys.modules, "wandb", fake_wandb)
+    Controller._mirror_validation_to_wandb(
+        SimpleNamespace(), aggregated, policy_version=40
+    )
+    payload = fake_wandb.log.call_args.args[0]
+    assert payload["validation_reward/_mean"] == summary.avg_at_k
+    assert payload["validation/pass_at_k/mean"] == summary.pass_at_k
+    assert payload["validation/valid"] == float(summary.valid)
 
 
 class _Guard:

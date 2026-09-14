@@ -79,7 +79,7 @@ import os
 import statistics
 import time
 from collections.abc import Mapping
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from typing import TYPE_CHECKING
 
 from renderers import Message, Renderer
@@ -139,6 +139,7 @@ _FINISH_REASONS = (
     # from hit_max_turns (it had episodes left) and from error (nothing broke).
     "hit_context_limit",
     "stopped_early",
+    "terminal_exited",
     "error",
 )
 
@@ -179,6 +180,7 @@ _TRANSPORT_ISSUE_KINDS = {
     "execute_missing_command_id",
     "execute_response_recovered",
     "execute_response_unconfirmed",
+    "execute_submit_retry",
     "file_upload_failed",
     "file_upload_retry",
     "heartbeat_retry",
@@ -267,6 +269,8 @@ class _SandboxRolloutDiagnostics:
     issues: tuple[SandboxIssue, ...]
     num_dropped_details: int
     infra_failed: bool = False
+    failure: dict = field(default_factory=dict)
+    terminal_events: list[dict] = field(default_factory=list)
 
 
 def _sandbox_issue_metrics(
@@ -386,8 +390,14 @@ class _RootSandbox:
     to ``root``, so ``run_vanillux_loop`` (and ``grade_tmax``) run entirely as root.
     """
 
-    def __init__(self, inner: Sandbox) -> None:
+    def __init__(self, inner: Sandbox, timing: dict | None = None) -> None:
         self._inner = inner
+        # In-sandbox command wall-clock, accumulated across every exec so a
+        # rollout can report how much of its time was spent running commands in
+        # the sandbox (apt/pip/pytest/tmux round trips) vs generating tokens or
+        # waiting on the shared generator. The caller passes a dict it hoisted
+        # above the sandbox's scope; None self-owns one for standalone use.
+        self._timing = timing if timing is not None else {"exec_secs": 0.0, "exec_n": 0}
 
     @property
     def sandbox_id(self) -> str:
@@ -402,7 +412,14 @@ class _RootSandbox:
         return self._inner.issue_tracker
 
     async def exec(self, cmd: str, *, user: str = "root", **kwargs):
-        return await self._inner.exec(cmd, user="root", **kwargs)
+        _t0 = time.monotonic()
+        try:
+            return await self._inner.exec(cmd, user="root", **kwargs)
+        finally:
+            self._timing["exec_secs"] = (
+                self._timing.get("exec_secs", 0.0) + time.monotonic() - _t0
+            )
+            self._timing["exec_n"] = self._timing.get("exec_n", 0) + 1
 
     async def write_file(self, sandbox_path: str, content, *, user: str = "root"):
         return await self._inner.write_file(sandbox_path, content, user="root")
@@ -571,6 +588,8 @@ def _write_rollout_record(
             "submitted": bool(submitted),
             "format_errors": int(fmt_errors),
             "infra_failed": sandbox_diagnostics.infra_failed,
+            "failure": sandbox_diagnostics.failure,
+            "terminal_events": sandbox_diagnostics.terminal_events,
             "error": error_msg,
             "sandbox": {
                 "id": sandbox_diagnostics.sandbox_id,
@@ -742,6 +761,13 @@ class TMaxRollouter(Rollouter):
         time_budget_sec: int = 2400
         """Per-rollout agent wall-clock budget (the vanillux loop stops after this)."""
 
+        agent_budget_floor_sec: int = _DECLARED_AGENT_BUDGET_FLOOR_SEC
+        """Floor on a task's OWN declared budget: ``max(declared, floor)``, so it
+        only ever raises a too-small declared budget, never lowers one. Governs the
+        TB-2.0 eval (those rows declare 900-12000s); tasks that declare nothing use
+        ``time_budget_sec`` instead. Defaults to SWE_AGENT_TIMEOUT_FLOOR_SEC (7200);
+        the eval recipe pins it so a stray launcher env cannot cap eval budgets."""
+
         eval_timeout_sec: int = 600
         """Verifier (test.sh) run timeout."""
 
@@ -779,15 +805,15 @@ class TMaxRollouter(Rollouter):
         if not 0 < config.evolution_harder_ratio <= 1:
             raise ValueError("evolution_harder_ratio must be in (0, 1]")
         super().__init__(config)
-        # Which agent scaffold drives the rollout. Defaults to the vanillux loop the
-        # tmax models are SFT'd under; TMAX_AGENT=terminus swaps in Terminus-2 (a
-        # different output format -- see harness/agents/terminus.py).
-        self._agent_name = os.environ.get("TMAX_AGENT", "vanillux")
+        # Training and evaluation share Terminus unless a run explicitly selects
+        # another scaffold with its corresponding action format.
+        self._agent_name = os.environ.get("TMAX_AGENT", "terminus")
         if self._agent_name != "vanillux":
-            # Import for the side effect of registering; only the default is wired
+            # Import for the side effect of registering; only vanillux is wired
             # in by the tmax module itself.
             import torchtitan.experiments.rl.harness.agents.terminus  # noqa: F401
         self._time_budget_sec = config.time_budget_sec
+        self._agent_budget_floor_sec = config.agent_budget_floor_sec
         self._eval_timeout_sec = config.eval_timeout_sec
         self._max_context_tokens = config.max_context_tokens
         self._reward_mode = config.reward_mode
@@ -843,7 +869,12 @@ class TMaxRollouter(Rollouter):
                     sample=sample,
                     group_id=group_id,
                     rollout_idx=i,
-                    sampling=sampling,
+                    # Match Rollouter: siblings need distinct request RNG seeds.
+                    sampling=(
+                        sampling
+                        if sampling.seed is None
+                        else replace(sampling, seed=sampling.seed + i)
+                    ),
                     renderer=renderer,
                 ),
                 name=f"tmax_rollout_{group_id}_{i}",
@@ -946,9 +977,9 @@ class TMaxRollouter(Rollouter):
         # NaN is "no verdict", distinct from 0.0 = "verdict: failed"; the advantage
         # estimator and the sample builder both drop it before computing any group
         # statistic, so a group of 8 with one infra failure baselines over the
-        # surviving 7. Validation deliberately keeps 0.0: avg@k is defined over
-        # attempts, so a NaN there would move the denominator and stop the number
-        # being comparable to the published one (and index.json cannot encode it).
+        # surviving 7. Validation retains the raw 0.0 and infra_failed diagnostic.
+        # The controller withholds aggregate scores if any attempt is unscored;
+        # the trace recorder preserves every trial and marks the summary invalid.
         if group_id >= 0 and any(infra_failed_flags):
             for rollout, infra_failed in zip(rollouts, infra_failed_flags, strict=True):
                 if infra_failed:
@@ -956,7 +987,7 @@ class TMaxRollouter(Rollouter):
             logger.warning(
                 f"[tmax] group={group_id}: "
                 f"{sum(infra_failed_flags)}/{len(infra_failed_flags)} "
-                f"infrastructure failures excluded from the advantage baseline"
+                f"unscored failures excluded from the advantage baseline"
             )
 
         # Group reward-shape metrics. With evolution_harder_ratio < 1, evolution
@@ -1026,7 +1057,7 @@ class TMaxRollouter(Rollouter):
         declared = sample.agent_timeout_sec
         if declared is None:
             return self._time_budget_sec
-        return max(int(declared), _DECLARED_AGENT_BUDGET_FLOOR_SEC)
+        return max(int(declared), self._agent_budget_floor_sec)
 
     def _verifier_budget_sec(self, sample: TMaxSample) -> int:
         """Wall-clock budget for this task's GRADER, in seconds.
@@ -1206,6 +1237,9 @@ class TMaxRollouter(Rollouter):
         exec_trace: list[dict] = []
         pane_text: str | None = None
         infra_failed = False
+        failure: dict = {}
+        terminal_events: list[dict] = []
+        failure_stage = "setup"
         # Per-test verifier breakdown; stays None unless the rollout was graded with
         # the CTRF read enabled and the task wrote a parsable report.
         ctrf: dict | None = None
@@ -1229,6 +1263,10 @@ class TMaxRollouter(Rollouter):
         verifier_sec = self._verifier_budget_sec(sample)
         started_at = time.monotonic()
         started_wall = time.time()
+        # Sandbox exec wall-clock, filled by _RootSandbox as the agent runs;
+        # hoisted here so the completion line can read it whatever path the
+        # rollout takes out of the sandbox scope.
+        exec_timing: dict = {"exec_secs": 0.0, "exec_n": 0}
         # Where this rollout's record goes; None writes nothing (said once).
         run = _run_dir()
         collect_pane = (
@@ -1262,6 +1300,13 @@ class TMaxRollouter(Rollouter):
                     memory=sample.daytona_mem_gb,
                     disk_gb=sample.daytona_disk_gb,
                     issue_tracker=issue_tracker,
+                    failure_diagnostics_dir=(
+                        run.daytona_diagnostics(
+                            sample.instance_id, group_id, rollout_idx
+                        )
+                        if run is not None
+                        else None
+                    ),
                 ) as sandbox:
                     # Sandbox is up: shrink the guard back to the agent's own
                     # envelope. Boot-queue time must not eat the agent's budget --
@@ -1273,7 +1318,7 @@ class TMaxRollouter(Rollouter):
                     )
                     # Force every tool command to run as root (tmax tasks touch
                     # system paths); the faithful Vanillux loop dispatches bash here.
-                    root_sb = _RootSandbox(sandbox)
+                    root_sb = _RootSandbox(sandbox, exec_timing)
                     # Docker would have run this as PID 1 before anything else; our
                     # backends exec commands directly, so start it here or every
                     # task that depends on it is unsolvable.
@@ -1306,6 +1351,7 @@ class TMaxRollouter(Rollouter):
                             )
                     except Exception:  # noqa: BLE001 -- never fail a rollout on this
                         pass
+                    failure_stage = "agent"
                     agent_run = await get_agent(self._agent_name)(
                         AgentTask(
                             sandbox=root_sb,
@@ -1314,6 +1360,7 @@ class TMaxRollouter(Rollouter):
                             adapter=adapter,
                             time_budget_sec=budget_sec,
                             workdir=sample.workdir,
+                            max_context_tokens=self._max_context_tokens,
                         )
                     )
                     # None = the harness has no submit signal at all; grade anyway
@@ -1329,6 +1376,9 @@ class TMaxRollouter(Rollouter):
                     # spun out its turn budget on empty replies reads as a short one.
                     agent_turns = agent_run.turns
                     exec_trace = agent_run.exec_trace
+                    terminal_events = agent_run.terminal_events
+                    if not submitted:
+                        failure = {"origin": "agent", "reason": finish_reason}
                     if collect_pane and agent_run.pane_path:
                         # The transcript lives in the sandbox, which goes away
                         # with this block; its loss must not fail a graded rollout.
@@ -1347,6 +1397,7 @@ class TMaxRollouter(Rollouter):
                     # the harness has no submit signal -- grade anyway rather than
                     # scoring every rollout 0 (see AgentRun.submitted).
                     if submitted:
+                        failure_stage = "verifier"
                         reward = await grade_tmax(
                             sandbox,
                             sample.tmax,
@@ -1393,12 +1444,21 @@ class TMaxRollouter(Rollouter):
             else:
                 logger.exception("[tmax] %s: sandbox timeout", rollout_id)
                 error_msg = "sandbox_timeout"
+            failure = {"origin": "unknown", "reason": error_msg, "stage": failure_stage}
         except Exception as e:
             infra_failed = True
             reward = 0.0
             logger.exception("[tmax] %s: rollout failed", rollout_id)
             status = RolloutStatus.ERROR
             error_msg = f"{type(e).__name__}: {e}"
+            # infra_failed remains the compatibility flag for an unscored
+            # attempt. A transport/terminal exception alone establishes no blame.
+            failure = {
+                "origin": "unknown",
+                "reason": getattr(e, "failure_reason", type(e).__name__),
+                "stage": failure_stage,
+            }
+            terminal_events = getattr(e, "terminal_events", terminal_events)
         finally:
             self._rollout_gate.release()
             captured = await adapter.finish_session(rollout_id)
@@ -1416,6 +1476,8 @@ class TMaxRollouter(Rollouter):
             issues=issue_tracker.issues,
             num_dropped_details=issue_tracker.num_dropped_details,
             infra_failed=infra_failed,
+            failure=failure,
+            terminal_events=terminal_events,
         )
 
         turns = _captured_to_turns(captured, group_id, rollout_idx)
@@ -1482,6 +1544,7 @@ class TMaxRollouter(Rollouter):
                         "reward": reward,
                         "finish_reason": finish_reason,
                         "infra_failed": diagnostics.infra_failed,
+                        "failure": diagnostics.failure,
                         "issue_counts": diagnostics.issue_counts,
                         "num_dropped_details": diagnostics.num_dropped_details,
                     },
@@ -1516,13 +1579,15 @@ class TMaxRollouter(Rollouter):
         # matter" is unanswerable, and the budget gets picked by feel.
         logger.info(
             "[tmax] %s: status=%s reward=%.2f turns=%d oom_suspect=%d "
-            "secs=%.0f budget=%d",
+            "secs=%.0f exec_secs=%.0f exec_n=%d budget=%d",
             rollout_id,
             status,
             reward,
             len(turns),
             int(oom_suspect),
             time.monotonic() - started_at,
+            exec_timing["exec_secs"],
+            exec_timing["exec_n"],
             budget_sec,
         )
         record = None
@@ -1561,11 +1626,14 @@ class TMaxRollouter(Rollouter):
                 # (e.g. a turn truncated inside <think> that never emitted a
                 # tool_call is a format_errors=1 / stopped_early rollout).
                 diagnostics={
+                    "sampling_seed": sampling.seed,
                     "finish_reason": finish_reason,
                     "agent_turns": agent_turns,
                     "format_errors": fmt_errors,
                     "submitted": submitted,
                     "infra_failed": diagnostics.infra_failed,
+                    "failure": diagnostics.failure,
+                    "terminal_events": diagnostics.terminal_events,
                     "ctrf": ctrf,
                     "verifier": verifier,
                     "sparse_reward": sparse_reward,

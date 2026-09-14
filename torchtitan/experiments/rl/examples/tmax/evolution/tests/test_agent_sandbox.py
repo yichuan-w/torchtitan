@@ -1,3 +1,9 @@
+# Copyright (c) Meta Platforms, Inc. and affiliates.
+# All rights reserved.
+#
+# This source code is licensed under the BSD-style license found in the
+# LICENSE file in the root directory of this source tree.
+
 from __future__ import annotations
 
 import json
@@ -56,8 +62,15 @@ def test_up_spawns_serve_with_pkg_before_the_subcommand(tmp_path, monkeypatch) -
             seen["argv"] = argv
             # The server's first act is to publish its state; do that here so
             # cmd_up's poll returns without a sandbox.
-            asb._write_state(pkg, {"status": "ready", "sock": "/tmp/none.sock",
-                                   "sandbox_id": "sb-1", "workdir": "/app"})
+            asb._write_state(
+                pkg,
+                {
+                    "status": "ready",
+                    "sock": "/tmp/none.sock",
+                    "sandbox_id": "sb-1",
+                    "workdir": "/app",
+                },
+            )
 
         def poll(self):
             return None
@@ -96,7 +109,9 @@ def test_exec_passes_through_output_and_exit_code(tmp_path, capsys) -> None:
     assert "err\n" in captured.err and "[exit 3]" in captured.err
 
 
-def test_check_records_a_null_probe_pass_as_a_failure(tmp_path, monkeypatch, capsys) -> None:
+def test_check_records_a_null_probe_pass_as_a_failure(
+    tmp_path, monkeypatch, capsys
+) -> None:
     pkg = tmp_path / "pkg"
     calls = []
 
@@ -109,8 +124,13 @@ def test_check_records_a_null_probe_pass_as_a_failure(tmp_path, monkeypatch, cap
     server = _FakeServer(handler)
     try:
         asb._write_state(pkg, {"status": "down"})
-        monkeypatch.setattr(asb, "cmd_up", lambda _pkg, at_max=False: (
-            asb._write_state(pkg, {"status": "ready", "sock": server.path}) or 0))
+        monkeypatch.setattr(
+            asb,
+            "cmd_up",
+            lambda _pkg, at_max=False: (
+                asb._write_state(pkg, {"status": "ready", "sock": server.path}) or 0
+            ),
+        )
         rc = asb.cmd_check(pkg, 30)
     finally:
         server.close()
@@ -122,21 +142,28 @@ def test_check_records_a_null_probe_pass_as_a_failure(tmp_path, monkeypatch, cap
     assert record["verdict"] == "fail" and record["stage"] == "null_probe"
 
 
-def test_check_returns_nonzero_when_the_oracle_fails(tmp_path, monkeypatch, capsys) -> None:
+def test_check_returns_nonzero_when_the_oracle_fails(
+    tmp_path, monkeypatch, capsys
+) -> None:
     pkg = tmp_path / "pkg"
 
     def handler(req):
-        if req["op"] == "grade":            # null probe: untouched fails, correct
+        if req["op"] == "grade":  # null probe: untouched fails, correct
             return {"ok": True, "reward": 0.0}
-        if req["op"] == "oracle":           # reference solution does not pass
+        if req["op"] == "oracle":  # reference solution does not pass
             return {"ok": True, "reward": 0.0, "solve_exit": 7, "tail": "boom"}
         return {"ok": True}
 
     server = _FakeServer(handler)
     try:
         asb._write_state(pkg, {"status": "down"})
-        monkeypatch.setattr(asb, "cmd_up", lambda _pkg, at_max=False: (
-            asb._write_state(pkg, {"status": "ready", "sock": server.path}) or 0))
+        monkeypatch.setattr(
+            asb,
+            "cmd_up",
+            lambda _pkg, at_max=False: (
+                asb._write_state(pkg, {"status": "ready", "sock": server.path}) or 0
+            ),
+        )
         rc = asb.cmd_check(pkg, 30)
     finally:
         server.close()
@@ -157,10 +184,19 @@ def test_request_without_a_server_is_an_error_not_a_hang(tmp_path) -> None:
 def _fake_up(pkg, server):
     """cmd_up as the tests see it: publish a ready state for the fake server,
     at the box the real cmd_up would have opened."""
+
     def up(_pkg, at_max=False):
-        asb._write_state(pkg, {"status": "ready", "sock": server.path,
-                               "resources": asb._box(pkg, at_max), "at_max": at_max})
+        asb._write_state(
+            pkg,
+            {
+                "status": "ready",
+                "sock": server.path,
+                "resources": asb._box(pkg, at_max),
+                "at_max": at_max,
+            },
+        )
         return 0
+
     return up
 
 
@@ -173,9 +209,16 @@ def test_up_opens_the_box_run_resources_json_names(tmp_path, monkeypatch) -> Non
         def __init__(self, argv, **kwargs):
             seen["argv"] = argv
             # As the real server does: merge into the state cmd_up published.
-            asb._write_state(pkg, {**asb._read_state(pkg), "status": "ready",
-                                   "sock": "/tmp/none.sock", "sandbox_id": "sb-1",
-                                   "workdir": "/app"})
+            asb._write_state(
+                pkg,
+                {
+                    **asb._read_state(pkg),
+                    "status": "ready",
+                    "sock": "/tmp/none.sock",
+                    "sandbox_id": "sb-1",
+                    "workdir": "/app",
+                },
+            )
 
         def poll(self):
             return None
@@ -189,7 +232,8 @@ def test_up_opens_the_box_run_resources_json_names(tmp_path, monkeypatch) -> Non
     assert asb._read_state(pkg)["resources"]["source"].startswith("harness_default")
 
     (pkg / "run" / "resources.json").write_text(
-        '{"cpu": 1, "mem_gb": 2, "disk_gb": 2, "source": "row"}\n')
+        '{"cpu": 1, "mem_gb": 2, "disk_gb": 2, "source": "row"}\n'
+    )
     assert asb.cmd_up(pkg) == 0
     argv = seen["argv"]
     assert argv.index("serve") < argv.index("--cpu")
@@ -197,7 +241,11 @@ def test_up_opens_the_box_run_resources_json_names(tmp_path, monkeypatch) -> Non
     assert argv[argv.index("--mem-gb") + 1] == "2"
     assert argv[argv.index("--disk-gb") + 1] == "2"
     assert asb._read_state(pkg)["resources"] == {
-        "cpu": 1, "mem_gb": 2, "disk_gb": 2, "source": "row"}
+        "cpu": 1,
+        "mem_gb": 2,
+        "disk_gb": 2,
+        "source": "row",
+    }
 
     # --max ignores the file and opens the platform ceiling.
     assert asb.cmd_up(pkg, at_max=True) == 0
@@ -212,20 +260,28 @@ def _starved_handler(oracles):
     def handler(req):
         if req["op"] == "grade":
             return {"ok": True, "reward": 0.0}
-        if req["op"] == "oracle":            # the kernel killed the solution
+        if req["op"] == "oracle":  # the kernel killed the solution
             oracles.append(req)
-            return {"ok": True, "reward": 0.0, "solve_exit": 137, "tail": "Killed",
-                    "measured": {"oom_kill": 1, "mem_peak_mb": 2048.0, "solve_secs": 12.0}}
+            return {
+                "ok": True,
+                "reward": 0.0,
+                "solve_exit": 137,
+                "tail": "Killed",
+                "measured": {"oom_kill": 1, "mem_peak_mb": 2048.0, "solve_secs": 12.0},
+            }
         return {"ok": True}
+
     return handler
 
 
 def test_check_reports_a_starved_oracle_and_leaves_the_ceiling_to_the_agent(
-        tmp_path, monkeypatch, capsys) -> None:
+    tmp_path, monkeypatch, capsys
+) -> None:
     pkg = tmp_path / "pkg"
     (pkg / "run").mkdir(parents=True)
     (pkg / "run" / "resources.json").write_text(
-        '{"cpu": 1, "mem_gb": 2, "disk_gb": 2, "source": "row"}\n')
+        '{"cpu": 1, "mem_gb": 2, "disk_gb": 2, "source": "row"}\n'
+    )
     oracles = []
     server = _FakeServer(_starved_handler(oracles))
     try:
@@ -236,7 +292,7 @@ def test_check_reports_a_starved_oracle_and_leaves_the_ceiling_to_the_agent(
         server.close()
 
     assert rc == 1
-    assert len(oracles) == 1                 # no rerun on the tool's own initiative
+    assert len(oracles) == 1  # no rerun on the tool's own initiative
     out = capsys.readouterr().out
     assert "VERDICT: fail" in out
     assert "ran out of memory in this box" in out
@@ -248,7 +304,8 @@ def test_check_reports_a_starved_oracle_and_leaves_the_ceiling_to_the_agent(
 
 
 def test_check_at_the_ceiling_names_the_task_unrunnable_when_still_starved(
-        tmp_path, monkeypatch, capsys) -> None:
+    tmp_path, monkeypatch, capsys
+) -> None:
     pkg = tmp_path / "pkg"
     (pkg / "run").mkdir(parents=True)
     oracles = []
@@ -267,7 +324,9 @@ def test_check_at_the_ceiling_names_the_task_unrunnable_when_still_starved(
     assert record["at_max"] is True and record["resources"]["source"] == "ceiling"
 
 
-def test_check_reports_names_the_task_never_states(tmp_path, monkeypatch, capsys) -> None:
+def test_check_reports_names_the_task_never_states(
+    tmp_path, monkeypatch, capsys
+) -> None:
     pkg = tmp_path / "pkg"
     (pkg / "run").mkdir(parents=True)
     (pkg / "tests").mkdir()
@@ -276,14 +335,23 @@ def test_check_reports_names_the_task_never_states(tmp_path, monkeypatch, capsys
     (pkg / "environment" / "Dockerfile").write_text("FROM scratch\n")
     (pkg / "tests" / "test_state.py").write_text(
         'import json\nreport = json.load(open("/app/report.json"))\n'
-        'assert report["source_sha256"]\nassert report["checked_streams"] == 3\n')
-    (pkg / "run" / "seed_literals.json").write_text('["checked_streams"]\n')   # the seed already had it
+        'assert report["source_sha256"]\nassert report["checked_streams"] == 3\n'
+    )
+    (pkg / "run" / "seed_literals.json").write_text(
+        '["checked_streams"]\n'
+    )  # the seed already had it
 
     def handler(req):
         if req["op"] == "grade":
             return {"ok": True, "reward": 0.0}
         if req["op"] == "oracle":
-            return {"ok": True, "reward": 1.0, "solve_exit": 0, "tail": "", "measured": {}}
+            return {
+                "ok": True,
+                "reward": 1.0,
+                "solve_exit": 0,
+                "tail": "",
+                "measured": {},
+            }
         return {"ok": True}
 
     server = _FakeServer(handler)
@@ -306,7 +374,8 @@ def test_check_reports_names_the_task_never_states(tmp_path, monkeypatch, capsys
 
     # State the key where the agent reads and the same check passes.
     (pkg / "instruction.md").write_text(
-        "Write a report to /app/report.json with keys source_sha256 and checked_streams.\n")
+        "Write a report to /app/report.json with keys source_sha256 and checked_streams.\n"
+    )
     server = _FakeServer(handler)
     try:
         asb._write_state(pkg, {"status": "down"})
@@ -316,7 +385,25 @@ def test_check_reports_names_the_task_never_states(tmp_path, monkeypatch, capsys
         server.close()
 
 
-def test_check_fails_a_rewrite_more_than_one_rung_above_the_seed(tmp_path, monkeypatch, capsys) -> None:
+def test_step_audit_respects_recorded_growth_policy(tmp_path):
+    pkg = tmp_path / "pkg"
+    (pkg / "run").mkdir(parents=True)
+    (pkg / "tests").mkdir()
+    (pkg / "solution").mkdir()
+    (pkg / "tests/test_state.py").write_text("assert True\n")
+    (pkg / "solution/solve.sh").write_text("echo output\n")
+    seed = {"solution_lines": 9, "verifier_asserts": 1}
+    (pkg / "run/seed_size.json").write_text(json.dumps(seed))
+    assert asb._step_audit(pkg)
+    (pkg / "run/seed_size.json").write_text(
+        json.dumps({**seed, "require_growth": False})
+    )
+    assert asb._step_audit(pkg) == []
+
+
+def test_check_fails_a_rewrite_more_than_one_rung_above_the_seed(
+    tmp_path, monkeypatch, capsys
+) -> None:
     pkg = tmp_path / "pkg"
     (pkg / "run").mkdir(parents=True)
     (pkg / "tests").mkdir()
@@ -325,14 +412,24 @@ def test_check_fails_a_rewrite_more_than_one_rung_above_the_seed(tmp_path, monke
     (pkg / "instruction.md").write_text("Write /app/out.txt with the report.\n")
     (pkg / "environment" / "Dockerfile").write_text("FROM scratch\n")
     (pkg / "tests" / "test_state.py").write_text("assert open('/app/out.txt').read()\n")
-    (pkg / "solution" / "solve.sh").write_text("\n".join(f"echo {i} >> /app/out.txt" for i in range(40)) + "\n")
-    (pkg / "run" / "seed_size.json").write_text('{"solution_lines": 9, "verifier_asserts": 6}\n')
+    (pkg / "solution" / "solve.sh").write_text(
+        "\n".join(f"echo {i} >> /app/out.txt" for i in range(40)) + "\n"
+    )
+    (pkg / "run" / "seed_size.json").write_text(
+        '{"solution_lines": 9, "verifier_asserts": 6}\n'
+    )
 
     def handler(req):
         if req["op"] == "grade":
             return {"ok": True, "reward": 0.0}
         if req["op"] == "oracle":
-            return {"ok": True, "reward": 1.0, "solve_exit": 0, "tail": "", "measured": {}}
+            return {
+                "ok": True,
+                "reward": 1.0,
+                "solve_exit": 0,
+                "tail": "",
+                "measured": {},
+            }
         return {"ok": True}
 
     server = _FakeServer(handler)
@@ -345,7 +442,7 @@ def test_check_fails_a_rewrite_more_than_one_rung_above_the_seed(tmp_path, monke
 
     assert rc == 1
     out = capsys.readouterr().out
-    assert "VERDICT: fail   stage=step_size" in out and "more than one rung" in out
+    assert "VERDICT: fail   stage=step_size" in out and "size bounds" in out
     record = json.loads((pkg / "run" / "checks.jsonl").read_text().strip())
     assert record["stage"] == "step_size" and record["reward"] == 1.0
     assert any("at most 8 more" in v for v in record["step_size"])

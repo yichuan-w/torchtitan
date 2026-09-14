@@ -6,17 +6,17 @@
 
 """Build a training JSONL from the ``Fzz1/Tmax-Tasks-Clean`` ``reaudit`` split.
 
-The reaudit split is the tmax corpus after the 2026-09 re-audit: 456 tasks published as a
-seeds-layout package tar plus a 26-column parquet, at a PINNED dataset revision::
+Each preparation resolves ``--revision`` (default: main) to a commit once. All
+three files come from that commit; a moving branch cannot mix releases::
 
-    splits/reaudit.parquet            456 x 26   (the split; hook columns 22-23; protected_paths and
-                                                  protected_cmds, the 2026-09-06 columns)
-    data/tasks-reaudit-00000.tar      456 packages, 2366 members, all files, under tasks/<task_id>/
+    splits/reaudit.parquet           task membership, hooks and protected lists
+    splits/reaudit_full.parquet      measured peaks for build_mix_v2
+    data/tasks-reaudit-00000.tar     packages under tasks/<task_id>/
 
     tasks/<task_id>/instruction.md
     tasks/<task_id>/environment/Dockerfile   # a bare single FROM <ref> for every task
     tasks/<task_id>/tests/test.sh            # verifier: writes /logs/verifier/reward.txt
-    tasks/<task_id>/tests/reference_pins.sha256   (86 tasks)
+    tasks/<task_id>/tests/reference_pins.sha256   # where present
     tasks/<task_id>/solution/solve.sh
     tasks/<task_id>/setup.sh
 
@@ -37,17 +37,18 @@ SKIPS, which looks exactly like success. So the fields are produced by
 ``prepare_tmax_data._pretest_tmax_fields`` and never spelled here.
 
 WHAT IS REFUSED, each before a row is written:
-  * the fetched parquet / tar bytes differ from the published sha256 (pinned by default);
+  * downloaded bytes differ from the resolved commit's Hub LFS digest;
+  * missing required columns, incompatible types, or inconsistent split/peaks/package IDs;
   * a row whose ``pre_test_sh`` and ``pre_test_env_identity`` are not both set or both empty
     -- a hook without the environment it was stamped for cannot be run safely;
   * a split row with no package in the tar, or a package whose bytes do not reproduce the row's
     ``task_content_sha256`` (sha256 over the package's FILE members in sorted member-name order,
     each contributing relpath + NUL + content + NUL, relpath relative to the package prefix);
   * a tar member that is not a plain file under ``tasks/<task_id>/``;
-  * a row count other than ``--expect-rows`` (456) unless ``--limit`` is given;
+  * a row count other than an explicitly supplied ``--expect-rows``, or lost rows during preparation;
   * 0 of the stamped rows matching their episode identity (the corpus-wide silent-skip guard),
     or any stamped row with no usable identity pair.
-An EMPTY ``pre_test_sh`` is a task with no hook (293 of 456), never a failure.
+An EMPTY ``pre_test_sh`` is a task with no hook, never a failure. Extra columns are allowed.
 
 Run (the token is read from a FILE at use and never printed; a public revision needs none)::
 
@@ -55,7 +56,13 @@ Run (the token is read from a FILE at use and never printed; a public revision n
         --out mast_rl/swe_assets/reaudit_train.jsonl \
         [--token-file /path/to/hf.txt] [--limit N] [--seed 42] [--max-oracle-commands 64]
 
-Offline / tests: ``--parquet PATH --tar PATH`` skip the fetch and read local copies.
+``<out stem>.manifest.json`` records the resolved commit and input/output hashes.
+``--source-dir ROOT`` additionally preserves the verified packages and all three
+inputs under ``ROOT/<commit>/data/sources/{tmax-clean,tmax-extract}``, for breeding.
+Existing snapshots are never overwritten. Existing experiments keep their source links.
+
+Offline: ``--parquet PATH --tar PATH [--peaks PATH]`` uses local copies, records
+their hashes, and validates package contents; no unverified HF revision is claimed.
 """
 
 from __future__ import annotations
@@ -74,10 +81,10 @@ from torchtitan.experiments.rl.examples.tmax.integrity_baseline import (
     tmax_protected_fields,
 )
 from torchtitan.experiments.rl.examples.tmax.prepare_rts_data import (
-    _AGENT_RUNTIME_BLOCK,
     _build_context,
     _entrypoint_command,
     _grading_fixtures,
+    _inject_agent_runtime,
     _join_continuations,
     _load_resource_map,
     _oracle_commands,
@@ -93,17 +100,20 @@ from torchtitan.experiments.rl.examples.tmax.prepare_tmax_data import (
     _REWARD_PATH,
     selfcheck_env_identities,
 )
+from torchtitan.experiments.rl.examples.tmax.reaudit_snapshot import (
+    fetch_snapshot,
+    file_record,
+    HF_PARQUET,
+    HF_PEAKS,
+    HF_REPO as HF_REPO,
+    HF_TAR,
+    publish_sources,
+    RefuseError,
+    validate_peaks,
+)
+from torchtitan.experiments.rl.examples.tmax.resource_sizing import load_allocations
 
-HF_REPO = "Fzz1/Tmax-Tasks-Clean"
-HF_REVISION = "6a48f98d22874299836a6dc5c85ce8ac89fc1323"  # main moves; the split does not. The 26-column publish on top of 0153e06a4e85
-HF_PARQUET = "splits/reaudit.parquet"
-HF_TAR = "data/tasks-reaudit-00000.tar"
-# sha256 of the published bytes at HF_REVISION (the split builder's own publish record). Both moved again
-# in this publish: 451 packages, two further ids dropped (five cumulative) on the user's choice A.
-PARQUET_SHA256 = "af62a8954eeed152b2d543364c8ecb0e07fecd90278f1111ac244a7b9f7aa10f"
-TAR_SHA256 = "75e290b6e869cc78e0584811d4c5157cd7ae8b36c4cca1ad460742dec38d6242"
-EXPECT_ROWS = 451
-EXPECT_COLUMNS = 26
+HF_REVISION = "main"
 MEMBER_ROOT = "tasks"
 
 _HOOK_COLUMNS = ("pre_test_sh", "pre_test_env_identity")
@@ -121,10 +131,6 @@ _NEEDED_COLUMNS = (
     _PROTECTED_COLUMN,
     _PROTECTED_CMDS_COLUMN,
 )
-
-
-class RefuseError(RuntimeError):
-    """A precondition the trainer must never see violated; the message names ids, never content."""
 
 
 def _sha256_file(path: str) -> str:
@@ -151,23 +157,11 @@ def _read_token(token_file: str | None) -> str | None:
 def fetch(
     *, revision: str, token_file: str | None, cache_dir: str | None
 ) -> tuple[str, str]:
-    """Download the split parquet and the package tar at the pinned revision; return local paths."""
-    from huggingface_hub import hf_hub_download  # local import: not needed offline
-
-    tok = _read_token(token_file)
-    paths = []
-    for name in (HF_PARQUET, HF_TAR):
-        paths.append(
-            hf_hub_download(
-                HF_REPO,
-                name,
-                repo_type="dataset",
-                revision=revision,
-                token=tok,
-                cache_dir=cache_dir,
-            )
-        )
-    return paths[0], paths[1]
+    """Compatibility helper for callers needing only the split and tar paths."""
+    snapshot = fetch_snapshot(
+        revision=revision, token=_read_token(token_file), cache_dir=cache_dir
+    )
+    return snapshot["files"][HF_PARQUET]["path"], snapshot["files"][HF_TAR]["path"]
 
 
 def assert_sha256(path: str, expected: str, what: str) -> None:
@@ -182,21 +176,41 @@ def load_split(parquet_path: str) -> list[dict]:
     """The split's rows as dicts (label columns only are ever printed by this script). Asserts the
     columns it consumes exist -- a missing column read through .get() is indistinguishable from an
     empty cell, and here an empty cell means "no hook"."""
+    import pyarrow as pa
     import pyarrow.parquet as pq
 
     table = pq.read_table(parquet_path)
     missing = [c for c in _NEEDED_COLUMNS if c not in table.column_names]
     if missing:
         raise RefuseError(f"split {parquet_path} lacks column(s) {missing}")
-    if len(table.column_names) != EXPECT_COLUMNS:
-        raise RefuseError(
-            f"split {parquet_path} has {len(table.column_names)} columns, expected {EXPECT_COLUMNS}: "
-            "not the pinned split shape"
-        )
+    if len(table.column_names) != len(set(table.column_names)):
+        raise RefuseError("split has duplicate column names")
+    for name in _NEEDED_COLUMNS:
+        kind = table.schema.field(name).type
+        nullable = name in (*_HOOK_COLUMNS, _PROTECTED_COLUMN, _PROTECTED_CMDS_COLUMN)
+        if not (
+            pa.types.is_string(kind)
+            or pa.types.is_large_string(kind)
+            or (nullable and pa.types.is_null(kind))
+        ):
+            raise RefuseError(f"split column {name} has incompatible type {kind}")
+    for name in ("req_cpus", "req_memory_mb", "est_disk_mb"):
+        if name in table.column_names:
+            kind = table.schema.field(name).type
+            if not (
+                pa.types.is_integer(kind)
+                or pa.types.is_floating(kind)
+                or pa.types.is_null(kind)
+            ):
+                raise RefuseError(f"split column {name} has incompatible type {kind}")
     rows = table.to_pylist()
     ids = [r["task_id"] for r in rows]
+    if not ids or any(not isinstance(t, str) or not t.strip() for t in ids):
+        raise RefuseError("split must contain non-empty task IDs")
     if len(set(ids)) != len(ids):
         raise RefuseError("split has duplicate task_id values")
+    if any(r["shard"] != HF_TAR for r in rows):
+        raise RefuseError(f"split must reference the supported shard {HF_TAR}")
     return rows
 
 
@@ -264,6 +278,7 @@ def _package_members(tar: tarfile.TarFile) -> dict[str, list[tarfile.TarInfo]]:
     """{'tasks/<task_id>': [file members]}. Refuses anything that is not a plain file under the
     member root, and any member name that could escape the extraction dir."""
     groups: dict[str, list[tarfile.TarInfo]] = {}
+    seen = set()
     for m in tar.getmembers():
         parts = m.name.split("/")
         if (
@@ -275,6 +290,9 @@ def _package_members(tar: tarfile.TarFile) -> dict[str, list[tarfile.TarInfo]]:
             raise RefuseError(f"unexpected tar member name {m.name!r}")
         if not m.isfile():
             raise RefuseError(f"tar member {m.name!r} is not a plain file")
+        if m.name in seen:
+            raise RefuseError(f"duplicate tar member {m.name!r}")
+        seen.add(m.name)
         groups.setdefault("/".join(parts[:2]), []).append(m)
     return groups
 
@@ -285,7 +303,7 @@ def _package_sha256(
     """The split builder's task_content_sha256: sorted file members, relpath + NUL + content + NUL,
     relpath relative to the PACKAGE prefix ('instruction.md'), never the tar root."""
     h = hashlib.sha256()
-    for m in sorted(members, key=lambda m: m.name):
+    for m in sorted(members, key=lambda member: member.name):
         rel = m.name[len(prefix) + 1 :]
         f = tar.extractfile(m)
         assert f is not None
@@ -329,6 +347,11 @@ def verify_and_extract(tar_path: str, rows: list[dict], out_root: str) -> str:
                 f"{len(missing)} split row(s) have no package in the tar: "
                 f"{missing[:5]}{'...' if len(missing) > 5 else ''}"
             )
+        extra = set(groups) - {r["member_prefix"] for r in rows}
+        if extra:
+            raise RefuseError(
+                f"tar contains packages outside the split: {sorted(extra)[:5]}"
+            )
         bad_sha = []
         for r in rows:
             prefix = r["member_prefix"]
@@ -363,7 +386,7 @@ def verify_and_extract(tar_path: str, rows: list[dict], out_root: str) -> str:
 def to_row(
     task_dir: str,
     *,
-    inject_agent_runtime: bool = False,
+    inject_agent_runtime: bool = True,
     resources: dict[str, int] | None = None,
     pretest: tuple[str, str] | None = None,
     protected_paths: list[str] | None = None,
@@ -397,7 +420,7 @@ def to_row(
     except ValueError:
         return None, "build_context_too_large"
     if inject_agent_runtime:
-        dockerfile = dockerfile.rstrip("\n") + "\n" + _AGENT_RUNTIME_BLOCK
+        dockerfile = _inject_agent_runtime(dockerfile)
 
     with open(paths["instruction"], encoding="utf-8") as f:
         instruction = _strip_canary(f.read())
@@ -501,7 +524,7 @@ def build_rows(
     limit: int | None = None,
     seed: int = 42,
     max_oracle_commands: int | None = None,
-    inject_agent_runtime: bool = False,
+    inject_agent_runtime: bool = True,
 ) -> tuple[list[dict], dict[str, int]]:
     """Every split row to a trainer row, applying prepare_rts_data's filters. Same shuffle rule:
     task order is shuffled with ``seed`` before the ``limit`` cut."""
@@ -552,12 +575,13 @@ def prepare(
     tar_path: str,
     out: str,
     work_dir: str,
-    expect_rows: int | None = EXPECT_ROWS,
+    expect_rows: int | None = None,
     limit: int | None = None,
     seed: int = 42,
     max_oracle_commands: int | None = None,
-    inject_agent_runtime: bool = False,
+    inject_agent_runtime: bool = True,
     smoke_size: int = 0,
+    peaks_path: str | None = None,
 ) -> dict:
     """The whole pipeline on local files; returns the counts the CLI prints. Raises RefuseError."""
     rows = load_split(parquet_path)
@@ -566,6 +590,18 @@ def prepare(
     hooked = assert_hook_pairing(rows)
     tasks_root = verify_and_extract(tar_path, rows, work_dir)
     resource_map = _load_resource_map(parquet_path)
+    if peaks_path is not None:
+        latest = load_allocations(peaks_path)
+        if set(latest) != {r["task_id"] for r in rows}:
+            raise RefuseError("peaks and split must have identical task IDs")
+        resource_map = {
+            tid: {
+                "daytona_cpu": r["cpu"],
+                "daytona_mem_gb": r["mem_gb"],
+                "daytona_disk_gb": r["disk_gb"],
+            }
+            for tid, r in latest.items()
+        }
     built, reasons = build_rows(
         tasks_root,
         rows,
@@ -577,9 +613,9 @@ def prepare(
     )
     if not built:
         raise RefuseError(f"produced 0 rows (filters: {reasons})")
-    if expect_rows is not None and limit is None and len(built) != expect_rows:
+    if limit is None and len(built) != len(rows):
         raise RefuseError(
-            f"built {len(built)} rows of {expect_rows} expected; filters: {reasons}"
+            f"built {len(built)} rows of {len(rows)} expected; filters: {reasons}"
         )
     matched, stamped, unstamped = selfcheck_env_identities(built)  # raises on 0 matches
     if unstamped:
@@ -610,7 +646,11 @@ def prepare(
 def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__.split("\n\n", 1)[0])
     ap.add_argument("--out", required=True, help="output JSONL path")
-    ap.add_argument("--revision", default=HF_REVISION, help="dataset revision (pinned)")
+    ap.add_argument(
+        "--revision",
+        default=HF_REVISION,
+        help=f"{HF_REPO} ref to resolve once (default: main)",
+    )
     ap.add_argument(
         "--token-file",
         default=os.environ.get("TMAX_HF_TOKEN_FILE"),
@@ -627,12 +667,23 @@ def main() -> None:
         help="local data/tasks-reaudit-00000.tar (skips the fetch)",
     )
     ap.add_argument(
-        "--no-sha-pin",
-        action="store_true",
-        help="do not assert the published sha256 of the parquet/tar (only for a NEW revision)",
+        "--peaks", default=None, help="local reaudit_full.parquet, with --parquet/--tar"
     )
     ap.add_argument(
-        "--expect-rows", type=int, default=EXPECT_ROWS, help="refuse on any other count"
+        "--source-dir",
+        default=None,
+        help="preserve Hub sources under this directory/<commit>/ for breeding",
+    )
+    ap.add_argument(
+        "--no-sha-pin",
+        action="store_true",
+        help="deprecated compatibility flag; release-specific SHA pins no longer exist",
+    )
+    ap.add_argument(
+        "--expect-rows",
+        type=int,
+        default=None,
+        help="optional assertion on the split row count",
     )
     ap.add_argument(
         "--work-dir",
@@ -642,7 +693,9 @@ def main() -> None:
     ap.add_argument("--limit", type=int, default=None, help="emit at most N tasks")
     ap.add_argument("--seed", type=int, default=42, help="task-order shuffle seed")
     ap.add_argument("--max-oracle-commands", type=int, default=None, metavar="N")
-    ap.add_argument("--inject-agent-runtime", action="store_true")
+    ap.add_argument(
+        "--inject-agent-runtime", action=argparse.BooleanOptionalAction, default=True
+    )
     ap.add_argument(
         "--smoke-size",
         type=int,
@@ -653,18 +706,53 @@ def main() -> None:
 
     if (args.parquet is None) != (args.tar is None):
         ap.error("--parquet and --tar go together")
-    if args.parquet is None:
-        parquet_path, tar_path = fetch(
-            revision=args.revision, token_file=args.token_file, cache_dir=args.cache_dir
+    if args.peaks is not None and args.parquet is None:
+        ap.error("--peaks requires local --parquet and --tar")
+    if args.source_dir is not None and args.parquet is not None:
+        ap.error(
+            "--source-dir requires a Hub-resolved revision; local inputs have no verified HF identity"
         )
-    else:
-        parquet_path, tar_path = args.parquet, args.tar
-    if not args.no_sha_pin:
-        assert_sha256(parquet_path, PARQUET_SHA256, "split parquet")
-        assert_sha256(tar_path, TAR_SHA256, "package tar")
+    if args.no_sha_pin:
+        print(
+            "--no-sha-pin is obsolete; Hub digests and package consistency are still checked",
+            file=sys.stderr,
+        )
 
-    work = args.work_dir or tempfile.mkdtemp(prefix="tmax_reaudit_")
+    work = None
     try:
+        if args.parquet is None:
+            snapshot = fetch_snapshot(
+                revision=args.revision,
+                token=_read_token(args.token_file),
+                cache_dir=args.cache_dir,
+            )
+        else:
+            files = {
+                HF_PARQUET: file_record(args.parquet),
+                HF_TAR: file_record(args.tar),
+            }
+            if args.peaks is not None:
+                files[HF_PEAKS] = file_record(args.peaks)
+            snapshot = {
+                "repo": None,
+                "requested_revision": None,
+                "revision": None,
+                "files": files,
+            }
+        files = snapshot["files"]
+        parquet_path, tar_path = files[HF_PARQUET]["path"], files[HF_TAR]["path"]
+        if HF_PEAKS in files:
+            validate_peaks(
+                files[HF_PEAKS]["path"],
+                {r["task_id"] for r in load_split(parquet_path)},
+            )
+        if args.source_dir and os.path.exists(
+            os.path.join(args.source_dir, snapshot["revision"])
+        ):
+            raise RefuseError(
+                "source snapshot already exists; reuse it without overwriting"
+            )
+        work = args.work_dir or tempfile.mkdtemp(prefix="tmax_reaudit_")
         summary = prepare(
             parquet_path=parquet_path,
             tar_path=tar_path,
@@ -676,13 +764,37 @@ def main() -> None:
             max_oracle_commands=args.max_oracle_commands,
             inject_agent_runtime=args.inject_agent_runtime,
             smoke_size=args.smoke_size,
+            peaks_path=files[HF_PEAKS]["path"] if HF_PEAKS in files else None,
         )
+        sources = (
+            publish_sources(snapshot, os.path.join(work, MEMBER_ROOT), args.source_dir)
+            if args.source_dir
+            else None
+        )
+        manifest_path = os.path.splitext(args.out)[0] + ".manifest.json"
+        with open(manifest_path, "w") as f:
+            json.dump(
+                {
+                    **snapshot,
+                    "sources": sources,
+                    "output": file_record(args.out),
+                    "preparation": summary,
+                },
+                f,
+                indent=2,
+            )
+            f.write("\n")
     except RefuseError as e:
         print(f"REFUSING: {e}", file=sys.stderr)
         sys.exit(2)
     finally:
-        if args.work_dir is None:
+        if args.work_dir is None and work is not None:
             shutil.rmtree(work, ignore_errors=True)
+    print(
+        f"dataset revision: {snapshot['revision'] or 'local inputs'}; manifest: {manifest_path}"
+    )
+    if sources:
+        print(f"TMax sources: {os.path.dirname(sources['tmax-clean'])}")
     print(
         f"wrote {summary['rows']} reaudit tasks -> {args.out}  "
         f"(hooked {summary['hooked']}, env-identity self-check "

@@ -124,6 +124,7 @@ from torchtitan.experiments.rl.controller_metrics import (
 )
 from torchtitan.experiments.rl.eval_trace_recorder import (
     EvalSummary,
+    validation_is_valid,
     ValidationTraceRecorder,
 )
 from torchtitan.experiments.rl.losses import GRPOLoss
@@ -1034,7 +1035,10 @@ class Controller(Configurable):
             _eval_backend_kwargs: dict = {}
             if _eval_backend:
                 _eval_backend_kwargs["backend"] = _eval_backend
-                if _eval_backend == "vllm_native" and not config.generator.vllm_additional_config:
+                if (
+                    _eval_backend == "vllm_native"
+                    and not config.generator.vllm_additional_config
+                ):
                     _eval_backend_kwargs["vllm_additional_config"] = {
                         "gdn_prefill_backend": "triton"
                     }
@@ -1408,6 +1412,18 @@ class Controller(Configurable):
 
         rollouts = [rollout for group in rollout_groups for rollout in group.rollouts]
         metrics = compute_rollout_metrics(prefix="validation", rollouts=rollouts)
+        # Keep the requested denominator when infrastructure loses a trial or group.
+        rewards = [
+            rollout.reward
+            if rollout.reward is not None
+            and math.isfinite(rollout.reward)
+            and not rollout.diagnostics.get("infra_failed", False)
+            else 0.0
+            for rollout in rollouts
+        ]
+        rewards.extend([0.0] * (num_groups * group_size - len(rollouts)))
+        metrics = [metric for metric in metrics if metric.key != "validation_reward"]
+        metrics.append(m.Metric("validation_reward", m.SummaryStats.from_list(rewards)))
         # Re-key the rollouter's own group metrics (e.g. tmax nonsubmit_frac,
         # finish-reason split) into the validation namespace, so the eval curve
         # carries the same diagnostics as the training curve without colliding.
@@ -1427,7 +1443,10 @@ class Controller(Configurable):
                     m.Mean(
                         1.0
                         if any(
-                            is_scored(rollout) and rollout.reward > 0
+                            rollout.reward is not None
+                            and math.isfinite(rollout.reward)
+                            and not rollout.diagnostics.get("infra_failed", False)
+                            and rollout.reward > 0
                             for rollout in group.rollouts
                         )
                         else 0.0
@@ -1435,9 +1454,22 @@ class Controller(Configurable):
                 )
                 for group in rollout_groups
             )
+            metrics.extend(
+                m.Metric("validation/pass_at_k", m.Mean(0.0))
+                for _ in range(num_failed_groups)
+            )
         metrics.append(
             m.Metric("validation/group_failures", m.Sum(float(num_failed_groups)))
         )
+        valid = validation_is_valid(
+            rollout_groups, num_groups=num_groups, group_size=group_size
+        )
+        if not valid:
+            logger.warning(
+                "step %d: incomplete validation; scores include unscored trials as zero",
+                step,
+            )
+        metrics.append(m.Metric("validation/valid", m.NoReduce(float(valid))))
         return kept_samples, rollout_groups, metrics
 
     # TODO: we currently determine validation.num_samples
@@ -1485,7 +1517,7 @@ class Controller(Configurable):
         summary = self._record_validation_traces(
             step=step, samples=samples, rollout_groups=rollout_groups
         )
-        if summary is not None:
+        if summary is not None and summary.pass_at_k is not None:
             metrics.append(
                 m.Metric("validation/trace_pass_at_k", m.NoReduce(summary.pass_at_k))
             )
@@ -1509,6 +1541,16 @@ class Controller(Configurable):
                     _task_id(sample, index) for index, sample in enumerate(samples)
                 ],
                 decode=self.renderer._tokenizer.decode,
+                expected_num_tasks=self.config.async_loop.validation.num_samples,
+                expected_num_trials=(
+                    self.config.async_loop.validation.num_samples
+                    * self.config.async_loop.validation.group_size
+                ),
+                valid=validation_is_valid(
+                    rollout_groups,
+                    num_groups=self.config.async_loop.validation.num_samples,
+                    group_size=self.config.async_loop.validation.group_size,
+                ),
             )
         except Exception:
             logger.exception("validation trace report failed at step %d", step)
@@ -2041,8 +2083,10 @@ class Controller(Configurable):
             _n = len(_rw)
             _ns = sum(1 for x in _rw if x and x > 0.0)
             _cls = (
-                "full_solve"
-                if _n and _ns == _n
+                "unscored"
+                if _n == 0
+                else "full_solve"
+                if _ns == _n
                 else "not_solve"
                 if _ns == 0
                 else "partial_solve"
@@ -2132,11 +2176,12 @@ class Controller(Configurable):
                 )
                 logger.info(
                     "[buffer] complete group_id=%d solved=%d/%d class=%s "
-                    "-> RELEASE(zero_std, dropped) target_ver=%d cur_ver=%d",
+                    "-> RELEASE(%s, dropped) target_ver=%d cur_ver=%d",
                     rollout_group.group_id,
                     _ns,
                     _n,
                     _cls,
+                    drop_reason,
                     target_policy_version,
                     self._trainer_policy_version,
                 )

@@ -33,6 +33,7 @@ import shlex
 import time
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
+from pathlib import Path
 
 from torchtitan.experiments.rl.harness.agents.spec import (
     AgentRun,
@@ -92,6 +93,7 @@ async def boot_agent_sandbox(
     memory: int | None = None,
     disk_gb: int | None = None,
     issue_tracker: SandboxIssueTracker | None = None,
+    failure_diagnostics_dir: Path | None = None,
 ) -> AsyncIterator[Sandbox]:
     """Boot a fresh sandbox, optionally installing the Claude Code toolchain.
 
@@ -124,6 +126,7 @@ async def boot_agent_sandbox(
             memory=memory,
             disk_gb=disk_gb,
             issue_tracker=tracker,
+            failure_diagnostics_dir=failure_diagnostics_dir,
         )
         num_issues_before = tracker.num_events
         try:
@@ -132,8 +135,8 @@ async def boot_agent_sandbox(
                 try:
                     if install_claude:
                         await install_toolchain(cand)
-                except BaseException:
-                    await cand.__aexit__(None, None, None)
+                except BaseException as error:
+                    await cand.__aexit__(type(error), error, error.__traceback__)
                     raise
             sb = cand
             break
@@ -178,7 +181,10 @@ async def boot_agent_sandbox(
         raise last_err
     try:
         yield sb
-    finally:
+    except BaseException as error:
+        await sb.__aexit__(type(error), error, error.__traceback__)
+        raise
+    else:
         await sb.__aexit__(None, None, None)
 
 

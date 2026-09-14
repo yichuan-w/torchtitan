@@ -29,6 +29,7 @@ changed — build, oracle, null probe: an adjustment can break a task, and
 shipping a broken one is worse than not adjusting it — and returns the verdict.
 The loop writes the record and decides what happens to the package.
 """
+
 from __future__ import annotations
 
 import json
@@ -391,7 +392,8 @@ def revalidate(
             ts.violations(
                 ts.size_of(orig["solve_sh"], orig["test_state_py"], _kind(orig)),
                 ts.size_of(task["solve_sh"], task["test_state_py"], _kind(task)),
-                min_added=0 if task.get("_calibration") else ts.MIN_ADDED,
+                require_growth=orig.get("_harder_mode") != "student"
+                and not task.get("_calibration"),
             )
             if orig is not None and task.get("_direction") != "easier"
             else []
@@ -731,6 +733,9 @@ def process_one(
         task["_task_id"] = tid
         task["_seed_dir"] = str(seed_dir)
         task["_solved"], task["_attempts"] = solved, graded
+        if signal.get("student_feedback") is not None:
+            task["_student_feedback"] = signal["student_feedback"]
+            rec["student_feedback"] = signal["student_feedback"]
         task["_direction"] = job
         task["_resources"] = resources
         # The row's pin hook, as the loop snapshotted it beside rewrite.json
@@ -793,6 +798,8 @@ def process_one(
             fam = operator = None
             use_operators = arm != "codex" or harder_uses_operators()
             rec["harder_mode"] = "operators" if use_operators else "student"
+            task["_harder_mode"] = rec["harder_mode"]
+            rec["require_solution_growth"] = use_operators
             try:
                 shortlist = (
                     llm.operator_shortlist(

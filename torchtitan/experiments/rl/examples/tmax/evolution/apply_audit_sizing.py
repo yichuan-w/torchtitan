@@ -12,7 +12,8 @@ the agent measurement, the oracle measurement and the author's declaration --
 and an earlier version of this file computed a rule of its own from the agent
 peaks alone, which under-provisioned 16 tasks into OOM kills and failed session
 creation. Two scripts deriving the same number independently is how they drift,
-so this one only applies what that one decided.
+so this one only applies what that one decided. TMax's latest peaks (or the
+allocation attached by build_mix_v2) take priority over an older sizing file.
 
 Rows with no entry keep what they have. The held-out tail is left alone by
 default: resizing it changes what validation runs, which is a separate decision
@@ -46,10 +47,18 @@ def main() -> None:
         "--mix", default=None, help="default: $TRL_BASE/data/mix/live.jsonl"
     )
     ap.add_argument("--holdout-n", type=int, default=64)
+    ap.add_argument(
+        "--tmax-peaks", help="latest TMax peaks; takes priority over --sizing"
+    )
     ap.add_argument("--include-holdout", action="store_true")
     ap.add_argument("--apply", action="store_true")
     a = ap.parse_args()
     mix = Path(a.mix) if a.mix else layout.Root.from_env().mix.live
+    latest = (
+        _tmax_modules("resource_sizing").load_allocations(a.tmax_peaks)
+        if a.tmax_peaks
+        else {}
+    )
 
     want = {}
     for line in open(a.sizing):
@@ -74,7 +83,18 @@ def main() -> None:
         row = json.loads(line)
         md = row["metadata"]
         tid = md.get("instance_id")
-        if tid not in want:
+        if (
+            a.tmax_peaks
+            and str(tid).startswith("task_")
+            and int(md.get("rev", 0)) == 0
+            and tid not in latest
+        ):
+            raise ValueError(
+                f"TMax seed {tid} is absent from the supplied latest peaks"
+            )
+        previous_sizing = md.get("tmax_resource_sizing")
+        newest = latest.get(tid) or md.get("tmax_resource_sizing")
+        if tid not in want and newest is None:
             out.append(line)
             stats["no measurement"] += 1
             continue
@@ -86,13 +106,17 @@ def main() -> None:
             out.append(line)
             stats["evolved, left to the loop"] += 1
             continue
-        cpu, mem, disk = want[tid]
+        if newest is not None:
+            cpu, mem, disk = (newest["cpu"], newest["mem_gb"], newest["disk_gb"])
+            md["tmax_resource_sizing"] = newest
+        else:
+            cpu, mem, disk = want[tid]
         cur = (
             md.get("daytona_cpu"),
             md.get("daytona_mem_gb"),
             md.get("daytona_disk_gb"),
         )
-        if cur == (cpu, mem, disk):
+        if cur == (cpu, mem, disk) and (newest is None or previous_sizing == newest):
             out.append(line)
             stats["already correct"] += 1
             continue

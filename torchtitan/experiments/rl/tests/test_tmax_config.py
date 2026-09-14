@@ -18,6 +18,109 @@ from torchtitan.experiments.rl.examples.tmax.config_registry import (
 from torchtitan.experiments.rl.rollout.types import Rollout, RolloutStatus
 
 
+@pytest.fixture(autouse=True)
+def separate_validation_dataset(monkeypatch):
+    monkeypatch.setattr(tmax_config_registry, "_TB2_VAL_DATA", "/data/tb2.jsonl")
+
+
+@pytest.mark.parametrize("turn_cap", [None, 8192, 32768])
+@pytest.mark.parametrize("eval_cap", [None, 24576])
+def test_tmax_9b_turn_token_override(
+    monkeypatch: pytest.MonkeyPatch, turn_cap: int | None, eval_cap: int | None
+) -> None:
+    if turn_cap is None:
+        monkeypatch.delenv("TMAX_TURN_MAX_TOKENS", raising=False)
+    else:
+        monkeypatch.setenv("TMAX_TURN_MAX_TOKENS", str(turn_cap))
+    monkeypatch.setattr(tmax_config_registry, "_TB2_VAL_DATA", "/data/tb2.jsonl")
+    monkeypatch.setattr(tmax_config_registry, "_TB2_VAL_MAX_TOKENS", eval_cap)
+
+    config = rl_grpo_qwen3_5_9b_tmax()
+
+    assert config.generator.sampling.max_tokens == (turn_cap or 16384)
+    assert config.async_loop.validation.max_tokens == eval_cap
+    assert config.async_loop.batcher.batch.seq_len == 65536
+
+
+@pytest.mark.parametrize("holdout", [None, 0, 16])
+def test_tmax_holdout_override_with_separate_eval(monkeypatch, holdout):
+    if holdout is None:
+        monkeypatch.delenv("SWE_HOLDOUT_N", raising=False)
+    else:
+        monkeypatch.setenv("SWE_HOLDOUT_N", str(holdout))
+    monkeypatch.setattr(tmax_config_registry, "_TB2_VAL_DATA", "/data/tb2.jsonl")
+
+    config = tmax_config_registry._tmax_rollouter()
+
+    assert config.train_dataset.holdout_n == (0 if holdout is None else holdout)
+    assert config.validation_dataset.data_path == "/data/tb2.jsonl"
+    assert config.validation_dataset.holdout_n == 0
+
+
+def test_tmax_holdout_override_keeps_train_and_validation_disjoint(monkeypatch):
+    monkeypatch.setenv("SWE_HOLDOUT_N", "48")
+    monkeypatch.setattr(tmax_config_registry, "_TB2_VAL_DATA", "")
+    config = tmax_config_registry._tmax_rollouter()
+    assert config.train_dataset.holdout_n == 48
+    assert config.train_dataset.split == "train"
+    assert config.validation_dataset.holdout_n == 48
+    assert config.validation_dataset.split == "validation"
+
+
+@pytest.mark.parametrize("holdout", [None, "0"])
+@pytest.mark.parametrize("validation_samples", ["0", "32"])
+def test_tmax_zero_holdout_requires_separate_or_disabled_eval(
+    monkeypatch, validation_samples, holdout
+):
+    if holdout is None:
+        monkeypatch.delenv("SWE_HOLDOUT_N", raising=False)
+    else:
+        monkeypatch.setenv("SWE_HOLDOUT_N", holdout)
+    monkeypatch.setenv("SWE_VAL_SAMPLES", validation_samples)
+    monkeypatch.setattr(tmax_config_registry, "_TB2_VAL_DATA", "")
+    if validation_samples == "0":
+        assert tmax_config_registry._tmax_rollouter().train_dataset.holdout_n == 0
+    else:
+        with pytest.raises(ValueError, match="requires a separate SWE_TB2_VAL_DATA"):
+            tmax_config_registry._tmax_rollouter()
+
+
+def test_tmax_negative_holdout_is_rejected(monkeypatch):
+    monkeypatch.setenv("SWE_HOLDOUT_N", "-1")
+    with pytest.raises(ValueError, match="must be nonnegative"):
+        tmax_config_registry._tmax_rollouter()
+
+
+def test_five_independent_generators_keep_controller_affinity(monkeypatch):
+    from torchtitan.experiments.rl.routing.strategies import (
+        LeastLoadedRoutingStrategy,
+        StickySessionRoutingStrategy,
+    )
+    from torchtitan.experiments.rl.train import _compute_generator_world_size
+
+    monkeypatch.setenv("SWE_NUM_GENERATORS", "5")
+    monkeypatch.setenv("SWE_GEN_DP", "1")
+    monkeypatch.setenv("SWE_DP_FALLBACK_ROUTER", "leastloaded")
+    monkeypatch.setenv("SWE_DP_STICKY_REBALANCE", "0")
+    monkeypatch.setenv("SWE_NUM_EVAL_GENERATORS", "1")
+    monkeypatch.setenv("SWE_EVAL_GEN_DP", "1")
+    config = rl_grpo_qwen3_5_9b_tmax()
+    assert config.num_generators == 5
+    assert _compute_generator_world_size(config.generator.parallelism) == 1
+    strategy = config.generator_router.strategy
+    assert isinstance(strategy, StickySessionRoutingStrategy.Config)
+    assert isinstance(strategy.fallback_strategy, LeastLoadedRoutingStrategy.Config)
+    assert strategy.rebalance_load_ratio == 0
+    assert config.num_eval_generators == 1
+    assert config.eval_generator_data_parallel_degree == 1
+
+
+def test_invalid_generator_replica_count(monkeypatch):
+    monkeypatch.setenv("SWE_NUM_GENERATORS", "0")
+    with pytest.raises(ValueError, match="SWE_NUM_GENERATORS"):
+        rl_grpo_qwen3_5_9b_tmax()
+
+
 @pytest.mark.parametrize("override,expected", [(None, 1.0), ("0.9", 0.9)])
 def test_evolution_harder_ratio_env(monkeypatch, override, expected):
     if override is None:

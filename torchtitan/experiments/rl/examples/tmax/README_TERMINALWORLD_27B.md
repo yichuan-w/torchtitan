@@ -229,7 +229,7 @@ Each pass also writes a browsable report at
 | --- | --- | --- | --- |
 | `--config` | `rl_grpo_qwen3_5_27b_tmax_fsdp32_tp2` | 27B recipe (derived from the 9B tmax recipe) | no (27B) |
 | `SWE_PROMPT_DATA` | `mix_tw_swe.jsonl` | TerminalWorld pass + SWE-Smith main pool | yes |
-| `TMAX_AGENT` | `terminus` | Terminus-2 scaffold (default `vanillux`) | yes |
+| `TMAX_AGENT` | `terminus` | Terminus-2 scaffold (default `terminus`) | yes |
 | `TMAX_TERMINUS_MAX_TURNS` | 120 | Max agent turns per episode | yes |
 | `SWE_MAX_CONTEXT_LEN` | 63488 | Agent context budget | yes |
 | `TMAX_TURN_MAX_TOKENS` | 32768 | Per-turn generation cap | yes |

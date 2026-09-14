@@ -194,7 +194,7 @@ def test_only_all_pass_after_simplify_uses_restoration_guidance(
     def run_codex(run, pkg, prompt):
         assert (ec._CALIBRATION_GUIDANCE in prompt) == calibration
         assert (ec._STUDENT_HARDER_GUIDANCE in prompt) != calibration
-        assert bool(sandbox._step_audit(pkg)) != calibration
+        assert sandbox._step_audit(pkg) == []
         (pkg / "instruction.md").write_text("adjusted guidance")
         return subprocess.CompletedProcess([], 0, stdout="")
 

@@ -115,16 +115,27 @@ _GB200_GPUS_PER_HOST = 2
 # Held-out prompts per periodic validation pass (greedy, n=1). Runs concurrently, so its
 # wall time is ~one rollout regardless of count; 32 gives a stable enough solve-rate.
 _TMAX_9B_VAL_SAMPLES = 32
-# Reserve the last N rows of the JSONL as a held-out validation slice, disjoint from
-# training, so periodic validation measures generalization (not training-set recall).
-# Must be >= _TMAX_9B_VAL_SAMPLES so a validation pass can draw distinct held-out tasks.
-_TMAX_9B_HOLDOUT_N = 64
+# Use all training rows by default with a separate benchmark for validation.
+# SWE_HOLDOUT_N opts into reserving the last N rows for same-file validation.
+_TMAX_9B_HOLDOUT_N = 0
 
 
 def _tmax_rollouter() -> TMaxRollouter.Config:
     """Train/validation datasets for the tmax rollouter (rubric + env defaults live
     on the rollouter Config). Train and validation read the same JSONL but disjoint
     slices via holdout_n (last N rows = validation)."""
+    holdout_n = int(os.environ.get("SWE_HOLDOUT_N", _TMAX_9B_HOLDOUT_N))
+    if holdout_n < 0:
+        raise ValueError("SWE_HOLDOUT_N must be nonnegative")
+    if (
+        holdout_n == 0
+        and not _TB2_VAL_DATA
+        and int(os.environ.get("SWE_VAL_SAMPLES", _TMAX_9B_VAL_SAMPLES)) > 0
+    ):
+        raise ValueError(
+            "SWE_HOLDOUT_N=0 requires a separate SWE_TB2_VAL_DATA dataset "
+            "or disabled validation (SWE_VAL_SAMPLES=0)"
+        )
     return TMaxRollouter.Config(
         train_dataset=TMaxDataset.Config(
             data_path=_DEFAULT_DATA,
@@ -132,7 +143,7 @@ def _tmax_rollouter() -> TMaxRollouter.Config:
             # SWE_DISABLE_SHUFFLE=1 -> take training rows in file order (0,1,2,...)
             # for deterministic per-rollout inspection / open-instruct cross-check.
             shuffle=(os.environ.get("SWE_DISABLE_SHUFFLE", "0") != "1"),
-            holdout_n=_TMAX_9B_HOLDOUT_N,
+            holdout_n=holdout_n,
             split="train",
             include_ids_path=_INCLUDE_IDS,
             skip_ids_path=_SKIP_IDS,
@@ -149,7 +160,7 @@ def _tmax_rollouter() -> TMaxRollouter.Config:
                 data_path=_DEFAULT_DATA,
                 seed=99,
                 shuffle=False,
-                holdout_n=_TMAX_9B_HOLDOUT_N,
+                holdout_n=holdout_n,
                 split="validation",
                 skip_ids_path=_SKIP_IDS,
             )
@@ -691,8 +702,19 @@ def rl_grpo_qwen3_5_9b_tmax() -> Controller.Config:
     # Controller._start_async_validation). That run never tripped the skip path, but
     # only by ~3 minutes, so validation/skipped staying 0 is the check that the
     # interval and this concurrency are sized for the benchmark.
+    #
+    # 2026-09-07: lowered 128 -> 64 to match run_tb2_eval.sh, whose numbers are the
+    # ones the eval curve is compared against. On a 24 h in-training run at 128 the
+    # eval host never kept more than 62-93 requests running anyway -- a TB-2.1
+    # rollout spends most of its life in the sandbox, so seats past that only widen
+    # the sandbox burst. The first pass of that run, launched at step 0 alongside the
+    # training pool's first 1500 sandbox creates, sat at 116-118 running with a
+    # quarter of the token throughput of every later pass and read avg@5 0.09 against
+    # 0.19-0.21 for the same weights later; 34 of its 445 rollouts died on
+    # infrastructure and scored 0. Fewer seats make that first pass cheaper to
+    # schedule, and a pass that runs in waves costs wall clock, not accuracy.
     config.eval_rollout_concurrency = int(
-        os.environ.get("SWE_EVAL_ROLLOUT_CONCURRENCY", "128")
+        os.environ.get("SWE_EVAL_ROLLOUT_CONCURRENCY", "64")
     )
     # Weight-sync KV policy. Default (SWE_SALT_KV=1): keep in-flight KV AND the prefix
     # cache (no preempt, no full re-prefill) and salt the prefix cache per GROUP (its n
@@ -721,38 +743,54 @@ def rl_grpo_qwen3_5_9b_tmax() -> Controller.Config:
     # gets it. SWE_GDN_BI below sets it independently, and still wins.
     _prefix_cache_env = os.environ.get("SWE_GEN_PREFIX_CACHE", "")
     _prefix_cache = None if _prefix_cache_env == "" else _prefix_cache_env == "1"
-    # DP routing across the generator's engines. tmax DEFAULTS to
-    # StickySession(fallback=RoundRobin): deal new sessions out evenly BY COUNT so no
-    # single engine piles up. The upstream default (fallback=LeastLoaded) concentrated
-    # ~2x load on engine 0 -- reserved_load is per-turn (transient, ~0 between an
-    # agent's turns) but the sticky pin is per-session (persistent), so LeastLoaded's
-    # min() froze the frequent between-turn ties onto the lowest index. Measured on a
-    # 4-engine 9B run: engine 0 ran ~2.0x the others under LeastLoaded, ~1.2x under
-    # RoundRobin. The sticky pin is kept either way for prefix-cache reuse.
-    # SWE_DP_ROUTER=leastloaded restores the upstream LeastLoaded fallback for A/B.
-    _dp_router = config.generator.intra_generator_router
-    if os.environ.get("SWE_DP_ROUTER", "roundrobin").lower() not in (
-        "leastloaded",
-        "least",
-        "ll",
-    ):
-        from torchtitan.experiments.rl.routing.strategies import (
-            RoundRobinRoutingStrategy,
-            StickySessionRoutingStrategy,
-        )
+    # Keep sticky affinity and overload protection for either cold-session
+    # fallback. LeastLoaded rotates ties; request count is not KV occupancy.
+    from torchtitan.experiments.rl.routing.strategies import (
+        LeastLoadedRoutingStrategy,
+        RoundRobinRoutingStrategy,
+        StickySessionRoutingStrategy,
+    )
 
-        _dp_router = dataclasses.replace(
-            _dp_router,
-            strategy=StickySessionRoutingStrategy.Config(
-                fallback_strategy=RoundRobinRoutingStrategy.Config()
+    # Sticky routing is always the outer strategy here.  This knob selects
+    # only where a new/unpinned session goes (and where a broken pin is
+    # reattached).  Keep SWE_DP_ROUTER as a compatibility alias for older
+    # runbooks, but make the narrower name the documented one.
+    _routing_name = os.environ.get(
+        "SWE_DP_FALLBACK_ROUTER",
+        os.environ.get("SWE_DP_ROUTER", "roundrobin"),
+    ).lower()
+    _fallback = (
+        LeastLoadedRoutingStrategy.Config()
+        if _routing_name in ("leastloaded", "least", "ll")
+        else RoundRobinRoutingStrategy.Config()
+    )
+    _dp_router = dataclasses.replace(
+        config.generator.intra_generator_router,
+        strategy=StickySessionRoutingStrategy.Config(
+            fallback_strategy=_fallback,
+            # Keep session affinity stable by default.  Rebalancing is an
+            # opt-in policy because reserved request count is not KV usage.
+            rebalance_load_ratio=float(
+                os.environ.get("SWE_DP_STICKY_REBALANCE", "0.0")
             ),
-        )
+            rebalance_min_gap=8,
+            max_sessions=int(os.environ.get("SWE_DP_STICKY_MAX_SESSIONS", "16384")),
+        ),
+    )
+    # Use the same session affinity at the controller boundary. With DP=1
+    # replicas this is the only routing decision; no GPU owns peer results.
+    config.generator_router = dataclasses.replace(
+        config.generator_router, strategy=_dp_router.strategy
+    )
 
     config.generator = dataclasses.replace(
         config.generator,
         intra_generator_router=_dp_router,
         sampling=dataclasses.replace(
-            config.generator.sampling, max_tokens=_TMAX_9B_PER_TURN_TOKENS
+            config.generator.sampling,
+            max_tokens=int(
+                os.environ.get("TMAX_TURN_MAX_TOKENS", _TMAX_9B_PER_TURN_TOKENS)
+            ),
         ),
         cudagraph=VLLMCudagraphConfig(enable=_cudagraph_on, mode="FULL_DECODE_ONLY"),
         enable_prefix_caching=_prefix_cache,
@@ -874,6 +912,12 @@ def rl_grpo_qwen3_5_9b_tmax() -> Controller.Config:
                 config.generator.parallelism, data_parallel_degree=_gdp
             ),
         )
+    # Separate proc meshes have independent engine loops and process groups.
+    # Five single-GPU engines: SWE_NUM_GENERATORS=5 SWE_GEN_DP=1.
+    _num_generators = int(os.environ.get("SWE_NUM_GENERATORS", "1"))
+    if _num_generators < 1:
+        raise ValueError("SWE_NUM_GENERATORS must be at least 1")
+    config.num_generators = _num_generators
     # Optional AC-policy override for a fwd/bwd speed experiment. The base is FullAC
     # (recompute the whole forward -- needed to fit seq 65536). SWE_AC=selective swaps
     # in per-op SAC, which saves the expensive aten op outputs (projections, flash-attn
@@ -956,6 +1000,29 @@ def rl_grpo_qwen3_5_9b_tmax() -> Controller.Config:
             debug=_bi,
             enable_prefix_caching=True,
             cudagraph=VLLMCudagraphConfig(enable=True, mode="FULL_DECODE_ONLY"),
+        )
+    # torch.compile the torchtitan model. OFF by default, and it must stay that
+    # way for any config that trains: ``config.compile`` is one field shared by
+    # the trainer and the wrapper generator, so turning it on for the generator
+    # turns it on for the trainer too. The trainer cannot take it -- dynamo traces
+    # Qwen3.5's causal_conv1d (fla's CausalConv1dFunction, an autograd.Function
+    # carrying torch.compiler.disable) from inside the activation-checkpoint HOP,
+    # where falling back to a graph break is not available, so it raises
+    # torch._dynamo.exc.Unsupported and every forward_backward dies. f3738819
+    # defaulted this ON at TP==1 and cost a 150-step run 18 restarts and 8 hours
+    # without a single completed step; the gate is back to opt-in.
+    #
+    # SWE_GEN_COMPILE=1 opts in -- meant for the single-GPU eval, where nothing
+    # trains and a faster forward fits more agent turns inside the task budget.
+    # SWE_GEN_COMPILE_BACKEND picks the backend: aot_eager (default, AOT trace +
+    # eager exec, no codegen) or "inductor", which is only safe at TP=1 because
+    # of the allreduce-fusion landmine that gates vLLM's own compile.
+    if os.environ.get("SWE_GEN_COMPILE", "0") == "1":
+        config.compile = dataclasses.replace(
+            config.compile,
+            enable=True,
+            components=["model"],
+            backend=os.environ.get("SWE_GEN_COMPILE_BACKEND", "aot_eager"),
         )
     return config
 
@@ -1049,6 +1116,16 @@ def rl_grpo_qwen3_5_9b_tmax_tb2_eval() -> Controller.Config:
         validation_dataset=TMaxDataset.Config(
             data_path=tb2_data, seed=99, holdout_n=0, split="validation", shuffle=False
         ),
+        # Pin the eval budget in code so a stray launcher env cannot cap it. TB-2.0
+        # rows declare 900-12000s; the floor raises anything below 7200 (a 120-turn
+        # Terminus-2 episode at ~47s/turn needs it -- a 900 floor left ~60% timing
+        # out and read the base at ~0.09 instead of ~0.16). time_budget_sec=3600 is
+        # what training gives the few rows that declare nothing. Hardwired, NOT read
+        # from SWE_AGENT_TIMEOUT_FLOOR_SEC / SWE_TIME_BUDGET_SEC, so the training
+        # launcher's own values (e.g. a 900 floor) can never reach the eval. An
+        # eval-only override lives in SWE_EVAL_BUDGET_FLOOR_SEC if ever needed.
+        agent_budget_floor_sec=int(os.environ.get("SWE_EVAL_BUDGET_FLOOR_SEC", "7200")),
+        time_budget_sec=int(os.environ.get("SWE_EVAL_TIME_BUDGET_SEC", "3600")),
     )
     config.async_loop = dataclasses.replace(
         config.async_loop,

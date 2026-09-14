@@ -2,7 +2,7 @@
 
 How to turn a published **seed corpus** of terminal-agent tasks into a training
 JSONL the tmax RL loop can roll out on. All three corpora below are
-[Harbor](https://www.harborproject.org) task trees with the same layout and the
+[Harbor](https://www.harborframework.com) task trees with the same layout and the
 same verifier contract, so **one adapter (`prepare_rts_data.py`) and one grader
 (`grading.py`) read all of them** -- only the source and a few per-dataset filter
 columns differ.

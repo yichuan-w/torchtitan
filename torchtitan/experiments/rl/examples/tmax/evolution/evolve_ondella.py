@@ -48,6 +48,7 @@ Usage:
   evolve_ondella.py --once --dry --only <task>     handle, publish nothing
   evolve_ondella.py --signal <run>/<task>--g<N>    replay one handled signal (dry)
 """
+
 from __future__ import annotations
 
 import argparse
@@ -83,13 +84,11 @@ log = logging.getLogger("evolve")
 # while the fixed eval stayed flat. Off, the too-hard tail freezes instead of
 # being loosened, and the only signals that move a task are the ones asking
 # for more difficulty. A deferred signal is replayed when the switch turns on.
-SIMPLIFY_ENABLED = os.environ.get("SWE_EVOLVE_SIMPLIFY", "1").lower() not in (
+SIMPLIFY_ENABLED = os.environ.get("SWE_EVOLVE_SIMPLIFY", "0").lower() not in (
     "0",
     "false",
     "no",
 )
-# Where a seed package comes from, under $TRL_BASE/data/sources/<corpus>/tasks.
-SOURCE_CORPORA = ("swe-extract", "tw-extract", "tmax-extract")
 # What a seed copy leaves behind: backups of the pre-canary-strip instruction
 # are not part of the task and would show the agent text the pool deliberately
 # removed; the other two are records of an older loop's, not the package's.
@@ -416,19 +415,48 @@ def materialize_r0(root: layout.Root, task: layout.TaskDir, tid: str) -> Path:
     """r0 is the seed package, copied once from whichever corpus carries it.
     Copied whole into r0.incoming and renamed, so a crash mid-copy cannot
     leave a half package that a later round would evolve."""
-    for corpus in SOURCE_CORPORA:
-        src = root.data / "sources" / corpus / "tasks" / tid
-        if (src / "instruction.md").exists():
-            break
-    else:
-        raise NoSeed(
-            f"no seed package for {tid} under data/sources/"
-            f"{{{','.join(SOURCE_CORPORA)}}}/tasks"
+    sources = root.data / "sources"
+    candidates = (
+        sorted(
+            corpus / "tasks" / tid
+            for corpus in sources.iterdir()
+            if (corpus / "tasks" / tid / "instruction.md").is_file()
         )
+        if sources.is_dir()
+        else []
+    )
+    if not candidates:
+        raise NoSeed(f"no seed package for {tid} under data/sources/*/tasks")
+    if len(candidates) != 1:
+        raise NoSeed(f"ambiguous seed package for {tid}: {candidates}")
+    src = candidates[0]
     dest = task.rev(0)
     incoming = dest.with_name("r0.incoming")
     shutil.rmtree(incoming, ignore_errors=True)
     shutil.copytree(src, incoming, ignore=SEED_IGNORE)
+    for row in layout.read_jsonl(root.mix.live):
+        md = row.get("metadata") or {}
+        if md.get("instance_id") != tid or not md.get("prebuilt_provenance"):
+            continue
+        image = md.get("image", "")
+        if "@sha256:" not in image or md.get("dockerfile"):
+            raise ValueError(f"{tid}: malformed prebuilt seed row")
+        dockerfile = incoming / "environment" / "Dockerfile"
+        if not dockerfile.exists():
+            dockerfile = incoming / "Dockerfile"
+        if not dockerfile.exists():
+            raise ValueError(f"{tid}: prebuilt source has no Dockerfile")
+        # Keep the audited source recipe out of the build context used by r0.
+        layout.write_json_atomic(
+            incoming / ".prebuilt-source.json",
+            {
+                "image": image,
+                "source_dockerfile": dockerfile.read_text(),
+                "provenance": md["prebuilt_provenance"],
+            },
+        )
+        dockerfile.write_text(f"FROM {image}\n")
+        break
     os.rename(incoming, dest)
     log.info("%s: r0 materialized from %s", tid, src.relative_to(root.path))
     return dest
@@ -476,7 +504,7 @@ def handle(
     process_one runs: the agent's tool and the loop's probe both grade with
     it, the way training does.
     """
-    d = sig.data
+    d = dict(sig.data)
     tid, rev = str(d["task"]), int(d["rev"])
     job = "harder" if d["direction"] == "harder" else "easier"
     task = root.evolution.task(tid)
@@ -578,6 +606,24 @@ def handle(
                     rewrite.traces / "previous-simplify.json"
                 )
                 break
+        if (
+            job == "harder"
+            and os.environ.get("SWE_RETUNE_AGENT", "chat") == "codex"
+            and not ops.harder_uses_operators()
+            and d.get("student_feedback") is None
+        ):
+            d["student_feedback"] = {
+                "measurement": {
+                    key: d[key] for key in ("run", "group", "rev", "solved", "total")
+                },
+                "measurement_scope": "One rollout group from the named training run.",
+            }
+            parent_instruction = task.rev(rev - 1) / "instruction.md"
+            if rev > 0 and parent_instruction.exists():
+                d["student_feedback"]["previous_revision"] = {
+                    "rev": rev - 1,
+                    "instruction": parent_instruction.read_text(),
+                }
         rec = fb.process_one(
             rewrite,
             d,
@@ -626,6 +672,8 @@ def handle(
         "spec_repair",
         "operator",
         "harder_mode",
+        "require_solution_growth",
+        "student_feedback",
         "family",
         "hint",
         "simplify",
@@ -732,7 +780,7 @@ def reusable_rewrite(
     New rollout paths and timestamps are expected on every draw. They do not
     change the feedback identity; raw signals remain available for inspection.
     """
-    keys = ("task", "rev", "direction", "solved", "total")
+    keys = ("task", "rev", "direction", "solved", "total", "student_feedback")
     for previous in reversed(list(ledger.values())):
         if (
             previous.get("outcome") != "handled"
@@ -758,6 +806,8 @@ def reusable_rewrite(
                 else "operators"
             )
             if meta.get("harder_mode", "operators") != mode:
+                return None
+            if mode == "student" and meta.get("require_solution_growth", True):
                 return None
         if meta.get("status") in {"accepted", "rejected", "kept", "blocked"}:
             return reference
@@ -1220,9 +1270,7 @@ def main() -> None:
     root = layout.Root.from_env()
     # Before the log file is even opened: a refused second instance must not
     # write "loop up" into the log the first one owns.
-    _lock_fd = acquire_singleton(
-        root.evolution.loop_lock
-    )  # noqa: F841 -- held for the process lifetime
+    _lock_fd = acquire_singleton(root.evolution.loop_lock)  # noqa: F841 -- held for the process lifetime
 
     logging.basicConfig(
         level=logging.INFO,

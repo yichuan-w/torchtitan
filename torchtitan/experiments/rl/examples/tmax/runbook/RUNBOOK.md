@@ -437,10 +437,13 @@ the full lineage from version 1 to now is the manifests' `parent_version` chain.
 
 ### The holdout
 
-**The last 64 rows of the training JSONL, in file order, are the validation
-slice.** The count is `_TMAX_9B_HOLDOUT_N = 64` in
-`examples/tmax/config_registry.py` — a module constant, **not configurable** by
-env var or config field. The split happens in `data.py` before any id filtering,
+`SWE_HOLDOUT_N` defaults to 0: every row is available for training. Supply a
+separate benchmark file through `SWE_TB2_VAL_DATA` for validation. Zero is also
+allowed when validation is disabled with `SWE_VAL_SAMPLES=0`; otherwise a
+positive holdout is required to keep validation separate from training.
+Set `SWE_HOLDOUT_N=64` for an existing mix whose final 64 rows form its frozen
+evaluation set.
+The split happens in `data.py` before any id filtering,
 so it is stable regardless of which ids you include or skip:
 
 ```python
@@ -652,8 +655,8 @@ these are the variables that touch them.
 | `SWE_LR` | `3e-6` | `0` (keep `1e-6`) | learning rate. |
 | `SWE_LOSS` | unset | `dppo` | `dppo` / `dapo` / `grpo`. |
 | `SWE_MAX_CONTEXT_LEN` | `63488` | **four different defaults** by entry point (32768 / 63488 / 22528 / 20480) | per-session context budget. Always set it explicitly. |
-| `TMAX_AGENT` | `terminus` | `vanillux` | agent scaffold. Changes the action distribution. |
-| `SWE_AGENT_TIMEOUT_FLOOR_SEC` | `900` | `7200` | floor on a task's declared budget, never a ceiling. |
+| `TMAX_AGENT` | `terminus` | `terminus` | agent scaffold. Changes the action distribution. |
+| `SWE_AGENT_TIMEOUT_FLOOR_SEC` | `7200` | `7200` | floor on a task's declared budget, never a ceiling. 900 capped TB-2.0 tasks and caused ~60% eval timeouts. |
 | `SWE_WRONG_SUBMIT_PENALTY` | `0.3` | `0` | reward penalty for submitting a wrong answer. |
 | `SWE_REWARD_DENSE` | unset | `0` | dense per-test reward instead of binary. |
 | `TMAX_FORMAT_ERROR_FEEDBACK` | unset | `0` | at `0`, a turn with no tool call ends the rollout immediately (open-instruct parity). |

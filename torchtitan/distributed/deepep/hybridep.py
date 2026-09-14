@@ -18,19 +18,27 @@ Configuration (via HybridEPTokenDispatcher.Config):
         MXFP8.  See _num_permuted_tokens_for_non_blocking().
 """
 
+import importlib
 from dataclasses import dataclass
 from typing import Any
 
 import torch
 import torch.distributed as dist
-from torch._library.opaque_object import OpaqueBase, register_opaque_type
+from torch._library import opaque_object
+
+# The training environment predates the nightly rename of OpaqueBase.
+CustomClassBase = getattr(opaque_object, "OpaqueBase", None)
+if CustomClassBase is None:
+    CustomClassBase = importlib.import_module(
+        "torch._custom_class_base"
+    ).CustomClassBase
 
 from torchtitan.tools.logging import logger
 
 _buffer: Any = None  # Global buffer instance
 
 
-class DispatchHandle(OpaqueBase):
+class DispatchHandle(CustomClassBase):
     """Opaque wrapper for HybridEP dispatch handle.
 
     Wraps the deep_ep dispatch handle as an opaque type so it can be returned
@@ -58,7 +66,7 @@ class DispatchHandle(OpaqueBase):
         return "DispatchHandle()", {"DispatchHandle": DispatchHandle}
 
 
-register_opaque_type(DispatchHandle, typ="reference")
+opaque_object.register_opaque_type(DispatchHandle, typ="reference")
 
 
 @dataclass

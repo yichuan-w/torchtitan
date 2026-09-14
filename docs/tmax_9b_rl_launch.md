@@ -204,11 +204,18 @@ example `"daytona_disk_gb": 20`. Tasks without that field use
 The 180-second Daytona heartbeat prevents the provider's 10-minute idle timer
 from stopping a sandbox while the controller waits on an in-process model turn.
 `TT_DAYTONA_RPC_RETRIES=2` applies only to idempotent command-log reads, identical
-file uploads, and sandbox deletion. Agent command submission is never replayed.
-If a rollout still loses its sandbox or exhausts a transport RPC, it remains in
-its 32-sibling group with reward zero, matching Open-Instruct. The failed sibling
-participates in centered advantage estimation but contributes no training tokens
-when it has no model completion.
+file uploads, and sandbox deletion. Transient command-submission failures have
+up to five attempts within the existing command deadline. Every attempt uses
+the same command UUID and an atomic claim in the sandbox, so duplicate launchers
+do not execute the command body again. Retries use fresh Daytona sessions because
+a detached command can outlive its original session. Recovery reads the command's
+result files, even when Daytona returns no command ID. Claims persist until
+sandbox deletion; losing both the launcher and its result does not trigger a
+fresh execution.
+
+Unrecovered infrastructure failures remain in the diagnostic records, but their
+training rewards become NaN. They are excluded from advantage estimation and
+training samples. Valid siblings remain eligible under the usual group filters.
 
 Terminal sandbox failures emit immediate `[sandbox_issue]` JSON records in the
 controller log. Recovered polling and retry events are kept out of the hot log
