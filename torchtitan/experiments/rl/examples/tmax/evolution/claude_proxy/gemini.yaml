@@ -16,7 +16,12 @@ litellm_settings:
   # drops for Gemini (drop_params), which caches prefixes on its own.
   callbacks: cache_hook.proxy_handler_instance
   drop_params: true
-  num_retries: 3
+  # The binding limit of a billed key is input tokens per minute per model
+  # (20M on tier 3), and Codex resends the whole conversation every turn:
+  # 64 sessions crossed it within 4 min on 2026-09-14 and 125 of them died
+  # on the CLI's own retry limit. Retries here absorb a burst before the CLI
+  # sees it; the worker count is what keeps the steady state under the line.
+  num_retries: 6
   request_timeout: 3600
 general_settings:
   master_key: os.environ/LITELLM_MASTER_KEY
