@@ -250,7 +250,12 @@ def cmd_up(pkg: Path, at_max: bool = False) -> int:
     box = _box(pkg, at_max)
     log = pkg / "run" / "sandbox.log"
     log.parent.mkdir(parents=True, exist_ok=True)
-    sock = tempfile.mktemp(prefix="evolve-sandbox-", suffix=".sock", dir="/tmp")
+    # The socket lives in /tmp by default because AF_UNIX paths are capped at
+    # 108 bytes and a package path is longer. EVOLVE_SOCK_DIR moves it: on a
+    # shared login node /tmp filled up with other users' files (2026-09-14)
+    # and every boot failed ENOSPC at bind(); /dev/shm is node-local and short.
+    sock = tempfile.mktemp(prefix="evolve-sandbox-", suffix=".sock",
+                           dir=os.environ.get("EVOLVE_SOCK_DIR") or "/tmp")
     _write_state(
         pkg,
         {
