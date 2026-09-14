@@ -8,7 +8,7 @@
 # (Codex sessions and synth_client chat calls) through the local LiteLLM
 # proxy to Claude, replacing the OpenAI key evolveloop_env.sh exported.
 #   PROXY_ENV=<the proxy's env file> [PROXY_PORT=4000] [SYNTH_MODEL=claude-opus-5]
-: "${PROXY_ENV:?the proxy's env file (LITELLM_MASTER_KEY=...)}"
+: "${PROXY_ENV:?the proxy env file, holding LITELLM_MASTER_KEY=}"
 export OPENAI_API_KEY=$(sed -n 's/^LITELLM_MASTER_KEY=//p' "$PROXY_ENV")
 export SYNTH_API_BASE=http://127.0.0.1:${PROXY_PORT:-4000}/v1
 export SYNTH_MODEL=${SYNTH_MODEL:-claude-opus-5}
