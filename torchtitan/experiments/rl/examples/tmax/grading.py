@@ -226,7 +226,8 @@ def _check_verifier_python_download(test_sh: str, output: str, reward: float) ->
         return
     if (
         "error: Request failed after" in output
-        and "Failed to download https://github.com/astral-sh/python-build-standalone/releases/download/"
+        and "Failed to download https://github.com/"
+        "astral-sh/python-build-standalone/releases/download/"
         in output
         and re.search(r"HTTP status server error \(5\d\d\b", output)
     ):

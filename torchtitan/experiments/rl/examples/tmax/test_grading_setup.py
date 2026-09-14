@@ -15,10 +15,12 @@ import pytest
 from torchtitan.experiments.rl.examples.tmax import grading
 
 
-DOWNLOAD_FAILURE = """error: Request failed after 3 retries
-  Caused by: Failed to download https://github.com/astral-sh/python-build-standalone/releases/download/example/python.tar.gz
-  Caused by: HTTP status server error (504 Gateway Timeout) for url
-"""
+DOWNLOAD_FAILURE = (
+    "error: Request failed after 3 retries\n"
+    "  Caused by: Failed to download https://github.com/"
+    "astral-sh/python-build-standalone/releases/download/example/python.tar.gz\n"
+    "  Caused by: HTTP status server error (504 Gateway Timeout) for url\n"
+)
 SCRIPT = (
     "uvx --with pytest pytest /tests/test_state.py\necho 0 > /logs/verifier/reward.txt"
 )

@@ -36,7 +36,8 @@ def test_python_download_failure_uses_the_existing_bounded_probe_retry(
     if infrastructure:
         output = (
             "error: Request failed after 3 retries\n"
-            "Failed to download https://github.com/astral-sh/python-build-standalone/releases/download/example/python.tar.gz\n"
+            "Failed to download https://github.com/"
+            "astral-sh/python-build-standalone/releases/download/example/python.tar.gz\n"
             "HTTP status server error (504 Gateway Timeout)\n"
         )
         with pytest.raises(RuntimeError) as failure:
