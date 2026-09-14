@@ -94,6 +94,7 @@ async def boot_agent_sandbox(
     disk_gb: int | None = None,
     issue_tracker: SandboxIssueTracker | None = None,
     failure_diagnostics_dir: Path | None = None,
+    labels: dict[str, str] | None = None,
 ) -> AsyncIterator[Sandbox]:
     """Boot a fresh sandbox, optionally installing the Claude Code toolchain.
 
@@ -109,6 +110,8 @@ async def boot_agent_sandbox(
     ``dockerfile`` carries a task's Dockerfile text for corpora that ship no
     published image; the backend builds it instead of pulling ``image``.
     ``build_context`` carries that Dockerfile's COPY sources as {relpath: base64}.
+    ``labels`` are stamped on the cloud sandbox beside the harness's owner label,
+    so a failed create can be traced back to its task from the console.
     """
     global _BOOT_SEM
     if _BOOT_SEM is None:
@@ -127,6 +130,7 @@ async def boot_agent_sandbox(
             disk_gb=disk_gb,
             issue_tracker=tracker,
             failure_diagnostics_dir=failure_diagnostics_dir,
+            labels=labels,
         )
         num_issues_before = tracker.num_events
         try:

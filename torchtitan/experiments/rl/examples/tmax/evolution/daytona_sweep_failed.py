@@ -14,7 +14,10 @@ blocked every create for 13h -- see sweep_orphans.py). This sweeper:
      sweep_orphans.py unsafe for the training account),
   3. dumps each victim's full model (error_reason, build_info, labels, disk,
      timestamps) to SWEEP_EVIDENCE_DIR/<utc-day>/<id>.json BEFORE deleting --
-     the build error text is what the Dockerfile-repair queue needs,
+     the build error text is what the Dockerfile-repair queue needs. list()
+     omits build_info, so the dump comes from a per-id get(): that is what
+     carries the Dockerfile, and dockerfile_sha256 beside it is the key that
+     maps a corpse back to a mix row when the labels predate task labelling,
   4. deletes it, logging one line per sandbox.
 
 Safe to run any time, idempotent. Deployed as a systemd --user timer on
@@ -22,6 +25,7 @@ della-tridao (daytona-sweep.timer, 10 min).
 """
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 import sys
@@ -51,6 +55,23 @@ EVIDENCE_DIR = os.environ.get(
     "SWEEP_EVIDENCE_DIR",
     "/scratch/gpfs/TRIDAO/al9080/terminal-rl/logs/sandbox-failures",
 )
+
+
+def _evidence(client, sb) -> dict:
+    """The sandbox's full record, fetched by id so build_info is present."""
+    full = sb
+    try:
+        full = client.get(getattr(sb, "id"))
+    except Exception as e:  # noqa: BLE001 -- fall back to the list() view
+        print(f"[sweep] get failed for {getattr(sb, 'id', '?')}: {e}",
+              file=sys.stderr)
+    record = full.to_dict()
+    info = getattr(full, "build_info", None)
+    dockerfile = getattr(info, "dockerfile_content", None) if info else None
+    record["dockerfile_sha256"] = (
+        hashlib.sha256(dockerfile.encode()).hexdigest() if dockerfile else None
+    )
+    return record
 
 
 def _ours(sb) -> bool:
@@ -88,16 +109,18 @@ def main() -> None:
         stamp = datetime.now(timezone.utc).isoformat(timespec="seconds")
         try:
             with open(os.path.join(outdir, f"{sid}.json"), "w") as f:
-                json.dump(sb.to_dict(), f, indent=2, default=str)
+                json.dump(_evidence(d, sb), f, indent=2, default=str)
         except Exception as e:  # noqa: BLE001 -- evidence is best-effort
             print(f"[sweep] {stamp} evidence dump failed {sid}: {e}",
                   file=sys.stderr)
         err = str(getattr(sb, "error_reason", "") or "").replace("\n", " ")[:140]
+        task = (getattr(sb, "labels", None) or {}).get("task", "-")
         try:
             d.delete(sb)
             swept += 1
             kind = "dead" if dead else f"stale>{STALE_STARTED_MIN}min"
-            print(f"[sweep] {stamp} deleted {sid} state={state} ({kind}) err={err!r}")
+            print(f"[sweep] {stamp} deleted {sid} task={task} state={state} "
+                  f"({kind}) err={err!r}")
         except Exception as e:  # noqa: BLE001
             failed += 1
             print(f"[sweep] {stamp} delete FAILED {sid}: "

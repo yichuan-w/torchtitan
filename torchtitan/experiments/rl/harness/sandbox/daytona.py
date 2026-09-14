@@ -572,6 +572,7 @@ class DaytonaSandbox:
         disk_gb: int | None = None,
         issue_tracker: SandboxIssueTracker | None = None,
         failure_diagnostics_dir: Path | None = None,
+        labels: dict[str, str] | None = None,
         **_ignored,
     ) -> None:
         # Per-task overrides for vCPU / memory (GiB) / disk (GiB). None means fall
@@ -587,6 +588,18 @@ class DaytonaSandbox:
             raise ValueError("daytona sandbox needs either an image or a dockerfile")
         if build_context and not dockerfile:
             raise ValueError("build_context is only meaningful with a dockerfile")
+        # Per-sandbox labels (task, group, rollout, run) so a sandbox in the
+        # cloud console -- above all a BUILD_FAILED corpse, which the SDK's
+        # list() returns without its Dockerfile -- can be traced back to what
+        # created it without a per-id get(). Merged under HARNESS_LABELS at
+        # create time; ``owner`` stays the sweep's tenant key and is not
+        # overridable from here.
+        for key, val in (labels or {}).items():
+            if not isinstance(key, str) or not isinstance(val, str):
+                raise ValueError(
+                    f"daytona labels must map str to str, got {key!r}: {val!r}"
+                )
+        self.labels = dict(labels or {})
         self.image = image
         self.dockerfile = dockerfile
         self.build_context = build_context
@@ -909,7 +922,7 @@ class DaytonaSandbox:
         params = CreateSandboxFromImageParams(
             image=self._declarative_image() if self.dockerfile else self.image,
             resources=Resources(cpu=cpu, memory=mem, disk=disk),
-            labels=HARNESS_LABELS,
+            labels={**self.labels, **HARNESS_LABELS},
             auto_stop_interval=auto_stop,
             **create_kwargs,
         )

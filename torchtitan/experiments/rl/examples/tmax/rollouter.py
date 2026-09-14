@@ -1307,6 +1307,12 @@ class TMaxRollouter(Rollouter):
                         if run is not None
                         else None
                     ),
+                    labels={
+                        "task": sample.instance_id,
+                        "group": str(group_id),
+                        "rollout": str(rollout_idx),
+                        **({"run": run.name} if run is not None else {}),
+                    },
                 ) as sandbox:
                     # Sandbox is up: shrink the guard back to the agent's own
                     # envelope. Boot-queue time must not eat the agent's budget --
