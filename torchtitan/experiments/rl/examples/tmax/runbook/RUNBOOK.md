@@ -538,6 +538,48 @@ the list of groups that actually died at zero turns). Treat that list as "where 
 first", not as a verdict: on the first pass 78 tasks landed there while none of
 them actually died, so filtering on it would have dropped 78 healthy tasks.
 
+### The student and the control plane are separate cgroups
+
+A student that fills its memory can take the terminal down with it. In the
+step-40 TB 2.1 supplement, `compile-compcert` ran `opam install coq.8.16.1
+menhir`; opam sizes its build from the host's core count, and `opam var jobs`
+reports 47 inside a 2-CPU sandbox, so 47 jobs ran against 2 CPUs and 4 GiB.
+Memory sat at the limit with the page cache reclaimed to nothing, both CPUs
+were in reclaim, and the harness's tmux liveness probe returned 124 after 60 s.
+The Daytona daemon answered the metrics API throughout; what did not answer was
+the tmux server, which shared the student's cgroup. The attempt ended as
+`terminal_state_unavailable`, unscored, with nothing to say whose fault it was.
+
+`TerminalLifecycle.isolate` (`harness/agents/terminus_terminal.py`) now runs
+once per rollout after the pane is bound. Inside the sandbox pid 1 is the
+daemon and every process starts in `/init.scope`, whose control files refuse
+writes; the root cgroup is empty with every controller delegated. The daemon,
+the shells it starts for the harness and the tmux server move to
+`/sys/fs/cgroup/control`, with `memory.min` (`TT_CONTROL_MEMORY_MIN`, 128M) and
+`cpu.weight` (`TT_CONTROL_CPU_WEIGHT`, 10000); the pane shell, whose
+descendants are the student's processes, moves to `/sys/fs/cgroup/student`.
+The student's `memory.max` is untouched, so its budget is the one the data row
+declares. On a runtime where any step fails the setup stops, records an
+`isolation_unsupported` or `isolation_failed` event, and the terminal runs as
+before. `TT_TERMINAL_ISOLATION=0` skips it.
+
+Measured with the same opam/Coq install on 2026-09-14 by
+`evolution/probe_sandbox_pressure.py --workload compcert`; the results are in
+`terminalworld-seeds/results/sandbox-pressure-20260914`. Unsplit, the probe
+went from 0.5 s to 17.7 s to three consecutive 20 s timeouts once memory hit
+the limit, until the kernel killed opam itself; split, it stayed under 4.2 s,
+the kernel OOM-killed one `coqc`, and opam reported the failed build to a live
+shell. That is the "Killed" any OOM produces, and the model can respond to it.
+A PSI watchdog that kills the student's largest process was also tried; the
+`some` memory stall peaked at 43%, it never fired, and it was not adopted.
+
+When a probe does fail, the lifecycle first reads `memory.current`,
+`memory.events` and `memory.pressure` of the root cgroup and, once split, of
+`student` and `control`, and records them as a `pressure_snapshot` event ahead
+of the `terminal_*` event in the rollout's `terminal_events`. The daemon-side
+metrics and telemetry still land in the `*.daytona/` diagnostics beside the
+rollout.
+
 ### When sandbox creation fails
 
 Three layers, and the run never crashes: `TT_DAYTONA_CREATE_RETRIES` (8 in the
@@ -661,6 +703,9 @@ these are the variables that touch them.
 | `SWE_REWARD_DENSE` | unset | `0` | dense per-test reward instead of binary. |
 | `TMAX_FORMAT_ERROR_FEEDBACK` | unset | `0` | at `0`, a turn with no tool call ends the rollout immediately (open-instruct parity). |
 | `TMAX_TERMINUS_SUMMARIZE` | unset | `0` | upstream defaults this on; the module docstring says "on a 9B it is lethal". |
+| `TT_TERMINAL_ISOLATION` | unset | `1` | cgroup split of the student from the control plane (see "The student and the control plane are separate cgroups"). `0` skips it. |
+| `TT_CONTROL_MEMORY_MIN` | unset | `128M` | `memory.min` of the control cgroup: reclaim leaves the daemon, harness shells and tmux server this much. |
+| `TT_CONTROL_CPU_WEIGHT` | unset | `10000` | `cpu.weight` of the control cgroup against the student's default 100. |
 
 ### Performance and capacity
 
