@@ -315,16 +315,28 @@ def _codex_env(sd: layout.SessionDir) -> dict:
     return env
 
 
+def _extra_config() -> list[str]:
+    """Further `-c key=value` overrides for every session, from
+    EVOLVE_CODEX_EXTRA_CONFIG, whitespace-separated.
+
+    The CLI's own retry budget is five stream reconnects a few seconds
+    apart, which does not survive a proxy that is busy for a minute; the
+    knobs for that are provider config, so this is where a run raises them
+    (see claude_proxy/claude_env.sh). Whitespace-separated so the value
+    survives a systemd EnvironmentFile line."""
+    return os.environ.get("EVOLVE_CODEX_EXTRA_CONFIG", "").split()
+
+
 def _provider_overrides() -> list[str]:
     """The provider settings both drivers pass; the SDK takes them as a list."""
     if ACCOUNT_HOME or os.environ.get("EVOLVE_CODEX_AUTH_FILE"):
-        return ["model_provider=openai"]
+        return ["model_provider=openai"] + _extra_config()
     return [
         "model_providers.oai.name=openai",
         f"model_providers.oai.base_url={API_BASE}",
         "model_providers.oai.env_key=OPENAI_API_KEY",
         "model_provider=oai",
-    ]
+    ] + _extra_config()
 
 
 def _session_cmd(run: SessionRun, cwd: Path, *, resume: str | None) -> list[str]:

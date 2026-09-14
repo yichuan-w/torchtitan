@@ -30,10 +30,12 @@ A round:
      package/, hardlink the rollout records under package/traces/, snapshot
      the row's pin hook as pretest.json beside rewrite.json, run
      feedback_loop.process_one there, record the verdict in rewrite.json.
-  4. fold: for every accepted rewrite, strip the harness files, rename
+  4. fold, as soon as a rewrite is accepted: strip the harness files, rename
      package/ to r<N+1>/, rebuild the row (the replaced row's hook and size
-     carried across) and publish one new mix version for the round. Then the
-     lineage lines, then the ledger line, last.
+     carried across) and publish a new mix version. Then the lineage line,
+     then the ledger line, last. A round of many concurrent rewrites runs for
+     hours; folding each one on acceptance means a loop stopped mid-round
+     loses only the rewrites still in flight.
   5. rebuild status.json from the ledger and every task's files, and commit
      the records (never packages, sessions or traces) to the audit repo.
 
@@ -816,7 +818,7 @@ def reusable_rewrite(
 
 
 def fold(root: layout.Root, accepted: list[dict]) -> int | None:
-    """Every accepted rewrite of the round into one new mix version.
+    """The accepted rewrites given into one new mix version.
 
     The row is rebuilt from the package (pack.to_row, so a folded row is
     indistinguishable from a freshly prepared one) and provisioned at
@@ -1208,17 +1210,23 @@ def run_round(
                 _rewrite_ref(root, h["rewrite"]),
             )
             handled.append(h)
-            if h["status"] != "accepted":
+            if h["status"] == "accepted" and not dry:
+                # Folded the moment it is accepted, one mix version each,
+                # rather than once for the whole round. A round of 64
+                # concurrent rewrites runs for hours, and a loop stopped
+                # inside it (a restart for a config change, a killed unit)
+                # used to leave every accepted package sitting as `running`
+                # with no revision behind it; on 2026-09-14 that was 7
+                # accepted rewrites recovered by hand and 87 more at risk.
+                # fold() settles the rewrite one way or the other (accepted
+                # with a revision, or rejected/failed at the fold); closing
+                # it afterwards keeps the ledger line the last thing written.
+                version = fold(root, [h])
+                if version is not None:
+                    result["mix_version"] = version
+            if h["status"] != "accepted" or not dry:
                 _close(root, h, dry=dry)
 
-    if not dry:
-        # fold() settles each of these one way or the other (accepted with a
-        # revision, or rejected/failed at the fold); closing them afterwards
-        # is what makes the ledger line the last thing written.
-        to_fold = [h for h in handled if h["status"] == "accepted"]
-        result["mix_version"] = fold(root, to_fold)
-        for h in to_fold:
-            _close(root, h, dry=dry)
     for h in handled:
         result["counts"][h["status"]] = result["counts"].get(h["status"], 0) + 1
     result["handled"] = len(handled)

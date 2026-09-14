@@ -42,3 +42,29 @@ def test_api_key_provider_remains_default(monkeypatch):
     monkeypatch.delenv("EVOLVE_CODEX_AUTH_FILE", raising=False)
     assert "model_provider=oai" in ec._provider_overrides()
     assert "model_providers.oai.env_key=OPENAI_API_KEY" in ec._provider_overrides()
+
+
+def test_extra_config_reaches_both_providers(monkeypatch):
+    """EVOLVE_CODEX_EXTRA_CONFIG adds `-c` overrides whichever way the session
+    authenticates, split on whitespace so a systemd EnvironmentFile line
+    carries it."""
+    monkeypatch.setenv(
+        "EVOLVE_CODEX_EXTRA_CONFIG",
+        "model_providers.oai.stream_max_retries=20  model_providers.oai.stream_idle_timeout_ms=900000",
+    )
+    monkeypatch.delenv("EVOLVE_CODEX_AUTH_FILE", raising=False)
+    monkeypatch.setattr(ec, "ACCOUNT_HOME", None)
+    overrides = ec._provider_overrides()
+    assert overrides[-2:] == [
+        "model_providers.oai.stream_max_retries=20",
+        "model_providers.oai.stream_idle_timeout_ms=900000",
+    ]
+    assert "model_provider=oai" in overrides
+    monkeypatch.setenv("EVOLVE_CODEX_AUTH_FILE", "/nonexistent")
+    assert ec._provider_overrides() == [
+        "model_provider=openai",
+        "model_providers.oai.stream_max_retries=20",
+        "model_providers.oai.stream_idle_timeout_ms=900000",
+    ]
+    monkeypatch.delenv("EVOLVE_CODEX_EXTRA_CONFIG")
+    assert ec._extra_config() == []

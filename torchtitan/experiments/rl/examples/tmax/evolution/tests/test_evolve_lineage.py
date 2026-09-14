@@ -1071,3 +1071,42 @@ def test_fold_carries_the_rows_protected_lists_when_the_package_ships_none(
     ]  # as LISTS
     tm = json.loads(root.mix.live.read_text())["metadata"]["tmax"]
     assert tm["protected_paths"] == PATHS and tm["protected_cmds"] == CMDS
+
+
+def test_each_accepted_rewrite_is_folded_on_its_own(tmp_path, monkeypatch):
+    """Two accepted rewrites in one round become two mix versions, each
+    published the moment its rewrite was accepted: a loop stopped after the
+    first has already folded it."""
+    root = _root(tmp_path, monkeypatch)
+    shutil.copytree(
+        root.data / "sources/tw-extract/tasks/tw_a",
+        root.data / "sources/tw-extract/tasks/tw_b",
+    )
+    rows = root.mix.live.read_text().splitlines()
+    row_b = json.loads(rows[0])
+    row_b.update({"label": "tw_b"})
+    row_b["metadata"] = {**row_b["metadata"], "instance_id": "tw_b"}
+    root.mix.publish(rows + [json.dumps(row_b)])
+    before = root.mix.live_version()[0]
+    _signal(root, task="tw_a")
+    _signal(root, task="tw_b", group=8)
+    seen = _stub(monkeypatch)
+    r = od.run_round(root, workers=2)
+    assert (r["handled"], r["accepted"]) == (2, 2), r
+    assert len(seen) == 2
+    versions = [v for v, _ in root.mix.versions() if v > before]
+    assert versions == [before + 1, before + 2], versions
+    assert r["mix_version"] == before + 2
+    for tid in ("tw_a", "tw_b"):
+        assert root.evolution.task(tid).rev(1).exists()
+        fold = [
+            e
+            for e in layout.read_jsonl(root.evolution.task(tid).lineage)
+            if e["event"] == "fold"
+        ]
+        assert len(fold) == 1 and fold[0]["to_rev"] == 1
+    live = {
+        json.loads(l)["label"]: json.loads(l)
+        for l in root.mix.live.read_text().splitlines()
+    }
+    assert live["tw_a"]["metadata"]["rev"] == 1 and live["tw_b"]["metadata"]["rev"] == 1

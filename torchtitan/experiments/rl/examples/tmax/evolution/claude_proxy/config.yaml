@@ -1,0 +1,28 @@
+# LiteLLM proxy: an OpenAI-compatible front (chat and Responses API) for
+# Claude, so the Codex CLI the evolve loop drives runs on Claude unchanged.
+# Started by proxy.sh; keys come from the env file it points at.
+model_list:
+  - model_name: claude-opus-5
+    litellm_params:
+      model: anthropic/claude-opus-5
+      api_key: os.environ/ANTHROPIC_API_KEY
+      # Codex sends no output cap and LiteLLM would default Anthropic's to
+      # 4096, which adaptive thinking alone can eat (14% of turns hit it on
+      # 2026-09-14, ending sessions on an empty message).
+      max_tokens: 32000
+  - model_name: claude-sonnet-5
+    litellm_params:
+      model: anthropic/claude-sonnet-5
+      api_key: os.environ/ANTHROPIC_API_KEY
+      max_tokens: 32000
+litellm_settings:
+  # Marks the newest text item of every Responses request with a cache
+  # breakpoint (Codex resends the whole conversation each turn) and sets the
+  # output cap on that route too; see cache_hook.py.
+  callbacks: cache_hook.proxy_handler_instance
+  drop_params: true
+  num_retries: 3
+  # A single Claude turn can think for minutes; the default 600 s cut streams.
+  request_timeout: 3600
+general_settings:
+  master_key: os.environ/LITELLM_MASTER_KEY

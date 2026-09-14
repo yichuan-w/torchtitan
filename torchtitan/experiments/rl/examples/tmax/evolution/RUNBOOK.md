@@ -420,6 +420,92 @@ pat=evolve_ondella; pgrep -cf "${pat}\.py"   # must be 1; a plain pgrep -f count
                                             # your own ssh command line too
 ```
 
+## Offline evolution of a signal subset
+
+The online loop rewrites whatever the trainer signals. To harden one chosen set
+of tasks from a finished run -- the tasks a policy solved on first contact, say
+-- and ship the result as a new seed mix, stage just those signals into a root
+of their own and drive that root to completion:
+
+```bash
+# 1. pick: every task whose FIRST training group in the run was all-solved,
+#    has a harder signal, and is outside the holdout (last 64 rows)
+$PY $EVO/offline_select.py --run $TRL_BASE/runs/<run> --mix data/seeds/<seed>.jsonl \
+    --pkgs data/<corpus>/tasks --out $TRL_BASE/tmp/offline-<date>
+# 2. a root of its own, seeded with the mix the run trained on
+$PY $TT/torchtitan/experiments/rl/examples/tmax/new_root.py --base <root> \
+    --mix data/seeds/<seed>.jsonl --sources data/<corpus> --bin $TRL_BASE/bin --profile andy
+# 3. rounds until every selected task has a verdict; as a user unit, off /tmp
+systemd-run --user --unit=offline-$(basename <root>) --collect --working-directory=<root> \
+  --setenv=TRL_PROFILE=andy --setenv=TRL_BASE=<root> \
+  --setenv=TT_DAYTONA_CPU=1 --setenv=TT_DAYTONA_MEM_GB=2 --setenv=TT_DAYTONA_DISK_GB=2 \
+  --setenv=SOURCE_RUN=$TRL_BASE/runs/<run> --setenv=SELECTED=$TRL_BASE/tmp/offline-<date>/selected.json \
+  --setenv=WORKERS=64 --setenv=EVOLVE_SOCK_DIR=/dev/shm/$USER-evolve --setenv=TMPDIR=<root>/tmp \
+  bash $EVO/offline_drive.sh
+# 4. the product: live.jsonl as a named seed, with a manifest naming every replaced row's rewrite
+$PY $EVO/offline_publish.py --root <root> --out data/seeds/<name>_<mix stamp>.jsonl
+```
+
+`offline_stage.py` copies the chosen signal files and hardlinks their rollout
+records under `<root>/runs/<name>/`; the loop then sees exactly those. A signal
+the ledger closed is never handled again, so every retry round stages the
+failed tasks under a fresh run-dir name (`--only-failed`, at most
+`MAX_ATTEMPTS` per task counted from `ATTEMPTS_SINCE`, so a task failing on
+its merits is not retried forever while attempts lost to a fault you have
+since fixed are excluded by moving the stamp). `offline_drive.sh` does the
+restaging between rounds and logs to `logs/offline_drive--<stamp>.log`.
+
+The loop folds each accepted rewrite the moment it is accepted, so stopping
+the unit mid-round loses only the rewrites in flight; a root written by an
+older loop, which folded once per round, is caught up by
+`offline_recover.py` (accepted-but-unfolded rewrites, refolded with the loop's
+own `fold()`). After a stop, `finalize_interrupted_traces.py --stopped-loop-pid
+<pid>` marks what was in flight before the next round restages it.
+
+Three things measured on the 2026-09-14 run of 139 TMax tasks (136 accepted,
+$2,796 on Claude Opus 5): the login node's shared `/tmp` filled with other
+users' files and every sandbox boot failed at bind() until `EVOLVE_SOCK_DIR`
+pointed at `/dev/shm`; della-tridao killed the loop's sessions about four
+minutes after every launch of 32 or more (cause never found; the login node
+did not); and `offline_cost.py --root <root>` says where the money went, by
+token class, session kind and the fate of the rewrite the session served.
+
+## Running the loop on Claude
+
+The loop drives the Codex CLI, which speaks OpenAI's Responses API. A local
+LiteLLM proxy (`claude_proxy/`) fronts Claude with that API, so nothing in
+the loop changes: every Codex session and every `synth_client` chat call goes
+to `127.0.0.1:4000` with the proxy's master key as `OPENAI_API_KEY`.
+
+```bash
+python -m venv <venv> && <venv>/bin/pip install 'litellm[proxy]'   # proxy.sh's default is the one on della
+umask 077; printf 'ANTHROPIC_API_KEY=%s\nLITELLM_MASTER_KEY=%s\n' "$KEY" "sk-litellm-$(openssl rand -hex 16)" > <root>/litellm.env
+PROXY_VENV=<venv> PROXY_ENV=<root>/litellm.env bash $EVO/claude_proxy/proxy.sh start   # a user unit, one worker
+# the loop: source claude_proxy/claude_env.sh after evolveloop_env.sh, or CLAUDE_PROXY=1 for offline_drive.sh
+```
+
+What `claude_env.sh` sets and why, each one paid for on 2026-09-14:
+`SYNTH_MODEL=claude-opus-5`; `EVOLVE_CODEX_EXTRA_CONFIG` raising the CLI's
+stream and request retries and its idle timeout (a Claude turn can think
+silently for minutes; the default five reconnects a few seconds apart ended
+33% of one batch's sessions); `EVOLVE_AGENT_TIMEOUT=7200` (Claude runs about
+1.8 turns a minute, and the verifier and repair stages take 50-80 turns). The
+proxy config caps output at 32,000 tokens (LiteLLM's 4,096 default was eaten
+by thinking on 14% of turns, ending sessions on an empty message), runs one
+worker (uvicorn's multi-worker health check SIGKILLs a worker whose pong
+thread loses the GIL for 5 s, which 64 concurrent 50-80k-token requests
+do), and adds a cache breakpoint on every request's newest text item, which
+makes 97% of input tokens cache reads.
+
+Cost shape of that run, per `offline_cost.py`: 60% output tokens, of which 83%
+was thinking at effort `high`; 25% cache reads (Codex resends the whole
+conversation every turn, median 52k tokens); 45% of the total was spent on
+sessions later lost to infrastructure faults and restarts. Effort `medium`
+on the verifier and probe stages is the first lever; a single ChatGPT login
+in place of the API key is not (one account is throttled around 32
+concurrent sessions, and its refresh token is revoked if two hosts refresh
+it).
+
 ## Measuring whether it is learning
 
 The trap: the task pool rewrites itself toward easier, so a rising score on the training
