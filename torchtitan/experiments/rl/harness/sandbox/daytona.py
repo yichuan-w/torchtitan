@@ -46,21 +46,28 @@ _COMMAND_KILL_GRACE_SEC = 10
 _DEFAULT_EXEC_REQUEST_TIMEOUT_SEC = 120
 _SESSION_POLL_GRACE_SEC = 120
 _SESSION_RPC_TIMEOUT_SEC = 60
-_COMMAND_RECOVERY_DELAYS_SEC = (0.0, 0.25, 1.0)
 _COMMAND_SUBMIT_DELAYS_SEC = (0.0, 1.0, 2.0, 4.0, 8.0)
-_EXEC_CLAIM_DIR = "/var/tmp/.torchtitan_exec_claims"
-_EXEC_OUTPUT_DIR = "/tmp/.torchtitan_exec"
+# Everything the harness itself writes inside the sandbox lives on /dev/shm, a
+# tmpfs outside the task's disk quota: the claim that makes a relaunch
+# idempotent, the wrapper, the raw output (capped at 1 MiB) and the result
+# files. A task that fills its own disk then fails its own commands with
+# ENOSPC, which the agent sees, while the harness keeps driving the sandbox.
+# Measured 2026-09-14 on a 1 GB tmax sandbox at 100% disk: a one-shot exec
+# still ran, a detached wrapper still wrote its status here, and the file API
+# still read it; only the Toolbox's own session mkdir failed.
+_EXEC_CLAIM_DIR = "/dev/shm/.torchtitan_exec_claims"
+_EXEC_OUTPUT_DIR = "/dev/shm/.torchtitan_exec_out"
 _EXEC_RESULT_DIR = "/dev/shm/.torchtitan_exec"
 _EXEC_STAGING_DIR = "/dev/shm"
+# The launch is one short one-shot exec that backgrounds the wrapper and
+# returns; this bounds only that request, never the command.
+_LAUNCH_RPC_TIMEOUT_SEC = 30
 _EXEC_RAW_OUTPUT_LIMIT_BYTES = 1_048_576
 _EXEC_OUTPUT_HEAD_BYTES = 10_000
 _EXEC_OUTPUT_TAIL_BYTES = 10_000
 # Daytona ultimately launches this string as one `sh -c` argument. Spill with
 # headroom below Linux MAX_ARG_STRLEN (128 KiB).
 _EXEC_INLINE_COMMAND_LIMIT_BYTES = 96 * 1024
-_PROVIDER_STATUS_FIRST_POLL_SEC = 5.0
-_PROVIDER_STATUS_POLL_INTERVAL_SEC = 30.0
-_PROVIDER_STATUS_RPC_TIMEOUT_SEC = 10.0
 _FINAL_RESULT_PROBE_TIMEOUT_SEC = 5.0
 _RESULT_POLL_DELAYS_SEC = (0.5,)
 _RESULT_POLL_INTERVAL_SEC = 2.0
@@ -78,6 +85,17 @@ class _ObservableExecCommand:
     wrapper: bytes
     status_path: str
     output_path: str
+
+    def launch(self, *, uploaded: bool) -> str:
+        """The one-shot exec that starts the wrapper detached and returns.
+
+        The claim inside the wrapper's dispatcher makes this idempotent: a
+        relaunch after a lost response finds the claim and exits without
+        running the body again. Stdio goes to /dev/null so the Toolbox's
+        request does not wait on the detached process group.
+        """
+        body = self.uploaded_command if uploaded else self.inline_command
+        return f"( {body} ) </dev/null >/dev/null 2>&1 & echo launched"
 
 
 def _error_status_code(error: BaseException) -> int | None:
@@ -269,8 +287,8 @@ def _build_observable_exec(full: str, command_key: str) -> _ObservableExecComman
     )
     encoded_wrapper = base64.b64encode(wrapper.encode()).decode("ascii")
     # Claim before materializing or opening the wrapper: a duplicate must not
-    # truncate a script that the first shell is still reading. Claims outlive
-    # /tmp cleanup and remain until sandbox deletion, even if the launcher dies.
+    # truncate a script that the first shell is still reading. Claims live on
+    # /dev/shm and remain until sandbox deletion, even if the launcher dies.
     claim = (
         f"mkdir -p {shlex.quote(_EXEC_CLAIM_DIR)} || exit $?; "
         f"if ! mkdir {shlex.quote(f'{_EXEC_CLAIM_DIR}/{command_key}')} 2>/dev/null; "
@@ -538,8 +556,6 @@ class DaytonaSandbox:
       ``TT_DAYTONA_CREATE_TIMEOUT``        -- snapshot-build/boot wait (default 900s).
       ``TT_DAYTONA_EXEC_TIMEOUT_MIN``       -- SDK request timeout floor; does not
                                                extend the command runtime limit.
-      ``TT_DAYTONA_SESSION_CREATE_RETRIES`` -- empty-session creation retries;
-                                               defaults to 5.
       ``TT_DAYTONA_RPC_RETRIES``            -- retries for idempotent RPCs; default 2.
       ``TT_DAYTONA_HEARTBEAT_SEC``          -- activity refresh interval; default
                                                180s, or 0 to disable.
@@ -1065,7 +1081,7 @@ class DaytonaSandbox:
         full = _build_exec_command(cmd, user=user, env=env, timeout=timeout)
         num_issues_before = self.issue_tracker.num_events
         try:
-            rc, out = await self._session_exec(
+            rc, out = await self._detached_exec(
                 full,
                 command_timeout=timeout,
                 request_timeout=request_timeout,
@@ -1112,93 +1128,38 @@ class DaytonaSandbox:
             )
         return rc, out, err
 
-    async def _delete_exec_session(self, sid: str, *, reason: str) -> None:
-        """Best-effort cleanup for a command whose outcome is not usable."""
-        import asyncio
-
-        try:
-            await asyncio.wait_for(
-                self._sb.process.delete_session(sid),
-                timeout=_SESSION_RPC_TIMEOUT_SEC,
-            )
-        except Exception as e:
-            self._record_issue(
-                "session_cleanup_failed",
-                phase="session_cleanup",
-                error=f"{reason}: {e}",
-                session_id=sid,
-            )
-
-    async def _recover_session_command_id(
-        self, sid: str, full: str, *, deadline: float
-    ) -> str:
-        """Find a submitted command after its execute response was lost."""
-        import asyncio
-
-        for delay in _COMMAND_RECOVERY_DELAYS_SEC:
-            remaining = deadline - asyncio.get_running_loop().time()
-            if remaining <= delay:
-                break
-            if delay:
-                await asyncio.sleep(delay)
-            try:
-                session = await asyncio.wait_for(
-                    self._sb.process.get_session(sid),
-                    timeout=min(5.0, remaining - delay),
-                )
-            except Exception as e:
-                # A missing session is not evidence that its sandbox was deleted.
-                if _is_missing_file_error(e):
-                    continue
-                if _is_sandbox_gone_error(e):
-                    self._mark_sandbox_lost(e, phase="execute_recovery")
-                    raise
-                self._record_issue(
-                    "command_recovery_query_failed",
-                    phase="execute_recovery",
-                    error=e,
-                    recovered=True,
-                    session_id=sid,
-                    emit_log=False,
-                )
-                continue
-            commands = getattr(session, "commands", None) or []
-            for command in reversed(commands):
-                if getattr(command, "command", None) == full:
-                    command_id = getattr(command, "id", None)
-                    if command_id:
-                        return str(command_id)
-        return ""
-
-    async def _session_exec(
+    async def _detached_exec(
         self,
         full: str,
         *,
         command_timeout: int,
         request_timeout: int,
     ) -> tuple[int, str]:
-        """Submit one command, recover an ambiguous response, then read its result.
+        """Launch one command detached, then read its result from /dev/shm.
 
-        Successful sessions are intentionally retained: deleting one kills
-        detached children used by the bridge and Claude launcher.
+        The launch is a one-shot ``process.exec`` that backgrounds the wrapper
+        and returns at once, so no Daytona session is created: the Toolbox
+        implements a session as directories on the sandbox's own disk, and a
+        task that filled that disk used to cut the harness off from a sandbox
+        that was still alive. A relaunch after a lost response is safe because
+        the wrapper claims its command key on /dev/shm before doing anything;
+        the duplicate exits and the original's status file settles the run.
 
-        Daytona can keep a session command in RUNNING forever when the foreground
-        shell exits after starting a background daemon. The wrapper writes the
-        foreground exit code atomically, so completion does not depend on Daytona's
-        descendant-aware command status.
+        The wrapper writes the foreground exit code atomically, so completion
+        never depends on the provider's view of a process tree; a foreground
+        shell that started a background daemon still completes.
         """
         import asyncio
         import random
         import uuid
 
-        from daytona import SessionExecuteRequest
-
-        # Pass every optional field explicitly (= the SDK's own defaults). In the
-        # torchtitan/vllm import context the SDK rebuild drops these defaults.
+        del request_timeout  # the launch returns at once; the command runs detached
         command_key = uuid.uuid4().hex
         observable = _build_observable_exec(full, command_key)
-        observed_full = observable.inline_command
-        if len(observed_full.encode()) > _EXEC_INLINE_COMMAND_LIMIT_BYTES:
+        uploaded = (
+            len(observable.inline_command.encode()) > _EXEC_INLINE_COMMAND_LIMIT_BYTES
+        )
+        if uploaded:
             await self._retry_idempotent_rpc(
                 lambda: self._sb.fs.upload_file(
                     observable.wrapper,
@@ -1209,82 +1170,9 @@ class DaytonaSandbox:
                 retry_kind="file_upload_retry",
                 failed_kind="file_upload_failed",
             )
-            observed_full = observable.uploaded_command
+        launch = observable.launch(uploaded=uploaded)
         status_path = observable.status_path
         output_path = observable.output_path
-        request = SessionExecuteRequest(
-            command=observed_full,
-            run_async=True,
-            var_async=None,
-            suppress_input_echo=None,
-            # Older Toolbox deployments use the deprecated JSON field while the
-            # current SDK emits runAsync. Sending both true is unambiguous.
-            additional_properties={"async": True},
-        )
-
-        # Session creation is safe to retry. Submission retries below reuse the
-        # same wrapper and its atomic sandbox-side claim. The old knob remains
-        # an alias for session creation compatibility.
-        retries = int(
-            _getenv(
-                "TT_DAYTONA_SESSION_CREATE_RETRIES",
-                "TT_DAYTONA_EXEC_RETRIES",
-                default="5",
-            )
-        )
-        if retries < 0:
-            raise ValueError(
-                f"TT_DAYTONA_SESSION_CREATE_RETRIES must be non-negative, got {retries}"
-            )
-        backoff = 5.0
-        sid = ""
-        for attempt in range(retries + 1):
-            sid = uuid.uuid4().hex
-            try:
-                await asyncio.wait_for(
-                    self._sb.process.create_session(sid),
-                    timeout=_SESSION_RPC_TIMEOUT_SEC,
-                )
-                break
-            except Exception as e:
-                if _is_sandbox_gone_error(e):
-                    self._mark_sandbox_lost(e, phase="session_create")
-                    raise
-                try:
-                    await asyncio.wait_for(
-                        self._sb.process.delete_session(sid),
-                        timeout=_SESSION_RPC_TIMEOUT_SEC,
-                    )
-                except Exception:
-                    pass
-                # Toolbox has already failed to create its session directory.
-                # Retrying with a fresh UUID cannot free blocks or inodes, and the
-                # Daytona daemon may retain the shell it started before mkdir failed.
-                if "no space left on device" in str(e).lower():
-                    self._record_issue(
-                        "session_disk_exhausted",
-                        phase="session_create",
-                        error=e,
-                        session_id=sid,
-                        attempt=attempt + 1,
-                        max_attempts=retries + 1,
-                    )
-                    raise
-                terminal = attempt >= retries or not _is_transient_rpc_error(e)
-                self._record_issue(
-                    "session_create_failed" if terminal else "session_create_retry",
-                    phase="session_create",
-                    error=e,
-                    recovered=not terminal,
-                    session_id=sid,
-                    attempt=attempt + 1,
-                    max_attempts=retries + 1,
-                    emit_log=terminal,
-                )
-                if terminal:
-                    raise
-                await asyncio.sleep(backoff * (0.5 + random.random()))
-                backoff = min(backoff * 2, 60.0)
 
         loop = asyncio.get_running_loop()
         deadline = (
@@ -1294,9 +1182,8 @@ class DaytonaSandbox:
             + _SESSION_POLL_GRACE_SEC
         )
 
-        cid = ""
+        launched = False
         submission_error: Exception | None = None
-        submission_replayed = False
 
         async def read_status(*, final: bool = False) -> int | None:
             remaining = deadline - loop.time()
@@ -1326,8 +1213,7 @@ class DaytonaSandbox:
                     phase="command_poll",
                     error=e,
                     recovered=True,
-                    session_id=sid,
-                    command_id=cid,
+                    command_id=command_key,
                     emit_log=False,
                 )
                 return None
@@ -1343,8 +1229,7 @@ class DaytonaSandbox:
                         phase="command_poll",
                         error=e,
                         recovered=True,
-                        session_id=sid,
-                        command_id=cid,
+                        command_id=command_key,
                         emit_log=False,
                     )
                     return None
@@ -1360,59 +1245,11 @@ class DaytonaSandbox:
                     "command_status_invalid",
                     phase="command_poll",
                     error=f"invalid command status {status_text!r}",
-                    session_id=sid,
-                    command_id=cid,
+                    command_id=command_key,
                 )
                 raise RuntimeError(
                     f"daytona command wrote invalid status {status_text!r}"
                 ) from e
-
-        async def read_provider_status(*, final: bool = False) -> int | None:
-            # A duplicate launcher can exit zero while the original command is
-            # still running. Only its shared result receipt can settle that run.
-            if not cid or submission_replayed:
-                return None
-            remaining = deadline - loop.time()
-            if remaining <= 0 and not final:
-                return None
-            rpc_timeout = (
-                _FINAL_RESULT_PROBE_TIMEOUT_SEC
-                if final
-                else min(_PROVIDER_STATUS_RPC_TIMEOUT_SEC, remaining)
-            )
-            self._raise_if_sandbox_lost()
-            try:
-                command = await asyncio.wait_for(
-                    self._sb.process.get_session_command(sid, cid),
-                    timeout=rpc_timeout,
-                )
-            except Exception as e:
-                if _is_missing_file_error(e):
-                    return None
-                if _is_sandbox_gone_error(e):
-                    self._mark_sandbox_lost(e, phase="command_status_fallback")
-                    raise
-                self._record_issue(
-                    "command_status_query_failed",
-                    phase="command_status_fallback",
-                    error=e,
-                    recovered=True,
-                    session_id=sid,
-                    command_id=cid,
-                    emit_log=False,
-                )
-                return None
-
-            raw_exit_code = getattr(command, "exit_code", None)
-            if raw_exit_code is None:
-                return None
-            try:
-                exit_code = int(raw_exit_code)
-            except (TypeError, ValueError):
-                return None
-            if isinstance(raw_exit_code, float) and raw_exit_code != exit_code:
-                return None
-            return exit_code
 
         exit_code = None
         for attempt, delay in enumerate(_COMMAND_SUBMIT_DELAYS_SEC):
@@ -1422,48 +1259,33 @@ class DaytonaSandbox:
                 if remaining <= delay:
                     break
                 await asyncio.sleep(delay)
+                # The lost response may have launched the wrapper after all.
                 exit_code = await read_status()
                 if exit_code is not None:
                     break
                 if loop.time() >= deadline:
                     break
-                submission_replayed = True
+            self._raise_if_sandbox_lost()
             try:
-                if attempt:
-                    # The detached wrapper can outlive its Daytona session.
-                    # A fresh session still shares the original command claim.
-                    sid = uuid.uuid4().hex
-                    await asyncio.wait_for(
-                        self._sb.process.create_session(sid),
-                        timeout=max(
-                            0.001, min(_SESSION_RPC_TIMEOUT_SEC, deadline - loop.time())
-                        ),
-                    )
-                    if loop.time() >= deadline:
-                        break
-                resp = await asyncio.wait_for(
-                    self._sb.process.execute_session_command(
-                        sid, request, timeout=request_timeout
-                    ),
+                await asyncio.wait_for(
+                    self._sb.process.exec(launch, timeout=_LAUNCH_RPC_TIMEOUT_SEC),
                     timeout=max(
-                        0.001, min(float(request_timeout), deadline - loop.time())
+                        0.001,
+                        min(
+                            float(_LAUNCH_RPC_TIMEOUT_SEC) + 5.0,
+                            deadline - loop.time(),
+                        ),
                     ),
                 )
-                cid = resp.cmd_id or ""
-                if cid:
-                    break
-                submission_error = RuntimeError(
-                    "daytona session exec returned no cmd_id"
-                )
+                launched = True
+                break
             except Exception as e:
+                if _is_sandbox_gone_error(e):
+                    self._mark_sandbox_lost(e, phase="execute_submit")
+                    raise
                 if not _is_transient_rpc_error(e):
                     raise
                 submission_error = e
-            cid = await self._recover_session_command_id(
-                sid, observed_full, deadline=deadline
-            )
-            if cid:
-                break
             exit_code = await read_status(final=loop.time() >= deadline)
             if exit_code is not None:
                 break
@@ -1472,7 +1294,7 @@ class DaytonaSandbox:
                     "execute_submit_retry",
                     phase="execute_submit",
                     error=submission_error,
-                    session_id=sid,
+                    command_id=command_key,
                     attempt=attempt + 1,
                     max_attempts=len(_COMMAND_SUBMIT_DELAYS_SEC),
                     emit_log=False,
@@ -1480,68 +1302,30 @@ class DaytonaSandbox:
         if exit_code is None:
             exit_code = await read_status()
         polls = 0
-        next_provider_poll = loop.time() + _PROVIDER_STATUS_FIRST_POLL_SEC
         while exit_code is None:
             if loop.time() >= deadline:
                 exit_code = await read_status(final=True)
-                used_provider_status = False
-                if exit_code is None:
-                    exit_code = await read_provider_status(final=True)
-                    used_provider_status = exit_code is not None
                 if exit_code is not None:
-                    if used_provider_status:
-                        self._record_issue(
-                            "command_status_fallback",
-                            phase="command_status_fallback",
-                            error=(
-                                "result sentinel unavailable; used Daytona "
-                                "command status"
-                            ),
-                            recovered=True,
-                            session_id=sid,
-                            command_id=cid,
-                            exit_code=exit_code,
-                            emit_log=False,
-                        )
                     break
-                if submission_error is not None and not cid:
+                if submission_error is not None and not launched:
                     self._record_issue(
                         "execute_response_unconfirmed",
                         phase="execute_submit",
                         error=submission_error,
-                        session_id=sid,
-                    )
-                    await self._delete_exec_session(
-                        sid, reason="submission and result unavailable at deadline"
+                        command_id=command_key,
                     )
                     raise submission_error
                 self._record_issue(
                     "command_status_timeout",
                     phase="command_poll",
                     error="command status remained unavailable until the deadline",
-                    session_id=sid,
-                    command_id=cid,
+                    command_id=command_key,
                 )
                 raise TimeoutError(
                     "daytona exec status unavailable after "
                     f"{command_timeout + _COMMAND_KILL_GRACE_SEC + _SESSION_POLL_GRACE_SEC:.0f}s "
                     f"without replaying the command body; cmd={full[:80]}"
                 )
-            if loop.time() >= next_provider_poll:
-                exit_code = await read_provider_status()
-                next_provider_poll = loop.time() + _PROVIDER_STATUS_POLL_INTERVAL_SEC
-                if exit_code is not None:
-                    self._record_issue(
-                        "command_status_fallback",
-                        phase="command_status_fallback",
-                        error="result sentinel unavailable; used Daytona command status",
-                        recovered=True,
-                        session_id=sid,
-                        command_id=cid,
-                        exit_code=exit_code,
-                        emit_log=False,
-                    )
-                    break
             delay = (
                 _RESULT_POLL_DELAYS_SEC[polls]
                 if polls < len(_RESULT_POLL_DELAYS_SEC)
@@ -1557,8 +1341,7 @@ class DaytonaSandbox:
                 phase="execute_submit",
                 error=submission_error,
                 recovered=True,
-                session_id=sid,
-                command_id=cid,
+                command_id=command_key,
                 emit_log=False,
             )
 
@@ -1568,35 +1351,10 @@ class DaytonaSandbox:
             retry_kind="command_output_retry",
             failed_kind="command_output_failed",
             missing_kind="command_output_missing",
-            session_id=sid,
-            command_id=cid,
+            command_id=command_key,
         )
-        if output is None and (not cid or submission_replayed):
-            # Provider logs may belong to the duplicate launcher, not the body.
-            output = _MISSING_OUTPUT_MESSAGE
         if output is None:
-            try:
-                logs = await self._retry_idempotent_rpc(
-                    lambda: self._sb.process.get_session_command_logs(sid, cid),
-                    phase="command_logs",
-                    retry_kind="command_logs_retry",
-                    failed_kind="command_logs_failed",
-                    missing_kind="command_logs_missing",
-                    session_id=sid,
-                    command_id=cid,
-                )
-            except Exception:
-                logs = None
-            output = getattr(logs, "output", None) if logs is not None else None
-            if not output and logs is not None:
-                stdout = getattr(logs, "stdout", None) or ""
-                stderr = getattr(logs, "stderr", None) or ""
-                separator = (
-                    "\n" if stdout and stderr and not stdout.endswith("\n") else ""
-                )
-                output = f"{stdout}{separator}{stderr}"
-            if not output:
-                output = _MISSING_OUTPUT_MESSAGE
+            output = _MISSING_OUTPUT_MESSAGE
         if isinstance(output, bytes):
             output = output.decode("utf-8", errors="replace")
         return exit_code, str(output)

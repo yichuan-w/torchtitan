@@ -598,6 +598,17 @@ work (an unguarded recursive CTE, a torch install the task never needed); droppe
 as infra it would never be penalised. The same ENOSPC during setup or boot stays
 infra.
 
+Since 2026-09-14 that loss should not happen at all: the harness no longer
+creates a Daytona session per command. Each command is launched by one short
+one-shot `process.exec` that backgrounds the wrapper (`setsid`) and returns;
+the wrapper claims its command key, runs the body, and writes the exit code and
+the head/tail of the output under `/dev/shm`, a tmpfs outside the task's disk
+quota; the harness polls those files through the file API. A task that fills
+its disk now fails its own commands with ENOSPC, which the agent sees in the
+terminal, while the harness keeps driving the sandbox. A lost launch response
+is retried with the same launch: the claim makes the duplicate exit without
+running the body again, so a command is never executed twice.
+
 Memory: `TT_DAYTONA_MEM_GB` (4) is the fallback when a row declares nothing;
 `TT_DAYTONA_MAX_MEM_GB` (8) **clamps** whatever a row asks for. They are not
 synonyms. The clamp exists because five TerminalWorld tasks declare 16 GiB
