@@ -227,8 +227,7 @@ def _check_verifier_python_download(test_sh: str, output: str, reward: float) ->
     if (
         "error: Request failed after" in output
         and "Failed to download https://github.com/"
-        "astral-sh/python-build-standalone/releases/download/"
-        in output
+        "astral-sh/python-build-standalone/releases/download/" in output
         and re.search(r"HTTP status server error \(5\d\d\b", output)
     ):
         # A shell wrapper can write reward=0 even when uv never started pytest.
