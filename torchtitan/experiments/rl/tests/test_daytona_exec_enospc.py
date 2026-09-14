@@ -21,7 +21,7 @@ from torchtitan.experiments.rl.harness.sandbox.daytona import DaytonaSandbox
 
 def _exec_raising(message: str) -> DaytonaSandbox:
     sandbox = DaytonaSandbox(image="alpine:3.19")
-    sandbox._session_exec = AsyncMock(side_effect=RuntimeError(message))
+    sandbox._detached_exec = AsyncMock(side_effect=RuntimeError(message))
     with pytest.raises(RuntimeError):
         asyncio.run(sandbox.exec("true"))
     return sandbox
