@@ -29,6 +29,8 @@ from dataclasses import dataclass
 
 import torch
 
+from torch.distributed.tensor import DTensor, Shard
+
 from torchtitan.components.loss import BaseLoss, compute_logprobs
 from torchtitan.config import CompileConfig
 
@@ -40,6 +42,26 @@ _MAX_LOG_RATIO = 10.0
 # Clamp logprobs before exp() when forming the Bernoulli probabilities for the
 # divergence (mirrors open-instruct's compute_binary_divergence).
 _MIN_LOGPROB_FOR_PROB = -30.0
+
+
+def entropy_from_logits(logits: torch.Tensor) -> torch.Tensor | None:
+    """Token-level policy entropy, matching open-instruct / verl.
+
+    ``H = logsumexp(z) - sum(softmax(z) * z)``. Monitoring only: callers must
+    keep this off the gradient. Vocab-sharded DTensors return ``None`` so we
+    do not report a local-shard softmax as if it were the full distribution.
+    """
+    if isinstance(logits, DTensor):
+        vocab_sharded = any(
+            isinstance(p, Shard) and p.dim in (-1, logits.ndim - 1)
+            for p in logits.placements
+        )
+        if vocab_sharded:
+            return None
+        logits = logits.to_local()
+    logits_f = logits.float()
+    pd = torch.nn.functional.softmax(logits_f, dim=-1)
+    return torch.logsumexp(logits_f, dim=-1) - (pd * logits_f).sum(dim=-1)
 
 # SWE_DEBUG_MAX_LOGDIFF=1 debug: only log/dump chunks whose worst |diff| exceeds
 # this, and show a +/-window of tokens around the argmax. Fixed constants (one env
@@ -250,6 +272,11 @@ class DPPOLoss(BaseLoss):
                 metrics["loss/ratio_capped_frac"] = (
                     (uncapped_ratio > self.ratio_cap).float() * loss_mask
                 ).sum() / metric_denom
+            # open-instruct ``policy/entropy_avg``: mean entropy of the current
+            # policy on rollout (response) tokens. Detached; no extra backward.
+            entropy = entropy_from_logits(logits)
+            if entropy is not None:
+                metrics["policy/entropy_avg"] = (entropy * loss_mask).sum() / metric_denom
 
         return loss, metrics
 

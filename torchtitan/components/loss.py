@@ -772,7 +772,7 @@ class ChunkedLossWrapper(BaseLoss):
             previous = current.get(key)
             if previous is None:
                 current[key] = value
-            elif key.endswith(("/mean", "/frac", "_mean", "_frac")):
+            elif key.endswith(("/mean", "/frac", "/avg", "_mean", "_frac", "_avg")):
                 current[key] = previous + value
             elif key.endswith("/max"):
                 current[key] = torch.maximum(previous, value)
@@ -781,7 +781,7 @@ class ChunkedLossWrapper(BaseLoss):
             else:
                 raise ValueError(
                     f"Do not know how to reduce metric '{key}'. "
-                    "Use a /mean, /frac, _mean, _frac, /max, or /min suffix."
+                    "Use a /mean, /frac, /avg, _mean, _frac, _avg, /max, or /min suffix."
                 )
         return current
 

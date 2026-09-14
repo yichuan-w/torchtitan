@@ -63,6 +63,7 @@ class MetricsProcessor(Configurable):
                 "generator/num_cached_tokens/mean",
                 # --- learning signals (not perf, but you want them in the same glance) ---
                 "loss/mean",
+                "policy/entropy_avg",
                 "rollout_reward/_mean",
                 "train/grad_norm/mean",
                 "train/lr",

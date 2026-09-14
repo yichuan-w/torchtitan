@@ -744,6 +744,7 @@ class TestMetricsProcessorBuild:
 
         assert "validation_reward/_mean" in cfg.console_log_keys_validation
         assert "validation_reward/_max" in cfg.console_log_keys_validation
+        assert "policy/entropy_avg" in cfg.console_log_keys_train
 
     def test_wandb_project_default_titan_rl(self, tmp_path, monkeypatch) -> None:
         """When `WANDB_PROJECT` is unset and `wandb_project` is at the
