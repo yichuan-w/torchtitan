@@ -885,6 +885,11 @@ def fold(root: layout.Root, accepted: list[dict]) -> int | None:
                 row["metadata"][rk] = sized[key]
             elif rk not in row["metadata"] and rk in old_md:
                 row["metadata"][rk] = old_md[rk]
+        # terminal_domain is an annotation of the task (build_mix_v2 reads it
+        # off the corpus table), not of the package, so pack.to_row cannot
+        # set it and a folded row would lose it.
+        if "terminal_domain" in old_md:
+            row["metadata"].setdefault("terminal_domain", old_md["terminal_domain"])
         row["metadata"]["rev"] = n + 1
         os.rename(rewrite.package, target)
         rows[tid] = json.dumps(row, ensure_ascii=False)
