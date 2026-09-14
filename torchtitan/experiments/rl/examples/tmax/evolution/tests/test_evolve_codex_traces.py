@@ -640,7 +640,9 @@ def test_simplify_without_traces_declines_before_starting_codex(tmp_path, monkey
         ec.simplify_codex(rw, dict(TASK))
 
 
-@pytest.mark.parametrize("case", ["header_only", "infra_failure", "success", "malformed"])
+@pytest.mark.parametrize(
+    "case", ["header_only", "infra_failure", "success", "malformed"]
+)
 def test_simplify_requires_failed_student_execution(tmp_path, monkeypatch, case):
     rw = _rewrite(tmp_path, monkeypatch, job="easier")
     _trace(rw)
@@ -656,7 +658,9 @@ def test_simplify_requires_failed_student_execution(tmp_path, monkeypatch, case)
         path.write_text("not-json\n")
     else:
         rollout_record.write_record(path, head, turns)
-    monkeypatch.setattr(ec, "evolve_agentic", lambda *a, **kw: pytest.fail("author started"))
+    monkeypatch.setattr(
+        ec, "evolve_agentic", lambda *a, **kw: pytest.fail("author started")
+    )
     with pytest.raises(ec.Blocked, match="requires a failed student execution"):
         ec.simplify_codex(rw, dict(TASK))
 

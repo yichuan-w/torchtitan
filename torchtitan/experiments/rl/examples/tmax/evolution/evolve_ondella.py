@@ -1270,7 +1270,9 @@ def main() -> None:
     root = layout.Root.from_env()
     # Before the log file is even opened: a refused second instance must not
     # write "loop up" into the log the first one owns.
-    _lock_fd = acquire_singleton(root.evolution.loop_lock)  # noqa: F841 -- held for the process lifetime
+    _lock_fd = acquire_singleton(
+        root.evolution.loop_lock
+    )  # noqa: F841 -- held for the process lifetime
 
     logging.basicConfig(
         level=logging.INFO,
