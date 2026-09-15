@@ -187,8 +187,8 @@ async def run(output: Path) -> None:
             await env.terminal.bind("obs")
             session = SimpleNamespace(_session_name="obs")
 
-            async def turn(keys: str, wait: float = 1.0) -> str:
-                await env.exec(f"tmux send-keys -t obs -- {keys} Enter")
+            async def turn(keys: str, wait: float = 1.0, enter: bool = True) -> str:
+                await env.exec(f"tmux send-keys -t obs -- {keys}{' Enter' if enter else ''}")
                 await asyncio.sleep(wait)
                 return await env.observe_turn(session)
 
@@ -196,8 +196,9 @@ async def run(output: Path) -> None:
             second = await turn("'echo NEW-A; echo NEW-B'")
             third = await turn("clear")
             fourth = await turn("'seq 1 300 | less'")
-            await env.exec("tmux send-keys -t obs -- q")
-            await asyncio.sleep(0.5)
+            # Quitting the pager is itself a turn: keys, wait, observe, as
+            # Terminus-2 does; the observation consumes the turn's start note.
+            quit_pager = await turn("q", wait=0.5, enter=False)
             fifth = await turn("'echo AFTER-LESS'")
             obs = [e for e in env.exec_trace if e.get("kind") == "observation"]
             record(
@@ -209,6 +210,7 @@ async def run(output: Path) -> None:
                 and "seq 1 100" not in second.split("NEW-A")[0].split("\n", 1)[-1]
                 and third.startswith("Current Terminal Screen:")
                 and fourth.startswith("Current Terminal Screen:")
+                and quit_pager.startswith("Current Terminal Screen:")
                 and fifth.startswith("New Terminal Output:")
                 and "AFTER-LESS" in fifth,
                 shown=[o["shown"] for o in obs],
