@@ -178,7 +178,7 @@ async def run(output: Path) -> None:
                 ">/dev/null 2>&1; tmux -V",
                 timeout=300,
             )
-            env = _SandboxEnvironment(wrapper, Path("/tmp/agent"))
+            env = _SandboxEnvironment(wrapper, agent_dir=Path("/tmp/agent"))
             await env.terminal.prepare()
             await wrapper.exec(
                 f"TMUX_TMPDIR={env.terminal.directory} tmux new-session -d -s obs -x 160 -y 40 'bash --login'",

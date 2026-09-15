@@ -30,7 +30,7 @@ from torchtitan.experiments.rl.harness.agents.terminus_terminal import (
 
 
 def _env(tmp_path: Path) -> _SandboxEnvironment:
-    env = _SandboxEnvironment(AsyncMock(), tmp_path / "agent")
+    env = _SandboxEnvironment(AsyncMock(), agent_dir=tmp_path / "agent")
     env.terminal.session = "terminus-1"
     env.terminal.server_pid = "100"
     env.terminal.pane_pid = "200"
