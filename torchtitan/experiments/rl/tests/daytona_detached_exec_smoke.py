@@ -21,6 +21,8 @@ line in <output>/cases.jsonl:
   output_head_marker_tail     12 MiB comes back as 4 MiB + marker + true last 4 MiB
   daemon          a command that leaves a background daemon still completes
   lost_response   the first launch's response is dropped; the body runs once
+  observation     a real tmux: first capture is the screen, then new output by
+                  offset, clear and a pager fall back to the screen
   disk_full       exec keeps working with the task disk at 100%
 """
 
@@ -30,6 +32,7 @@ import argparse
 import asyncio
 import json
 import time
+from types import SimpleNamespace
 from datetime import datetime, timezone
 from pathlib import Path
 from unittest.mock import patch
@@ -163,6 +166,55 @@ async def run(output: Path) -> None:
                 out=out.strip(),
                 launches=calls["n"],
                 issues=dict(counts),
+            )
+
+            # --- the turn observation against a real tmux, no model involved ---
+            from torchtitan.experiments.rl.harness.agents.terminus import (
+                _SandboxEnvironment,
+            )
+
+            rc, out, _ = await wrapper.exec(
+                "apt-get update -qq >/dev/null 2>&1; apt-get install -y -qq tmux less "
+                ">/dev/null 2>&1; tmux -V",
+                timeout=300,
+            )
+            env = _SandboxEnvironment(wrapper, Path("/tmp/agent"))
+            await env.terminal.prepare()
+            await wrapper.exec(
+                f"TMUX_TMPDIR={env.terminal.directory} tmux new-session -d -s obs -x 160 -y 40 'bash --login'",
+                timeout=30,
+            )
+            await env.terminal.bind("obs")
+            session = SimpleNamespace(_session_name="obs")
+
+            async def turn(keys: str, wait: float = 1.0) -> str:
+                await env.exec(f"tmux send-keys -t obs -- {keys} Enter")
+                await asyncio.sleep(wait)
+                return await env.observe_turn(session)
+
+            first = await turn("'seq 1 100'")
+            second = await turn("'echo NEW-A; echo NEW-B'")
+            third = await turn("clear")
+            fourth = await turn("'seq 1 300 | less'")
+            await env.exec("tmux send-keys -t obs -- q")
+            await asyncio.sleep(0.5)
+            fifth = await turn("'echo AFTER-LESS'")
+            obs = [e for e in env.exec_trace if e.get("kind") == "observation"]
+            record(
+                "observation",
+                first.startswith("Current Terminal Screen:")
+                and second.startswith("New Terminal Output:")
+                and "NEW-A" in second
+                and "NEW-B" in second
+                and "seq 1 100" not in second.split("NEW-A")[0].split("\n", 1)[-1]
+                and third.startswith("Current Terminal Screen:")
+                and fourth.startswith("Current Terminal Screen:")
+                and fifth.startswith("New Terminal Output:")
+                and "AFTER-LESS" in fifth,
+                shown=[o["shown"] for o in obs],
+                modes=[o["mode"] for o in obs],
+                second_head=second[:120],
+                fifth_head=fifth[:120],
             )
 
             # dd stops at the first ENOSPC; a second pass in 1 KiB blocks takes

@@ -49,6 +49,7 @@ behavior (e.g. to A/B fidelity against published numbers).
 from __future__ import annotations
 
 import asyncio
+import functools
 import logging
 import os
 import re
@@ -356,6 +357,7 @@ class _SandboxEnvironment:
         # before the sandbox goes away. None until then.
         self.pane_path: str | None = None
         self._pane_name = agent_dir.name + ".pane"
+        self._observed_once = False
         from .terminus_terminal import TerminalLifecycle
 
         self.terminal = TerminalLifecycle(self._terminal_exec)
@@ -376,12 +378,133 @@ class _SandboxEnvironment:
         if cwd:
             command = f"cd {shlex.quote(cwd)} && {command}"
         command = self._bound_pane_pipe(command)
+        command = self._record_turn_start(command)
         return await self.terminal.run(
             command,
             lambda cmd: self._exec_raw(
                 cmd, env=env, timeout_sec=timeout_sec, user=user
             ),
         )
+
+    # ---- the turn's observation: new output by tmux line offsets ----------
+    #
+    # Terminus-2 decides what the model sees each turn by capturing the whole
+    # tmux history and searching the previous capture inside it; whatever
+    # follows is "New Terminal Output", and when the search fails (a cleared
+    # screen, a full-screen program) it shows the visible screen instead. With
+    # docker exec the whole history is free to move every turn; through
+    # Daytona it is not, and any cap on it breaks that search. The same answer
+    # comes from tmux itself: the history size and cursor row noted when the
+    # turn's keys go in say exactly which line the new output starts on.
+    # ``#{alternate_on}`` marks a full-screen program and a shrunken history
+    # marks a cleared screen, the two cases where the original showed the
+    # screen. Both readings ride in the commands the turn issues anyway, so
+    # an observation is one round trip and moves only the new lines.
+
+    def _turn_pre_path(self) -> str:
+        return f"/dev/shm/.torchtitan_turn_pre.{self.terminal.session or 'none'}"
+
+    def _record_turn_start(self, command: str) -> str:
+        """Before the turn's first key delivery, note where the history stands."""
+        if not self.terminal.session:
+            return command
+        try:
+            tokens = shlex.split(command)
+        except ValueError:
+            return command
+        if tokens[:1] == ["timeout"]:
+            tokens = tokens[2:]
+        if len(tokens) < 2 or tokens[0] != "tmux" or tokens[1] not in (
+            "send-keys",
+            "paste-buffer",
+        ):
+            return command
+        pre = shlex.quote(self._turn_pre_path())
+        target = shlex.quote(self.terminal.session)
+        return (
+            f"[ -e {pre} ] || tmux display-message -p -t {target} "
+            f"'#{{history_size}}|#{{cursor_y}}|#{{alternate_on}}' > {pre} 2>/dev/null; "
+            f"{command}"
+        )
+
+    _OBSERVATION_SEP = "__torchtitan_screen__"
+
+    async def observe_turn(self, session: Any) -> str:
+        """Terminus-2's ``get_incremental_output``, by line offsets, one exec."""
+        target = shlex.quote(self.terminal.session or session._session_name)
+        pre = shlex.quote(self._turn_pre_path())
+        sep = self._OBSERVATION_SEP
+        script = (
+            f"post=$(tmux display-message -p -t {target} "
+            "'#{history_size}|#{cursor_y}|#{alternate_on}|#{pid}|#{pane_pid}') || exit 97; "
+            f"pre=$(cat {pre} 2>/dev/null); rm -f {pre}; "
+            'printf "%s|%s\n" "$post" "${pre:-none}"; '
+            "mode=screen; start=0; "
+            'if [ -n "$pre" ]; then '
+            'h1=${pre%%|*}; rest=${pre#*|}; cy1=${rest%%|*}; alt1=${rest#*|}; '
+            'h2=${post%%|*}; rest=${post#*|}; cy2=${rest%%|*}; rest=${rest#*|}; alt2=${rest%%|*}; '
+            'if [ "$alt1" = 0 ] && [ "$alt2" = 0 ] && [ "$h2" -ge "$h1" ]; then '
+            "start=$((cy1 - (h2 - h1))); mode=new; fi; fi; "
+            'printf "%s|%s\n" "$mode" "$start"; '
+            'if [ "$mode" = new ]; then tmux capture-pane -p -t '
+            f'{target} -S "$start"; fi; '
+            f"printf '\n{sep}\n'; tmux capture-pane -p -t {target}"
+        )
+        started_at = time.time()
+        result = await self._exec_raw(script, timeout_sec=60)
+        if result.return_code == 97 or (
+            result.return_code != 0 and not (result.stdout or "").strip()
+        ):
+            # The tmux server did not answer: let the lifecycle decide whether
+            # it is gone or its socket was removed, then try once more.
+            await self.terminal._ensure_live()
+            result = await self._exec_raw(script, timeout_sec=60)
+        text = result.stdout or ""
+        header, _, rest = text.partition("\n")
+        modeline, _, body = rest.partition("\n")
+        fields = header.split("|")
+        if len(fields) < 6:
+            raise self.terminal._unavailable(
+                "terminal_state_unavailable",
+                return_code=result.return_code,
+                stdout=text[-1000:],
+            )
+        history, cursor, alternate, server_pid, pane_pid = fields[:5]
+        if self.terminal.server_pid and [server_pid, pane_pid] != [
+            self.terminal.server_pid,
+            self.terminal.pane_pid,
+        ]:
+            raise self.terminal._unavailable(
+                "terminal_identity_changed",
+                expected=[self.terminal.server_pid, self.terminal.pane_pid],
+                observed=[server_pid, pane_pid],
+            )
+        mode, _, start = modeline.partition("|")
+        new_text, _, screen = body.partition(f"\n{sep}\n")
+        if not self._observed_once:
+            # Terminus-2's first capture is always the screen.
+            self._observed_once = True
+            mode = "first"
+        if mode == "new" and new_text.strip():
+            observation = f"New Terminal Output:\n{new_text}"
+        else:
+            observation = f"Current Terminal Screen:\n{screen}"
+        self.exec_trace.append(
+            {
+                "t": round(started_at, 3),
+                "secs": round(time.time() - started_at, 3),
+                "kind": "observation",
+                "mode": mode if mode in ("new", "first") else "screen",
+                "shown": "new" if observation.startswith("New") else "screen",
+                "history_size": history,
+                "cursor_y": cursor,
+                "alternate_on": alternate,
+                "start": start,
+                "new_bytes": len(new_text.encode("utf-8", errors="replace")),
+                "screen_bytes": len(screen.encode("utf-8", errors="replace")),
+            }
+        )
+        return observation
 
     async def _exec_raw(
         self,
@@ -462,12 +585,19 @@ class _SandboxEnvironment:
         loop records only the total, so without this there is no way to tell a
         slow agent command from a slow harness.
         """
+        stats = getattr(self._sandbox, "last_exec_stats", None) or {}
         self.exec_trace.append(
             {
                 "t": round(started_at, 3),
                 "secs": round(time.time() - started_at, 3),
                 "exit": exit_code,
                 "cmd": command[:400],
+                # How the sandbox backend spent that time, for profiling.
+                **{
+                    key: (round(value, 3) if isinstance(value, float) else value)
+                    for key, value in stats.items()
+                    if key in ("inline", "launch_s", "wait_s", "read_s", "output_bytes", "truncated")
+                },
             }
         )
 
@@ -611,6 +741,11 @@ async def terminus_agent(
             await env.terminal.prepare()
             await agent.setup(env)
             await env.terminal.bind(agent._session._session_name)
+            # Observations by line offset (see _SandboxEnvironment.observe_turn);
+            # an instance attribute shadows the class method for this session.
+            agent._session.get_incremental_output = functools.partial(
+                env.observe_turn, agent._session
+            )
             # Student and control plane in separate cgroups; see
             # terminus_terminal.py. Never raises: an unsupported runtime is an
             # event, not a failed rollout.
