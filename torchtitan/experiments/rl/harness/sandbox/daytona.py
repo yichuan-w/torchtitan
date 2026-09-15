@@ -49,8 +49,8 @@ _SESSION_RPC_TIMEOUT_SEC = 60
 _COMMAND_SUBMIT_DELAYS_SEC = (0.0, 1.0, 2.0, 4.0, 8.0)
 # Everything the harness itself writes inside the sandbox lives on /dev/shm, a
 # tmpfs outside the task's disk quota: the claim that makes a relaunch
-# idempotent, the wrapper, the raw output (capped at 1 MiB) and the result
-# files. A task that fills its own disk then fails its own commands with
+# idempotent, the wrapper, the raw output (head and tail, 4 MiB each) and the
+# result files. A task that fills its own disk then fails its own commands with
 # ENOSPC, which the agent sees, while the harness keeps driving the sandbox.
 # Measured 2026-09-14 on a 1 GB tmax sandbox at 100% disk: a one-shot exec
 # still ran, a detached wrapper still wrote its status here, and the file API
@@ -62,9 +62,15 @@ _EXEC_STAGING_DIR = "/dev/shm"
 # The launch is one short one-shot exec that backgrounds the wrapper and
 # returns; this bounds only that request, never the command.
 _LAUNCH_RPC_TIMEOUT_SEC = 30
-_EXEC_RAW_OUTPUT_LIMIT_BYTES = 1_048_576
-_EXEC_OUTPUT_HEAD_BYTES = 10_000
-_EXEC_OUTPUT_TAIL_BYTES = 10_000
+# What a command's caller gets back is its complete output up to 8 MiB; past
+# that, the first 4 MiB, one marker line, and the LAST 4 MiB. The tail is kept
+# by an awk ring buffer that stops at the receipt, so it is the true end of the
+# stream even while a background child still holds stdout. Terminus-2 reads
+# the whole tmux history every turn and diffs it against the previous one, so
+# what it must see intact is the end, and it applies its own 10 KB limit
+# before anything reaches the model; nothing smaller is cut here.
+_EXEC_OUTPUT_HEAD_BYTES = 4 * 1024 * 1024
+_EXEC_OUTPUT_TAIL_BYTES = 4 * 1024 * 1024
 # Daytona ultimately launches this string as one `sh -c` argument. Spill with
 # headroom below Linux MAX_ARG_STRLEN (128 KiB).
 _EXEC_INLINE_COMMAND_LIMIT_BYTES = 96 * 1024
@@ -208,9 +214,31 @@ def _build_exec_command(
     )
 
 
+# awk keeps the last ``cap`` bytes of its input in a ring of lines and writes
+# them out the moment a line containing the receipt ``r`` arrives (the text
+# before the receipt on that line included), so the tail is the true end of
+# the command's output without waiting for EOF. ``drop`` receives the number of
+# bytes the ring let go, which is what decides whether the marker is inserted.
+AWK_TAIL_PROG = (
+    "{ i = index($0, r); "
+    "if (i > 0) { piece = substr($0, 1, i - 1); "
+    "if (length(piece) > 0) { buf[++n] = piece; tot += length(piece) }; done = 1 } "
+    'else { buf[++n] = $0 "\\n"; tot += length($0) + 1 }; '
+    "while (tot > cap && h < n) { h++; tot -= length(buf[h]); "
+    "dropped += length(buf[h]); delete buf[h] }; "
+    "if (done) exit } "
+    'END { for (k = h + 1; k <= n; k++) printf "%s", buf[k] > out; close(out); '
+    "print dropped + 0 > drop; close(drop); "
+    'system("mv -f " out " " fin) }'
+)
+
+
 def _build_observable_exec(full: str, command_key: str) -> _ObservableExecCommand:
     """Build inline and uploaded forms of an observable command."""
     raw_output_path = f"{_EXEC_OUTPUT_DIR}/{command_key}.raw"
+    raw_tail_path = f"{_EXEC_OUTPUT_DIR}/{command_key}.tail"
+    raw_tail_tmp_path = f"{raw_tail_path}.tmp"
+    dropped_path = f"{_EXEC_OUTPUT_DIR}/{command_key}.dropped"
     output_fifo_path = f"{_EXEC_OUTPUT_DIR}/{command_key}.fifo"
     result_prefix = f"{_EXEC_RESULT_DIR}/{command_key}"
     output_path = f"{result_prefix}.output"
@@ -221,6 +249,9 @@ def _build_observable_exec(full: str, command_key: str) -> _ObservableExecComman
     quoted_output_dir = shlex.quote(_EXEC_OUTPUT_DIR)
     quoted_result_dir = shlex.quote(_EXEC_RESULT_DIR)
     quoted_raw_output = shlex.quote(raw_output_path)
+    quoted_raw_tail = shlex.quote(raw_tail_path)
+    quoted_raw_tail_tmp = shlex.quote(raw_tail_tmp_path)
+    quoted_dropped = shlex.quote(dropped_path)
     quoted_output_fifo = shlex.quote(output_fifo_path)
     quoted_output = shlex.quote(output_path)
     quoted_output_tmp = shlex.quote(output_tmp_path)
@@ -232,50 +263,72 @@ def _build_observable_exec(full: str, command_key: str) -> _ObservableExecComman
     # Waiting for EOF would wait for detached children that retain stdout.
     output_receipt = f"__torchtitan_output_end_{command_key}__"
     quoted_receipt = shlex.quote(output_receipt)
+    # The tail keeper: a ring buffer of the last _EXEC_OUTPUT_TAIL_BYTES of
+    # whatever follows the head, flushed the moment the receipt arrives, so it
+    # never waits for EOF (a daemon left running keeps the pipe open). The
+    # count of bytes it dropped decides whether the marker line is inserted.
+    tail_keeper = shlex.quote(AWK_TAIL_PROG)
     wrapper = (
         f"rm -f {quoted_wrapper}; "
         f"_tt_run() {{ {full}; _tt_exec_rc=$?; }}; "
         f"mkdir -p {quoted_result_dir} 2>/dev/null || :; "
         f"rm -f {quoted_output} {quoted_output_tmp} {quoted_status} "
         f"{quoted_status_tmp}; "
+        "_tt_awk=$(command -v awk 2>/dev/null); "
         f"if mkdir -p {quoted_output_dir} 2>/dev/null "
         "&& command -v stdbuf > /dev/null "
-        f"&& rm -f {quoted_raw_output} {quoted_output_fifo} "
+        f"&& rm -f {quoted_raw_output} {quoted_raw_tail} {quoted_raw_tail_tmp} "
+        f"{quoted_dropped} {quoted_output_fifo} "
         f"&& mkfifo {quoted_output_fifo} 2>/dev/null "
         f"&& : > {quoted_raw_output} "
         f"&& exec 9>> {quoted_raw_output} "
         f"&& exec 7<> {quoted_output_fifo}; then "
         f"(exec 7>&-; exec 8< {quoted_output_fifo}; "
-        f"stdbuf -o0 head -c {_EXEC_RAW_OUTPUT_LIMIT_BYTES} <&8 >&9; "
-        "exec 9>&-; cat <&8 > /dev/null) </dev/null > /dev/null 2>&1 & "
+        f"stdbuf -o0 head -c {_EXEC_OUTPUT_HEAD_BYTES} <&8 >&9; "
+        "exec 9>&-; "
+        'if [ -n "$_tt_awk" ]; then '
+        f'"$_tt_awk" -v cap={_EXEC_OUTPUT_TAIL_BYTES} -v r={quoted_receipt} '
+        f"-v out={quoted_raw_tail_tmp} -v fin={quoted_raw_tail} "
+        f"-v drop={quoted_dropped} {tail_keeper} <&8; fi; "
+        # Keep draining after the receipt so a daemon that inherited stdout is
+        # never killed by SIGPIPE on its next write.
+        "cat <&8 > /dev/null) </dev/null > /dev/null 2>&1 & "
         "_tt_run >&7 2>&1 7>&-; "
         f"printf %s {quoted_receipt} >&7; exec 7>&-; "
         f"_tt_collect_end=$(($(date +%s) + {_SESSION_POLL_GRACE_SEC})); "
+        "_tt_last=-1; _tt_mode=; _tt_exec_size=; "
         "while :; do "
+        "_tt_raw_size=$(stat -Lc '%s' /proc/$$/fd/9 2>/dev/null || printf '0'); "
+        # Search the head only when it grew: the receipt can only be new then.
+        'if [ "$_tt_raw_size" != "$_tt_last" ]; then _tt_last=$_tt_raw_size; '
         f"_tt_exec_size=$(grep -aobF {quoted_receipt} /proc/$$/fd/9 "
         "| head -n 1 | cut -d : -f 1); "
-        '[ -n "$_tt_exec_size" ] && break; '
-        "_tt_raw_size=$(stat -Lc '%s' /proc/$$/fd/9 2>/dev/null || printf '0'); "
-        f'if [ "$_tt_raw_size" -ge {_EXEC_RAW_OUTPUT_LIMIT_BYTES} ]; then '
-        # Reserve the receipt length so a receipt cut by the output cap cannot
-        # leak into the returned tail. Capped output is already marked truncated.
-        f"_tt_exec_size={_EXEC_RAW_OUTPUT_LIMIT_BYTES - len(output_receipt)}; break; fi; "
+        '[ -n "$_tt_exec_size" ] && { _tt_mode=head; break; }; fi; '
+        f"if [ -f {quoted_raw_tail} ]; then _tt_mode=tail; break; fi; "
+        # Without awk there is no tail keeper: once the head is full the
+        # receipt can never be found, so return the head alone, marked.
+        f'if [ "$_tt_raw_size" -ge {_EXEC_OUTPUT_HEAD_BYTES} ] '
+        '&& [ -z "$_tt_awk" ]; then '
+        f"_tt_exec_size={_EXEC_OUTPUT_HEAD_BYTES - len(output_receipt)}; "
+        "_tt_mode=head-only; break; fi; "
         'if [ "$(date +%s)" -ge "$_tt_collect_end" ]; then '
-        "exit 125; fi; sleep 0.02; "
+        "exit 125; fi; sleep 0.05; "
         "done; "
         f"mkdir -p {quoted_result_dir} 2>/dev/null || :; "
-        f'if [ "$_tt_exec_size" -le '
-        f"{_EXEC_OUTPUT_HEAD_BYTES + _EXEC_OUTPUT_TAIL_BYTES} ]; then "
-        f'head -c "$_tt_exec_size" /proc/$$/fd/9 > {quoted_output_tmp}; '
+        'if [ "$_tt_mode" = tail ]; then '
+        f"cat /proc/$$/fd/9 > {quoted_output_tmp}; "
+        f'if [ "$(cat {quoted_dropped} 2>/dev/null || printf 0)" -gt 0 ]; then '
+        f"printf %s {truncation_marker} >> {quoted_output_tmp}; fi; "
+        f"cat {quoted_raw_tail} >> {quoted_output_tmp}; "
         "else "
-        f"head -c {_EXEC_OUTPUT_HEAD_BYTES} /proc/$$/fd/9 > {quoted_output_tmp}; "
-        f"printf %s {truncation_marker} >> {quoted_output_tmp}; "
-        'head -c "$_tt_exec_size" /proc/$$/fd/9 '
-        f"| tail -c {_EXEC_OUTPUT_TAIL_BYTES} >> {quoted_output_tmp}; "
+        f'head -c "$_tt_exec_size" /proc/$$/fd/9 > {quoted_output_tmp}; '
+        'if [ "$_tt_mode" = head-only ]; then '
+        f"printf %s {truncation_marker} >> {quoted_output_tmp}; fi; "
         "fi; "
         "exec 9>&-; "
         f"mv -f {quoted_output_tmp} {quoted_output}; "
-        f"rm -f {quoted_raw_output} {quoted_output_fifo}; "
+        f"rm -f {quoted_raw_output} {quoted_raw_tail} {quoted_raw_tail_tmp} "
+        f"{quoted_dropped} {quoted_output_fifo}; "
         "else "
         f"rm -f {quoted_raw_output} {quoted_output_fifo}; "
         "_tt_run; "

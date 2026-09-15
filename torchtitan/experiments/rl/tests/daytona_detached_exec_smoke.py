@@ -17,7 +17,8 @@ line in <output>/cases.jsonl:
   echo            exit code and output round-trip
   nonzero         exit code 7 comes back as 7
   long            a 150 s command outlives the 30 s launch request
-  big_output      2 MiB of output is capped to head/tail with the marker
+  output_complete_under_cap   512 KiB comes back whole, no marker
+  output_head_marker_tail     12 MiB comes back as 4 MiB + marker + true last 4 MiB
   daemon          a command that leaves a background daemon still completes
   lost_response   the first launch's response is dropped; the body runs once
   disk_full       exec keeps working with the task disk at 100%
@@ -90,20 +91,36 @@ async def run(output: Path) -> None:
                 secs=round(time.time() - t0),
             )
 
-            # 512 KiB sits under the 1 MiB raw cap, so the tail survives; beyond
-            # the raw cap the harness keeps only the first 1 MiB (existing rule).
+            # Under 8 MiB the caller gets the complete output, no marker.
             rc, out, _ = await wrapper.exec(
                 "head -c 524288 /dev/zero | tr '\\0' 'x'; echo; echo END", timeout=60
             )
             record(
-                "big_output",
+                "output_complete_under_cap",
                 rc == 0
-                and "[torchtitan: command output truncated]" in out
+                and "[torchtitan: command output truncated]" not in out
                 and out.rstrip().endswith("END")
-                and len(out) < 30_000,
+                and len(out) == 524288 + 1 + 4,
                 rc=rc,
                 out_len=len(out),
-                tail=out[-40:],
+            )
+
+            # Over 8 MiB: the first 4 MiB, the marker, and the TRUE last 4 MiB.
+            rc, out, _ = await wrapper.exec(
+                "yes xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx "
+                "| head -c 12582912; echo; echo END",
+                timeout=120,
+            )
+            marker = "[torchtitan: command output truncated]"
+            record(
+                "output_head_marker_tail",
+                rc == 0
+                and marker in out
+                and out.rstrip().endswith("END")
+                and 8 * 1024 * 1024 - 4096 < len(out) < 8 * 1024 * 1024 + 4096,
+                rc=rc,
+                out_len=len(out),
+                marker_at=out.find(marker),
             )
 
             t0 = time.time()
