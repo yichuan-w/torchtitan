@@ -17,6 +17,7 @@ Ported from THUDM/slime ``slime/agent/sandbox.py``.
 from __future__ import annotations
 
 import base64
+import binascii
 import json
 
 import logging
@@ -75,8 +76,20 @@ _EXEC_OUTPUT_TAIL_BYTES = 4 * 1024 * 1024
 # headroom below Linux MAX_ARG_STRLEN (128 KiB).
 _EXEC_INLINE_COMMAND_LIMIT_BYTES = 96 * 1024
 _FINAL_RESULT_PROBE_TIMEOUT_SEC = 5.0
-_RESULT_POLL_DELAYS_SEC = (0.5,)
+# Polls for the status file after a launch that did not return the result
+# inline: short first, doubling, so a command that finishes in 300 ms is seen
+# in ~400 ms and a long one costs a poll every 2 s.
+_RESULT_POLL_DELAYS_SEC = (0.1, 0.2, 0.4, 0.8, 1.6)
 _RESULT_POLL_INTERVAL_SEC = 2.0
+# The launch request waits in the sandbox up to this long for the status file
+# and, when the output is at most this many bytes, returns both in its own
+# response (base64, so bytes survive the daemon's JSON encoding). Most of what
+# Terminus-2 runs -- capture-pane, send-keys, display-message -- finishes in
+# tens of milliseconds, so this turns one launch + one poll + one read into a
+# single round trip. Larger or slower results go through the file API.
+_LAUNCH_INLINE_WAIT_TICKS = 20  # x 50 ms
+_LAUNCH_INLINE_MAX_BYTES = 256 * 1024
+_LAUNCH_INLINE_PREFIX = "__torchtitan_inline__"
 _OBSERVABLE_WRAPPER_ENV = "__TORCHTITAN_OBSERVABLE_WRAPPER_B64"
 _MISSING_OUTPUT_MESSAGE = (
     "[torchtitan: command completed, but its captured output is unavailable]"
@@ -107,7 +120,21 @@ class _ObservableExecCommand:
         """
         body = self.uploaded_command if uploaded else self.inline_command
         cleanup = f"rm -f {shlex.join(stale)} 2>/dev/null; " if stale else ""
-        return f"{cleanup}( {body} ) </dev/null >/dev/null 2>&1 & echo launched"
+        status = shlex.quote(self.status_path)
+        output = shlex.quote(self.output_path)
+        # The wrapper writes the output file before the status file, so a
+        # status file means the output is complete.
+        wait = (
+            "_tt_i=0; while [ $_tt_i -lt "
+            f"{_LAUNCH_INLINE_WAIT_TICKS} ]; do "
+            f"if [ -f {status} ]; then "
+            f"_tt_sz=$(stat -c %s {output} 2>/dev/null || printf 999999999); "
+            f'if [ "$_tt_sz" -le {_LAUNCH_INLINE_MAX_BYTES} ]; then '
+            f"printf '%s%s\\n' {shlex.quote(_LAUNCH_INLINE_PREFIX)} \"$(cat {status})\"; "
+            f"base64 {output} | tr -d '\\n'; exit 0; fi; break; fi; "
+            "sleep 0.05; _tt_i=$((_tt_i+1)); done; echo launched"
+        )
+        return f"{cleanup}( {body} ) </dev/null >/dev/null 2>&1 & {wait}"
 
 
 def _error_status_code(error: BaseException) -> int | None:
@@ -696,6 +723,8 @@ class DaytonaSandbox:
         self._lost_error: BaseException | None = None
         # Result files of the last command, deleted by the next launch.
         self._stale_result_paths: tuple[str, ...] = ()
+        # Timings and sizes of the last exec, for the adapter's per-command trace.
+        self.last_exec_stats: dict[str, Any] = {}
 
     def _record_issue(
         self,
@@ -1246,6 +1275,20 @@ class DaytonaSandbox:
 
         launched = False
         submission_error: Exception | None = None
+        inline: tuple[int, bytes] | None = None
+        stats: dict[str, Any] = {"inline": False, "launch_s": 0.0, "wait_s": 0.0, "read_s": 0.0}
+        started = loop.time()
+
+        def _parse_inline(response: Any) -> tuple[int, bytes] | None:
+            text = getattr(response, "result", None) or ""
+            if not text.startswith(_LAUNCH_INLINE_PREFIX):
+                return None
+            head, _, rest = text[len(_LAUNCH_INLINE_PREFIX):].partition("\n")
+            try:
+                code = int(head.strip())
+                return code, base64.b64decode("".join(rest.split()))
+            except (ValueError, binascii.Error):
+                return None
 
         async def read_status(*, final: bool = False) -> int | None:
             remaining = deadline - loop.time()
@@ -1329,7 +1372,8 @@ class DaytonaSandbox:
                     break
             self._raise_if_sandbox_lost()
             try:
-                await asyncio.wait_for(
+                t_launch = loop.time()
+                response = await asyncio.wait_for(
                     self._sb.process.exec(launch, timeout=_LAUNCH_RPC_TIMEOUT_SEC),
                     timeout=max(
                         0.001,
@@ -1339,7 +1383,9 @@ class DaytonaSandbox:
                         ),
                     ),
                 )
+                stats["launch_s"] += loop.time() - t_launch
                 launched = True
+                inline = _parse_inline(response)
                 break
             except Exception as e:
                 if _is_sandbox_gone_error(e):
@@ -1361,6 +1407,9 @@ class DaytonaSandbox:
                     max_attempts=len(_COMMAND_SUBMIT_DELAYS_SEC),
                     emit_log=False,
                 )
+        if inline is not None:
+            exit_code, output = inline
+            stats["inline"] = True
         if exit_code is None:
             exit_code = await read_status()
         polls = 0
@@ -1407,21 +1456,30 @@ class DaytonaSandbox:
                 emit_log=False,
             )
 
-        output = await self._retry_idempotent_rpc(
-            lambda: self._sb.fs.download_file(output_path, _SESSION_RPC_TIMEOUT_SEC),
-            phase="command_output",
-            retry_kind="command_output_retry",
-            failed_kind="command_output_failed",
-            missing_kind="command_output_missing",
-            command_id=command_key,
-        )
-        if output is None:
-            output = _MISSING_OUTPUT_MESSAGE
+        if inline is None:
+            stats["wait_s"] = loop.time() - started - stats["launch_s"]
+            t_read = loop.time()
+            output = await self._retry_idempotent_rpc(
+                lambda: self._sb.fs.download_file(output_path, _SESSION_RPC_TIMEOUT_SEC),
+                phase="command_output",
+                retry_kind="command_output_retry",
+                failed_kind="command_output_failed",
+                missing_kind="command_output_missing",
+                command_id=command_key,
+            )
+            stats["read_s"] = loop.time() - t_read
+            if output is None:
+                output = _MISSING_OUTPUT_MESSAGE
         # Both files are read; the next launch removes them from /dev/shm.
         self._stale_result_paths = (status_path, output_path)
         if isinstance(output, bytes):
             output = output.decode("utf-8", errors="replace")
-        return exit_code, str(output)
+        output = str(output)
+        stats["output_bytes"] = len(output.encode("utf-8", errors="replace"))
+        stats["truncated"] = "[torchtitan: command output truncated]" in output
+        stats["total_s"] = loop.time() - started
+        self.last_exec_stats = stats
+        return exit_code, output
 
     async def write_file(
         self, sandbox_path: str, content: FileContent, *, user: str = "root"

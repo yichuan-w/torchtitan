@@ -83,9 +83,13 @@ def _run(sandbox: DaytonaSandbox, cmd: str = "true", timeout: int = 1):
 def test_launch_is_one_backgrounded_exec_with_state_on_shm():
     observable = _build_observable_exec("echo hi", "k1")
     launch = observable.launch(uploaded=False)
-    assert launch.endswith("& echo launched")
     assert launch.startswith("( ")
-    assert "</dev/null >/dev/null 2>&1" in launch
+    assert "</dev/null >/dev/null 2>&1 & " in launch
+    # After backgrounding the wrapper the launch waits briefly for a small
+    # result and otherwise reports only that it launched.
+    assert launch.endswith("echo launched")
+    assert daytona_mod._LAUNCH_INLINE_PREFIX in launch
+    assert "base64" in launch
     assert observable.status_path.startswith("/dev/shm/")
     assert observable.output_path.startswith("/dev/shm/")
     assert daytona_mod._EXEC_CLAIM_DIR.startswith("/dev/shm/")
@@ -162,3 +166,41 @@ def test_next_launch_removes_the_previous_result_files(monkeypatch):
     assert launches[1].startswith(f"rm -f {first_status} {first_output} 2>/dev/null; ")
     # A relaunch of the same command must not carry the cleanup twice.
     assert sandbox._stale_result_paths != (first_status, first_output)
+
+
+def test_inline_result_skips_polling_and_the_output_read(monkeypatch):
+    import base64
+
+    class _Resp:
+        result = (
+            daytona_mod._LAUNCH_INLINE_PREFIX
+            + "3\n"
+            + base64.b64encode(b"hi \xff there\n").decode()
+        )
+
+    fs = _FakeFS(b"9\n", b"never\n", appear_after=10**6)
+    reads: list[str] = []
+    real_download = fs.download_file
+
+    async def download_file(path, timeout=None):
+        reads.append(path)
+        return await real_download(path, timeout)
+
+    fs.download_file = download_file
+    sandbox = _sandbox(monkeypatch, exec_side_effects=[_Resp()], fs=fs)
+    rc, out, _ = _run(sandbox, "echo hi; exit 3")
+    assert (rc, out) == (3, "hi \ufffd there\n")
+    assert reads == [], "an inline result must not touch the file API"
+    assert sandbox.last_exec_stats["inline"] is True
+    assert sandbox.last_exec_stats["output_bytes"] > 0
+
+
+def test_launch_only_reply_falls_back_to_the_files(monkeypatch):
+    class _Resp:
+        result = "launched\n"
+
+    fs = _FakeFS(b"0\n", b"from-file\n")
+    sandbox = _sandbox(monkeypatch, exec_side_effects=[_Resp()], fs=fs)
+    rc, out, _ = _run(sandbox)
+    assert (rc, out) == (0, "from-file\n")
+    assert sandbox.last_exec_stats["inline"] is False
