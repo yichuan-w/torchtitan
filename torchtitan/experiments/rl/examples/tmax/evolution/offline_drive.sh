@@ -47,7 +47,7 @@ for k in $(seq 1 "$MAX_ROUNDS"); do
   # a round already running over this root (the lock names its pid) finishes first
   while pid=$(sed -n 's/.* pid=\([0-9]*\) .*/\1/p' "$TRL_BASE/evolution/loop.lock" 2>/dev/null) \
         && [ -n "$pid" ] && kill -0 "$pid" 2>/dev/null; do sleep 60; done
-  name=$(basename "$SOURCE_RUN").offline$k-$(date -u +%H%M%S)
+  name=$(basename "$SOURCE_RUN").offline$k-$(date -u +%Y%m%d-%H%M%S)
   # $PY (the training venv, from evolveloop_env.sh): the login node's python3 is
   # 3.9 and cannot parse offline_stage.py; its traceback went to the journal and
   # the round read "staged 0" (2026-09-14).
