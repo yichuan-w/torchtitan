@@ -92,16 +92,22 @@ class _ObservableExecCommand:
     status_path: str
     output_path: str
 
-    def launch(self, *, uploaded: bool) -> str:
+    def launch(self, *, uploaded: bool, stale: tuple[str, ...] = ()) -> str:
         """The one-shot exec that starts the wrapper detached and returns.
 
         The claim inside the wrapper's dispatcher makes this idempotent: a
         relaunch after a lost response finds the claim and exits without
         running the body again. Stdio goes to /dev/null so the Toolbox's
         request does not wait on the detached process group.
+
+        ``stale`` are the previous command's result files, already read: they
+        are removed here, in the request this launch makes anyway, so a
+        rollout of hundreds of commands does not fill /dev/shm (64 MB) with
+        outputs of up to 8 MiB each.
         """
         body = self.uploaded_command if uploaded else self.inline_command
-        return f"( {body} ) </dev/null >/dev/null 2>&1 & echo launched"
+        cleanup = f"rm -f {shlex.join(stale)} 2>/dev/null; " if stale else ""
+        return f"{cleanup}( {body} ) </dev/null >/dev/null 2>&1 & echo launched"
 
 
 def _error_status_code(error: BaseException) -> int | None:
@@ -688,6 +694,8 @@ class DaytonaSandbox:
         self.sandbox_id = ""
         self._heartbeat_task: Any = None
         self._lost_error: BaseException | None = None
+        # Result files of the last command, deleted by the next launch.
+        self._stale_result_paths: tuple[str, ...] = ()
 
     def _record_issue(
         self,
@@ -1223,7 +1231,8 @@ class DaytonaSandbox:
                 retry_kind="file_upload_retry",
                 failed_kind="file_upload_failed",
             )
-        launch = observable.launch(uploaded=uploaded)
+        launch = observable.launch(uploaded=uploaded, stale=self._stale_result_paths)
+        self._stale_result_paths = ()
         status_path = observable.status_path
         output_path = observable.output_path
 
@@ -1408,6 +1417,8 @@ class DaytonaSandbox:
         )
         if output is None:
             output = _MISSING_OUTPUT_MESSAGE
+        # Both files are read; the next launch removes them from /dev/shm.
+        self._stale_result_paths = (status_path, output_path)
         if isinstance(output, bytes):
             output = output.decode("utf-8", errors="replace")
         return exit_code, str(output)

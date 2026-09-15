@@ -143,3 +143,22 @@ def test_every_launch_lost_and_no_result_is_unconfirmed(monkeypatch):
     counts = sandbox.issue_tracker.counts
     assert counts.get("execute_response_unconfirmed") == 1
     assert "command_status_timeout" not in counts
+
+
+def test_next_launch_removes_the_previous_result_files(monkeypatch):
+    fs = _FakeFS(b"0\n", b"one\n")
+    launches: list[str] = []
+
+    async def exec_(command, timeout=None):
+        launches.append(command)
+        return None
+
+    sandbox = _sandbox(monkeypatch, exec_side_effects=exec_, fs=fs)
+    _run(sandbox, "first")
+    assert not launches[0].startswith("rm -f")
+    first_status, first_output = sandbox._stale_result_paths
+    assert first_status.endswith(".status") and first_output.endswith(".output")
+    _run(sandbox, "second")
+    assert launches[1].startswith(f"rm -f {first_status} {first_output} 2>/dev/null; ")
+    # A relaunch of the same command must not carry the cleanup twice.
+    assert sandbox._stale_result_paths != (first_status, first_output)
