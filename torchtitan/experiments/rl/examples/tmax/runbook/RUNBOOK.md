@@ -607,7 +607,25 @@ quota; the harness polls those files through the file API. A task that fills
 its disk now fails its own commands with ENOSPC, which the agent sees in the
 terminal, while the harness keeps driving the sandbox. A lost launch response
 is retried with the same launch: the claim makes the duplicate exit without
-running the body again, so a command is never executed twice.
+running the body again, so a command is never executed twice. The launch
+request itself waits up to a second in the sandbox and returns small results
+(up to 256 KB, base64) inline, so the commands Terminus-2 issues most cost one
+round trip (~0.1 s measured); larger or slower results are polled from 100 ms
+doubling to 2 s and read through the file API. A command's output comes back
+complete up to 8 MiB; beyond that the first 4 MiB, a marker line, and the true
+last 4 MiB.
+
+Terminus-2's per-turn observation is produced by the adapter, not by its own
+whole-history search (`_SandboxEnvironment.observe_turn`): the command that
+delivers the turn's first keys notes tmux's `history_size` and `cursor_y`, and
+one exec later captures from that line, reads the server and pane pids (the
+old separate probe), and the visible screen. A full-screen program
+(`alternate_on`) or a shrunken history (a cleared screen) shows the screen, as
+the original did when its search failed. Every exec and every observation
+leaves timings and sizes in the rollout record's `exec` list (`inline`,
+`launch_s`, `wait_s`, `read_s`, `output_bytes`; observations carry `mode`,
+`shown`, `history_size`, `start`, `new_bytes`, `screen_bytes`), so a run can be
+profiled after the fact without re-running it.
 
 Memory: `TT_DAYTONA_MEM_GB` (4) is the fallback when a row declares nothing;
 `TT_DAYTONA_MAX_MEM_GB` (8) **clamps** whatever a row asks for. They are not
