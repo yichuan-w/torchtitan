@@ -170,12 +170,19 @@ def apply_fsdp_to_decoder(
             )
         # As an optimization, do not reshard_after_forward the last layers
         # by default since FSDP would prefetch them immediately.
-        if model.norm is not None and model.lm_head is not None:
-            fully_shard(
-                [model.norm, model.lm_head],
-                **fsdp_config,
-                reshard_after_forward=reshard_after_forward_policy == "always",
-            )
+        # norm and lm_head are separate FSDP groups rather than one: the chunked
+        # lm_head loss accumulates lm_head's gradient over several backward passes
+        # with gradient sync off, and FSDP2 on torch <= 2.12 accumulates that in
+        # reduce_dtype (fp32) while norm's single-pass gradient stays in param_dtype
+        # (bf16); one group with both trips "FSDP reduce-scatter expects uniform
+        # gradient dtype" (seen on ROCm torch 2.12; the CUDA nightly does not).
+        for module in (model.norm, model.lm_head):
+            if module is not None:
+                fully_shard(
+                    module,
+                    **fsdp_config,
+                    reshard_after_forward=reshard_after_forward_policy == "always",
+                )
 
     for layer_id, transformer_block in model.layers.items():
         # NOTE: In an MoE layer, we use shard_placement_fn to apply different
