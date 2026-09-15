@@ -100,6 +100,16 @@ fp32 master params with bf16 FSDP compute, fused AdamW lr 1e-6 / betas (0.9, 0.9
 
 ## Data
 
+Canonical Hugging Face sources used by the current mix/rebench data work:
+
+- [`Fzz1/SWE-Smith-Seeds-Clean`](https://huggingface.co/datasets/Fzz1/SWE-Smith-Seeds-Clean)
+- [`Fzz1/SWE-Rebench-Tasks-Clean`](https://huggingface.co/datasets/Fzz1/SWE-Rebench-Tasks-Clean)
+- [`andylizf/TerminalWorld-Seeds-Clean`](https://huggingface.co/datasets/andylizf/TerminalWorld-Seeds-Clean)
+- [`Fzz1/Tmax-Tasks-Clean`](https://huggingface.co/datasets/Fzz1/Tmax-Tasks-Clean)
+
+Use [`runbook/download_rebench_sources.sh`](runbook/download_rebench_sources.sh)
+to materialize them under the local source-data root.
+
 ```bash
 # Training corpus (15K tasks). Writes a 5-task tmax_smoke.jsonl next to --out too.
 python -m torchtitan.experiments.rl.examples.tmax.prepare_tmax_data \
