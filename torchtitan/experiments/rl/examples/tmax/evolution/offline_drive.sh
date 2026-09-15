@@ -19,8 +19,11 @@
 #   [CLAUDE_PROXY=1] [EVOLVE_AGENT_TIMEOUT=7200] bash offline_drive.sh
 #
 # Run it as a systemd user unit (a process tied to an ssh session dies with
-# it), with EVOLVE_SOCK_DIR and TMPDIR off a shared /tmp:
-#   systemd-run --user --unit=offline-<root> --collect --working-directory=$TRL_BASE \
+# it), with EVOLVE_SOCK_DIR and TMPDIR off a shared /tmp, and Restart=on-failure:
+# when the host kills the tree, the restarted drive marks the killed round's
+# records interrupted and restages them.
+#   systemd-run --user --unit=offline-<root> --collect -p Restart=on-failure -p RestartSec=30 \
+#     --working-directory=$TRL_BASE \
 #     --setenv=TRL_PROFILE=.. --setenv=TRL_BASE=.. --setenv=SOURCE_RUN=.. --setenv=SELECTED=.. \
 #     --setenv=EVOLVE_SOCK_DIR=/dev/shm/$USER-evolve --setenv=TMPDIR=$TRL_BASE/tmp ... \
 #     bash <evolution dir>/offline_drive.sh
@@ -47,6 +50,14 @@ for k in $(seq 1 "$MAX_ROUNDS"); do
   # a round already running over this root (the lock names its pid) finishes first
   while pid=$(sed -n 's/.* pid=\([0-9]*\) .*/\1/p' "$TRL_BASE/evolution/loop.lock" 2>/dev/null) \
         && [ -n "$pid" ] && kill -0 "$pid" 2>/dev/null; do sleep 60; done
+  # A lock naming a dead pid is a round that was killed under the drive (the
+  # della login node terminates Codex trees on its own; twice on 2026-09-14):
+  # its sessions still read `running`, which the stager would never restage.
+  if [ -n "${pid:-}" ]; then
+    L "round $k: loop pid $pid is dead; marking its records interrupted"
+    "$PY" "$EVO/finalize_interrupted_traces.py" --stopped-loop-pid "$pid" >> "$DLOG" 2>&1
+    rm -f "$TRL_BASE/evolution/loop.lock"
+  fi
   name=$(basename "$SOURCE_RUN").offline$k-$(date -u +%H%M%S)
   # $PY (the training venv, from evolveloop_env.sh): the login node's python3 is
   # 3.9 and cannot parse offline_stage.py; its traceback went to the journal and
