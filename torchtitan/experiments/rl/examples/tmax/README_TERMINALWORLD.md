@@ -12,7 +12,8 @@ service is required. Two 8-GPU hosts is the minimum (one trainer + one generator
 host); more generator hosts raise rollout throughput.
 
 - Agent: **Terminus-2** (`TMAX_AGENT=terminus`), the tmux-driving scaffold from the
-  `harbor` package, NOT the default one-command `vanillux` loop.
+  `harbor` package. This is the default; `TMAX_AGENT=vanillux` selects the older
+  one-command loop instead.
 - Generator: **`torchtitan_wrapper`** (the unified TorchTitan GDN model run inside
   vLLM), so the generator and trainer run the same model code + weights.
 - Data: **TerminalWorld-Seeds-Clean** (general terminal tasks) mixed with
@@ -22,11 +23,22 @@ host); more generator hosts raise rollout throughput.
 
 ## 0. Prerequisites
 
+The RL deps -- vLLM, Monarch, TorchStore, harbor, daytona, flash-linear-attention
+-- are not in the repository's `requirements.txt`, which carries base torchtitan
+only. Install the locked environment from `runbook/` instead. It pins
+`harbor==0.22.0`, and harbor is what issues the tmux commands Terminus-2 drives,
+so an unpinned `pip install harbor` moves the scaffold under you. The lock
+resolves on linux/x86_64/cp312 only.
+
 ```bash
-pip install -r requirements.txt          # torchtitan + the RL experiment deps
-pip install harbor                        # provides Terminus-2 and TB-2.0 tasks
+uv sync --project torchtitan/experiments/rl/examples/tmax/runbook
+
+export PYTHONPATH=$PWD                    # torchtitan is deliberately not in the lock
 export DAYTONA_API_KEY=dtn_...            # sandbox provider
 ```
+
+[`runbook/RUNBOOK.md`](runbook/RUNBOOK.md) section 3 has the `uv pip` form, the
+five non-PyPI pins and what each one is load-bearing for.
 
 ## 1. Prepare the data
 

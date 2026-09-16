@@ -28,7 +28,8 @@ larger model on 80GB H100s:
    stay in the validated ~1GiB envelope at 27B's larger hidden size.
 
 - Agent: **Terminus-2** (`TMAX_AGENT=terminus`), the tmux-driving scaffold from the
-  `harbor` package, NOT the default one-command `vanillux` loop.
+  `harbor` package. This is the default; `TMAX_AGENT=vanillux` selects the older
+  one-command loop instead.
 - Generator: **`torchtitan_wrapper`** (the unified TorchTitan GDN model run inside
   vLLM) at TP-2, so the generator and trainer run the same model code + weights --
   same as the 9B run (the wrapper now supports TP>1).
@@ -39,9 +40,15 @@ larger model on 80GB H100s:
 
 ## 0. Prerequisites
 
+Same as the 9B run. The RL deps -- vLLM, Monarch, TorchStore, harbor, daytona,
+flash-linear-attention -- are not in the repository's `requirements.txt`, which
+carries base torchtitan only. Install the locked set from `runbook/`; it pins
+`harbor==0.22.0` and resolves on linux/x86_64/cp312 only.
+
 ```bash
-pip install -r requirements.txt          # torchtitan + the RL experiment deps
-pip install harbor                        # provides Terminus-2 and TB-2.0 tasks
+uv sync --project torchtitan/experiments/rl/examples/tmax/runbook
+
+export PYTHONPATH=$PWD                    # torchtitan is deliberately not in the lock
 export DAYTONA_API_KEY=dtn_...            # sandbox provider
 ```
 

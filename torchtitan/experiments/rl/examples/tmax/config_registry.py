@@ -120,16 +120,23 @@ _TMAX_9B_VAL_SAMPLES = 32
 _TMAX_9B_HOLDOUT_N = 0
 
 
-def _tmax_rollouter() -> TMaxRollouter.Config:
+def _tmax_rollouter(*, validation_from_caller: bool = False) -> TMaxRollouter.Config:
     """Train/validation datasets for the tmax rollouter (rubric + env defaults live
     on the rollouter Config). Train and validation read the same JSONL but disjoint
-    slices via holdout_n (last N rows = validation)."""
+    slices via holdout_n (last N rows = validation).
+
+    ``validation_from_caller`` is for a recipe that replaces ``validation_dataset``
+    after this returns, so the guard below cannot see the dataset it will get. Only
+    the eval-only recipe does that; a training recipe must never pass it, because
+    the guard is what stops a run from validating against nothing.
+    """
     holdout_n = int(os.environ.get("SWE_HOLDOUT_N", _TMAX_9B_HOLDOUT_N))
     if holdout_n < 0:
         raise ValueError("SWE_HOLDOUT_N must be nonnegative")
     if (
         holdout_n == 0
         and not _TB2_VAL_DATA
+        and not validation_from_caller
         and int(os.environ.get("SWE_VAL_SAMPLES", _TMAX_9B_VAL_SAMPLES)) > 0
     ):
         raise ValueError(
@@ -496,7 +503,9 @@ def rl_grpo_qwen3_5_27b_tmax_fsdp32_tp2() -> Controller.Config:
     return config
 
 
-def rl_grpo_qwen3_5_9b_tmax() -> Controller.Config:
+def rl_grpo_qwen3_5_9b_tmax(
+    *, validation_from_caller: bool = False
+) -> Controller.Config:
     """Qwen3.5-9B (Gated DeltaNet hybrid, text-only) AI2 tmax terminal-agent recipe.
 
     Base = ``rl_grpo_qwen3_5_9b_swe_r2e`` (9B GDN, generator DP-8 x TP-1),
@@ -528,7 +537,7 @@ def rl_grpo_qwen3_5_9b_tmax() -> Controller.Config:
     startup admission to preserve queued work at higher concurrency.
     """
     config = _swe_9b()
-    config.rollouter = _tmax_rollouter()
+    config.rollouter = _tmax_rollouter(validation_from_caller=validation_from_caller)
     assert config.model_spec is not None
     _set_max_seq_len(config.model_spec, _TMAX_9B_CONTEXT)
     # Interleaved thinking: keep each turn's <think> in later prompts (the tmax
@@ -1106,7 +1115,9 @@ def rl_grpo_qwen3_5_9b_tmax_tb2_eval() -> Controller.Config:
     Set ``SWE_ROLLOUT_CONCURRENCY`` >= 89 so all tasks run at once (validation shares
     the global rollout semaphore). Greedy (temp=0, n=1) is applied by ``validate()``.
     """
-    config = rl_grpo_qwen3_5_9b_tmax()
+    # This recipe supplies its own validation_dataset below (the whole TB file), so
+    # the training recipe's holdout guard has nothing to check yet.
+    config = rl_grpo_qwen3_5_9b_tmax(validation_from_caller=True)
     tb2_data = _TB2_DATA or _DEFAULT_DATA
     config.rollouter = dataclasses.replace(
         config.rollouter,
