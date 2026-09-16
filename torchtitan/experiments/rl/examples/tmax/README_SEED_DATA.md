@@ -20,7 +20,7 @@ columns differ.
 |---|---|---|---|---|
 | **RTS** (Recursive-Task-Synthesis) | `Zhongzhi1228/Recursive-Task-Synthesis` | 37,484 (8 shards) | general terminal, recursion-synthesized | self-contained Dockerfile |
 | **TerminalWorld-Seeds-Clean** | `andylizf/TerminalWorld-Seeds-Clean` | 1,353 | general terminal (TerminalWorld benchmark seeds) | self-contained Dockerfile |
-| **SWE-Smith-Seeds-Clean** | `Fzz1/SWE-Smith-Seeds-Clean` | 1,775 | Python repo bug-fix (SWE-bench/SWE-smith) | `FROM` a Docker Hub base image + bug patch |
+| **SWE-Smith-Seeds-Clean** | `Fzz1/SWE-Smith-Seeds-Clean` | 1,552 | Python repo bug-fix (SWE-bench/SWE-smith) | `FROM` a Docker Hub base image + bug patch |
 
 All three ship in the RST release layout, so a single loader reads any of them:
 
@@ -62,6 +62,7 @@ back beside the Dockerfile so the build resolves.
 | `--limit N` | emit at most N tasks |
 | `--seed N` | task-order shuffle seed (default 42) |
 | `--smoke-size N` | also write a small `*_smoke.jsonl` with N rows |
+| `--metadata-parquet PATH` | the dataset's own `metadata/tasks.parquet`. **Pass it.** Without it no row declares any resources, so the whole corpus runs on the flat `TT_DAYTONA_*` fleet defaults instead of each task's own cpu / memory / disk -- measured, it sizes every row of both corpora, and the sizes differ (2 GB of disk for one task, 10 GB for another). It also picks up the optional `pre_test_sh` / `pre_test_env_identity` hooks that grading runs before `test.sh`; neither corpus here ships that column today, and a column the dataset does not ship is simply skipped |
 
 ### What it filters out
 
@@ -90,9 +91,12 @@ declaration is kept as a measurement rather than promoted to a filter.
 # extract first
 tar xf tasks-00000.tar -C /path/to/extracted     # -> /path/to/extracted/tasks/<id>/...
 
+# --inject-agent-runtime: terminus needs tmux (non-RTS corpora)
+# --metadata-parquet: per-task sandbox sizing and the pre-test hooks (see below)
 python -m torchtitan.experiments.rl.examples.tmax.prepare_rts_data \
     --tasks-root /path/to/extracted/tasks \
-    --inject-agent-runtime \                       # terminus needs tmux (non-RTS corpora)
+    --inject-agent-runtime \
+    --metadata-parquet /path/to/dl/tasks.parquet \
     --out /tmp/seed_train.jsonl
 ```
 
@@ -128,18 +132,22 @@ they do not gate this list.
 
 ### SWE-Smith-Seeds-Clean
 
+Counts below are `main` at `58af1819`; the TerminalWorld ones above are `main` at
+`5c8367d8`. Both datasets get re-cut, so read a disagreeing number as this file
+being out of date, and count the parquet yourself before quoting one.
+
 | column | values | use |
 |---|---|---|
-| `reward_verdict` | pass (all 1,775) | already all-pass; nothing to drop here |
-| **`network_required`** | True 70 | **Drop** if your grader runs `--network none`; those pass only with egress |
-| **`in_main_pool`** | True 1,408 | the authors' stratified, repo-balanced, de-duplicated draw that also holds the low-training-value `func_basic` family to 5%. **Prefer this over the full 1,705.** |
+| `reward_verdict` | pass (all 1,552) | already all-pass; nothing to drop here |
+| **`network_required`** | True 0 | **Drop** if your grader runs `--network none`; those pass only with egress. No row carries it in the revision noted above, so this filter currently removes nothing -- count it rather than assuming either way |
+| **`in_main_pool`** | True 1,243 | the authors' stratified, repo-balanced, de-duplicated draw that also holds the low-training-value `func_basic` family to 5%. **Prefer this over the full 1,552.** |
 | `bug_family` | pr / lm_rewrite / procedural / combine_file / combine_module / lm_modify | pr / lm_rewrite / procedural are the sweet spot; combine_* bundle multiple bugs (all-or-nothing reward, harder); lm_modify (`func_basic`) is often over-specified/easy |
 
 Recommended subsets:
 - TerminalWorld: `metadata/train_ready_ids.txt` -> 663 tasks (equivalently:
   `reward_verdict == "pass"` minus the fragile-build, policy-blocked and
   oversized-memory id lists).
-- SWE-Smith: `in_main_pool and not network_required` -> 1,408 tasks.
+- SWE-Smith: `in_main_pool and not network_required` -> 1,243 tasks.
 
 ### On instruction sufficiency (SWE-Smith)
 
@@ -175,6 +183,7 @@ tar xf /path/to/dl/tasks-00000.tar -C /path/to/extracted
 # 3. convert (tmux baked in for terminus)
 python -m torchtitan.experiments.rl.examples.tmax.prepare_rts_data \
     --tasks-root /path/to/extracted/tasks --inject-agent-runtime \
+    --metadata-parquet /path/to/dl/tasks.parquet \
     --out /path/to/seed_all.jsonl
 
 # 4. filter by the parquet columns (SWE-Smith: main-pool, offline)
