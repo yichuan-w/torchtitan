@@ -1,0 +1,28 @@
+{
+  "run": "reaudit_398/reviews/overfilter_20260916/v8/runs/trial200_opus48_medium_20260916T072204Z",
+  "model": "claude-opus-4-8",
+  "effort": "medium",
+  "batch_size": 5,
+  "n_batches": 40,
+  "total": 200,
+  "guards": [
+    "task_000156_2f395118",
+    "task_000241_547763df",
+    "task_000311_9e22fec5",
+    "task_004863_67089cd4",
+    "task_004886_10504160"
+  ],
+  "excluded_already_judged": 595,
+  "security_excluded": 2020,
+  "eligible_pool": 663,
+  "prior_category_counts": {
+    "?": 0,
+    "ANSWER-LEAK": 38,
+    "CLEAN": 91,
+    "INSTR-AMBIGUOUS": 2,
+    "INSTR-ENV-MISMATCH": 11,
+    "INSTR-VERIFIER-MISMATCH": 13,
+    "OTHER": 3,
+    "VERIFIER-TOO-WEAK": 41
+  }
+}

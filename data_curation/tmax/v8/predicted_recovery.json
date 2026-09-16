@@ -1,0 +1,66 @@
+{
+  "source": "../aggregate.json",
+  "population": "V4 non-CLEAN labels on shipped-398, security exclusions applied",
+  "rates": {
+    "IVM": {
+      "expected": 171,
+      "reviewed": 145,
+      "recovered": 67,
+      "REJECT": 78,
+      "skipped_security": 26,
+      "false_negative_fraction_among_reviewed": 0.46206896551724136,
+      "missing_label_lower_bound": 0.391812865497076,
+      "missing_label_upper_bound": 0.543859649122807
+    },
+    "VTW": {
+      "expected": 58,
+      "reviewed": 49,
+      "recovered": 5,
+      "REJECT": 44,
+      "skipped_security": 9,
+      "false_negative_fraction_among_reviewed": 0.10204081632653061,
+      "missing_label_lower_bound": 0.08620689655172414,
+      "missing_label_upper_bound": 0.2413793103448276
+    },
+    "others": {
+      "expected": 46,
+      "reviewed": 44,
+      "recovered": 0,
+      "REJECT": 44,
+      "skipped_security": 2,
+      "false_negative_fraction_among_reviewed": 0.0,
+      "missing_label_lower_bound": 0.0,
+      "missing_label_upper_bound": 0.043478260869565216
+    }
+  },
+  "overall": {
+    "reviewed": 238,
+    "recovered": 72,
+    "upheld": 166,
+    "skipped": 37
+  },
+  "original852_transfer_scenario": {
+    "expected_recoveries": 78.8002814919071,
+    "rounded": 79,
+    "formula": "97*(67/145) + 333*(5/49) + 422*(0/44)",
+    "original_category_counts": {
+      "ANSWER-LEAK": 280,
+      "INSTR-ENV-MISMATCH": 93,
+      "INSTR-AMBIGUOUS": 18,
+      "VERIFIER-TOO-WEAK": 333,
+      "INSTR-VERIFIER-MISMATCH": 97,
+      "OTHER": 28,
+      "TASK-TRIVIAL": 3
+    },
+    "assumption": "Category-specific rates transfer from disjoint selected V4 survivors to original rejected852; NOT established.",
+    "status": "illustrative workload-planning scenario, not a measured prediction"
+  },
+  "raw14601_numeric_recovery_forecast": null,
+  "reason": "13179 raw tasks lie outside audited1422; they have no comparable prior LLM rejection label or representative measured yield.",
+  "runtime_validated_recoveries": 0,
+  "actual_v8_judge_recovery_count": null,
+  "v8_preservation_boundary_cases": [
+    "task_000753_b376cf1d"
+  ],
+  "interval_note": "Missing-label bounds are arithmetic sensitivity bounds, not statistical confidence intervals; the sample is not random."
+}

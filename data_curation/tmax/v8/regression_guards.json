@@ -1,0 +1,232 @@
+{
+  "schema_version": "v8-regression-guards-v1",
+  "guard_count": 5,
+  "selection": {
+    "security_cases_included": 0,
+    "selection_basis": "Small non-security regression set spanning runnable references, deterministic regeneration, planted solved outputs, and observed reward for an empty submission.",
+    "task_execution_during_construction": false
+  },
+  "artifact_policy": {
+    "artifact_variant": "original",
+    "task_archive": "/data/users/zekaili/fangzhou/tb_check/rebench_tmax_recovery_2026-09-02/work/tmax-audit-files/tmax-task-data.tar.gz",
+    "task_archive_sha256": "8e0fcfb61ea62ad234423bafa3c2e60cf16239e8be8a072daf950cf64cf7f016",
+    "expected_decision": "REJECT",
+    "v7_to_v8_rule": "A V7 tier of REPAIR records that a bounded repair may exist. Under V8 operational eligibility, the exact original artifact remains REJECT.",
+    "repaired_derivative_rule": "A repaired derivative needs a distinct artifact identity and a fresh V8 review. It must not silently replace the original artifact in this guard set.",
+    "runtime_evidence_rule": "Only archived receipts with an observed reward field are called runtime evidence. Static traces are labeled static and are never promoted to observed reward claims."
+  },
+  "guards": [
+    {
+      "guard_id": "V8-GUARD-AL-RUNNABLE-NUMERIC-001",
+      "task_id": "task_000156_2f395118",
+      "title": "Runnable numeric oracle can replace the requested Rust implementation",
+      "guard_class": "runnable_reference_numeric",
+      "source_population": "v4_non_clean_275",
+      "security_union": 0,
+      "artifact_variant": "original",
+      "expected_decision": "REJECT",
+      "prior_v4_verdict": "ANSWER-LEAK",
+      "current_review": {
+        "decision": "REJECT",
+        "validation": "static_trace",
+        "source": "reviews/overfilter_20260916/results/other_02.jsonl",
+        "source_line": 5,
+        "source_sha256": "5209d042e4a00d55fb10b959b8abf72c8ec4e60ce2fa4883c22a8a5d34111597"
+      },
+      "old_v7": {
+        "rubric_version": "V7-v3.18.1",
+        "tier": "REPAIR",
+        "verdict": "VERIFIER-TOO-WEAK",
+        "source": "judge/fullrun_v318_20260902/judgements_V7_bucket_19.jsonl",
+        "source_line": 4,
+        "source_sha256": "65b0bb30c6fc664ca05be628f79e188173c225b4e927a38d31ac2eae186989c3"
+      },
+      "files": {
+        "instruction.md": {"sha256": "d8b31aeb1eb09e456ad369d50c20ea3a6884050fa9ef87bb447dfaaa0b0ab140", "lines": 15},
+        "setup.sh": {"sha256": "97125902db3c3abd247cc5a46da340f9b841d621d203f0f4f42c70dc83fcf185", "lines": 74},
+        "tests/test.sh": {"sha256": "7a1600e466358f02de142c288b9c7f6983d68f5daeda6b2e00a902758e803920", "lines": 48}
+      },
+      "static_evidence": [
+        {"file": "instruction.md", "line_start": 7, "line_end": 10, "claim": "The requested core is extracting the constants, implementing calculate_sequence in the Rust codebase, and writing a real regression test."},
+        {"file": "setup.sh", "line_start": 8, "line_end": 27, "claim": "The image retains /app/legacy_calc, an executable that computes the exact sequence for arbitrary n."},
+        {"file": "tests/test.sh", "line_start": 18, "line_end": 21, "claim": "The regression test is checked only for file and executable mode; it is never run."},
+        {"file": "tests/test.sh", "line_start": 23, "line_end": 41, "claim": "The grader queries any service on port 8080 and does not bind responses to the Rust crate, allowing a proxy to the runnable oracle."}
+      ],
+      "runtime_evidence": [],
+      "runtime_evidence_status": "No reward-1 receipt is asserted for this guard; rejection rests on the complete static trace.",
+      "reject_invariant": "The original artifact is operationally ineligible while the rollout-visible oracle can supply every graded numeric answer and the grader does not execute the requested implementation.",
+      "repair_boundary": "A verifier that builds and launches the submitted Rust service and removes or isolates the oracle would be a different artifact requiring fresh review."
+    },
+    {
+      "guard_id": "V8-GUARD-AL-DETERMINISTIC-REGEN-001",
+      "task_id": "task_000241_547763df",
+      "title": "Readable deterministic generator bypasses deleted-file recovery",
+      "guard_class": "deterministic_regeneration_and_unbound_deliverable",
+      "source_population": "v4_non_clean_275",
+      "security_union": 0,
+      "artifact_variant": "original",
+      "expected_decision": "REJECT",
+      "prior_v4_verdict": "ANSWER-LEAK",
+      "current_review": {
+        "decision": "REJECT",
+        "validation": "static_trace",
+        "source": "reviews/overfilter_20260916/results/other_02.jsonl",
+        "source_line": 1,
+        "source_sha256": "5209d042e4a00d55fb10b959b8abf72c8ec4e60ce2fa4883c22a8a5d34111597"
+      },
+      "old_v7": {
+        "rubric_version": "V7-v3.18.1",
+        "tier": "REPAIR",
+        "verdict": "VERIFIER-TOO-WEAK",
+        "source": "judge/fullrun_v318_20260902/judgements_V7_bucket_23.jsonl",
+        "source_line": 5,
+        "source_sha256": "835967c66da47f104f7ac84c284f2e15123438cf704a8dd14a6917e7a7082fbb"
+      },
+      "files": {
+        "instruction.md": {"sha256": "0e6ba022f0477a31efe411ac7d6d184f22c924e37fcf77aa8ede732b2c4b4c59", "lines": 18},
+        "setup.sh": {"sha256": "7b653b6486525577b1f66f8fe8cdc08e92ff07405abcd7555c329983c23d2e36", "lines": 75},
+        "tests/test.sh": {"sha256": "de0a0c4448444dd7a86b475551778744dbd99d8eaf57ed36a4d859b49b66b855", "lines": 33}
+      },
+      "static_evidence": [
+        {"file": "instruction.md", "line_start": 7, "line_end": 16, "claim": "The core requires recovering a still-open deleted log, fixing malformed-line handling, and using exact arithmetic."},
+        {"file": "setup.sh", "line_start": 9, "line_end": 38, "claim": "The readable deterministic generator contains every input record and can recreate the supposedly deleted log."},
+        {"file": "tests/test.sh", "line_start": 9, "line_end": 26, "claim": "The original grader checks only a 10001-line count and a fixed sum string; it never checks recovery provenance or runs aggregator.py."}
+      ],
+      "runtime_evidence": [],
+      "runtime_evidence_status": "No reward-1 receipt on the exact original verifier is used here; later repaired-verifier failures are not evidence about original-artifact eligibility.",
+      "reject_invariant": "The original artifact is ineligible because deterministic regeneration plus directly authored deliverables can satisfy the grade without deleted-file recovery or the requested aggregator repair.",
+      "repair_boundary": "Fresh grade-time inputs and execution of the submitted aggregator can define a repaired derivative, but cannot change the original guard decision."
+    },
+    {
+      "guard_id": "V8-GUARD-AL-PLANTED-OUTPUT-001",
+      "task_id": "task_000311_9e22fec5",
+      "title": "Build script plants both exact graded outputs",
+      "guard_class": "planted_solved_output",
+      "source_population": "v4_non_clean_275",
+      "security_union": 0,
+      "artifact_variant": "original",
+      "expected_decision": "REJECT",
+      "prior_v4_verdict": "ANSWER-LEAK",
+      "current_review": {
+        "decision": "REJECT",
+        "validation": "static_trace",
+        "source": "reviews/overfilter_20260916/results/other_02.jsonl",
+        "source_line": 8,
+        "source_sha256": "5209d042e4a00d55fb10b959b8abf72c8ec4e60ce2fa4883c22a8a5d34111597"
+      },
+      "old_v7": {
+        "rubric_version": "V7-v3.17.1",
+        "tier": "REPAIR",
+        "verdict": "ANSWER-LEAK",
+        "source": "judge/regress_v317_20260902/judgements_V7_bucket_2.jsonl",
+        "source_line": 3,
+        "source_sha256": "42787aeec0bbde0b0a66d84f8dd3cade69f88ca8b786ce18e9f0b769d17a96b4"
+      },
+      "files": {
+        "instruction.md": {"sha256": "3972168df9158409eb51b0cd3fe766ca0dc4a540a9ef10125ddd3ae1adff6c24", "lines": 12},
+        "setup.sh": {"sha256": "2dfbe6300a70d7760cc7d4ce7451cc35a0834a6e819465b202331dbe6e1e5571", "lines": 48},
+        "tests/test.sh": {"sha256": "3b88ff3373a2b26fd6fc0353b62fb28acbc92962bbfd1aa60093ce90a143cba4", "lines": 32}
+      },
+      "static_evidence": [
+        {"file": "instruction.md", "line_start": 4, "line_end": 10, "claim": "The requested core spans dump diagnosis, cleaning the asset, fixing threshold arithmetic, and executing the build."},
+        {"file": "setup.sh", "line_start": 35, "line_end": 45, "claim": "The rollout-visible build.sh contains both exact values later asserted by the grader: VALID_ASSET_123 and BUILD SUCCESSFUL."},
+        {"file": "tests/test.sh", "line_start": 9, "line_end": 25, "claim": "The grader reads only the two directly writable artifacts and never runs calculate_threshold.sh or build.sh."}
+      ],
+      "runtime_evidence": [
+        {"kind": "observed_receipt", "source": "repro/judge_batches/smallrun_b013.jsonl", "source_line": 39, "source_sha256": "114dac3d13fe6172d8058056fae9f89cb632f1184c76222fc7508c608de9d3b5", "mode": "empty", "reward": "0", "image": "hamishi740/swerl-tmax-v3:fd04f429a606", "claim": "The empty control failed as expected."},
+        {"kind": "observed_receipt", "source": "repro/judge_batches/smallrun_b013.jsonl", "source_line": 41, "source_sha256": "114dac3d13fe6172d8058056fae9f89cb632f1184c76222fc7508c608de9d3b5", "mode": "repro", "reward": "1", "image": "hamishi740/swerl-tmax-v3:fd04f429a606", "claim": "Two direct writes of the planted literals produced reward 1; pytest reported two passed tests."}
+      ],
+      "runtime_evidence_status": "Observed discriminating pair: empty 0, planted-output reproduction 1.",
+      "reject_invariant": "The original artifact must remain REJECT because the planted exact outputs have an archived reward-1 counterexample requiring no dump analysis, arithmetic repair, or build execution.",
+      "repair_boundary": "Removing planted answers and executing the build at grade time creates a repaired derivative; V7's REPAIR tier does not make this original artifact eligible."
+    },
+    {
+      "guard_id": "V8-GUARD-AL-RUNNABLE-DIFFERENTIAL-001",
+      "task_id": "task_004863_67089cd4",
+      "title": "Differential grader exposes the executable reference to the submission",
+      "guard_class": "runnable_reference_differential",
+      "source_population": "v4_non_clean_275",
+      "security_union": 0,
+      "artifact_variant": "original",
+      "expected_decision": "REJECT",
+      "prior_v4_verdict": "ANSWER-LEAK",
+      "current_review": {
+        "decision": "REJECT",
+        "validation": "static_trace",
+        "source": "reviews/overfilter_20260916/results/other_03.jsonl",
+        "source_line": 8,
+        "source_sha256": "d3d926fa60ef22c4c62bcfe0f0845e9206d55cbd26b6dc8119a81bc5e4c37d71"
+      },
+      "old_v7": {
+        "rubric_version": "V7-v3.16",
+        "tier": "REPAIR",
+        "verdict": "ANSWER-LEAK",
+        "source": "judge/rejudge_v316_20260902/judgements_V7_bucket_1.jsonl",
+        "source_line": 4,
+        "source_sha256": "bcc000dd17afb223da51fd4b1a550350226f7f20a7a052ce8bfe7c88d7c2a09c"
+      },
+      "files": {
+        "instruction.md": {"sha256": "c76dac398551eaaf4cfdf5438633f451cee87156a88fba93dcec67b3f74dc205", "lines": 15},
+        "setup.sh": {"sha256": "ccd1dfcda8d985fb945e41ae655a66b3086bd5ef8d1c8e5424e3c40312d4274d", "lines": 56},
+        "tests/test.sh": {"sha256": "f61a255ad61957ec11ce85b8b250688cf78d955b01d0bed5d82397eb4c4aaee5", "lines": 61}
+      },
+      "static_evidence": [
+        {"file": "instruction.md", "line_start": 5, "line_end": 13, "claim": "The required behavior is an independent pure-Python implementation matching the legacy decoder."},
+        {"file": "setup.sh", "line_start": 51, "line_end": 56, "claim": "The reference remains executable at /app/backup_decoder after only its C source is deleted."},
+        {"file": "tests/test.sh", "line_start": 12, "line_end": 54, "claim": "The grader runs the submitted script beside the same reachable oracle on every fuzz input and compares return code, stdout, and stderr without isolating the oracle."}
+      ],
+      "runtime_evidence": [
+        {"kind": "observed_receipt", "source": "repro/batch13.jsonl", "source_line": 26, "source_sha256": "8ccab9f5b9af62ff6fd3042fd5b18b58b39ee523af4a430bbf7bd525f2128eee", "mode": "empty", "reward": "0", "image": "hamishi740/swerl-tmax-v3:57e562118fe3", "claim": "The empty control failed because decoder.py was absent."},
+        {"kind": "observed_receipt", "source": "repro/batch13.jsonl", "source_line": 27, "source_sha256": "8ccab9f5b9af62ff6fd3042fd5b18b58b39ee523af4a430bbf7bd525f2128eee", "mode": "repro", "reward": "1", "image": "hamishi740/swerl-tmax-v3:57e562118fe3", "claim": "A subprocess wrapper around /app/backup_decoder produced reward 1 over the full fuzz comparison."}
+      ],
+      "runtime_evidence_status": "Observed discriminating pair: empty 0, runnable-reference wrapper 1.",
+      "reject_invariant": "The original artifact must remain REJECT while a wrapper can execute the grader's own oracle and an archived receipt shows reward 1.",
+      "repair_boundary": "A grade-time-only oracle isolated from the submission can form a repaired derivative; the original executable-reference artifact remains guarded."
+    },
+    {
+      "guard_id": "V8-GUARD-EMPTY-REWARD-001",
+      "task_id": "task_004886_10504160",
+      "title": "Untouched original image receives reward 1",
+      "guard_class": "observed_reward_for_nothing",
+      "source_population": "stage1_full_14601",
+      "security_union": null,
+      "security_selection": "The instruction is a database performance and correctness task; no security behavior or exploit construction is involved.",
+      "artifact_variant": "original",
+      "expected_decision": "REJECT",
+      "prior_v4_verdict": null,
+      "current_review": {
+        "decision": "NOT_IN_V4_275_REVIEW",
+        "validation": "archived_runtime_receipt",
+        "source": "unified/rounds/gate1_empty_submission.json",
+        "source_array_index_zero_based": 13986,
+        "source_sha256": "2bea072bd5c0947bea9dbaff1433b003a35eb9f04e85e9ac89ebb6269dd6ec8d"
+      },
+      "old_v7": {
+        "rubric_version": null,
+        "tier": null,
+        "verdict": "NOT_JUDGED_AFTER_GATE1",
+        "source": "unified/all_verdicts_by_task.jsonl",
+        "source_line": 9213,
+        "source_sha256": "6369b94341e0846cbe0d836ce54761434cb8f56f8eaf4f9870809938d4b270de"
+      },
+      "files": {
+        "instruction.md": {"sha256": "6cbeef02a7913f736b0b481bdc30d1fef39cec4da91dbde38fdd3fa27c0ff239", "lines": 12},
+        "setup.sh": {"sha256": "452878c117bcfb239b511a629fe66a36df907fa2be46401f7ebd85ee0db4eae2", "lines": 159},
+        "tests/test.sh": {"sha256": "091590c77af2828a71964b497e1fbd8b52744ee2a76e1f0a5314e7cd631ee310", "lines": 75}
+      },
+      "static_evidence": [
+        {"file": "instruction.md", "line_start": 5, "line_end": 12, "claim": "The task requires analyzing the database, optimizing the Rust implementation, compiling it, and meeting a two-second correctness threshold."},
+        {"file": "setup.sh", "line_start": 14, "line_end": 40, "claim": "Setup creates the complete database and golden output before the rollout."},
+        {"file": "setup.sh", "line_start": 56, "line_end": 115, "claim": "Setup writes the original Rust program that the task says must be optimized."},
+        {"file": "setup.sh", "line_start": 153, "line_end": 154, "claim": "Setup pre-builds the original program into the image."},
+        {"file": "tests/test.sh", "line_start": 24, "line_end": 68, "claim": "The grader deletes only the output, then runs whatever Rust program is already present and accepts it if it meets the timing and golden-output checks; it does not require a rollout change."}
+      ],
+      "runtime_evidence": [
+        {"kind": "observed_receipt", "source": "unified/rounds/gate1_empty_submission.json", "source_array_index_zero_based": 13986, "source_sha256": "2bea072bd5c0947bea9dbaff1433b003a35eb9f04e85e9ac89ebb6269dd6ec8d", "image": "hamishi740/swerl-tmax-v3:54d7fce2c18c", "setup_rc": "skipped", "test_rc": 0, "test_s": 0.4, "empty_reward": "1", "status": "free_reward", "claim": "The recorded untouched-container gate observed reward 1 with setup skipped."}
+      ],
+      "runtime_evidence_status": "Observed reward-for-nothing receipt; this is not a static inference.",
+      "reject_invariant": "Any exact original artifact that rewards the untouched image is operationally REJECT, regardless of whether its preinstalled implementation happens to satisfy the assertions.",
+      "repair_boundary": "A derivative must make the untouched state score 0 and bind reward to rollout work; it receives a new artifact identity and review rather than replacing this guard."
+    }
+  ]
+}

@@ -1,0 +1,264 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.invalid/tmax/v8/output_schema.json",
+  "title": "TMAX V8 audit row",
+  "oneOf": [
+    { "$ref": "#/$defs/initial_row" },
+    { "$ref": "#/$defs/revision_row" }
+  ],
+  "$defs": {
+    "nullable_string": {
+      "type": ["string", "null"]
+    },
+    "checks": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "reachable_reference",
+        "reference_guarded",
+        "mutable_ground_truth",
+        "artifact_identity_unbound",
+        "rejects_correct_variant",
+        "preplaced_value",
+        "unenforced_requirement",
+        "shape_only_assertion",
+        "nondeterministic_reward"
+      ],
+      "properties": {
+        "reachable_reference": { "$ref": "#/$defs/nullable_string" },
+        "reference_guarded": { "type": "boolean" },
+        "mutable_ground_truth": { "$ref": "#/$defs/nullable_string" },
+        "artifact_identity_unbound": { "type": "boolean" },
+        "rejects_correct_variant": { "$ref": "#/$defs/nullable_string" },
+        "preplaced_value": { "$ref": "#/$defs/nullable_string" },
+        "unenforced_requirement": { "$ref": "#/$defs/nullable_string" },
+        "shape_only_assertion": { "type": "boolean" },
+        "nondeterministic_reward": { "type": "boolean" }
+      }
+    },
+    "defects": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "reachable_reference",
+        "preplaced_value",
+        "unenforced_requirement",
+        "shape_only_assertion",
+        "nondeterministic_reward",
+        "mutable_ground_truth",
+        "artifact_identity_unbound",
+        "rejects_correct_variant"
+      ],
+      "properties": {
+        "reachable_reference": { "type": "boolean" },
+        "preplaced_value": { "type": "boolean" },
+        "unenforced_requirement": { "type": "boolean" },
+        "shape_only_assertion": { "type": "boolean" },
+        "nondeterministic_reward": { "type": "boolean" },
+        "mutable_ground_truth": { "type": "boolean" },
+        "artifact_identity_unbound": { "type": "boolean" },
+        "rejects_correct_variant": { "type": "boolean" }
+      }
+    },
+    "initial_row": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "task_id",
+        "agent",
+        "rubric_version",
+        "revised_after_priors",
+        "verdict",
+        "confidence",
+        "evidence",
+        "reason",
+        "evidence_file",
+        "evidence_line",
+        "checks",
+        "defects",
+        "task_kind",
+        "soundness",
+        "exploitability",
+        "who_could_trigger",
+        "tier",
+        "mismatch_direction",
+        "verifier_expected_answer_from",
+        "repro_cmd",
+        "repro_expected",
+        "repro_cost",
+        "repro_lines",
+        "shortcut_tag",
+        "verifier_fix",
+        "unenforced_cosmetic",
+        "concrete_exploit_status",
+        "core_mismatch",
+        "salvageable",
+        "cleared_by_probe",
+        "honest_fix_lines",
+        "honest_fix_sketch",
+        "soundness_probe",
+        "verifier_network",
+        "agent_is_root",
+        "harness_class",
+        "reference_paths"
+      ],
+      "properties": {
+        "task_id": {
+          "type": "string",
+          "pattern": "^task_[0-9]{6}_[0-9a-f]{8}$"
+        },
+        "agent": { "type": "string", "minLength": 1 },
+        "rubric_version": { "const": "v8" },
+        "revised_after_priors": { "type": "null" },
+        "verdict": {
+          "enum": [
+            "CLEAN",
+            "VERIFIER-TOO-WEAK",
+            "INSTR-VERIFIER-MISMATCH",
+            "INSTR-ENV-MISMATCH",
+            "ANSWER-LEAK",
+            "INSTR-AMBIGUOUS",
+            "TASK-TRIVIAL",
+            "MUTABLE-GROUND-TRUTH",
+            "OTHER"
+          ]
+        },
+        "confidence": { "type": "integer", "minimum": 0, "maximum": 10 },
+        "evidence": { "type": "string", "maxLength": 200 },
+        "reason": { "type": "string", "maxLength": 320 },
+        "evidence_file": {
+          "enum": ["instruction.md", "setup.sh", "tests/test.sh"]
+        },
+        "evidence_line": { "type": "integer", "minimum": 1 },
+        "checks": { "$ref": "#/$defs/checks" },
+        "defects": { "$ref": "#/$defs/defects" },
+        "task_kind": { "enum": ["fixed-instance", "general-program"] },
+        "soundness": {
+          "enum": ["accepts-wrong", "rejects-right", "unstable", "sound"]
+        },
+        "exploitability": {
+          "enum": [
+            "rollout-visible",
+            "grading-runtime-visible",
+            "feedback-learnable",
+            "privileged-test-only",
+            "n/a"
+          ]
+        },
+        "who_could_trigger": { "$ref": "#/$defs/nullable_string" },
+        "tier": { "enum": ["PASS", "REPAIR", "REVIEW", "REJECT-PROVEN"] },
+        "mismatch_direction": {
+          "enum": [
+            "faithful_solution_rejected",
+            "invalid_solution_accepted",
+            "both",
+            "n/a"
+          ]
+        },
+        "verifier_expected_answer_from": {
+          "enum": [
+            "recomputed",
+            "hardcoded-literal",
+            "in-image-program",
+            "agent-self-report",
+            "shape-only"
+          ]
+        },
+        "repro_cmd": { "$ref": "#/$defs/nullable_string" },
+        "repro_expected": { "$ref": "#/$defs/nullable_string" },
+        "repro_cost": { "enum": ["simple", "medium", "hard", null] },
+        "repro_lines": {
+          "type": ["integer", "null"],
+          "minimum": 0
+        },
+        "shortcut_tag": { "enum": ["shortcut_medium", "shortcut_hard", null] },
+        "verifier_fix": { "$ref": "#/$defs/nullable_string" },
+        "unenforced_cosmetic": { "$ref": "#/$defs/nullable_string" },
+        "concrete_exploit_status": {
+          "enum": [
+            "none_found",
+            "static_trace",
+            "runtime_confirmed",
+            "runtime_refuted",
+            "not_applicable"
+          ]
+        },
+        "core_mismatch": {
+          "enum": ["none", "cosmetic_secondary", "core_wrong_reward"]
+        },
+        "salvageable": { "type": "boolean" },
+        "cleared_by_probe": { "$ref": "#/$defs/nullable_string" },
+        "honest_fix_lines": {
+          "type": ["integer", "null"],
+          "minimum": 0
+        },
+        "honest_fix_sketch": { "$ref": "#/$defs/nullable_string" },
+        "soundness_probe": { "$ref": "#/$defs/nullable_string" },
+        "verifier_network": { "enum": ["none", "loopback", "external"] },
+        "agent_is_root": { "const": true },
+        "harness_class": { "enum": ["reward_rewrite", null] },
+        "reference_paths": {
+          "type": "array",
+          "items": { "type": "string" },
+          "uniqueItems": true
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": { "core_mismatch": { "const": "cosmetic_secondary" } },
+            "required": ["core_mismatch"]
+          },
+          "then": {
+            "properties": {
+              "salvageable": { "const": true },
+              "unenforced_cosmetic": { "type": "string", "minLength": 1 }
+            }
+          },
+          "else": { "properties": { "salvageable": { "const": false } } }
+        },
+        {
+          "if": {
+            "properties": { "tier": { "const": "PASS" } },
+            "required": ["tier"]
+          },
+          "then": { "properties": { "soundness": { "const": "sound" } } }
+        }
+      ]
+    },
+    "revision_row": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["task_id", "agent", "rubric_version", "revised_after_priors"],
+      "properties": {
+        "task_id": {
+          "type": "string",
+          "pattern": "^task_[0-9]{6}_[0-9a-f]{8}$"
+        },
+        "agent": { "type": "string", "minLength": 1 },
+        "rubric_version": { "const": "v8" },
+        "revised_after_priors": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["first_row_sha256", "changes", "prior_sources"],
+          "properties": {
+            "first_row_sha256": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$"
+            },
+            "changes": {
+              "type": "object",
+              "minProperties": 1
+            },
+            "prior_sources": {
+              "type": "array",
+              "minItems": 1,
+              "items": { "type": "string", "minLength": 1 },
+              "uniqueItems": true
+            }
+          }
+        }
+      }
+    }
+  }
+}

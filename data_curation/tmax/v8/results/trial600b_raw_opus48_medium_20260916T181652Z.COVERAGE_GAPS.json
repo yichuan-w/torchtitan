@@ -1,0 +1,20 @@
+{
+  "run": "trial600b_raw_opus48_medium_20260916T181652Z",
+  "rows_on_disk": 598,
+  "expected": 600,
+  "unaudited": [
+    {
+      "task_id": "task_004457_90491a65",
+      "reason": "claude-opus-4-8 [cyber] safeguard flagged the judge request; attempt 1 = batch_096 (6 tasks), attempt 2 = 2-task sub-batch; per policy not retried further on 4.8",
+      "attempts": 2,
+      "security_domain": true
+    },
+    {
+      "task_id": "task_006895_782e908c",
+      "reason": "claude-opus-4-8 [cyber] safeguard flagged the judge request; attempt 1 = batch_096 (6 tasks), attempt 2 = 2-task sub-batch; per policy not retried further on 4.8",
+      "attempts": 2,
+      "security_domain": true
+    }
+  ],
+  "note": "these tasks can be judged later by a different judge (e.g. claude-opus-5) if wanted; they are NOT PASS and NOT counted as judged"
+}

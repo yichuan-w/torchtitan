@@ -1,0 +1,139 @@
+{
+  "schema_version": "tmax-v8-workflow-config-v1",
+  "status": "PROPOSED_NOT_AUTHORIZED",
+  "created_utc": "2026-09-16T04:31:37Z",
+  "artifact_policy": {
+    "task_variant": "original_archive_only",
+    "repair_overlays_allowed": false,
+    "inherit_message1_verdicts": false,
+    "reuse_output_directory": false,
+    "append_prior_output": false,
+    "fresh_isolated_run_directory_required": true,
+    "per_task_initial_record": "atomic_row_file_with_file_and_directory_fsync",
+    "message2_after_complete_message1_only": true
+  },
+  "primary_judge": {
+    "model": "gpt-5.4-2026-03-05",
+    "model_match": "exact",
+    "fallback_model": null,
+    "reasoning_effort": "high",
+    "batch_size": 8,
+    "max_concurrency": 8
+  },
+  "review_gate": {
+    "launch_enabled": false,
+    "required_reviewer_model": "claude-opus-5",
+    "required_review_status": "approved",
+    "user_execution_request_recorded": true,
+    "require_reviewed_config_sha256": true,
+    "require_guard_gate_evidence_sha256": true,
+    "note": "Model and scope are proposed choices. A prepared plan and dry preflight are not launch authorization."
+  },
+  "rubric": {
+    "version": "v8",
+    "prompt_path": "/data/users/zekaili/fangzhou/tb_check/reaudit_398/reviews/overfilter_20260916/v8/v8_prompt.md",
+    "prompt_sha256": "3f305309f11cbd0a1dd9370d81c57d8ad0ad2af44f3bd4b533da602dbe830e0b",
+    "output_schema_path": "/data/users/zekaili/fangzhou/tb_check/reaudit_398/reviews/overfilter_20260916/v8/output_schema.json",
+    "output_schema_sha256": "2952d57185cf2eeab94740c7837f672e1fd33e741a2c876604b0802874ee375d"
+  },
+  "sources": {
+    "task_archive": {
+      "path": "/data/users/zekaili/fangzhou/tb_check/rebench_tmax_recovery_2026-09-02/work/tmax-audit-files/tmax-task-data.tar.gz",
+      "sha256": "8e0fcfb61ea62ad234423bafa3c2e60cf16239e8be8a072daf950cf64cf7f016",
+      "expected_task_count": 14601,
+      "required_members": ["instruction.md", "setup.sh", "tests/test.sh"]
+    },
+    "audited_ids": {
+      "path": "/data/users/zekaili/fangzhou/tb_check/rebench_tmax_recovery_2026-09-02/work/tmax-audit-files/tmax_r2_audit.ids",
+      "sha256": "dff24c0eb96bce9c16ad488c929ac6b49e5d054f8a7c6a8abecad86a48606b79",
+      "expected_count": 1422
+    },
+    "prior_categories": {
+      "path": "/data/users/zekaili/fangzhou/tb_check/reaudit_398/unified/rounds/v1_round2_salvage_1422.jsonl",
+      "sha256": "92506fb7503adccc901f4dd731bd4d314e0b1a6ef5a1691d96b5235c226dd748",
+      "selection_metadata_only": true,
+      "withheld_from_message1": true
+    },
+    "message2_priors": {
+      "path": "/data/users/zekaili/fangzhou/tb_check/reaudit_398/unified/all_verdicts_by_task.jsonl",
+      "sha256": "6369b94341e0846cbe0d836ce54761434cb8f56f8eaf4f9870809938d4b270de",
+      "withheld_from_message1": true
+    },
+    "image_map": {
+      "path": "/data/users/zekaili/fangzhou/tb_check/reaudit_398/unified/image_map_15k.json",
+      "sha256": "d44aedfe4cffd58bc60c83d65babd1c26847761e06ab316322dc3168b236f674",
+      "expected_count": 14601
+    },
+    "parquet_domains": {
+      "path": "/data/users/zekaili/fangzhou/tb_check/rebench_tmax_recovery_2026-09-02/work/tmax-audit-files/tmax15k_generic.parquet",
+      "sha256": "beae9012dbdc456970bc5a277ae6cf0d2d0bd4fd4ca717682a5a5748ba99eb0a",
+      "expected_count": 14601
+    },
+    "tb2_domains": {
+      "path": "/data/users/zekaili/fangzhou/tb_check/rebench_tmax_recovery_2026-09-02/work/tmax-audit-files/tmax_usable.json",
+      "sha256": "c70b64195e9597d1e7391abe8d8be77dadbfcc9a8dc94274bd35336487c558f4",
+      "expected_count": 14555
+    },
+    "positive_recovery_candidates": {
+      "path": "/data/users/zekaili/fangzhou/tb_check/reaudit_398/reviews/overfilter_20260916/verdicts.jsonl",
+      "sha256": "07456118207e2545f420db159177c49d08936cd43ea6266a9be4b86878c0a87d",
+      "expected_recovery_count": 72,
+      "selection_rule": "KEEP_or_SALVAGEABLE sorted by descending confidence then task_id; exclude task_000753_b376cf1d",
+      "v8_pass_expectation": false
+    },
+    "regression_guards": {
+      "path": "/data/users/zekaili/fangzhou/tb_check/reaudit_398/reviews/overfilter_20260916/v8/regression_guards.json",
+      "sha256": "8ed0d913262d11acac3f5336477a0c270a8ee1a5757a46a3aecdc6d9bab9ff81",
+      "expected_count": 5,
+      "required_for_smoke": true
+    }
+  },
+  "scope_options": {
+    "smoke48": {
+      "declared_count": 48,
+      "purpose": "calibration and regression gate; not a yield estimate",
+      "selection": "all regression guards, 12 validated recovery candidates, then deterministic SHA256-ranked prior-category-stratified audited rows",
+      "seed": "20260916"
+    },
+    "audited1422": {
+      "declared_count": 1422,
+      "purpose": "exact historically audited membership, judged fresh under V8"
+    },
+    "expanded1678": {
+      "declared_count": 1678,
+      "purpose": "audited1422 plus deterministic SHA256-ranked 256 from raw outside audited membership",
+      "seed": "20260916"
+    },
+    "raw14601": {
+      "declared_count": 14601,
+      "purpose": "complete raw archive scope; security and unresolved-security rows remain declared exclusions, never PASS"
+    }
+  },
+  "security_policy": {
+    "skip_authorized": true,
+    "security_if_either_source_is_security": true,
+    "known_union_count_at_config_time": 2078,
+    "missing_tb2_label_count_at_config_time": 46,
+    "known_security_among_missing_tb2_count": 7,
+    "unresolved_security_status_count_at_config_time": 39,
+    "verified_non_security_eligible_count_at_config_time": 12484,
+    "unknown_is_safe": false,
+    "judge_unknown": false,
+    "manifest_exclusions_separately": true,
+    "security_exclusion_is_pass": false
+  },
+  "operational_admission": {
+    "PASS": "KEPT",
+    "REPAIR": "NOT_KEPT_REPAIR_CANDIDATE",
+    "REVIEW": "NOT_KEPT_HOLD",
+    "REJECT-PROVEN": "NOT_KEPT_REJECT",
+    "salvageable_overrides_non_pass": false
+  },
+  "second_opinion": {
+    "automatic": false,
+    "trigger": "pilot rows and explicitly selected disagreements only",
+    "judge_strength": "stronger model selected after pilot review",
+    "aggregation": "human_or_explicit_adjudication",
+    "worst_of_two_automatic": false
+  }
+}

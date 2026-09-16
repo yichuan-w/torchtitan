@@ -1,0 +1,27 @@
+{
+  "run": "reaudit_398/reviews/overfilter_20260916/v8/runs/trial100_opus5_medium_20260916T053712Z",
+  "model": "claude-opus-4-8",
+  "effort": "medium",
+  "batch_size": 5,
+  "n_batches": 20,
+  "total": 100,
+  "guards": [
+    "task_000156_2f395118",
+    "task_000241_547763df",
+    "task_000311_9e22fec5",
+    "task_004863_67089cd4",
+    "task_004886_10504160"
+  ],
+  "security_excluded_from_pool": 2020,
+  "prior_category_counts": {
+    "ANSWER-LEAK": 20,
+    "CLEAN": 46,
+    "GUARD": 0,
+    "INSTR-AMBIGUOUS": 1,
+    "INSTR-ENV-MISMATCH": 5,
+    "INSTR-VERIFIER-MISMATCH": 6,
+    "OTHER": 1,
+    "VERIFIER-TOO-WEAK": 20
+  },
+  "model_note": "LAUNCHED WITH alias model:'opus' which resolved to the session default claude-opus-4-8, NOT Opus 5 as intended. Interpret this run as Opus 4.8 medium. Future runs pin claude-opus-5 explicitly via agent-definition frontmatter."
+}

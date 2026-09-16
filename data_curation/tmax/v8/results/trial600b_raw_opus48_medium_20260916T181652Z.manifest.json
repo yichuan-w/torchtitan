@@ -1,0 +1,23 @@
+{
+  "run": "reaudit_398/reviews/overfilter_20260916/v8/runs/trial600b_raw_opus48_medium_20260916T181652Z",
+  "model": "claude-opus-4-8",
+  "effort": "medium",
+  "batch_size": 6,
+  "n_batches": 101,
+  "total": 600,
+  "guards": [
+    "task_000156_2f395118",
+    "task_000241_547763df",
+    "task_000311_9e22fec5",
+    "task_004863_67089cd4",
+    "task_004886_10504160"
+  ],
+  "audited_remaining_used": 25,
+  "raw_used": 570,
+  "raw_pool_before": 13191,
+  "raw_pool_after": 12621,
+  "security_included": 85,
+  "security_batches": 15,
+  "security_policy": "judged by claude-opus-4-8 medium per user instruction 2026-09-16; grouped in dedicated batches, never mixed",
+  "excluded_already_judged": 1385
+}
