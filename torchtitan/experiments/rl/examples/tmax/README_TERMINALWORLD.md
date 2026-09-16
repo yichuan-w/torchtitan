@@ -258,11 +258,7 @@ To score one saved checkpoint without a training run (e.g. re-checking a step), 
 eval-only recipe -- same harness, `num_training_steps=0`, one validation pass:
 
 ```bash
-# SWE_TB2_VAL_DATA repeats the same file: the eval recipe builds on the training one,
-# so it meets that recipe's validation guard before replacing the datasets itself.
-# SWE_VAL_SAMPLES=0 also clears the guard, but then the pass scores 0 of the 89 tasks.
-SWE_TB2_DATA=/path/to/tb2_eval.jsonl SWE_TB2_VAL_DATA=/path/to/tb2_eval.jsonl \
-SWE_TB2_CKPT=/path/to/run/checkpoint/step-N \
+SWE_TB2_DATA=/path/to/tb2_eval.jsonl SWE_TB2_CKPT=/path/to/run/checkpoint/step-N \
 TMAX_AGENT=terminus SWE_MAX_CONTEXT_LEN=63488 SWE_GEN_BACKEND=torchtitan_wrapper \
 python -m torchtitan.experiments.rl.train \
     --module torchtitan.experiments.rl.examples.tmax \

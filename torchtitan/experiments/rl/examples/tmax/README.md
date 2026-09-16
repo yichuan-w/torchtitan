@@ -267,11 +267,7 @@ export SWE_VAL_INTERVAL=25
 Eval an existing checkpoint only:
 
 ```bash
-# SWE_TB2_VAL_DATA repeats the same file: the eval recipe builds on the training
-# one, so it meets the same validation guard before replacing the datasets itself.
-# SWE_VAL_SAMPLES=0 also clears the guard, but then the pass scores 0 tasks.
-SWE_TB2_DATA=/path/to/tb2_eval.jsonl SWE_TB2_VAL_DATA=/path/to/tb2_eval.jsonl \
-SWE_TB2_CKPT=/path/to/dcp_checkpoint \
+SWE_TB2_DATA=/path/to/tb2_eval.jsonl SWE_TB2_CKPT=/path/to/dcp_checkpoint \
 python -m torchtitan.experiments.rl.train \
     --module torchtitan.experiments.rl.examples.tmax \
     --config rl_grpo_qwen3_5_9b_tmax_tb2_eval \
