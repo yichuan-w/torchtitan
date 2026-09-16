@@ -28,21 +28,24 @@ Controller (one asyncio loop)
     AnthropicAdapter  <- one HTTP server (127.0.0.1:SHIM_PORT) backed by generate_fn
     per sibling (32), spread over SWE_NUM_ROLLOUT_WORKERS CPU processes:
       boot sandbox from the task's public docker image (tests baked in), as root
-      run_vanillux_loop(adapter, sandbox)          <- host-side agent brain
-         one `bash` tool only; persistent shell (cd/export stick)
-         each action -> sb.exec in the sandbox; observation head/tail-truncated
-         agent submits by `echo COMPLETE_TASK_AND_SUBMIT_FINAL_OUTPUT`
+      TMAX_AGENT picks the host-side agent brain:
+        terminus (default) -> harness/agents/terminus.py, harbor's Terminus-2
+           drives a live tmux pane; see README_TERMINALWORLD.md
+        vanillux           -> run_vanillux_loop(adapter, sandbox)
+           one `bash` tool only; persistent shell (cd/export stick)
+           each action -> sb.exec in the sandbox; observation head/tail-truncated
+           agent submits by `echo COMPLETE_TASK_AND_SUBMIT_FINAL_OUTPUT`
       grade_tmax(...)  upload fixtures -> `bash /tests/test.sh` -> /logs/verifier/reward.txt
   RewardTMax -> advantage (group-centered) -> one packed TITO episode -> DPPO backward
 ```
 
 Two tmax-specific points:
 
-- **Scaffold fidelity matters.** The 9B is SFT'd under the Vanillux scaffold
-  (single `bash` tool, mini-swe-agent v2.2.x prompts, submit marker). Running it
-  under the swe_r2e Bash/Read/Write/Edit scaffold puts the policy off-distribution
-  and starves the solve rate, so `vanillux_loop.py` / `vanillux_prompts.py` are a
-  byte-faithful port -- do not "improve" the prompts.
+- **Scaffold fidelity matters.** Under `TMAX_AGENT=vanillux` the 9B runs the
+  scaffold it was SFT'd on (single `bash` tool, mini-swe-agent v2.2.x prompts,
+  submit marker). Running it under the swe_r2e Bash/Read/Write/Edit scaffold puts
+  the policy off-distribution and starves the solve rate, so `vanillux_loop.py` /
+  `vanillux_prompts.py` are a byte-faithful port -- do not "improve" the prompts.
 - **Grade in place, on submit only.** The verifier inspects the container's live
   filesystem, so it runs inside the agent's own sandbox. A rollout that never
   submits scores 0 (same as the reference env).
@@ -65,8 +68,6 @@ Two tmax-specific points:
 - `grading.py`, `rubric.py` -- `bash /tests/test.sh` -> `reward.txt` -> `RewardTMax`
 - `config_registry.py` -- the recipes (below)
 - `local_smoke.py` -- sandbox boot + grade path only, no training stack
-- `eval_external_model.py` -- score tasks with an external brain under the same scaffold
-  (tells "task is hard" apart from "our 9B is weak")
 - `hf_upload.py` -- convert one DCP checkpoint to HF format and upload it
 
 ## Recipes
@@ -229,6 +230,7 @@ export SWE_PROMPT_DATA=/path/to/tmax_train.jsonl
 export SWE_MAX_CONTEXT_LEN=65536      # match the recipe context; default 32768 truncates
 export SWE_ROLLOUT_CONCURRENCY=512    # concurrently-active sandboxes (see limits below)
 export SWE_NUM_ROLLOUT_WORKERS=8      # CPU processes for agent orchestration, off the controller GIL
+export SWE_TB2_VAL_DATA=/path/to/tb2_1_eval.jsonl   # see the note below; required
 
 python -m torchtitan.experiments.rl.train \
     --module torchtitan.experiments.rl.examples.tmax \
@@ -236,6 +238,13 @@ python -m torchtitan.experiments.rl.train \
     --num-generators 8 \
     --hf_assets_path /path/to/Qwen3.5-9B
 ```
+
+**Validation has to be given something to score, or the recipe refuses to build.**
+`SWE_HOLDOUT_N` defaults to 0, so the training JSONL reserves no validation slice,
+and `config_registry` raises `SWE_HOLDOUT_N=0 requires a separate SWE_TB2_VAL_DATA
+dataset or disabled validation (SWE_VAL_SAMPLES=0)` before the trainer starts. Pick
+one: `SWE_TB2_VAL_DATA` (a benchmark JSONL, above), `SWE_HOLDOUT_N=32` (reserve the
+last 32 training rows), or `SWE_VAL_SAMPLES=0` (no validation at all).
 
 On della the process is started by `TRL_PROFILE=<name> ./launch_9b.sh` in
 `runbook/`: it creates `$TRL_BASE/runs/tmax-9b--<stamp>/`, writes `launch.json`
@@ -258,7 +267,11 @@ export SWE_VAL_INTERVAL=25
 Eval an existing checkpoint only:
 
 ```bash
-SWE_TB2_DATA=/path/to/tb2_eval.jsonl SWE_TB2_CKPT=/path/to/dcp_checkpoint \
+# SWE_TB2_VAL_DATA repeats the same file: the eval recipe builds on the training
+# one, so it meets the same validation guard before replacing the datasets itself.
+# SWE_VAL_SAMPLES=0 also clears the guard, but then the pass scores 0 tasks.
+SWE_TB2_DATA=/path/to/tb2_eval.jsonl SWE_TB2_VAL_DATA=/path/to/tb2_eval.jsonl \
+SWE_TB2_CKPT=/path/to/dcp_checkpoint \
 python -m torchtitan.experiments.rl.train \
     --module torchtitan.experiments.rl.examples.tmax \
     --config rl_grpo_qwen3_5_9b_tmax_tb2_eval \
@@ -281,10 +294,13 @@ Everything below is read from the environment in `config_registry.py` /
 | `SWE_GROUP_SIZE` / `SWE_NUM_GROUPS_PER_TRAIN_STEP` / `SWE_OFFPOLICY_STEPS` | 32 / 8 / 4 | The async/GRPO shape |
 | `SWE_LOSS` | `dppo` | `dapo` or `grpo` for an A/B |
 | `SWE_DPPO_RATIO_CAP` | 0 (off) | Truncated-IS cap; 2 tames a residual GDN train/infer logprob tail |
-| `TMAX_CALL_LIMIT` | 64 | Max bash actions per episode (the reference run's `--max_steps`) |
+| `TMAX_AGENT` | `terminus` | Agent scaffold. `terminus` is harbor's Terminus-2 (README_TERMINALWORLD.md); `vanillux` is the one-command loop |
+| `TMAX_TERMINUS_MAX_TURNS` | 64 | Max agent turns per episode under `terminus` |
+| `TMAX_CALL_LIMIT` | 64 | Max bash actions per episode (the reference run's `--max_steps`). Read by `vanillux_loop.py` only -- inert under the default agent |
 | `TMAX_EXEC_TIMEOUT_SEC` | 120 | Per-command timeout; a foreground server can otherwise burn the budget |
 | `TMAX_FORMAT_ERROR_FEEDBACK` | 0 | 0 = break on the first turn with no `bash` call (reference behavior) |
 | `SWE_VAL_SAMPLES` / `SWE_VAL_INTERVAL` | 32 / 20 | Held-out validation size and cadence; `SWE_VAL_SAMPLES=0` turns it off |
+| `SWE_HOLDOUT_N` | 0 | Training rows reserved as the validation slice. At 0 the recipe needs `SWE_TB2_VAL_DATA` or `SWE_VAL_SAMPLES=0`; see Run |
 | `SWE_CKPT_INTERVAL` / `SWE_CKPT_KEEP` | 20 / 3 | Save every N steps, keep the last K on the host's local disk. One save is 109 GB and blocks the loop for 61-86 s |
 | `SWE_CKPT_ASYNC` | `async` | The loop blocks only for the GPU-to-CPU copy and a thread writes the 109 GB (a synchronous save blocked it for 61-86 s). `disabled` restores that; `async_with_pinned_mem` needs a staging wait this trainer does not call, so it can copy weights the optimizer has already changed |
 | `TRL_CKPT_MIRROR` / `TRL_CKPT_EXPORT` | 1 / 1 | The two timers `launch_9b.sh` starts for the root: the newest full checkpoint copied to `runs/<run>/checkpoints-mirror/`, and every step exported as bf16 weights to `runs/<run>/weights/`. `0` turns one off |

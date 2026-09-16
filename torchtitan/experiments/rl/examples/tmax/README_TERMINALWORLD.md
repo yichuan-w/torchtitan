@@ -12,7 +12,8 @@ service is required. Two 8-GPU hosts is the minimum (one trainer + one generator
 host); more generator hosts raise rollout throughput.
 
 - Agent: **Terminus-2** (`TMAX_AGENT=terminus`), the tmux-driving scaffold from the
-  `harbor` package, NOT the default one-command `vanillux` loop.
+  `harbor` package. This is the default; `TMAX_AGENT=vanillux` selects the older
+  one-command loop instead.
 - Generator: **`torchtitan_wrapper`** (the unified TorchTitan GDN model run inside
   vLLM), so the generator and trainer run the same model code + weights.
 - Data: **TerminalWorld-Seeds-Clean** (general terminal tasks) mixed with
@@ -22,11 +23,22 @@ host); more generator hosts raise rollout throughput.
 
 ## 0. Prerequisites
 
+The RL deps -- vLLM, Monarch, TorchStore, harbor, daytona, flash-linear-attention
+-- are not in the repository's `requirements.txt`, which carries base torchtitan
+only. Install the locked environment from `runbook/` instead. It pins
+`harbor==0.22.0`, and harbor is what issues the tmux commands Terminus-2 drives,
+so an unpinned `pip install harbor` moves the scaffold under you. The lock
+resolves on linux/x86_64/cp312 only.
+
 ```bash
-pip install -r requirements.txt          # torchtitan + the RL experiment deps
-pip install harbor                        # provides Terminus-2 and TB-2.0 tasks
+uv sync --project torchtitan/experiments/rl/examples/tmax/runbook
+
+export PYTHONPATH=$PWD                    # torchtitan is deliberately not in the lock
 export DAYTONA_API_KEY=dtn_...            # sandbox provider
 ```
+
+[`runbook/RUNBOOK.md`](runbook/RUNBOOK.md) section 3 has the `uv pip` form, the
+five non-PyPI pins and what each one is load-bearing for.
 
 ## 1. Prepare the data
 
@@ -246,7 +258,11 @@ To score one saved checkpoint without a training run (e.g. re-checking a step), 
 eval-only recipe -- same harness, `num_training_steps=0`, one validation pass:
 
 ```bash
-SWE_TB2_DATA=/path/to/tb2_eval.jsonl SWE_TB2_CKPT=/path/to/run/checkpoint/step-N \
+# SWE_TB2_VAL_DATA repeats the same file: the eval recipe builds on the training one,
+# so it meets that recipe's validation guard before replacing the datasets itself.
+# SWE_VAL_SAMPLES=0 also clears the guard, but then the pass scores 0 of the 89 tasks.
+SWE_TB2_DATA=/path/to/tb2_eval.jsonl SWE_TB2_VAL_DATA=/path/to/tb2_eval.jsonl \
+SWE_TB2_CKPT=/path/to/run/checkpoint/step-N \
 TMAX_AGENT=terminus SWE_MAX_CONTEXT_LEN=63488 SWE_GEN_BACKEND=torchtitan_wrapper \
 python -m torchtitan.experiments.rl.train \
     --module torchtitan.experiments.rl.examples.tmax \

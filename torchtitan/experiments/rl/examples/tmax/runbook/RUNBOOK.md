@@ -1054,11 +1054,12 @@ admits a gap.
   are best at 8 has no measurement behind it here.
 - **Only `Qwen/Qwen3.5-9B` public availability was checked**, not that the public
   weights are byte-identical to the local copy.
-- **The harbor version is unpinned.** The RL tree declares no constraint on it,
-  and harbor is what actually issues the tmux commands. The only version visible
-  from here (0.21.0) is in a separate smoke-test venv, so which version the
-  training venv resolves is unconfirmed. Given that harbor owns the tmux
-  behaviour described in section 5, this is the most likely source of a silent
+- **Only the lock pins harbor; the RL tree declares no constraint on it.**
+  `requirements.lock.txt` and `pyproject.toml` pin `harbor==0.22.0`, which is
+  what the training venv ran, so an environment built from them matches ours.
+  An environment assembled any other way does not: harbor issues the tmux
+  commands described in section 5, and nothing in the source tree would stop a
+  newer release from resolving. That is the most likely source of a silent
   behavioural difference between your run and ours.
 - **Checkpoint resume was not exercised.** `RL_RESUME_FROM` is wired through the
   launcher and the systemd unit restarts automatically, but no resume was
