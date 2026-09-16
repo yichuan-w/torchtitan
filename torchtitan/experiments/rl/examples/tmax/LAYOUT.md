@@ -113,6 +113,7 @@ Line 1, the rollout:
  "finish_reason": "submit", "submitted": true, "format_errors": 0,
  "infra_failed": false, "error": "",
  "sandbox": {"id": "f2ee…", "disk_gb": 2, "issues": {}, "dropped_details": 0},
+ "timing": {"boot_secs": 41.2, "agent_secs": 370.8, "agent_exec_secs": 12.4, "grade_secs": 3.1},
  "secs": 412.3, "budget_sec": 1800, "turns": 7, "started": "20260904-182201Z",
  "exec": [{"t": 1725474121.1, "secs": 0.4, "exit": 0, "cmd": "tmux send-keys …"}]}
 ```

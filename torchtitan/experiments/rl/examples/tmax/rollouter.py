@@ -655,6 +655,10 @@ def _write_rollout_record(
                 "issues": dict(sandbox_diagnostics.issue_counts),
                 "dropped_details": sandbox_diagnostics.num_dropped_details,
             },
+            # Seconds per phase (boot, agent loop, commands inside it, grading).
+            # The exec trace below carries each command's own clock, so the gaps
+            # between commands are the time waiting for the generator.
+            "timing": dict(sandbox_diagnostics.timing),
             "secs": round(secs, 1),
             "budget_sec": int(budget_sec),
             "turns": len(turns),
