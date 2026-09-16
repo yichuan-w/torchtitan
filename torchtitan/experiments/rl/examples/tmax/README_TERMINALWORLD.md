@@ -1,8 +1,16 @@
 # TerminalWorld + SWE-Smith mix run (Qwen3.5-9B, Terminus-2)
 
 End-to-end recipe for RL-training Qwen3.5-9B as a terminal agent on a mix of two
-oracle-validated Harbor corpora, scored on Terminal-Bench 2.0. This is the concrete
-parameter set behind the `rl_grpo_qwen3_5_9b_tmax` recipe; for the general recipe
+task corpora, scored on Terminal-Bench 2.0. Both corpora ship as
+[Harbor](https://www.harborframework.com) task trees: one directory per task,
+holding the instruction, a Dockerfile for its environment, a verifier script and
+a reference solution. Both are oracle-validated, meaning each task's reference
+solution was run against its own verifier and did earn reward 1.
+
+This is the concrete parameter set behind the `rl_grpo_qwen3_5_9b_tmax` recipe.
+`tmax` is the name of this example module, after the AI2 corpus it was first
+built for; everything under `experiments/rl/examples/tmax/` and every `TMAX_*`
+variable belongs to it, whichever corpus you train on. For the general recipe
 internals see [`README.md`](README.md) and for the seed-data pipeline see
 [`README_SEED_DATA.md`](README_SEED_DATA.md).
 
@@ -14,8 +22,11 @@ host); more generator hosts raise rollout throughput.
 - Agent: **Terminus-2** (`TMAX_AGENT=terminus`), the tmux-driving scaffold from the
   `harbor` package. This is the default; `TMAX_AGENT=vanillux` selects the older
   one-command loop instead.
-- Generator: **`torchtitan_wrapper`** (the unified TorchTitan GDN model run inside
-  vLLM), so the generator and trainer run the same model code + weights.
+- Generator: **`torchtitan_wrapper`** -- the TorchTitan implementation of the
+  model's Gated DeltaNet (GDN) layers, run inside vLLM, so the generator and the
+  trainer execute the same model code on the same weights. Qwen3.5-9B is a GDN
+  hybrid, and the settings marked "GDN" below exist because that layer type
+  decodes differently from plain attention.
 - Data: **TerminalWorld-Seeds-Clean** (general terminal tasks) mixed with
   **SWE-Smith-Seeds-Clean** (Python repo bug-fix), both graded by the identical
   contract (`bash /tests/test.sh` -> `/logs/verifier/reward.txt` 0/1).
@@ -95,10 +106,10 @@ The 9B parameter set of the recorded multi-host run (its results are in section
 moved -- the inline notes say which. For the settings the current single-host run uses, see
 [`runbook/RUNBOOK.md`](runbook/RUNBOOK.md) and its `rltrain.env`.
 
-The trainer spans the HSDP-32
-degrees below; each generator is a separate single-GPU vLLM engine (TP-1),
-data-parallel, so more generators means more concurrent decode for the hundreds of
-live agents.
+The trainer spans the HSDP-32 degrees below -- hybrid-sharded data parallel over
+4 hosts x 8 GPUs, and the "Multi-host trainer" section says why not plain FSDP.
+Each generator is a separate single-GPU vLLM engine (TP-1), data-parallel, so
+more generators means more concurrent decode for the hundreds of live agents.
 
 ```bash
 export DAYTONA_API_KEY=dtn_...

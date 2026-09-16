@@ -12,10 +12,11 @@
 
 The split that decides the first three: `runbook/` drives systemd user services on
 a provisioned host and needs a profile registered for you, while
-`README_TERMINALWORLD.md` runs the open-source entry point and requires no service
-beyond a Daytona key. If nobody has set a profile up for you, that is your entry
-point, and `README_SEED_DATA.md` is the step before it. This file is a reference,
-not a way in.
+`README_TERMINALWORLD.md` runs the open-source entry point and needs no service
+beyond a key for Daytona, the provider that boots a container per task. If nobody
+has set a profile up for you, that is your entry point, and
+`README_SEED_DATA.md` is the step before it. This file is a reference, not a way
+in.
 
 Post-train a Qwen model as a **terminal agent** on the AI2 tmax corpus: each task
 boots its own container, the policy drives a single-`bash`-tool agent loop until it

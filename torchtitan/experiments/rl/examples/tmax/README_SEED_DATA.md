@@ -22,7 +22,7 @@ columns differ.
 | **TerminalWorld-Seeds-Clean** | `andylizf/TerminalWorld-Seeds-Clean` | 1,353 | general terminal (TerminalWorld benchmark seeds) | self-contained Dockerfile |
 | **SWE-Smith-Seeds-Clean** | `Fzz1/SWE-Smith-Seeds-Clean` | 1,552 | Python repo bug-fix (SWE-bench/SWE-smith) | `FROM` a Docker Hub base image + bug patch |
 
-All three ship in the RST release layout, so a single loader reads any of them:
+That layout, in full:
 
 ```
 <task>/instruction.md          # the agent instruction (the "problem statement")
@@ -30,7 +30,8 @@ All three ship in the RST release layout, so a single loader reads any of them:
 <task>/environment/Dockerfile  # the task env -- usually NOT a published image
 <task>/tests/test.sh           # verifier: pytest -> /logs/verifier/reward.txt (0 or 1)
 <task>/solution/solve.sh       # oracle solution (used only for validation, not training)
-<task>/seed.json               # (SWE-Smith) image, repo, F2P/P2P lists, conda activation
+<task>/seed.json               # (SWE-Smith) image, repo, conda activation, and the
+                               #   fail-to-pass / pass-to-pass test lists (F2P/P2P)
 metadata/tasks.parquet         # per-task columns incl. the FILTER columns (see below)
 data/tasks-*.tar               # the task trees, tarred
 ```
