@@ -32,6 +32,7 @@ from torchtitan.experiments.rl.examples.tmax import (
 from torchtitan.experiments.rl.examples.tmax.data import TMaxSample
 from torchtitan.experiments.rl.examples.tmax.rollouter import (
     _finish_reason_metrics,
+    _timing_metrics,
     _note_image_without_tmux,
     _sandbox_issue_metrics,
     _SandboxRolloutDiagnostics,
@@ -378,6 +379,56 @@ def test_complete_tool_at_context_wall_still_executes(monkeypatch):
         },
     )
     assert _run_loop([response], max_context_tokens=32768) == (1, True, 0, "submit")
+
+
+def test_timing_metrics_split_the_agent_loop() -> None:
+    """The split is per rollout, then averaged: a group of one fast and one
+    starved rollout must not read as one rollout of their summed seconds."""
+    metrics = {
+        metric.key: metric.value.value / metric.value.count
+        for metric in _timing_metrics(
+            [
+                {
+                    "boot_secs": 10.0,
+                    "agent_secs": 100.0,
+                    "agent_exec_secs": 40.0,
+                    "grade_secs": 5.0,
+                },
+                {
+                    "boot_secs": 30.0,
+                    "agent_secs": 900.0,
+                    "agent_exec_secs": 9.0,
+                    "grade_secs": 15.0,
+                },
+            ]
+        )
+    }
+    assert metrics["rollout/boot_secs_mean"] == 20.0
+    assert metrics["rollout/agent_secs_mean"] == 500.0
+    assert metrics["rollout/agent_exec_secs_mean"] == 24.5
+    assert metrics["rollout/gen_wait_secs_mean"] == 475.5
+    assert metrics["rollout/grade_secs_mean"] == 10.0
+    # 0.40 and 0.01, averaged over rollouts -- not 49/1000 of the summed loops.
+    assert metrics["rollout/agent_exec_frac"] == pytest.approx(0.205)
+    assert metrics["rollout/gen_wait_frac"] == pytest.approx(0.795)
+
+
+def test_timing_metrics_skip_phases_a_rollout_never_reached() -> None:
+    """A rollout that died in boot carries no agent keys; it must drop out of
+    the agent means rather than count as a zero-second loop."""
+    metrics = {
+        metric.key: metric.value.value / metric.value.count
+        for metric in _timing_metrics(
+            [
+                {"boot_secs": 12.0},
+                {"boot_secs": 8.0, "agent_secs": 50.0, "agent_exec_secs": 20.0},
+            ]
+        )
+    }
+    assert metrics["rollout/boot_secs_mean"] == 10.0
+    assert metrics["rollout/agent_secs_mean"] == 50.0
+    assert metrics["rollout/agent_exec_frac"] == pytest.approx(0.4)
+    assert "rollout/grade_secs_mean" not in metrics
 
 
 def test_finish_reason_metrics_are_exhaustive_fractions() -> None:
