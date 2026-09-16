@@ -64,13 +64,13 @@ adapt, and filter by the datasets' own quality columns -- is documented in
 
 3. Filter each JSONL by joining `metadata/tasks.parquet` on `task_id` (see
    `README_SEED_DATA.md` for the exact pandas snippet):
-   - TerminalWorld: keep the ids in `metadata/train_ready_ids.txt` (669) -- the
+   - TerminalWorld: keep the ids in `metadata/train_ready_ids.txt` (663) -- the
      oracle-passed tasks minus the fragile-build, policy-blocked and
      oversized-memory lists (see `README_SEED_DATA.md`). `reward_verdict ==
-     "pass"` alone (~859) also keeps tasks whose builds are fragile on the
+     "pass"` alone (861) also keeps tasks whose builds are fragile on the
      sandbox platform; the fail/unknown 36% have a reference solution that
      cannot even earn reward 1.
-   - SWE-Smith: keep `in_main_pool and not network_required` (~1,408 tasks) -- the
+   - SWE-Smith: keep `in_main_pool and not network_required` (1,243 tasks) -- the
      authors' stratified, repo-balanced pool; the grader runs `--network none`.
 
 4. Concatenate into one training JSONL (labels are namespaced, no collision), and
