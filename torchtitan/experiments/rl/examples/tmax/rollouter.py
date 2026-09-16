@@ -271,6 +271,9 @@ class _SandboxRolloutDiagnostics:
     infra_failed: bool = False
     failure: dict = field(default_factory=dict)
     terminal_events: list[dict] = field(default_factory=list)
+    # Seconds per phase, filled as the rollout passes through them; empty for a
+    # rollout that died before reaching one. _timing_metrics reads it.
+    timing: dict = field(default_factory=dict)
 
 
 def _sandbox_issue_metrics(
@@ -323,6 +326,61 @@ def _sandbox_issue_metrics(
         ),
         m.Metric("rollout/sandbox_timeout_frac", m.Mean(_frac(_TIMEOUT_ISSUE_KINDS))),
     ]
+
+
+def _timing_metrics(timings: list[Mapping[str, float]]) -> list[m.Metric]:
+    """Where the group's rollouts spent their wall clock, by phase.
+
+    The phases have different owners, and a rollout that runs out of budget
+    looks identical whichever one consumed it. ``finish_reason`` says the
+    budget ran out; only this says whether the agent spent it running commands
+    or waiting for the generator. The 2026-09-16 offline136 eval is the case
+    that motivated it: 21% of attempts over the budget with 1% of the agent
+    loop spent on commands, against 0.3% and 26% for a run of the same data
+    with five generators instead of one. Nothing on the dashboard separated
+    them.
+
+    Rollouts that died before a phase carry no key for it and are left out of
+    that phase's mean rather than counted as zero.
+    """
+    out: list[m.Metric] = []
+
+    def mean_of(key: str, name: str) -> None:
+        vals = [t[key] for t in timings if t.get(key) is not None]
+        if vals:
+            out.append(m.Metric(name, m.Mean(sum(vals) / len(vals))))
+
+    mean_of("boot_secs", "rollout/boot_secs_mean")
+    mean_of("agent_secs", "rollout/agent_secs_mean")
+    mean_of("agent_exec_secs", "rollout/agent_exec_secs_mean")
+    mean_of("grade_secs", "rollout/grade_secs_mean")
+
+    # The agent loop split. A loop of zero seconds has no split to report.
+    loops = [
+        (t["agent_secs"], t["agent_exec_secs"])
+        for t in timings
+        if t.get("agent_secs") and t.get("agent_exec_secs") is not None
+    ]
+    if loops:
+        waits = [loop - ex for loop, ex in loops]
+        out.append(
+            m.Metric("rollout/gen_wait_secs_mean", m.Mean(sum(waits) / len(waits)))
+        )
+        out.append(
+            m.Metric(
+                "rollout/agent_exec_frac",
+                m.Mean(sum(ex / loop for loop, ex in loops) / len(loops)),
+            )
+        )
+        out.append(
+            m.Metric(
+                "rollout/gen_wait_frac",
+                m.Mean(
+                    sum(w / loop for w, (loop, _) in zip(waits, loops)) / len(loops)
+                ),
+            )
+        )
+    return out
 
 
 def _finish_reason_metrics(finish_reasons: list[str]) -> list[m.Metric]:
@@ -597,6 +655,10 @@ def _write_rollout_record(
                 "issues": dict(sandbox_diagnostics.issue_counts),
                 "dropped_details": sandbox_diagnostics.num_dropped_details,
             },
+            # Seconds per phase (boot, agent loop, commands inside it, grading).
+            # The exec trace below carries each command's own clock, so the gaps
+            # between commands are the time waiting for the generator.
+            "timing": dict(sandbox_diagnostics.timing),
             "secs": round(secs, 1),
             "budget_sec": int(budget_sec),
             "turns": len(turns),
@@ -916,6 +978,9 @@ class TMaxRollouter(Rollouter):
         sandbox_metrics = _sandbox_issue_metrics(
             [diagnostics.issue_counts for diagnostics in sandbox_diagnostics]
         )
+        timing_metrics = _timing_metrics(
+            [diagnostics.timing for diagnostics in sandbox_diagnostics]
+        )
         infra_failed_flags = [
             diagnostics.infra_failed for diagnostics in sandbox_diagnostics
         ]
@@ -931,6 +996,7 @@ class TMaxRollouter(Rollouter):
             ),
             *finish_metrics,
             *sandbox_metrics,
+            *timing_metrics,
         ]
         if self._read_ctrf:
             group_metrics += _ctrf_metrics(
@@ -1267,6 +1333,14 @@ class TMaxRollouter(Rollouter):
         # hoisted here so the completion line can read it whatever path the
         # rollout takes out of the sandbox scope.
         exec_timing: dict = {"exec_secs": 0.0, "exec_n": 0}
+        # Where this rollout's wall clock goes, by phase, because the phases have
+        # different owners: the boot is the sandbox provider's, the agent loop is
+        # the policy's -- split into commands actually run in the sandbox and time
+        # waiting for the generator -- and grading is the task's. Without the
+        # split, a rollout that spent its budget working cannot be told from one
+        # that spent it queueing behind a saturated generator, and both land in
+        # finish_reason=hit_time_budget.
+        timing: dict = {}
         # Where this rollout's record goes; None writes nothing (said once).
         run = _run_dir()
         collect_pane = (
@@ -1275,6 +1349,7 @@ class TMaxRollouter(Rollouter):
             and os.environ.get("TMAX_PANE_DUMP", "0") == "1"
         )
         await self._rollout_gate.acquire_sibling((group_id, rollout_idx))
+        slot_at = time.monotonic()
         try:
             # open_session is inside the try so a failure still releases the slot.
             adapter.open_session(
@@ -1318,6 +1393,7 @@ class TMaxRollouter(Rollouter):
                     # envelope. Boot-queue time must not eat the agent's budget --
                     # the deadline restarts here, exactly like the agent's own
                     # deadline (set at agent start in the harness).
+                    timing["boot_secs"] = time.monotonic() - slot_at
                     rollout_timeout.reschedule(
                         asyncio.get_running_loop().time()
                         + self._guard_for(budget_sec, verifier_sec)
@@ -1358,6 +1434,8 @@ class TMaxRollouter(Rollouter):
                     except Exception:  # noqa: BLE001 -- never fail a rollout on this
                         pass
                     failure_stage = "agent"
+                    agent_at = time.monotonic()
+                    exec_before_agent = exec_timing["exec_secs"]
                     agent_run = await get_agent(self._agent_name)(
                         AgentTask(
                             sandbox=root_sb,
@@ -1368,6 +1446,10 @@ class TMaxRollouter(Rollouter):
                             workdir=sample.workdir,
                             max_context_tokens=self._max_context_tokens,
                         )
+                    )
+                    timing["agent_secs"] = time.monotonic() - agent_at
+                    timing["agent_exec_secs"] = (
+                        exec_timing["exec_secs"] - exec_before_agent
                     )
                     # None = the harness has no submit signal at all; grade anyway
                     # (see AgentRun.submitted) and report it as submitted for the
@@ -1404,6 +1486,7 @@ class TMaxRollouter(Rollouter):
                     # scoring every rollout 0 (see AgentRun.submitted).
                     if submitted:
                         failure_stage = "verifier"
+                        grade_at = time.monotonic()
                         reward = await grade_tmax(
                             sandbox,
                             sample.tmax,
@@ -1412,6 +1495,7 @@ class TMaxRollouter(Rollouter):
                             baseline_digests=baseline_digests,
                             diagnostics=verifier,
                         )
+                        timing["grade_secs"] = time.monotonic() - grade_at
                         sparse_reward = reward
                         # Read the verifier's second output (the per-test CTRF
                         # report) while the sandbox is still up. Swallow its
@@ -1511,6 +1595,7 @@ class TMaxRollouter(Rollouter):
             infra_failed=infra_failed,
             failure=failure,
             terminal_events=terminal_events,
+            timing=dict(timing),
         )
 
         turns = _captured_to_turns(captured, group_id, rollout_idx)
