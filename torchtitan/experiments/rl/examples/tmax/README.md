@@ -1,7 +1,21 @@
 # tmax terminal-agent RL (Qwen3.5-9B GDN)
 
-For the combined TerminalWorld + TMax training, TB 2.1 evaluation, and evolution
-workflow, start with the [short run guide](runbook/README.md).
+## Which doc
+
+| You want to | Read |
+| --- | --- |
+| Run the recipe yourself: your own GPUs and Daytona key, nothing else provisioned | [`README_TERMINALWORLD.md`](README_TERMINALWORLD.md) (27B variant: [`README_TERMINALWORLD_27B.md`](README_TERMINALWORLD_27B.md)) |
+| Turn a published seed corpus into a training JSONL | [`README_SEED_DATA.md`](README_SEED_DATA.md) |
+| Start a run with the evolution loop, on a host that already has a profile in `runbook/profiles/` | [`runbook/README.md`](runbook/README.md) |
+| Look up an env var, a recipe, or how a rollout is graded | this file |
+| Build the environment from zero, or debug a run | [`runbook/RUNBOOK.md`](runbook/RUNBOOK.md) |
+
+The split that decides the first three: `runbook/` drives systemd user services on
+a provisioned host and needs a profile registered for you, while
+`README_TERMINALWORLD.md` runs the open-source entry point and requires no service
+beyond a Daytona key. If nobody has set a profile up for you, that is your entry
+point, and `README_SEED_DATA.md` is the step before it. This file is a reference,
+not a way in.
 
 Post-train a Qwen model as a **terminal agent** on the AI2 tmax corpus: each task
 boots its own container, the policy drives a single-`bash`-tool agent loop until it
