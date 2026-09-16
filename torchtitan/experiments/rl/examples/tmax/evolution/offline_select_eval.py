@@ -25,13 +25,16 @@ Writes <root>/runs/<name>/{launch.json, signals/<task>--g<N>.json,
 rollouts/<task>/g<N>-r<i>.jsonl} and one log line per task under <root>/logs/.
 Refuses a run directory that exists. A task still at r0 is skipped and logged:
 nothing has hardened it yet, so the first round is offline_select.py's job and
-a signal at the wrong rev would only be superseded.
+a signal at the wrong rev would only be superseded. A signal the ledger has
+closed is never handled again, so a retry goes under a new --name, and
+--only-failed restages just the tasks an infrastructure loss took down.
 """
 
 from __future__ import annotations
 
 import argparse
 import collections
+import glob
 import json
 import os
 import re
@@ -67,6 +70,24 @@ def main() -> None:
         "12/12 and 11/12 of a K12 eval, where the group carries no learning signal)",
     )
     ap.add_argument("--step", type=int, default=0, help="validation step to read")
+    ap.add_argument(
+        "--only-failed",
+        action="store_true",
+        help="restage only the tasks whose newest rewrite ended failed or interrupted "
+        "(an infrastructure loss); kept, rejected and blocked are verdicts and stay",
+    )
+    ap.add_argument(
+        "--max-attempts",
+        type=int,
+        default=2,
+        help="with --only-failed: skip a task with this many rewrites stamped at or "
+        "after --attempts-since, so one failing on its own merits is not retried forever",
+    )
+    ap.add_argument(
+        "--attempts-since",
+        default="",
+        help="rewrite-dir stamp prefix from which attempts count",
+    )
     ap.add_argument("--dry", action="store_true", help="print the picks, write nothing")
     a = ap.parse_args()
 
@@ -122,11 +143,33 @@ def main() -> None:
     )
     n_sig = n_rec = n_skip = 0
     for tid, v, rate in picks:
-        rev = _latest_rev(os.path.join(a.root, "evolution", "tasks", tid))
+        task_dir = os.path.join(a.root, "evolution", "tasks", tid)
+        rev = _latest_rev(task_dir)
         if rev == 0:
             n_skip += 1
             log_line(f"task={tid} skipped: still at r0, nothing to harden further")
             continue
+        if a.only_failed:
+            rws = sorted(
+                glob.glob(os.path.join(task_dir, "rewrites", "*", "rewrite.json"))
+            )
+            st = json.load(open(rws[-1]))["status"] if rws else "never_handled"
+            if st not in ("failed", "interrupted", "never_handled"):
+                n_skip += 1
+                log_line(f"task={tid} skipped: newest rewrite is {st}")
+                continue
+            tried = [
+                r
+                for r in rws
+                if os.path.basename(os.path.dirname(r)) >= a.attempts_since
+            ]
+            if a.max_attempts and len(tried) >= a.max_attempts:
+                n_skip += 1
+                log_line(
+                    f"task={tid} skipped: {len(tried)} attempts since "
+                    f"{a.attempts_since} (newest {st})"
+                )
+                continue
         groups = {
             int(m.group(1)) for m in (RECORD_RE.search(p) for p in v["records"]) if m
         }
