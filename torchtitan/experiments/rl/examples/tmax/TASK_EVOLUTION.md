@@ -1,5 +1,9 @@
 # Online task evolution: re-tune every no-signal group (0/k and k/k)
 
+This file is the trainer side: why the emit site sits where it does, and what it
+writes. [`EVOLVE_LOOP.md`](EVOLVE_LOOP.md) is the whole loop, including what the
+data side does with a signal.
+
 ## The problem this closes
 
 A GRPO group whose siblings **all pass** or **all fail** has zero reward
@@ -42,9 +46,12 @@ Two switches, both on by default, and both write under the run directory the
 launcher exports as `TRL_RUN_DIR`. `SWE_ROLLOUT_RECORDS=1` writes every rollout
 once, as `rollouts/<task>/g<group>-r<idx>.jsonl`: the rollout on line 1, then
 one line per turn. `SWE_EVOLUTION_SIGNALS=1` writes one signal per
-zero-variance group as `signals/<task>--g<group>.json`, in **both** directions,
-always: all-fail (0/k) is `easier`, all-pass (k/k) is `harder`, and a group with
-any reward variance is already producing signal and is left alone. The signal
+no-signal group as `signals/<task>--g<group>.json`, in **both** directions:
+all-fail (0/k) is `easier`, and a solved fraction at or above
+`SWE_EVOLUTION_HARDER_RATIO` (default 1.0, so k/k) is `harder`. Under dense
+rewards the zero-variance rule stands instead, since a partial-credit mean is
+not a solve rate. A group with reward variance below the threshold is already
+producing signal and is left alone. The signal
 carries the task, the row's `rev`, the run, the group, `solved` / `total` and
 the paths of the group's rollout records relative to the run directory; the
 transcript is referenced, never copied. An all-fail group in which no attempt
@@ -76,6 +83,10 @@ The signal references the run's rollout records instead of carrying its own
 copy of the transcript, and a rewrite hardlinks those records into its package
 as `traces/attempt-NN.jsonl`, so the agent that rewrites a task reads the same
 file the trainer wrote, in the one rollout record format.
+
+The easier branch is off by default on the loop side (`SWE_EVOLVE_SIMPLIFY=0`):
+those signals are ledgered as `deferred` and replayed if the arm is turned on.
+`EVOLVE_LOOP.md` has the measurement behind that default.
 
 Every signal the loop sees gets one line in `evolution/ledger.jsonl` (`handled`,
 `deferred`, `junk`); `evolution/status.json` is rebuilt from the ledger and the

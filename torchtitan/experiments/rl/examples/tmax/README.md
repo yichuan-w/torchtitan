@@ -7,6 +7,7 @@
 | Run the recipe yourself: your own GPUs and Daytona key, nothing else provisioned | [`README_TERMINALWORLD.md`](README_TERMINALWORLD.md) (27B variant: [`README_TERMINALWORLD_27B.md`](README_TERMINALWORLD_27B.md)) |
 | Turn a published seed corpus into a training JSONL | [`README_SEED_DATA.md`](README_SEED_DATA.md) |
 | Start a run with the evolution loop, on a host that already has a profile in `runbook/profiles/` | [`runbook/README.md`](runbook/README.md) |
+| Understand the loop that re-tunes the task pool while a run trains, and where its code is | [`EVOLVE_LOOP.md`](EVOLVE_LOOP.md) |
 | Look up an env var, a recipe, or how a rollout is graded | this file |
 | Build the environment from zero, or debug a run | [`runbook/RUNBOOK.md`](runbook/RUNBOOK.md) |
 
