@@ -64,7 +64,6 @@ def inference(config: FluxTrainer.Config):
                 enable_classifier_free_guidance=config.inference.sampling.enable_classifier_free_guidance,
                 denoising_steps=config.inference.sampling.denoising_steps,
                 classifier_free_guidance_scale=config.inference.sampling.classifier_free_guidance_scale,
-                # pyrefly: ignore [bad-argument-type]
                 model=trainer.model_parts[0],
                 prompt=prompts[i : i + bs],
                 autoencoder=trainer.autoencoder,
@@ -92,4 +91,4 @@ if __name__ == "__main__":
     init_logger()
     config_manager = ConfigManager()
     config = config_manager.parse_args()
-    inference(config)  # pyrefly: ignore [bad-argument-type]
+    inference(config)

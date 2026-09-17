@@ -58,7 +58,7 @@ class FluxTokenizerContainer(BaseTokenizer):
         Returns:
             A dict with keys "clip" and "t5", each mapping to a torch.Tensor.
         """
-        return {  # pyrefly: ignore [bad-return]
+        return {
             "clip": self.clip_tokenizer.encode(text),
             "t5": self.t5_tokenizer.encode(text),
         }
@@ -165,12 +165,10 @@ class FluxTokenizer(BaseTokenizer):
         self.is_clip = "clip" in model_path.lower()
 
         if self.is_clip:
-            # pyrefly: ignore [bad-assignment]
             self._tokenizer: CLIPTokenizer = CLIPTokenizer.from_pretrained(
                 model_path, max_length=max_length, **hf_kwargs
             )
         else:
-            # pyrefly: ignore [bad-assignment]
             self._tokenizer: T5Tokenizer = T5Tokenizer.from_pretrained(
                 model_path, max_length=max_length, **hf_kwargs
             )

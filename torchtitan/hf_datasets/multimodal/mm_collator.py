@@ -365,5 +365,4 @@ class MultiModalCollator:
                 video_token_id=special_tokens["video_id"],
             )
 
-        # pyrefly: ignore [bad-return]
         return input_dict, labels

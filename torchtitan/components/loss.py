@@ -109,7 +109,6 @@ class _LossParallelCrossEntropy(torch.autograd.Function):
         return result
 
     @staticmethod
-    # pyrefly: ignore [bad-override]
     def forward(
         ctx,
         logits: torch.Tensor,
@@ -191,7 +190,7 @@ class _LossParallelCrossEntropy(torch.autograd.Function):
         return result.sum()
 
     @staticmethod
-    def backward(  # pyrefly: ignore[bad-override]
+    def backward(
         ctx,
         grad_output: torch.Tensor,
     ) -> tuple[torch.Tensor, None, None, None, None]:
@@ -708,7 +707,7 @@ class ChunkedLossWrapper(BaseLoss):
             last_idx = len(h_chunks) - 1
             for i, (h_chunk, label_chunk) in enumerate(zip(h_chunks, label_chunks)):
                 if fsdp_enabled and i == last_idx:
-                    lm_head.set_requires_gradient_sync(  # pyrefly: ignore[not-callable]
+                    lm_head.set_requires_gradient_sync(
                         True, recurse=False
                     )
 
@@ -818,7 +817,6 @@ class _DecoderOutputGradientBackProp(torch.autograd.Function):
     """
 
     @staticmethod
-    # pyrefly: ignore [bad-override]
     def forward(
         ctx,
         hidden_states: torch.Tensor,
@@ -829,7 +827,7 @@ class _DecoderOutputGradientBackProp(torch.autograd.Function):
         return loss.detach()
 
     @staticmethod
-    def backward(  # pyrefly: ignore[bad-override]
+    def backward(
         ctx, grad_output: torch.Tensor
     ) -> tuple[torch.Tensor, None, None]:
         (accumulated_grad,) = ctx.saved_tensors

@@ -230,7 +230,6 @@ class Trainer(torch.distributed.checkpoint.stateful.Stateful, Configurable):
         model_spec = config.model_spec
 
         device_module, device_type = utils.device_module, utils.device_type
-        # pyrefly: ignore [read-only]
         self.device = torch.device(f"{device_type}:{int(os.environ['LOCAL_RANK'])}")
         # Device has to be set before creating TorchFT manager.
         device_module.set_device(self.device)
@@ -446,21 +445,21 @@ class Trainer(torch.distributed.checkpoint.stateful.Stateful, Configurable):
                         lm_head is not None
                     ), "Last PP stage must have lm_head for ChunkedLossWrapper"
                     self.loss_fn.set_lm_head(
-                        lm_head  # pyrefly: ignore[bad-argument-type]
+                        lm_head
                     )
                     self.model_parts[
                         -1
-                    ]._skip_lm_head = True  # pyrefly: ignore[bad-argument-type]
+                    ]._skip_lm_head = True
             else:
                 assert len(self.model_parts) == 1
                 lm_head = self.model_parts[0].lm_head
                 assert (
                     lm_head is not None
                 ), "Model must have lm_head for ChunkedLossWrapper"
-                self.loss_fn.set_lm_head(lm_head)  # pyrefly: ignore[bad-argument-type]
+                self.loss_fn.set_lm_head(lm_head)
                 self.model_parts[
                     0
-                ]._skip_lm_head = True  # pyrefly: ignore[bad-argument-type]
+                ]._skip_lm_head = True
 
         # initialize device memory monitor and get peak flops for MFU calculation
         device_memory_monitor = self.metrics_processor.device_memory_monitor
