@@ -1,271 +1,373 @@
-# The evolve loop
+# The evolve loop: what happens to one task
 
-A training run and a task pool that move together: the trainer reports which
-tasks stopped discriminating, and a loop beside it rewrites those tasks until
-they discriminate again. This document is the design and the mechanism, with
-the code entry points at the end. `LAYOUT.md` is the on-disk contract every
-path here comes from, and `evolution/RUNBOOK.md` is how the loop is started,
-restarted and watched.
+The evolve loop does one thing: take a task that has stopped producing a
+learning signal, rewrite it into one the current policy can still learn from,
+and put it back at its own row of the mix.
 
-## What a task is worth
+This document covers two things: everything that happens to one task between
+being stamped and landing back in the mix, and how the rewriting itself is done.
+Whether the loop runs online (beside a live run) or offline (a chosen batch
+driven to completion) only changes who produces the signals; the chain below is
+the same either way.
 
-A task in this pool is attempted k times per training step (`SWE_GROUP_SIZE`,
-12 in this root's runs), and GRPO trains on the spread between those attempts. A group where every attempt passes and a
-group where every attempt fails both have zero advantage, so the k rollouts
-spent on them move no gradient. The rollouts are the expensive part of the run:
-each is a container, an agent, and an episode of terminal work up to the turn
-and wall-clock budget.
+`LAYOUT.md` is the on-disk contract every path here comes from, and
+`evolution/RUNBOOK.md` is how the loop is started, restarted and watched.
 
-So the property a task is kept for is not that it is hard. It is that the policy
-being trained solves it sometimes. That property is defined against one specific
-set of weights, and those weights change every step. A fixed pool therefore
-decays in one direction: the tasks the policy outgrows become all-pass, the ones
-it cannot reach stay all-fail, and the fraction of the pool still producing
-gradient shrinks as training succeeds.
+## Why the pool has to move
 
-Dropping the dead prompts is the cheap handling, and the pool then only ever
-shrinks. The loop is the other handling: move the prompt to where the policy
-now is, and keep the pool the size it was.
+A task is attempted k times per training step (`SWE_GROUP_SIZE`, 12 in this
+root's runs). GRPO trains on the spread between the attempts that solved it and
+those that did not. A group where all of them pass and a group where all of them
+fail both have zero advantage, so those k rollouts move no gradient, and each
+rollout is a container plus an agent driving up to 120 turns of terminal work.
 
-## Two sides, deliberately asynchronous
+So what a task is kept for is not that it is hard. It is that the current policy
+solves it sometimes. That property is defined against one specific set of
+weights, and those weights change every step, so a fixed pool decays toward both
+ends: what the policy outgrows becomes all-pass, what it cannot reach stays
+all-fail, and the fraction still producing gradient shrinks.
 
-Detecting a dead group is arithmetic over rewards already in memory. Acting on
-it means rewriting a task's four files and proving the result still builds,
-still grades its own reference solution, and still cannot be passed by doing
-nothing: minutes of container work per task.
+Dropping those tasks is the cheap handling, and the pool then only shrinks,
+shedding exactly the prompts the policy has just learned or is one step from.
+The loop is the other handling: keep the task, move it to where the policy is,
+and keep the pool the size it was.
 
-Those cannot share a thread. The trainer observes and writes a small JSON; the
-loop reads those files and does the container work on the data side, at its own
-pace, and publishes the result as a new version of the mix that the running
-trainer picks up. Nothing in the rollout path waits for a rewrite, and a rewrite
-that fails leaves the task exactly as it was.
+## What one task goes through
 
-```
-trainer (rollouter.py)                    loop (evolution/evolve_ondella.py)
-----------------------                    ---------------------------------
-group with no spread
-  -> runs/<run>/signals/<task>--g<N>.json  -> signals with no ledger line
-     (attempts -> runs/<run>/rollouts/…)      harder -> one rewrite session
-                                              easier -> one simplify session
-                                              revalidate: oracle, null probe, size
-                                              accepted -> r<N+1>/
-  hot-reloads data/mix/live.jsonl <---------- publish data/mix/history/v<N>--<stamp>
-  reads evolution/status.json -> W&B            and relink live.jsonl (replace by
-                                                task id, pool size fixed)
-```
+### 1. The trainer stamps it
 
-## The signal
+`rollouter.py::_maybe_emit_evolution_signal` sits beside the zero-std detector,
+which already holds the group's rewards, the sample and every trajectory.
 
-`TMaxRollouter._maybe_emit_evolution_signal` runs beside the zero-std detector,
-which already has the group's rewards, the sample and the trajectories. It
-writes one JSON per group that asks for a change, naming the task, the row's
-revision, the run, the group, `solved` / `total`, and the paths of that group's
-rollout records. The transcript is referenced, never copied; the loop hardlinks
-those same files into the rewrite's package, so the agent that rewrites a task
-reads the bytes the trainer wrote.
+It takes the group's solved fraction and compares it against two thresholds. At
+or above `SWE_EVOLUTION_HARDER_RATIO` (default 1.0 for all-pass; 0.9 in this
+root's runs, so one short of all-pass already asks) it wants `harder`. At or
+below `SWE_EVOLUTION_EASIER_RATIO` (default 0.0, nothing solved) it wants
+`easier`. Between the two it does nothing, because the group is already
+producing signal. Counting solves rather than testing each reward against zero
+keeps the question independent of what a failure scored, which
+`SWE_WRONG_SUBMIT_PENALTY` would otherwise change by making a graded-wrong
+submit negative. Under dense rewards the original zero-variance rule stands,
+because a partial-credit mean is not a solve rate.
 
-Under the sparse reward that trains this pool, both directions are thresholds on
-the solved fraction: at or below `SWE_EVOLUTION_EASIER_RATIO` (default 0.0, so
-nothing solved) asks for `easier`, at or above `SWE_EVOLUTION_HARDER_RATIO`
-(default 1.0, so all-pass) asks for `harder`, and the easier ratio must stay
-strictly below the harder one. A run can sit inside those defaults: this root's
-runs set the harder ratio to 0.9, so a group one short of all-pass already asks.
-Under dense rewards the original zero-variance rule stands, because a
-partial-credit mean is not a solve rate.
+An attempt the harness could not score never reaches this: `infra_failed` puts
+NaN on its reward and `is_scored` drops it, so a group whose siblings all failed
+that way has fewer than two scored rewards and asks for nothing. Whatever
+reaches the threshold was scored, and a scored zero is a verdict on the task.
 
-Counting solves rather than testing each reward against zero is what makes the
-question independent of what a failure scored. The easier direction used to ask
-whether every reward was exactly 0, which `SWE_WRONG_SUBMIT_PENALTY` would
-break by scoring a graded-wrong submit negative: the group would then be neither
-all-zero nor at the harder ratio, and would return without a signal in either
-direction. No run has set that switch, so this was latent rather than observed.
+The signal is one small JSON at `runs/<run>/signals/<task>--g<group>.json`: the
+task, the row's revision, the run, the group, `solved` / `total`, and the path of
+each rollout record in the group. The transcripts are referenced, never copied.
 
-An attempt the harness could not score is out of this decision before it
-starts: `infra_failed` puts NaN on its reward and `is_scored` drops it, so a
-group where every sibling failed that way has fewer than two scored rewards and
-asks for nothing. Whatever reaches the threshold test was scored, and a scored
-zero is a verdict on the task. There is no second test of whether the attempt
-"really" ran, and in particular no test of the turn count: that asked the same
-question `infra_failed` answers, and where the flag is unset the answer is that
-the failure counts.
+Then training carries on without waiting for anything. The group keeps its
+advantages and the batch keeps its size.
 
-Emitting a signal changes nothing about the step in flight: the group keeps its
-advantages, the batch keeps its size.
+### 2. The loop picks it up
 
-## One rewrite
+The loop is `evolution/evolve_ondella.py`. A round decides what to handle:
 
-The loop's round is: discover signals with no ledger line, choose one per task
-(the newest one whose revision is the task's current one), handle them
-concurrently, and fold each accepted rewrite the moment it is accepted rather
-than at the end of the round. A round of many rewrites runs for hours, and
-folding on acceptance means a loop stopped mid-round loses only what was still
-in flight.
+1. Every signal under `runs/*/signals/` with no line in
+   `evolution/ledger.jsonl`. The ledger is the loop's only memory, so anything
+   unrecorded is outstanding work and a crashed loop resumes by restarting.
+2. One signal per task per round: the newest whose revision is the task's
+   current one. A signal about a revision the task has moved past measured a
+   version that no longer exists, and gets a `superseded` line. Two signals
+   about the same revision would race for the same `r<N+1>`, so only one runs.
+3. Unchanged feedback (same task, revision, direction, `solved` and `total`)
+   reuses the decision from the completed rewrite instead of redoing it. A
+   different run id, timestamp or record path is not new feedback.
 
-Handling one signal copies the input revision into a rewrite directory of its
-own, hardlinks the group's rollout records under `traces/`, and gives that
-directory to an agent (`evolution/evolve_codex.py`) with the task's own
-container attached as a tool. The agent reads the instruction, the environment,
-the reference solution, the verifier and the real attempts; it can run commands
-in the container, run the reference solution, grade it, and rebuild the
-container from scratch. Its own pass is not the gate: it is what stops the
-agent from finishing on a rewrite it never executed.
+A signal asking `easier` while `SWE_EVOLVE_SIMPLIFY` is off gets a `deferred`
+line, replayed if the switch is turned on.
 
-### Harder
+### 3. It gets a working directory
 
-The default is student-guided. The agent reads the attempts that solved the task
-and finds the step that was free: the guidance the instruction handed over, the
-sub-problem the policy never had to work out. It then adds one requirement that
-removes it. The change is one rung, not a new task: everything the seed asked
-for stays, and the reference solution's growth is bounded so that "harder"
-cannot be met by making the solution longer. The agent declares the change and
-its trace evidence in `run/hardening.md` before editing, and a session that
-declares nothing fails rather than falling back to a default.
+Everything after this happens inside that directory. Nothing already on disk is
+touched.
 
-### Easier
+On a task's first signal, the seed package is copied whole from
+`data/sources/<corpus>/tasks/<task>` to `evolution/tasks/<task>/r0/`, its
+revision 0. The copy lands in `r0.incoming` and is renamed, so a crash mid-copy
+cannot leave half a package for a later round to evolve.
 
-The agent reads the failing trajectories and applies one simplification
-operator, recording which one and what skill the task retains.
-How much guidance it may write into the instruction is a knob
-(`SWE_SIMPLIFY_HINT`, default `vague`): at the `specific` level it bakes
-where-to-look hints into hundreds of instructions, and a holdout experiment
-showed the policy learning hint-following that does not transfer to unhinted
-tasks.
+Then `evolution/tasks/<task>/rewrites/<stamp>--<job>/` is created, holding:
 
-## The verifier is written blind
+- `package/`, the working copy of `r<rev>`, which is where the agent works
+- `package/traces/attempt-NN.jsonl`, hardlinks to the group's rollout records,
+  so the agent reads the bytes the trainer wrote rather than a copy
+- `pretest.json`, a snapshot of the row's pin hook (`pre_test_sh`, run before
+  grading) and its protected lists. Both live on the mix row and not in the
+  package, and without the snapshot the rewrite would be validated against one
+  set of lists and folded with another
+- `rewrite.json`, this rewrite's record, written up to the last step
 
-A verifier written next to the reference solution inherits the solution's
-private vocabulary: the key names of the report it happens to emit, the label
-its regex anchors on, the filename it chose for an artifact. An agent that does
-every bit of the work and names one of those differently scores zero. That
-task then reads as too hard, when it was unfair. Of eight hardened tasks
-reviewed that a policy failed 16 times out of 16, five failed on exactly this,
-three of them with all the work done.
+The task's resources are resolved at the same time: the `daytona_*` the row
+declares, filled out with the fleet default. The agent works in a container that
+size, and the reference solution is measured at that size.
 
-So the verifier is written by a second session that is shown the instruction,
-the environment and the seed's verifier, and not the solution. The two sessions
-never see each other's file; the first time they meet is when the harness runs
-the hidden solution against the blind verifier. A disagreement there means
-either the verifier asks for something the instruction never promised or the
-solution does not do what the instruction says, and the verifier's author gets
-one bounded repair round to decide which. A second failure discards the rewrite
-and the task goes back into training unchanged, which is the safe outcome for a
-pair that cannot agree.
+### 4. The author agent rewrites it
 
-This costs a second session and one more container check per rewrite. On the
-first paired round, six all-pass signals each way, the median per-task time
-went from 430 s to 974 s, with the same six of six folded and the hidden
-solution passing the blind verifier at first meeting on all six. The verifiers
-it wrote recompute the expected result from the container instead of asserting
-the solution's strings, which is what the split was for.
+One Codex session, cwd is `package/`. Three more things go into the package for
+it: `AGENTS.md` (its role and rules, copied from
+`evolution/agents/task_evolution.md` at every session, so editing that file
+needs no restart), `sandbox` (the container tool), and a few declarations under
+`run/` (the seed's size, the resources, the names the seed's verifier depends on,
+the pin hook).
 
-## What a rewrite has to survive
+How it rewrites is the next section. When the session ends, the harness checks
+that the agent actually ran its own check; a session that did not fails, and the
+task stays as it was.
 
-Claims about a rewritten task are settled by running it, not by reading it
-(`evolution/feedback_loop.py::revalidate`). On the training host there is no
-Docker, so the checks run on the same sandbox provider and grading contract as
-the training rollouts, in the box the row will actually be provisioned at. A
-task verified at the harness default and then starved in a 1-CPU row comes back
-as a timeout, and reads as "too hard".
+### 5. A second agent writes the verifier blind
 
-| check | rejects |
+On by default (`SWE_VERIFIER_AUTHOR` unset, so `blind`), for both directions.
+Why, below.
+
+The author's package is laid out again under this session's own directory with
+`solution/`, `traces/`, `AGENTS.md` and `sandbox` removed, and `AGENTS.md`
+replaced by `evolution/agents/verifier_author.md`. This session sees the
+instruction, the environment and the seed's verifier, and not the solution.
+
+What it writes is checked against independent probes, then copied back into the
+author's package, replacing `tests/`.
+
+Then comes the only meeting of the two sessions: the harness runs the hidden
+reference solution against the blind verifier. A disagreement means one of two
+things, either the verifier demands something the instruction never promised or
+the solution does not do what the instruction says. The verifier's author gets
+the failure and one chance to decide which and fix it. A second disagreement
+discards the rewrite and the task goes back to training unchanged.
+
+### 6. Revalidation
+
+Whether the rewritten task is any good is settled by running it
+(`evolution/feedback_loop.py::revalidate`).
+
+There is no Docker on the training host, so this runs on Daytona: the same
+provider and grading contract as the training rollouts, in a container the size
+the row will actually be provisioned at. That last part was learned the hard
+way: a task verified at the harness default and then starved in a 1-CPU row
+comes back as a timeout, which reads as "too hard".
+
+| gate | rejects |
 |---|---|
-| oracle | the rewritten reference solution no longer earns a passing grade from the rewritten verifier |
-| null probe | the verifier passes on an untouched workspace: nothing done, reward collected |
-| step size | the reference solution grew outside its bound for this direction |
-| dark paths / literals | the verifier demands a path or a name that the instruction and the environment never reveal |
+| oracle | the rewritten reference solution does not earn full marks from the rewritten verifier |
+| null probe | the verifier passes on an untouched workspace |
+| step size | the reference solution's growth is outside the bound for this direction |
+| unnamed paths | the verifier demands a path or name the instruction and environment never reveal. Recorded, not enforced |
 
-The null probe replaced an LLM-guessed shortcut check. Over one week it rejected
-148 rewrites; 29 of those were green before anything had been done, which the
-probe catches for free, and 100 were the expected artifact `printf`'d into place
-by a model that had read both the solution and the verifier: an answer no
-policy could write, so those were tasks fit to train on, discarded at a model
-call and a sandbox each. The hackability question moved into the agent's own
-session, where it has the container and can try for itself.
+The null probe replaced asking a model to guess a cheat command. Over one week
+that approach rejected 148 rewrites: 29 deserved it, green before anything was
+done, which the probe catches for free; the other 100 were a model that had read
+both the solution and the verifier printf'ing the expected artifact into place,
+an answer no policy could write. Those 100 were trainable tasks, thrown away at
+a model call and a sandbox each.
 
-The two dark-name audits ride along in the record as advice rather than as
-gates. Measured over 464 rewrites, the literals audit flagged 130 names without
-its baseline and none with it, and all 130 were false positives; the paths audit
+The two unnamed-name audits ride along as advice rather than as gates. Measured
+over 464 rewrites, the literals audit flagged 130 names without its seed
+baseline and none with it, and all 130 were false positives; the paths audit
 rejected nothing across 621 signals. A gate with no measured precision does not
 get to discard a session.
 
-One fast path: when the only file the retune touched is the instruction, nothing
-that affects the build, the verifier or the reference solution moved, so the
-expensive rebuild is skipped. What an instruction edit can still introduce is
-drift against the verifier, judged before and after, and that is what gets
-checked.
+One fast path: when only the instruction changed, the build, the verifier and
+the reference solution are untouched, so the expensive rebuild is skipped. What
+an instruction edit can still introduce is drift against the verifier, judged
+before and after.
 
-A structural rewrite that fails its oracle gets one repair round with the
-failure it never saw, the real exit code and output tail, fed back into the
-session that wrote the files. About 60% of TerminalWorld hardening rewrites die
-at this seam, where the instruction, the solution and the verifier have to
-agree.
+A structural rewrite that fails its oracle gets one repair round with the thing
+it never saw, the real exit code and output tail, fed back to the session that
+wrote the files. About 60% of TerminalWorld hardening rewrites die at this seam,
+where the instruction, the solution and the verifier have to agree.
 
-## Folding back
+### 7. It is folded back into the mix
 
-An accepted rewrite becomes `r<N+1>/` of that task and is rebuilt into a mix row
-indistinguishable from a freshly prepared one, then published as a new version
-under `data/mix/history/` with `live.jsonl` relinked to it. The trainer
-hot-reloads it.
+An accepted rewrite folds immediately rather than at the end of the round. A
+round of many tasks runs for hours, and folding on acceptance means a loop
+stopped mid-round loses only what was still in flight.
 
-It replaces the task at its own row. Not a delete and append: appending rotates
-the held-out slice at the end of the file, and a task no longer in the mix was
-taken out deliberately and is not re-added. The pool size and the batch stay
-fixed while the prompts move to the policy. This is why evolving pairs with
-*not* dropping zero-std groups: dropping would shed exactly the prompts being
-re-tuned.
+- The harness's own files come out (`AGENTS.md`, `sandbox`, `run/`, `traces/`)
+- `package/` is renamed `r<N+1>/`, the task's new revision
+- It is rebuilt into a mix row indistinguishable from a freshly prepared one
+- What lives on the row and not in the package is carried across: the pin hook,
+  the protected lists, `terminal_domain`, and the resources, taken as the
+  maximum of what the row declared and what the reference solution measured. A
+  folded row that lost them falls back to `TT_DAYTONA_*`, which on this corpus
+  is 1 CPU against a measured 2, and starves
+- It replaces the task at its own row, published as a new version under
+  `data/mix/history/`, with `live.jsonl` relinked
 
-Two things live on the row and not in the package, and would otherwise be lost
-on a fold: the per-sandbox resources (a folded row falling back to the fleet
-default gets 1 CPU against a measured 2, and starves) and the row's pin hook.
-Both carry across, the resources at the maximum of what the seed declared and
-what the reference solution measured.
+Replace, never delete and append: appending lands at the end of the file, which
+is the held-out slice, and rotates it; and a task no longer in the mix was taken
+out deliberately and is not re-added. The pool size and the batch stay fixed
+while the difficulty follows the policy.
 
-## Defaults, and the one that is off
+Online, the trainer hot-reloads the new version (`SWE_DATA_HOT_RELOAD=1`). This
+is also why evolving pairs with `SWE_DROP_ZERO_STD=0`: dropping zero-std groups
+sheds exactly the prompts being re-tuned.
 
-`SWE_EVOLVE_SIMPLIFY` defaults to 0: all-fail signals are ledgered as `deferred`
-rather than acted on. The reason is that the ratchet only turns one way. A
-simplification is accepted almost every time: revalidation asks whether the
-reference solution still passes, and rewriting an instruction cannot break the
-reference solution, while a hardening has to survive a rebuilt verifier.
-Measured on this corpus: 693 accepted simplifications against 335 accepted
-hardenings in one week, and 814 against 26 in an earlier window, with the solve
-rate on the mix climbing while a fixed evaluation set stayed flat. That is a
-pool getting softer, reported as progress. With the arm off, the too-hard tail
-freezes instead, which is the failure that can be read off a chart. Deferred
-signals are replayed if the arm is turned on.
+### 8. What it leaves behind
 
-Worker count is not a throughput knob. The loop is signal-starved: 89% of
-rounds carry 8 signals or fewer, and more workers only drain the rare bursts
-faster.
+- `rewrite.json`: which signal, which input revision, the status (accepted,
+  rejected, blocked, failed or kept), the stage it stopped at, every
+  revalidation verdict, the resources, and the resulting revision
+- `sessions/<stamp>--<kind>/`: one directory per Codex invocation, holding the
+  prompt, stdout, stderr, `session.json`, and the CLI's own session jsonl
+- `lineage.jsonl`: this task's rewrite and fold events
+- one line in `ledger.jsonl`: `handled`, `deferred`, `reused`, `superseded` or
+  `junk`
+- `evolution/status.json`, rebuilt at the end of every round from the ledger and
+  the tasks' lineage; the trainer puts its counters on W&B beside the training
+  curves
 
-## What is recorded
+Nothing under a run directory is ever moved or deleted.
 
-Every signal the loop sees gets one line in `evolution/ledger.jsonl`: `handled`,
-`deferred`, `reused`, `superseded` or `junk`. Every rewrite directory keeps the
-revision it started from, the rollout records it read, each agent session's
-prompt and both streams, and the revalidation verdict. `evolution/status.json`
-is rebuilt from the ledger and the tasks' lineage at the end of every round, and
-the trainer puts its counters on W&B beside the training curves, so pending
-signals, accepted and rejected totals and the live mix version are readable on
-the same time axis as the loss.
+## How the rewrite itself is done
 
-Nothing under a run directory is ever moved or deleted, and the ledger is the
-loop's only memory: a signal with no ledger line is handled again, which is what
-makes the loop resumable after a crash.
+Step 4 said where the agent works. This is what it is handed, what it can do,
+and what it must declare.
+
+### What the agent has
+
+The instruction, the Dockerfile, the reference solution, the verifier, the rest
+of the real package (entrypoints, fixtures, helpers, `task.toml`), and every
+attempt in the group as a full record under `traces/`.
+
+The rule: this package and these traces are the evidence. No reading sibling
+tasks, prior experiment outputs or other sessions. Public tool documentation
+stays available.
+
+It may create files, and what it creates travels with the package, so an axis
+that needs a fixture or a config file is a normal thing to do rather than
+something to work around. The package becomes one line of JSON, so COPY sources
+together and files under `tests/` each stay under 1 MiB, and a binary under
+`tests/` is refused.
+
+### The container is its tool
+
+```
+./sandbox up             build the image and boot a container (minutes), at the
+                         size training gives this task
+./sandbox exec 'CMD'     run CMD inside it as root; --timeout N (default 120 s)
+./sandbox oracle         copy solution/ in, run solve.sh, grade it; prints what
+                         the run cost (memory peak, cpu seconds, disk)
+./sandbox grade          grade the current state as it is
+./sandbox reset          a fresh container from the current Dockerfile
+./sandbox check          reset; grade the untouched workspace, which must fail;
+                         run the oracle, which must pass; audit the names the
+                         verifier depends on. Prints VERDICT: pass|fail
+./sandbox down           delete it
+```
+
+This is the task's own environment, built, sized and graded the way training
+does it, so what runs out of memory or time here does so there too. `oracle` and
+`grade` re-read `solution/` and `tests/` every time, so an edit is judged as soon
+as it is saved; a Dockerfile edit takes effect on `reset`.
+
+`./sandbox check` is the agent's mirror, not the judge: the caller re-runs the
+same checks afterwards from files the agent cannot reach. Having the agent run
+it is what stops it finishing on a rewrite it never executed.
+
+### What it must declare
+
+Editing the files is not the whole job. The evidence goes under `run/`:
+
+- `run/hardening.md` (harder): the strategy observed, the trace evidence, the
+  change proposed, and the new decision the change requires. Two candidate
+  changes must be compared there first, each citing attempt filenames and
+  concrete actions, and only one implemented
+- `run/simplify.json` (easier): which simplification operator, what skill the
+  task retains, what changed, what was restored, and the trace evidence
+- `run/verdict.txt`: only when it stops without finishing, saying why
+
+A missing or unreadable declaration fails the session rather than defaulting to
+a first choice.
+
+### Hardening
+
+Pick one change from the student's actual attempts. Identify the successful
+strategy and a task-relevant judgment it currently bypasses, then add one
+requirement that removes the bypass. Read the failures too, separating a missing
+skill from unclear requirements and from infrastructure trouble.
+
+The method constraints:
+
+- One rung, not a new task. Everything the seed asked for stays; what is added
+  is one requirement the agent that solved it never had to meet
+- The reference solution's growth is bounded, so "harder" cannot be met by
+  making the solution longer
+- A strategy not exercised in these attempts is not evidence the student cannot
+  use it, and cannot be cited as difficulty
+- For each strategy predicted to fail: a concrete input, the correct observable
+  result, and what that strategy would produce. If those agree, the case does
+  not support the prediction
+- A change the old strategy plus a routine post-processing step would satisfy
+  does not count, and the declaration must say why it would be insufficient
+
+### Simplification
+
+Read the failing trajectories, apply one simplification operator, and record
+which one and what skill the task retains.
+
+How much guidance may go into the instruction is a knob (`SWE_SIMPLIFY_HINT`,
+default `vague`). At `specific` it bakes where-to-look hints into hundreds of
+instructions, and a holdout experiment showed the policy learning hint-following
+that does not transfer to unhinted tasks.
+
+Operators have scopes: `add_scaffold` may change only the instruction and
+`provide_initial_state` must preserve the verifier files. A change outside its
+scope is rejected at `simplify_scope`.
+
+## Why the verifier is written blind
+
+This is the least obvious piece of the design, and it comes from a failure.
+
+A verifier written by the same session as the solution inherits the solution's
+private vocabulary: the key names of the report it happens to emit, the label
+its regex anchors on, the filename it chose for an artifact. None of that is in
+the instruction. So an agent does every bit of the work, names one of them
+differently, and scores zero.
+
+Such a task reads as too hard in the data, a whole group failing, when it was
+unfair. Of eight hardened tasks reviewed that a policy failed every attempt,
+five failed on exactly this, three of them with all the work done.
+
+Split across two sessions, the one writing the verifier cannot see the solution
+and so cannot write that check; it has to recompute the expected result from the
+container instead. The cost is a second session and one more container check per
+rewrite: on the first paired round, six all-pass signals each way, the median
+per-task time went from 430 s to 974 s, with the same six of six folded and the
+hidden solution passing the blind verifier at first meeting on all six.
+
+## Online and offline
+
+The chain above is identical either way. What differs is who produces the
+signals and who consumes the resulting mix.
+
+Online: a run is training, the loop handles signals as they appear, and the
+trainer hot-reloads each new mix version. This is the intent, and the shape
+`TASK_EVOLUTION.md` describes.
+
+Offline: take a batch of signals from a finished run, stage them into a root of
+their own, drive rounds until every task has a verdict, and publish the result
+as a named seed mix for the next training. This is what runs today. The
+`exp-tmax-offline-20260913` root took the 139 TMax tasks whose first training
+group in `tmax-9b--20260911-000700Z` was all-solved and outside the holdout, and
+hardened all of them; the 2026-09-14 round accepted 136 of the 139, at $2,796 on
+Claude Opus 5. `evolution/RUNBOOK.md` has the staging and publishing commands
+under "Offline evolution of a signal subset".
 
 ## Where the code is
 
 | file | what to read it for |
 |---|---|
-| [`rollouter.py`](rollouter.py) `_maybe_emit_evolution_signal` | the trainer's whole involvement: when a signal is written, when it is suppressed |
-| [`TASK_EVOLUTION.md`](TASK_EVOLUTION.md) | why the emit site sits in the rollouter, and the switches that turn the loop on |
-| [`evolution/evolve_ondella.py`](evolution/evolve_ondella.py) | the loop: discover, choose, handle, fold, and the ledger |
-| [`evolution/feedback_loop.py`](evolution/feedback_loop.py) | one signal end to end: `process_one`, and `revalidate` for the gates |
-| [`evolution/evolve_codex.py`](evolution/evolve_codex.py) | the agentic rewrite, the blind verifier split, and the session plumbing |
-| [`evolution/agents/`](evolution/agents/) | the roles the agents are given, as prompts: task author, verifier author, probe checker |
-| [`evolution/synth_operators.py`](evolution/synth_operators.py) | the 40-operator taxonomy and its selection formula |
+| [`rollouter.py`](rollouter.py) `_maybe_emit_evolution_signal` | the trainer's whole involvement: when a signal is written and what it carries |
+| [`evolution/evolve_ondella.py`](evolution/evolve_ondella.py) | the loop: discover, choose, open the working directory, fold, write the ledger |
+| [`evolution/feedback_loop.py`](evolution/feedback_loop.py) | one task end to end in `process_one`; the gates in `revalidate` |
+| [`evolution/evolve_codex.py`](evolution/evolve_codex.py) | how the author session is started, how the blind-verifier split works, how sessions are recorded |
+| [`evolution/agents/task_evolution.md`](evolution/agents/task_evolution.md) | the author agent's role and rules, as the prompt it reads |
+| [`evolution/agents/verifier_author.md`](evolution/agents/verifier_author.md) | the same for the blind verifier |
+| [`evolution/agent_sandbox.py`](evolution/agent_sandbox.py) | the container commands in the table above |
 | [`evolution/simplify_operators.py`](evolution/simplify_operators.py) | the simplification operators and their hint levels |
-| [`evolution/agent_sandbox.py`](evolution/agent_sandbox.py) | the container the rewriting agent drives: up, run, grade, rebuild |
-| [`LAYOUT.md`](LAYOUT.md) | every path and every record format named above |
-| [`evolution/RUNBOOK.md`](evolution/RUNBOOK.md) | running it: the unit, the environment, replaying a signal dry |
-| [`evolution/synth_loop.py`](evolution/synth_loop.py) | the offline sibling that builds a pool from seeds, before any policy exists |
+| [`LAYOUT.md`](LAYOUT.md) | the exact format of every path and record named here |
+| [`evolution/RUNBOOK.md`](evolution/RUNBOOK.md) | running the loop, restarting it, replaying one signal dry, and the offline chain |
+| [`TASK_EVOLUTION.md`](TASK_EVOLUTION.md) | why the emit site sits in the rollouter |
