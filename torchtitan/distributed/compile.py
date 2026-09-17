@@ -46,12 +46,11 @@ def apply_compile(model: nn.Module, compile_config: CompileConfig) -> None:
     # python mutations in the backward. Setting this flag accepts this eager
     # and compile divergence by skipping reapplication of side effects.
     torch._dynamo.config.skip_fwd_side_effects_in_bwd_under_checkpoint = (
-        True  # pyrefly: ignore [bad-assignment]
+        True
     )
 
     backend = _maybe_regional_inductor_backend(model, compile_config.backend)
 
-    # pyrefly: ignore [missing-attribute]
     for layer_id, transformer_block in model.layers.named_children():
         transformer_block.compile(backend=backend, fullgraph=True)
 

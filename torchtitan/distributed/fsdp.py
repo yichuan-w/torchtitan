@@ -186,7 +186,6 @@ def apply_fsdp_to_decoder(
         # Dense blocks (no ``moe_enabled``) fall through to a plain fully_shard.
         if getattr(transformer_block, "moe_enabled", False):
             assert hasattr(transformer_block, "moe")
-            # pyrefly: ignore [missing-attribute]
             experts = transformer_block.moe.experts
             expert_params = set(experts.parameters())
             num_experts = experts.num_experts
@@ -309,16 +308,13 @@ def apply_fsdp_to_decoder(
         transformer_blocks, next_transformer_blocks
     ):
         if next_transformer_block is not None:
-            # pyrefly: ignore [not-callable]
             transformer_block.set_modules_to_forward_prefetch([next_transformer_block])
         elif model.norm is not None and model.lm_head is not None:
-            # pyrefly: ignore [not-callable]
             transformer_block.set_modules_to_forward_prefetch(
                 [model.norm, model.lm_head]
             )
 
     # set up explicit prefetching when EP is enabled for backward
-    # pyrefly: ignore [no-matching-overload]
     reversed_transformer_blocks = list(reversed(model.layers.values()))
     prev_transformer_blocks = reversed_transformer_blocks[1:] + [None]
 

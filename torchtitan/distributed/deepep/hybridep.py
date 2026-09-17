@@ -142,7 +142,6 @@ def _dispatch_impl(
     """
     num_local_experts = num_experts // ep_size
 
-    # pyrefly: ignore [bad-argument-type]
     group = dist.distributed_c10d._resolve_process_group(group_name)
     get_buffer(
         group=group,

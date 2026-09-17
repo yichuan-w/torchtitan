@@ -201,7 +201,7 @@ class ConfigManager:
         # TODO: temporary mitigation of BC breaking change in hf_assets_path
         #       tokenizer default path, need to remove later
         if not os.path.exists(
-            self.config.hf_assets_path  # pyrefly: ignore[missing-attribute]
+            self.config.hf_assets_path
         ):
             logger.warning(
                 f"HF assets path {self.config.hf_assets_path} does not exist!"
@@ -210,7 +210,7 @@ class ConfigManager:
                 "torchtitan/datasets/tokenizer/original/tokenizer.model"
             )
             if os.path.exists(old_tokenizer_path):
-                self.config.hf_assets_path = (  # pyrefly: ignore[missing-attribute]
+                self.config.hf_assets_path = (
                     old_tokenizer_path
                 )
                 logger.warning(
@@ -219,7 +219,7 @@ class ConfigManager:
                 )
         else:
             # Check if we are using tokenizer.model, if so then we need to alert users to redownload the tokenizer
-            if self.config.hf_assets_path.endswith(  # pyrefly: ignore[missing-attribute]
+            if self.config.hf_assets_path.endswith(
                 "tokenizer.model"
             ):
                 raise Exception(

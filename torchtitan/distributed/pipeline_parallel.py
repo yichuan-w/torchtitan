@@ -279,7 +279,7 @@ def _build_pipeline_schedule(
 
     if looped_schedule:
         schedule = schedule_class(
-            stages,  # pyrefly: ignore [bad-argument-type]
+            stages,
             n_microbatches=n_microbatches,
             loss_fn=_scalar_loss_fn,
             scale_grads=False,
@@ -306,7 +306,6 @@ def _build_pipeline_schedule(
             "Only PipelineScheduleSingle (single stage), PipelineScheduleMulti (multistage), "
             "and _PipelineScheduleRuntime support csv schedules"
         )
-        # pyrefly: ignore [missing-attribute]
         schedule._load_csv(pp_schedule_csv)
 
     return schedule

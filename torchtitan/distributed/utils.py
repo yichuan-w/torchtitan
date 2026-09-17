@@ -183,7 +183,6 @@ def set_determinism(
         # which makes torch.empty() run a fill kernel. This kernel races with
         # DeepEP comm streams, causing errors.
         # This also prevents HF modeling from initializing ROPE (inv_freq) buffers to NaN.
-        # pyrefly: ignore [missing-attribute]
         torch.utils.deterministic.fill_uninitialized_memory = False
         # env var for deterministic CuBLAS
         # https://pytorch.org/docs/stable/generated/torch.use_deterministic_algorithms.html
@@ -199,7 +198,6 @@ def set_determinism(
 
         FlexAttention.inductor_configs["max_autotune"] = False
         FlexAttention.inductor_configs["coordinate_descent_tuning"] = False
-        # pyrefly: ignore [no-matching-overload]
         FlexAttention._compiled_flex_attn = torch.compile(
             flex_attention, options=FlexAttention.inductor_configs
         )

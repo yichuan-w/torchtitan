@@ -86,7 +86,7 @@ def _get_default_save_ops() -> set:
 
     aten_op_types = get_default_op_list()
     save_ops = {
-        op.default  # pyrefly: ignore [missing-attribute]
+        op.default
         for op in aten_op_types.compute_intensive_ops
     }
     save_ops.update(_resolve_ops(compute_ops))
@@ -105,7 +105,6 @@ def _disable_dynamo_lru_cache() -> None:
     # here is to disable the LRU cache, and select graphs in insertion order instead.
     #
     # Also see: https://github.com/pytorch/pytorch/issues/166926
-    # pyrefly: ignore [missing-attribute]
     torch._C._dynamo.eval_frame._set_lru_cache(False)
 
 

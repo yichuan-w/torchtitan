@@ -231,7 +231,6 @@ class _RecurrentFwdChunkBwd(torch.autograd.Function):
     """
 
     @staticmethod
-    # pyrefly: ignore [bad-override]
     def forward(ctx, q, k, v, g, beta, cu_seqlens):
         ctx.save_for_backward(q, k, v, g, beta)
         ctx.cu_seqlens = cu_seqlens
@@ -263,7 +262,6 @@ class _RecurrentFwdChunkBwd(torch.autograd.Function):
         return out.to(q.dtype)
 
     @staticmethod
-    # pyrefly: ignore [bad-override]
     def backward(ctx, grad_out):
         q, k, v, g, beta = ctx.saved_tensors
         # Recompute the chunk kernel with grad enabled and backprop through it.
@@ -553,7 +551,7 @@ class GatedDeltaNet(Module):
             # the sequence before this layer), so it is closed over rather than
             # mapped.
             x_plc = x.placements
-            w_plc = conv.weight.placements  # pyrefly: ignore [missing-attribute]
+            w_plc = conv.weight.placements
             b_plc = conv.bias.placements if isinstance(conv.bias, DTensor) else None
             conv_dt = local_map(
                 _varlen_conv,
@@ -562,7 +560,7 @@ class GatedDeltaNet(Module):
                 in_grad_placements=(x_plc, w_plc, b_plc),
                 device_mesh=x.device_mesh,
             )
-            return conv_dt(x, conv.weight, conv.bias)  # pyrefly: ignore
+            return conv_dt(x, conv.weight, conv.bias)
 
         x = F.pad(x.transpose(1, 2), [self.conv_kernel_size - 1, 0])
         if isinstance(x, DTensor):
@@ -572,7 +570,7 @@ class GatedDeltaNet(Module):
             # restores DTensor-ness, with explicit gradient placements.
             x_plc = x.placements
             w = conv.weight
-            w_plc = w.placements  # pyrefly: ignore [missing-attribute]
+            w_plc = w.placements
 
             def _conv(x_local: torch.Tensor, w_local: torch.Tensor) -> torch.Tensor:
                 # groups == local out-channels (depthwise, channel-sharded)
@@ -593,7 +591,7 @@ class GatedDeltaNet(Module):
                 in_grad_placements=(x_plc, w_plc),
                 device_mesh=x.device_mesh,
             )
-            x = conv_dt(x, w)  # pyrefly: ignore
+            x = conv_dt(x, w)
         else:
             x = conv(x)
         return F.silu(x).transpose(1, 2)

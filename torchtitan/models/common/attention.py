@@ -105,7 +105,6 @@ class _VarlenAttnNonDetBwd(torch.autograd.Function):
     """
 
     @staticmethod
-    # pyrefly: ignore [bad-override]
     def forward(
         ctx, q, k, v, cu_seq_q, cu_seq_k, max_q, max_k, scale, window_size, enable_gqa
     ):
@@ -133,7 +132,6 @@ class _VarlenAttnNonDetBwd(torch.autograd.Function):
             )
 
     @staticmethod
-    # pyrefly: ignore [bad-override]
     def backward(ctx, grad_out):
         q, k, v = ctx.saved_tensors
         was_on = torch.are_deterministic_algorithms_enabled()
@@ -352,7 +350,6 @@ class FlexAttention(Module):
         "triton.cudagraphs": False,
     }
 
-    # pyrefly: ignore[no-matching-overload]
     _compiled_flex_attn: ClassVar[Callable] = torch.compile(
         flex_attention,
         options=inductor_configs,
@@ -740,7 +737,6 @@ def create_varlen_metadata_for_document(
     if len(all_seq_lengths) > 0:
         all_seq_lengths = torch.cat(all_seq_lengths)
         # device to host sync but only done once per model forward
-        # pyrefly: ignore[bad-assignment]
         max_seqlen = all_seq_lengths.max().item()
 
     return VarlenMetadata(
@@ -864,7 +860,7 @@ class FusedQKVLinear(BaseQKVLinear):
     @spmd.local_map(
         out_types=({"dp": spmd.S(0), "cp": spmd.S(1), "tp": spmd.S(2)},) * 3
     )
-    def forward(  # pyrefly: ignore[bad-override]
+    def forward(
         self, x: torch.Tensor
     ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
         bs, seqlen, _ = x.shape

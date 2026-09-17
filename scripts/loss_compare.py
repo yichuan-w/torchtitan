@@ -186,7 +186,7 @@ def extract_losses_from_tensorboard(
     scalar_tag = TB_LOSS_TAG
     available_tags = event_acc.Tags().get("scalars", [])
 
-    if scalar_tag not in available_tags:  # pyrefly: ignore [not-iterable]
+    if scalar_tag not in available_tags:
         raise KeyError(
             f"Scalar tag '{scalar_tag}' not found in TensorBoard events. "
             f"Available tags: {available_tags}"

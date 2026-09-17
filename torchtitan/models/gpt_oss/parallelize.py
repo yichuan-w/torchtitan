@@ -37,7 +37,6 @@ def _raise_dynamo_recompile_limit(
     # TODO: remove once https://github.com/pytorch/pytorch/issues/187073 is fixed
     min_recompile_limit = 12 if _has_sliding_window_attention(model) else 10
     # PyTorch types this config as Literal[8], but runtime accepts larger ints.
-    # pyrefly: ignore [bad-assignment]
     torch._dynamo.config.recompile_limit = max(
         torch._dynamo.config.recompile_limit,
         min_recompile_limit,
@@ -79,7 +78,6 @@ def parallelize_gptoss(
         # runs inside the local_map boundary on local tensors.
         if parallel_dims.cp_enabled:
             apply_cp_to_forward(
-                # pyrefly: ignore [missing-attribute]
                 [block.attention.inner_attention for block in model.layers.values()],
                 parallel_dims.get_mesh("cp"),
             )

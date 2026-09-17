@@ -134,7 +134,7 @@ def extract_tb_losses(tb_base: str) -> dict[int, float]:
         acc = EventAccumulator(path)
         acc.Reload()
         tags = acc.Tags().get("scalars", [])
-        if TB_LOSS_TAG in tags:  # pyrefly: ignore [not-iterable]
+        if TB_LOSS_TAG in tags:
             for s in acc.Scalars(TB_LOSS_TAG):
                 losses[s.step] = s.value
     log(f"Extracted {len(losses)} steps from {tb_base}")
