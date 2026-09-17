@@ -183,6 +183,9 @@ def _tmax_rollouter(*, validation_from_caller: bool = False) -> TMaxRollouter.Co
         evolution_harder_ratio=float(
             os.environ.get("SWE_EVOLUTION_HARDER_RATIO", "1.0")
         ),
+        evolution_easier_ratio=float(
+            os.environ.get("SWE_EVOLUTION_EASIER_RATIO", "0.0")
+        ),
         # SWE_REWARD_DENSE=1 trains on the verifier's per-test pass fraction instead
         # of its binary reward (see TMaxRollouter.Config.reward_mode). Same env name
         # as the swe_r2e knob (grading.py) since it is the same concept -- there, the

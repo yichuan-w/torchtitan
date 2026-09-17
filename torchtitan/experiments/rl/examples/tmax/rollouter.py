@@ -853,6 +853,20 @@ class TMaxRollouter(Rollouter):
         existing zero-variance rule. Must be in (0, 1]. Mixed groups still train.
         """
 
+        evolution_easier_ratio: float = 0.0
+        """Maximum solved fraction for simplification. Must be in
+        [0, evolution_harder_ratio).
+
+        A threshold rather than "every reward is 0", because a reward of 0 is not
+        the only way to fail: with SWE_WRONG_SUBMIT_PENALTY on (0.3 in our runs) a
+        graded-wrong submit scores -0.3, so a group that solved nothing was
+        neither all-zero nor at the harder ratio and emitted no signal at all --
+        not even the infra advisory below. Since a 0/k group usually contains at
+        least one wrong submit, that silently covered most of what this direction
+        exists for. At the default 0.0 this asks the intended question, "did
+        anything solve it", whatever the failures scored.
+        """
+
         max_context_tokens: int = 32768
         """Model context budget for the adapter session."""
 
@@ -866,6 +880,13 @@ class TMaxRollouter(Rollouter):
             )
         if not 0 < config.evolution_harder_ratio <= 1:
             raise ValueError("evolution_harder_ratio must be in (0, 1]")
+        # Strictly below the harder ratio: at equality one solved fraction asks for
+        # both directions at once, and which one it got would come down to the
+        # order of the branches below.
+        if not 0 <= config.evolution_easier_ratio < config.evolution_harder_ratio:
+            raise ValueError(
+                "evolution_easier_ratio must be in [0, evolution_harder_ratio)"
+            )
         super().__init__(config)
         # Training and evaluation share Terminus unless a run explicitly selects
         # another scaffold with its corresponding action format.
@@ -880,6 +901,7 @@ class TMaxRollouter(Rollouter):
         self._max_context_tokens = config.max_context_tokens
         self._reward_mode = config.reward_mode
         self._evolution_harder_ratio = config.evolution_harder_ratio
+        self._evolution_easier_ratio = config.evolution_easier_ratio
         # The CTRF read is one extra sandbox exec per graded rollout, and the Daytona
         # API rate limit is the throughput ceiling at high rollout concurrency -- so
         # it is opt-in for metrics, and mandatory when it feeds the reward.
@@ -1180,18 +1202,21 @@ class TMaxRollouter(Rollouter):
             if len(rewards) < 2:
                 return
             solved = sum(reward > 0 for reward in rewards)
-            all_failed = all(reward == 0 for reward in rewards)
+            # How much of the group solved it, which is what both directions are
+            # thresholds on. Counting solves rather than testing each reward
+            # against 0 keeps the question independent of what a failure scored:
+            # a wrong-submit penalty makes a failure negative, not zero.
+            fraction = solved / len(rewards)
+            at_floor = fraction <= self._evolution_easier_ratio
             if self._reward_mode == "dense":
                 # Positive partial credit is not a solve rate; preserve the dense
                 # policy rather than applying a binary-success knob to it.
                 if statistics.pstdev(rewards) != 0.0:
                     return
-            elif (
-                not all_failed and solved / len(rewards) < self._evolution_harder_ratio
-            ):
+            elif not at_floor and fraction < self._evolution_harder_ratio:
                 return
             group_id = rollouts[0].group_id
-            if all_failed and not any(len(r.turns) for r in rollouts):
+            if at_floor and not any(len(r.turns) for r in rollouts):
                 # An all-fail group in which no attempt ever took a turn measured
                 # the infrastructure (agent import error, sandbox never up), not
                 # the task; a signal would drive an unearned simplify. One real
@@ -1219,7 +1244,7 @@ class TMaxRollouter(Rollouter):
                 return
             if os.environ.get("SWE_EVOLUTION_SIGNALS", "1") != "1":
                 return
-            passed = not all_failed
+            passed = not at_floor
             layout.write_json_atomic(
                 run.signal(sample.instance_id, group_id),
                 {
