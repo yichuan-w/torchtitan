@@ -1,4 +1,7 @@
-exclude: 'build'
+# data_curation/ holds the TMax audit record vendored as-is: judge prompts, judge
+# verdict JSONL and harness scripts. The fixers would rewrite recorded artifacts
+# (v8_delta.patch's context lines, verdict files), so it is excluded on purpose.
+exclude: '(build|^data_curation/)'
 
 default_language_version:
     python: python3
