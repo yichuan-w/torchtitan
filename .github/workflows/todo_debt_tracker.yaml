@@ -24,8 +24,10 @@ concurrency:
 jobs:
   check_todos:
     name: Generate Report
-    # Skip scheduled runs on forks, where they would only fail and email the fork owner
-    if: github.repository_owner == 'pytorch' || github.event_name != 'schedule'
+    # Skip on forks entirely: the job edits issue #2936 in github.repository, which
+    # exists only in pytorch/torchtitan, so every fork run fails and emails the owner.
+    # The upstream guard covered schedule only, so a push to a fork's main still failed.
+    if: github.repository_owner == 'pytorch'
     runs-on: ubuntu-latest
     permissions:
       contents: read
