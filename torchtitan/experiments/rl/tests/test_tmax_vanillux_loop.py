@@ -32,10 +32,10 @@ from torchtitan.experiments.rl.examples.tmax import (
 from torchtitan.experiments.rl.examples.tmax.data import TMaxSample
 from torchtitan.experiments.rl.examples.tmax.rollouter import (
     _finish_reason_metrics,
-    _timing_metrics,
     _note_image_without_tmux,
     _sandbox_issue_metrics,
     _SandboxRolloutDiagnostics,
+    _timing_metrics,
     _write_rollout_record,
     TMaxRollouter,
 )

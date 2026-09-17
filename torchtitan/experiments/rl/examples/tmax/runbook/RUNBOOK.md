@@ -737,7 +737,8 @@ these are the variables that touch them.
 | `SWE_MAX_CONTEXT_LEN` | `63488` | **four different defaults** by entry point (32768 / 63488 / 22528 / 20480) | per-session context budget. Always set it explicitly. |
 | `TMAX_AGENT` | `terminus` | `terminus` | agent scaffold. Changes the action distribution. |
 | `SWE_AGENT_TIMEOUT_FLOOR_SEC` | `7200` | `7200` | floor on a task's declared budget, never a ceiling. 900 capped TB-2.0 tasks and caused ~60% eval timeouts. |
-| `SWE_WRONG_SUBMIT_PENALTY` | `0.3` | `0` | reward penalty for submitting a wrong answer. |
+| `SWE_WRONG_SUBMIT_PENALTY` | `0.3` | `0` | reward penalty for submitting a wrong answer. A failure is then scored -0.3, not 0, which is why the evolution thresholds below count solves rather than testing rewards against 0. |
+| `SWE_EVOLUTION_EASIER_RATIO` | unset | `0.0` | solved fraction at or below which a group asks the loop for `easier`. Must stay strictly below `SWE_EVOLUTION_HARDER_RATIO`. |
 | `SWE_REWARD_DENSE` | unset | `0` | dense per-test reward instead of binary. |
 | `TMAX_FORMAT_ERROR_FEEDBACK` | unset | `0` | at `0`, a turn with no tool call ends the rollout immediately (open-instruct parity). |
 | `TMAX_TERMINUS_SUMMARIZE` | unset | `0` | upstream defaults this on; the module docstring says "on a 9B it is lethal". |

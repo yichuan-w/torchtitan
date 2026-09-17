@@ -46,11 +46,14 @@ Two switches, both on by default, and both write under the run directory the
 launcher exports as `TRL_RUN_DIR`. `SWE_ROLLOUT_RECORDS=1` writes every rollout
 once, as `rollouts/<task>/g<group>-r<idx>.jsonl`: the rollout on line 1, then
 one line per turn. `SWE_EVOLUTION_SIGNALS=1` writes one signal per
-no-signal group as `signals/<task>--g<group>.json`, in **both** directions:
-all-fail (0/k) is `easier`, and a solved fraction at or above
-`SWE_EVOLUTION_HARDER_RATIO` (default 1.0, so k/k) is `harder`. Under dense
+no-signal group as `signals/<task>--g<group>.json`, in **both** directions, each
+a threshold on the solved fraction: at or below `SWE_EVOLUTION_EASIER_RATIO`
+(default 0.0, so 0/k) is `easier`, at or above `SWE_EVOLUTION_HARDER_RATIO`
+(default 1.0, so k/k) is `harder`. Counting solves keeps this independent of
+what a failure scored, which `SWE_WRONG_SUBMIT_PENALTY` makes negative rather
+than zero. Under dense
 rewards the zero-variance rule stands instead, since a partial-credit mean is
-not a solve rate. A group with reward variance below the threshold is already
+not a solve rate. A group between the two thresholds is already
 producing signal and is left alone. The signal
 carries the task, the row's `rev`, the run, the group, `solved` / `total` and
 the paths of the group's rollout records relative to the run directory; the

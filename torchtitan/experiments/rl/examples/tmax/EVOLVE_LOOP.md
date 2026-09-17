@@ -64,17 +64,42 @@ rollout records. The transcript is referenced, never copied; the loop hardlinks
 those same files into the rewrite's package, so the agent that rewrites a task
 reads the bytes the trainer wrote.
 
-Under the sparse reward that trains this pool, every attempt failing asks for
-`easier`, and a solved fraction at or above `SWE_EVOLUTION_HARDER_RATIO`
-(default 1.0, so all-pass) asks for `harder`. Under dense rewards the original
-zero-variance rule stands, because a partial-credit mean is not a solve rate.
+Under the sparse reward that trains this pool, both directions are thresholds on
+the solved fraction: at or below `SWE_EVOLUTION_EASIER_RATIO` (default 0.0, so
+nothing solved) asks for `easier`, at or above `SWE_EVOLUTION_HARDER_RATIO`
+(default 1.0, so all-pass) asks for `harder`, and the easier ratio must stay
+strictly below the harder one. Under dense rewards the original zero-variance
+rule stands, because a partial-credit mean is not a solve rate.
 
-One case is suppressed. An all-fail group in which no attempt ever took a turn
-measured the infrastructure: an agent that failed to import, a sandbox that
-never came up. A signal there would buy an unearned simplification. That
-group is written to `advisories/infra_quarantine.jsonl` instead, because a task
-that destroys every group it is drawn into is worth reading about even when it
-is not worth rewriting.
+Counting solves rather than testing each reward against zero is what makes the
+question independent of what a failure scored. The easier direction used to ask
+whether every reward was exactly 0, and `SWE_WRONG_SUBMIT_PENALTY`, 0.3 in
+these runs, scores a graded-wrong submit at -0.3. A group that solved nothing
+was then neither all-zero nor at the harder ratio, so it returned early and
+emitted no signal in either direction, not even the advisory below. Since a 0/k
+group usually holds at least one wrong submit, that covered most of what the
+easier direction exists for.
+
+One case is suppressed. A group that solved nothing and in which no attempt ever
+took a turn measured the infrastructure: an agent that failed to import, a
+sandbox that never came up. A signal there would buy an unearned simplification.
+That group is written to `advisories/infra_quarantine.jsonl` instead, because a
+task that destroys every group it is drawn into is worth reading about even when
+it is not worth rewriting.
+
+The turn count is the test rather than the `infra_failed` diagnostic, because
+the rollouts carrying that flag are not in this decision's input: the harness
+sets their reward to NaN, so `is_scored` is false and the function's first line
+filters them out, and a group where every sibling failed that way has fewer than
+two scored rewards and returns before any advisory. The turn count catches what
+the flag misses. The `if not turns:` branch sets `status` and `error_msg` and
+leaves `infra_failed` alone, so a rollout whose sandbox came up and captured
+something but produced no trainable turn carries a legitimate 0.0 past
+`is_scored` and makes a plausible-looking 0/k. What `infra_failed` records is
+whether a failure should count against the policy, not whether the attempt ever
+tested the task: the disk-exhaustion path sets it back to False on purpose,
+because the agent filled its own disk and is scored 0 for it. Two different
+questions, so two tests.
 
 Emitting a signal changes nothing about the step in flight: the group keeps its
 advantages, the batch keeps its size.
