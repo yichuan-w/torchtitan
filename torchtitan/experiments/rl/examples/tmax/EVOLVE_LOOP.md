@@ -9,8 +9,8 @@ restarted and watched.
 
 ## What a task is worth
 
-A task in this pool is attempted k times per training step, and GRPO trains on
-the spread between those attempts. A group where every attempt passes and a
+A task in this pool is attempted k times per training step (`SWE_GROUP_SIZE`,
+12 in this root's runs), and GRPO trains on the spread between those attempts. A group where every attempt passes and a
 group where every attempt fails both have zero advantage, so the k rollouts
 spent on them move no gradient. The rollouts are the expensive part of the run:
 each is a container, an agent, and an episode of terminal work up to the turn
@@ -69,8 +69,9 @@ the solved fraction: at or below `SWE_EVOLUTION_EASIER_RATIO` (default 0.0, so
 nothing solved) asks for `easier`, at or above `SWE_EVOLUTION_HARDER_RATIO`
 (default 1.0, so all-pass) asks for `harder`, and the easier ratio must stay
 strictly below the harder one. A run can sit inside those defaults: this root's
-runs set the harder ratio to 0.9, so a group one short of all-pass already asks. Under dense rewards the original zero-variance
-rule stands, because a partial-credit mean is not a solve rate.
+runs set the harder ratio to 0.9, so a group one short of all-pass already asks.
+Under dense rewards the original zero-variance rule stands, because a
+partial-credit mean is not a solve rate.
 
 Counting solves rather than testing each reward against zero is what makes the
 question independent of what a failure scored. The easier direction used to ask
@@ -114,12 +115,11 @@ agent from finishing on a rewrite it never executed.
 The default is student-guided. The agent reads the attempts that solved the task
 and finds the step that was free: the guidance the instruction handed over, the
 sub-problem the policy never had to work out. It then adds one requirement that
-removes it. A fixed menu of 40 rewrite operators in 5 families,
-transcribed from RST's Table 7, is still available behind
-`EVOLVE_HARDER_OPERATORS=1`, scored for family balance and against repeats; it
-is the comparison arm. Either way the change is one rung, and the reference
-solution's growth is bounded so that "harder" cannot be met by making the
-solution longer.
+removes it. The change is one rung, not a new task: everything the seed asked
+for stays, and the reference solution's growth is bounded so that "harder"
+cannot be met by making the solution longer. The agent declares the change and
+its trace evidence in `run/hardening.md` before editing, and a session that
+declares nothing fails rather than falling back to a default.
 
 ### Easier
 

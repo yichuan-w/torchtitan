@@ -699,13 +699,14 @@ default, both are shown.
 Paths are conventions of the root, not settings ([`../LAYOUT.md`](../LAYOUT.md));
 these are the variables that touch them.
 
+<!-- `ours` is read off runs/tmax-9b--20260911-000700Z/launch.json, which records the env a run launched with. A root configured differently is its own launch.json, not this table. `unset` means the record does not carry the variable, which is not the same as setting it to the code default. -->
 | variable | ours | code default | controls |
 |---|---|---|---|
 | `TRL_PROFILE` | `andy` | none; the launcher refuses | which `profiles/<name>.env` supplies `TRL_TT` and `TRL_BASE`. |
 | `TRL_BASE` | from the profile | none | the experiment root: `data/`, `runs/`, `evolution/`, `evals/`, `logs/`, `bin/`. |
 | `TRL_RUN_DIR` | set by the launcher | unset | the run directory; the trainer writes only under it. |
 | `RL_RESUME_FROM` | unset | unset | a run name or directory whose checkpoints the new run resumes. |
-| `RL_DATA` | unset | unset | a mix file other than `data/mix/live.jsonl`; copied into the run, which then has no mix version. |
+| `RL_DATA` | `data/seeds/tmax_only_a84676aa.jsonl` | unset | a mix file other than `data/mix/live.jsonl`; copied into the run, which then has no mix version, and is not fed by the evolve loop. That is what the reference run does, so `mix_version` in its launch.json is null. |
 | `SWE_ROLLOUT_RECORDS` | `1` | `1` | one JSONL per rollout under `runs/<run>/rollouts/`. |
 | `SWE_EVOLUTION_SIGNALS` | `1` | `1` | one JSON per zero-variance group under `runs/<run>/signals/`; what the loop reads. |
 | `TMAX_PANE_DUMP` | unset | `0` | `1` writes the tmux pane transcript beside each rollout record. |
@@ -720,14 +721,15 @@ these are the variables that touch them.
 
 ### Correctness — these change what the run *is*
 
+<!-- `ours` is read off runs/tmax-9b--20260911-000700Z/launch.json, which records the env a run launched with. A root configured differently is its own launch.json, not this table. `unset` means the record does not carry the variable, which is not the same as setting it to the code default. -->
 | variable | ours | code default | controls |
 |---|---|---|---|
 | `SWE_DP_SHARD` | `2` | `0` (keep base FSDP-8) | trainer FSDP width. Must match GPU count with `SWE_GEN_DP`. |
-| `SWE_GEN_DP` | `3` | `0` (base DP-8) | vLLM engines. Must match GPU count with `SWE_DP_SHARD`. |
-| `RL_GPU_OFFSET` | `0` | `0` | start of the contiguous GPU window. The only way to move placement. |
+| `SWE_GEN_DP` | `1` | `0` (base DP-8) | vLLM engines. Must match GPU count with `SWE_DP_SHARD`. |
+| `RL_GPU_OFFSET` | unset, so `0` | `0` | start of the contiguous GPU window. The only way to move placement. |
 | `SWE_GEN_BACKEND` | `vllm_native` | `vllm_native` | `torchtitan_wrapper` is the unified-model path; it asserts under FA4 here. |
 | `SWE_NUM_GROUPS_PER_TRAIN_STEP` | `32` | `8` | prompt groups per optimizer step. |
-| `SWE_GROUP_SIZE` | `16` | `32` | rollouts per prompt — the GRPO group. |
+| `SWE_GROUP_SIZE` | `12` | `32` | rollouts per prompt — the GRPO group. |
 | `SWE_OFFPOLICY_STEPS` | unset | `4` | policy-age cap. |
 | `SWE_DROP_ZERO_STD` | `0` | `1` | drop groups with no reward variance. Off here *only* because evolution re-tunes them instead. Without evolution, use `1`. |
 | `SWE_TRAIN_STEPS` | `150` | `100` | total optimizer steps. |
@@ -747,13 +749,14 @@ these are the variables that touch them.
 
 ### Performance and capacity
 
+<!-- `ours` is read off runs/tmax-9b--20260911-000700Z/launch.json, which records the env a run launched with. A root configured differently is its own launch.json, not this table. `unset` means the record does not carry the variable, which is not the same as setting it to the code default. -->
 | variable | ours | code default | controls |
 |---|---|---|---|
-| `SWE_ROLLOUT_CONCURRENCY` | `1536` | `16` | global cap on live rollouts (and sandboxes). |
+| `SWE_ROLLOUT_CONCURRENCY` | `500` | `16` | global cap on live rollouts (and sandboxes). |
 | `SWE_NUM_ROLLOUT_WORKERS` | `16` | `8` | rollout worker processes. |
-| `SWE_MAX_ACTIVE_GROUPS` | `512` | `40` | run-ahead group buffer. |
+| `SWE_MAX_ACTIVE_GROUPS` | `160` | `40` | run-ahead group buffer. |
 | `SWE_INITIAL_ACTIVE_GROUPS` | `64` | computed | cold-start admission. |
-| `SWE_SELECTION_WINDOW_GROUPS` | `64` | unset (take-any) | sliding-prefix batch selection. |
+| `SWE_SELECTION_WINDOW_GROUPS` | unset | unset (take-any) | sliding-prefix batch selection. |
 | `SWE_GPU_MEM_LIMIT` | `0.85` | `0` (keep `0.8`) | vLLM's **total** budget: weights + activations + KV. |
 | `SWE_GEN_PREFIX_CACHE` | `1` | unset (vLLM's choice) | prefix caching. ~2x prefill on this hybrid, byte-identical outputs in a local smoke. |
 | `SWE_GEN_CUDAGRAPH` | unset | `1` in tmax, `0` in swe_r2e | ~3x GDN decode. Note the families disagree. |
@@ -763,22 +766,22 @@ these are the variables that touch them.
 | `TMAX_TERMINUS_MAX_TURNS` | `120` | `64` | turn ceiling. |
 | `TMAX_TURN_MAX_TOKENS` | `32768` | `16384` (terminus) | per-turn generation cap. |
 | `SWE_CKPT_INTERVAL` | `5` | `20` | steps between saves. |
-| `SWE_CKPT_KEEP` | `8` | `3` | checkpoints retained. 8 x 98 GiB ~= 0.8 TiB. |
+| `SWE_CKPT_KEEP` | `3` | `3` | checkpoints retained, at ~98 GiB each. |
 | `SWE_LMHEAD_TF32` | `1` | `0` | TF32 tensor cores for the fp32 lm_head matmuls (loss). Measured 08-30 (B300, 65536-token rows): with `SWE_LOSS_CHUNKS=8`, loss_fn 6.60 -> 0.82 s/mb, whole fwd_bwd 14.10 -> ~5.9 s/mb; grad_norm unchanged. |
 | `SWE_AC` | `selective` | FullAC | per-op selective activation checkpointing. Safe only with the packed-row cu_seqlens hoisted out of AC (4380eaab); before that fix, both AC modes could deadlock in recompute. Measured 08-30 on top of TF32+chunks: fwd_bwd ~5.9 -> 5.65 s/mb median (117 mb), backward 3.99 -> 3.72 s/mb; trainer GPUs 238/275 GiB. |
 | `SWE_LOSS_CHUNKS` | `8` | `32` | chunked-loss width; fewer = larger lm_head GEMMs. Validated with TF32 above. |
-| `SWE_MAX_NUM_SEQS` | `256` | `256` | decode slots per engine. 512 collapsed the pipeline: per-seq decode halved, turns stopped fitting agent budgets. |
-| `SWE_SANDBOX_BOOT_ALLOWANCE_SEC` | `2700` | `2700` | extra initial rollout-guard headroom for the sandbox boot queue; rescheduled away once the sandbox is up. |
-| `TT_DAYTONA_CREATE_CONCURRENCY` | `8` | `16` | **per rollout-worker process**, not global: the semaphore is module-level and each worker is its own process, so the effective global parallelism is this value x SWE_NUM_ROLLOUT_WORKERS. 8 x 16 workers = 128 global, which saturates the platform's ~2000 creates/min. A `128` here (misread as global) is 2048 global and produces 429/BadRequest storms at every boot wave. |
-| `SWE_VAL_SAMPLES` | `0` | 89 or 32 | `0` disables validation entirely. |
+| `SWE_MAX_NUM_SEQS` | unset, so `256` | `256` | decode slots per engine. 512 collapsed the pipeline: per-seq decode halved, turns stopped fitting agent budgets. |
+| `SWE_SANDBOX_BOOT_ALLOWANCE_SEC` | unset, so `2700` | `2700` | extra initial rollout-guard headroom for the sandbox boot queue; rescheduled away once the sandbox is up. |
+| `TT_DAYTONA_CREATE_CONCURRENCY` | `128` | `16` | **per rollout-worker process**, not global: the semaphore is module-level and each worker is its own process, so the effective global parallelism is this value x SWE_NUM_ROLLOUT_WORKERS. this root's runs set 128 here against 16 workers. Daytona's own ceiling is what limits it: a 429 or a failed create is retried through, so this is not a number to hold back. |
+| `SWE_VAL_SAMPLES` | `89` | 89 or 32 | `0` disables validation entirely. |
 | `SWE_VAL_INTERVAL` | `20` | `20` | steps between validation passes. |
-| `SWE_NUM_EVAL_GENERATORS` | `0` | `0` | dedicated eval GPUs; `>0` also makes validation async. |
-| `SWE_EVAL_GEN_DP` | `0` | `0` | engines per eval generator. `0` = as wide as a training generator (`SWE_GEN_DP`), which on one 8-GPU box hands most of the box to a host that works every `SWE_VAL_INTERVAL` steps; `1` spends one GPU on it. A pass still running at the next interval is skipped, not queued, so undersizing thins the eval curve rather than stalling the step. |
+| `SWE_NUM_EVAL_GENERATORS` | `1` | `0` | dedicated eval GPUs; `>0` also makes validation async. |
+| `SWE_EVAL_GEN_DP` | `1` | `0` | engines per eval generator. `0` = as wide as a training generator (`SWE_GEN_DP`), which on one 8-GPU box hands most of the box to a host that works every `SWE_VAL_INTERVAL` steps; `1` spends one GPU on it. A pass still running at the next interval is skipped, not queued, so undersizing thins the eval curve rather than stalling the step. |
 | `SWE_DATA_HOT_RELOAD` | `1` | `0` | re-read the JSONL on mtime change. Required for evolution. |
 | `TT_DAYTONA_CREATE_RETRIES` | `8` | `5` | create retries. |
-| `TT_DAYTONA_MEM_GB` | `4` | `4` | per-sandbox memory when the row declares none. |
+| `TT_DAYTONA_MEM_GB` | `2` | `4` | per-sandbox memory when the row declares none. |
 | `TT_DAYTONA_MAX_MEM_GB` | `8` | `8` | clamp on a row's declared request. |
-| `TT_DAYTONA_DISK_GB` | `10` | `6` | per-sandbox disk. |
+| `TT_DAYTONA_DISK_GB` | `2` | `6` | per-sandbox disk. |
 | `TT_DAYTONA_HEARTBEAT_SEC` | `180` | `min(180, auto_stop*20)` | keeps a sandbox alive while the rollout waits on generation. |
 | `TT_DAYTONA_AUTO_DELETE_MIN` | `15` | `0` | cloud-side delete delay. |
 | `TT_DAYTONA_EPHEMERAL` | `1` | `0` | ephemeral create flag. |
@@ -895,15 +898,16 @@ harder — and folds the rewrite back into the live training file.
 
 ### Credentials and knobs
 
+<!-- `live value` is read off exp-tmax-offline-20260913/evolution/loop.env, the loop's own snapshot of its environment. -->
 | variable | live value | note |
 |---|---|---|
 | `OPENAI_API_KEY` | *(supplied)* | the retune model. Dies at startup without it. `SYNTH_ENV_FILE` can point at a file holding it instead. |
 | `DAYTONA_API_KEY` | *(supplied)* | structural revalidation. Without it every all-pass retune is declined `no_docker`. |
-| `SYNTH_API_BASE` | `https://us.api.openai.com/v1` | note the regional host; `api.openai.com` 401s with "incorrect regional hostname". |
-| `SYNTH_MODEL` | `gpt-5.6` | an alias that resolves to the most expensive of three tiers — price against the resolved name, not the alias. |
+| `SYNTH_API_BASE` | unset | only used on the API-key path; this root authenticates Codex with a ChatGPT login (`EVOLVE_CODEX_AUTH_FILE`) instead. When set, note the regional host: `api.openai.com` 401s with "incorrect regional hostname". |
+| `SYNTH_MODEL` | `gpt-5.6-sol` | an alias that resolves to the most expensive of three tiers — price against the resolved name, not the alias. |
 | `SWE_RETUNE_AGENT` | `codex` | `chat` (default) does single API calls. `codex` runs an agent session under `agents/task_evolution.md`, capped at 25 tool calls / 600s, with a private `CODEX_HOME` so a stray token cannot win. Falls back to `chat` on failure. |
-| `SWE_VERIFIER_AUTHOR` | `blind` | `blind` (default): a second Codex session that never sees the reference solution writes the verifier from the instruction and the container, and the harness runs the check where the two meet. `same`: the session that wrote the solution writes the verifier too. Blind costs about 2.3x the per-task loop time (paired round 2026-09-04: median 430 s to 974 s) and buys verifiers that cannot depend on a name only the solution knows. |
-| `SWE_OPERATOR_DIVERSITY` | `freq` | Which spreading terms the operator score applies in evolution: `family+freq` (family balance across the pool plus per-operator damping; synthesis's default), `freq` (default: per-operator damping only), `off` (local fit only). Family balance was what moved a rewrite out of its seed's kind of work; `pool_diversity.py` is how the trade is read. |
+| `SWE_VERIFIER_AUTHOR` | unset, so `blind` | `blind` (default): a second Codex session that never sees the reference solution writes the verifier from the instruction and the container, and the harness runs the check where the two meet. `same`: the session that wrote the solution writes the verifier too. Blind costs about 2.3x the per-task loop time (paired round 2026-09-04: median 430 s to 974 s) and buys verifiers that cannot depend on a name only the solution knows. |
+| `SWE_OPERATOR_DIVERSITY` | unset, so `freq` | Which spreading terms the operator score applies in evolution: `family+freq` (family balance across the pool plus per-operator damping; synthesis's default), `freq` (default: per-operator damping only), `off` (local fit only). Family balance was what moved a rewrite out of its seed's kind of work; `pool_diversity.py` is how the trade is read. |
 | `SWE_EVOLVE_SIMPLIFY` | `0` | **off.** Default is on. A 0/k signal arriving while it is off gets a `deferred` ledger line and is replayed when it is turned on. |
 | `SWE_SIMPLIFY_HINT` | `vague` | `specific` bakes where-to-look hints into hundreds of instructions and the holdout experiment showed the policy learns hint-following that does not transfer. |
 | `TRL_BASE` | the root | where the loop reads (`runs/*/signals/`, `runs/*/rollouts/`) and writes (`evolution/`, `data/mix/`); the profile's value unless exported. |
