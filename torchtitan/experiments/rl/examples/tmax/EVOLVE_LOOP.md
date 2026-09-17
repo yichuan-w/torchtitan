@@ -252,9 +252,12 @@ together and files under `tests/` each stay under 1 MiB, and a binary under
                          the run cost (memory peak, cpu seconds, disk)
 ./sandbox grade          grade the current state as it is
 ./sandbox reset          a fresh container from the current Dockerfile
-./sandbox check          reset; grade the untouched workspace, which must fail;
-                         run the oracle, which must pass; audit the names the
-                         verifier depends on. Prints VERDICT: pass|fail
+./sandbox check          the whole verdict, on a freshly booted container: grade
+                         the untouched workspace (must fail), run the oracle
+                         (must pass), check the step size (must be in bounds);
+                         then audit the names the verifier depends on, which is
+                         printed and recorded but does not decide the verdict.
+                         Prints VERDICT: pass|fail and the oracle's measured cost
 ./sandbox down           delete it
 ```
 
@@ -265,7 +268,9 @@ as it is saved; a Dockerfile edit takes effect on `reset`.
 
 `./sandbox check` is the agent's mirror, not the judge: the caller re-runs the
 same checks afterwards from files the agent cannot reach. Having the agent run
-it is what stops it finishing on a rewrite it never executed.
+it is what stops it finishing on a rewrite it never executed. It also has a side
+effect that matters downstream: the memory, cpu and disk the oracle run measures
+are what size the box the caller's own revalidation opens.
 
 ### What it must declare
 
