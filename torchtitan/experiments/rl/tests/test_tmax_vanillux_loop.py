@@ -1048,28 +1048,31 @@ def test_zero_variance_is_judged_over_scored_siblings_only(
     ]
 
 
-def test_all_fail_group_with_zero_turns_is_a_quarantine_advisory_not_a_signal(
+def test_all_fail_group_with_zero_turns_is_an_ordinary_easier_signal(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
-    """No attempt took a turn: that measured the infrastructure, not the task. A
-    signal would drive an unearned simplify; the advisory keeps the finding."""
+    """Taking no turn is not a reason to withhold the signal.
+
+    An attempt the harness could not score carries NaN and is filtered out
+    before this decision, so a scored zero is a verdict on the task whether or
+    not the attempt got as far as a turn. The turn count used to be tested here
+    as well, which asked a second time what `infra_failed` already answers.
+    """
     run = _run_dir(monkeypatch, tmp_path)
     rollouter = object.__new__(TMaxRollouter)
     rollouts = [_rollout(9, idx, 0.0, turns=0) for idx in range(16)]
 
     rollouter._maybe_emit_evolution_signal(_sample("task-dead"), rollouts)
 
-    assert run.signal_files() == []
-    (line,) = layout.read_jsonl(run.advisory("infra_quarantine"))
-    assert _STAMP.match(line["stamp"])
-    assert line == {
-        "stamp": line["stamp"],
-        "task": "task-dead",
-        "image": "example/image",
-        "reason": "all_fail_zero_turns",
-        "group": 9,
-        "rollouts_lost": 16,
-    }
+    (signal,) = run.signal_files()
+    body = json.loads(signal.read_text())
+    assert (body["task"], body["direction"], body["solved"], body["total"]) == (
+        "task-dead",
+        "easier",
+        0,
+        16,
+    )
+    assert not run.advisory("infra_quarantine").exists()
 
 
 def test_signal_lists_only_records_that_were_written(

@@ -552,11 +552,10 @@ def _note_image_without_tmux(
     pool.** Terminus usually installs tmux successfully at runtime; an image
     without it is only fatal when the runtime install ALSO fails, which needs
     both no package and no compiler. Measured on the first pass: 78 tasks landed
-    here while the infra-quarantine list -- the groups that actually died at
-    zero turns -- held none of them. Filtering on this one would drop 78 healthy
-    tasks. ``infra_quarantine`` is the advisory with a verdict behind it; this
-    one says where to look first when a group does die. One line per probe that
-    failed, so the count of a task's lines is how often it has come up.
+    here while none of them was among the groups that actually died at zero
+    turns. Filtering on this one would drop 78 healthy tasks. It says where to
+    look first when a group does die. One line per probe that failed, so the
+    count of a task's lines is how often it has come up.
     """
     run = _run_dir()
     if run is None:
@@ -857,14 +856,13 @@ class TMaxRollouter(Rollouter):
         """Maximum solved fraction for simplification. Must be in
         [0, evolution_harder_ratio).
 
-        A threshold rather than "every reward is 0", because a reward of 0 is not
-        the only way to fail: with SWE_WRONG_SUBMIT_PENALTY on (0.3 in our runs) a
-        graded-wrong submit scores -0.3, so a group that solved nothing was
-        neither all-zero nor at the harder ratio and emitted no signal at all --
-        not even the infra advisory below. Since a 0/k group usually contains at
-        least one wrong submit, that silently covered most of what this direction
-        exists for. At the default 0.0 this asks the intended question, "did
-        anything solve it", whatever the failures scored.
+        A threshold on solves rather than "every reward is 0", so that the
+        question is "did anything solve it" and does not depend on what a failure
+        scored. SWE_WRONG_SUBMIT_PENALTY is the switch that changes that: it
+        scores a graded-wrong submit negative, and the old test would then read a
+        group that solved nothing as neither all-zero nor at the harder ratio and
+        emit no signal in either direction. No run has set it (checked across
+        this root's launch.json files), so that was latent, not observed.
         """
 
         max_context_tokens: int = 32768
@@ -1216,32 +1214,12 @@ class TMaxRollouter(Rollouter):
             elif not at_floor and fraction < self._evolution_harder_ratio:
                 return
             group_id = rollouts[0].group_id
-            if at_floor and not any(len(r.turns) for r in rollouts):
-                # An all-fail group in which no attempt ever took a turn measured
-                # the infrastructure (agent import error, sandbox never up), not
-                # the task; a signal would drive an unearned simplify. One real
-                # turn anywhere is enough to call it measured. Suppressing the
-                # signal is right, but returning silently used to throw the
-                # finding away with it: the task stays in the pool and destroys
-                # a whole group every time it is drawn, and the only trace was
-                # one warning in a log nobody greps. One advisory line per such
-                # group instead, where a filter can read it.
-                logger.warning(
-                    f"[tmax] evolution signal suppressed for "
-                    f"{sample.instance_id}: all-fail group with zero turns"
-                )
-                layout.append_jsonl(
-                    run.advisory("infra_quarantine"),
-                    {
-                        "stamp": layout.stamp(),
-                        "task": sample.instance_id,
-                        "image": sample.image,
-                        "reason": "all_fail_zero_turns",
-                        "group": group_id,
-                        "rollouts_lost": len(rollouts),
-                    },
-                )
-                return
+            # A group that took no turn anywhere used to be suppressed here as an
+            # infrastructure failure rather than a task verdict. That was a second
+            # test of a question `infra_failed` already answers: an attempt the
+            # harness could not score carries NaN and is filtered out by
+            # is_scored above, so whatever reaches this point was scored, and a
+            # scored zero is a verdict on the task. Nothing left to special-case.
             if os.environ.get("SWE_EVOLUTION_SIGNALS", "1") != "1":
                 return
             passed = not at_floor

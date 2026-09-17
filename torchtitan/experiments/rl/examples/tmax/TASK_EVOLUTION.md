@@ -50,15 +50,14 @@ no-signal group as `signals/<task>--g<group>.json`, in **both** directions, each
 a threshold on the solved fraction: at or below `SWE_EVOLUTION_EASIER_RATIO`
 (default 0.0, so 0/k) is `easier`, at or above `SWE_EVOLUTION_HARDER_RATIO`
 (default 1.0, so k/k) is `harder`. Counting solves keeps this independent of
-what a failure scored, which `SWE_WRONG_SUBMIT_PENALTY` makes negative rather
-than zero. Under dense
+what a failure scored, which `SWE_WRONG_SUBMIT_PENALTY` would make negative
+rather than zero (no run sets it). Under dense
 rewards the zero-variance rule stands instead, since a partial-credit mean is
 not a solve rate. A group between the two thresholds is already
 producing signal and is left alone. The signal
 carries the task, the row's `rev`, the run, the group, `solved` / `total` and
 the paths of the group's rollout records relative to the run directory; the
-transcript is referenced, never copied. An all-fail group in which no attempt
-took a turn is not a signal but an `infra_quarantine` advisory. The formats are
+transcript is referenced, never copied. The formats are
 in [`LAYOUT.md`](LAYOUT.md).
 
 Dropping and evolving are independent: dropping sheds a prompt, evolving

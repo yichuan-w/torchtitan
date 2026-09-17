@@ -59,7 +59,7 @@ $TRL_BASE/
 │       │                     …/g<group>-r<idx>.pane    the terminal transcript, when TMAX_PANE_DUMP=1
 │       ├── validation_rollouts/<task>/g<group>-r<idx>.jsonl   completed validation attempts, saved before the full report
 │       ├── signals/<task>--g<group>.json           one per zero-variance training group
-│       └── advisories/{infra_quarantine,no_tmux}.jsonl   per-task warnings; append-only
+│       └── advisories/no_tmux.jsonl              per-rollout warnings; append-only
 ├── evals/<stamp>--<run>-step<N>/ an evaluation is neither a run nor the loop
 ├── evolution/                    only the loop writes here
 │   ├── loop.log  loop.lock  loop.env
@@ -143,19 +143,18 @@ also writes its browsable report after the full validation pass finishes.
 
 `attempts` are paths relative to the run directory, in rollout order. Written
 as `<name>.incoming` and renamed into place. `direction` is `harder` for an
-all-pass group and `easier` for an all-fail group. An all-fail group in which
-no attempt took a turn is not a signal; it is an `infra_quarantine` advisory.
+group at or above the harder ratio and `easier` for one at or below the easier
+ratio. Both are thresholds on the solved fraction, so neither depends on what a
+failure scored.
 
 ### Advisory `runs/<run>/advisories/<name>.jsonl`
 
 ```json
-{"stamp": "20260904-183012Z", "task": "tw_380466", "image": "…", "reason": "all_fail_zero_turns", "group": 713, "rollouts_lost": 16}
 {"stamp": "20260904-183012Z", "task": "tw_266088", "image": "…", "reason": "no_tmux", "group": 714, "rollout": 3}
 ```
 
-`infra_quarantine` has one line per group that died at zero turns;
-`no_tmux` one per rollout whose image lacked tmux (a warning, not a verdict:
-Terminus usually installs it at runtime).
+`no_tmux` has one line per rollout whose image lacked tmux (a warning, not a
+verdict: Terminus usually installs it at runtime).
 
 ### Ledger `evolution/ledger.jsonl`
 
