@@ -221,8 +221,11 @@ worse than the task you started from.
 ./sandbox reset          a fresh container from the current Dockerfile (--max as
                          for up)
 ./sandbox check          reset; grade the untouched workspace, which must fail;
-                         run the oracle, which must pass; audit the names the
-                         verifier depends on (below). Prints VERDICT: pass|fail
+                         run the oracle, which must pass; compare the size
+                         against the seed, which must be within the bounds your
+                         prompt gives (hardening only); audit the names the
+                         verifier depends on (below), which is reported and does
+                         not affect the verdict. Prints VERDICT: pass|fail
                          and the oracle's measured cost (--max: at the ceiling;
                          rarely the right call)
 ./sandbox down           delete it

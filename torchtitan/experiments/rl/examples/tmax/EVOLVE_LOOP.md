@@ -254,9 +254,11 @@ together and files under `tests/` each stay under 1 MiB, and a binary under
 ./sandbox reset          a fresh container from the current Dockerfile
 ./sandbox check          the whole verdict, on a freshly booted container: grade
                          the untouched workspace (must fail), run the oracle
-                         (must pass), check the step size (must be in bounds);
-                         then audit the names the verifier depends on, which is
-                         printed and recorded but does not decide the verdict.
+                         (must pass), compare the size against the seed
+                         (hardening only; the easier direction has no size
+                         gate); then audit the names the verifier depends on,
+                         which is printed and recorded but does not decide the
+                         verdict.
                          Prints VERDICT: pass|fail and the oracle's measured cost
 ./sandbox down           delete it
 ```
@@ -321,6 +323,16 @@ that does not transfer to unhinted tasks.
 Operators have scopes: `add_scaffold` may change only the instruction and
 `provide_initial_state` must preserve the verifier files. A change outside its
 scope is rejected at `simplify_scope`.
+
+Worth knowing what this direction is missing: the size rule does not apply to
+it on either side. `_step_audit` returns empty when it cannot read
+`run/seed_size.json`, and that file is deliberately deleted for an easier job;
+the caller's own check is likewise `_direction != "easier"`. So what can
+actually stop a simplification is the oracle, the null probe, and the operator
+scopes above, and the oracle asks whether the reference solution still scores,
+which editing an instruction cannot break. That is why `SWE_EVOLVE_SIMPLIFY` is
+off by default, and what to settle before raising
+`SWE_EVOLUTION_EASIER_RATIO`.
 
 ## Why the verifier is written blind
 
