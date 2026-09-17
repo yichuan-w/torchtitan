@@ -20,10 +20,17 @@ records predate `timing`; those traces carry the command spans alone.
 
     rollout_wandb_trace.py --run-dir <run or eval dir> [--limit 20]
         [--project titan_rl] [--entity <team>] [--new-run] [--dry]
+    rollout_wandb_trace.py --run-dir <live run> --watch [--interval 300]
 
 By default it resumes the run's own W&B run (read from `trainer/wandb/run-*`)
 so the traces land beside its curves; --new-run logs them to a fresh run
 instead, which is what to use when the original is someone else's.
+
+--watch follows a run while it trains, logging the traces of records as they
+appear. It always uses its own run, like the reward observer does and for the
+same reason: two processes writing one W&B history lose each other's steps. It
+exits once nothing new has appeared for --idle-exit seconds, so the unit that
+started it does not outlive the training.
 
 The sample is the slowest half and the fastest half by agent-loop length: a
 starved rollout and a healthy one side by side is what makes the gaps legible.
@@ -37,6 +44,7 @@ import json
 import os
 import re
 import sys
+import time
 
 RUN_DIR_RE = re.compile(r"run-\d{8}_\d{6}-(?P<id>\w+)$")
 
@@ -79,7 +87,7 @@ def _pick(records: list[tuple[str, dict]], limit: int) -> list[tuple[str, dict]]
     return with_span[:half] + with_span[len(with_span) - (limit - half) :]
 
 
-def _trace(rec: dict, path: str):
+def build_trace(rec: dict, path: str):
     from wandb.sdk.data_types.trace_tree import Trace
 
     start, end = _loop_span(rec)
@@ -176,7 +184,20 @@ def main() -> int:
         help="log to a fresh run instead of resuming the run's own",
     )
     ap.add_argument("--dry", action="store_true", help="print the sample, log nothing")
+    ap.add_argument(
+        "--watch", action="store_true", help="follow a live run, logging as it goes"
+    )
+    ap.add_argument("--interval", type=int, default=300, help="--watch poll seconds")
+    ap.add_argument(
+        "--idle-exit",
+        type=int,
+        default=1800,
+        help="--watch gives up after this long with no new record",
+    )
     a = ap.parse_args()
+
+    if a.watch:
+        return _watch(a)
 
     run_dir = a.run_dir.rstrip("/")
     records = _records(run_dir)
@@ -215,9 +236,44 @@ def main() -> int:
         )
         print(f"new run {run.url}")
     for path, rec in picked:
-        _trace(rec, path).log(name="rollout_trace")
+        build_trace(rec, path).log(name="rollout_trace")
     run.finish()
     print(f"logged {len(picked)} traces")
+    return 0
+
+
+def _watch(a) -> int:
+    """Log traces for records as a live run writes them, then exit when it stops."""
+    import wandb
+
+    run_dir = a.run_dir.rstrip("/")
+    run = wandb.init(
+        project=a.project,
+        entity=a.entity,
+        name=f"trace-{os.path.basename(run_dir)}",
+        settings=wandb.Settings(silent=True),
+    )
+    print(f"watching {run_dir} -> {run.url}", flush=True)
+    seen: set[str] = set()
+    idle = 0.0
+    while idle < a.idle_exit:
+        fresh = [(p, r) for p, r in _records(run_dir) if p not in seen]
+        seen.update(p for p, _ in fresh)
+        picked = _pick(fresh, a.limit)
+        for path, rec in picked:
+            build_trace(rec, path).log(name="rollout_trace")
+        if fresh:
+            idle = 0.0
+            print(
+                f"[{time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime())}] "
+                f"{len(fresh)} new records, logged {len(picked)} traces",
+                flush=True,
+            )
+        else:
+            idle += a.interval
+        time.sleep(a.interval)
+    print(f"no new record for {a.idle_exit}s; done", flush=True)
+    run.finish()
     return 0
 
 

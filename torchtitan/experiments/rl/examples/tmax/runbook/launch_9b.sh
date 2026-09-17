@@ -370,6 +370,19 @@ if [ "${RL_OBSERVE_REWARDS:-0}" = 1 ]; then
     echo "[launch] reward observer: $RUN/observer/observe.log"
 fi
 
+if [ "${RL_TRACE_ROLLOUTS:-1}" = 1 ]; then
+    # Rollout traces: one span per command, so the gaps between them show the
+    # time the agent spent waiting for a generator. Its own W&B run, for the
+    # same reason the reward observer uses one. It exits on its own once the
+    # run stops writing records.
+    systemd-run --user --unit="trace-$(basename "$RUN")" --collect \
+        --working-directory="$TRL_TT" -p Restart=on-failure -p RestartSec=30 \
+        -p StartLimitIntervalSec=0 -p Nice=15 \
+        "$TRL_VENV/bin/python" "$HERE/../rollout_wandb_trace.py" \
+        --run-dir "$RUN" --watch --limit "${RL_TRACE_LIMIT:-4}"
+    echo "[launch] rollout traces: systemctl --user status trace-$(basename "$RUN")"
+fi
+
 # W&B writes wandb/ under the CWD, so run from the run directory. The trainer's
 # own output (structured logs, metrics, profiles, validation traces) is told
 # where to go explicitly: --dump_folder is Controller.Config.dump_folder, whose
