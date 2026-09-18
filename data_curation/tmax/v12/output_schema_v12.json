@@ -1,0 +1,2417 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.invalid/tmax/v12/output_schema.json",
+  "title": "TMAX audit row, rubric v12",
+  "oneOf": [
+    {
+      "$ref": "#/$defs/initial_row"
+    },
+    {
+      "$ref": "#/$defs/revision_row"
+    }
+  ],
+  "$defs": {
+    "nullable_string": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "a_fired": {
+      "$comment": "an accepts-wrong rule fired: A1-A4, A6, A7, A5 yes, or D",
+      "anyOf": [
+        {
+          "properties": {
+            "oracle_reachable": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "oracle_reachable"
+          ]
+        },
+        {
+          "properties": {
+            "expectation_revealed": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "expectation_revealed"
+          ]
+        },
+        {
+          "properties": {
+            "value_derivable": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "value_derivable"
+          ]
+        },
+        {
+          "properties": {
+            "expectation_movable": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "expectation_movable"
+          ]
+        },
+        {
+          "properties": {
+            "weak_verifier_exploit": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "weak_verifier_exploit"
+          ]
+        },
+        {
+          "properties": {
+            "core_clause_unenforced": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "core_clause_unenforced"
+          ]
+        },
+        {
+          "properties": {
+            "untouched_image_passes": {
+              "type": "string",
+              "pattern": "^yes: "
+            }
+          },
+          "required": [
+            "untouched_image_passes"
+          ]
+        },
+        {
+          "properties": {
+            "trivial": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "trivial"
+          ]
+        }
+      ]
+    },
+    "b_fired": {
+      "$comment": "a rejects-right rule fired: B1-B3",
+      "anyOf": [
+        {
+          "properties": {
+            "overspecific_check": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "overspecific_check"
+          ]
+        },
+        {
+          "properties": {
+            "env_mismatch": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "env_mismatch"
+          ]
+        },
+        {
+          "properties": {
+            "unstable_reward": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "unstable_reward"
+          ]
+        }
+      ]
+    },
+    "ab_fired": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/a_fired"
+        },
+        {
+          "$ref": "#/$defs/b_fired"
+        }
+      ]
+    },
+    "any_fired": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/a_fired"
+        },
+        {
+          "$ref": "#/$defs/b_fired"
+        },
+        {
+          "properties": {
+            "ambiguity": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "ambiguity"
+          ]
+        }
+      ]
+    },
+    "driven": {
+      "$comment": "at least one side carries a traced reproduction",
+      "anyOf": [
+        {
+          "properties": {
+            "exploit_status_a": {
+              "const": "static_trace"
+            }
+          },
+          "required": [
+            "exploit_status_a"
+          ]
+        },
+        {
+          "properties": {
+            "exploit_status_b": {
+              "const": "static_trace"
+            }
+          },
+          "required": [
+            "exploit_status_b"
+          ]
+        }
+      ]
+    },
+    "all_rule_fields_null": {
+      "properties": {
+        "oracle_reachable": {
+          "type": "null"
+        },
+        "expectation_revealed": {
+          "type": "null"
+        },
+        "value_derivable": {
+          "type": "null"
+        },
+        "expectation_movable": {
+          "type": "null"
+        },
+        "weak_verifier_exploit": {
+          "type": "null"
+        },
+        "core_clause_unenforced": {
+          "type": "null"
+        },
+        "overspecific_check": {
+          "type": "null"
+        },
+        "env_mismatch": {
+          "type": "null"
+        },
+        "unstable_reward": {
+          "type": "null"
+        },
+        "ambiguity": {
+          "type": "null"
+        },
+        "trivial": {
+          "type": "null"
+        },
+        "untouched_image_passes": {
+          "type": "string",
+          "pattern": "^(no|unknown): "
+        }
+      }
+    },
+    "excluded_item": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "path",
+        "exclusion",
+        "basis"
+      ],
+      "properties": {
+        "path": {
+          "type": "string",
+          "minLength": 1
+        },
+        "exclusion": {
+          "enum": [
+            "instructed_tool",
+            "library_to_wrap",
+            "buggy_premise",
+            "expected_edit",
+            "toolchain",
+            "grade_time_generated",
+            "removed_before_rollout",
+            "derivation_is_core_step",
+            "benign"
+          ]
+        },
+        "basis": {
+          "type": "string",
+          "pattern": "^(instruction\\.md|setup\\.sh|tests/test\\.sh):[0-9]+(-[0-9]+)? .+"
+        }
+      }
+    },
+    "initial_row": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "task_id",
+        "agent",
+        "rubric_version",
+        "core_step",
+        "assertions",
+        "last_assert_line",
+        "expectation_source",
+        "literal_derivation",
+        "excluded_material",
+        "oracle_reachable",
+        "expectation_revealed",
+        "value_derivable",
+        "expectation_movable",
+        "untouched_image_passes",
+        "weak_verifier_exploit",
+        "core_clause_unenforced",
+        "secondary_clauses_unenforced",
+        "overspecific_check",
+        "env_mismatch",
+        "unconfirmed_dependency",
+        "unstable_reward",
+        "ambiguity",
+        "trivial",
+        "uncertain_fact",
+        "evidence",
+        "evidence_file",
+        "evidence_line",
+        "reason",
+        "repro_cmd",
+        "repro_knowledge",
+        "repro_expected",
+        "repro_cost",
+        "exploit_status_a",
+        "exploit_status_b",
+        "reject_shape",
+        "verifier_fix",
+        "pass_probe",
+        "verdict",
+        "tier"
+      ],
+      "properties": {
+        "task_id": {
+          "type": "string",
+          "pattern": "^task_[0-9]{6}_[0-9a-f]{8}$"
+        },
+        "agent": {
+          "type": "string",
+          "minLength": 1
+        },
+        "rubric_version": {
+          "const": "v12"
+        },
+        "core_step": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 500
+        },
+        "assertions": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "string",
+            "pattern": "^L[0-9]+(-[0-9]+)?: .+"
+          }
+        },
+        "last_assert_line": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "expectation_source": {
+          "enum": [
+            "test_only",
+            "hardcoded_literal",
+            "rollout_material",
+            "shape_only"
+          ]
+        },
+        "literal_derivation": {
+          "anyOf": [
+            {
+              "type": "null"
+            },
+            {
+              "type": "string",
+              "pattern": "^(derived|unverified): .+"
+            }
+          ]
+        },
+        "excluded_material": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/excluded_item"
+          }
+        },
+        "oracle_reachable": {
+          "anyOf": [
+            {
+              "type": "null"
+            },
+            {
+              "type": "string",
+              "pattern": "^(instruction\\.md|setup\\.sh|tests/test\\.sh):[0-9]+(-[0-9]+)? .+"
+            }
+          ]
+        },
+        "expectation_revealed": {
+          "anyOf": [
+            {
+              "type": "null"
+            },
+            {
+              "type": "string",
+              "pattern": "^(instruction\\.md|setup\\.sh|tests/test\\.sh):[0-9]+(-[0-9]+)? .+"
+            }
+          ]
+        },
+        "value_derivable": {
+          "anyOf": [
+            {
+              "type": "null"
+            },
+            {
+              "type": "string",
+              "pattern": "^(instruction\\.md|setup\\.sh|tests/test\\.sh):[0-9]+(-[0-9]+)? .+"
+            }
+          ]
+        },
+        "expectation_movable": {
+          "anyOf": [
+            {
+              "type": "null"
+            },
+            {
+              "type": "string",
+              "pattern": "^(instruction\\.md|setup\\.sh|tests/test\\.sh):[0-9]+(-[0-9]+)? .+"
+            }
+          ]
+        },
+        "untouched_image_passes": {
+          "type": "string",
+          "pattern": "^(yes|no|unknown): (instruction\\.md|setup\\.sh|tests/test\\.sh):[0-9]+(-[0-9]+)? .+"
+        },
+        "weak_verifier_exploit": {
+          "anyOf": [
+            {
+              "type": "null"
+            },
+            {
+              "type": "string",
+              "pattern": "^(instruction\\.md|setup\\.sh|tests/test\\.sh):[0-9]+(-[0-9]+)? .+"
+            }
+          ]
+        },
+        "core_clause_unenforced": {
+          "anyOf": [
+            {
+              "type": "null"
+            },
+            {
+              "type": "string",
+              "pattern": "^(instruction\\.md|setup\\.sh|tests/test\\.sh):[0-9]+(-[0-9]+)? .+"
+            }
+          ]
+        },
+        "secondary_clauses_unenforced": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "overspecific_check": {
+          "anyOf": [
+            {
+              "type": "null"
+            },
+            {
+              "type": "string",
+              "pattern": "^(instruction\\.md|setup\\.sh|tests/test\\.sh):[0-9]+(-[0-9]+)? .+"
+            }
+          ]
+        },
+        "env_mismatch": {
+          "anyOf": [
+            {
+              "type": "null"
+            },
+            {
+              "type": "string",
+              "pattern": "^(instruction\\.md|setup\\.sh|tests/test\\.sh):[0-9]+(-[0-9]+)? .+"
+            }
+          ]
+        },
+        "unconfirmed_dependency": {
+          "anyOf": [
+            {
+              "type": "null"
+            },
+            {
+              "type": "string",
+              "pattern": "^(instruction\\.md|setup\\.sh|tests/test\\.sh):[0-9]+(-[0-9]+)? .+"
+            }
+          ]
+        },
+        "unstable_reward": {
+          "anyOf": [
+            {
+              "type": "null"
+            },
+            {
+              "type": "string",
+              "pattern": "^(instruction\\.md|setup\\.sh|tests/test\\.sh):[0-9]+(-[0-9]+)? .+"
+            }
+          ]
+        },
+        "ambiguity": {
+          "anyOf": [
+            {
+              "type": "null"
+            },
+            {
+              "type": "string",
+              "pattern": "^(instruction\\.md|setup\\.sh|tests/test\\.sh):[0-9]+(-[0-9]+)? .+"
+            }
+          ]
+        },
+        "trivial": {
+          "anyOf": [
+            {
+              "type": "null"
+            },
+            {
+              "type": "string",
+              "pattern": "^(instruction\\.md|setup\\.sh|tests/test\\.sh):[0-9]+(-[0-9]+)? .+"
+            }
+          ]
+        },
+        "uncertain_fact": {
+          "anyOf": [
+            {
+              "type": "null"
+            },
+            {
+              "type": "string",
+              "pattern": "^(instruction\\.md|setup\\.sh|tests/test\\.sh):[0-9]+(-[0-9]+)? .+"
+            }
+          ]
+        },
+        "evidence": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200
+        },
+        "evidence_file": {
+          "enum": [
+            "instruction.md",
+            "setup.sh",
+            "tests/test.sh"
+          ]
+        },
+        "evidence_line": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "reason": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 800
+        },
+        "repro_cmd": {
+          "$ref": "#/$defs/nullable_string"
+        },
+        "repro_knowledge": {
+          "enum": [
+            "rollout_visible",
+            "test_informed",
+            null
+          ]
+        },
+        "repro_expected": {
+          "anyOf": [
+            {
+              "type": "null"
+            },
+            {
+              "enum": [
+                "reward==1",
+                "reward==1-unenforced",
+                "reward==0",
+                "reward-varies",
+                "external-fetch"
+              ]
+            },
+            {
+              "type": "string",
+              "pattern": "^none: .+"
+            }
+          ]
+        },
+        "repro_cost": {
+          "enum": [
+            "simple",
+            "medium",
+            "hard",
+            null
+          ]
+        },
+        "exploit_status_a": {
+          "enum": [
+            "none_found",
+            "not_driven",
+            "static_trace",
+            "not_applicable"
+          ]
+        },
+        "exploit_status_b": {
+          "enum": [
+            "none_found",
+            "not_driven",
+            "static_trace",
+            "not_applicable"
+          ]
+        },
+        "reject_shape": {
+          "enum": [
+            "instruction_prints_answer",
+            "deliverable_is_leaked_material",
+            "broken_premise",
+            "pre_solved",
+            null
+          ]
+        },
+        "verifier_fix": {
+          "anyOf": [
+            {
+              "type": "null"
+            },
+            {
+              "type": "string",
+              "minLength": 1,
+              "not": {
+                "pattern": "^none: "
+              }
+            }
+          ]
+        },
+        "pass_probe": {
+          "anyOf": [
+            {
+              "type": "null"
+            },
+            {
+              "type": "string",
+              "pattern": "^tests/test\\.sh:[0-9]+(-[0-9]+)? .+"
+            }
+          ]
+        },
+        "verdict": {
+          "enum": [
+            "CLEAN",
+            "VERIFIER-TOO-WEAK",
+            "INSTR-VERIFIER-MISMATCH",
+            "INSTR-ENV-MISMATCH",
+            "ANSWER-LEAK",
+            "INSTR-AMBIGUOUS",
+            "TASK-TRIVIAL",
+            "MUTABLE-GROUND-TRUTH",
+            "OTHER"
+          ]
+        },
+        "tier": {
+          "enum": [
+            "PASS",
+            "REPAIR",
+            "REVIEW",
+            "REJECT-PROVEN"
+          ]
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "tier": {
+                "const": "PASS"
+              }
+            },
+            "required": [
+              "tier"
+            ]
+          },
+          "then": {
+            "allOf": [
+              {
+                "$ref": "#/$defs/all_rule_fields_null"
+              },
+              {
+                "properties": {
+                  "untouched_image_passes": {
+                    "type": "string",
+                    "pattern": "^no: "
+                  },
+                  "uncertain_fact": {
+                    "type": "null"
+                  },
+                  "literal_derivation": {
+                    "anyOf": [
+                      {
+                        "type": "null"
+                      },
+                      {
+                        "type": "string",
+                        "pattern": "^derived: "
+                      }
+                    ]
+                  },
+                  "pass_probe": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "verdict": {
+                    "const": "CLEAN"
+                  },
+                  "repro_cmd": {
+                    "type": "null"
+                  },
+                  "repro_knowledge": {
+                    "type": "null"
+                  },
+                  "repro_expected": {
+                    "type": "null"
+                  },
+                  "repro_cost": {
+                    "type": "null"
+                  },
+                  "verifier_fix": {
+                    "type": "null"
+                  },
+                  "reject_shape": {
+                    "type": "null"
+                  },
+                  "exploit_status_a": {
+                    "const": "none_found"
+                  },
+                  "exploit_status_b": {
+                    "const": "none_found"
+                  },
+                  "expectation_source": {
+                    "enum": [
+                      "test_only",
+                      "hardcoded_literal"
+                    ]
+                  }
+                }
+              }
+            ]
+          },
+          "$comment": "I1: PASS forces every rule field null, untouched no, no uncertain fact, a derived (never unverified) literal, a probe, no repro, no fix, no reject shape, both sides none_found; unconfirmed_dependency may be set"
+        },
+        {
+          "if": {
+            "$ref": "#/$defs/any_fired"
+          },
+          "then": {
+            "properties": {
+              "tier": {
+                "enum": [
+                  "REPAIR",
+                  "REVIEW",
+                  "REJECT-PROVEN"
+                ]
+              },
+              "verdict": {
+                "enum": [
+                  "VERIFIER-TOO-WEAK",
+                  "INSTR-VERIFIER-MISMATCH",
+                  "INSTR-ENV-MISMATCH",
+                  "ANSWER-LEAK",
+                  "INSTR-AMBIGUOUS",
+                  "TASK-TRIVIAL",
+                  "MUTABLE-GROUND-TRUTH",
+                  "OTHER"
+                ]
+              }
+            }
+          },
+          "$comment": "I2: any fired rule forces tier != PASS and verdict != CLEAN"
+        },
+        {
+          "if": {
+            "properties": {
+              "tier": {
+                "enum": [
+                  "REPAIR",
+                  "REJECT-PROVEN"
+                ]
+              }
+            },
+            "required": [
+              "tier"
+            ]
+          },
+          "then": {
+            "$ref": "#/$defs/any_fired"
+          },
+          "$comment": "I2 converse: REPAIR and REJECT-PROVEN name a mechanism"
+        },
+        {
+          "if": {
+            "anyOf": [
+              {
+                "properties": {
+                  "oracle_reachable": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "oracle_reachable"
+                ]
+              },
+              {
+                "properties": {
+                  "expectation_revealed": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "expectation_revealed"
+                ]
+              },
+              {
+                "properties": {
+                  "value_derivable": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "value_derivable"
+                ]
+              }
+            ]
+          },
+          "then": {
+            "properties": {
+              "verdict": {
+                "enum": [
+                  "ANSWER-LEAK"
+                ]
+              }
+            }
+          },
+          "$comment": "I3 rank 1: a leak field forces ANSWER-LEAK"
+        },
+        {
+          "if": {
+            "properties": {
+              "expectation_movable": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "expectation_movable"
+            ]
+          },
+          "then": {
+            "properties": {
+              "verdict": {
+                "enum": [
+                  "ANSWER-LEAK",
+                  "MUTABLE-GROUND-TRUTH"
+                ]
+              }
+            }
+          },
+          "$comment": "I3 rank 2"
+        },
+        {
+          "if": {
+            "anyOf": [
+              {
+                "properties": {
+                  "weak_verifier_exploit": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "weak_verifier_exploit"
+                ]
+              },
+              {
+                "properties": {
+                  "untouched_image_passes": {
+                    "type": "string",
+                    "pattern": "^yes: "
+                  }
+                },
+                "required": [
+                  "untouched_image_passes"
+                ]
+              }
+            ]
+          },
+          "then": {
+            "properties": {
+              "verdict": {
+                "enum": [
+                  "ANSWER-LEAK",
+                  "MUTABLE-GROUND-TRUTH",
+                  "VERIFIER-TOO-WEAK"
+                ]
+              }
+            }
+          },
+          "$comment": "I3 rank 3"
+        },
+        {
+          "if": {
+            "anyOf": [
+              {
+                "properties": {
+                  "core_clause_unenforced": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "core_clause_unenforced"
+                ]
+              },
+              {
+                "properties": {
+                  "overspecific_check": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "overspecific_check"
+                ]
+              }
+            ]
+          },
+          "then": {
+            "properties": {
+              "verdict": {
+                "enum": [
+                  "ANSWER-LEAK",
+                  "MUTABLE-GROUND-TRUTH",
+                  "VERIFIER-TOO-WEAK",
+                  "INSTR-VERIFIER-MISMATCH"
+                ]
+              }
+            }
+          },
+          "$comment": "I3 rank 4"
+        },
+        {
+          "if": {
+            "properties": {
+              "env_mismatch": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "env_mismatch"
+            ]
+          },
+          "then": {
+            "properties": {
+              "verdict": {
+                "enum": [
+                  "ANSWER-LEAK",
+                  "MUTABLE-GROUND-TRUTH",
+                  "VERIFIER-TOO-WEAK",
+                  "INSTR-VERIFIER-MISMATCH",
+                  "INSTR-ENV-MISMATCH"
+                ]
+              }
+            }
+          },
+          "$comment": "I3 rank 5"
+        },
+        {
+          "if": {
+            "properties": {
+              "unstable_reward": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "unstable_reward"
+            ]
+          },
+          "then": {
+            "properties": {
+              "verdict": {
+                "enum": [
+                  "ANSWER-LEAK",
+                  "MUTABLE-GROUND-TRUTH",
+                  "VERIFIER-TOO-WEAK",
+                  "INSTR-VERIFIER-MISMATCH",
+                  "INSTR-ENV-MISMATCH",
+                  "OTHER"
+                ]
+              }
+            }
+          },
+          "$comment": "I3 rank 6"
+        },
+        {
+          "if": {
+            "properties": {
+              "ambiguity": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "ambiguity"
+            ]
+          },
+          "then": {
+            "properties": {
+              "verdict": {
+                "enum": [
+                  "ANSWER-LEAK",
+                  "MUTABLE-GROUND-TRUTH",
+                  "VERIFIER-TOO-WEAK",
+                  "INSTR-VERIFIER-MISMATCH",
+                  "INSTR-ENV-MISMATCH",
+                  "OTHER",
+                  "INSTR-AMBIGUOUS"
+                ]
+              }
+            }
+          },
+          "$comment": "I3 rank 7"
+        },
+        {
+          "if": {
+            "properties": {
+              "trivial": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "trivial"
+            ]
+          },
+          "then": {
+            "properties": {
+              "verdict": {
+                "enum": [
+                  "ANSWER-LEAK",
+                  "MUTABLE-GROUND-TRUTH",
+                  "VERIFIER-TOO-WEAK",
+                  "INSTR-VERIFIER-MISMATCH",
+                  "INSTR-ENV-MISMATCH",
+                  "OTHER",
+                  "INSTR-AMBIGUOUS",
+                  "TASK-TRIVIAL"
+                ]
+              }
+            }
+          },
+          "$comment": "I3 rank 8"
+        },
+        {
+          "if": {
+            "properties": {
+              "verdict": {
+                "const": "ANSWER-LEAK"
+              }
+            },
+            "required": [
+              "verdict"
+            ]
+          },
+          "then": {
+            "anyOf": [
+              {
+                "properties": {
+                  "oracle_reachable": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "oracle_reachable"
+                ]
+              },
+              {
+                "properties": {
+                  "expectation_revealed": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "expectation_revealed"
+                ]
+              },
+              {
+                "properties": {
+                  "value_derivable": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "value_derivable"
+                ]
+              }
+            ]
+          },
+          "$comment": "I3 converse: each label needs its rule"
+        },
+        {
+          "if": {
+            "properties": {
+              "verdict": {
+                "const": "MUTABLE-GROUND-TRUTH"
+              }
+            },
+            "required": [
+              "verdict"
+            ]
+          },
+          "then": {
+            "properties": {
+              "expectation_movable": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "expectation_movable"
+            ]
+          },
+          "$comment": "I3 converse"
+        },
+        {
+          "if": {
+            "properties": {
+              "verdict": {
+                "const": "VERIFIER-TOO-WEAK"
+              }
+            },
+            "required": [
+              "verdict"
+            ]
+          },
+          "then": {
+            "anyOf": [
+              {
+                "properties": {
+                  "weak_verifier_exploit": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "weak_verifier_exploit"
+                ]
+              },
+              {
+                "properties": {
+                  "untouched_image_passes": {
+                    "type": "string",
+                    "pattern": "^yes: "
+                  }
+                },
+                "required": [
+                  "untouched_image_passes"
+                ]
+              }
+            ]
+          },
+          "$comment": "I3 converse"
+        },
+        {
+          "if": {
+            "properties": {
+              "verdict": {
+                "const": "INSTR-VERIFIER-MISMATCH"
+              }
+            },
+            "required": [
+              "verdict"
+            ]
+          },
+          "then": {
+            "anyOf": [
+              {
+                "properties": {
+                  "core_clause_unenforced": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "core_clause_unenforced"
+                ]
+              },
+              {
+                "properties": {
+                  "overspecific_check": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "overspecific_check"
+                ]
+              }
+            ]
+          },
+          "$comment": "I3 converse"
+        },
+        {
+          "if": {
+            "properties": {
+              "verdict": {
+                "const": "INSTR-ENV-MISMATCH"
+              }
+            },
+            "required": [
+              "verdict"
+            ]
+          },
+          "then": {
+            "properties": {
+              "env_mismatch": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "env_mismatch"
+            ]
+          },
+          "$comment": "I3 converse"
+        },
+        {
+          "if": {
+            "properties": {
+              "verdict": {
+                "const": "OTHER"
+              }
+            },
+            "required": [
+              "verdict"
+            ]
+          },
+          "then": {
+            "properties": {
+              "unstable_reward": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "unstable_reward"
+            ]
+          },
+          "$comment": "I3 converse"
+        },
+        {
+          "if": {
+            "properties": {
+              "verdict": {
+                "const": "INSTR-AMBIGUOUS"
+              }
+            },
+            "required": [
+              "verdict"
+            ]
+          },
+          "then": {
+            "properties": {
+              "ambiguity": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "ambiguity"
+            ]
+          },
+          "$comment": "I3 converse"
+        },
+        {
+          "if": {
+            "properties": {
+              "verdict": {
+                "const": "TASK-TRIVIAL"
+              }
+            },
+            "required": [
+              "verdict"
+            ]
+          },
+          "then": {
+            "properties": {
+              "trivial": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "trivial"
+            ]
+          },
+          "$comment": "I3 converse"
+        },
+        {
+          "if": {
+            "properties": {
+              "verdict": {
+                "const": "CLEAN"
+              }
+            },
+            "required": [
+              "verdict"
+            ]
+          },
+          "then": {
+            "$ref": "#/$defs/all_rule_fields_null"
+          },
+          "$comment": "I3 converse: CLEAN means nothing fired"
+        },
+        {
+          "if": {
+            "$ref": "#/$defs/a_fired"
+          },
+          "then": {
+            "properties": {
+              "exploit_status_a": {
+                "enum": [
+                  "not_driven",
+                  "static_trace",
+                  "not_applicable"
+                ]
+              }
+            }
+          },
+          "$comment": "I4: an accepts-wrong rule forbids exploit_status_a none_found"
+        },
+        {
+          "if": {
+            "not": {
+              "$ref": "#/$defs/a_fired"
+            }
+          },
+          "then": {
+            "properties": {
+              "exploit_status_a": {
+                "const": "none_found"
+              }
+            }
+          },
+          "$comment": "I4 converse: no accepts-wrong rule fired means exploit_status_a none_found"
+        },
+        {
+          "if": {
+            "$ref": "#/$defs/b_fired"
+          },
+          "then": {
+            "properties": {
+              "exploit_status_b": {
+                "enum": [
+                  "not_driven",
+                  "static_trace",
+                  "not_applicable"
+                ]
+              }
+            }
+          },
+          "$comment": "I4: a rejects-right rule forbids exploit_status_b none_found"
+        },
+        {
+          "if": {
+            "not": {
+              "$ref": "#/$defs/b_fired"
+            }
+          },
+          "then": {
+            "properties": {
+              "exploit_status_b": {
+                "const": "none_found"
+              }
+            }
+          },
+          "$comment": "I4 converse: no rejects-right rule fired means exploit_status_b none_found"
+        },
+        {
+          "if": {
+            "properties": {
+              "tier": {
+                "enum": [
+                  "REPAIR",
+                  "REJECT-PROVEN"
+                ]
+              }
+            },
+            "required": [
+              "tier"
+            ]
+          },
+          "then": {
+            "allOf": [
+              {
+                "properties": {
+                  "repro_cmd": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "repro_expected": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "repro_knowledge": {
+                    "enum": [
+                      "rollout_visible",
+                      "test_informed"
+                    ]
+                  },
+                  "repro_cost": {
+                    "enum": [
+                      "simple",
+                      "medium",
+                      "hard"
+                    ]
+                  }
+                }
+              },
+              {
+                "$ref": "#/$defs/driven"
+              }
+            ]
+          },
+          "$comment": "I5: REPAIR and REJECT-PROVEN carry a reproduction traced on one side"
+        },
+        {
+          "if": {
+            "properties": {
+              "tier": {
+                "const": "REPAIR"
+              }
+            },
+            "required": [
+              "tier"
+            ]
+          },
+          "then": {
+            "properties": {
+              "verifier_fix": {
+                "type": "string",
+                "minLength": 1
+              },
+              "reject_shape": {
+                "type": "null"
+              }
+            },
+            "required": [
+              "verifier_fix"
+            ]
+          },
+          "$comment": "I5: REPAIR names a fix and no reject shape"
+        },
+        {
+          "if": {
+            "properties": {
+              "tier": {
+                "const": "REJECT-PROVEN"
+              }
+            },
+            "required": [
+              "tier"
+            ]
+          },
+          "then": {
+            "properties": {
+              "verifier_fix": {
+                "type": "null"
+              },
+              "reject_shape": {
+                "enum": [
+                  "instruction_prints_answer",
+                  "deliverable_is_leaked_material",
+                  "broken_premise",
+                  "pre_solved"
+                ]
+              }
+            },
+            "required": [
+              "reject_shape"
+            ]
+          },
+          "$comment": "I5: REJECT-PROVEN has no fix and a named reject shape"
+        },
+        {
+          "if": {
+            "properties": {
+              "tier": {
+                "const": "REVIEW"
+              }
+            },
+            "required": [
+              "tier"
+            ]
+          },
+          "then": {
+            "anyOf": [
+              {
+                "allOf": [
+                  {
+                    "$ref": "#/$defs/any_fired"
+                  },
+                  {
+                    "not": {
+                      "$ref": "#/$defs/driven"
+                    }
+                  }
+                ]
+              },
+              {
+                "allOf": [
+                  {
+                    "$ref": "#/$defs/any_fired"
+                  },
+                  {
+                    "properties": {
+                      "verifier_fix": {
+                        "type": "null"
+                      },
+                      "reject_shape": {
+                        "type": "null"
+                      }
+                    }
+                  }
+                ]
+              },
+              {
+                "properties": {
+                  "uncertain_fact": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "uncertain_fact"
+                ]
+              },
+              {
+                "properties": {
+                  "untouched_image_passes": {
+                    "type": "string",
+                    "pattern": "^unknown: "
+                  }
+                },
+                "required": [
+                  "untouched_image_passes"
+                ]
+              },
+              {
+                "properties": {
+                  "literal_derivation": {
+                    "type": "string",
+                    "pattern": "^unverified: "
+                  }
+                },
+                "required": [
+                  "literal_derivation"
+                ]
+              },
+              {
+                "properties": {
+                  "ambiguity": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "ambiguity"
+                ]
+              }
+            ]
+          },
+          "$comment": "I6: REVIEW needs one of its triggers (a held dependency is not one)"
+        },
+        {
+          "if": {
+            "properties": {
+              "expectation_source": {
+                "const": "rollout_material"
+              }
+            },
+            "required": [
+              "expectation_source"
+            ]
+          },
+          "then": {
+            "anyOf": [
+              {
+                "properties": {
+                  "expectation_revealed": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "expectation_revealed"
+                ]
+              },
+              {
+                "properties": {
+                  "expectation_movable": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "expectation_movable"
+                ]
+              }
+            ]
+          },
+          "$comment": "I7: rollout_material forces A2 or A4"
+        },
+        {
+          "if": {
+            "anyOf": [
+              {
+                "properties": {
+                  "expectation_revealed": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "expectation_revealed"
+                ]
+              },
+              {
+                "properties": {
+                  "expectation_movable": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "expectation_movable"
+                ]
+              }
+            ]
+          },
+          "then": {
+            "properties": {
+              "expectation_source": {
+                "const": "rollout_material"
+              }
+            },
+            "required": [
+              "expectation_source"
+            ]
+          },
+          "$comment": "I7 converse: A2 or A4 forces rollout_material"
+        },
+        {
+          "if": {
+            "properties": {
+              "expectation_source": {
+                "const": "shape_only"
+              }
+            },
+            "required": [
+              "expectation_source"
+            ]
+          },
+          "then": {
+            "properties": {
+              "tier": {
+                "enum": [
+                  "REPAIR",
+                  "REVIEW",
+                  "REJECT-PROVEN"
+                ]
+              }
+            }
+          },
+          "$comment": "I7: shape_only forbids PASS"
+        },
+        {
+          "if": {
+            "properties": {
+              "expectation_source": {
+                "const": "hardcoded_literal"
+              }
+            },
+            "required": [
+              "expectation_source"
+            ]
+          },
+          "then": {
+            "properties": {
+              "literal_derivation": {
+                "type": "string",
+                "pattern": "^(derived|unverified): .+"
+              }
+            },
+            "required": [
+              "literal_derivation"
+            ]
+          },
+          "$comment": "I8: a hardcoded literal carries its derivation; the field may also be set under any other source"
+        },
+        {
+          "if": {
+            "properties": {
+              "reject_shape": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "reject_shape"
+            ]
+          },
+          "then": {
+            "allOf": [
+              {
+                "properties": {
+                  "verifier_fix": {
+                    "type": "null"
+                  },
+                  "tier": {
+                    "const": "REJECT-PROVEN"
+                  }
+                }
+              },
+              {
+                "$ref": "#/$defs/driven"
+              }
+            ]
+          },
+          "$comment": "I9: a reject shape forces no fix, tier REJECT-PROVEN and a driven side"
+        },
+        {
+          "if": {
+            "properties": {
+              "reject_shape": {
+                "const": "pre_solved"
+              }
+            },
+            "required": [
+              "reject_shape"
+            ]
+          },
+          "then": {
+            "anyOf": [
+              {
+                "properties": {
+                  "trivial": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "trivial"
+                ]
+              },
+              {
+                "properties": {
+                  "untouched_image_passes": {
+                    "type": "string",
+                    "pattern": "^yes: "
+                  }
+                },
+                "required": [
+                  "untouched_image_passes"
+                ]
+              }
+            ]
+          },
+          "$comment": "I9: pre_solved means the task asks for no work (trivial, or the untouched image satisfies the instruction)"
+        },
+        {
+          "if": {
+            "properties": {
+              "untouched_image_passes": {
+                "type": "string",
+                "pattern": "^yes: "
+              }
+            },
+            "required": [
+              "untouched_image_passes"
+            ]
+          },
+          "then": {
+            "properties": {
+              "repro_cmd": {
+                "const": "true"
+              },
+              "repro_knowledge": {
+                "const": "rollout_visible"
+              },
+              "repro_expected": {
+                "const": "reward==1"
+              },
+              "repro_cost": {
+                "const": "simple"
+              },
+              "exploit_status_a": {
+                "const": "static_trace"
+              }
+            }
+          },
+          "$comment": "I10: reward for nothing carries the empty submission as its traced reproduction"
+        },
+        {
+          "if": {
+            "allOf": [
+              {
+                "$ref": "#/$defs/ab_fired"
+              },
+              {
+                "$ref": "#/$defs/driven"
+              },
+              {
+                "properties": {
+                  "verifier_fix": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "verifier_fix"
+                ]
+              }
+            ]
+          },
+          "then": {
+            "properties": {
+              "tier": {
+                "const": "REPAIR"
+              }
+            }
+          },
+          "$comment": "I11a: fired + driven + fix => REPAIR"
+        },
+        {
+          "if": {
+            "allOf": [
+              {
+                "$ref": "#/$defs/ab_fired"
+              },
+              {
+                "$ref": "#/$defs/driven"
+              },
+              {
+                "properties": {
+                  "verifier_fix": {
+                    "type": "null"
+                  }
+                }
+              },
+              {
+                "properties": {
+                  "reject_shape": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "reject_shape"
+                ]
+              }
+            ]
+          },
+          "then": {
+            "properties": {
+              "tier": {
+                "const": "REJECT-PROVEN"
+              }
+            }
+          },
+          "$comment": "I11b: fired + driven + no fix + shape => REJECT-PROVEN"
+        },
+        {
+          "if": {
+            "allOf": [
+              {
+                "$ref": "#/$defs/any_fired"
+              },
+              {
+                "not": {
+                  "$ref": "#/$defs/driven"
+                }
+              }
+            ]
+          },
+          "then": {
+            "properties": {
+              "tier": {
+                "const": "REVIEW"
+              }
+            }
+          },
+          "$comment": "I11c: fired but nothing driven => REVIEW"
+        },
+        {
+          "if": {
+            "allOf": [
+              {
+                "$ref": "#/$defs/ab_fired"
+              },
+              {
+                "$ref": "#/$defs/driven"
+              },
+              {
+                "properties": {
+                  "verifier_fix": {
+                    "type": "null"
+                  },
+                  "reject_shape": {
+                    "type": "null"
+                  }
+                }
+              }
+            ]
+          },
+          "then": {
+            "properties": {
+              "tier": {
+                "const": "REVIEW"
+              }
+            }
+          },
+          "$comment": "I11c: fired, driven, no fix and no shape => REVIEW"
+        },
+        {
+          "if": {
+            "properties": {
+              "trivial": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "trivial"
+            ]
+          },
+          "then": {
+            "properties": {
+              "tier": {
+                "const": "REJECT-PROVEN"
+              },
+              "reject_shape": {
+                "const": "pre_solved"
+              },
+              "verifier_fix": {
+                "type": "null"
+              },
+              "exploit_status_a": {
+                "const": "static_trace"
+              }
+            }
+          },
+          "$comment": "I11d: triviality is a utility exclusion: REJECT-PROVEN, pre_solved, no fix"
+        },
+        {
+          "if": {
+            "anyOf": [
+              {
+                "properties": {
+                  "oracle_reachable": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "oracle_reachable"
+                ]
+              },
+              {
+                "properties": {
+                  "expectation_revealed": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "expectation_revealed"
+                ]
+              },
+              {
+                "properties": {
+                  "value_derivable": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "value_derivable"
+                ]
+              },
+              {
+                "properties": {
+                  "expectation_movable": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "expectation_movable"
+                ]
+              },
+              {
+                "properties": {
+                  "weak_verifier_exploit": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "weak_verifier_exploit"
+                ]
+              },
+              {
+                "properties": {
+                  "untouched_image_passes": {
+                    "type": "string",
+                    "pattern": "^yes: "
+                  }
+                },
+                "required": [
+                  "untouched_image_passes"
+                ]
+              },
+              {
+                "properties": {
+                  "overspecific_check": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "overspecific_check"
+                ]
+              },
+              {
+                "properties": {
+                  "unstable_reward": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "unstable_reward"
+                ]
+              }
+            ]
+          },
+          "then": {
+            "properties": {
+              "evidence_file": {
+                "const": "tests/test.sh"
+              }
+            }
+          },
+          "$comment": "I12: accepts-wrong rules, B1 and B3 cite tests/test.sh"
+        },
+        {
+          "if": {
+            "properties": {
+              "core_clause_unenforced": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "core_clause_unenforced"
+            ]
+          },
+          "then": {
+            "properties": {
+              "evidence_file": {
+                "enum": [
+                  "tests/test.sh",
+                  "instruction.md"
+                ]
+              }
+            }
+          },
+          "$comment": "I12: A7 cites tests/test.sh or the instruction clause"
+        },
+        {
+          "if": {
+            "properties": {
+              "weak_verifier_exploit": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "weak_verifier_exploit"
+            ]
+          },
+          "then": {
+            "allOf": [
+              {
+                "properties": {
+                  "exploit_status_a": {
+                    "const": "static_trace"
+                  },
+                  "repro_knowledge": {
+                    "const": "rollout_visible"
+                  },
+                  "oracle_reachable": {
+                    "type": "null"
+                  },
+                  "expectation_revealed": {
+                    "type": "null"
+                  },
+                  "value_derivable": {
+                    "type": "null"
+                  },
+                  "expectation_movable": {
+                    "type": "null"
+                  },
+                  "core_clause_unenforced": {
+                    "type": "null"
+                  }
+                }
+              },
+              {
+                "properties": {
+                  "untouched_image_passes": {
+                    "type": "string",
+                    "not": {
+                      "pattern": "^yes: "
+                    }
+                  }
+                },
+                "required": [
+                  "untouched_image_passes"
+                ]
+              }
+            ]
+          },
+          "$comment": "I14: J1 fires only on a row with no Step-3 field, with a traced rollout-visible submission"
+        },
+        {
+          "if": {
+            "properties": {
+              "repro_cmd": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "repro_cmd"
+            ]
+          },
+          "then": {
+            "properties": {
+              "repro_knowledge": {
+                "enum": [
+                  "rollout_visible",
+                  "test_informed"
+                ]
+              }
+            }
+          },
+          "else": {
+            "properties": {
+              "repro_knowledge": {
+                "type": "null"
+              }
+            }
+          },
+          "$comment": "I15: a reproduction states what it was built from"
+        },
+        {
+          "if": {
+            "properties": {
+              "repro_knowledge": {
+                "const": "test_informed"
+              }
+            },
+            "required": [
+              "repro_knowledge"
+            ]
+          },
+          "then": {
+            "allOf": [
+              {
+                "properties": {
+                  "core_clause_unenforced": {
+                    "type": "string"
+                  },
+                  "oracle_reachable": {
+                    "type": "null"
+                  },
+                  "expectation_revealed": {
+                    "type": "null"
+                  },
+                  "value_derivable": {
+                    "type": "null"
+                  },
+                  "expectation_movable": {
+                    "type": "null"
+                  },
+                  "weak_verifier_exploit": {
+                    "type": "null"
+                  }
+                }
+              },
+              {
+                "properties": {
+                  "untouched_image_passes": {
+                    "type": "string",
+                    "not": {
+                      "pattern": "^yes: "
+                    }
+                  }
+                },
+                "required": [
+                  "untouched_image_passes"
+                ]
+              }
+            ]
+          },
+          "$comment": "I15: a test-informed reproduction is allowed only for A7"
+        },
+        {
+          "if": {
+            "properties": {
+              "exploit_status_a": {
+                "const": "not_applicable"
+              }
+            },
+            "required": [
+              "exploit_status_a"
+            ]
+          },
+          "then": {
+            "properties": {
+              "exploit_status_b": {
+                "const": "static_trace"
+              }
+            }
+          },
+          "$comment": "I19: not_applicable means the row's one reproduction belongs to the other side"
+        },
+        {
+          "if": {
+            "properties": {
+              "exploit_status_b": {
+                "const": "not_applicable"
+              }
+            },
+            "required": [
+              "exploit_status_b"
+            ]
+          },
+          "then": {
+            "properties": {
+              "exploit_status_a": {
+                "const": "static_trace"
+              }
+            }
+          },
+          "$comment": "I19: not_applicable means the row's one reproduction belongs to the other side"
+        },
+        {
+          "if": {
+            "properties": {
+              "repro_cmd": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "repro_cmd"
+            ]
+          },
+          "then": {
+            "allOf": [
+              {
+                "$ref": "#/$defs/driven"
+              },
+              {
+                "properties": {
+                  "repro_expected": {
+                    "enum": [
+                      "reward==1",
+                      "reward==1-unenforced",
+                      "reward==0",
+                      "reward-varies",
+                      "external-fetch"
+                    ]
+                  }
+                }
+              }
+            ]
+          },
+          "else": {
+            "not": {
+              "$ref": "#/$defs/driven"
+            },
+            "properties": {
+              "repro_expected": {
+                "anyOf": [
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "type": "string",
+                    "pattern": "^none: "
+                  }
+                ]
+              }
+            }
+          },
+          "$comment": "I20: a reproduction is written iff some side is static_trace; a written reproduction carries a definite outcome, a missing one null or 'none: <why>'"
+        },
+        {
+          "if": {
+            "properties": {
+              "repro_expected": {
+                "enum": [
+                  "reward==1",
+                  "reward==1-unenforced"
+                ]
+              }
+            },
+            "required": [
+              "repro_expected"
+            ]
+          },
+          "then": {
+            "properties": {
+              "exploit_status_a": {
+                "const": "static_trace"
+              }
+            }
+          },
+          "$comment": "I20: an accepts-wrong reproduction (reward==1 or reward==1-unenforced) is the A side's trace"
+        },
+        {
+          "if": {
+            "properties": {
+              "repro_expected": {
+                "enum": [
+                  "reward==0",
+                  "reward-varies",
+                  "external-fetch"
+                ]
+              }
+            },
+            "required": [
+              "repro_expected"
+            ]
+          },
+          "then": {
+            "properties": {
+              "exploit_status_b": {
+                "const": "static_trace"
+              }
+            }
+          },
+          "$comment": "I20: a rejects-right reproduction (reward==0, reward-varies or external-fetch) is the B side's trace"
+        }
+      ]
+    },
+    "revision_row": {
+      "$comment": "Written only by a later phase (phase-3 results); never by the validation judge. A runtime refutation refutes that reproduction on that configuration, not every mechanism recorded on the row.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "task_id",
+        "agent",
+        "rubric_version",
+        "revision"
+      ],
+      "properties": {
+        "task_id": {
+          "type": "string",
+          "pattern": "^task_[0-9]{6}_[0-9a-f]{8}$"
+        },
+        "agent": {
+          "type": "string",
+          "minLength": 1
+        },
+        "rubric_version": {
+          "const": "v12"
+        },
+        "revision": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "first_row_sha256",
+            "changes",
+            "sources"
+          ],
+          "properties": {
+            "first_row_sha256": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$"
+            },
+            "changes": {
+              "type": "object",
+              "minProperties": 1,
+              "properties": {
+                "exploit_status_a": {
+                  "enum": [
+                    "runtime_confirmed",
+                    "runtime_refuted"
+                  ]
+                },
+                "exploit_status_b": {
+                  "enum": [
+                    "runtime_confirmed",
+                    "runtime_refuted"
+                  ]
+                },
+                "refuted_rule": {
+                  "enum": [
+                    "A1",
+                    "A2",
+                    "A3",
+                    "A4",
+                    "A5",
+                    "A6",
+                    "A7",
+                    "B1",
+                    "B2",
+                    "B3"
+                  ]
+                },
+                "tier": {
+                  "enum": [
+                    "PASS",
+                    "REPAIR",
+                    "REVIEW",
+                    "REJECT-PROVEN"
+                  ]
+                },
+                "untouched_image_passes": {
+                  "type": "string",
+                  "pattern": "^(yes|no): .+"
+                },
+                "dependency_probe": {
+                  "enum": [
+                    "import_ok",
+                    "import_fails"
+                  ]
+                },
+                "cleared_by_probe": {
+                  "type": "string",
+                  "minLength": 1
+                }
+              }
+            },
+            "sources": {
+              "type": "array",
+              "minItems": 1,
+              "uniqueItems": true,
+              "items": {
+                "type": "string",
+                "minLength": 1
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

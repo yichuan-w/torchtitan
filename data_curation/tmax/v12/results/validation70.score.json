@@ -1,0 +1,998 @@
+{
+ "sets": {
+  "acc_r1": {
+   "rows": 20,
+   "tiers": {
+    "REPAIR": 14,
+    "REJECT-PROVEN": 2,
+    "PASS": 4
+   },
+   "pass_held": 2,
+   "reject_shapes": {
+    "deliverable_is_leaked_material": 2
+   },
+   "exploit_status_a": {
+    "static_trace": 14,
+    "none_found": 6
+   },
+   "exploit_status_b": {
+    "none_found": 15,
+    "not_applicable": 3,
+    "static_trace": 2
+   },
+   "unparseable": [],
+   "schema_invalid": {},
+   "lint_violations": {
+    "task_000221_fb2fd737": [
+     "L11"
+    ],
+    "task_000681_6f824421": [
+     "L7"
+    ],
+    "task_000927_43407097": [
+     "L13"
+    ],
+    "task_001257_21489dc1": [
+     "L13"
+    ],
+    "task_005042_071a51df": [
+     "L11"
+    ]
+   }
+  },
+  "acc_r2": {
+   "rows": 20,
+   "tiers": {
+    "REPAIR": 13,
+    "REJECT-PROVEN": 3,
+    "PASS": 4
+   },
+   "pass_held": 2,
+   "reject_shapes": {
+    "deliverable_is_leaked_material": 2,
+    "instruction_prints_answer": 1
+   },
+   "exploit_status_a": {
+    "static_trace": 13,
+    "none_found": 7
+   },
+   "exploit_status_b": {
+    "none_found": 16,
+    "static_trace": 3,
+    "not_applicable": 1
+   },
+   "unparseable": [],
+   "schema_invalid": {},
+   "lint_violations": {
+    "task_000681_6f824421": [
+     "L7"
+    ],
+    "task_000872_cf99cb19": [
+     "L11"
+    ],
+    "task_000927_43407097": [
+     "L13"
+    ],
+    "task_004863_67089cd4": [
+     "L3"
+    ],
+    "task_005042_071a51df": [
+     "L11"
+    ]
+   }
+  },
+  "movers": {
+   "rows": 18,
+   "tiers": {
+    "PASS": 6,
+    "REPAIR": 8,
+    "REJECT-PROVEN": 3,
+    "REVIEW": 1
+   },
+   "pass_held": 4,
+   "reject_shapes": {
+    "broken_premise": 2,
+    "deliverable_is_leaked_material": 1
+   },
+   "exploit_status_a": {
+    "none_found": 12,
+    "not_driven": 2,
+    "static_trace": 4
+   },
+   "exploit_status_b": {
+    "none_found": 10,
+    "static_trace": 8
+   },
+   "unparseable": [],
+   "schema_invalid": {},
+   "lint_violations": {
+    "task_000092_a7e4987d": [
+     "L9"
+    ],
+    "task_000240_83a610a2": [
+     "L7"
+    ],
+    "task_000289_c79a9c35": [
+     "L7"
+    ],
+    "task_000306_9ab3da9c": [
+     "L7"
+    ],
+    "task_000509_3d105353": [
+     "L11"
+    ],
+    "task_000644_f4228067": [
+     "L11"
+    ],
+    "task_000653_81e6ac67": [
+     "L7"
+    ],
+    "task_000815_ccae7035": [
+     "L3"
+    ],
+    "task_000884_a5826af0": [
+     "L11"
+    ]
+   }
+  },
+  "flip": {
+   "rows": 12,
+   "tiers": {
+    "PASS": 3,
+    "REPAIR": 7,
+    "REJECT-PROVEN": 2
+   },
+   "pass_held": 0,
+   "reject_shapes": {
+    "deliverable_is_leaked_material": 2
+   },
+   "exploit_status_a": {
+    "none_found": 3,
+    "not_driven": 1,
+    "static_trace": 8
+   },
+   "exploit_status_b": {
+    "none_found": 9,
+    "static_trace": 1,
+    "not_applicable": 2
+   },
+   "unparseable": [],
+   "schema_invalid": {},
+   "lint_violations": {
+    "task_000369_e855128a": [
+     "L7"
+    ],
+    "task_000594_afb55b0a": [
+     "L13"
+    ],
+    "task_002226_5ca3468d": [
+     "L3",
+     "L4"
+    ]
+   }
+  }
+ },
+ "acceptance": {
+  "task_000156_2f395118": {
+   "kind": "guard",
+   "tiers": [
+    "REPAIR",
+    "REPAIR"
+   ],
+   "verdicts": [
+    "ANSWER-LEAK",
+    "ANSWER-LEAK"
+   ],
+   "fired": [
+    [
+     "oracle_reachable",
+     "core_clause_unenforced",
+     "overspecific_check"
+    ],
+    [
+     "oracle_reachable",
+     "core_clause_unenforced"
+    ]
+   ],
+   "shapes": [
+    null,
+    null
+   ],
+   "all_non_pass": true,
+   "required_floor_every_repeat": true,
+   "class_ok_every_repeat": true,
+   "expected_class": "REPAIR"
+  },
+  "task_000241_547763df": {
+   "kind": "guard",
+   "tiers": [
+    "REJECT-PROVEN",
+    "REJECT-PROVEN"
+   ],
+   "verdicts": [
+    "ANSWER-LEAK",
+    "ANSWER-LEAK"
+   ],
+   "fired": [
+    [
+     "value_derivable",
+     "core_clause_unenforced"
+    ],
+    [
+     "value_derivable",
+     "core_clause_unenforced"
+    ]
+   ],
+   "shapes": [
+    "deliverable_is_leaked_material",
+    "deliverable_is_leaked_material"
+   ],
+   "all_non_pass": true,
+   "required_floor_every_repeat": true,
+   "class_ok_every_repeat": true,
+   "expected_class": "REJECT-PROVEN"
+  },
+  "task_000311_9e22fec5": {
+   "kind": "guard",
+   "tiers": [
+    "REJECT-PROVEN",
+    "REJECT-PROVEN"
+   ],
+   "verdicts": [
+    "ANSWER-LEAK",
+    "ANSWER-LEAK"
+   ],
+   "fired": [
+    [
+     "value_derivable"
+    ],
+    [
+     "value_derivable",
+     "core_clause_unenforced"
+    ]
+   ],
+   "shapes": [
+    "deliverable_is_leaked_material",
+    "deliverable_is_leaked_material"
+   ],
+   "all_non_pass": true,
+   "required_floor_every_repeat": true,
+   "class_ok_every_repeat": true,
+   "expected_class": "EITHER"
+  },
+  "task_004863_67089cd4": {
+   "kind": "guard",
+   "tiers": [
+    "REPAIR",
+    "REPAIR"
+   ],
+   "verdicts": [
+    "ANSWER-LEAK",
+    "ANSWER-LEAK"
+   ],
+   "fired": [
+    [
+     "oracle_reachable",
+     "expectation_revealed"
+    ],
+    [
+     "oracle_reachable",
+     "expectation_revealed"
+    ]
+   ],
+   "shapes": [
+    null,
+    null
+   ],
+   "all_non_pass": true,
+   "required_floor_every_repeat": true,
+   "class_ok_every_repeat": true,
+   "expected_class": "REPAIR"
+  },
+  "task_004886_10504160": {
+   "kind": "guard",
+   "tiers": [
+    "REPAIR",
+    "REPAIR"
+   ],
+   "verdicts": [
+    "ANSWER-LEAK",
+    "ANSWER-LEAK"
+   ],
+   "fired": [
+    [
+     "expectation_revealed",
+     "unstable_reward"
+    ],
+    [
+     "expectation_revealed",
+     "value_derivable",
+     "unstable_reward"
+    ]
+   ],
+   "shapes": [
+    null,
+    null
+   ],
+   "all_non_pass": true,
+   "required_floor_every_repeat": true,
+   "class_ok_every_repeat": true,
+   "expected_class": "REPAIR",
+   "untouched": [
+    "unknown:",
+    "unknown:"
+   ],
+   "r5_ok": true
+  },
+  "task_000221_fb2fd737": {
+   "kind": "guard",
+   "tiers": [
+    "REPAIR",
+    "REPAIR"
+   ],
+   "verdicts": [
+    "ANSWER-LEAK",
+    "ANSWER-LEAK"
+   ],
+   "fired": [
+    [
+     "oracle_reachable",
+     "core_clause_unenforced"
+    ],
+    [
+     "oracle_reachable",
+     "core_clause_unenforced"
+    ]
+   ],
+   "shapes": [
+    null,
+    null
+   ],
+   "all_non_pass": true,
+   "required_floor_every_repeat": true,
+   "class_ok_every_repeat": true,
+   "expected_class": "REPAIR"
+  },
+  "task_000872_cf99cb19": {
+   "kind": "guard",
+   "tiers": [
+    "REPAIR",
+    "REPAIR"
+   ],
+   "verdicts": [
+    "ANSWER-LEAK",
+    "ANSWER-LEAK"
+   ],
+   "fired": [
+    [
+     "oracle_reachable",
+     "core_clause_unenforced"
+    ],
+    [
+     "oracle_reachable"
+    ]
+   ],
+   "shapes": [
+    null,
+    null
+   ],
+   "all_non_pass": true,
+   "required_floor_every_repeat": true,
+   "class_ok_every_repeat": true,
+   "expected_class": "REPAIR"
+  },
+  "task_001068_ba585e13": {
+   "kind": "guard",
+   "tiers": [
+    "REPAIR",
+    "REPAIR"
+   ],
+   "verdicts": [
+    "ANSWER-LEAK",
+    "ANSWER-LEAK"
+   ],
+   "fired": [
+    [
+     "oracle_reachable",
+     "expectation_movable"
+    ],
+    [
+     "oracle_reachable",
+     "expectation_movable"
+    ]
+   ],
+   "shapes": [
+    null,
+    null
+   ],
+   "all_non_pass": true,
+   "required_floor_every_repeat": true,
+   "class_ok_every_repeat": true,
+   "expected_class": "REPAIR"
+  },
+  "task_001257_21489dc1": {
+   "kind": "guard",
+   "tiers": [
+    "REPAIR",
+    "REPAIR"
+   ],
+   "verdicts": [
+    "ANSWER-LEAK",
+    "ANSWER-LEAK"
+   ],
+   "fired": [
+    [
+     "oracle_reachable",
+     "core_clause_unenforced"
+    ],
+    [
+     "oracle_reachable"
+    ]
+   ],
+   "shapes": [
+    null,
+    null
+   ],
+   "all_non_pass": true,
+   "required_floor_every_repeat": true,
+   "class_ok_every_repeat": true,
+   "expected_class": "REPAIR"
+  },
+  "task_000501_3c7739f3": {
+   "kind": "guard",
+   "tiers": [
+    "REPAIR",
+    "REJECT-PROVEN"
+   ],
+   "verdicts": [
+    "ANSWER-LEAK",
+    "ANSWER-LEAK"
+   ],
+   "fired": [
+    [
+     "value_derivable",
+     "core_clause_unenforced"
+    ],
+    [
+     "value_derivable"
+    ]
+   ],
+   "shapes": [
+    null,
+    "instruction_prints_answer"
+   ],
+   "all_non_pass": true,
+   "required_floor_every_repeat": true,
+   "class_ok_every_repeat": false,
+   "expected_class": "REPAIR"
+  },
+  "task_000316_02020782": {
+   "kind": "control",
+   "tiers": [
+    "PASS",
+    "PASS"
+   ],
+   "verdicts": [
+    "CLEAN",
+    "CLEAN"
+   ],
+   "fired": [
+    [],
+    []
+   ],
+   "leak_axis_clean_every_repeat": true,
+   "leak_repeats": 0,
+   "pass_every_repeat": true,
+   "held_repeats": 2
+  },
+  "task_001104_dffa14ac": {
+   "kind": "control",
+   "tiers": [
+    "PASS",
+    "PASS"
+   ],
+   "verdicts": [
+    "CLEAN",
+    "CLEAN"
+   ],
+   "fired": [
+    [],
+    []
+   ],
+   "leak_axis_clean_every_repeat": true,
+   "leak_repeats": 0,
+   "pass_every_repeat": true,
+   "held_repeats": 0
+  },
+  "task_000854_5a8ded74": {
+   "kind": "control",
+   "tiers": [
+    "PASS",
+    "PASS"
+   ],
+   "verdicts": [
+    "CLEAN",
+    "CLEAN"
+   ],
+   "fired": [
+    [],
+    []
+   ],
+   "leak_axis_clean_every_repeat": true,
+   "leak_repeats": 0,
+   "pass_every_repeat": true,
+   "held_repeats": 2
+  },
+  "task_005042_071a51df": {
+   "kind": "control",
+   "tiers": [
+    "PASS",
+    "PASS"
+   ],
+   "verdicts": [
+    "CLEAN",
+    "CLEAN"
+   ],
+   "fired": [
+    [],
+    []
+   ],
+   "leak_axis_clean_every_repeat": true,
+   "leak_repeats": 0,
+   "pass_every_repeat": true,
+   "held_repeats": 0
+  },
+  "task_000681_6f824421": {
+   "kind": "control",
+   "tiers": [
+    "REPAIR",
+    "REPAIR"
+   ],
+   "verdicts": [
+    "MUTABLE-GROUND-TRUTH",
+    "MUTABLE-GROUND-TRUTH"
+   ],
+   "fired": [
+    [
+     "expectation_movable"
+    ],
+    [
+     "expectation_movable"
+    ]
+   ],
+   "leak_axis_clean_every_repeat": true,
+   "leak_repeats": 0,
+   "a4_hits": 2,
+   "non_pass_every_repeat": true
+  },
+  "task_000927_43407097": {
+   "kind": "control",
+   "tiers": [
+    "REPAIR",
+    "REPAIR"
+   ],
+   "verdicts": [
+    "MUTABLE-GROUND-TRUTH",
+    "MUTABLE-GROUND-TRUTH"
+   ],
+   "fired": [
+    [
+     "expectation_movable"
+    ],
+    [
+     "expectation_movable"
+    ]
+   ],
+   "leak_axis_clean_every_repeat": true,
+   "leak_repeats": 0,
+   "a4_hits": 2,
+   "non_pass_every_repeat": true
+  },
+  "task_000056_f726766b": {
+   "kind": "control",
+   "tiers": [
+    "REPAIR",
+    "REPAIR"
+   ],
+   "verdicts": [
+    "MUTABLE-GROUND-TRUTH",
+    "MUTABLE-GROUND-TRUTH"
+   ],
+   "fired": [
+    [
+     "expectation_movable"
+    ],
+    [
+     "expectation_movable"
+    ]
+   ],
+   "leak_axis_clean_every_repeat": true,
+   "leak_repeats": 0,
+   "a4_hits": 2,
+   "non_pass_every_repeat": true
+  },
+  "task_007102_d981ab89": {
+   "kind": "control",
+   "tiers": [
+    "REPAIR",
+    "REPAIR"
+   ],
+   "verdicts": [
+    "INSTR-VERIFIER-MISMATCH",
+    "INSTR-VERIFIER-MISMATCH"
+   ],
+   "fired": [
+    [
+     "core_clause_unenforced",
+     "overspecific_check"
+    ],
+    [
+     "overspecific_check"
+    ]
+   ],
+   "leak_axis_clean_every_repeat": true,
+   "leak_repeats": 0,
+   "b1_hits": 2,
+   "unverified_repeats": 0,
+   "non_pass_every_repeat": true
+  },
+  "task_000220_ab2204ea": {
+   "kind": "control",
+   "tiers": [
+    "REPAIR",
+    "REPAIR"
+   ],
+   "verdicts": [
+    "INSTR-VERIFIER-MISMATCH",
+    "INSTR-VERIFIER-MISMATCH"
+   ],
+   "fired": [
+    [
+     "overspecific_check"
+    ],
+    [
+     "overspecific_check"
+    ]
+   ],
+   "leak_axis_clean_every_repeat": true,
+   "leak_repeats": 0,
+   "b1_hits": 2,
+   "unverified_repeats": 0,
+   "non_pass_every_repeat": true
+  },
+  "task_002378_139ea7d2": {
+   "kind": "control",
+   "tiers": [
+    "REPAIR",
+    "REPAIR"
+   ],
+   "verdicts": [
+    "INSTR-VERIFIER-MISMATCH",
+    "INSTR-VERIFIER-MISMATCH"
+   ],
+   "fired": [
+    [
+     "overspecific_check"
+    ],
+    [
+     "overspecific_check"
+    ]
+   ],
+   "leak_axis_clean_every_repeat": true,
+   "leak_repeats": 0,
+   "b1_hits": 2,
+   "unverified_repeats": 0,
+   "non_pass_every_repeat": true
+  }
+ },
+ "movers": {
+  "task_000092_a7e4987d": {
+   "tier": "PASS",
+   "fired": [],
+   "shape": null,
+   "expected": [
+    "PASS"
+   ],
+   "ok": true,
+   "held": false,
+   "leak": false
+  },
+  "task_006700_8f3aa427": {
+   "tier": "PASS",
+   "fired": [],
+   "shape": null,
+   "expected": [
+    "PASS"
+   ],
+   "ok": true,
+   "held": false,
+   "leak": false
+  },
+  "task_000370_755f32f1": {
+   "tier": "REJECT-PROVEN",
+   "fired": [
+    "overspecific_check"
+   ],
+   "shape": "broken_premise",
+   "expected": [
+    "REJECT-PROVEN"
+   ],
+   "ok": true,
+   "held": false,
+   "leak": false
+  },
+  "task_000595_d0be5c02": {
+   "tier": "REPAIR",
+   "fired": [
+    "core_clause_unenforced"
+   ],
+   "shape": null,
+   "expected": [
+    "REPAIR"
+   ],
+   "ok": true,
+   "held": false,
+   "leak": false
+  },
+  "task_000884_a5826af0": {
+   "tier": "PASS",
+   "fired": [],
+   "shape": null,
+   "expected": [
+    "REPAIR"
+   ],
+   "ok": false,
+   "held": true,
+   "leak": false
+  },
+  "task_001110_28c99a60": {
+   "tier": "REPAIR",
+   "fired": [
+    "expectation_movable",
+    "overspecific_check"
+   ],
+   "shape": null,
+   "expected": [
+    "REPAIR"
+   ],
+   "ok": true,
+   "held": false,
+   "leak": false
+  },
+  "task_000240_83a610a2": {
+   "tier": "REPAIR",
+   "fired": [
+    "expectation_movable",
+    "overspecific_check"
+   ],
+   "shape": null,
+   "expected": [
+    "REPAIR"
+   ],
+   "ok": true,
+   "held": false,
+   "leak": false
+  },
+  "task_000289_c79a9c35": {
+   "tier": "REPAIR",
+   "fired": [
+    "overspecific_check"
+   ],
+   "shape": null,
+   "expected": [
+    "REPAIR"
+   ],
+   "ok": true,
+   "held": false,
+   "leak": false
+  },
+  "task_000306_9ab3da9c": {
+   "tier": "REPAIR",
+   "fired": [
+    "overspecific_check"
+   ],
+   "shape": null,
+   "expected": [
+    "REPAIR"
+   ],
+   "ok": true,
+   "held": false,
+   "leak": false
+  },
+  "task_000653_81e6ac67": {
+   "tier": "REPAIR",
+   "fired": [
+    "overspecific_check"
+   ],
+   "shape": null,
+   "expected": [
+    "REPAIR"
+   ],
+   "ok": true,
+   "held": false,
+   "leak": false
+  },
+  "task_001160_f4115be8": {
+   "tier": "REPAIR",
+   "fired": [
+    "core_clause_unenforced"
+   ],
+   "shape": null,
+   "expected": [
+    "REPAIR"
+   ],
+   "ok": true,
+   "held": true,
+   "leak": false
+  },
+  "task_005170_60c2f84e": {
+   "tier": "REPAIR",
+   "fired": [
+    "overspecific_check"
+   ],
+   "shape": null,
+   "expected": [
+    "REPAIR"
+   ],
+   "ok": true,
+   "held": false,
+   "leak": false
+  },
+  "task_000644_f4228067": {
+   "tier": "REJECT-PROVEN",
+   "fired": [
+    "overspecific_check"
+   ],
+   "shape": "broken_premise",
+   "expected": [
+    "REJECT-PROVEN"
+   ],
+   "ok": true,
+   "held": false,
+   "leak": false
+  },
+  "task_000815_ccae7035": {
+   "tier": "REJECT-PROVEN",
+   "fired": [
+    "expectation_revealed"
+   ],
+   "shape": "deliverable_is_leaked_material",
+   "expected": [
+    "REJECT-PROVEN"
+   ],
+   "ok": true,
+   "held": false,
+   "leak": true
+  },
+  "task_003704_a0afd889": {
+   "tier": "REVIEW",
+   "fired": [
+    "value_derivable"
+   ],
+   "shape": null,
+   "expected": [
+    "REPAIR"
+   ],
+   "ok": false,
+   "held": true,
+   "leak": true
+  },
+  "task_000242_341bf3b8": {
+   "tier": "PASS",
+   "fired": [],
+   "shape": null,
+   "expected": [
+    "PASS"
+   ],
+   "ok": true,
+   "held": true,
+   "leak": false
+  },
+  "task_000509_3d105353": {
+   "tier": "PASS",
+   "fired": [],
+   "shape": null,
+   "expected": [
+    "PASS",
+    "REPAIR"
+   ],
+   "ok": true,
+   "held": true,
+   "leak": false
+  },
+  "task_001221_6603ce68": {
+   "tier": "PASS",
+   "fired": [],
+   "shape": null,
+   "expected": [
+    "PASS",
+    "REVIEW"
+   ],
+   "ok": true,
+   "held": true,
+   "leak": false
+  }
+ },
+ "over_rejection_instrument": {
+  "1_pass_required_every_repeat": true,
+  "2_leak_axis_clean_ten_controls": true,
+  "3_000092_006700_pass": true,
+  "4_every_reject_names_a_shape": true,
+  "bad_shape_rows": [],
+  "passes": true
+ },
+ "acceptance_summary": {
+  "guards_all_non_pass": 10,
+  "guards_required_floor": 10,
+  "guards_class_ok": 9,
+  "guards_class_failed": [
+   "task_000501_3c7739f3"
+  ],
+  "r5_004886": true,
+  "controls_leak_clean": 10,
+  "pass_required_ok": 4,
+  "a4": {
+   "task_000681_6f824421": [
+    2,
+    true
+   ],
+   "task_000927_43407097": [
+    2,
+    true
+   ],
+   "task_000056_f726766b": [
+    2,
+    true
+   ]
+  },
+  "b1": {
+   "task_007102_d981ab89": [
+    2,
+    0,
+    true
+   ],
+   "task_000220_ab2204ea": [
+    2,
+    0,
+    true
+   ],
+   "task_002378_139ea7d2": [
+    2,
+    0,
+    true
+   ]
+  },
+  "movers_ok": 16,
+  "movers_failed": [
+   "task_000884_a5826af0",
+   "task_003704_a0afd889"
+  ]
+ },
+ "vs_v10_1_draft1": {
+  "pairs": {
+   "PASS->PASS": 11,
+   "REJECT-PROVEN->REJECT-PROVEN": 4,
+   "REJECT-PROVEN->REPAIR": 1,
+   "REPAIR->PASS": 1,
+   "REPAIR->REJECT-PROVEN": 2,
+   "REPAIR->REPAIR": 26,
+   "REPAIR->REVIEW": 1,
+   "REVIEW->PASS": 1,
+   "REVIEW->REJECT-PROVEN": 1,
+   "REVIEW->REPAIR": 2
+  },
+  "agreement": 41,
+  "compared": 50,
+  "moved": [
+   "task_000241_547763df:REPAIR->REJECT-PROVEN",
+   "task_000681_6f824421:REVIEW->REPAIR",
+   "task_000884_a5826af0:REPAIR->PASS",
+   "task_001110_28c99a60:REVIEW->REPAIR",
+   "task_003704_a0afd889:REPAIR->REVIEW",
+   "task_000390_1fdc4a13:REVIEW->REJECT-PROVEN",
+   "task_001565_1a492ace:REJECT-PROVEN->REPAIR",
+   "task_002298_8021a29f:REVIEW->PASS",
+   "task_004056_fbadeca6:REPAIR->REJECT-PROVEN"
+  ]
+ }
+}

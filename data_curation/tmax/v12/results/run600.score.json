@@ -1,0 +1,1143 @@
+{
+ "run": "v12_prod_run600",
+ "selected": 600,
+ "judged": 600,
+ "missing": [],
+ "extra": [],
+ "unparseable": [],
+ "tiers": {
+  "REPAIR": 342,
+  "PASS": 188,
+  "REJECT-PROVEN": 32,
+  "REVIEW": 38
+ },
+ "verdicts": {
+  "MUTABLE-GROUND-TRUTH": 62,
+  "VERIFIER-TOO-WEAK": 28,
+  "CLEAN": 198,
+  "INSTR-VERIFIER-MISMATCH": 158,
+  "ANSWER-LEAK": 150,
+  "OTHER": 1,
+  "INSTR-ENV-MISMATCH": 3
+ },
+ "reject_shapes": {
+  "deliverable_is_leaked_material": 25,
+  "instruction_prints_answer": 3,
+  "broken_premise": 4
+ },
+ "pass_held": 74,
+ "exploit_status_a": {
+  "static_trace": 341,
+  "none_found": 249,
+  "not_driven": 9,
+  "not_applicable": 1
+ },
+ "exploit_status_b": {
+  "none_found": 512,
+  "static_trace": 54,
+  "not_applicable": 33,
+  "not_driven": 1
+ },
+ "fired_field_counts": {
+  "core_clause_unenforced": 168,
+  "value_derivable": 81,
+  "expectation_revealed": 78,
+  "overspecific_check": 74,
+  "expectation_movable": 71,
+  "oracle_reachable": 62,
+  "weak_verifier_exploit": 27,
+  "unstable_reward": 11,
+  "env_mismatch": 4,
+  "ambiguity": 2
+ },
+ "schema_invalid": {},
+ "lint_violations": {
+  "task_000001_1a03ebc5": [
+   "L7"
+  ],
+  "task_000015_6615e8e8": [
+   "L3",
+   "L4"
+  ],
+  "task_000021_ab956b8c": [
+   "L7"
+  ],
+  "task_000024_5288b9fe": [
+   "L7"
+  ],
+  "task_000025_b3c538ae": [
+   "L13",
+   "L8"
+  ],
+  "task_000043_12653d83": [
+   "L3"
+  ],
+  "task_000083_53332680": [
+   "L1"
+  ],
+  "task_000123_4fbab6a2": [
+   "L3"
+  ],
+  "task_000128_6a68aa1d": [
+   "L7"
+  ],
+  "task_000132_72484cb9": [
+   "L11",
+   "L13"
+  ],
+  "task_000144_8d5c2762": [
+   "L3"
+  ],
+  "task_000145_d9cedde9": [
+   "L11"
+  ],
+  "task_000154_679ac95d": [
+   "L9"
+  ],
+  "task_000160_121a396b": [
+   "L13"
+  ],
+  "task_000184_1ce10692": [
+   "L14"
+  ],
+  "task_000194_accd9d89": [
+   "L7"
+  ],
+  "task_000196_903490f1": [
+   "L13",
+   "L7"
+  ],
+  "task_000235_d861beea": [
+   "L7"
+  ],
+  "task_000237_a4f6b704": [
+   "L7"
+  ],
+  "task_000248_ea207306": [
+   "L10",
+   "L13"
+  ],
+  "task_000250_312c1dbc": [
+   "L3"
+  ],
+  "task_000257_3aa7e8dc": [
+   "L7"
+  ],
+  "task_000267_71b0b1ad": [
+   "L3",
+   "L7"
+  ],
+  "task_000297_dd740392": [
+   "L13"
+  ],
+  "task_000307_8c39a016": [
+   "L15"
+  ],
+  "task_000311_9e22fec5": [
+   "L3"
+  ],
+  "task_000322_52e0a9fe": [
+   "L11"
+  ],
+  "task_000331_cc450fdc": [
+   "L3"
+  ],
+  "task_000346_e7303109": [
+   "L15"
+  ],
+  "task_000368_4536bebb": [
+   "L8"
+  ],
+  "task_000368_ab47f3b0": [
+   "L7"
+  ],
+  "task_000371_24753c75": [
+   "L7"
+  ],
+  "task_000377_613e2e38": [
+   "L7"
+  ],
+  "task_000380_413c0eac": [
+   "L11"
+  ],
+  "task_000387_5cbd2f2c": [
+   "L7"
+  ],
+  "task_000408_cc562346": [
+   "L3"
+  ],
+  "task_000420_2c758b19": [
+   "L3"
+  ],
+  "task_000427_bfb3d39e": [
+   "L11"
+  ],
+  "task_000437_6cb600f8": [
+   "L13"
+  ],
+  "task_000438_8a389262": [
+   "L11"
+  ],
+  "task_000441_46ca3e85": [
+   "L7"
+  ],
+  "task_000443_90a5ee10": [
+   "L11"
+  ],
+  "task_000458_f497a0ac": [
+   "L11"
+  ],
+  "task_000479_cf71224b": [
+   "L3"
+  ],
+  "task_000524_1b573147": [
+   "L11"
+  ],
+  "task_000532_575eee22": [
+   "L3"
+  ],
+  "task_000551_2966ebc4": [
+   "L8"
+  ],
+  "task_000585_2fd259d3": [
+   "L13",
+   "L8"
+  ],
+  "task_000589_21509b0c": [
+   "L13"
+  ],
+  "task_000592_801a8bd4": [
+   "L3"
+  ],
+  "task_000599_8259e466": [
+   "L13"
+  ],
+  "task_000631_aa3e6699": [
+   "L7"
+  ],
+  "task_000655_7937a6d9": [
+   "L3"
+  ],
+  "task_000669_8fcceacc": [
+   "L11",
+   "L7"
+  ],
+  "task_000670_2a677465": [
+   "L14",
+   "L2b",
+   "L9"
+  ],
+  "task_000678_a219819a": [
+   "L11",
+   "L9"
+  ],
+  "task_000681_0f80cbd5": [
+   "L13",
+   "L7"
+  ],
+  "task_000698_4faa0030": [
+   "L11",
+   "L3"
+  ],
+  "task_000713_4d9b0f30": [
+   "L8"
+  ],
+  "task_000720_9486599c": [
+   "L14"
+  ],
+  "task_000724_bbe6869c": [
+   "L11"
+  ],
+  "task_000733_b15c531f": [
+   "L3",
+   "L7"
+  ],
+  "task_000741_4b5cf757": [
+   "L11"
+  ],
+  "task_000747_81a0c459": [
+   "L11"
+  ],
+  "task_000767_884d306c": [
+   "L3"
+  ],
+  "task_000770_d3a78c7a": [
+   "L11"
+  ],
+  "task_000792_16bc86f2": [
+   "L7"
+  ],
+  "task_000792_f3d67730": [
+   "L11"
+  ],
+  "task_000793_6c3b0054": [
+   "L15"
+  ],
+  "task_000793_ad9531f0": [
+   "L3",
+   "L4"
+  ],
+  "task_000804_7a80e07c": [
+   "L7"
+  ],
+  "task_000810_805f1317": [
+   "L7"
+  ],
+  "task_000866_c0b75485": [
+   "L9"
+  ],
+  "task_000888_971a54af": [
+   "L7"
+  ],
+  "task_000897_96178d62": [
+   "L13"
+  ],
+  "task_000897_a0926896": [
+   "L10",
+   "L13"
+  ],
+  "task_000902_c122671d": [
+   "L6"
+  ],
+  "task_000906_a5614541": [
+   "L8"
+  ],
+  "task_000927_43407097": [
+   "L13"
+  ],
+  "task_000941_1fff2a40": [
+   "L7"
+  ],
+  "task_000968_db4a2431": [
+   "L3"
+  ],
+  "task_000970_e2ae4e8e": [
+   "L15"
+  ],
+  "task_000984_7f090cee": [
+   "L11"
+  ],
+  "task_000984_cbd7f3c9": [
+   "L13"
+  ],
+  "task_000992_eb40997f": [
+   "L9"
+  ],
+  "task_000998_a59d4fb3": [
+   "L13"
+  ],
+  "task_001048_cd123073": [
+   "L11"
+  ],
+  "task_001058_15bb2cd8": [
+   "L13"
+  ],
+  "task_001063_afc38090": [
+   "L13"
+  ],
+  "task_001069_a9182649": [
+   "L3"
+  ],
+  "task_001086_fb3ded6a": [
+   "L1",
+   "L13"
+  ],
+  "task_001092_06783d36": [
+   "L8"
+  ],
+  "task_001094_dca23eb9": [
+   "L15"
+  ],
+  "task_001118_3306824d": [
+   "L11"
+  ],
+  "task_001156_9f8ed4b7": [
+   "L11"
+  ],
+  "task_001156_be184bb9": [
+   "L7"
+  ],
+  "task_001172_1330d331": [
+   "L13",
+   "L15",
+   "L6"
+  ],
+  "task_001176_c96f1c32": [
+   "L15"
+  ],
+  "task_001179_b6dae579": [
+   "L11"
+  ],
+  "task_001201_a004352a": [
+   "L11",
+   "L3"
+  ],
+  "task_001223_4fd9b2d2": [
+   "L3"
+  ],
+  "task_001318_fc0f9faa": [
+   "L11"
+  ],
+  "task_001364_19fa3618": [
+   "L7"
+  ],
+  "task_001372_52718284": [
+   "L3"
+  ],
+  "task_001397_2e056b01": [
+   "L3",
+   "L4"
+  ],
+  "task_001498_7fe1184d": [
+   "L3",
+   "L7"
+  ],
+  "task_001575_c87be32c": [
+   "L3"
+  ],
+  "task_001581_0a92633e": [
+   "L3"
+  ],
+  "task_001607_be90baaf": [
+   "L3"
+  ],
+  "task_001703_4a3af2c3": [
+   "L7"
+  ],
+  "task_001720_91663aaf": [
+   "L3"
+  ],
+  "task_001741_122fbc18": [
+   "L13"
+  ],
+  "task_001781_b5183c50": [
+   "L3"
+  ],
+  "task_001847_2a65645a": [
+   "L14",
+   "L3"
+  ],
+  "task_001855_bfb918d6": [
+   "L7"
+  ],
+  "task_002119_e871c336": [
+   "L4"
+  ],
+  "task_002220_5ff0a0d8": [
+   "L7"
+  ],
+  "task_002285_8832c858": [
+   "L11"
+  ],
+  "task_002349_eede212a": [
+   "L7"
+  ],
+  "task_002392_c7a06198": [
+   "L3"
+  ],
+  "task_002408_f3ad7d68": [
+   "L15"
+  ],
+  "task_002436_00fb49b2": [
+   "L3"
+  ],
+  "task_002507_30102bd4": [
+   "L13"
+  ],
+  "task_002562_0b8c0409": [
+   "L11",
+   "L3"
+  ],
+  "task_002720_29a52b70": [
+   "L15"
+  ],
+  "task_002776_52d84968": [
+   "L3"
+  ],
+  "task_002918_3e5568e4": [
+   "L3"
+  ],
+  "task_003033_f6c0c4cb": [
+   "L14",
+   "L3"
+  ],
+  "task_003090_073c9355": [
+   "L3"
+  ],
+  "task_003228_e90de514": [
+   "L11"
+  ],
+  "task_003280_ccd04de0": [
+   "L13"
+  ],
+  "task_003334_ffc4e355": [
+   "L7"
+  ],
+  "task_003581_b898080c": [
+   "L11"
+  ],
+  "task_003656_dbb80065": [
+   "L3"
+  ],
+  "task_003739_81e3140d": [
+   "L15"
+  ],
+  "task_003759_74019aa4": [
+   "L14",
+   "L15"
+  ],
+  "task_003777_18839590": [
+   "L14"
+  ],
+  "task_003797_09bd372a": [
+   "L14"
+  ],
+  "task_003971_8f8b3b8c": [
+   "L7"
+  ],
+  "task_004031_32a489fa": [
+   "L3"
+  ],
+  "task_004245_279ad801": [
+   "L3"
+  ],
+  "task_004420_ce2bb4a2": [
+   "L3",
+   "L7"
+  ],
+  "task_004465_bc443ae5": [
+   "L3"
+  ],
+  "task_004474_85f0dd0d": [
+   "L7"
+  ],
+  "task_004481_450cca8e": [
+   "L9"
+  ],
+  "task_004564_57be5bca": [
+   "L3",
+   "L7"
+  ],
+  "task_004886_10504160": [
+   "L3"
+  ],
+  "task_005042_071a51df": [
+   "L11"
+  ],
+  "task_005279_8bcea342": [
+   "L3"
+  ],
+  "task_005402_739289ed": [
+   "L11"
+  ],
+  "task_005435_15c19859": [
+   "L3"
+  ],
+  "task_005548_93090bcc": [
+   "L11"
+  ],
+  "task_005909_4d8203db": [
+   "L14"
+  ],
+  "task_006081_dfe5192a": [
+   "L11"
+  ],
+  "task_006210_e9532fdc": [
+   "L15"
+  ],
+  "task_006308_d9508e6b": [
+   "L11"
+  ],
+  "task_007088_00ca8c40": [
+   "L13"
+  ],
+  "task_007213_3d102c5b": [
+   "L15"
+  ],
+  "task_007242_5ddef570": [
+   "L15",
+   "L7"
+  ],
+  "task_007774_78a9589f": [
+   "L11",
+   "L13"
+  ],
+  "task_008303_988ee7d3": [
+   "L9"
+  ],
+  "task_008379_9f0b3392": [
+   "L9"
+  ],
+  "task_008423_e40cf17f": [
+   "L9"
+  ],
+  "task_008531_d22ebcf4": [
+   "L11"
+  ],
+  "task_008583_788d0622": [
+   "L2"
+  ],
+  "task_008680_465d3251": [
+   "L15"
+  ],
+  "task_009195_41e66dca": [
+   "L3"
+  ],
+  "task_009307_974e369f": [
+   "L15"
+  ]
+ },
+ "lint_distribution": {
+  "L3": 48,
+  "L7": 37,
+  "L11": 35,
+  "L13": 25,
+  "L15": 16,
+  "L9": 9,
+  "L14": 9,
+  "L8": 7,
+  "L4": 4,
+  "L1": 2,
+  "L10": 2,
+  "L6": 2,
+  "L2b": 1,
+  "L2": 1
+ },
+ "instrument": {
+  "task_000156_2f395118": {
+   "kind": "guard",
+   "tier": "REPAIR",
+   "floor": true,
+   "ok": true,
+   "fired": [
+    "oracle_reachable",
+    "core_clause_unenforced",
+    "overspecific_check"
+   ]
+  },
+  "task_000241_547763df": {
+   "kind": "guard",
+   "tier": "REPAIR",
+   "floor": true,
+   "ok": true,
+   "fired": [
+    "core_clause_unenforced"
+   ]
+  },
+  "task_000311_9e22fec5": {
+   "kind": "guard",
+   "tier": "REPAIR",
+   "floor": true,
+   "ok": true,
+   "fired": [
+    "value_derivable"
+   ]
+  },
+  "task_004863_67089cd4": {
+   "kind": "guard",
+   "tier": "REPAIR",
+   "floor": true,
+   "ok": true,
+   "fired": [
+    "oracle_reachable",
+    "expectation_revealed"
+   ]
+  },
+  "task_004886_10504160": {
+   "kind": "guard",
+   "tier": "REPAIR",
+   "floor": true,
+   "ok": true,
+   "fired": [
+    "expectation_revealed",
+    "value_derivable",
+    "unstable_reward"
+   ]
+  },
+  "task_000221_fb2fd737": {
+   "kind": "guard",
+   "tier": "REPAIR",
+   "floor": true,
+   "ok": true,
+   "fired": [
+    "oracle_reachable",
+    "core_clause_unenforced"
+   ]
+  },
+  "task_000872_cf99cb19": {
+   "kind": "guard",
+   "tier": "REPAIR",
+   "floor": true,
+   "ok": true,
+   "fired": [
+    "oracle_reachable",
+    "core_clause_unenforced"
+   ]
+  },
+  "task_001068_ba585e13": {
+   "kind": "guard",
+   "tier": "REPAIR",
+   "floor": true,
+   "ok": true,
+   "fired": [
+    "oracle_reachable",
+    "expectation_movable"
+   ]
+  },
+  "task_001257_21489dc1": {
+   "kind": "guard",
+   "tier": "REPAIR",
+   "floor": true,
+   "ok": true,
+   "fired": [
+    "oracle_reachable",
+    "core_clause_unenforced"
+   ]
+  },
+  "task_000501_3c7739f3": {
+   "kind": "guard",
+   "tier": "REJECT-PROVEN",
+   "floor": true,
+   "ok": true,
+   "fired": [
+    "value_derivable"
+   ]
+  },
+  "task_000316_02020782": {
+   "kind": "pass-required",
+   "tier": "PASS",
+   "ok": true,
+   "held": true,
+   "leak_clean": true
+  },
+  "task_001104_dffa14ac": {
+   "kind": "pass-required",
+   "tier": "PASS",
+   "ok": true,
+   "held": false,
+   "leak_clean": true
+  },
+  "task_000854_5a8ded74": {
+   "kind": "pass-required",
+   "tier": "PASS",
+   "ok": true,
+   "held": true,
+   "leak_clean": true
+  },
+  "task_005042_071a51df": {
+   "kind": "pass-required",
+   "tier": "PASS",
+   "ok": true,
+   "held": false,
+   "leak_clean": true
+  },
+  "task_000681_6f824421": {
+   "kind": "A4",
+   "tier": "REPAIR",
+   "ok": true,
+   "leak_clean": true
+  },
+  "task_000927_43407097": {
+   "kind": "A4",
+   "tier": "REPAIR",
+   "ok": true,
+   "leak_clean": true
+  },
+  "task_000056_f726766b": {
+   "kind": "A4",
+   "tier": "REPAIR",
+   "ok": true,
+   "leak_clean": true
+  },
+  "task_007102_d981ab89": {
+   "kind": "B1",
+   "tier": "REPAIR",
+   "ok": true,
+   "leak_clean": true
+  },
+  "task_000220_ab2204ea": {
+   "kind": "B1",
+   "tier": "REPAIR",
+   "ok": true,
+   "leak_clean": true
+  },
+  "task_002378_139ea7d2": {
+   "kind": "B1",
+   "tier": "REPAIR",
+   "ok": true,
+   "leak_clean": true
+  }
+ },
+ "instrument_summary": {
+  "guards_ok": 10,
+  "guards_total": 10,
+  "pass_required_ok": 4,
+  "pass_required_total": 4,
+  "a4_ok": 3,
+  "b1_ok": 3,
+  "controls_leak_axis_clean": true,
+  "every_reject_names_a_shape": true
+ },
+ "hook_replaceable": {
+  "pure": [
+   "task_000001_1a03ebc5",
+   "task_000011_24e54d45",
+   "task_000056_f726766b",
+   "task_000106_92ab4e12",
+   "task_000122_19e84c46",
+   "task_000128_6a68aa1d",
+   "task_000237_a4f6b704",
+   "task_000334_af1152bf",
+   "task_000368_ab47f3b0",
+   "task_000542_e983679c",
+   "task_000551_2966ebc4",
+   "task_000663_dff2c340",
+   "task_000668_885c3719",
+   "task_000712_80fafc0b",
+   "task_000716_f8a3c63f",
+   "task_000740_487424b2",
+   "task_000792_16bc86f2",
+   "task_000856_db36e060",
+   "task_000888_971a54af",
+   "task_000912_e0140389",
+   "task_000927_43407097",
+   "task_000941_1fff2a40",
+   "task_001741_122fbc18",
+   "task_001855_bfb918d6",
+   "task_002349_eede212a",
+   "task_003334_ffc4e355",
+   "task_003797_09bd372a",
+   "task_003971_8f8b3b8c",
+   "task_004917_0f6cfa70",
+   "task_005249_f1dd665d",
+   "task_005327_eef03982",
+   "task_006224_79d7a6a5",
+   "task_007847_8420fed2",
+   "task_008633_a476735e",
+   "task_009549_16b74a4d",
+   "task_009745_64b4d06b"
+  ],
+  "partial": [
+   "task_000024_5288b9fe",
+   "task_000046_69d56d65",
+   "task_000160_121a396b",
+   "task_000196_903490f1",
+   "task_000235_d861beea",
+   "task_000371_24753c75",
+   "task_000377_613e2e38",
+   "task_000438_8a389262",
+   "task_000441_46ca3e85",
+   "task_000705_dd1c4aef",
+   "task_000724_bbe6869c",
+   "task_000889_7b1141aa",
+   "task_000947_ae2e14dc",
+   "task_000997_7c67da94",
+   "task_001068_ba585e13",
+   "task_001364_19fa3618",
+   "task_002507_30102bd4",
+   "task_003126_38faf196",
+   "task_004474_85f0dd0d",
+   "task_005680_ab6232e8"
+  ],
+  "n_pure": 36,
+  "n_partial": 20,
+  "note": "pure = the only fired floor is A4 (movable ground truth) and the named fix is a pin/regenerate; a training-side hook that snapshots declared inputs before rollout and restores them before grading neutralises these without a per-task verifier change. partial = A4 with a pin fix alongside other fired floors, which still need their own repair."
+ },
+ "v8_vs_v12": {
+  "pairs": {
+   "REPAIR->REPAIR": 193,
+   "PASS->PASS": 169,
+   "PASS->REPAIR": 116,
+   "REVIEW->REPAIR": 23,
+   "REPAIR->REJECT-PROVEN": 20,
+   "PASS->REVIEW": 16,
+   "REPAIR->REVIEW": 13,
+   "REPAIR->PASS": 12,
+   "REJECT-PROVEN->REPAIR": 10,
+   "REVIEW->PASS": 7,
+   "REJECT-PROVEN->REJECT-PROVEN": 6,
+   "PASS->REJECT-PROVEN": 6,
+   "REVIEW->REVIEW": 6,
+   "REJECT-PROVEN->REVIEW": 3
+  },
+  "agreement": 374,
+  "compared": 600,
+  "v8_PASS_judged": 307,
+  "v8_PASS_kept_PASS": 169,
+  "v8_PASS_with_a_leak_field": 22,
+  "v8_PASS_leak_ids": [
+   "task_000155_91b6fb26",
+   "task_000156_2f395118",
+   "task_000221_fb2fd737",
+   "task_000263_6600ff80",
+   "task_000387_5cbd2f2c",
+   "task_000467_5793d509",
+   "task_000501_3c7739f3",
+   "task_000546_6753499a",
+   "task_000669_8fcceacc",
+   "task_000675_fdb1f415",
+   "task_000872_cf99cb19",
+   "task_000875_0cec6314",
+   "task_000953_1d76c7c3",
+   "task_000984_cbd7f3c9",
+   "task_001058_15bb2cd8",
+   "task_001068_ba585e13",
+   "task_001167_83b72956",
+   "task_001201_a004352a",
+   "task_001204_94e4cb2b",
+   "task_001257_21489dc1",
+   "task_004277_511121b0",
+   "task_005501_6fa829d1"
+  ],
+  "v8_nonPASS_judged": 293,
+  "v8_nonPASS_admitted_PASS": 19,
+  "moved": {
+   "PASS->REPAIR": [
+    "task_000001_1a03ebc5:expectation_movable",
+    "task_000009_dbc34e08:overspecific_check",
+    "task_000023_004a85b4:core_clause_unenforced",
+    "task_000025_b3c538ae:core_clause_unenforced",
+    "task_000033_0b133897:weak_verifier_exploit",
+    "task_000056_f726766b:expectation_movable",
+    "task_000057_e980d518:overspecific_check",
+    "task_000094_87018798:overspecific_check",
+    "task_000109_9dcdc97b:core_clause_unenforced",
+    "task_000134_39daeb5b:core_clause_unenforced",
+    "task_000142_395c1c7f:overspecific_check",
+    "task_000156_2f395118:oracle_reachable+core_clause_unenforced+overspecific_check",
+    "task_000179_d9d1d25c:core_clause_unenforced",
+    "task_000183_2ce41474:overspecific_check",
+    "task_000191_43b277e0:core_clause_unenforced",
+    "task_000192_5daa80df:unstable_reward",
+    "task_000196_903490f1:expectation_movable+core_clause_unenforced",
+    "task_000220_ab2204ea:overspecific_check",
+    "task_000221_fb2fd737:oracle_reachable+core_clause_unenforced",
+    "task_000232_ca1072ad:core_clause_unenforced",
+    "task_000234_e28751fb:weak_verifier_exploit",
+    "task_000236_4626f947:overspecific_check",
+    "task_000241_547763df:core_clause_unenforced",
+    "task_000248_ea207306:core_clause_unenforced",
+    "task_000261_c4b6db13:core_clause_unenforced",
+    "task_000272_5966f420:none",
+    "task_000319_d105c709:core_clause_unenforced",
+    "task_000322_52e0a9fe:overspecific_check",
+    "task_000325_376957fb:overspecific_check",
+    "task_000334_af1152bf:expectation_movable",
+    "task_000368_ab47f3b0:expectation_movable",
+    "task_000380_413c0eac:core_clause_unenforced",
+    "task_000420_e89f8dcd:overspecific_check",
+    "task_000438_8a389262:expectation_movable+core_clause_unenforced",
+    "task_000458_f497a0ac:core_clause_unenforced",
+    "task_000467_5793d509:value_derivable+core_clause_unenforced",
+    "task_000534_692babf2:core_clause_unenforced",
+    "task_000536_f7740fe0:overspecific_check",
+    "task_000546_6753499a:oracle_reachable",
+    "task_000547_867da96b:core_clause_unenforced",
+    "task_000570_6738f509:core_clause_unenforced",
+    "task_000585_2fd259d3:overspecific_check",
+    "task_000594_5b77893b:core_clause_unenforced",
+    "task_000627_353cec5c:weak_verifier_exploit",
+    "task_000630_d08a5512:weak_verifier_exploit",
+    "task_000653_be14580f:core_clause_unenforced",
+    "task_000665_be4595ae:overspecific_check",
+    "task_000668_2ead812a:weak_verifier_exploit",
+    "task_000668_885c3719:expectation_movable",
+    "task_000669_8fcceacc:expectation_revealed",
+    "task_000675_fdb1f415:value_derivable",
+    "task_000678_09ffae1d:weak_verifier_exploit",
+    "task_000681_6f824421:expectation_movable",
+    "task_000684_b3cc1d2c:overspecific_check",
+    "task_000724_bbe6869c:expectation_movable+overspecific_check",
+    "task_000740_487424b2:expectation_movable",
+    "task_000793_6c3b0054:weak_verifier_exploit",
+    "task_000856_db36e060:expectation_movable",
+    "task_000872_cf99cb19:oracle_reachable+core_clause_unenforced",
+    "task_000886_9c1067c9:core_clause_unenforced",
+    "task_000888_971a54af:expectation_movable",
+    "task_000904_2c065869:core_clause_unenforced",
+    "task_000905_deaae61a:core_clause_unenforced",
+    "task_000927_43407097:expectation_movable",
+    "task_000944_bd55a239:core_clause_unenforced",
+    "task_000952_edc2f62a:overspecific_check",
+    "task_000953_1d76c7c3:value_derivable+overspecific_check",
+    "task_000997_ccd13ab9:core_clause_unenforced",
+    "task_000998_a59d4fb3:core_clause_unenforced",
+    "task_001011_daf5764a:weak_verifier_exploit",
+    "task_001028_f24e9bb1:core_clause_unenforced",
+    "task_001031_8c0bbebe:core_clause_unenforced",
+    "task_001047_323eea51:core_clause_unenforced",
+    "task_001058_15bb2cd8:value_derivable+core_clause_unenforced",
+    "task_001068_ba585e13:oracle_reachable+expectation_movable",
+    "task_001080_cde45556:core_clause_unenforced",
+    "task_001155_8876cd82:core_clause_unenforced",
+    "task_001161_a1961431:core_clause_unenforced",
+    "task_001167_83b72956:value_derivable+core_clause_unenforced",
+    "task_001175_247c0751:core_clause_unenforced",
+    "task_001200_9245c609:core_clause_unenforced",
+    "task_001204_94e4cb2b:value_derivable",
+    "task_001213_032dc5ed:core_clause_unenforced",
+    "task_001237_3bb323ec:core_clause_unenforced",
+    "task_001257_21489dc1:oracle_reachable+core_clause_unenforced",
+    "task_001291_369c3f4f:overspecific_check",
+    "task_001626_d64d39ee:weak_verifier_exploit",
+    "task_001741_122fbc18:expectation_movable",
+    "task_001855_bfb918d6:expectation_movable",
+    "task_002285_8832c858:core_clause_unenforced",
+    "task_002378_139ea7d2:overspecific_check",
+    "task_002507_30102bd4:expectation_movable+core_clause_unenforced",
+    "task_003207_4cab79ae:core_clause_unenforced",
+    "task_003527_074eacd5:overspecific_check",
+    "task_003720_a81876de:overspecific_check",
+    "task_004277_511121b0:oracle_reachable",
+    "task_004773_d500c3c4:core_clause_unenforced",
+    "task_004843_a9d25880:core_clause_unenforced",
+    "task_004961_88df19d1:core_clause_unenforced",
+    "task_005380_f0733200:overspecific_check",
+    "task_005501_6fa829d1:value_derivable+overspecific_check",
+    "task_005972_3425b2a9:core_clause_unenforced",
+    "task_007032_d362e926:overspecific_check",
+    "task_007102_d981ab89:core_clause_unenforced+overspecific_check",
+    "task_007242_5ddef570:overspecific_check",
+    "task_007446_3dcb34fb:core_clause_unenforced",
+    "task_007774_78a9589f:core_clause_unenforced",
+    "task_007847_8420fed2:expectation_movable",
+    "task_007950_6dba22a9:core_clause_unenforced",
+    "task_008056_73776e23:overspecific_check",
+    "task_008081_5855211a:overspecific_check",
+    "task_008452_2f7dd135:core_clause_unenforced",
+    "task_008531_d22ebcf4:core_clause_unenforced",
+    "task_008768_943d87e0:overspecific_check",
+    "task_009407_4bf4231f:overspecific_check",
+    "task_009789_17749e90:core_clause_unenforced"
+   ],
+   "REVIEW->REPAIR": [
+    "task_000002_81d660f3:weak_verifier_exploit",
+    "task_000314_7c80811b:core_clause_unenforced+unstable_reward",
+    "task_000330_e670f9a0:core_clause_unenforced",
+    "task_000381_3cdf2def:core_clause_unenforced",
+    "task_000417_e5e5874b:env_mismatch",
+    "task_000461_94f6168a:core_clause_unenforced",
+    "task_000468_a55bef32:core_clause_unenforced",
+    "task_000542_e983679c:expectation_movable",
+    "task_000616_c813b919:env_mismatch",
+    "task_000625_0ddc4695:weak_verifier_exploit",
+    "task_000720_9486599c:weak_verifier_exploit",
+    "task_000768_d61aa5c8:core_clause_unenforced",
+    "task_000775_bd33c1eb:value_derivable+core_clause_unenforced+overspecific_check",
+    "task_000792_16bc86f2:expectation_movable",
+    "task_000917_208c26f5:expectation_revealed",
+    "task_000934_e69a9d76:overspecific_check",
+    "task_000938_3435ad2e:env_mismatch",
+    "task_001063_afc38090:core_clause_unenforced",
+    "task_001086_fb3ded6a:expectation_movable+unstable_reward",
+    "task_001172_1330d331:core_clause_unenforced",
+    "task_001221_157b68d4:core_clause_unenforced",
+    "task_001356_e7d2988c:core_clause_unenforced+unstable_reward",
+    "task_002887_0332588a:overspecific_check"
+   ],
+   "REPAIR->REJECT-PROVEN": [
+    "task_000015_6615e8e8:expectation_revealed+core_clause_unenforced+overspecific_check:deliverable_is_leaked_material",
+    "task_000144_8d5c2762:expectation_revealed+value_derivable:deliverable_is_leaked_material",
+    "task_000169_c9d4134e:expectation_revealed:deliverable_is_leaked_material",
+    "task_000194_accd9d89:expectation_revealed+value_derivable+core_clause_unenforced:deliverable_is_leaked_material",
+    "task_000217_6e764f81:value_derivable:deliverable_is_leaked_material",
+    "task_000221_0d2825d8:value_derivable+core_clause_unenforced:deliverable_is_leaked_material",
+    "task_000226_18a13697:expectation_revealed+value_derivable:deliverable_is_leaked_material",
+    "task_000267_71b0b1ad:expectation_revealed:deliverable_is_leaked_material",
+    "task_000445_9ff81d3c:value_derivable:deliverable_is_leaked_material",
+    "task_000519_2f0b3d5d:value_derivable+expectation_movable:deliverable_is_leaked_material",
+    "task_001048_cd123073:value_derivable+core_clause_unenforced:deliverable_is_leaked_material",
+    "task_001156_be184bb9:expectation_revealed:deliverable_is_leaked_material",
+    "task_002493_1814cebd:value_derivable+expectation_movable:deliverable_is_leaked_material",
+    "task_003280_ccd04de0:value_derivable+core_clause_unenforced:deliverable_is_leaked_material",
+    "task_003946_cb7e9725:oracle_reachable+expectation_revealed:deliverable_is_leaked_material",
+    "task_004420_ce2bb4a2:expectation_revealed+value_derivable:deliverable_is_leaked_material",
+    "task_004564_57be5bca:expectation_revealed+core_clause_unenforced:deliverable_is_leaked_material",
+    "task_005279_8bcea342:oracle_reachable+expectation_revealed+env_mismatch:broken_premise",
+    "task_008127_657be1f9:value_derivable:deliverable_is_leaked_material",
+    "task_008680_465d3251:core_clause_unenforced+overspecific_check:broken_premise"
+   ],
+   "PASS->REVIEW": [
+    "task_000032_5b0167e2:expectation_movable",
+    "task_000155_91b6fb26:value_derivable",
+    "task_000198_288f5d77:none",
+    "task_000265_23b37d70:none",
+    "task_000376_21cd4272:core_clause_unenforced",
+    "task_000387_5cbd2f2c:expectation_revealed+value_derivable",
+    "task_000486_8ed674fd:none",
+    "task_000517_a4dfb7c4:core_clause_unenforced",
+    "task_000694_a387c519:weak_verifier_exploit",
+    "task_000876_b7db1995:none",
+    "task_000984_cbd7f3c9:value_derivable+core_clause_unenforced",
+    "task_002224_352f4b22:none",
+    "task_002506_40e40061:expectation_movable+core_clause_unenforced",
+    "task_003228_e90de514:none",
+    "task_005742_4e0ba8d1:none",
+    "task_007088_00ca8c40:expectation_movable"
+   ],
+   "REPAIR->REVIEW": [
+    "task_000075_862ad640:weak_verifier_exploit",
+    "task_000371_d0ff3ecb:core_clause_unenforced",
+    "task_000373_9507bc2c:expectation_revealed+value_derivable",
+    "task_000437_6cb600f8:value_derivable",
+    "task_000793_ad9531f0:oracle_reachable+expectation_revealed",
+    "task_000897_96178d62:core_clause_unenforced+ambiguity",
+    "task_000897_a0926896:overspecific_check+unstable_reward+ambiguity",
+    "task_000987_ced77b3c:value_derivable",
+    "task_001209_961bfa9d:none",
+    "task_001225_556cc66b:value_derivable+core_clause_unenforced",
+    "task_002042_a8f9688e:expectation_movable",
+    "task_002408_f3ad7d68:expectation_movable+core_clause_unenforced",
+    "task_004061_00a8d006:expectation_revealed"
+   ],
+   "REPAIR->PASS": [
+    "task_000154_679ac95d:none",
+    "task_000175_c33a0c15:none",
+    "task_000504_d57286d9:none",
+    "task_000772_a01897c5:none",
+    "task_000808_e27c21c6:none",
+    "task_000984_7f090cee:none",
+    "task_001107_5cea9fe1:none",
+    "task_001128_45291ecf:none",
+    "task_005402_739289ed:none",
+    "task_006569_32beb2fd:none",
+    "task_008469_eaf5618e:none",
+    "task_009307_974e369f:none"
+   ],
+   "REJECT-PROVEN->REPAIR": [
+    "task_000601_fbd9ab23:oracle_reachable+expectation_revealed",
+    "task_000702_d3ff2109:value_derivable+overspecific_check",
+    "task_000767_884d306c:oracle_reachable+expectation_revealed",
+    "task_000844_bc7c813f:oracle_reachable+expectation_revealed",
+    "task_001171_b770bca7:oracle_reachable+expectation_revealed",
+    "task_001607_be90baaf:oracle_reachable+expectation_revealed",
+    "task_001720_91663aaf:value_derivable",
+    "task_001847_2a65645a:oracle_reachable+expectation_revealed",
+    "task_002918_3e5568e4:oracle_reachable+expectation_revealed",
+    "task_003033_f6c0c4cb:oracle_reachable+expectation_revealed"
+   ],
+   "REVIEW->PASS": [
+    "task_000116_71d174fa:none",
+    "task_000402_bd6a39f6:none",
+    "task_000687_63e8810c:none",
+    "task_000823_a91ad1e6:none",
+    "task_000903_b32e21d6:none",
+    "task_000920_6becf2b8:none",
+    "task_008799_f9d60ee9:none"
+   ],
+   "PASS->REJECT-PROVEN": [
+    "task_000263_6600ff80:value_derivable:deliverable_is_leaked_material",
+    "task_000501_3c7739f3:value_derivable:instruction_prints_answer",
+    "task_000814_cb6b8d2f:overspecific_check:broken_premise",
+    "task_000863_07d9663b:overspecific_check:broken_premise",
+    "task_000875_0cec6314:value_derivable:deliverable_is_leaked_material",
+    "task_001201_a004352a:value_derivable:instruction_prints_answer"
+   ],
+   "REJECT-PROVEN->REVIEW": [
+    "task_000079_76a46e77:weak_verifier_exploit",
+    "task_000770_d3a78c7a:core_clause_unenforced",
+    "task_008246_1c7a68df:expectation_movable+core_clause_unenforced"
+   ]
+  }
+ }
+}
