@@ -309,9 +309,37 @@ a first choice.
 ### Hardening
 
 Pick one change from the student's actual attempts. Identify the successful
-strategy and a task-relevant judgment it currently bypasses, then add one
-requirement that removes the bypass. Read the failures too, separating a missing
-skill from unclear requirements and from infrastructure trouble.
+strategy and a judgment it currently bypasses: a decision the task ought to
+require, which right now it does not. The two common shapes are the instruction
+handing that step over, and the step having only one possible answer under the
+present conditions, so the model never works it out. Adding a requirement means
+changing the conditions so the decision has to be made. What does not count:
+a change the old strategy plus a routine post-processing step would satisfy,
+which adds work rather than a decision. Read the failures too, separating a
+missing skill from unclear requirements and from infrastructure trouble.
+
+Which files, in a fixed order under blind mode, because each is written against
+the one before it:
+
+1. `solution/solve.sh`, adapting the existing solution to the changed
+   condition and keeping the parts that still apply
+2. `instruction.md`. Everything the new requirement needs checked has to be
+   discoverable from it and from the files the image ships, because that is all
+   the verifier's author will see. A name the solution invents and the
+   instruction never states will not be checked, so it goes in the instruction
+   or the result is made checkable by value
+3. `environment/Dockerfile`, the environment the other two assume. New
+   fixtures, configs and data files are welcome, but every COPY source has to
+   exist in the package: a line referring to a file nobody wrote is the
+   commonest way a rewrite is thrown away, and it fails long after the session
+   ended
+4. `tests/` is left exactly as it is, because the verifier for this rung is
+   written by the blind session
+
+`./sandbox check` here grades the new solution with the *seed's* verifier: it
+must still pass, since the seed's checks are the floor, and the untouched
+workspace must still fail. The seed's verifier cannot see the new requirement;
+the blind session will, from the instruction alone.
 
 The method constraints:
 
