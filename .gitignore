@@ -62,3 +62,6 @@ CLAUDE_CONTEXT/
 
 # Locally generated RewardTMax training curve
 /rollout_reward_tmax_mean.png
+
+# Local slide decks
+*.pptx
