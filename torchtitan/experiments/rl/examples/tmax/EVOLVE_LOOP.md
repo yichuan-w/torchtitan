@@ -362,6 +362,87 @@ The method constraints:
 - A change the old strategy plus a routine post-processing step would satisfy
   does not count, and the declaration must say why it would be insufficient
 
+### Four real hardenings
+
+Each below says what the task asks for, what the shortcut was, and what the
+change requires. They are four different shapes, all from one offline batch.
+
+**Closing a shortcut that looks like the work.** task_000241: a background
+process keeps writing to a log file, someone deleted the file, and the process
+still holds it open, so the contents are reachable through its file descriptor.
+The agent has to recover them into a named file. The shortcut: the recorder's
+source is on the machine, so the agent can re-run it and hand in a log that
+looks the same. What closes it is the verifier, not the wording. In r2 it
+rebuilds the exact feed recorded at provisioning time, from the fixture plus a
+parameter consumed at the recorder's first start, and uses that as the expected
+value, so a re-run produces something else. That also establishes the shortcut
+was open in r1: otherwise there would be no reason to hard-code the feed. The
+instruction gained one sentence saying as much, and solve.sh stayed at 25 lines.
+
+**Making an unambiguous step require a decision.** task_000324: a bash script
+replays sensor readings in order, updating a running average each time
+(`new = old * 0.9 + reading * 0.1`) and writing it to a csv at four decimal
+places. Before: readings were themselves four places, so truncating per term
+and truncating at the end give the same number, and where it happens does not
+matter. After: readings arrive at the sensor's raw resolution, finer than four
+places, so the two orders differ and the difference propagates through every
+later value. solve.sh stayed at 24 lines; its arithmetic became
+`r = %s / 1; c = %s / 1; ((c * 0.9) / 1) + ((r * 0.1) / 1)`, each division
+forcing that term to truncate before it is added.
+
+**Breaking an assumption that happened to hold.** task_000445: a service broke
+because a deploy shipped a changed database password, and the agent has to
+recover the password that was actually live before it, given the git history
+and a deployment record. Before: walking `git log` back found it, because the
+target commit was an ancestor of HEAD. After, the instruction says the
+deployment record rather than the commit graph decides what was live, the same
+commit can ship more than once, and a deploy may have carried a commit that is
+not an ancestor of anything checked out now. solve.sh went 21 to 25 lines.
+
+**Turning one candidate into a set to filter.** task_000422: find the process
+that leaked a credential through its command line, hash and identify the
+binary its other argument points at, and write a Python script emitting a JSON
+report. Before: one candidate, found with a regex. After: several monitor
+samples instead of one; a candidate needs both arguments on its own command
+line; some targets do not exist; exactly one of the rest is a real ELF among
+decoys, judged by content rather than by name; the report gains a field listing
+the non-ELF ones; and a closing clause forbids hard-coded answers, requiring the
+script to derive everything at run time so it reports a re-imaged host's
+findings. Filtering is real code: solve.sh went 23 to 31 lines.
+
+### Does the reference solution grow
+
+Mostly not. Across 173 accepted hardenings in that batch: 60% leave solve.sh
+unchanged, 10% shorten it, 23% add 1 to 5 lines, 5% add 6 to 20; median 0,
+mean +0.7, largest +15. That is what student mode asks for, since it sets an
+upper bound and no growth requirement. What does move is the verifier's
+assertion count, which is bounded at +5 over the seed: 79% of rewrites land in
++3 to +5, median +4, against a seed median of 13.
+
+### Did the hardening work
+
+The only evidence about the effect is running the same model over the batch
+before and after. With an untrained base model over those 136 tasks:
+
+| | avg@k | pass@k | submitted | hit the wall-clock budget |
+|---|---|---|---|---|
+| original | 0.970 | 0.993 | 98.7% | 0% |
+| hardened v1 | 0.564 | 0.890 | 78.1% | 21.3% |
+| hardened v2, first run | 0.504 | 0.882 | 78.0% | 20.8% |
+| hardened v2, second run | 0.420 | 0.772 | 64.0% | 35.3% |
+
+So it works: 0.97 means the batch was giving no gradient, and the rewrites move
+it into the band that does. Turns per attempt go from 29 to 96.
+
+The same table qualifies that. Attempts hitting the wall-clock budget go from
+0% to 20-35%, and those score 0 without submitting, so part of the drop is not
+solving wrongly but not finishing: of 41 points lost, at most 21 are timeouts.
+Worse, the two v2 runs are the identical batch and differ by 14.5 points of
+timeout rate and 8.4 points of solve rate, in the same direction, which puts
+these tasks at the edge of the budget and makes any single measurement unsafe
+to compare. All four are lower bounds; the logs mark them
+`incomplete validation; scores include unscored trials as zero`.
+
 ### Simplification
 
 Read the failing trajectories, apply one simplification operator, and record
