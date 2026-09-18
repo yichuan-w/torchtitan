@@ -188,13 +188,30 @@ stopped mid-round loses only what was still in flight.
 - The harness's own files come out (`AGENTS.md`, `sandbox`, `run/`, `traces/`)
 - `package/` is renamed `r<N+1>/`, the task's new revision
 - It is rebuilt into a mix row indistinguishable from a freshly prepared one
-- What lives on the row and not in the package is carried across: the pin hook,
-  the protected lists, `terminal_domain`, and the resources, taken as the
-  maximum of what the row declared and what the reference solution measured. A
-  folded row that lost them falls back to `TT_DAYTONA_*`, which on this corpus
-  is 1 CPU against a measured 2, and starves
 - It replaces the task at its own row, published as a new version under
   `data/mix/history/`, with `live.jsonl` relinked
+
+Three things live on the row rather than in the package, and none of them is
+simply copied across:
+
+- The resources grow: `max(what the row declared, what the reference solution
+  just measured)`. A hardened task's reference solution runs heavier, so the
+  measurement rises and the folded row opens a bigger container. Only without a
+  measurement does the declared value carry across unchanged. A row that lost
+  them falls back to `TT_DAYTONA_*`, which on this corpus is 1 CPU against a
+  measured 2, and starves
+- The pin hook's script is carried, and may stop taking effect. What travels is
+  `pre_test_sh` plus the environment identity the pins were captured against,
+  while the row builder re-derives the new package's identity from its
+  Dockerfile. Grading runs the check only when the two match: a rewrite that
+  kept the environment keeps the check, and one that rebuilt it is skipped,
+  which is what that guard is for, since pins captured against the old
+  environment would refuse an honest attempt in the new one
+- The protected lists are the author agent's to change. They default to the
+  row's, and a `tests/protected_paths.json` in the package overrides them (two
+  empty lists clear them). `agents/task_evolution.md` tells the agent to write
+  one when the instruction requires a file or a command's output to stay put,
+  so this is part of the rewrite rather than metadata being moved
 
 Replace, never delete and append: appending lands at the end of the file, which
 is the held-out slice, and rotates it; and a task no longer in the mix was taken
