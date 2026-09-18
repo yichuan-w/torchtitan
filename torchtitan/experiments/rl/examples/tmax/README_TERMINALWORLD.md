@@ -53,6 +53,12 @@ five non-PyPI pins and what each one is load-bearing for.
 
 ## 1. Prepare the data
 
+For SWE-Rebench + TMax, take the published release instead: 1,769 rows, one
+verified image digest per task, nothing built locally. That is the two commands
+under "Short path" in [`README_SEED_DATA.md`](README_SEED_DATA.md) section 4;
+then continue at section 2 below. The path described here is for corpus
+combinations that have no release.
+
 Both corpora are public Hugging Face datasets with a Harbor task-tree layout; one
 adapter (`prepare_rts_data.py`) reads both. The full pipeline -- download, extract,
 adapt, and filter by the datasets' own quality columns -- is documented in
@@ -91,6 +97,11 @@ adapt, and filter by the datasets' own quality columns -- is documented in
    cat terminalworld_pass.jsonl swesmith_main.jsonl > mix_tw_swe.jsonl
    python -m torchtitan.experiments.rl.examples.tmax.prepare_tb2_data --out tb2_eval.jsonl
    ```
+
+   Terminal-Bench 2.1 is upstream's verified re-cut of those 89 tasks and the
+   current evaluation set; `prepare_tb2_1_data.py` builds it in the same schema.
+   Every TB figure this project reports or compares is pass@5 over those tasks,
+   because a single attempt varies too widely to separate two checkpoints.
 
 Validate the sandbox + grading path before touching GPUs (no training stack needed):
 

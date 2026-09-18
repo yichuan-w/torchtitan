@@ -1,7 +1,7 @@
 # tmax seed-data pipeline (RTS / TerminalWorld / SWE-Smith)
 
 How to turn a published **seed corpus** of terminal-agent tasks into a training
-JSONL the tmax RL loop can roll out on. All three corpora below are
+JSONL the tmax RL loop can roll out on. All four corpora below are
 [Harbor](https://www.harborframework.com) task trees with the same layout and the
 same verifier contract, so **one adapter (`prepare_rts_data.py`) and one grader
 (`grading.py`) read all of them** -- only the source and a few per-dataset filter
@@ -14,13 +14,14 @@ columns differ.
 
 ---
 
-## 1. The three seed corpora
+## 1. The seed corpora
 
 | corpus | HF dataset | tasks | domain | environment |
 |---|---|---|---|---|
 | **RTS** (Recursive-Task-Synthesis) | `Zhongzhi1228/Recursive-Task-Synthesis` | 37,484 (8 shards) | general terminal, recursion-synthesized | self-contained Dockerfile |
 | **TerminalWorld-Seeds-Clean** | `andylizf/TerminalWorld-Seeds-Clean` | 1,353 | general terminal (TerminalWorld benchmark seeds) | self-contained Dockerfile |
 | **SWE-Smith-Seeds-Clean** | `Fzz1/SWE-Smith-Seeds-Clean` | 1,552 | Python repo bug-fix (SWE-bench/SWE-smith) | `FROM` a Docker Hub base image + bug patch |
+| **SWE-Rebench-Tasks-Clean** | `Fzz1/SWE-Rebench-Tasks-Clean` | 1,317 | Python repo bug-fix (SWE-Rebench) | `FROM` a published base image + task setup |
 
 That layout, in full:
 
@@ -163,6 +164,52 @@ higher-value families.
 ---
 
 ## 4. End-to-end recipe
+
+### Short path: the published release
+
+SWE-Rebench + TMax needs none of the steps below. A prepared release carries the
+mix, the source packages, and one verified OCI image digest per task, so no image
+is built locally. The dataset and the image registry are both public; reading
+either takes no token.
+
+```bash
+python torchtitan/experiments/rl/examples/tmax/evolution/data_release.py fetch \
+    --repo andylizf/TerminalWorld-Seeds-Clean \
+    --revision 5c8367d871044e3b6d08d41c3e000628b611a000 \
+    --release-sha256 0f1a165755eced706115dc6b2bf12459362ee1f5afb99558c77871d1aeec0949 \
+    --out ./release
+
+# release/mix.jsonl is 3,321 rows: swe-rebench 1,317 + tmax 452 + swe-smith 1,552.
+# Every row carries its corpus, so a selection is one pass over the file.
+python - <<'PY'
+import json
+keep = {"swe-rebench", "tmax"}
+with open("rebench_tmax.jsonl", "w") as out:
+    for line in open("release/mix.jsonl"):
+        if json.loads(line)["metadata"]["corpus"] in keep:
+            out.write(line)
+PY
+```
+
+That writes 1,769 rows. `fetch` checks every extracted file against the release
+manifest and refuses a release whose hash differs from the one requested.
+
+That revision holds two further releases covering the same tasks, including a
+1,769-row SWE-Rebench + TMax one. Their rows name no image digest, so taking them
+means building every image locally. The release above is the one bound to
+verified images.
+
+Each row declares its own `daytona_cpu` / `daytona_mem_gb` / `daytona_disk_gb`,
+which take precedence over the fleet defaults, and pins its environment as
+`ghcr.io/andylizf/terminal-rl-images@sha256:...` with tmux already in the image,
+which is what Terminus-2 needs. Point `SWE_PROMPT_DATA` at the filtered file and
+go to [`README_TERMINALWORLD.md`](README_TERMINALWORLD.md) section 2.
+
+To prepare and publish a release for a different corpus selection, see
+[`evolution/DATA_RELEASES.md`](evolution/DATA_RELEASES.md). The rest of this
+section is the manual path, for a corpus that has no release.
+
+### Manual path
 
 ```bash
 # 0. deps
