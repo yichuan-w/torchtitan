@@ -29,6 +29,41 @@ TB evaluation is explicitly **89 tasks, 5 attempts per task, every 20 steps**.
 The bare `launch_9b.sh` recipe disables evaluation by default; use this entry
 point and configuration for the combined experiment.
 
+### ReBench-only 200-step baseline
+
+[`rebench_only_c1000_1t6g1e.h100.env`](rebench_only_c1000_1t6g1e.h100.env)
+records the portable portion of the completed Qwen3.5-9B baseline: one 8-GPU
+H100 trainer host, six 8-GPU rollout-generator hosts, one 8-GPU evaluation host,
+200 optimizer steps, and TB 2.1 evaluation every 20 steps. It intentionally
+contains no launcher implementation, credentials, account names, or storage
+paths.
+
+The fixed training input contains the 1,317 tasks from
+`Fzz1/SWE-Rebench-Tasks-Clean` revision
+`a6d8f8ead159520d079f81fa07fcb1aaa2ff1b04`; its JSONL SHA-256 is
+`a3c05608de1a3fddb6fd7fc19cbff37a56b52e5d7af6b53c46b0e8c329790beb`.
+Validation is the separate 89-task Terminal-Bench 2.1 set; its prepared JSONL
+SHA-256 is
+`a77b83ab6c3e6618c5039ec3e9c9366f816f3de82b304399f9cd75adb97b1a70`.
+The two sets have no overlapping labels.
+
+Set the machine-specific paths first, then source the recipe before invoking
+the platform launcher:
+
+```bash
+export SWE_PROMPT_DATA=/absolute/path/to/rebench-only.jsonl
+export SWE_TB2_VAL_DATA=/absolute/path/to/tb2_1_eval.jsonl
+set -a
+. torchtitan/experiments/rl/examples/tmax/runbook/rebench_only_c1000_1t6g1e.h100.env
+set +a
+```
+
+This is a multi-host topology requiring 64 H100 GPUs. The single-host
+`launch_9b.sh` cannot allocate it; the platform launcher must map the logical
+trainer, training-generator, and evaluation-generator roles onto hosts. The
+training data is static (`SWE_DATA_HOT_RELOAD=0`), so an evolution service must
+not alter this baseline.
+
 Daytona credentials are read from `~/.config/daytona/env`. The synthesis
 credential file is named by `SYNTH_ENV_FILE`; the root's `bin/` must provide
 authenticated `codex` and `jq`. Keep credentials outside the repository.
