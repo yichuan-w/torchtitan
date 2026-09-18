@@ -1,0 +1,799 @@
+"""Solution capture + oracle gate for tmax: turn a passing luna run into a
+replayable gold solution.
+
+tmax ships no reference solution, and tmax solutions are not patches — they
+are the final filesystem state the agent produced at the paths the grader
+inspects. So the gold artifact here is a tar of the files the agent
+created/modified relative to the pristine image, taken AFTER the agent stops
+and BEFORE tests/ is uploaded (so nothing from the grader pollutes it).
+
+Chain per task:
+  1. solve+capture: boot the task image, snapshot the watched roots
+     (/home/user /app /tmp /workspace /root), run codex (same invocation as
+     tmax_gate2.py), snapshot again, diff -> tar the new/changed entries,
+     download it, THEN grade in the same sandbox. Only a capture whose own
+     sandbox graded 1 is kept as the solution artifact (a captured wrong
+     answer is worthless). Retries with a fresh sandbox until pass or tries
+     run out — these tasks passed gate 2 3/3, so one try should usually do.
+  2. oracle gate: a FRESH sandbox of the same image, apply ONLY the artifact
+     (untar into /, nothing else, no agent), run the grader exactly as gate 2
+     does. reward 1 => the artifact is a valid replayable gold solution.
+     reward 0 => the solution depends on runtime state a file diff cannot
+     carry (e.g. a pip install into site-packages outside the watched roots):
+     recorded as runtime-dependent, not statically replayable.
+
+Excluded from capture: the harness's own files (/tmp/prompt.md, /tmp/ev.jsonl,
+/tmp/err.txt, /tmp/last.txt, /tmp/codex*), codex's home (/root/.codex), pip's
+cache (/root/.cache — bulk without replay value), /tmp/taskdata, and
+/root/.bash_history (shell residue, not answer). Deletions the agent made are
+recorded in the run log but not replayed — a tar cannot express them.
+"""
+from __future__ import annotations
+import argparse, gzip, json, os, pathlib, random, shlex, sys, threading, time
+import concurrent.futures as cf
+
+sys.path.insert(0, "/homes/zhaofan/terminalworld-seeds/scripts")
+import swesmith_validate_daytona as vd  # noqa: E402
+import codex_solve_daytona as csd  # noqa: E402  (provider args + bundle)
+import peak_probe as pp  # noqa: E402
+from daytona import Daytona, CreateSandboxFromImageParams, Resources  # noqa: E402
+
+LOCK = threading.Lock()
+CPU, MEM_GB, DISK_GB = 1, 2, 4
+ALLOW = "api.openai.com,us.api.openai.com"
+BOOT_SLOTS = threading.Semaphore(int(os.environ.get("TMAX_BOOT_SLOTS", "5")))
+
+PROMPT = """You are working inside a Linux container. Complete the task below.
+
+Work directly in the filesystem. Create or modify whatever files the task asks
+for, at exactly the paths it names. When you are done, stop; a separate grader
+will inspect the machine's final state.
+
+--- TASK ---
+{instruction}
+"""
+
+WATCH_ROOTS = ["/home/user", "/app", "/tmp", "/workspace", "/root"]
+# pruned at find time (never even hashed)
+PRUNE_PATHS = ["/root/.codex", "/root/.cache", "/tmp/taskdata"]
+# daytona*: the daemon's own log grows between the two snapshots and captured
+# as 15 KB of environment noise in the first smoke artifacts — never solution
+PRUNE_GLOBS = ["/tmp/codex*", "/tmp/daytona*"]
+# filtered at diff time (belt over the braces, plus non-dir singletons)
+DROP_EXACT = {"/tmp/prompt.md", "/tmp/ev.jsonl", "/tmp/err.txt",
+              "/tmp/last.txt", "/tmp/codex.tgz", "/root/.bash_history"}
+DROP_PREFIX = ("/root/.codex/", "/root/.cache/", "/tmp/taskdata/",
+               "/tmp/codex", "/var/tmp/oracle")
+MANIF = "/var/tmp/oracle"  # outside the watched roots on purpose
+
+
+def _keep(p: str) -> bool:
+    return p not in DROP_EXACT and not p.startswith(DROP_PREFIX)
+
+
+def _boot(d, tid, image, codex_blob, tries=4):
+    """Create the sandbox (and push codex onto it when given), riding out
+    saturation. Returns (sandbox, None) or (None, error)."""
+    last = None
+    for i in range(tries):
+        sb = None
+        try:
+            with BOOT_SLOTS:
+                sb = d.create(CreateSandboxFromImageParams(
+                    image=image, os_user="root", ephemeral=True,
+                    network_block_all=False, domain_allow_list=ALLOW,
+                    resources=Resources(cpu=CPU, memory=MEM_GB, disk=DISK_GB),
+                    labels={"tmaxoracle": tid[:60]}), timeout=900)
+                if codex_blob is not None:
+                    sb.fs.upload_file(codex_blob, "/tmp/codex.tgz")
+            return sb, None
+        except Exception as e:  # noqa: BLE001
+            last = f"{type(e).__name__}: {e}"[:200]
+            if sb is not None:
+                try:
+                    sb.delete()
+                except Exception:  # noqa: BLE001
+                    pass
+            if i < tries - 1:
+                time.sleep(min(90, 6 * 2 ** i) * (0.5 + random.random()))
+    return None, f"boot failed after {tries} tries: {last}"
+
+
+def _snap_cmd(tag: str) -> str:
+    prune = " -o ".join([f"-path {shlex.quote(p)}" for p in PRUNE_PATHS]
+                        + [f"-path {shlex.quote(g)}" for g in PRUNE_GLOBS])
+    return (f"mkdir -p {MANIF}; R=''; "
+            f"for r in {' '.join(WATCH_ROOTS)}; do [ -d \"$r\" ] && R=\"$R $r\"; done; "
+            f"find $R -xdev \\( {prune} \\) -prune -o -type f -print0 2>/dev/null "
+            f"| sort -z | xargs -0 -r md5sum > {MANIF}/{tag}.files 2>/dev/null; "
+            f"find $R -xdev \\( {prune} \\) -prune -o -type l -printf '%p\\t%l\\n' "
+            f"> {MANIF}/{tag}.links 2>/dev/null; "
+            f"find $R -xdev \\( {prune} \\) -prune -o -type d -print "
+            f"> {MANIF}/{tag}.dirs 2>/dev/null; echo SNAP_OK")
+
+
+def _unescape(p: str) -> str:
+    # md5sum escapes \ and \n in filenames and prefixes the line with a backslash
+    return p.replace("\\\\", "\0").replace("\\n", "\n").replace("\0", "\\")
+
+
+def _manifests(sb, tag: str):
+    files, links = {}, {}
+    raw = sb.fs.download_file(f"{MANIF}/{tag}.files").decode(errors="replace")
+    for line in raw.splitlines():
+        esc = line.startswith("\\")
+        if esc:
+            line = line[1:]
+        if len(line) < 35:
+            continue
+        h, p = line[:32], line[34:]
+        files[_unescape(p) if esc else p] = h
+    raw = sb.fs.download_file(f"{MANIF}/{tag}.links").decode(errors="replace")
+    for line in raw.splitlines():
+        if "\t" in line:
+            p, t = line.split("\t", 1)
+            links[p] = t
+    raw = sb.fs.download_file(f"{MANIF}/{tag}.dirs").decode(errors="replace")
+    dirs = {l for l in raw.splitlines() if l}
+    return files, links, dirs
+
+
+def solve_and_capture(d, tid, image, tdir, codex_blob, api_key, budget, n,
+                      trace_dir, model, effort):
+    """One solve attempt. Captures the diff before grading; the blob is
+    returned only if this very sandbox then grades 1 — the caller persists it
+    after (and according to how) the oracle gate rules on it."""
+    rec = {"task_id": tid, "phase": "solve", "attempt": n, "image": image,
+           "model": model, "t0": time.time()}
+    sb = None
+    try:
+        _tb = time.time()
+        sb, boot_err = _boot(d, tid, image, codex_blob)
+        rec["boot_s"] = round(time.time() - _tb, 1)
+        if sb is None:
+            rec.update(status="error", error=boot_err); return rec, None
+        rc, o = vd.exec_(sb, "tar --no-same-owner -C /usr/local/bin -xzf /tmp/codex.tgz "
+                             "&& rm /tmp/codex.tgz && codex --version", 300)
+        if rc != 0:
+            rec.update(status="error", error="codex install: " + o[-200:]); return rec, None
+        # key via stdin login, never on argv or in the env the agent can read
+        vd.exec_(sb, f"printf %s {shlex.quote(api_key)} | codex login --with-api-key", 120)
+
+        # pristine snapshot: after boot + codex install, before the agent acts
+        rc, o = vd.exec_(sb, _snap_cmd("base"), 300)
+        if "SNAP_OK" not in (o or ""):
+            rec.update(status="error", error="base snapshot: " + (o or "")[-200:]); return rec, None
+        base_f, base_l, base_d = _manifests(sb, "base")
+        rec["base_files"] = len(base_f)
+
+        # Resource baselines exactly as gate 2 takes them (after boot, codex
+        # install, and the base snapshot; before the agent acts), so
+        # peak_memory_mb/peak_disk keep meaning the task, not the harness.
+        _, _b = vd.exec_(sb, "df -P / 2>/dev/null | awk 'NR==2{print $3}'", 60)
+        try: rec["disk_env_mb"] = round(int(_b.strip().split()[0]) / 1024)
+        except Exception: rec["disk_env_mb"] = None  # noqa: BLE001
+        _, _m = vd.exec_(sb, "cat /sys/fs/cgroup/memory.peak 2>/dev/null", 60)
+        try: rec["ram_env_mb"] = round(int(_m.strip().split()[0]) / 1048576)
+        except Exception: rec["ram_env_mb"] = None  # noqa: BLE001
+        _, _r = vd.exec_(sb, "echo 0 > /sys/fs/cgroup/memory.peak 2>/dev/null; "
+                             "cat /sys/fs/cgroup/memory.peak 2>/dev/null", 60)
+        try:
+            after = round(int(_r.strip().split()[0]) / 1048576)
+            rec["ram_peak_reset"] = (rec["ram_env_mb"] is not None
+                                     and after < rec["ram_env_mb"] * 0.8)
+        except Exception:  # noqa: BLE001
+            rec["ram_peak_reset"] = False
+        pp.start_disk_sampler(vd.exec_, sb, workdir=None, interval=3)
+
+        instruction = (tdir / "instruction.md").read_text(errors="replace")
+        sb.fs.upload_file(PROMPT.format(instruction=instruction).encode(), "/tmp/prompt.md")
+        t = time.time()
+        # same invocation as tmax_gate2.py: the key routes to us.api.openai.com
+        # and must be declared as its own provider for the websocket transport
+        rc, o = vd.exec_(sb,
+            "cd / && codex exec --json --dangerously-bypass-approvals-and-sandbox "
+            "--skip-git-repo-check " + csd.PROVIDER_ARGS + f" -m {model} "
+            f"-c model_reasoning_effort={effort} " + csd.WEB_SEARCH_FLAGS +
+            " -o /tmp/last.txt < /tmp/prompt.md > /tmp/ev.jsonl 2>/tmp/err.txt; echo rc=$?",
+            budget)
+        rec["agent_s"] = round(time.time() - t, 1)
+        try:
+            _, _ev = vd.exec_(sb, "grep '\"turn.completed\"' /tmp/ev.jsonl "
+                                  "2>/dev/null | tail -c 200000", 120)
+            rec["usage"] = csd.parse_events(_ev or "").get("usage") or {}
+        except Exception:  # noqa: BLE001
+            rec["usage"] = {}
+        # last agent message: enough to spot a refusal without opening the trace
+        _, _lm = vd.exec_(sb, "tail -c 400 /tmp/last.txt 2>/dev/null", 60)
+        rec["last_msg"] = (_lm or "").strip()[-400:]
+
+        # ---- capture: after the agent stops, before tests/ exists anywhere
+        rc, o = vd.exec_(sb, _snap_cmd("post"), 300)
+        if "SNAP_OK" not in (o or ""):
+            rec.update(status="error", error="post snapshot: " + (o or "")[-200:]); return rec, None
+        post_f, post_l, post_d = _manifests(sb, "post")
+        cap_files = sorted(p for p, h in post_f.items() if base_f.get(p) != h and _keep(p))
+        cap_links = sorted(p for p, t2 in post_l.items() if base_l.get(p) != t2 and _keep(p))
+        cap_dirs = sorted(p for p in post_d - base_d if _keep(p))
+        deleted = sorted(p for p in base_f if p not in post_f and _keep(p))
+        rec.update(cap_files=len(cap_files), cap_links=len(cap_links),
+                   cap_dirs=len(cap_dirs), deleted_n=len(deleted),
+                   deleted=deleted[:50],
+                   cap_paths=(cap_files + cap_links)[:80])
+        blob = None
+        if cap_files or cap_links or cap_dirs:
+            # lexicographic sort puts every parent dir before its contents, so
+            # --no-recursion recreates empty dirs and their perms faithfully
+            entries = sorted(set(cap_dirs + cap_files + cap_links))
+            lst = "\0".join(e.lstrip("/") for e in entries).encode()
+            sb.fs.upload_file(lst, f"{MANIF}/capture.list")
+            rc, o = vd.exec_(sb, f"cd / && tar -czf {MANIF}/solution.tar.gz "
+                                 f"--null --no-recursion -T {MANIF}/capture.list "
+                                 "&& echo TAR_OK", 300)
+            if "TAR_OK" not in (o or ""):
+                rec.update(status="error", error="tar: " + (o or "")[-200:]); return rec, None
+            blob = sb.fs.download_file(f"{MANIF}/solution.tar.gz")
+            rec["artifact_bytes"] = len(blob)
+        else:
+            rec["artifact_bytes"] = 0
+
+        # ---- grade this sandbox, exactly as gate 2 does
+        vd.upload_dir(sb, tdir / "tests", "/tmp/taskdata/tests")
+        rc, o = vd.exec_(sb, "chmod +x /tmp/taskdata/tests/test.sh && bash /tmp/taskdata/tests/test.sh", 900)
+        _, raw = vd.exec_(sb, "cat /logs/verifier/reward.txt 2>/dev/null", 60)
+        rec["reward"] = (raw or "").strip()
+        rec["test_tail"] = (o or "")[-250:]
+        if rec["reward"] == "1" and blob:
+            rec["status"] = "pass"
+        elif rec["reward"] == "1":
+            rec.update(status="error", error="graded 1 but the diff captured nothing")
+        else:
+            rec["status"] = "fail"
+        return rec, (blob if rec.get("status") == "pass" else None)
+    except Exception as e:  # noqa: BLE001
+        rec.update(status="error", error=f"{type(e).__name__}: {e}"[:200])
+        return rec, None
+    finally:
+        # in finally, not on the happy path: a timed-out or thrown attempt is
+        # exactly the one whose peaks and trajectory we most want on record
+        if sb is not None:
+            try:
+                pp.read_peaks(vd.exec_, sb, rec, memory_gb=MEM_GB,
+                              disk_gb=DISK_GB, workdir=None)
+            except Exception:  # noqa: BLE001
+                pass
+        if sb is not None and trace_dir:
+            trace_dir.mkdir(parents=True, exist_ok=True)
+            passed = rec.get("status") == "pass"
+            try:
+                tb = sb.fs.download_file("/tmp/ev.jsonl")
+                name = f"{tid}.ev.jsonl.gz" if passed else f"{tid}.ev.fail{n}.jsonl.gz"
+                (trace_dir / name).write_bytes(gzip.compress(tb))
+                rec["trace_bytes"] = len(tb)
+            except Exception as e:  # noqa: BLE001
+                rec["trace_error"] = str(e)[:120]
+            # The rollout is the only record that carries apply_patch bodies
+            # (ev.jsonl omits them — verified exhaustively on the r2 corpus),
+            # so without it the trace does not contain the solution. Its path
+            # is discovered, not assumed: codex runs as root here so it should
+            # be under /root/.codex/sessions, but CODEX_HOME and layout drift.
+            try:
+                _, ro = vd.exec_(
+                    sb, "newest=$(find /root/.codex ${CODEX_HOME:+\"$CODEX_HOME\"} "
+                        "-name 'rollout-*.jsonl' -type f -printf '%T@ %p\\n' "
+                        "2>/dev/null | sort -rn | head -1 | cut -d' ' -f2-); "
+                        "if [ -z \"$newest\" ]; then newest=$(find / -xdev "
+                        "-path '*sessions*' -name 'rollout-*.jsonl' -type f "
+                        "-printf '%T@ %p\\n' 2>/dev/null | sort -rn | head -1 "
+                        "| cut -d' ' -f2-); fi; echo \"ROLLOUT:$newest\"", 120)
+                rpath = (ro or "").split("ROLLOUT:", 1)[-1].strip()
+                if rpath:
+                    rb = sb.fs.download_file(rpath)
+                    name = (f"{tid}.rollout.jsonl.gz" if passed
+                            else f"{tid}.rollout.fail{n}.jsonl.gz")
+                    (trace_dir / name).write_bytes(gzip.compress(rb))
+                    rec["rollout_bytes"] = len(rb)
+                    rec["rollout_src"] = rpath
+                else:
+                    rec["rollout_error"] = "no rollout file found"
+            except Exception as e:  # noqa: BLE001
+                rec["rollout_error"] = str(e)[:120]
+        rec["wall_s"] = round(time.time() - rec.pop("t0"), 1)
+        if sb is not None:
+            try: d.delete(sb)
+            except Exception: pass  # noqa: BLE001
+
+
+def trace_items(trace_path):
+    """Ordered command_execution items and file_change paths from a gzipped
+    codex --json event stream. The stream carries full command strings but for
+    file_change items only path+kind — apply_patch bodies are NOT in it, which
+    is the load-bearing limitation of replaying these traces."""
+    cmds, fcs = [], []
+    with gzip.open(trace_path, "rt", errors="replace") as fh:
+        for line in fh:
+            try:
+                e = json.loads(line)
+            except Exception:  # noqa: BLE001
+                continue
+            if e.get("type") != "item.completed":
+                continue
+            it = e.get("item") or {}
+            if it.get("type") == "command_execution":
+                cmds.append({"command": it.get("command") or "",
+                             "exit_code": it.get("exit_code")})
+            elif it.get("type") == "file_change":
+                fcs.extend([c.get("path") for c in it.get("changes") or []])
+    return cmds, fcs
+
+
+def replay_and_capture(d, tid, image, tdir, trace_path, sol_dir):
+    """No model call: re-execute the trace's own shell commands in a fresh
+    sandbox, then capture and grade exactly like solve mode. The replay
+    artifact is saved unconditionally (suffix .replay.) so it can be compared
+    against the luna-solve artifact even when the replay grades 0."""
+    rec = {"task_id": tid, "phase": "replay", "image": image,
+           "trace": str(trace_path), "t0": time.time()}
+    sb = None
+    try:
+        cmds, fcs = trace_items(trace_path)
+        rec.update(n_cmds=len(cmds), n_file_changes=len(fcs), fc_paths=fcs)
+        _tb = time.time()
+        sb, boot_err = _boot(d, tid, image, codex_blob=None)
+        rec["boot_s"] = round(time.time() - _tb, 1)
+        if sb is None:
+            rec.update(status="error", error=boot_err); return rec, None
+        rc, o = vd.exec_(sb, _snap_cmd("base"), 300)
+        if "SNAP_OK" not in (o or ""):
+            rec.update(status="error", error="base snapshot: " + (o or "")[-200:]); return rec, None
+        base_f, base_l, base_d = _manifests(sb, "base")
+
+        # the agent's session cwd was / (gate 2 runs `cd / && codex exec`);
+        # each trace command is its own /bin/bash -lc, so filesystem state is
+        # the only thing that flows between commands — same as the agent had
+        t = time.time(); mismatch = 0
+        for i, c in enumerate(cmds):
+            rc, o = vd.exec_(sb, "cd / && " + c["command"], 600)
+            if c["exit_code"] is not None and rc != c["exit_code"]:
+                mismatch += 1
+                rec.setdefault("rc_mismatches", []).append(
+                    {"i": i, "want": c["exit_code"], "got": rc,
+                     "cmd": c["command"][:120], "tail": (o or "")[-150:]})
+        rec["replay_s"] = round(time.time() - t, 1)
+        rec["rc_mismatch_n"] = mismatch
+
+        rc, o = vd.exec_(sb, _snap_cmd("post"), 300)
+        if "SNAP_OK" not in (o or ""):
+            rec.update(status="error", error="post snapshot: " + (o or "")[-200:]); return rec, None
+        post_f, post_l, post_d = _manifests(sb, "post")
+        cap_files = sorted(p for p, h in post_f.items() if base_f.get(p) != h and _keep(p))
+        cap_links = sorted(p for p, t2 in post_l.items() if base_l.get(p) != t2 and _keep(p))
+        cap_dirs = sorted(p for p in post_d - base_d if _keep(p))
+        rec.update(cap_files=len(cap_files), cap_links=len(cap_links),
+                   cap_paths=(cap_files + cap_links)[:80])
+        blob = None
+        if cap_files or cap_links or cap_dirs:
+            entries = sorted(set(cap_dirs + cap_files + cap_links))
+            lst = "\0".join(e.lstrip("/") for e in entries).encode()
+            sb.fs.upload_file(lst, f"{MANIF}/capture.list")
+            rc, o = vd.exec_(sb, f"cd / && tar -czf {MANIF}/solution.tar.gz "
+                                 f"--null --no-recursion -T {MANIF}/capture.list "
+                                 "&& echo TAR_OK", 300)
+            if "TAR_OK" not in (o or ""):
+                rec.update(status="error", error="tar: " + (o or "")[-200:]); return rec, None
+            blob = sb.fs.download_file(f"{MANIF}/solution.tar.gz")
+            rec["artifact_bytes"] = len(blob)
+            dst = sol_dir / f"{tid}.replay.solution.tar.gz"
+            dst.write_bytes(blob); rec["artifact"] = str(dst)
+        else:
+            rec["artifact_bytes"] = 0
+
+        vd.upload_dir(sb, tdir / "tests", "/tmp/taskdata/tests")
+        rc, o = vd.exec_(sb, "chmod +x /tmp/taskdata/tests/test.sh && bash /tmp/taskdata/tests/test.sh", 900)
+        _, raw = vd.exec_(sb, "cat /logs/verifier/reward.txt 2>/dev/null", 60)
+        rec["reward"] = (raw or "").strip()
+        rec["test_tail"] = (o or "")[-250:]
+        rec["status"] = "pass" if rec["reward"] == "1" else "fail"
+        return rec, (blob if rec["status"] == "pass" else None)
+    except Exception as e:  # noqa: BLE001
+        rec.update(status="error", error=f"{type(e).__name__}: {e}"[:200])
+        return rec, None
+    finally:
+        rec["wall_s"] = round(time.time() - rec.pop("t0"), 1)
+        if sb is not None:
+            try: d.delete(sb)
+            except Exception: pass  # noqa: BLE001
+
+
+def _js_string_at(s, i):
+    """Parse the JS double-quoted string literal starting at s[i]=='\"'.
+    Codex emits JSON-compatible escapes; the fallback only forgives \\'."""
+    j = i + 1
+    while j < len(s):
+        c = s[j]
+        if c == "\\":
+            j += 2; continue
+        if c == '"':
+            break
+        j += 1
+    lit = s[i:j + 1]
+    try:
+        return json.loads(lit), j
+    except Exception:  # noqa: BLE001
+        try:
+            return json.loads('"' + lit[1:-1].replace("\\'", "'") + '"'), j
+        except Exception:  # noqa: BLE001
+            return None, j
+
+
+def _balanced_obj(s, i):
+    """End index of the {…} object starting at s[i], honoring strings."""
+    depth, j, instr = 0, i, False
+    while j < len(s):
+        c = s[j]
+        if instr:
+            if c == "\\":
+                j += 2; continue
+            if c == '"':
+                instr = False
+        elif c == '"':
+            instr = True
+        elif c == "{":
+            depth += 1
+        elif c == "}":
+            depth -= 1
+            if depth == 0:
+                return j
+        j += 1
+    return -1
+
+
+def rollout_ops(rollout_path):
+    """Ordered actions from a rollout's custom_tool_call JS snippets:
+    ('exec', {cmd, workdir, yield_time_ms, ...}) and ('patch', v4a_text).
+    This is the record ev.jsonl lacks: exec_command args and full apply_patch
+    envelopes, in the order the agent ran them. tools.update_plan etc. are
+    planning, not world-state, and are skipped."""
+    ops, errs = [], []
+    with gzip.open(rollout_path, "rt", errors="replace") as fh:
+        for line in fh:
+            try:
+                e = json.loads(line)
+            except Exception:  # noqa: BLE001
+                continue
+            p = e.get("payload") or {}
+            if p.get("type") != "custom_tool_call":
+                continue
+            src = p.get("input") or ""
+            found = []
+            idx = 0
+            while (m := src.find("tools.exec_command(", idx)) >= 0:
+                b = src.find("{", m)
+                if b >= 0 and (eb := _balanced_obj(src, b)) > 0:
+                    try:
+                        found.append((m, "exec", json.loads(src[b:eb + 1])))
+                    except Exception as ex:  # noqa: BLE001
+                        errs.append(f"exec args: {ex}"[:120])
+                idx = m + 1
+            idx = 0
+            while (m := src.find("const patch", idx)) >= 0:
+                q = src.find('"', m)
+                if q >= 0:
+                    val, _ = _js_string_at(src, q)
+                    if val is None:
+                        errs.append("patch literal unparsed")
+                    else:
+                        found.append((m, "patch", val))
+                idx = m + 1
+            idx = 0  # inline form: tools.apply_patch("*** Begin Patch…")
+            while (m := src.find('tools.apply_patch("', idx)) >= 0:
+                val, _ = _js_string_at(src, src.index('"', m))
+                if val is not None:
+                    found.append((m, "patch", val))
+                idx = m + 1
+            ops.extend((k, v) for _, k, v in sorted(found, key=lambda x: x[0]))
+    return ops, errs
+
+
+def _apply_hunk(src, out, pos, block, path):
+    find = [l[1:] for l in block if l[:1] in (" ", "-")]
+    repl = [l[1:] for l in block if l[:1] in (" ", "+")]
+    if not find:  # pure insertion with no anchor: append at end
+        out.extend(src[pos:]); out.extend(repl)
+        return len(src)
+    for s in range(pos, len(src) - len(find) + 1):
+        if src[s:s + len(find)] == find:
+            out.extend(src[pos:s]); out.extend(repl)
+            return s + len(find)
+    raise ValueError(f"hunk failed to apply in {path}")
+
+
+def apply_patch_text(sb, patch_text):
+    """Reproduce codex apply_patch (V4A) semantics against the sandbox FS.
+    Returns [(action, path)] or raises on a hunk that no longer applies."""
+    lines = patch_text.splitlines()
+    if not lines or not lines[0].startswith("*** Begin Patch"):
+        raise ValueError("not a V4A envelope")
+    i, done = 1, []
+    while i < len(lines):
+        ln = lines[i]
+        if ln.startswith("*** End Patch"):
+            break
+        if ln.startswith("*** Add File: "):
+            path = ln[len("*** Add File: "):].strip(); i += 1
+            buf = []
+            while i < len(lines) and not lines[i].startswith("*** "):
+                buf.append(lines[i][1:] if lines[i][:1] == "+" else lines[i])
+                i += 1
+            sb.fs.upload_file(("\n".join(buf) + "\n" if buf else "").encode(), path)
+            done.append(("add", path))
+        elif ln.startswith("*** Delete File: "):
+            path = ln[len("*** Delete File: "):].strip(); i += 1
+            vd.exec_(sb, f"rm -f {shlex.quote(path)}", 60)
+            done.append(("delete", path))
+        elif ln.startswith("*** Update File: "):
+            path = ln[len("*** Update File: "):].strip(); i += 1
+            move = None
+            if i < len(lines) and lines[i].startswith("*** Move to: "):
+                move = lines[i][len("*** Move to: "):].strip(); i += 1
+            old = sb.fs.download_file(path).decode(errors="replace")
+            src, out, pos = old.splitlines(), [], 0
+            while i < len(lines) and not lines[i].startswith("*** "):
+                if lines[i].startswith("@@"):
+                    i += 1; continue
+                block = []
+                while (i < len(lines) and not lines[i].startswith("*** ")
+                       and not lines[i].startswith("@@")):
+                    block.append(lines[i]); i += 1
+                pos = _apply_hunk(src, out, pos, block, path)
+            out.extend(src[pos:])
+            new = "\n".join(out) + ("\n" if old.endswith("\n") else "")
+            sb.fs.upload_file(new.encode(), move or path)
+            if move and move != path:
+                vd.exec_(sb, f"rm -f {shlex.quote(path)}", 60)
+            done.append(("update", move or path))
+        else:
+            i += 1  # e.g. "*** End of File"
+    return done
+
+
+def rollout_replay(d, tid, image, tdir, rollout_path):
+    """Procedural oracle gate: in a fresh sandbox, re-run the agent's own
+    action sequence from its rollout (patches applied as file writes, exec
+    commands run in order with their workdir), then grade exactly as gate 2.
+    reward=1 makes the rollout a valid replayable procedural gold — the right
+    form for tasks whose grader needs live runtime state (a running service)
+    that a static tar cannot hold. No model call is made."""
+    rec = {"task_id": tid, "phase": "rollout-replay", "image": image,
+           "rollout": str(rollout_path), "t0": time.time()}
+    sb = None
+    try:
+        ops, errs = rollout_ops(rollout_path)
+        rec.update(n_ops=len(ops),
+                   n_exec=sum(1 for k, _ in ops if k == "exec"),
+                   n_patch=sum(1 for k, _ in ops if k == "patch"))
+        if errs:
+            rec["extract_errors"] = errs[:5]
+        if not ops:
+            rec.update(status="error", error="no ops extracted"); return rec
+        _tb = time.time()
+        sb, boot_err = _boot(d, tid, image, codex_blob=None)
+        rec["boot_s"] = round(time.time() - _tb, 1)
+        if sb is None:
+            rec.update(status="error", error=boot_err); return rec
+        t = time.time(); rcs = []; patched = []
+        for k, pl in ops:
+            if k == "patch":
+                patched += [f"{a}:{p}" for a, p in apply_patch_text(sb, pl)]
+            else:
+                wd = pl.get("workdir") or "/"
+                rc, _o = vd.exec_(sb, f"cd {shlex.quote(wd)} || exit 97\n"
+                                      + (pl.get("cmd") or ""), 600)
+                rcs.append(rc)
+        rec["replay_s"] = round(time.time() - t, 1)
+        rec.update(exec_rcs=rcs, patched=patched)
+        vd.upload_dir(sb, tdir / "tests", "/tmp/taskdata/tests")
+        rc, o = vd.exec_(sb, "chmod +x /tmp/taskdata/tests/test.sh && bash /tmp/taskdata/tests/test.sh", 900)
+        _, raw = vd.exec_(sb, "cat /logs/verifier/reward.txt 2>/dev/null", 60)
+        rec["reward"] = (raw or "").strip()
+        rec["test_tail"] = (o or "")[-250:]
+        rec["status"] = "pass" if rec["reward"] == "1" else "fail"
+        return rec
+    except Exception as e:  # noqa: BLE001
+        rec.update(status="error", error=f"{type(e).__name__}: {e}"[:200]); return rec
+    finally:
+        rec["wall_s"] = round(time.time() - rec.pop("t0"), 1)
+        if sb is not None:
+            try: d.delete(sb)
+            except Exception: pass  # noqa: BLE001
+
+
+def oracle_gate(d, tid, image, tdir, blob):
+    """Fresh sandbox, apply ONLY the artifact, grade. No codex, no agent."""
+    rec = {"task_id": tid, "phase": "gate", "image": image, "t0": time.time()}
+    sb = None
+    try:
+        _tb = time.time()
+        sb, boot_err = _boot(d, tid, image, codex_blob=None)
+        rec["boot_s"] = round(time.time() - _tb, 1)
+        if sb is None:
+            rec.update(status="error", error=boot_err); return rec
+        sb.fs.upload_file(blob, "/var/tmp/.oracle_solution.tar.gz")
+        rc, o = vd.exec_(sb, "tar -xzpf /var/tmp/.oracle_solution.tar.gz -C / "
+                             "&& rm /var/tmp/.oracle_solution.tar.gz && echo APPLY_OK", 300)
+        if "APPLY_OK" not in (o or ""):
+            rec.update(status="error", error="apply: " + (o or "")[-200:]); return rec
+        vd.upload_dir(sb, tdir / "tests", "/tmp/taskdata/tests")
+        rc, o = vd.exec_(sb, "chmod +x /tmp/taskdata/tests/test.sh && bash /tmp/taskdata/tests/test.sh", 900)
+        _, raw = vd.exec_(sb, "cat /logs/verifier/reward.txt 2>/dev/null", 60)
+        rec["reward"] = (raw or "").strip()
+        rec["test_tail"] = (o or "")[-250:]
+        rec["status"] = "pass" if rec["reward"] == "1" else "runtime-dependent"
+        return rec
+    except Exception as e:  # noqa: BLE001
+        rec.update(status="error", error=f"{type(e).__name__}: {e}"[:200]); return rec
+    finally:
+        rec["wall_s"] = round(time.time() - rec.pop("t0"), 1)
+        if sb is not None:
+            try: d.delete(sb)
+            except Exception: pass  # noqa: BLE001
+
+
+def run_task(d, tid, image, tdir, codex_blob, api_key, budget, tries, sol_dir,
+             trace_dir, out, model, effort, mode="solve", replay_trace=None):
+    def emit(r):
+        with LOCK:
+            with out.open("a") as fh:
+                fh.write(json.dumps(r) + "\n")
+        print(f"  {tid[:24]} {r['phase']} #{r.get('attempt', '-')} "
+              f"{r['status']} reward={r.get('reward')!r} "
+              f"artifact={r.get('artifact_bytes')}", flush=True)
+
+    def finish(summary):
+        summary = {"phase": "task", **summary}
+        with LOCK:
+            with out.open("a") as fh:
+                fh.write(json.dumps(summary) + "\n")
+        return summary
+
+    blob = None
+    if mode == "rollout-replay":
+        rec = rollout_replay(d, tid, image, tdir, replay_trace)
+        emit(rec)
+        return finish({"task_id": tid, "mode": mode, "capture": "procedural",
+                       "n_ops": rec.get("n_ops"), "n_patch": rec.get("n_patch"),
+                       "gate": rec["status"], "gate_reward": rec.get("reward")})
+    if mode == "replay":
+        rec, blob = replay_and_capture(d, tid, image, tdir, replay_trace, sol_dir)
+        emit(rec)
+        if blob is None:
+            return finish({"task_id": tid, "mode": mode,
+                           "capture": f"replay graded {rec.get('reward')!r}",
+                           "n_cmds": rec.get("n_cmds"),
+                           "file_changes": rec.get("fc_paths"), "gate": "skipped"})
+    else:
+        for n in range(tries):
+            rec, blob = solve_and_capture(d, tid, image, tdir, codex_blob, api_key,
+                                          budget, n, trace_dir, model, effort)
+            emit(rec)
+            if blob is not None:
+                break
+        if blob is None:
+            return finish({"task_id": tid, "mode": mode, "capture": "failed",
+                           "gate": "skipped"})
+    g = oracle_gate(d, tid, image, tdir, blob)
+    emit(g)
+    # the canonical <tid>.solution.tar.gz name is written ONLY once the gate
+    # has ruled reward=1, so its existence always means gate-proven gold; a
+    # gate-0 capture is kept under a flagged name for diagnosis, never dropped
+    artifact = None
+    if mode == "solve":
+        if g["status"] == "pass":
+            artifact = sol_dir / f"{tid}.solution.tar.gz"
+        elif g["status"] == "runtime-dependent":
+            artifact = sol_dir / f"{tid}.runtime-dependent.solution.tar.gz"
+        if artifact is not None:
+            artifact.write_bytes(blob)
+    return finish({"task_id": tid, "mode": mode, "capture": "ok",
+                   "artifact_bytes": len(blob),
+                   "artifact": str(artifact) if artifact else None,
+                   "gate": g["status"], "gate_reward": g.get("reward")})
+
+
+def main():
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--ids", required=True)
+    ap.add_argument("--parquet", required=True)
+    ap.add_argument("--out", required=True)
+    ap.add_argument("--sol-dir", default="/homes/zhaofan/terminalworld-seeds/data/tmax-solutions")
+    ap.add_argument("--mode", choices=["solve", "replay", "rollout-replay"],
+                    default="solve",
+                    help="solve: run the model; replay: re-execute an ev-trace's "
+                         "shell commands (proven incomplete — no patch bodies); "
+                         "rollout-replay: procedural oracle gate from the "
+                         "rollout's full action sequence, no model call")
+    ap.add_argument("--replay-traces",
+                    default="/homes/zhaofan/terminalworld-seeds/data/tmax-traces-r2")
+    ap.add_argument("--replay-attempt", type=int, default=0,
+                    help="which .a<N> trace to replay (must be a passing attempt)")
+    ap.add_argument("--tries", type=int, default=3, help="solve attempts until one grades 1")
+    ap.add_argument("--workers", type=int, default=5)
+    ap.add_argument("--budget", type=int, default=1800)
+    ap.add_argument("--model", default="gpt-5.6-luna")
+    ap.add_argument("--effort", default="max")
+    ap.add_argument("--work", default="/tmp/tmax_gate_work")
+    ap.add_argument("--key-file", default="/homes/zhaofan/key.txt")
+    ap.add_argument("--daytona-key-file", default="/homes/zhaofan/mdayton.txt")
+    a = ap.parse_args()
+    os.environ.setdefault("DAYTONA_API_KEY", pathlib.Path(a.daytona_key_file).read_text().strip())
+    api_key = pathlib.Path(a.key_file).read_text().strip()
+
+    import pandas as pd
+    df = pd.read_parquet(a.parquet)
+    img = {ec["task_id"]: ec["image"] for ec in df["env_config"] if isinstance(ec, dict)}
+
+    ids = [l.strip() for l in pathlib.Path(a.ids).read_text().splitlines() if l.strip()]
+    out = pathlib.Path(a.out)
+    sol_dir = pathlib.Path(a.sol_dir); sol_dir.mkdir(parents=True, exist_ok=True)
+    trace_dir = sol_dir / "traces"
+    work = pathlib.Path(a.work)
+
+    # Idempotent: a canonical artifact on disk means gate-proven (it is only
+    # ever written after the gate rules reward=1), and a terminal task record
+    # in the out file means the task was already adjudicated. A crash mid-task
+    # therefore re-runs at most the in-flight tasks.
+    done = set()
+    for p in sol_dir.glob("task_*.solution.tar.gz"):
+        tid = p.name.split(".", 1)[0]
+        if p.name == f"{tid}.solution.tar.gz":
+            done.add(tid)
+    if out.exists():
+        for l in out.read_text().splitlines():
+            if l.strip():
+                r = json.loads(l)
+                if r.get("phase") == "task" and r.get("gate") in ("pass", "runtime-dependent"):
+                    done.add(r["task_id"])
+    if done:
+        n_skip = len([t for t in ids if t in done])
+        ids = [t for t in ids if t not in done]
+        print(f"skipping {n_skip} already-done tasks, {len(ids)} to run", flush=True)
+
+    traces = {}
+    if a.mode in ("replay", "rollout-replay"):
+        codex_blob = None  # no model call, no codex in the sandbox
+        if a.mode == "replay":
+            rdir = pathlib.Path(a.replay_traces)
+            traces = {t: rdir / f"{t}.a{a.replay_attempt}.jsonl.gz" for t in ids}
+        else:
+            traces = {t: trace_dir / f"{t}.rollout.jsonl.gz" for t in ids}
+        traces = {t: p for t, p in traces.items() if p.exists()}
+        print(f"{a.mode}: {len(traces)}/{len(ids)} tasks have a trace, "
+              f"workers={a.workers}", flush=True)
+    else:
+        codex_blob = csd.codex_bundle()
+        print(f"codex bundle: {len(codex_blob)//1048576} MB; {len(ids)} tasks, "
+              f"workers={a.workers} model={a.model} effort={a.effort}", flush=True)
+
+    def runnable(t):
+        return img.get(t) and (work / t).is_dir() and (a.mode == "solve" or t in traces)
+
+    d = Daytona(); t0 = time.time(); results = []
+    with cf.ThreadPoolExecutor(a.workers) as ex:
+        futs = {ex.submit(run_task, d, t, img.get(t), work / t, codex_blob,
+                          api_key, a.budget, a.tries, sol_dir, trace_dir, out,
+                          a.model, a.effort, a.mode, traces.get(t)): t
+                for t in ids if runnable(t)}
+        missing = [t for t in ids if not runnable(t)]
+        for t in missing:
+            results.append({"task_id": t, "capture": "no image, work dir, or trace",
+                            "gate": "skipped"})
+        for f in cf.as_completed(futs):
+            results.append(f.result())
+    print("\n== ORACLE SMOKE SUMMARY ==", flush=True)
+    for r in sorted(results, key=lambda x: x["task_id"]):
+        print(json.dumps(r), flush=True)
+    print(f"DONE in {time.time()-t0:.0f}s", flush=True)
+
+
+if __name__ == "__main__":
+    main()

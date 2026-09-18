@@ -1,0 +1,134 @@
+"""Gate 2 for tmax: can a strong agent actually solve the task?
+
+tmax ships no reference solution, so the usual oracle gate (gold earns reward 1)
+is impossible. Gate 2 is the substitute, and it is the only evidence available
+that a task is *correct*: if a capable agent, given only the instruction, in the
+task's own image, with no sight of tests/, produces something the task's own
+grader scores 1, then the instruction is followable, the environment is usable,
+the grader is reachable, and an answer exists. n attempts; solving once is enough.
+
+The agent works directly in the image (tmax tasks have no checked-out repo to
+patch; setup.sh already baked the environment in). tests/ is uploaded only after
+the agent stops, so nothing it does can be informed by the grader.
+"""
+from __future__ import annotations
+import argparse, json, os, pathlib, shlex, sys, threading, time
+import concurrent.futures as cf
+
+sys.path.insert(0, "/homes/zhaofan/terminalworld-seeds/scripts")
+import swesmith_validate_daytona as vd  # noqa: E402
+import codex_solve_daytona as csd  # noqa: E402  (provider args + bundle)
+from daytona import Daytona, CreateSandboxFromImageParams, Resources  # noqa: E402
+
+LOCK = threading.Lock()
+ALLOW = "api.openai.com,us.api.openai.com"
+
+PROMPT = """You are working inside a Linux container. Complete the task below.
+
+Work directly in the filesystem. Create or modify whatever files the task asks
+for, at exactly the paths it names. When you are done, stop; a separate grader
+will inspect the machine's final state.
+
+--- TASK ---
+{instruction}
+"""
+
+
+def attempt(d, tid, image, tdir, work, codex_blob, api_key, n, out, budget):
+    rec = {"task_id": tid, "attempt": n, "image": image, "t0": time.time()}
+    sb = None
+    try:
+        sb = d.create(CreateSandboxFromImageParams(
+            image=image, os_user="root", ephemeral=True,
+            network_block_all=False, domain_allow_list=ALLOW,
+            resources=Resources(cpu=1, memory=2, disk=4),
+            labels={"tmaxg2": tid[:60]}), timeout=900)
+        sb.fs.upload_file(codex_blob, "/tmp/codex.tgz")
+        rc, o = vd.exec_(sb, "tar --no-same-owner -C /usr/local/bin -xzf /tmp/codex.tgz "
+                             "&& rm /tmp/codex.tgz && codex --version", 300)
+        if rc != 0:
+            rec.update(status="error", error="codex install: " + o[-200:]); return rec
+        # key via stdin login, never on argv or in the env the agent can read
+        vd.exec_(sb, f"printf %s {shlex.quote(api_key)} | codex login --with-api-key", 120)
+
+        instruction = (tdir / "instruction.md").read_text(errors="replace")
+        sb.fs.upload_file(PROMPT.format(instruction=instruction).encode(), "/tmp/prompt.md")
+        t = time.time()
+        # the key routes to us.api.openai.com; codex's built-in provider ignores
+        # OPENAI_BASE_URL for its websocket transport, so the endpoint has to be
+        # declared as its own provider (verified: without this every call is
+        # 401 incorrect_hostname and the agent exits in 14s having done nothing)
+        rc, o = vd.exec_(sb,
+            "cd / && codex exec --json --dangerously-bypass-approvals-and-sandbox "
+            "--skip-git-repo-check " + csd.PROVIDER_ARGS + " -m gpt-5.6-luna "
+            "-c model_reasoning_effort=max " + csd.WEB_SEARCH_FLAGS +
+            " -o /tmp/last.txt < /tmp/prompt.md > /tmp/ev.jsonl 2>/tmp/err.txt; echo rc=$?",
+            budget)
+        rec["agent_s"] = round(time.time() - t, 1)
+
+        # tests arrive only now, after the agent has stopped
+        vd.upload_dir(sb, tdir / "tests", "/tmp/taskdata/tests")
+        rc, o = vd.exec_(sb, "chmod +x /tmp/taskdata/tests/test.sh && bash /tmp/taskdata/tests/test.sh", 900)
+        _, raw = vd.exec_(sb, "cat /logs/verifier/reward.txt 2>/dev/null", 60)
+        rec["reward"] = (raw or "").strip()
+        rec["status"] = "pass" if rec["reward"] == "1" else "fail"
+        rec["test_tail"] = (o or "")[-250:]
+        return rec
+    except Exception as e:  # noqa: BLE001
+        rec.update(status="error", error=f"{type(e).__name__}: {e}"[:200]); return rec
+    finally:
+        rec["wall_s"] = round(time.time() - rec.pop("t0"), 1)
+        with LOCK:
+            with out.open("a") as fh: fh.write(json.dumps(rec) + "\n")
+        if sb is not None:
+            try: d.delete(sb)
+            except Exception: pass
+
+
+def main():
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--ids", required=True)
+    ap.add_argument("--parquet", required=True)
+    ap.add_argument("--out", required=True)
+    ap.add_argument("--attempts", type=int, default=3)
+    ap.add_argument("--workers", type=int, default=32)
+    ap.add_argument("--budget", type=int, default=1800)
+    ap.add_argument("--work", default="/tmp/tmax_gate_work")
+    ap.add_argument("--key-file", default="/homes/zhaofan/key.txt")
+    ap.add_argument("--daytona-key-file", default="/homes/zhaofan/mdayton.txt")
+    a = ap.parse_args()
+    os.environ.setdefault("DAYTONA_API_KEY", pathlib.Path(a.daytona_key_file).read_text().strip())
+    api_key = pathlib.Path(a.key_file).read_text().strip()
+
+    import pandas as pd
+    df = pd.read_parquet(a.parquet)
+    img = {ec["task_id"]: ec["image"] for ec in df["env_config"] if isinstance(ec, dict)}
+
+    ids = [l.strip() for l in pathlib.Path(a.ids).read_text().splitlines() if l.strip()]
+    out = pathlib.Path(a.out)
+    done = set()
+    if out.exists():
+        for l in out.read_text().splitlines():
+            if l.strip():
+                r = json.loads(l); done.add((r["task_id"], r["attempt"]))
+
+    codex_blob = csd.codex_bundle()
+    print(f"codex bundle: {len(codex_blob)//1048576} MB", flush=True)
+
+    work = pathlib.Path(a.work)
+    jobs = [(t, n) for t in ids for n in range(a.attempts) if (t, n) not in done]
+    print(f"{len(ids)} tasks x {a.attempts} attempts = {len(jobs)} runs, workers={a.workers}", flush=True)
+
+    d = Daytona(); t0 = time.time(); counts = {}
+    with cf.ThreadPoolExecutor(a.workers) as ex:
+        futs = [ex.submit(attempt, d, t, img.get(t), work / t, work, codex_blob, api_key, n, out, a.budget)
+                for t, n in jobs if img.get(t) and (work / t).is_dir()]
+        for i, f in enumerate(cf.as_completed(futs), 1):
+            r = f.result(); counts[r["status"]] = counts.get(r["status"], 0) + 1
+            print(f"[{i}/{len(futs)}] {r['task_id'][:24]} #{r['attempt']} {r['status']} "
+                  f"reward={r.get('reward')!r} agent={r.get('agent_s')}s | {counts}", flush=True)
+    print(f"GATE2 DONE {counts} in {time.time()-t0:.0f}s", flush=True)
+
+
+if __name__ == "__main__":
+    main()
