@@ -168,42 +168,39 @@ higher-value families.
 ### Short path: the published release
 
 SWE-Rebench + TMax needs none of the steps below. A prepared release carries the
-mix, the source packages, and one verified OCI image digest per task, so no image
-is built locally. The dataset and the image registry are both public; reading
-either takes no token.
+mix and the source packages for both corpora, so one fetch replaces the whole
+download, extract, adapt and filter sequence. The dataset is public and reading
+it takes no token.
 
 ```bash
 python torchtitan/experiments/rl/examples/tmax/evolution/data_release.py fetch \
     --repo andylizf/TerminalWorld-Seeds-Clean \
-    --revision 5c8367d871044e3b6d08d41c3e000628b611a000 \
-    --release-sha256 0f1a165755eced706115dc6b2bf12459362ee1f5afb99558c77871d1aeec0949 \
+    --revision ef0a100cd93cd2ecd316adb30eb3819ec3f37201 \
+    --release-sha256 3d0f1eedc6e68c15e67b67cd8a59c2d763de0c8efa19d4f002083ff7cc17c328 \
     --out ./release
-
-# release/mix.jsonl is 3,321 rows: swe-rebench 1,317 + tmax 452 + swe-smith 1,552.
-# Every row carries its corpus, so a selection is one pass over the file.
-python - <<'PY'
-import json
-keep = {"swe-rebench", "tmax"}
-with open("rebench_tmax.jsonl", "w") as out:
-    for line in open("release/mix.jsonl"):
-        if json.loads(line)["metadata"]["corpus"] in keep:
-            out.write(line)
-PY
 ```
 
-That writes 1,769 rows. `fetch` checks every extracted file against the release
-manifest and refuses a release whose hash differs from the one requested.
-
-That revision holds two further releases covering the same tasks, including a
-1,769-row SWE-Rebench + TMax one. Their rows name no image digest, so taking them
-means building every image locally. The release above is the one bound to
-verified images.
+`release/mix.jsonl` is 1,748 rows: 1,317 SWE-Rebench and 431 TMax, the latter
+from the `longlongcheck` split, whose tasks carry the repairs published on
+2026-09-14. `fetch` checks every extracted file against the release manifest and
+refuses a release whose hash differs from the one requested. Point
+`SWE_PROMPT_DATA` at `release/mix.jsonl` and go to
+[`README_TERMINALWORLD.md`](README_TERMINALWORLD.md) section 2.
 
 Each row declares its own `daytona_cpu` / `daytona_mem_gb` / `daytona_disk_gb`,
-which take precedence over the fleet defaults, and pins its environment as
-`ghcr.io/andylizf/terminal-rl-images@sha256:...` with tmux already in the image,
-which is what Terminus-2 needs. Point `SWE_PROMPT_DATA` at the filtered file and
-go to [`README_TERMINALWORLD.md`](README_TERMINALWORLD.md) section 2.
+which take precedence over the fleet defaults, and ships a Dockerfile rather than
+a published image. Daytona builds those server-side and caches the result, so
+only the first sandbox per distinct Dockerfile pays the build, and tmux is
+installed at build time, which the terminus agent needs. The TMax tasks in this
+release are newly repaired content whose images have not been built before, so
+run `local_smoke.py --data release/mix.jsonl --limit 5` first: a task whose image
+fails to build makes every rollout on it retry sandbox creation, and a few of
+those saturate the rollout workers.
+
+That repository also holds a 3,321-row release combining SWE-Rebench, the earlier
+452-task TMax `reaudit` split and SWE-Smith, whose rows are each pinned to a
+verified image digest. Its task selection is different from this one; a release
+is identified by the revision and hash pair the command above carries.
 
 To prepare and publish a release for a different corpus selection, see
 [`evolution/DATA_RELEASES.md`](evolution/DATA_RELEASES.md). The rest of this

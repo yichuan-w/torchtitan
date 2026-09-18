@@ -53,11 +53,11 @@ five non-PyPI pins and what each one is load-bearing for.
 
 ## 1. Prepare the data
 
-For SWE-Rebench + TMax, take the published release instead: 1,769 rows, one
-verified image digest per task, nothing built locally. That is the two commands
-under "Short path" in [`README_SEED_DATA.md`](README_SEED_DATA.md) section 4;
-then continue at section 2 below. The path described here is for corpus
-combinations that have no release.
+For SWE-Rebench + TMax, take the published release instead: 1,748 rows from a
+single fetch, described under "Short path" in
+[`README_SEED_DATA.md`](README_SEED_DATA.md) section 4. Point `SWE_PROMPT_DATA`
+at what it produces and continue at section 2 below. The path described here is
+for corpus combinations that have no release.
 
 Both corpora are public Hugging Face datasets with a Harbor task-tree layout; one
 adapter (`prepare_rts_data.py`) reads both. The full pipeline -- download, extract,

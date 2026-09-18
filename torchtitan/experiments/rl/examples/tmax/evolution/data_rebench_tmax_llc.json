@@ -1,0 +1,27 @@
+{
+  "seed": 20260912,
+  "sources": [
+    {
+      "name": "swe-rebench",
+      "repo": "Fzz1/SWE-Rebench-Tasks-Clean",
+      "revision": "a6d8f8ead159520d079f81fa07fcb1aaa2ff1b04",
+      "adapter": "swe_peaks",
+      "metadata": "metadata/tasks.parquet",
+      "archives": [
+        "data/tasks-00000.tar"
+      ],
+      "count": null
+    },
+    {
+      "name": "tmax",
+      "repo": "Fzz1/Tmax-Tasks-Clean",
+      "revision": "bb6cf8fd646d753ab2c0c14330bfb32759143645",
+      "adapter": "tmax_reaudit",
+      "metadata": "splits/longlongcheck.parquet",
+      "archives": [
+        "data/tasks-longlongcheck-00000.tar"
+      ],
+      "count": null
+    }
+  ]
+}
