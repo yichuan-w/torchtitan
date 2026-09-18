@@ -193,9 +193,20 @@ a published image. Daytona builds those server-side and caches the result, so
 only the first sandbox per distinct Dockerfile pays the build, and tmux is
 installed at build time, which the terminus agent needs. The TMax tasks in this
 release are newly repaired content whose images have not been built before, so
-run `local_smoke.py --data release/mix.jsonl --limit 5` first: a task whose image
-fails to build makes every rollout on it retry sandbox creation, and a few of
-those saturate the rollout workers.
+probe a few packages before committing a run to them:
+
+```bash
+python torchtitan/experiments/rl/examples/tmax/evolution/daytona_revalidate.py \
+    release/sources/tmax/tasks/<task-id> --shortcut "true"
+```
+
+That boots the package through the same harness path a training rollout uses,
+takes no action, and grades. `"ok": true` with `"reward": 0.0` is the passing
+result: the image built, the sandbox started and the verifier ran. An
+infrastructure error is the finding. A task whose image fails to build makes
+every rollout on it retry sandbox creation, and a few of those saturate the
+rollout workers. (`local_smoke.py` does not serve here: it reads
+`metadata["image"]` and these rows ship a Dockerfile instead.)
 
 That repository also holds a 3,321-row release combining SWE-Rebench, the earlier
 452-task TMax `reaudit` split and SWE-Smith, whose rows are each pinned to a
