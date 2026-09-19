@@ -380,14 +380,7 @@ def test_same_mode_runs_one_session_that_writes_everything(
     assert len(rw.session_dirs()) == 1
 
 
-def test_a_disagreement_gets_one_repair_of_the_verifier_then_is_discarded(
-    tmp_path, monkeypatch
-) -> None:
-    rw = _rewrite(tmp_path, monkeypatch)
-    sessions, checks = [], []
-    replays = _wire(monkeypatch, sessions, checks)
-    verdicts = iter(["fail", "fail"])
-
+def _failing_check(checks, verdicts):
     def failing_check(pkg, name="check"):
         checks.append(name)
         (pkg / "run").mkdir(exist_ok=True)
@@ -398,36 +391,93 @@ def test_a_disagreement_gets_one_repair_of_the_verifier_then_is_discarded(
             )
         return "VERDICT: fail   stage=oracle\nAssertionError: no /app/result.sha"
 
-    monkeypatch.setattr(ec, "_harness_check", failing_check)
-    monkeypatch.setattr(ec, "_session_id", lambda _sd: "sid-v")
+    return failing_check
 
-    with pytest.raises(RuntimeError, match="still disagree"):
+
+def test_a_disagreement_repairs_author_then_verifier_and_is_discarded_after_the_rounds(
+    tmp_path, monkeypatch
+) -> None:
+    rw = _rewrite(tmp_path, monkeypatch)
+    sessions, checks = [], []
+    replays = _wire(monkeypatch, sessions, checks)
+    monkeypatch.setattr(ec, "REPAIR_ROUNDS", 1)
+    monkeypatch.setattr(
+        ec, "_harness_check", _failing_check(checks, iter(["fail", "fail", "fail"]))
+    )
+    monkeypatch.setattr(ec, "_session_id", lambda _sd: "sid")
+
+    with pytest.raises(RuntimeError, match="still disagree after 1 repair iteration"):
         ec.evolve_agentic(rw, dict(SEED), "harder")
 
-    # author, blind verifier, then one resume of the verifier's session -- never the author's.
-    assert [s["role"] for s in sessions] == ["author", "verifier", "verifier"]
-    assert sessions[2]["resume"] == "sid-v"
-    assert sessions[2]["cwd"] == sessions[1]["cwd"]
-    assert replays[0] == sessions[1]["cwd"]
-    assert len(replays) == 2
-    assert replays[1].name.startswith("original-replay-")
-    assert (replays[1] / "tests/test_state.py").read_text().endswith("# repaired\n")
-    assert "does not agree with the task's reference solution" in sessions[2]["prompt"]
-    assert (
-        (sessions[2]["cwd"] / "run" / "failure.txt")
-        .read_text()
-        .startswith("VERDICT: fail")
-    )
-    assert checks == ["check.blind1", "check.blind2"]
-    repair = sessions[2]["session"]
-    assert repair.path.name.endswith("--repair")
-    assert (
-        json.loads(repair.meta.read_text())["resumed"]
-        == f"sessions/{sessions[1]['session'].path.name}"
-    )
+    # author, blind verifier; then one iteration: the author resumed without
+    # the verifier, then the verifier's session resumed with the new failure.
+    assert [s["role"] for s in sessions] == ["author", "verifier", "author", "verifier"]
+    assert sessions[2]["resume"] == "sid" and sessions[3]["resume"] == "sid"
+    assert sessions[2]["cwd"] == rw.package
+    assert sessions[3]["cwd"] == sessions[1]["cwd"]
+    assert "you are not shown" in sessions[2]["prompt"]
+    assert "does not agree with the task's reference solution" in sessions[3]["prompt"]
+    assert checks == ["check.blind1", "check.blind.author1", "check.blind.verifier1"]
+    assert sessions[2]["session"].path.name.endswith("--repair-author")
+    assert sessions[3]["session"].path.name.endswith("--repair")
+    assert len(replays) == 2 and replays[1].name.startswith("original-replay-")
 
 
-def test_resume_of_a_blind_rewrite_goes_to_the_verifiers_session(
+def test_a_disagreement_resolved_by_the_authors_repair_needs_no_verifier_repair(
+    tmp_path, monkeypatch
+) -> None:
+    rw = _rewrite(tmp_path, monkeypatch)
+    sessions, checks = [], []
+    _wire(monkeypatch, sessions, checks)
+    monkeypatch.setattr(ec, "REPAIR_ROUNDS", 3)
+    monkeypatch.setattr(ec, "_session_id", lambda _sd: "sid")
+    passing = ec._harness_check
+    verdicts = iter(["fail"])
+
+    def check(pkg, name="check"):
+        if name == "check.blind1":
+            return _failing_check(checks, verdicts)(pkg, name)
+        return passing(pkg, name)
+
+    monkeypatch.setattr(ec, "_harness_check", check)
+    out = ec.evolve_agentic(rw, dict(SEED), "harder")
+    assert [s["role"] for s in sessions] == ["author", "verifier", "author"]
+    assert checks == ["check.blind1", "check.blind.author1"]
+    assert out["solve_sh"] == NEW_SOLVE and out["test_state_py"] == NEW_VERIFIER
+
+
+def test_author_repair_never_sees_the_blind_verifier(tmp_path, monkeypatch) -> None:
+    rw = _rewrite(tmp_path, monkeypatch)
+    seed = tmp_path / "r0"
+    (seed / "tests").mkdir(parents=True)
+    (seed / "tests/test_state.py").write_text(SEED["test_state_py"])
+    sessions, checks = [], []
+    _wire(monkeypatch, sessions, checks)
+    monkeypatch.setattr(ec, "REPAIR_ROUNDS", 1)
+    monkeypatch.setattr(ec, "_session_id", lambda _sd: "sid")
+    seen = {}
+    real = ec._run_codex
+
+    def spy(run, cwd, prompt, resume=None):
+        if resume and (cwd / "solution").exists():
+            seen["tests"] = (cwd / "tests/test_state.py").read_text()
+        return real(run, cwd, prompt, resume)
+
+    monkeypatch.setattr(ec, "_run_codex", spy)
+    passing = ec._harness_check
+    verdicts = iter(["fail"])
+    monkeypatch.setattr(
+        ec,
+        "_harness_check",
+        lambda pkg, name="check": _failing_check(checks, verdicts)(pkg, name)
+        if name == "check.blind1"
+        else passing(pkg, name),
+    )
+    ec.evolve_agentic(rw, {**SEED, "_seed_dir": str(seed)}, "harder")
+    assert seen["tests"] == SEED["test_state_py"]
+
+
+def test_resume_of_a_blind_rewrite_goes_to_the_author_first(
     tmp_path, monkeypatch
 ) -> None:
     rw = _rewrite(tmp_path, monkeypatch)
@@ -448,6 +498,7 @@ def test_resume_of_a_blind_rewrite_goes_to_the_verifiers_session(
             }
         )
         (cwd / "tests" / "test_state.py").write_text(repaired_verifier)
+        _pass(cwd)  # the author's own check against its scratch tests/
         return type("P", (), {"returncode": 0, "stdout": "", "stderr": ""})()
 
     def check_after_repair(pkg, name="check"):
@@ -460,10 +511,13 @@ def test_resume_of_a_blind_rewrite_goes_to_the_verifiers_session(
 
     fixed = ec.resume_agentic(rw, out, "AssertionError: strip", 1)
 
+    # The author's session is resumed first, in its own package, and the
+    # repaired solution passes against the blind verifier, so the verifier's
+    # session is never resumed; the tests/ it wrote there was scratch.
     assert sessions[-1]["role"] == "resume"
-    vsession = layout.SessionDir(Path(out["_verifier_session"]))
-    assert sessions[-1]["cwd"] == vsession.package
+    assert sessions[-1]["cwd"] == rw.package
     assert sessions[-1]["resume"] == "sid-v"
-    assert fixed["test_state_py"] == repaired_verifier
+    assert fixed["test_state_py"] == NEW_VERIFIER
     assert fixed["solve_sh"] == NEW_SOLVE
-    assert fixed["_repaired"] == "codex_resume_verifier"
+    assert fixed["_repaired"] == "codex_resume_author_then_verifier"
+    assert Path(fixed["_session"]).name.endswith("--repair-author")

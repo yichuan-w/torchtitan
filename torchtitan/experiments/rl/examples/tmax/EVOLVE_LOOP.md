@@ -143,9 +143,15 @@ author's package, replacing `tests/`.
 Then comes the only meeting of the two sessions: the harness runs the hidden
 reference solution against the blind verifier. A disagreement means one of two
 things, either the verifier demands something the instruction never promised or
-the solution does not do what the instruction says. The verifier's author gets
-the failure and one chance to decide which and fix it. A second disagreement
-discards the rewrite and the task goes back to training unchanged.
+the solution does not do what the instruction says. The two sides then repair
+in turn, and one such pair is one iteration: the author's session is resumed
+with the failure, its `tests/` holding the previous revision's checker again
+so it still never sees the verifier, and fixes the solution, the instruction
+or the environment; if the pair still disagrees, the verifier's author gets
+the new failure and one chance to fix its side. Up to `EVOLVE_REPAIR_ROUNDS`
+iterations (3), and none starts once the rewrite has been open longer than
+`EVOLVE_REWRITE_BUDGET_SEC` (6 h); after that the rewrite is discarded and the
+task goes back to training unchanged.
 
 ### 6. Revalidation
 
@@ -183,10 +189,13 @@ the reference solution are untouched, so the expensive rebuild is skipped. What
 an instruction edit can still introduce is drift against the verifier, judged
 before and after.
 
-A structural rewrite that fails its oracle gets one repair round with the thing
-it never saw, the real exit code and output tail, fed back to the session that
-wrote the files. About 60% of TerminalWorld hardening rewrites die at this seam,
-where the instruction, the solution and the verifier have to agree.
+A structural rewrite that fails its oracle here gets the same repair
+iterations, with the thing the sessions never saw, the real exit code and
+output tail, fed back and the package revalidated after each: the author
+first, then the verifier's author, up to `EVOLVE_REPAIR_ROUNDS` times inside
+the rewrite's budget. About 60% of TerminalWorld hardening rewrites used to
+die at this seam, where the instruction, the solution and the verifier have to
+agree.
 
 ### 7. It is folded back into the mix
 

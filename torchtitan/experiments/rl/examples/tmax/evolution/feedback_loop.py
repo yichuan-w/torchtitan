@@ -52,6 +52,14 @@ import verifier_literals as vl
 from synth_operators import harder_uses_operators
 from torchtitan.experiments.rl.examples.tmax import layout, rollout_record
 
+
+def _rewrite_age(rewrite: layout.RewriteDir) -> float:
+    """Seconds since the rewrite directory was stamped."""
+    try:
+        return time.time() - layout.parse_stamp(rewrite.path.name.split("--")[0])
+    except (ValueError, IndexError):
+        return 0.0
+
 log = logging.getLogger("feedback")
 
 # Daytona revalidation (hosts without docker, e.g. della). The probe runs in
@@ -909,11 +917,27 @@ def process_one(
         )
         rec["revalidate"] = v
         _size_from_probe(rec, v, resources)
-        if (
-            not v["ok"]
-            and rec["action"] == "evolve"
-            and v.get("stage") in ("daytona_oracle", "step_size")
-        ):
+        # Repair-and-revalidate iterations. Each one hands the failure back to
+        # the sessions that wrote the files (the author first, then in blind
+        # mode the verifier's author) and revalidates again; up to
+        # EVOLVE_REPAIR_ROUNDS of them, and none starts past
+        # EVOLVE_REWRITE_BUDGET_SEC from the rewrite's stamp.
+        rounds = int(os.environ.get("EVOLVE_REPAIR_ROUNDS", "3"))
+        budget = int(os.environ.get("EVOLVE_REWRITE_BUDGET_SEC", str(6 * 3600)))
+        for iteration in range(1, rounds + 1):
+            if v["ok"] or rec["action"] != "evolve":
+                break
+            if v.get("stage") not in ("daytona_oracle", "step_size"):
+                break
+            age = _rewrite_age(rewrite)
+            if age > budget:
+                log.info(
+                    "%s oracle repair skipped: rewrite open %.1f h, budget %.1f h",
+                    tid,
+                    age / 3600,
+                    budget / 3600,
+                )
+                break
             # The structural operator regenerates instruction, solution and
             # verifier together, and the hard part is making the three agree:
             # a sampled package had a 537-line solve.sh and a 518-line
@@ -953,29 +977,35 @@ def process_one(
                     fixed = ev.repair_oracle(new, tail, code)
                 except Exception:  # noqa: BLE001 -- repair is best-effort
                     fixed = None
-            if fixed is not None:
-                repaired = [k for k in ev.file_map(fixed) if fixed[k] != new[k]]
-                support = list(fixed.get("_support_changed") or [])
-                if repaired or set(support) != set(new.get("_support_changed") or []):
-                    _write_back(work, fixed)
-                    box = _probe_box(fixed, resources)
-                    rec["resources"] = box
-                    changed = _changed(task, fixed)
-                    v2 = revalidate(
-                        work,
-                        image,
-                        tid,
-                        fixed,
-                        orig=task,
-                        changed=changed,
-                        resources=box,
-                        baseline=baseline,
-                        pretest_file=pretest_file,
-                    )
-                    _size_from_probe(rec, v2, resources)
-                    rec["oracle_repair"] = {"files": repaired + support, "ok": v2["ok"]}
-                    v = v2
-                    rec["revalidate"] = v2
+            if fixed is None:
+                break
+            repaired = [k for k in ev.file_map(fixed) if fixed[k] != new[k]]
+            support = list(fixed.get("_support_changed") or [])
+            if not repaired and set(support) == set(new.get("_support_changed") or []):
+                break
+            new = fixed
+            _write_back(work, fixed)
+            box = _probe_box(fixed, resources)
+            rec["resources"] = box
+            changed = _changed(task, fixed)
+            v2 = revalidate(
+                work,
+                image,
+                tid,
+                fixed,
+                orig=task,
+                changed=changed,
+                resources=box,
+                baseline=baseline,
+                pretest_file=pretest_file,
+            )
+            _size_from_probe(rec, v2, resources)
+            rec.setdefault("oracle_repairs", []).append(
+                {"iteration": iteration, "files": repaired + support, "ok": v2["ok"]}
+            )
+            rec["oracle_repair"] = {"files": repaired + support, "ok": v2["ok"]}
+            v = v2
+            rec["revalidate"] = v2
         rec["changed"] = changed
         rec["verdicts"] = verdicts_of(v)
         if not v["ok"]:
