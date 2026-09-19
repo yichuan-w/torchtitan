@@ -55,7 +55,11 @@ import task_size as ts
 import verifier_literals as vl
 from synth_operators import harder_uses_operators
 from torchtitan.experiments.rl.examples.tmax import layout, rollout_record
-from verifier_probes import SemanticProbeMisses, verify_probes
+from verifier_probes import (
+    SemanticProbeContract,
+    SemanticProbeMisses,
+    verify_probes,
+)
 
 
 class Filtered(RuntimeError):
@@ -1525,16 +1529,64 @@ def _probe_hashes(package: Path, exclude: tuple[str, ...] = ()) -> dict[str, str
     }
 
 
-def _verify_original_probes(vsession: layout.SessionDir) -> None:
-    original = vsession.path / "original-verifier-probes"
-    if not original.exists():
-        shutil.copytree(vsession.package / "run/verifier-probes", original)
-        package = vsession.package
-    else:
-        package = Path(tempfile.mkdtemp(prefix="original-replay-", dir=vsession.path))
-        _blind_layout(vsession.package, package)
-        shutil.copytree(original, package / "run/verifier-probes")
-    verify_probes(package, _harness_env(), AGENT_TIMEOUT)
+_PROBE_CONTRACT_JOB = """Your replay controls under `run/verifier-probes/` do not
+match the contract you wrote: {problem}.
+
+The caller replays one script per declared case: `correct.sh` and `wrong-N.sh`
+for N = 1..(number of cases in `contract.json`). Write the missing scripts --
+each one a single-error variant of the correct solution for the case it
+answers -- or remove the cases you did not write, so the two sides agree.
+Change nothing else: the verifier itself, the task and the other controls stay
+as they are."""
+
+
+def _repair_probe_contract(
+    rewrite: layout.RewriteDir, vsession: layout.SessionDir, problem: str
+) -> None:
+    """One resume of the verifier's session to reconcile its contract with the
+    scripts it wrote. A declared case with no script used to raise
+    FileNotFoundError out of the replay reader and discard the whole rewrite:
+    8 of 17 failures in the first day on hip, and the cheapest possible fix
+    is asking the session that wrote the other six."""
+    sid = _session_id(vsession)
+    with session(rewrite, "probe-contract", timeout=AGENT_TIMEOUT, resumes=vsession) as run:
+        result = _run_codex(
+            run,
+            vsession.package,
+            _PROBE_CONTRACT_JOB.format(problem=problem) + _budget(AGENT_TIMEOUT),
+            resume=sid,
+        )
+        if result.returncode:
+            raise RuntimeError(
+                f"probe-contract repair exited {result.returncode}; see {run.dir.stdout}"
+            )
+
+
+def _verify_original_probes(
+    vsession: layout.SessionDir, rewrite: layout.RewriteDir | None = None
+) -> None:
+    def _replay() -> None:
+        original = vsession.path / "original-verifier-probes"
+        if not original.exists():
+            shutil.copytree(vsession.package / "run/verifier-probes", original)
+            package = vsession.package
+        else:
+            package = Path(
+                tempfile.mkdtemp(prefix="original-replay-", dir=vsession.path)
+            )
+            _blind_layout(vsession.package, package)
+            shutil.copytree(original, package / "run/verifier-probes")
+        verify_probes(package, _harness_env(), AGENT_TIMEOUT)
+
+    try:
+        _replay()
+    except SemanticProbeContract as error:
+        if rewrite is None:
+            raise
+        log.info("probe contract mismatch, asking the verifier session: %s", error)
+        shutil.rmtree(vsession.path / "original-verifier-probes", ignore_errors=True)
+        _repair_probe_contract(rewrite, vsession, str(error))
+        _replay()
 
 
 def _independent_verifier(
@@ -1649,7 +1701,7 @@ def _independent_verifier(
                 raise RuntimeError(
                     "Verifier repair changed public task files"
                 ) from error
-            _verify_original_probes(vsession)
+            _verify_original_probes(vsession, rewrite)
         else:
             return
 
@@ -1697,7 +1749,7 @@ def _blind_verifier(
         finally:
             _sandbox_down(vpkg)
     _check_verdict(vpkg)
-    _verify_original_probes(run.dir)
+    _verify_original_probes(run.dir, rewrite)
     _independent_verifier(rewrite, run.dir)
     rel = _take_verifier(
         vpkg,
@@ -1738,7 +1790,7 @@ def _blind_repair(
         finally:
             _sandbox_down(vpkg)
     _check_verdict(vpkg)
-    _verify_original_probes(vsession)
+    _verify_original_probes(vsession, rewrite)
     _independent_verifier(rewrite, vsession, allow_repair=False)
     before = (pkg / _verifier_on_disk(pkg, seed_rel)).read_text()
     return _take_verifier(vpkg, pkg, _verifier_on_disk(pkg, seed_rel), before)

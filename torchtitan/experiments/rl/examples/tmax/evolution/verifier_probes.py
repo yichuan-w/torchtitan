@@ -26,6 +26,13 @@ class SemanticProbeMisses(RuntimeError):
         super().__init__("; ".join(messages) + f"; see {log_path}")
 
 
+class SemanticProbeContract(RuntimeError):
+    """The contract and the scripts on disk do not match: a case with no
+    script, or a script no case declares. Recoverable -- the session that
+    wrote them is on disk and can be asked for the missing half -- so it is
+    its own type rather than a bare FileNotFoundError out of the reader."""
+
+
 class _DaytonaTransportFailure(RuntimeError):
     pass
 
@@ -45,6 +52,19 @@ def verify_probes(pkg: Path, env: dict[str, str], timeout: int) -> None:
             ):
                 raise ValueError(f"Semantic probe contract missing {key}")
     names = ["correct", *(f"wrong-{index}" for index in range(1, len(cases) + 1))]
+    missing = [name for name in names if not (probes / f"{name}.sh").is_file()]
+    extra = sorted(
+        p.stem
+        for p in probes.glob("wrong-*.sh")
+        if p.stem not in names and p.is_file()
+    )
+    if missing or extra:
+        raise SemanticProbeContract(
+            f"contract declares {len(cases)} wrong case(s); "
+            + (f"no script for {', '.join(missing)}" if missing else "")
+            + ("; " if missing and extra else "")
+            + (f"script(s) no case declares: {', '.join(extra)}" if extra else "")
+        )
     scripts = {name: (probes / f"{name}.sh").read_text() for name in names}
     if any(not script.strip() for script in scripts.values()) or len(
         set(scripts.values())

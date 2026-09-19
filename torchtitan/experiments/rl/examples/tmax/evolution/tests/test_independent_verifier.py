@@ -234,3 +234,30 @@ def test_original_controls_are_frozen_before_first_replay(setup, monkeypatch):
     (verifier.package / "run/verifier-probes/correct.sh").write_text("replacement")
     ec._verify_original_probes(verifier)
     assert seen == ["original correct", "original correct"]
+
+
+def test_a_case_with_no_script_is_its_own_error(tmp_path):
+    """A contract naming more cases than there are scripts used to raise
+    FileNotFoundError out of the reader and discard the whole rewrite."""
+    import verifier_probes as vp
+
+    probes = tmp_path / "run" / "verifier-probes"
+    probes.mkdir(parents=True)
+    (probes / "contract.json").write_text(
+        json.dumps(
+            {
+                "cases": [
+                    {"requirement": "r", "wrong_behavior": "w", "expected_failure": "f"}
+                ]
+                * 2
+            }
+        )
+    )
+    (probes / "correct.sh").write_text("exit 0\n")
+    (probes / "wrong-1.sh").write_text("exit 1\n")
+    with pytest.raises(vp.SemanticProbeContract, match="no script for wrong-2"):
+        vp.verify_probes(tmp_path, {}, 10)
+    (probes / "wrong-2.sh").write_text("exit 2\n")
+    (probes / "wrong-9.sh").write_text("exit 9\n")
+    with pytest.raises(vp.SemanticProbeContract, match="no case declares: wrong-9"):
+        vp.verify_probes(tmp_path, {}, 10)
