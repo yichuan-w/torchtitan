@@ -131,9 +131,11 @@ On by default (`SWE_VERIFIER_AUTHOR` unset, so `blind`), for both directions.
 Why, below.
 
 The author's package is laid out again under this session's own directory with
-`solution/`, `traces/`, `AGENTS.md` and `sandbox` removed, and `AGENTS.md`
-replaced by `evolution/agents/verifier_author.md`. This session sees the
-instruction, the environment and the seed's verifier, and not the solution.
+`solution/`, `traces/`, `AGENTS.md` and `sandbox` removed, `AGENTS.md`
+replaced by `evolution/agents/verifier_author.md`, and `tests/` replaced by
+the previous revision's. This session sees the instruction, the environment
+and the verifier the task had before the change, and neither the solution nor
+the author's scratch checker.
 
 What it writes is checked against independent probes, then copied back into the
 author's package, replacing `tests/`.
@@ -340,18 +342,27 @@ the one before it:
    exist in the package: a line referring to a file nobody wrote is the
    commonest way a rewrite is thrown away, and it fails long after the session
    ended
-4. `tests/` is left exactly as it is, because the verifier for this rung is
-   written by the blind session
+4. `tests/` is the author's scratch checker. It may edit it so that
+   `./sandbox check` exercises the new requirement, and the draft is thrown
+   away: the verifier for this rung is written by the blind session, which
+   starts from the previous revision's verifier, never from the draft
 
-`./sandbox check` here grades the new solution with the *seed's* verifier: it
-must still pass, since the seed's checks are the floor, and the untouched
-workspace must still fail. The seed's verifier cannot see the new requirement;
-the blind session will, from the instruction alone.
+`./sandbox check` here grades the new solution with whatever `tests/` holds:
+it must pass and the untouched workspace must fail. The seed's checks are not
+a floor the new solution has to clear: a requirement the instruction changes
+is checked as the instruction now states it, by the blind session. That is
+what lets a rung change what the seed asserted rather than only add to it,
+and what keeps a wrong seed verifier from being inherited as a requirement.
+What holds the rung to one step is the blind session's rule instead: every
+inherited check whose requirement still stands is kept, and
+`run/verifier-changes.md` in that session's package says which checks were
+kept, changed, removed and added, with the instruction sentence each rests on.
 
 The method constraints:
 
-- One rung, not a new task. Everything the seed asked for stays; what is added
-  is one requirement the agent that solved it never had to meet
+- One rung, not a new task. Everything the seed asked for stays, unless the
+  new requirement changes it, and what is added is one requirement the agent
+  that solved it never had to meet
 - The reference solution's growth is bounded, so "harder" cannot be met by
   making the solution longer
 - A strategy not exercised in these attempts is not evidence the student cannot
