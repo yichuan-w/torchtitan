@@ -217,7 +217,7 @@ def test_blind_mode_runs_two_sessions_and_the_second_never_sees_the_solution(
     assert replays == [sessions[1]["cwd"]]
     assert sessions[1]["session"].path.parent == rw.sessions
     if job == "harder":
-        assert "Leave `tests/` exactly as it is" in sessions[0]["prompt"]
+        assert "`tests/` is your scratch checker, and it is thrown away" in sessions[0]["prompt"]
     assert "not shown the reference solution" in sessions[1]["prompt"]
 
     # The verifier came back into the author's package, and the harness ran
