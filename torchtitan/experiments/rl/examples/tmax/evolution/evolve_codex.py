@@ -1152,15 +1152,18 @@ pipeline that produced these tasks runs the same sequence for that reason:
      ships, because that is all the verifier's author will see (below).
   3. `environment/Dockerfile` — the environment the other two assume.
 
-**Leave `tests/` exactly as it is.** The verifier for this rung is written by a
-second session that is shown the instruction, the environment and the seed's
-verifier, and not your solution -- so it cannot depend on a name only your
-solution knows. `./sandbox check` here grades your solution with the seed's
-verifier: it must still pass (the seed's checks are the floor) and the untouched
-workspace must still fail. It cannot see the new requirement; the other session
-will, from the instruction alone. A name your solution invents and the
-instruction never states will not be checked, so state it, or make the result
-checkable by value.
+**`tests/` is your scratch checker, and it is thrown away.** Edit it as you
+like so that `./sandbox check` exercises the new requirement against your
+solution -- the check grades with whatever `tests/` holds, and must pass, with
+the untouched workspace still failing. The verifier that ships with this rung
+is written afterwards by a second session that is shown the instruction, the
+environment and the previous revision's verifier -- not your draft, not your
+solution -- and that keeps each inherited check whose requirement the
+instruction still makes, changes or drops the ones the instruction changed or
+dropped, and adds the checks the new requirement needs. So the seed's checks
+are not a floor you must pass: a requirement you change is checked as you
+state it. And a name only your solution knows will not be checked: state it in
+the instruction, or make the result checkable by value.
 
 Add whatever new files the change needs — a fixture the Dockerfile copies, a
 config, a data file. Anything you write in the package comes back with it.
@@ -1257,13 +1260,18 @@ _VERIFIER_JOB = """The task in this package was revised through a change to its
 requirements or workflow. Write the verifier for the task as the
 instruction states it.
 
-You are shown the instruction, `environment/`, and the current verifier at
-`{verifier_rel}`. The original seed had {seed_asserts} assertions. You are not shown the reference solution, on purpose; AGENTS.md says
-why. Keep every existing check that still holds under the revised instruction;
-remove checks only for requirements that the instruction removed. Use at most
-{max_asserts} assertions above the original seed count, each satisfiable by an agent that has read
-only the instruction and explored the container. Where the instruction leaves a
-name open, check the value.
+You are shown the instruction, `environment/`, and the previous revision's
+verifier at `{verifier_rel}` -- the one the task had before this change, not a
+draft by whoever changed the task. The original seed had {seed_asserts}
+assertions. You are not shown the reference solution, on purpose; AGENTS.md says
+why. Keep every inherited check whose requirement the revised instruction still
+makes; correct or remove one whose requirement the instruction changed or
+removed; add what the new requirement needs. Use at most {max_asserts}
+assertions above the original seed count, each satisfiable by an agent that has
+read only the instruction and explored the container. Where the instruction
+leaves a name open, check the value. Write `run/verifier-changes.md`: which
+inherited checks you kept, changed or removed, and which you added, one line
+each with the instruction sentence it rests on.
 
 Then do the task yourself through `./sandbox exec`, the way the instruction
 describes it, and `./sandbox grade`: it must pass. `./sandbox reset` and grade
@@ -1356,31 +1364,56 @@ def _blind_layout(pkg: Path, vpkg: Path) -> None:
     os.chmod(vpkg / "sandbox", 0o755)
 
 
+def _seed_tests(task: dict) -> Path | None:
+    """The previous revision's ``tests/``: what the blind author starts from.
+    The author's package may carry its own draft, which is scratch."""
+    seed_dir = task.get("_seed_dir")
+    if seed_dir and (Path(seed_dir) / "tests").is_dir():
+        return Path(seed_dir) / "tests"
+    return None
+
+
+def _restore_seed_tests(vpkg: Path, seed_tests: Path | None) -> None:
+    """Put the previous revision's verifier under the blind layout in place of
+    whatever the author left in ``tests/``. The author may edit ``tests/`` as
+    a scratch checker for its own ``./sandbox check``; that draft carries the
+    solution's private vocabulary, which is exactly what the blind session
+    must not see, and it is discarded when the blind verifier is taken."""
+    if seed_tests is None:
+        return
+    shutil.rmtree(vpkg / "tests", ignore_errors=True)
+    shutil.copytree(seed_tests, vpkg / "tests")
+
+
 def _take_verifier(
     vpkg: Path,
     pkg: Path,
     seed_rel: str,
     seed_text: str,
     *,
+    seed_tests: Path | None = None,
     allow_unchanged: bool = False,
 ) -> str:
     """Copy the verifier the blind author wrote into the author's package,
-    replacing the seed's, and return its path. Calibration may retain a
-    reviewed verifier; other jobs must change it."""
+    replacing whatever ``tests/`` held (the seed's, or the author's scratch
+    draft), and return its path. Calibration may retain a reviewed verifier;
+    other jobs must change it -- judged against the previous revision's tests,
+    which is what the blind author was given."""
     rel = _verifier_on_disk(vpkg, seed_rel)
     text = (vpkg / rel).read_text()
+    baseline = seed_tests if seed_tests is not None else pkg / "tests"
     if (
         rel == seed_rel
         and text == seed_text
         and not allow_unchanged
-        and _probe_hashes(vpkg / "tests") == _probe_hashes(pkg / "tests")
+        and _probe_hashes(vpkg / "tests") == _probe_hashes(baseline)
     ):
         raise RuntimeError("verifier author changed nothing")
     # Shell graders consume sibling patches and fixtures. Transfer exactly the
     # test tree that passed the independent probes, including file deletions.
     shutil.rmtree(pkg / "tests")
     shutil.copytree(vpkg / "tests", pkg / "tests")
-    # The author's last check graded the seed's verifier; it says nothing
+    # The author's last check graded its own scratch verifier; it says nothing
     # about this one, so it must not satisfy _require_checked.
     (pkg / "run" / "checks.jsonl").unlink(missing_ok=True)
     return rel
@@ -1543,9 +1576,11 @@ def _blind_verifier(
     seed_size = ts.size_of(
         task["solve_sh"], seed_text, "python" if seed_rel.endswith(".py") else "shell"
     )
+    seed_tests = _seed_tests(task)
     with session(rewrite, "verifier", timeout=AGENT_TIMEOUT) as run:
         vpkg = run.dir.package
         _blind_layout(pkg, vpkg)
+        _restore_seed_tests(vpkg, seed_tests)
         prompt = _VERIFIER_JOB.format(
             verifier_rel=seed_rel,
             seed_asserts=seed_size["verifier_asserts"],
@@ -1573,6 +1608,7 @@ def _blind_verifier(
         pkg,
         seed_rel,
         seed_text,
+        seed_tests=seed_tests,
         allow_unchanged=bool(task.get("_calibration")),
     )
     return run.dir, rel

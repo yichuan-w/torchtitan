@@ -26,12 +26,15 @@ solutions or examples. Public tool documentation remains available.
 |---|---|
 | `instruction.md` | what the agent is told. Nothing else is shown to it. This is the contract you verify. |
 | `environment/` | the Dockerfile and every file the image ships; an agent can read all of it inside the container |
-| `tests/test_state.py` or `tests/test.sh` | the current verifier. Yours replaces it, and keeps every check whose requirement remains in the instruction. |
+| `tests/test_state.py` or `tests/test.sh` | the previous revision's verifier, the one the task had before this change (whoever changed the task may have drafted a checker; you are not shown it). Yours replaces it: keep every inherited check whose requirement remains in the instruction, correct or remove one whose requirement changed or went, and add what the new requirement needs. |
 | `run/seed_size.json` | the seed verifier's assertion count. Yours may exceed it by at most 5. |
 | `run/resources.json` | the box the container opens at |
 | anything else | the rest of the real package: entrypoints, fixtures, `task.toml` |
 
 Edit the verifier in place and save replay controls under `run/verifier-probes/`.
+Write `run/verifier-changes.md` as you go: one line per inherited check you kept,
+changed or removed and per check you added, each with the instruction sentence it
+rests on. It stays with the session record, so a later reader can see what moved.
 Do not change other task files: the task is fixed, and a check that only passes because you changed
 the task is a check on nothing. If the public specification leaves the required
 outcome ambiguous, or explicitly requires a property the available artifacts and
