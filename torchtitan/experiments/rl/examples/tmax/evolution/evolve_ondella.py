@@ -85,7 +85,9 @@ log = logging.getLogger("evolve")
 # and 814 against 26 in an earlier window, with the on-mix solve rate climbing
 # while the fixed eval stayed flat. Off, the too-hard tail freezes instead of
 # being loosened, and the only signals that move a task are the ones asking
-# for more difficulty. A deferred signal is replayed when the switch turns on.
+# for more difficulty. A signal deferred while it was off stays deferred:
+# turning the switch on picks up what training produces from then on, never the
+# backlog, whose revisions the pool has already moved past.
 SIMPLIFY_ENABLED = os.environ.get("SWE_EVOLVE_SIMPLIFY", "0").lower() not in (
     "0",
     "false",
@@ -323,15 +325,19 @@ def load_ledger(root: layout.Root) -> dict[str, dict]:
 def _pending(
     root: layout.Root, ledger: dict[str, dict]
 ) -> list[tuple[layout.Run, Path, str]]:
-    """Every signal file the ledger does not close: no line at all, or a
-    latest line of `deferred` while the easier direction is on. The id is
-    the run and the file's stem, which is what layout.signal_id spells."""
+    """Every signal file with no ledger line at all. The id is the run and the
+    file's stem, which is what layout.signal_id spells.
+
+    A `deferred` line closes a signal for good. Turning the easier direction on
+    does not reopen the backlog: those signals measured revisions the pool has
+    since moved past, so replaying them would spend the arm's first rounds on
+    stale measurements instead of on what training is producing now."""
     out = []
     for run in root.run_dirs():
         for p in run.signal_files():
             sid = f"{run.name}/{p.stem}"
             last = ledger.get(sid)
-            if last is None or (SIMPLIFY_ENABLED and last.get("outcome") == "deferred"):
+            if last is None:
                 out.append((run, p, sid))
     return out
 

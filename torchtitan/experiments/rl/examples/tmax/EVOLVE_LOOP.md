@@ -85,7 +85,10 @@ worked on, 346 landed at least one rewrite and 152 advanced two revisions or
 more, which is that alternation running for several rounds.
 
 A signal asking `easier` while `SWE_EVOLVE_SIMPLIFY` is off gets a `deferred`
-line, replayed if the switch is turned on.
+line, which closes it for good. Turning the switch on picks up what training
+produces from then on and not the backlog: those signals measured revisions the
+pool has since moved past, and the revision check would supersede most of them
+anyway.
 
 ### 3. It gets a working directory
 

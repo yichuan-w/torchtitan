@@ -640,11 +640,11 @@ def test_simplify_requires_explicit_opt_in(monkeypatch, value, enabled):
     importlib.reload(od)
 
 
-def test_easier_is_deferred_while_the_switch_is_off_and_replayed_when_on(
+def test_a_deferred_signal_stays_deferred_when_the_switch_is_turned_on(
     tmp_path, monkeypatch
 ) -> None:
     root = _root(tmp_path, monkeypatch)
-    sid = _signal(root, direction="easier")
+    _signal(root, direction="easier")
     seen = _stub(monkeypatch)
     monkeypatch.setattr(od, "SIMPLIFY_ENABLED", False)
 
@@ -656,16 +656,18 @@ def test_easier_is_deferred_while_the_switch_is_off_and_replayed_when_on(
     assert len(_ledger(root)) == 1
     assert od.rebuild_status(root)["deferred"] == 1
 
+    # On: the backlog stays closed. Those signals measured revisions the pool
+    # has moved past; the arm picks up what training produces from now on.
     monkeypatch.setattr(od, "SIMPLIFY_ENABLED", True)
-    assert od.rebuild_status(root)["pending"] == 1
+    assert od.rebuild_status(root)["pending"] == 0
+    assert od.run_round(root, workers=1)["reason"] == "no signals"
+    assert seen == []
+    assert [l["outcome"] for l in _ledger(root)] == ["deferred"]
+
+    # A signal training produces after the switch is on is handled.
+    _signal(root, group=8, direction="easier", created="20260904-190000Z")
     r = od.run_round(root, workers=1)
     assert r["handled"] == 1 and seen[0]["job"] == "easier"
-    lines = _ledger(root)
-    assert [l["outcome"] for l in lines] == ["deferred", "handled"]
-    assert lines[1]["signal"] == sid
-    # Handled now: the latest line wins in the status.
-    status = od.rebuild_status(root)
-    assert status["deferred"] == 0 and status["handled"] == 1
 
 
 def test_one_signal_per_task_the_newest_at_the_current_rev(
