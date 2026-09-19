@@ -923,16 +923,21 @@ def process_one(
         # EVOLVE_REPAIR_ROUNDS of them, and none starts past
         # EVOLVE_REWRITE_BUDGET_SEC from the rewrite's stamp.
         rounds = int(os.environ.get("EVOLVE_REPAIR_ROUNDS", "3"))
-        budget = int(os.environ.get("EVOLVE_REWRITE_BUDGET_SEC", str(6 * 3600)))
         for iteration in range(1, rounds + 1):
             if v["ok"] or rec["action"] != "evolve":
                 break
             if v.get("stage") not in ("daytona_oracle", "step_size"):
                 break
             age = _rewrite_age(rewrite)
+            budget = float(os.environ.get("EVOLVE_REWRITE_BUDGET_SEC", str(6 * 3600)))
+            if arm == "codex":
+                import evolve_codex as ec  # noqa: PLC0415 -- optional arm, faked in tests
+
+                if hasattr(ec, "rewrite_budget_sec"):
+                    budget = ec.rewrite_budget_sec()
             if age > budget:
                 log.info(
-                    "%s oracle repair skipped: rewrite open %.1f h, budget %.1f h",
+                    "%s oracle repair skipped: rewrite open %.1f h, budget one epoch %.1f h",
                     tid,
                     age / 3600,
                     budget / 3600,

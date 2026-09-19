@@ -38,8 +38,10 @@ from __future__ import annotations
 import contextlib
 import hashlib
 import json
+import logging
 import os
 import shutil
+import statistics
 import subprocess
 import tempfile
 import time
@@ -951,7 +953,64 @@ AGENT_TIMEOUT = int(os.environ.get("EVOLVE_AGENT_TIMEOUT", "2400"))
 # been open for longer than the budget: three iterations of two sessions each
 # is the most a task is worth, and a session can run two hours.
 REPAIR_ROUNDS = int(os.environ.get("EVOLVE_REPAIR_ROUNDS", "3"))
-REWRITE_BUDGET_SEC = int(os.environ.get("EVOLVE_REWRITE_BUDGET_SEC", str(6 * 3600)))
+# The budget is one training epoch: a rewrite that outlives one pass over the
+# mix lands after the task has been sampled again against the old revision,
+# so the group that is measuring it is already stale. Measured from the run
+# (rows in the live mix / groups per step x the median step interval), so it
+# follows the box: about 14 h on hip's MI350Xs, a few hours on B300s.
+# EVOLVE_REWRITE_BUDGET_SEC overrides it with a fixed number.
+_EPOCH_STEPS_DEFAULT_SEC = int(os.environ.get("EVOLVE_STEP_SEC_DEFAULT", "3600"))
+log = logging.getLogger("evolve")
+_budget_cache: dict = {"at": 0.0, "sec": 0.0, "why": ""}
+
+
+def _step_starts(run_dir: Path) -> list[float]:
+    """First timestamp per training step in the controller's structured log."""
+    first: dict[int, float] = {}
+    for f in sorted((run_dir / "trainer" / "structured_logs").glob("rl_controller.global_rank_0.*.jsonl")):
+        try:
+            with f.open() as fh:
+                for line in fh:
+                    try:
+                        d = json.loads(line)
+                    except ValueError:
+                        continue
+                    step, t = d.get("step"), d.get("time")
+                    if isinstance(step, int) and step > 0 and t is not None and step not in first:
+                        first[step] = float(t)
+        except OSError:
+            continue
+    return [first[k] for k in sorted(first)]
+
+
+def rewrite_budget_sec(root: "layout.Root | None" = None) -> float:
+    """Seconds a rewrite may stay open before no further repair iteration
+    starts: one epoch of the run this root is training, recomputed every ten
+    minutes from the newest run's step cadence."""
+    fixed = os.environ.get("EVOLVE_REWRITE_BUDGET_SEC")
+    if fixed:
+        return float(fixed)
+    now = time.monotonic()
+    if now - _budget_cache["at"] < 600 and _budget_cache["sec"]:
+        return _budget_cache["sec"]
+    root = root or layout.Root.from_env()
+    rows = sum(1 for line in root.mix.live.open() if line.strip()) if root.mix.live.exists() else 0
+    groups = int(os.environ.get("SWE_NUM_GROUPS_PER_TRAIN_STEP", "32"))
+    runs = root.run_dirs()
+    starts = _step_starts(runs[-1].path) if runs else []
+    gaps = [b - a for a, b in zip(starts, starts[1:])][-5:]
+    step_sec = statistics.median(gaps) if gaps else float(_EPOCH_STEPS_DEFAULT_SEC)
+    epoch_steps = (rows / groups) if rows and groups else 14.0
+    sec = epoch_steps * step_sec
+    why = (
+        f"{sec / 3600:.1f} h = one epoch: {rows} rows / {groups} groups per step "
+        f"= {epoch_steps:.1f} steps x {step_sec / 60:.0f} min per step"
+        + ("" if gaps else " (no step cadence measured yet; default step time)")
+    )
+    if why != _budget_cache["why"]:
+        log.info("rewrite budget %s", why)
+    _budget_cache.update(at=now, sec=sec, why=why)
+    return sec
 
 _OPERATOR_HARDER_GUIDANCE = """Make it one rung harder, along exactly one of these
 axes:
@@ -1699,7 +1758,7 @@ def _repair_iterations(
     rounds: int | None = None,
 ) -> str:
     """The hidden solution and the blind verifier disagree. Repair in turns,
-    up to REPAIR_ROUNDS iterations inside REWRITE_BUDGET_SEC: first the
+    up to REPAIR_ROUNDS iterations inside rewrite_budget_sec(): first the
     author's session, resumed with the failure and with the previous
     revision's checker in ``tests/`` rather than the verifier it was kept
     away from; then, if the pair still disagrees, the verifier's session.
@@ -1711,12 +1770,12 @@ def _repair_iterations(
     text = observed
     rounds = REPAIR_ROUNDS if rounds is None else rounds
     for i in range(1, rounds + 1):
-        age = _rewrite_age(rewrite)
-        if age > REWRITE_BUDGET_SEC:
+        age, budget = _rewrite_age(rewrite), rewrite_budget_sec()
+        if age > budget:
             raise RuntimeError(
                 f"blind verifier and reference solution still disagree, and the "
-                f"rewrite has been open {age / 3600:.1f} h (budget "
-                f"{REWRITE_BUDGET_SEC / 3600:.1f} h): " + text[-300:].replace("\n", " | ")
+                f"rewrite has been open {age / 3600:.1f} h (budget one epoch, "
+                f"{budget / 3600:.1f} h): " + text[-300:].replace("\n", " | ")
             )
         # 1. the author, without the blind verifier
         task = _resume_author_blind(rewrite, task, text[-4000:], code, seq=i)

@@ -97,7 +97,7 @@ own is revalidated at that size.
 | `SWE_RETUNE_AGENT` | `codex` | The rewrite runs as a Codex CLI session over the package and the group's rollout records. `chat` (the code default) makes a single model call instead. |
 | `EVOLVE_HARDER_OPERATORS` | `0` | Hardening follows the student's traces without an operator menu. `1` restores the fixed operator shortlist. |
 | `EVOLVE_REPAIR_ROUNDS` | `3` (default) | When the reference solution and the verifier disagree, or the caller's revalidation fails, the author's session repairs first and the verifier's session second; that pair is one iteration, and this is how many are tried before the rewrite is discarded. |
-| `EVOLVE_REWRITE_BUDGET_SEC` | `21600` (default, 6 h) | No repair iteration starts once the rewrite has been open this long, whatever the round count says; a session can run two hours, so this is what keeps one task from holding a round for a day. |
+| `EVOLVE_REWRITE_BUDGET_SEC` | unset (default) | No repair iteration starts once the rewrite has been open longer than one training epoch, which the loop measures from the run: rows in the mix over groups per step, times the median step interval (`rewrite budget …` in `loop.log` shows the number). Set this to a number of seconds to use a fixed budget instead. |
 | `--workers` | `16` (default `8`) | Concurrent rewrites in a round. The loop is signal-starved most of the time; workers only drain a burst faster. |
 | `--interval` | `120` | Seconds between rounds. |
 

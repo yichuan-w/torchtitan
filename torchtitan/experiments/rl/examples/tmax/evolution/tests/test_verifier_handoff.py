@@ -79,3 +79,27 @@ def test_unchanged_verifier_is_judged_against_previous_revision(tmp_path):
         verifier, package, "tests/test.sh", "exit 0\n", seed_tests=seed / "tests"
     )
     assert (package / "tests/test.sh").read_text() == "exit 0\n# adds the new check\n"
+
+
+def test_rewrite_budget_is_one_measured_epoch(tmp_path, monkeypatch):
+    import json
+
+    from torchtitan.experiments.rl.examples.tmax import layout
+
+    root = layout.Root(tmp_path / "root")
+    monkeypatch.setenv("TRL_BASE", str(root.path))
+    monkeypatch.delenv("EVOLVE_REWRITE_BUDGET_SEC", raising=False)
+    monkeypatch.setenv("SWE_NUM_GROUPS_PER_TRAIN_STEP", "32")
+    root.mix.history.mkdir(parents=True)
+    root.mix.live.write_text("".join('{"metadata": {}}\n' for _ in range(448)))
+    logs = root.runs / "tmax-9b--20260919-000000Z" / "trainer" / "structured_logs"
+    logs.mkdir(parents=True)
+    # Steps 1..4 start 1000 s, 3600 s and 3000 s apart: median interval 3000 s.
+    lines = [{"step": s, "time": t} for s, t in ((1, 0), (2, 1000), (3, 4600), (4, 7600))]
+    (logs / "rl_controller.global_rank_0.x.jsonl").write_text(
+        "".join(json.dumps(d) + "\n" for d in lines)
+    )
+    ec._budget_cache.update(at=0.0, sec=0.0, why="")
+    assert ec.rewrite_budget_sec(root) == 448 / 32 * 3000
+    monkeypatch.setenv("EVOLVE_REWRITE_BUDGET_SEC", "42")
+    assert ec.rewrite_budget_sec(root) == 42.0

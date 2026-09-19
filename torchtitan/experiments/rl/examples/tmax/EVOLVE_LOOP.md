@@ -150,8 +150,12 @@ so it still never sees the verifier, and fixes the solution, the instruction
 or the environment; if the pair still disagrees, the verifier's author gets
 the new failure and one chance to fix its side. Up to `EVOLVE_REPAIR_ROUNDS`
 iterations (3), and none starts once the rewrite has been open longer than
-`EVOLVE_REWRITE_BUDGET_SEC` (6 h); after that the rewrite is discarded and the
-task goes back to training unchanged.
+one training epoch, measured from the run as rows in the mix over groups per
+step times the median step interval (about 14 h on hip, a few hours on B300s;
+`EVOLVE_REWRITE_BUDGET_SEC` replaces it with a fixed number). A rewrite that
+outlives an epoch lands after the task has been sampled again against the old
+revision, so its measurement is already stale. Past the budget the rewrite is
+discarded and the task goes back to training unchanged.
 
 ### 6. Revalidation
 
