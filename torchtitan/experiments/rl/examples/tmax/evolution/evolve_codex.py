@@ -944,6 +944,14 @@ HIDDEN_FROM_VERIFIER = (
     "sandbox",
 )
 AGENT_TIMEOUT = int(os.environ.get("EVOLVE_AGENT_TIMEOUT", "2400"))
+# When a check fails after the author and the blind verifier have both
+# written, the two sides repair in turn -- the author first, with the failure
+# and without the verifier, then the verifier's author -- and that pair is one
+# iteration. Up to this many iterations, and none starts once the rewrite has
+# been open for longer than the budget: three iterations of two sessions each
+# is the most a task is worth, and a session can run two hours.
+REPAIR_ROUNDS = int(os.environ.get("EVOLVE_REPAIR_ROUNDS", "3"))
+REWRITE_BUDGET_SEC = int(os.environ.get("EVOLVE_REWRITE_BUDGET_SEC", str(6 * 3600)))
 
 _OPERATOR_HARDER_GUIDANCE = """Make it one rung harder, along exactly one of these
 axes:
@@ -1223,6 +1231,15 @@ already working. The container you had is gone; `./sandbox up` gives you a
 fresh one.
 
 Confirm with `./sandbox check` before you stop."""
+
+_REPAIR_BLIND_NOTE = """
+
+`tests/` here is the previous revision's checker again, a scratch copy for
+your own `./sandbox check`; the verifier that failed is the blind session's,
+which you are not shown, and it will be run against your repaired solution
+next. Fix the solution, the instruction or the environment. Where
+`run/failure.txt` shows the verifier looking for something an agent could not
+have known, state it in the instruction; you cannot edit that verifier."""
 
 _SPEC_REPAIR_JOB = """A simplification attempt reported a possible task defect.
 The report is in `run/failure.txt`; it is a claim to check, not an established
@@ -1648,31 +1665,96 @@ def _blind_repair(
     return _take_verifier(vpkg, pkg, _verifier_on_disk(pkg, seed_rel), before)
 
 
+def _rewrite_age(rewrite: layout.RewriteDir) -> float:
+    """Seconds since the rewrite directory was stamped."""
+    try:
+        return time.time() - layout.parse_stamp(rewrite.path.name.split("--")[0])
+    except (ValueError, IndexError):
+        return 0.0
+
+
+def _exit_code(pkg: Path) -> int:
+    chk = _last_check(pkg) or {}
+    return int(chk["solve_exit"]) if chk.get("solve_exit") is not None else 1
+
+
+def _reinstall_blind_verifier(vsession: layout.SessionDir, pkg: Path) -> None:
+    """Put the blind verifier back into the author's package after the author
+    worked with a scratch ``tests/``; the author's last check graded that
+    scratch and must not count."""
+    shutil.rmtree(pkg / "tests", ignore_errors=True)
+    shutil.copytree(vsession.package / "tests", pkg / "tests")
+    (pkg / "run" / "checks.jsonl").unlink(missing_ok=True)
+
+
+def _repair_iterations(
+    rewrite: layout.RewriteDir,
+    task: dict,
+    vsession: layout.SessionDir,
+    fmap: dict,
+    observed: str,
+    code: int,
+    *,
+    check_name: str,
+    rounds: int | None = None,
+) -> str:
+    """The hidden solution and the blind verifier disagree. Repair in turns,
+    up to REPAIR_ROUNDS iterations inside REWRITE_BUDGET_SEC: first the
+    author's session, resumed with the failure and with the previous
+    revision's checker in ``tests/`` rather than the verifier it was kept
+    away from; then, if the pair still disagrees, the verifier's session.
+    Returns the verifier's path once a check passes; raises when the rounds
+    or the budget run out. The seed goes back into training unchanged, which
+    is the safe outcome for a pair that cannot agree."""
+    pkg = rewrite.package
+    rel = fmap["test_state_py"]
+    text = observed
+    rounds = REPAIR_ROUNDS if rounds is None else rounds
+    for i in range(1, rounds + 1):
+        age = _rewrite_age(rewrite)
+        if age > REWRITE_BUDGET_SEC:
+            raise RuntimeError(
+                f"blind verifier and reference solution still disagree, and the "
+                f"rewrite has been open {age / 3600:.1f} h (budget "
+                f"{REWRITE_BUDGET_SEC / 3600:.1f} h): " + text[-300:].replace("\n", " | ")
+            )
+        # 1. the author, without the blind verifier
+        task = _resume_author_blind(rewrite, task, text[-4000:], code, seq=i)
+        _reinstall_blind_verifier(vsession, pkg)
+        text = _harness_check(pkg, name=f"{check_name}.author{i}")
+        if _agent_checked(pkg):
+            return rel
+        code = _exit_code(pkg)
+        # 2. the verifier's author, with the run against the repaired solution
+        rel = _blind_repair(rewrite, vsession, fmap, text[-4000:], code)
+        fmap["test_state_py"] = rel
+        text = _harness_check(pkg, name=f"{check_name}.verifier{i}")
+        if _agent_checked(pkg):
+            return rel
+        code = _exit_code(pkg)
+    raise RuntimeError(
+        f"blind verifier and reference solution still disagree after "
+        f"{rounds} repair iteration(s): " + text[-300:].replace("\n", " | ")
+    )
+
+
 def _reconcile_blind(
-    rewrite: layout.RewriteDir, vsession: layout.SessionDir, fmap: dict
+    rewrite: layout.RewriteDir, vsession: layout.SessionDir, fmap: dict, task: dict
 ) -> None:
-    """Hidden solution against blind verifier, with one bounded repair.
+    """Hidden solution against blind verifier, with bounded repair.
 
     The two sessions never saw each other's file, so the first time they meet
     is here. A failure means the verifier asks for something the instruction
     did not promise, or the solution does not do what the instruction says;
-    the verifier's author gets the run once and decides which, and a second
-    failure discards the rewrite. The seed goes back into training unchanged,
-    which is the safe outcome for a pair that cannot agree.
+    _repair_iterations lets each side answer in turn.
     """
     pkg = rewrite.package
     text = _harness_check(pkg, name="check.blind1")
     if _agent_checked(pkg):
         return
-    chk = _last_check(pkg) or {}
-    code = int(chk["solve_exit"]) if chk.get("solve_exit") is not None else 1
-    _blind_repair(rewrite, vsession, fmap, text[-4000:], code)
-    text = _harness_check(pkg, name="check.blind2")
-    if not _agent_checked(pkg):
-        raise RuntimeError(
-            "blind verifier and reference solution still disagree after "
-            "one repair: " + text[-300:].replace("\n", " | ")
-        )
+    fmap["test_state_py"] = _repair_iterations(
+        rewrite, task, vsession, fmap, text, _exit_code(pkg), check_name="check.blind"
+    )
 
 
 def evolve_agentic(
@@ -1805,7 +1887,9 @@ def evolve_agentic(
         _require_checked(pkg)
         if blind:
             vsession, fmap["test_state_py"] = _blind_verifier(rewrite, task, fmap)
-            _reconcile_blind(rewrite, vsession, fmap)
+            _reconcile_blind(
+                rewrite, vsession, fmap, {**task, "_session": str(run.dir.path)}
+            )
         out = _collect(task, pkg, fmap)
     except Blocked:
         raise
@@ -1868,26 +1952,69 @@ def evolve_agentic(
     return out
 
 
+def _resume_author_blind(
+    rewrite: layout.RewriteDir, task: dict, observed: str, exit_code: int, *, seq: int
+) -> dict:
+    """Resume the author's session with a failure, in blind mode: the blind
+    verifier is taken out of ``tests/`` first and the previous revision's
+    checker put back as the scratch it had, so the author still never sees
+    the verifier -- only the failure it produced. Returns the task with the
+    new session recorded."""
+    prior = layout.SessionDir(Path(task.get("_session") or ""))
+    if not prior.codex_home.is_dir():
+        raise RuntimeError(f"no agent session to resume at {prior.path}")
+    sid = _session_id(prior)
+    pkg = rewrite.package
+    _restore_seed_tests(pkg, _seed_tests(task))
+    (pkg / "run").mkdir(exist_ok=True)
+    _write_resources(pkg, task)
+    _write_pretest(pkg, task)
+    (pkg / "run" / "failure.txt").write_text(observed or "(no output captured)")
+    for stale in ("verdict.txt", "checks.jsonl"):
+        (pkg / "run" / stale).unlink(missing_ok=True)
+    with session(rewrite, "repair-author", timeout=AGENT_TIMEOUT, resumes=prior) as run:
+        prompt = (
+            _REPAIR_JOB.format(exit_code=exit_code)
+            + _REPAIR_BLIND_NOTE
+            + _budget(AGENT_TIMEOUT)
+        )
+        try:
+            p = _run_codex(run, pkg, prompt, resume=sid)
+        finally:
+            _sandbox_down(pkg)
+    _check_verdict(pkg)
+    _require_checked(pkg)
+    if p.returncode:
+        raise RuntimeError(f"author repair exited {p.returncode}; see {run.dir.stdout}")
+    return {**task, "_session": str(run.dir.path)}
+
+
 def _resume_blind(
     rewrite: layout.RewriteDir, task: dict, observed: str, exit_code: int
 ) -> dict:
+    """The caller's revalidation failed on a blind rewrite: one repair
+    iteration (author, then verifier), then the caller revalidates again."""
     vsession = layout.SessionDir(Path(task.get("_verifier_session") or ""))
     if not vsession.package.is_dir():
         raise RuntimeError(f"no verifier session to resume at {vsession.path}")
     pkg = rewrite.package
     fmap = ev.file_map(task)
-    _write_resources(pkg, task)
-    _write_pretest(pkg, task)
-    fmap["test_state_py"] = _blind_repair(rewrite, vsession, fmap, observed, exit_code)
-    text = _harness_check(pkg, name=f"check.resume{time.time_ns() % 100000}")
-    if not _agent_checked(pkg):
-        raise RuntimeError(
-            "blind verifier and reference solution still disagree on resume: "
-            + text[-300:].replace("\n", " | ")
-        )
+    # One iteration here: the caller counts iterations against REPAIR_ROUNDS
+    # itself, revalidating on Daytona between them.
+    fmap["test_state_py"] = _repair_iterations(
+        rewrite,
+        task,
+        vsession,
+        fmap,
+        observed,
+        exit_code,
+        check_name=f"check.resume{time.time_ns() % 100000}",
+        rounds=1,
+    )
     out = _collect(task, pkg, fmap)
-    out["_repaired"] = "codex_resume_verifier"
+    out["_repaired"] = "codex_resume_author_then_verifier"
     out["_agent_validated"] = True
+    out["_session"] = str(sorted(rewrite.sessions.glob("*--repair-author"))[-1])
     return out
 
 
