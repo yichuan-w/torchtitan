@@ -5,6 +5,10 @@
 # signals is started separately by evolve_hip.sh over the same root.
 #
 #   titan_tmax_evolve_host.sh [extra train args]
+#   RL_RESUME_FROM=<run name or dir> titan_tmax_evolve_host.sh   resume that run's
+#       newest step-* checkpoint in a new run directory (as della's launch_9b.sh:
+#       SWE_CKPT_FOLDER points at the old run's checkpoint directory and the new
+#       run's `checkpoints` link records it). Unset = fresh from the base weights.
 #
 # Every value below is the reference 9B run's value from
 # runbook/rltrain.env, EXCEPT the ones this machine forces. Those are marked
@@ -22,6 +26,19 @@ BASE=$ROOT/work/titan/tmax-v2-evolve
 STAMP=$(date -u +%Y%m%d-%H%M%SZ)
 RUN=$BASE/runs/tmax-9b--$STAMP
 mkdir -p $RUN $ROOT/work/cache/vllm $ROOT/work/cache/triton
+RESUMED_FROM=; CHECKPOINT_STEP=
+if [ -n "${RL_RESUME_FROM:-}" ]; then
+    case "$RL_RESUME_FROM" in */*) _old=$RL_RESUME_FROM ;; *) _old=$BASE/runs/$RL_RESUME_FROM ;; esac
+    if [ -L "$_old/checkpoints" ]; then _ckpt=$(readlink "$_old/checkpoints")
+    elif [ -d "$_old/trainer/checkpoint" ]; then _ckpt=$_old/trainer/checkpoint
+    else echo "[train] RL_RESUME_FROM=$RL_RESUME_FROM: no checkpoints under $_old" >&2; exit 2; fi
+    _latest=$(ls -d "$_ckpt"/step-* 2>/dev/null | sort -V | tail -1 || true)
+    [ -n "$_latest" ] || { echo "[train] RL_RESUME_FROM=$RL_RESUME_FROM: no step-* under $_ckpt" >&2; exit 2; }
+    export SWE_CKPT_FOLDER=$_ckpt
+    ln -s "$_ckpt" "$RUN/checkpoints"
+    RESUMED_FROM=$(basename "$_old"); CHECKPOINT_STEP=${_latest##*/step-}
+    echo "[train] resuming from $_latest (run $RESUMED_FROM)"
+fi
 set -a
 . $ROOT/work/daytona.env
 . $ROOT/work/wandb.env
@@ -129,7 +146,17 @@ _have=$(echo $RL_GPUS | tr ',' '\n' | grep -c .)
     exit 2
 }
 cd $RUN
-echo "[train] root=$BASE run=$RUN gpus=$RL_GPUS trainer=$SWE_DP_SHARD generators=$SWE_NUM_GENERATORS x dp$SWE_GEN_DP steps=$SWE_TRAIN_STEPS"
+# What this run was given, in the shape della's launch.json has (LAYOUT.md).
+python3 - "$RUN" "$RESUMED_FROM" "$CHECKPOINT_STEP" <<'PY'
+import json, os, sys, time
+run, resumed, step = sys.argv[1:]
+env = {k: v for k, v in os.environ.items() if k.startswith(("SWE_", "TMAX_", "TT_DAYTONA_", "RL_", "TRL_", "WANDB_"))}
+json.dump({"run": os.path.basename(run), "started": time.strftime("%Y%m%d-%H%M%SZ", time.gmtime()),
+           "resumed_from": resumed or None, "checkpoint_step": int(step) if step else None,
+           "gpus": os.environ.get("RL_GPUS"), "env": env},
+          open(os.path.join(run, "launch.json"), "w"), indent=1, sort_keys=True)
+PY
+echo "[train] root=$BASE run=$RUN gpus=$RL_GPUS trainer=$SWE_DP_SHARD generators=$SWE_NUM_GENERATORS x dp$SWE_GEN_DP steps=$SWE_TRAIN_STEPS${RESUMED_FROM:+ resumed_from=$RESUMED_FROM@step-$CHECKPOINT_STEP}"
 setsid nohup $ROOT/venv/bin/python -u -m torchtitan.experiments.rl.train \
     --module torchtitan.experiments.rl.examples.tmax \
     --config rl_grpo_qwen3_5_9b_tmax \
