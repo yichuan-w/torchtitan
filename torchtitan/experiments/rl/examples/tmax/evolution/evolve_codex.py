@@ -1083,6 +1083,16 @@ checksum appended after the original solution is not enough merely because it
 reads the original outputs. Choose the mechanism the traces justify, rather
 than applying an example mechanically.
 
+What every hardening removes is an assumption the successful strategy relied
+on without checking: that the only CSV in the directory is the input, that
+the first match is the target, that a re-run reproduces what was recorded,
+that two records of different types are never equal. Adding artifacts to the
+workspace -- fixtures, decoy files, a second candidate, a stale copy, a log
+that contradicts a config -- is a legitimate way to remove such an assumption,
+and the way to add diversity a task lacks; it counts only when the added
+material forces a decision judged by content (which of these is real, which
+one applies), never when it is inert clutter the old strategy walks past.
+
 Prefer changes to inputs or objectives that require the successful strategy to
 adapt, rather than merely declaring that strategy disallowed. If correctness
 depends on a method or source restriction, make it enforceable in the runnable
@@ -1169,9 +1179,14 @@ the pipeline that built these tasks learned the hard way:
 - Preserve the seed's base image and installation style; make the smallest change
   the changed condition needs. An environment rewritten wholesale is a new task,
   not a harder one.
-- No internet-only runtime behaviour, no proxies, credentials or external
-  services. The sandbox may have none of them and the reference solution will
-  fail where an agent would too.
+- The sandbox has network access, and a task may use it -- fetching a pinned
+  file, querying a public service -- when that is part of the work rather than
+  decoration. Pin what is fetched (a URL plus a checksum or a version) so the
+  reference solution stays reproducible, and make a failed fetch fail loudly:
+  a non-zero exit and the error on stderr, never a silent fallback. The
+  harness records what each sandbox could reach at boot, so a task that needs
+  the network is diagnosable when a cluster's egress differs. No credentials
+  and nothing that only works through a proxy.
 - The container is the size training gives this task (`run/resources.json`),
   and `./sandbox check` measures what the reference solution costs in it. The
   task is provisioned from that measurement, never below the seed's size and
@@ -1250,9 +1265,14 @@ the pipeline that built these tasks learned the hard way:
 - Preserve the seed's base image and installation style; make the smallest change
   the changed condition needs. An environment rewritten wholesale is a new task,
   not a harder one.
-- No internet-only runtime behaviour, no proxies, credentials or external
-  services. The sandbox may have none of them and the reference solution will
-  fail where an agent would too.
+- The sandbox has network access, and a task may use it -- fetching a pinned
+  file, querying a public service -- when that is part of the work rather than
+  decoration. Pin what is fetched (a URL plus a checksum or a version) so the
+  reference solution stays reproducible, and make a failed fetch fail loudly:
+  a non-zero exit and the error on stderr, never a silent fallback. The
+  harness records what each sandbox could reach at boot, so a task that needs
+  the network is diagnosable when a cluster's egress differs. No credentials
+  and nothing that only works through a proxy.
 - The container is the size training gives this task (`run/resources.json`),
   and `./sandbox check` measures what the reference solution costs in it. The
   task is provisioned from that measurement, never below the seed's size and

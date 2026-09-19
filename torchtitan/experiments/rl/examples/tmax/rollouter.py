@@ -274,6 +274,73 @@ class _SandboxRolloutDiagnostics:
     # Seconds per phase, filled as the rollout passes through them; empty for a
     # rollout that died before reaching one. _timing_metrics reads it.
     timing: dict = field(default_factory=dict)
+    # What the sandbox could reach at boot (_net_probe): one entry per target,
+    # so a run on a cluster with a different egress policy leaves a record of
+    # what tasks that use the network were facing.
+    net_probe: dict = field(default_factory=dict)
+
+
+# Network probe run inside every sandbox right after boot, before the agent's
+# clock starts. Tasks are allowed to use the network, and a cluster's egress
+# policy is the first thing to differ when the harness moves (a Meta cluster
+# will not look like Daytona), so every rollout records what it could reach:
+# DNS, HTTPS and ICMP to a few public hosts, with timings. Bounded by
+# TT_SANDBOX_NET_PROBE_SEC in total; TT_SANDBOX_NET_PROBE=0 switches it off.
+_NET_PROBE_TARGETS = os.environ.get(
+    "TT_SANDBOX_NET_PROBE_TARGETS", "pypi.org,github.com,huggingface.co"
+).split(",")
+_NET_PROBE_SEC = int(os.environ.get("TT_SANDBOX_NET_PROBE_SEC", "20"))
+_NET_PROBE_SCRIPT = r"""
+ms() { date +%s%N 2>/dev/null | cut -c1-13 || date +%s000; }
+for h in __TARGETS__; do
+  t0=$(ms)
+  if command -v getent >/dev/null 2>&1; then getent hosts "$h" >/dev/null 2>&1 && d=ok || d=fail
+  elif command -v python3 >/dev/null 2>&1; then python3 -c "import socket,sys; socket.gethostbyname(sys.argv[1])" "$h" >/dev/null 2>&1 && d=ok || d=fail
+  else d=notool; fi
+  t1=$(ms)
+  if command -v curl >/dev/null 2>&1; then c=$(curl -sS -o /dev/null -m 5 -w '%{http_code}' "https://$h/" 2>/dev/null); [ -n "$c" ] || c=err
+  elif command -v wget >/dev/null 2>&1; then wget -q --spider -T 5 "https://$h/" >/dev/null 2>&1 && c=ok || c=err
+  elif command -v python3 >/dev/null 2>&1; then c=$(python3 -c "import urllib.request,sys
+try:
+    print(urllib.request.urlopen('https://'+sys.argv[1]+'/', timeout=5).status)
+except Exception as e:
+    print('err:'+type(e).__name__)" "$h" 2>/dev/null); [ -n "$c" ] || c=err
+  else c=notool; fi
+  t2=$(ms)
+  echo "$h dns=$d dns_ms=$((t1-t0)) http=$c http_ms=$((t2-t1))"
+done
+if command -v ping >/dev/null 2>&1; then ping -c1 -W2 1.1.1.1 >/dev/null 2>&1 && echo "icmp=ok" || echo "icmp=fail"; else echo "icmp=notool"; fi
+"""
+
+
+async def _net_probe(sandbox) -> dict:
+    """Run the boot-time network probe and parse it into a dict. Never raises:
+    a probe that cannot run is itself the finding."""
+    if os.environ.get("TT_SANDBOX_NET_PROBE", "1") == "0":
+        return {}
+    script = _NET_PROBE_SCRIPT.replace("__TARGETS__", " ".join(_NET_PROBE_TARGETS))
+    t0 = time.monotonic()
+    out: dict = {"secs": 0.0, "targets": {}}
+    try:
+        code, stdout, stderr = await sandbox.exec(script, user="root", timeout=_NET_PROBE_SEC)
+    except Exception as e:  # noqa: BLE001 -- the record carries the failure
+        out["error"] = f"{type(e).__name__}: {e}"[:200]
+        out["secs"] = round(time.monotonic() - t0, 1)
+        return out
+    out["secs"] = round(time.monotonic() - t0, 1)
+    out["exit"] = code
+    for line in (stdout or "").splitlines():
+        line = line.strip()
+        if not line:
+            continue
+        if line.startswith("icmp="):
+            out["icmp"] = line.split("=", 1)[1]
+            continue
+        host, *fields = line.split()
+        out["targets"][host] = dict(f.split("=", 1) for f in fields if "=" in f)
+    if stderr:
+        out["stderr"] = stderr[-200:]
+    return out
 
 
 def _sandbox_issue_metrics(
@@ -659,6 +726,9 @@ def _write_rollout_record(
             # The exec trace below carries each command's own clock, so the gaps
             # between commands are the time waiting for the generator.
             "timing": dict(sandbox_diagnostics.timing),
+            # What the sandbox could reach at boot: per target dns/http and
+            # their milliseconds, plus icmp. Empty when the probe is off.
+            "net_probe": dict(sandbox_diagnostics.net_probe),
             "secs": round(secs, 1),
             "budget_sec": int(budget_sec),
             "turns": len(turns),
@@ -1341,6 +1411,7 @@ class TMaxRollouter(Rollouter):
         # that spent it queueing behind a saturated generator, and both land in
         # finish_reason=hit_time_budget.
         timing: dict = {}
+        net_probe: dict = {}
         # Where this rollout's record goes; None writes nothing (said once).
         run = _run_dir()
         collect_pane = (
@@ -1394,13 +1465,29 @@ class TMaxRollouter(Rollouter):
                     # the deadline restarts here, exactly like the agent's own
                     # deadline (set at agent start in the harness).
                     timing["boot_secs"] = time.monotonic() - slot_at
+                    # Force every tool command to run as root (tmax tasks touch
+                    # system paths); the faithful Vanillux loop dispatches bash here.
+                    root_sb = _RootSandbox(sandbox, exec_timing)
+                    net_probe = await _net_probe(sandbox)
+                    if net_probe:
+                        logger.info(
+                            "[tmax_net_probe] %s",
+                            json.dumps(
+                                {
+                                    "event": "tmax_net_probe",
+                                    "instance_id": sample.instance_id,
+                                    "group_id": group_id,
+                                    "rollout_id": rollout_idx,
+                                    "sandbox_id": sandbox.sandbox_id,
+                                    **net_probe,
+                                },
+                                sort_keys=True,
+                            ),
+                        )
                     rollout_timeout.reschedule(
                         asyncio.get_running_loop().time()
                         + self._guard_for(budget_sec, verifier_sec)
                     )
-                    # Force every tool command to run as root (tmax tasks touch
-                    # system paths); the faithful Vanillux loop dispatches bash here.
-                    root_sb = _RootSandbox(sandbox, exec_timing)
                     # Docker would have run this as PID 1 before anything else; our
                     # backends exec commands directly, so start it here or every
                     # task that depends on it is unsolvable.
@@ -1596,6 +1683,7 @@ class TMaxRollouter(Rollouter):
             failure=failure,
             terminal_events=terminal_events,
             timing=dict(timing),
+            net_probe=dict(net_probe),
         )
 
         turns = _captured_to_turns(captured, group_id, rollout_idx)
@@ -1665,6 +1753,7 @@ class TMaxRollouter(Rollouter):
                         "failure": diagnostics.failure,
                         "issue_counts": diagnostics.issue_counts,
                         "num_dropped_details": diagnostics.num_dropped_details,
+                        "net_probe": diagnostics.net_probe,
                     },
                     sort_keys=True,
                 ),
