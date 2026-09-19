@@ -43,3 +43,39 @@ def test_unchanged_verifier_is_rejected_without_removing_tests(tmp_path):
     with pytest.raises(RuntimeError, match="changed nothing"):
         ec._take_verifier(verifier, package, "tests/test.sh", "exit 0\n")
     assert (package / "tests/test.sh").read_text() == "exit 0\n"
+
+
+def test_blind_session_starts_from_previous_revision_not_authors_draft(tmp_path):
+    # The author may edit tests/ as a scratch checker; the blind layout must
+    # replace that draft with the previous revision's tests.
+    seed, package, verifier = tmp_path / "r0", tmp_path / "package", tmp_path / "v"
+    for root, text in ((seed, "exit 0\n"), (package, "grep secret_name out\n")):
+        (root / "tests").mkdir(parents=True)
+        (root / "tests/test.sh").write_text(text)
+    (package / "tests/helper.py").write_text("# author's scratch helper\n")
+    verifier.mkdir()
+    (verifier / "tests").mkdir()
+    (verifier / "tests/test.sh").write_text("grep secret_name out\n")
+    ec._restore_seed_tests(verifier, ec._seed_tests({"_seed_dir": str(seed)}))
+    assert (verifier / "tests/test.sh").read_text() == "exit 0\n"
+    assert not (verifier / "tests/helper.py").exists()
+
+
+def test_unchanged_verifier_is_judged_against_previous_revision(tmp_path):
+    # The author's draft differs from the seed, so comparing the blind
+    # author's tests against the package would let "changed nothing" through.
+    seed, package, verifier = tmp_path / "r0", tmp_path / "package", tmp_path / "v"
+    for root, text in ((seed, "exit 0\n"), (package, "draft\n"), (verifier, "exit 0\n")):
+        (root / "tests").mkdir(parents=True)
+        (root / "tests/test.sh").write_text(text)
+    with pytest.raises(RuntimeError, match="changed nothing"):
+        ec._take_verifier(
+            verifier, package, "tests/test.sh", "exit 0\n", seed_tests=seed / "tests"
+        )
+    assert (package / "tests/test.sh").read_text() == "draft\n"
+    (verifier / "tests/test.sh").write_text("exit 0\n# adds the new check\n")
+    (package / "run").mkdir()
+    ec._take_verifier(
+        verifier, package, "tests/test.sh", "exit 0\n", seed_tests=seed / "tests"
+    )
+    assert (package / "tests/test.sh").read_text() == "exit 0\n# adds the new check\n"

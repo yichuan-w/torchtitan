@@ -136,9 +136,11 @@ working input and leaves an answer wrong for the original fixture. It must fail
 at the corresponding content check. Also accept a correct deliverable despite an
 input change when the public task permits that change; do not add an input
 immutability requirement to make the negative control fail.
-Keep the existing sandbox checks and job limits. In blind-verifier mode, leave
-`tests/` unchanged as the job instructs; make the requirements checkable for the
-separate verifier author.
+Keep the existing sandbox checks and job limits. In blind-verifier mode, `tests/`
+is your scratch checker: edit it so `./sandbox check` exercises the new
+requirement, and know that it is discarded -- the separate verifier author starts
+from the previous revision's verifier and the instruction, never from your draft.
+Make the requirements checkable from the instruction and the environment.
 
 Do not add a report, execution log, or reusable-program requirement merely to
 satisfy a verifier role. A difficulty change must make a task-relevant decision
