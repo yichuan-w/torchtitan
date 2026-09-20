@@ -1,0 +1,49 @@
+{
+  "view": "instruction",
+  "representation": "instruction.md / problem statement only",
+  "n_tb21": 89,
+  "n_train": 56307,
+  "corpus_sizes": {
+    "SWE-Smith-Seeds-Clean": 1552,
+    "SWE-Rebench-Tasks-Clean": 1317,
+    "TerminalWorld-Seeds-Clean": 1353,
+    "Recursive-Task-Synthesis": 37484,
+    "TMax-15K": 14601
+  },
+  "load_errors": {},
+  "top_k": 30,
+  "vectorizer": {
+    "ngram_range": [
+      1,
+      2
+    ],
+    "min_df": 2,
+    "max_df": 0.85,
+    "max_features": 250000,
+    "sublinear_tf": true,
+    "vocab_size": 250000
+  },
+  "top1_source_wins": {
+    "TMax-15K": 39,
+    "SWE-Rebench-Tasks-Clean": 6,
+    "TerminalWorld-Seeds-Clean": 21,
+    "Recursive-Task-Synthesis": 13,
+    "SWE-Smith-Seeds-Clean": 10
+  },
+  "top30_source_slots": {
+    "TMax-15K": 1169,
+    "SWE-Rebench-Tasks-Clean": 181,
+    "Recursive-Task-Synthesis": 838,
+    "SWE-Smith-Seeds-Clean": 159,
+    "TerminalWorld-Seeds-Clean": 323
+  },
+  "mean_top1_score": 0.16552528089887641,
+  "median_top1_score": 0.152888,
+  "mean_top1_score_by_source": {
+    "TMax-15K": 0.18400884615384616,
+    "SWE-Rebench-Tasks-Clean": 0.1440735,
+    "TerminalWorld-Seeds-Clean": 0.16210266666666664,
+    "Recursive-Task-Synthesis": 0.14143792307692307,
+    "SWE-Smith-Seeds-Clean": 0.1448115
+  }
+}
