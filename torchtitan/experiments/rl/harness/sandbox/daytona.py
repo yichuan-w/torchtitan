@@ -17,7 +17,6 @@ Ported from THUDM/slime ``slime/agent/sandbox.py``.
 from __future__ import annotations
 
 import base64
-import binascii
 import json
 
 import logging
@@ -460,6 +459,52 @@ def _strip_comments_in_continuation(dockerfile: str) -> str:
         kept.append(line)
         continued = stripped.endswith("\\")
     return "".join(kept)
+
+
+_FROM_IMAGE = re.compile(
+    r"^(?P<prefix>[ \t]*FROM[ \t]+(?:--\S+[ \t]+)*)(?P<image>\S+)"
+    r"(?P<suffix>[^\r\n]*)",
+    re.IGNORECASE | re.MULTILINE,
+)
+
+
+def _qualify_docker_hub_base_images(dockerfile: str) -> str:
+    """Make Docker Hub's implicit registry explicit in FROM instructions."""
+    stage_names: set[str] = set()
+
+    def qualify(match: re.Match[str]) -> str:
+        image = match.group("image")
+        suffix = match.group("suffix")
+        alias_match = re.fullmatch(
+            r"[ \t]+AS[ \t]+(?P<alias>[A-Za-z0-9_.-]+)[ \t]*",
+            suffix,
+            re.IGNORECASE,
+        )
+        if (
+            image.lower() != "scratch"
+            and not image.startswith("$")
+            and image.lower() not in stage_names
+        ):
+            repository = image.split("@", 1)[0]
+            if "/" not in repository:
+                image = "docker.io/library/" + image
+            else:
+                registry = repository.split("/", 1)[0].lower()
+                if not (
+                    "." in registry or ":" in registry or registry == "localhost"
+                ):
+                    image = "docker.io/" + image
+        if alias_match:
+            stage_names.add(alias_match.group("alias").lower())
+        return match.group("prefix") + image + suffix
+
+    return _FROM_IMAGE.sub(qualify, dockerfile)
+
+
+def _prepare_dockerfile_for_daytona(dockerfile: str) -> str:
+    source = _strip_comments_in_continuation(dockerfile)
+    source = _qualify_docker_hub_base_images(source)
+    return re.sub(r"\\\r?\n[ \t]*", " ", source)
 
 
 _proxy_patch_done = False
@@ -924,9 +969,10 @@ class DaytonaSandbox:
         # fails with "unknown instruction: <first word>" (6 of 667 TerminalWorld
         # rows, each burning its create retries and landing as reward-0 infra
         # failures inside a live group). Drop those lines first, matching Docker.
-        source = _strip_comments_in_continuation(self.dockerfile)
-        flattened = re.sub(r"\\\r?\n[ \t]*", " ", source)
-        path.write_text(flattened)
+        # Docker resolves unqualified FROM images through Docker Hub. Make that
+        # default explicit because non-interactive builders cannot prompt for a
+        # short-name registry choice.
+        path.write_text(_prepare_dockerfile_for_daytona(self.dockerfile))
         return Image.from_dockerfile(path)
 
     async def __aenter__(self) -> DaytonaSandbox:
@@ -1287,7 +1333,7 @@ class DaytonaSandbox:
             try:
                 code = int(head.strip())
                 return code, base64.b64decode("".join(rest.split()))
-            except (ValueError, binascii.Error):
+            except ValueError:
                 return None
 
         async def read_status(*, final: bool = False) -> int | None:

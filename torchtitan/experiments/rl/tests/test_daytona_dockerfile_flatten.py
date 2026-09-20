@@ -19,6 +19,7 @@ from __future__ import annotations
 import re
 
 from torchtitan.experiments.rl.harness.sandbox.daytona import (
+    _prepare_dockerfile_for_daytona,
     _strip_comments_in_continuation,
 )
 
@@ -64,3 +65,24 @@ def test_continuation_state_resets_after_the_run_ends() -> None:
         "RUN c\n"
     )
     assert "# a standalone comment" in _flatten(dockerfile)
+
+
+def test_unqualified_from_images_use_explicit_docker_hub_names() -> None:
+    dockerfile = (
+        "FROM --platform=linux/amd64 alpine:3.20 AS build\n"
+        "FROM build AS assembled\n"
+        "FROM hamishi740/ubuntu-systemd:latest\n"
+        "FROM ghcr.io/example/tool:1\n"
+        "FROM localhost:5000/example/tool:2\n"
+        "FROM scratch AS empty\n"
+        "FROM ${BASE_IMAGE}\n"
+    )
+    assert _prepare_dockerfile_for_daytona(dockerfile).splitlines() == [
+        "FROM --platform=linux/amd64 docker.io/library/alpine:3.20 AS build",
+        "FROM build AS assembled",
+        "FROM docker.io/hamishi740/ubuntu-systemd:latest",
+        "FROM ghcr.io/example/tool:1",
+        "FROM localhost:5000/example/tool:2",
+        "FROM scratch AS empty",
+        "FROM ${BASE_IMAGE}",
+    ]
