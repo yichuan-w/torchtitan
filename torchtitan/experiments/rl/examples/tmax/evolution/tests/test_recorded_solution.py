@@ -176,3 +176,53 @@ def test_invalid_recordings_fail_before_execution(field, value):
 def test_missing_confirmation_is_not_synthesized():
     with pytest.raises(ValueError, match="two completion markers"):
         parse_actions(json.dumps(recording()[:-1]))
+
+
+def test_chat_repair_updates_actions_without_rewriting_the_input(monkeypatch):
+    import synth_client as llm
+
+    actions = recording()
+    actions[0]["keystrokes"] = "cat /app/solve.sh\n"
+    original = json.dumps(actions)
+    revised = json.dumps(recording())
+    seen = []
+
+    def chat(messages):
+        seen.append(messages[-1]["content"])
+        return json.dumps({"status": "ok", "files": {ACTION_PATH: revised}})
+
+    monkeypatch.setattr(llm, "chat", chat)
+    result = llm._repair(llm.ORACLE_REPAIR, {}, {ACTION_PATH: original}, "{}")
+    assert result[ACTION_PATH] == revised
+    assert original in seen[0]
+    assert "Prefer changing gpt6_actions.json" in seen[0]
+
+
+def test_chat_synthesis_keeps_the_recorded_solution_path(monkeypatch, tmp_path):
+    import synth_client as llm
+
+    task = evolve.load(package(tmp_path))
+    seen = []
+
+    def chat(messages):
+        text = messages[-1]["content"]
+        seen.append(text)
+        return json.dumps({"status": "ok", "files": {}})
+
+    monkeypatch.setattr(llm, "chat", chat)
+    monkeypatch.setenv("SYNTH_CONSISTENCY", "0")
+    monkeypatch.setenv("SYNTH_ORACLE_REPAIR", "0")
+    _, files = llm.synthesize(
+        {
+            "instruction": task["instruction"],
+            "dockerfile": task["dockerfile"],
+            "solution": task["solve_sh"],
+            "solution_rel": ACTION_PATH,
+        },
+        "test",
+        "test",
+        "test",
+    )
+    assert files[ACTION_PATH] == task["solve_sh"]
+    assert "solution/solve.sh" not in files
+    assert "Rewrite solution/gpt6_actions.json only" in seen[1]

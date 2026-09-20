@@ -186,6 +186,7 @@ def evolve(task: dict, seed_id: str = "task", operator: str | None = None,
     """
     seed = {"task_id": seed_id, "instruction": task["instruction"],
             "dockerfile": task["dockerfile"], "solution": task["solve_sh"],
+            "solution_rel": file_map(task)["solve_sh"],
             "env_files": {}}
     if operator:
         fam = next(f for f, ops_ in llm.ops.OPERATORS.items() if operator in ops_)
