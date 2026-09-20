@@ -199,20 +199,10 @@ check. If a boundary is forbidden by the public task, record the excluding claus
 Use an initially empty output location when testing whether a program fabricates
 results; require cleanup of existing output only if the public task requires it.
 
-Review inherited and new checks for correct solutions they could reject because
-of elapsed-time thresholds, external services, scheduling or ordering assumptions,
-or unavailable grader dependencies. Record each concrete risk and its resolution
-or observed probe result in `run/verifier-changes.md`. Preserve explicit public
-performance requirements; ordinary hang-prevention timeouts are not performance
-requirements. Where timing is not part of acceptance, check the required behavior
-without introducing a speed threshold. Where it is, measure under the stated
-conditions and distinguish load or network failures from an incorrect result.
-Resolve grader dependencies in the real sandbox rather than assuming a missing
-install line proves absence. Independently recompute inherited expected constants
-and bounds from the public specification and original inputs; a passing reference
-implementation alone does not establish that a literal is correct. Record any
-value you cannot verify rather than silently accepting it. Reuse the existing
-correct and wrong controls to check the affected behavior.
+Write stable checks: the same valid result must receive the same reward despite
+incidental machine load, network availability or scheduling. Use timing or external
+services as acceptance conditions only when the public task requires them; keep
+ordinary hang-prevention timeouts separate from correctness checks.
 
 Before finishing, inspect whether a no-op, a hardcoded answer or fabricated evidence
 could still pass, and whether an equivalent legal solution could fail. Choose examples
