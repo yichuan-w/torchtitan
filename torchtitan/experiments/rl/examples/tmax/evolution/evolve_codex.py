@@ -1251,6 +1251,15 @@ are not a floor you must pass: a requirement you change is checked as you
 state it. And a name only your solution knows will not be checked: state it in
 the instruction, or make the result checkable by value.
 
+The verifier author first lists the public requirements, checks shipped material
+for ways to bypass required work, and writes stable checks of the promised result.
+Make the changed requirement distinguish a correct result from the observed
+shortcut using only the instruction and environment; your traces and
+`run/hardening.md` are withheld. Provide observable acceptance conditions rather
+than grading instructions or solution hints. Keep incidental load, network
+availability and scheduling out of correctness unless the public task explicitly
+requires a performance or external-service condition.
+
 Add whatever new files the change needs — a fixture the Dockerfile copies, a
 config, a data file. Anything you write in the package comes back with it.
 
