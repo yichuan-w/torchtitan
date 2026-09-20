@@ -31,6 +31,13 @@ solutions or examples. Public tool documentation remains available.
 | `run/resources.json` | the box the container opens at |
 | anything else | the rest of the real package: entrypoints, fixtures, `task.toml` |
 
+Before opening the inherited verifier, read `instruction.md` and list its
+required outcomes in `run/verifier-changes.md`. Mark which omissions would leave
+the task unsolved, including explicitly required intermediate artifacts. Keep
+method, format and packaging constraints distinct, and enforce them when the
+public contract requires them. Then inspect the environment and inherited tests;
+do not downgrade a requirement because the old verifier omitted it.
+
 Edit the verifier in place and save replay controls under `run/verifier-probes/`.
 Write `run/verifier-changes.md` as you go: one line per inherited check you kept,
 changed or removed and per check you added, each with the instruction sentence it
@@ -45,6 +52,23 @@ log, saved workflow, provenance artifact, or evidence of a restricted method onl
 when the public contract explicitly makes it part of acceptance.
 
 ## What the verifier has to hold
+
+Inventory the paths and programs referenced by the instruction, environment
+build and startup scripts, and inherited tests, including shipped generators,
+reference outputs and helpers they read or invoke. Record each candidate's role
+and source location in `run/verifier-changes.md`: task input, permitted tool,
+editable deliverable, grader-only material, or a source of answers that bypasses
+a required operation. Follow indirect references found during inspection; a path
+match alone does not establish a leak. For each bypass, record the concrete
+submission and the required operation it skips. Calling a library the task asks
+the agent to wrap is permitted; forwarding to a shipped reference implementation
+when the task requires an independent implementation skips the required work.
+Exercise applicable bypasses through the existing replay controls. Close them
+only through checks justified by the public contract, within the assertion budget;
+do not invent method restrictions or expose hidden grading details in the task.
+If the fixed package cannot establish an explicitly required property, use the
+existing `BLOCKED` outcome and name the obstacle. Record observations and controls
+here without adding a separate seed-rejection verdict.
 
 Every check you add must be satisfiable by an agent that reads `instruction.md`
 and explores the container. Concretely:
@@ -82,8 +106,10 @@ and explores the container. Concretely:
   not there for you either. Invoke the workflow the way the instruction tells a
   user to.
 
-Map each retained or added requirement to a check of its promised behavior or
-result, naming the source of its expected answer. For supplied-data tasks, derive
+Complete the initial requirements list with the check of each promised behavior
+or result and the source of its expected answer, including requirements the old
+verifier missed. Do not treat existence, shape or a source-code keyword as proof
+that a required operation was performed. For supplied-data tasks, derive
 expectations from the original fixture or expected values prepared before solver
 execution and supplied with the grader. Never use solver-writable replacement
 inputs as the authority for correctness; copying or hashing them at grading time
@@ -172,6 +198,21 @@ Include the empty-input invocation itself in the verifier, not only in an author
 check. If a boundary is forbidden by the public task, record the excluding clause.
 Use an initially empty output location when testing whether a program fabricates
 results; require cleanup of existing output only if the public task requires it.
+
+Review inherited and new checks for correct solutions they could reject because
+of elapsed-time thresholds, external services, scheduling or ordering assumptions,
+or unavailable grader dependencies. Record each concrete risk and its resolution
+or observed probe result in `run/verifier-changes.md`. Preserve explicit public
+performance requirements; ordinary hang-prevention timeouts are not performance
+requirements. Where timing is not part of acceptance, check the required behavior
+without introducing a speed threshold. Where it is, measure under the stated
+conditions and distinguish load or network failures from an incorrect result.
+Resolve grader dependencies in the real sandbox rather than assuming a missing
+install line proves absence. Independently recompute inherited expected constants
+and bounds from the public specification and original inputs; a passing reference
+implementation alone does not establish that a literal is correct. Record any
+value you cannot verify rather than silently accepting it. Reuse the existing
+correct and wrong controls to check the affected behavior.
 
 Before finishing, inspect whether a no-op, a hardcoded answer or fabricated evidence
 could still pass, and whether an equivalent legal solution could fail. Choose examples
