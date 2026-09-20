@@ -50,6 +50,26 @@ Size: 30 fields, 23 cross-field schema rules, 490 prompt lines (V12: 39, 50, 543
    leave to edit the file: nothing on the training side validates a pin against the instruction, and adding any
    protected entry to a row switches that row's `pre_test_sh` hook off entirely (`grading.py:325-326`).
 
+## The RST variant (`rst/`)
+
+V13 judges TMAX and is unchanged. The RST corpus (Harbor-format tasks) is judged with a separate variant,
+`rst/v13_rst_prompt.md`: the same rules, a different file shape (a Dockerfile instead of a setup.sh, a pytest verifier
+started by a shared bootstrap), the harness facts that differ, and one added field. `rst/DIFF_v13_to_v13rst.patch` is
+the exact text difference and `rst/README.md` has the detail. What it found that matters beyond the audit:
+
+- **Grade-time network is the rule, not the exception.** 174 of 181 staged RST tasks install their test runner at
+  grade time (`apt-get`, the uv installer from astral.sh, PyPI). Under V13's B3 that would hold back 96 % of the corpus
+  for a property of the harness, so the variant records it on every row in its own field, `bootstrap_fetch`, with no
+  tier effect, cross-checks it against facts the stager reads mechanically, and the scorer prints the tier both ways.
+- **A `CMD` without an `ENTRYPOINT` never runs in the training sandbox** (`prepare_rts_data._entrypoint_command`
+  returns `None` without one): a service an instruction assumes is running, but which only a CMD would start, is absent.
+- **Every staged task that ships a `docker-compose.yaml` failed or never finished the oracle/empty gate** (12 of 12);
+  168 of the 169 without one pass.
+- **16 instructions point the agent at a generator file** (`rewrite_contract.json`, `rewrite_step_verifier.json`, ...);
+  in 15 the file is not in the image, so the requirements it would have listed are unstated.
+- **Tag-based security exclusion leaks.** Beyond the 16 ids the corpus's own `security_union` marks, an instruction
+  screen found 15 security-shaped tasks among 196 untagged ones.
+
 ## Files
 
 | file | what |
@@ -61,6 +81,8 @@ Size: 30 fields, 23 cross-field schema rules, 490 prompt lines (V12: 39, 50, 543
 | `tools/score_v13.py` | scorer for the 70-judgment validation kit |
 | `tools/crosswalk_v12_rows.py` | the V13 tier of tasks already judged under V12, without re-judging |
 | `tools/compare_efforts.py` | compares judge arms against the reference run |
+| `tools/candidates_extract.py` | the runner-side inventory every judge prompt is given: program paths the three files mention and the verifier lines that can fail the run (regex output, leads only) |
+| `rst/` | the RST variant: prompt, diff against V13, schema, stager, lints, renderer, scorer, self-tests, review, smoke |
 | `workflows/v13_judge_workflow.js` | the judge workflow (explicit `claude-opus-4-8`, effort medium) |
 | `workflows/run_glm_judges.py` | headless-worker launcher used for the GLM arms: one task per worker, several API keys round-robin, retry rotates the key, rows already written are skipped |
 | `REVIEW_opus5_v13.md` | independent review of the first draft (27 findings, all applied before any run) |
