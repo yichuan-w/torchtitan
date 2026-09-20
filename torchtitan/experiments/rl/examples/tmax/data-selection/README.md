@@ -24,6 +24,39 @@ Prefix is enough to tell the source: `task_` = TMax, `rts_task_` = RTS,
 `tw_` = TerminalWorld, `__` + issue number = Rebench, `__` + sha +
 bug family = Smith.
 
+## Where the pool was downloaded from
+
+Everything in the 56,307-row pool is a published Hugging Face dataset.
+Queries are Harbor Terminal-Bench 2.1. What this run actually read:
+
+| role | dataset | download |
+|---|---|---|
+| query | TB 2.1 (89 tasks) | [`harborframework/terminal-bench-2.1`](https://huggingface.co/datasets/harborframework/terminal-bench-2.1) task trees (cached snapshot `e92c0b6487086111ee3a74df8af8203ea69ba00b`) |
+| train | TMax-15K | [`allenai/TMax-15K`](https://huggingface.co/datasets/allenai/TMax-15K) — parquet `data/train-00000-of-00001.parquet` ([resolve](https://huggingface.co/datasets/allenai/TMax-15K/resolve/main/data/train-00000-of-00001.parquet)) |
+| train | Recursive-Task-Synthesis | [`Zhongzhi1228/Recursive-Task-Synthesis`](https://huggingface.co/datasets/Zhongzhi1228/Recursive-Task-Synthesis) — parquet `metadata/tasks.parquet` ([resolve](https://huggingface.co/datasets/Zhongzhi1228/Recursive-Task-Synthesis/resolve/main/metadata/tasks.parquet)) |
+| train | TerminalWorld-Seeds-Clean | [`andylizf/TerminalWorld-Seeds-Clean`](https://huggingface.co/datasets/andylizf/TerminalWorld-Seeds-Clean) — extracted Harbor `tasks/` tree (same files as the HF tarball) |
+| train | SWE-Smith-Seeds-Clean | [`Fzz1/SWE-Smith-Seeds-Clean`](https://huggingface.co/datasets/Fzz1/SWE-Smith-Seeds-Clean) revision `58af1819` — extracted Harbor `tasks/` tree |
+| train | SWE-Rebench-Tasks-Clean | [`Fzz1/SWE-Rebench-Tasks-Clean`](https://huggingface.co/datasets/Fzz1/SWE-Rebench-Tasks-Clean) — extracted Harbor `tasks/` tree |
+
+On this machine the local copies were:
+
+```
+# TB 2.1
+/data/yichuan_wang/cache/huggingface/hub/datasets--harborframework--terminal-bench-2.1/snapshots/e92c0b6487086111ee3a74df8af8203ea69ba00b/tasks
+
+# TMax-15K / RTS parquets (wget from the resolve URLs above)
+/data/yichuan_wang/tb21-tfidf-overlap/hf/tmax15k-train.parquet
+/data/yichuan_wang/tb21-tfidf-overlap/hf/rts-tasks.parquet
+
+# Harbor extracts of the three seed HF repos
+/data/yichuan_wang/tmax-9b-centralia/data/sources/tw-extract/tasks
+/data/yichuan_wang/tmax-9b-centralia-mix-v2/data/sources/swesmith-58af1819/tasks
+/data/yichuan_wang/tmax-9b-centralia-rebench/data/sources/swe-rebench-tasks-clean/tasks
+```
+
+Instruction text is `instruction.md` (or TMax `description`) from those
+sources. No extra private mix JSONL went into the pool.
+
 ## Output CSVs
 
 Same ranking, three cuts:
