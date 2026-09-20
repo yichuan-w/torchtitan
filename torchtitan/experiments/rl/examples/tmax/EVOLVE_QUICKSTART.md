@@ -90,6 +90,10 @@ as a systemd user unit named `evolve-<root basename>`, log to
 launch. `systemctl --user stop evolve-<root basename>` stops the loop; training
 continues and signals accumulate until the loop is started again.
 
+Set `TT_SANDBOX_BACKEND=daytona` when revalidation must use the same remote
+sandbox backend as training. The explicit selection takes precedence even when
+the loop host also exposes a `docker` executable.
+
 The loop needs `codex` and `jq` under `<root>/bin/`, the Daytona key the
 trainer uses, since revalidation opens sandboxes at the row's own size, and a
 model behind `SYNTH_API_BASE` / `SYNTH_MODEL`. Our runs use Claude Opus 5
