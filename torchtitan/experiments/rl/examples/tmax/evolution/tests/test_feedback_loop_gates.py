@@ -181,6 +181,50 @@ def test_revalidate_keeps_test_failure_when_solution_output_is_empty(
     assert verdict["tail"] == verifier["output_tail"]
 
 
+def test_explicit_daytona_backend_wins_over_local_docker(
+    tmp_path, monkeypatch
+) -> None:
+    work, task = _pkg(tmp_path, SEED["instruction"], SEED["test_state_py"])
+    calls = []
+
+    def fake_probe(
+        work, shortcut=None, resources=None, require_paths=None, pretest_file=None
+    ):
+        calls.append(shortcut)
+        if shortcut is None:
+            return {
+                "ok": True,
+                "stage": "daytona_oracle",
+                "reward": 1.0,
+                "solve_exit": 0,
+                "paths_missing": [],
+            }
+        return {"ok": True, "stage": "daytona_shortcut", "passed": False}
+
+    def unexpected(*args, **kwargs):
+        pytest.fail("explicit Daytona selection used the local Docker path")
+
+    monkeypatch.setenv("TT_SANDBOX_BACKEND", "daytona")
+    monkeypatch.setattr(fb.shutil, "which", lambda _name: "/usr/bin/docker")
+    monkeypatch.setattr(fb, "daytona_probe", fake_probe)
+    monkeypatch.setattr(fb.sl, "sh", unexpected)
+    monkeypatch.setattr(fb.sl, "build_image", unexpected)
+
+    verdict = fb.revalidate(work, "img", "tid", task, orig=SEED)
+
+    assert verdict["ok"] is True
+    assert verdict["fast_path"] == "daytona_oracle"
+    assert calls == [None, ":"]
+
+
+def test_local_docker_remains_the_default_when_no_backend_is_selected(
+    monkeypatch,
+) -> None:
+    monkeypatch.delenv("TT_SANDBOX_BACKEND", raising=False)
+    monkeypatch.setattr(fb.shutil, "which", lambda _name: "/usr/bin/docker")
+    assert fb._use_local_docker() is True
+
+
 def test_revalidate_records_paths_the_untouched_container_lacks(
     tmp_path, monkeypatch
 ) -> None:

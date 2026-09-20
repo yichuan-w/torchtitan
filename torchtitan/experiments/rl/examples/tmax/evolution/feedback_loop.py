@@ -89,6 +89,12 @@ _INFRA_RE = re.compile(
 RESOURCE_KEYS = ("cpu", "mem_gb", "disk_gb")
 
 
+def _use_local_docker() -> bool:
+    """Use Docker unless the sandbox backend explicitly selects Daytona."""
+    backend = os.environ.get("TT_SANDBOX_BACKEND", "").strip().lower()
+    return backend != "daytona" and shutil.which("docker") is not None
+
+
 def daytona_probe(
     work: Path,
     shortcut: str | None = None,
@@ -388,13 +394,11 @@ def revalidate(
             }
         return {"ok": True, "fast_path": "instruction_only"}
     # A structural change (a stage cut, the verifier tightened) has to be re-run
-    # to be trusted, and that needs a build. On a host without docker -- della,
-    # where the evolution loop runs beside the training -- the build runs on
-    # Daytona instead: same platform, harness and grading contract as the
-    # training rollouts, so an oracle pass there is trust earned on the very
-    # environment the task will be solved in. Only when neither docker nor the
-    # Daytona probe is available does the change stay unshipped.
-    if not shutil.which("docker"):
+    # to be trusted, and that needs a build. Use Daytona when the configured
+    # sandbox backend selects it, even if a Docker-compatible executable also
+    # exists on the host. Otherwise preserve the local Docker fast path. Only
+    # when neither is available does the change stay unshipped.
+    if not _use_local_docker():
         # In the box the row will be provisioned at. The probe used to open the
         # harness default (2/4/6) whatever the row said, so a task that fit
         # there and not in its training box (1/2/2 on this corpus) passed here
@@ -1056,8 +1060,8 @@ def process_one(
         rec["usage"] = llm.usage_since(mark)
         rec["t_end"] = time.time()
         # The instruction-only fast path builds nothing, so there is no image to
-        # remove; and on a docker-less host the call itself would raise out of
-        # the finally and mask the real result. Clean up only when docker is
-        # actually present.
-        if shutil.which("docker"):
+        # remove; and when Daytona is selected the call itself would raise out
+        # of the finally and mask the real result. Clean up only when the local
+        # Docker path is active.
+        if _use_local_docker():
             sl.sh(["docker", "rmi", "-f", image], 300)
