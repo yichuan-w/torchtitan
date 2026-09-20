@@ -75,6 +75,7 @@ if _TREE is not None and str(_TREE) not in sys.path:
 
 import pack_to_dataset as pack  # noqa: E402
 from terminus_validation import run_reference  # noqa: E402
+from recorded_solution import ACTION_PATH, parse_actions, solution_path  # noqa: E402
 
 
 try:
@@ -265,12 +266,14 @@ async def probe(
             f"{'runs before the verifier' if hook['runs'] else 'skipped: environment moved'}"
         )
     sol_dir = pkg / "solution"
-    if shortcut is None and not (sol_dir / "solve.sh").exists():
-        return {
-            "ok": False,
-            "stage": "no_solution",
-            "why": "package ships no solution/solve.sh",
-        }
+    actions = None
+    if shortcut is None:
+        try:
+            srel = solution_path(pkg)
+        except FileNotFoundError as exc:
+            return {"ok": False, "stage": "no_solution", "why": str(exc)}
+        if srel == ACTION_PATH:
+            actions = parse_actions((pkg / srel).read_text())
 
     # The box is the caller's to size: the loop passes the size the row will be
     # provisioned at, so an oracle pass here is a pass where training will run
@@ -328,7 +331,12 @@ async def probe(
         # verifier re-digests and a difference grades 0. None without entries.
         baseline = await capture_baseline(sb, tmax, workdir=workdir, timeout=120)
         t0 = time.time()
-        execution = await run_reference(sb, cmd, solve_timeout)
+        execution = await run_reference(
+            sb,
+            cmd,
+            solve_timeout,
+            **({"actions": actions} if actions is not None else {}),
+        )
         code, out, err = (execution[key] for key in ("solve_exit", "stdout", "stderr"))
         terminal = execution["terminal"]
         log(f"run exit={code}")

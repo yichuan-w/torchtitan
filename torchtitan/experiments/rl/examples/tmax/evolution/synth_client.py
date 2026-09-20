@@ -945,7 +945,7 @@ def synthesize(
     files = {
         "instruction.md": seed["instruction"],
         "environment/Dockerfile": seed["dockerfile"],
-        "solution/solve.sh": seed["solution"],
+        seed.get("solution_rel", "solution/solve.sh"): seed["solution"],
     }
 
     contract = _parse_json(
@@ -954,7 +954,7 @@ def synthesize(
                 {"role": "system", "content": SYSTEM},
                 {
                     "role": "user",
-                    "content": STEP0.format(
+                    "content": _solution_template(STEP0, files).format(
                         family=family,
                         operator=operator,
                         definition=definition,
@@ -985,7 +985,7 @@ def synthesize(
                     {"role": "system", "content": SYSTEM},
                     {
                         "role": "user",
-                        "content": tmpl.format(
+                        "content": _solution_template(tmpl, files).format(
                             contract=cj, task_context=_task_context(files), **extra
                         ),
                     },
@@ -1354,10 +1354,24 @@ def cross_file_consistency(
 WRITABLE = (
     "instruction.md",
     "solution/solve.sh",
+    "solution/gpt6_actions.json",
     "tests/test_state.py",
     "environment/Dockerfile",
     "task.toml",
 )
+
+
+def _solution_template(template: str, files: dict) -> str:
+    if "solution/gpt6_actions.json" not in files or "solution/solve.sh" in files:
+        return template
+    return template.replace("solve.sh", "gpt6_actions.json") + """
+
+The reference solution is a JSON list of recorded terminal actions. Edit that
+list directly. Keep step_id, offset_sec, duration and kind on each entry;
+preserve interactive keystrokes and waits. End with two completion_marker
+entries. Do not add solution/solve.sh or concatenate the recording into a shell
+script. Replay runs each turn through Terminus in one persistent terminal.
+"""
 
 
 def _repair(
@@ -1371,7 +1385,7 @@ def _repair(
                     {"role": "system", "content": SYSTEM},
                     {
                         "role": "user",
-                        "content": template.format(
+                        "content": _solution_template(template, files).format(
                             contract=contract_json,
                             task_context=_task_context(files, limit=REPAIR_CONTEXT),
                             **extra,

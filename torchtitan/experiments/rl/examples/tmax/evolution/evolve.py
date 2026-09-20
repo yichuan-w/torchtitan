@@ -28,6 +28,7 @@ From the shell:
     evolve.py --task-dir data/synth/round_1/syn_tw_123 --mode simplify \\
         --solved 0 --attempts 8 --out data/eased/syn_tw_123
 """
+
 from __future__ import annotations
 
 import argparse
@@ -38,6 +39,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
 import synth_client as llm  # noqa: E402
+from recorded_solution import ACTION_PATH, parse_actions, solution_path  # noqa: E402
 
 FILES = {"instruction": "instruction.md",
          "dockerfile": "environment/Dockerfile",
@@ -68,7 +70,11 @@ def _verifier_rel(task: dict) -> str:
 def file_map(task: dict) -> dict[str, str]:
     """FILES for this specific task, with the verifier key's path resolved to
     whichever verifier the package on disk actually carries."""
-    return {**FILES, "test_state_py": _verifier_rel(task)}
+    return {
+        **FILES,
+        "test_state_py": _verifier_rel(task),
+        "solve_sh": task.get("_solution_rel", FILES["solve_sh"]),
+    }
 
 
 def _to_files(task: dict) -> dict[str, str]:
@@ -90,12 +96,16 @@ def load(task_dir: str | Path) -> dict:
     the read, which is the right outcome for a malformed package.
     """
     d = Path(task_dir)
-    vrel = next((c for c in VERIFIER_CANDIDATES if (d / c).exists()),
-                FILES["test_state_py"])
-    fm = {**FILES, "test_state_py": vrel}
-    task = {key: (d / path).read_text(errors="replace")
-            for key, path in fm.items()}
+    vrel = next(
+        (c for c in VERIFIER_CANDIDATES if (d / c).exists()), FILES["test_state_py"]
+    )
+    srel = solution_path(d)
+    fm = {**FILES, "test_state_py": vrel, "solve_sh": srel}
+    task = {key: (d / path).read_text(errors="replace") for key, path in fm.items()}
     task["_verifier_rel"] = vrel
+    task["_solution_rel"] = srel
+    if srel == ACTION_PATH:
+        parse_actions(task["solve_sh"])
     task["_role_files"] = {
         key: rel for key, rel in ROLE_PATCHES.items() if (d / rel).is_file()
     }
@@ -176,6 +186,7 @@ def evolve(task: dict, seed_id: str = "task", operator: str | None = None,
     """
     seed = {"task_id": seed_id, "instruction": task["instruction"],
             "dockerfile": task["dockerfile"], "solution": task["solve_sh"],
+            "solution_rel": file_map(task)["solve_sh"],
             "env_files": {}}
     if operator:
         fam = next(f for f, ops_ in llm.ops.OPERATORS.items() if operator in ops_)

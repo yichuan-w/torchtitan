@@ -9,11 +9,15 @@
 from __future__ import annotations
 
 import asyncio
+import json
 import math
 import re
 import shlex
 import uuid
+import time
 from dataclasses import asdict
+
+from recorded_solution import parse_actions
 
 from torchtitan.experiments.rl.harness.agents.spec import AgentTask
 from torchtitan.experiments.rl.harness.agents.terminus import terminus_agent
@@ -107,19 +111,84 @@ class ProviderAdapter:
         }
 
 
-async def run_reference(sb, command: str, timeout: int) -> dict:
+class RecordedActionsAdapter:
+    """Replay terminal turns with their original offsets, waits and submit markers."""
+
+    def __init__(self, actions: list[dict]):
+        self.actions = parse_actions(json.dumps(actions))
+        self.index = 0
+        self.started = None
+        self.marker = "recorded-" + uuid.uuid4().hex
+        self.exit_code = None
+        self.transcript = []
+
+    def session_max_tokens(self, _session_id):
+        return 24000
+
+    async def complete(self, _session_id, body):
+        if self.index == len(self.actions):
+            raise RuntimeError(
+                "recorded solution exhausted without confirmed submission"
+            )
+        if self.started is None:
+            self.started = time.monotonic()
+        first = self.actions[self.index]
+        await asyncio.sleep(
+            max(0, first["offset_sec"] - (time.monotonic() - self.started))
+        )
+        commands = []
+        complete = first["kind"] == "completion_marker"
+        if complete:
+            self.index += 1
+            # This means the recording reached submission; grading determines success.
+            self.exit_code = 0
+        else:
+            while self.index < len(self.actions):
+                action = self.actions[self.index]
+                if (
+                    action["kind"] != "terminal_action"
+                    or action["step_id"] != first["step_id"]
+                    or action["offset_sec"] != first["offset_sec"]
+                ):
+                    break
+                commands.append(
+                    {"keystrokes": action["keystrokes"], "duration": action["duration"]}
+                )
+                self.index += 1
+        text = json.dumps(
+            {
+                "analysis": "Replay the recorded terminal turn.",
+                "plan": "Preserve actions and timing.",
+                "commands": commands,
+                "task_complete": complete,
+            }
+        )
+        self.transcript.append(
+            {"prompt": body["messages"][-1]["content"], "response": text}
+        )
+        return {"content": [{"type": "text", "text": text}], "stop_reason": "end_turn"}
+
+
+async def run_reference(
+    sb, command: str, timeout: int, *, actions: list[dict] | None = None
+) -> dict:
     """Run the oracle through the same setup, parser, terminal and submit loop as training."""
     from torchtitan.experiments.rl.harness.agents.terminus import _PARSER
 
-    if _PARSER != "xml":
+    if actions is None and _PARSER != "xml":
         raise ValueError("the reference policy requires the training XML parser")
     _, version, _ = await sb.exec("tmux -V", check=True, timeout=30)
-    script = "/tmp/tt-reference-" + uuid.uuid4().hex + ".sh"
-    # Keep arbitrary command text out of the plain XML action format.
-    await sb.write_file(script, command + "\n")
-    adapter = ReferenceAdapter("bash " + shlex.quote(script))
+    if actions is None:
+        script = "/tmp/tt-reference-" + uuid.uuid4().hex + ".sh"
+        # Keep arbitrary command text out of the plain XML action format.
+        await sb.write_file(script, command + "\n")
+        adapter = ReferenceAdapter("bash " + shlex.quote(script))
+    else:
+        adapter = RecordedActionsAdapter(actions)
     # Waiting consumes episodes too. Allow the full wall budget plus both submit turns.
     max_turns = math.ceil(timeout / 10) + 8
+    if actions is not None:
+        max_turns = len(actions) + 2
     try:
         run = await terminus_agent(
             AgentTask(
@@ -131,6 +200,7 @@ async def run_reference(sb, command: str, timeout: int) -> dict:
                 max_turns=max_turns,
             ),
             terminal_session_name="oracle-" + uuid.uuid4().hex,
+            **({"parser_name": "json"} if actions is not None else {}),
         )
     except Exception as exc:
         raise ReferenceExecutionError(exc, adapter.transcript) from exc

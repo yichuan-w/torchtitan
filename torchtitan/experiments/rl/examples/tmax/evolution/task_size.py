@@ -44,11 +44,14 @@ admissible size and with an 18-line seed none.) The policy's own effort on
 the seed (turns, commands typed) was tried as a predictor of the rewrite's
 outcome and carried nothing (AUC 0.47), so it is not used.
 """
+
 from __future__ import annotations
 
 import ast
 import re
 from pathlib import Path
+
+from recorded_solution import ACTION_PATH, action_lines, solution_path
 
 MIN_ADDED = 3
 MAX_ADDED = 8
@@ -103,6 +106,7 @@ def size_of(
     *,
     fix_patch: str = "",
     test_patch: str = "",
+    solution_rel: str = "solution/solve.sh",
 ) -> dict:
     """How big the solution and the verifier are, for the one-rung check.
 
@@ -113,7 +117,11 @@ def size_of(
     whole corpus and the check becomes blind."""
     return {
         "solution_lines": (
-            patch_added_lines(fix_patch) if fix_patch else solution_lines(solve_sh)
+            patch_added_lines(fix_patch)
+            if fix_patch
+            else solution_lines(
+                action_lines(solve_sh) if solution_rel == ACTION_PATH else solve_sh
+            )
         ),
         "verifier_asserts": (
             patch_added_asserts(test_patch)
@@ -125,12 +133,14 @@ def size_of(
 
 def size_of_package(pkg: Path, verifier_rel: str) -> dict:
     kind = "python" if verifier_rel.endswith(".py") else "shell"
+    srel = solution_path(pkg)
     return size_of(
-        _read(pkg / "solution" / "solve.sh"),
+        _read(pkg / srel),
         _read(pkg / verifier_rel),
         kind,
         fix_patch=_read(pkg / "solution" / "fix.patch"),
         test_patch=_read(pkg / "tests" / "test.patch"),
+        solution_rel=srel,
     )
 
 

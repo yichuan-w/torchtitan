@@ -613,6 +613,7 @@ async def _serve(pkg: Path, sock: str, resources: dict | None = None) -> int:
     import asyncio
 
     import daytona_revalidate as dr
+    from recorded_solution import ACTION_PATH, parse_actions, solution_path
 
     pack = dr.pack
 
@@ -708,8 +709,15 @@ async def _serve(pkg: Path, sock: str, resources: dict | None = None) -> int:
                     "metadata"
                 ]["tmax"]
                 sol_dir = pkg / "solution"
-                if not (sol_dir / "solve.sh").exists():
-                    return {"ok": False, "error": "package ships no solution/solve.sh"}
+                try:
+                    srel = solution_path(pkg)
+                except FileNotFoundError as exc:
+                    return {"ok": False, "error": str(exc)}
+                actions = (
+                    parse_actions((pkg / srel).read_text())
+                    if srel == ACTION_PATH
+                    else None
+                )
                 for f in sorted(sol_dir.rglob("*")):
                     if f.is_file():
                         await sb.write_file(
@@ -724,7 +732,10 @@ async def _serve(pkg: Path, sock: str, resources: dict | None = None) -> int:
                 )
                 t0 = time.time()
                 execution = await dr.run_reference(
-                    sb, "bash /solution/solve.sh", solve_timeout
+                    sb,
+                    "bash /solution/solve.sh",
+                    solve_timeout,
+                    **({"actions": actions} if actions is not None else {}),
                 )
                 code, out, err = (
                     execution[key] for key in ("solve_exit", "stdout", "stderr")
