@@ -50,6 +50,14 @@ been built before, so probe a few packages with `daytona_revalidate.py` before
 committing a run to them ([`README_SEED_DATA.md`](README_SEED_DATA.md),
 section 4).
 
+TMax longlongcheck packages carry `solution/gpt6_actions.json` instead of
+`solution/solve.sh`. Evolution reads and edits that action list, and both
+`./sandbox oracle` and `daytona_revalidate.py` replay it through Terminus in one
+persistent terminal. Replay preserves recorded turn offsets, keystrokes, waits
+and the two final `completion_marker` entries. No solution symlink or generated
+shell script is needed. The size check counts non-comment lines in the
+keystrokes, excluding JSON metadata.
+
 ## 2. The trainer
 
 On della, training is the `rltrain.service` unit over `runbook/launch_9b.sh`

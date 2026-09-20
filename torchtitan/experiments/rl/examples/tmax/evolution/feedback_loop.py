@@ -60,6 +60,7 @@ def _rewrite_age(rewrite: layout.RewriteDir) -> float:
     except (ValueError, IndexError):
         return 0.0
 
+
 log = logging.getLogger("feedback")
 
 # Daytona revalidation (hosts without docker, e.g. della). The probe runs in
@@ -418,12 +419,14 @@ def revalidate(
                     orig["solve_sh"],
                     orig["test_state_py"],
                     _kind(orig),
+                    solution_rel=ev.file_map(orig)["solve_sh"],
                     **_patches(orig, orig.get("_seed_dir") or task.get("_seed_dir")),
                 ),
                 ts.size_of(
                     task["solve_sh"],
                     task["test_state_py"],
                     _kind(task),
+                    solution_rel=ev.file_map(task)["solve_sh"],
                     **_patches(task, work),
                 ),
                 require_growth=orig.get("_harder_mode") != "student"

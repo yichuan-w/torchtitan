@@ -436,6 +436,8 @@ def _run_codex(
     if ACCOUNT_HOME and (cwd / "AGENTS.md").is_file():
         # Automatic document discovery is off; retain the experiment's own role.
         prompt = (cwd / "AGENTS.md").read_text() + "\n\n" + prompt
+    if (cwd / ev.ACTION_PATH).is_file() and not (cwd / "solution/solve.sh").is_file():
+        prompt = _recorded_solution_prompt(prompt)
     sd.prompt.write_text(prompt)
     if ACCOUNT_HOME and CODEX_DRIVER != "exec":
         raise ValueError("account authentication currently requires the exec driver")
@@ -584,6 +586,9 @@ def _prepare_package(pkg: Path, task: dict) -> dict:
     _write_resources(pkg, task)
     _write_pretest(pkg, task)
     shutil.copy2(SPEC, pkg / "AGENTS.md")
+    if ev.file_map(task)["solve_sh"] == ev.ACTION_PATH:
+        role = pkg / "AGENTS.md"
+        role.write_text(_recorded_solution_prompt(role.read_text()))
     shutil.copy2(SANDBOX, pkg / "sandbox")
     os.chmod(pkg / "sandbox", 0o755)
     return fmap
@@ -615,7 +620,7 @@ def support_changes(pkg: Path, seed_dir: Path | None) -> list[str]:
         return out
 
     now, before = files(pkg), files(seed_dir)
-    mapped = set(ev.FILES.values()) | set(ev.VERIFIER_CANDIDATES)
+    mapped = set(ev.FILES.values()) | set(ev.VERIFIER_CANDIDATES) | {ev.ACTION_PATH}
     changed = []
     for rel in sorted(set(now) | set(before)):
         if rel in mapped:
@@ -699,6 +704,12 @@ def _collect(task: dict, pkg: Path, fmap: dict) -> dict:
     verifier used to crash here on the deleted file and be discarded whole.
     """
     fmap = dict(fmap)
+    if fmap["solve_sh"] == ev.ACTION_PATH:
+        if (pkg / "solution/solve.sh").exists():
+            raise ValueError(
+                "recorded solution cannot be overridden by solution/solve.sh"
+            )
+        ev.parse_actions((pkg / ev.ACTION_PATH).read_text())
     if not (pkg / fmap["test_state_py"]).exists():
         fmap["test_state_py"] = _verifier_on_disk(pkg, fmap["test_state_py"])
     out = {**task, **{key: (pkg / rel).read_text() for key, rel in fmap.items()}}
@@ -907,6 +918,9 @@ def repair_oracle_codex(
             max_calls=MAX_TOOL_CALLS,
         )
     )
+    if fmap["solve_sh"] == ev.ACTION_PATH:
+        role = pkg / "AGENTS.md"
+        role.write_text(_recorded_solution_prompt(role.read_text()))
     with session(rewrite, "oracle", timeout=TIMEOUT_SEC) as run:
         p = _run_codex(run, pkg, _ORACLE_PROMPT)
     _check_verdict(pkg)
@@ -1015,6 +1029,7 @@ def rewrite_budget_sec(root: "layout.Root | None" = None) -> float:
         log.info("rewrite budget %s", why)
     _budget_cache.update(at=now, sec=sec, why=why)
     return sec
+
 
 _OPERATOR_HARDER_GUIDANCE = """Make it one rung harder, along exactly one of these
 axes:
@@ -1423,6 +1438,24 @@ and the two scripts change only where a commit or an id list has to change.
 """
 
 
+def _recorded_solution_prompt(prompt: str) -> str:
+    return (
+        prompt.replace("solution/solve.sh", ev.ACTION_PATH).replace(
+            "`solve.sh`", "`gpt6_actions.json`"
+        )
+        + """
+
+The reference solution is a JSON list of recorded terminal actions. Edit its
+keystrokes to solve the revised task. Keep step_id, offset_sec, duration and
+kind on each entry; preserve interactive keystrokes and waits. End with two
+completion_marker entries. ./sandbox oracle and check replay the list through
+Terminus in one persistent terminal. Do not concatenate it into a shell script
+or add solve.sh to override it. Solution size counts non-comment keystroke lines,
+excluding JSON metadata and completion markers.
+"""
+    )
+
+
 def _budget(timeout: int) -> str:
     deadline = time.strftime("%H:%M %Z", time.localtime(time.time() + timeout))
     return _BUDGET.format(deadline=deadline, budget_min=timeout // 60)
@@ -1739,9 +1772,13 @@ def _blind_verifier(
         task["solve_sh"],
         seed_text,
         "python" if seed_rel.endswith(".py") else "shell",
+        solution_rel=fmap["solve_sh"],
         **{
             name: (seed_pkg / roles[key]).read_text(errors="replace")
-            for key, name in (("solve_sh", "fix_patch"), ("test_state_py", "test_patch"))
+            for key, name in (
+                ("solve_sh", "fix_patch"),
+                ("test_state_py", "test_patch"),
+            )
             if key in roles and (seed_pkg / roles[key]).is_file()
         },
     )
@@ -1971,6 +2008,7 @@ def evolve_agentic(
         task["solve_sh"],
         task["test_state_py"],
         "python" if ev._verifier_rel(task).endswith(".py") else "shell",
+        solution_rel=fmap["solve_sh"],
     )
     blind = job in ("harder", "easier") and VERIFIER_AUTHOR == "blind"
     prompt = (

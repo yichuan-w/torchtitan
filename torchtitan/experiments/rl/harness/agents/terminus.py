@@ -655,7 +655,10 @@ def _count_subagent_calls(agent: Any, llm: _AdapterLLM) -> None:
 
 
 async def terminus_agent(
-    task: AgentTask, *, terminal_session_name: str | None = None
+    task: AgentTask,
+    *,
+    terminal_session_name: str | None = None,
+    parser_name: str | None = None,
 ) -> AgentRun:
     """Drive Terminus-2 against the task's sandbox and the adapter's policy."""
     from harbor.agents.terminus_2 import Terminus2  # type: ignore
@@ -696,7 +699,7 @@ async def terminus_agent(
             agent = Terminus2(
                 logs_dir=Path(logs_dir),
                 model_name=_MODEL_NAME,
-                parser_name=_PARSER,
+                parser_name=parser_name or _PARSER,
                 record_terminal_session=False,
                 max_turns=max_episodes,
                 suppress_max_turns_warning=True,
