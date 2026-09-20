@@ -61,6 +61,28 @@ def solution_lines(src: str) -> int:
     )
 
 
+def patch_added_lines(src: str) -> int:
+    """Lines a unified diff adds, its own headers excluded. A SWE-Rebench
+    package's solution is `solution/fix.patch`; `solution/solve.sh` is a
+    16-line wrapper that applies it, identical across the corpus, so counting
+    the wrapper reports the same number for every task."""
+    return sum(
+        1
+        for l in src.splitlines()
+        if l.startswith("+") and not l.startswith("+++")
+    )
+
+
+def patch_added_asserts(src: str) -> int:
+    """Assertions a test patch adds. The corresponding file for a rebench
+    package is `tests/test.patch`: `tests/test.sh` is a runner whose only
+    per-task content is the base commit and the graded node ids."""
+    added = "\n".join(
+        l[1:] for l in src.splitlines() if l.startswith("+") and not l.startswith("+++")
+    )
+    return verifier_asserts(added, "python")
+
+
 def verifier_asserts(src: str, kind: str = "python") -> int:
     if kind == "python":
         try:
@@ -74,17 +96,41 @@ def verifier_asserts(src: str, kind: str = "python") -> int:
     return len(re.findall(r"^\s*(assert|raise|exit 1|return 1)\b", src, re.M))
 
 
-def size_of(solve_sh: str, verifier: str, kind: str = "python") -> dict:
+def size_of(
+    solve_sh: str,
+    verifier: str,
+    kind: str = "python",
+    *,
+    fix_patch: str = "",
+    test_patch: str = "",
+) -> dict:
+    """How big the solution and the verifier are, for the one-rung check.
+
+    A package whose real solution and checks sit in patches beside the two
+    scripts (SWE-Rebench: `solution/fix.patch`, `tests/test.patch`) is
+    measured on the patches. The scripts there are a wrapper and a runner,
+    the same in every task, so measuring them reports one number for the
+    whole corpus and the check becomes blind."""
     return {
-        "solution_lines": solution_lines(solve_sh),
-        "verifier_asserts": verifier_asserts(verifier, kind),
+        "solution_lines": (
+            patch_added_lines(fix_patch) if fix_patch else solution_lines(solve_sh)
+        ),
+        "verifier_asserts": (
+            patch_added_asserts(test_patch)
+            if test_patch
+            else verifier_asserts(verifier, kind)
+        ),
     }
 
 
 def size_of_package(pkg: Path, verifier_rel: str) -> dict:
     kind = "python" if verifier_rel.endswith(".py") else "shell"
     return size_of(
-        _read(pkg / "solution" / "solve.sh"), _read(pkg / verifier_rel), kind
+        _read(pkg / "solution" / "solve.sh"),
+        _read(pkg / verifier_rel),
+        kind,
+        fix_patch=_read(pkg / "solution" / "fix.patch"),
+        test_patch=_read(pkg / "tests" / "test.patch"),
     )
 
 

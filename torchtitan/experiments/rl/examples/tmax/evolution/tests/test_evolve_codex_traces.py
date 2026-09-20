@@ -931,3 +931,47 @@ def test_write_pretest_tells_the_sandbox_tool_the_hook(tmp_path) -> None:
         "pre_test_sh": "set -u\nexit 0\n",
         "pretest_env_identity": "image:a/b:c",
     }
+
+
+def test_rebench_shaped_package_is_measured_on_its_patches(tmp_path):
+    """A package whose solve.sh applies solution/fix.patch and whose test.sh
+    applies tests/test.patch is measured on the patches: the two scripts are
+    a wrapper and a runner, the same in every task of that corpus."""
+    import evolve as ev
+    import task_size as ts
+
+    pkg = tmp_path / "task"
+    (pkg / "solution").mkdir(parents=True)
+    (pkg / "tests").mkdir()
+    (pkg / "environment").mkdir()
+    (pkg / "instruction.md").write_text("fix the bug\n")
+    (pkg / "environment/Dockerfile").write_text("FROM x\n")
+    # Four non-comment lines; the shebang does not count.
+    wrapper = (
+        "#!/usr/bin/env bash\nset -e\ncd /repo\ngit apply /solution/fix.patch\nexit 0\n"
+    )
+    (pkg / "solution/solve.sh").write_text(wrapper)
+    (pkg / "tests/test.sh").write_text("#!/bin/sh\nexit 1\n")
+    (pkg / "solution/fix.patch").write_text(
+        "--- a/x.py\n+++ b/x.py\n@@\n-old\n+new one\n+new two\n"
+    )
+    (pkg / "tests/test.patch").write_text(
+        "--- a/t.py\n+++ b/t.py\n@@\n+def test_a():\n+    assert f() == 1\n+    assert g() == 2\n"
+    )
+
+    task = ev.load(pkg)
+    assert task["_verifier_rel"] == "tests/test.sh"
+    assert task["_role_files"] == {
+        "solve_sh": "solution/fix.patch",
+        "test_state_py": "tests/test.patch",
+    }
+    size = ts.size_of_package(pkg, "tests/test.sh")
+    # 2 added solution lines and 2 added assertions, not the wrapper's 3 lines
+    # and the runner's "exit 1".
+    assert size == {"solution_lines": 2, "verifier_asserts": 2}
+
+    # A package that keeps each role in one file is measured as before.
+    (pkg / "solution/fix.patch").unlink()
+    (pkg / "tests/test.patch").unlink()
+    assert ev.load(pkg)["_role_files"] == {}
+    assert ts.size_of_package(pkg, "tests/test.sh")["solution_lines"] == 4

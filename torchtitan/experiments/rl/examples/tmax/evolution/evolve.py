@@ -52,6 +52,14 @@ FILES = {"instruction": "instruction.md",
 # to a test_state.py an SWE package never carried.
 VERIFIER_CANDIDATES = ("tests/test_state.py", "tests/test.sh")
 
+# Where a package keeps the content of a role when the mapped file is only a
+# wrapper. A SWE-Rebench package's solution/solve.sh applies solution/fix.patch
+# and its tests/test.sh applies tests/test.patch and runs the graded node ids;
+# both scripts are the same in every task of that corpus apart from a commit
+# and a list of ids, so anything measuring the role has to read the patch.
+# Read on the task as `_role_files`; absent for a package that carries neither.
+ROLE_PATCHES = {"solve_sh": "solution/fix.patch", "test_state_py": "tests/test.patch"}
+
 
 def _verifier_rel(task: dict) -> str:
     return task.get("_verifier_rel", FILES["test_state_py"])
@@ -88,6 +96,9 @@ def load(task_dir: str | Path) -> dict:
     task = {key: (d / path).read_text(errors="replace")
             for key, path in fm.items()}
     task["_verifier_rel"] = vrel
+    task["_role_files"] = {
+        key: rel for key, rel in ROLE_PATCHES.items() if (d / rel).is_file()
+    }
     # Where it came from. Only four files round-trip through this dict, but a
     # package is usually more than four -- entrypoints, fixtures, helper
     # modules, the harness's own tests/test.sh -- and anything that has to work

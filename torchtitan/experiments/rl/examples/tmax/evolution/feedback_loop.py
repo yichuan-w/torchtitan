@@ -317,6 +317,22 @@ def _kind(task: dict) -> str:
     return "python" if ev._verifier_rel(task).endswith(".py") else "shell"
 
 
+def _patches(task: dict, pkg: Path | None) -> dict[str, str]:
+    """The role files task_size measures instead of the mapped scripts, read
+    from the package on disk: they do not round-trip through the task dict,
+    which carries only the four mapped files. Empty for a package that keeps
+    each role in one file."""
+    roles = task.get("_role_files") or {}
+    if not roles or pkg is None:
+        return {}
+    out = {}
+    for key, name in (("solve_sh", "fix_patch"), ("test_state_py", "test_patch")):
+        rel = roles.get(key)
+        if rel and (Path(pkg) / rel).is_file():
+            out[name] = (Path(pkg) / rel).read_text(errors="replace")
+    return out
+
+
 def revalidate(
     work: Path,
     image: str,
@@ -398,8 +414,18 @@ def revalidate(
         # the agent's own check applies it first, this is the backstop.
         step = (
             ts.violations(
-                ts.size_of(orig["solve_sh"], orig["test_state_py"], _kind(orig)),
-                ts.size_of(task["solve_sh"], task["test_state_py"], _kind(task)),
+                ts.size_of(
+                    orig["solve_sh"],
+                    orig["test_state_py"],
+                    _kind(orig),
+                    **_patches(orig, orig.get("_seed_dir") or task.get("_seed_dir")),
+                ),
+                ts.size_of(
+                    task["solve_sh"],
+                    task["test_state_py"],
+                    _kind(task),
+                    **_patches(task, work),
+                ),
                 require_growth=orig.get("_harder_mode") != "student"
                 and not task.get("_calibration"),
             )

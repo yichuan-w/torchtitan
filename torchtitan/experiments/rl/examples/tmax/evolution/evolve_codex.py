@@ -1412,6 +1412,17 @@ whole. `./sandbox up`, `reset` and `check` build the image and take minutes each
 `./sandbox exec` takes seconds. Plan for two or three checks, not for guessing."""
 
 
+_ROLE_PATCH_NOTE = """
+
+WHERE THIS PACKAGE KEEPS ITS SOLUTION AND ITS CHECKS
+`solution/solve.sh` here is a wrapper that applies `solution/fix.patch`, and
+`tests/test.sh` is a runner that applies `tests/test.patch` and runs the graded
+test ids listed at its end. The task's real solution is the fix patch and its
+real checks are the test patch; the size limits above are measured on those,
+and the two scripts change only where a commit or an id list has to change.
+"""
+
+
 def _budget(timeout: int) -> str:
     deadline = time.strftime("%H:%M %Z", time.localtime(time.time() + timeout))
     return _BUDGET.format(deadline=deadline, budget_min=timeout // 60)
@@ -1721,10 +1732,19 @@ def _blind_verifier(
     pkg = rewrite.package
     seed_rel = fmap["test_state_py"]
     seed_text = task["test_state_py"]
-    seed_size = ts.size_of(
-        task["solve_sh"], seed_text, "python" if seed_rel.endswith(".py") else "shell"
-    )
     seed_tests = _seed_tests(task)
+    seed_pkg = Path(task.get("_seed_dir") or rewrite.package)
+    roles = task.get("_role_files") or {}
+    seed_size = ts.size_of(
+        task["solve_sh"],
+        seed_text,
+        "python" if seed_rel.endswith(".py") else "shell",
+        **{
+            name: (seed_pkg / roles[key]).read_text(errors="replace")
+            for key, name in (("solve_sh", "fix_patch"), ("test_state_py", "test_patch"))
+            if key in roles and (seed_pkg / roles[key]).is_file()
+        },
+    )
     with session(rewrite, "verifier", timeout=AGENT_TIMEOUT) as run:
         vpkg = run.dir.package
         _blind_layout(pkg, vpkg)
@@ -1733,7 +1753,10 @@ def _blind_verifier(
             verifier_rel=seed_rel,
             seed_asserts=seed_size["verifier_asserts"],
             max_asserts=ts.MAX_ADDED_ASSERTS,
-        ) + _budget(AGENT_TIMEOUT)
+        )
+        if task.get("_role_files"):
+            prompt += _ROLE_PATCH_NOTE
+        prompt += _budget(AGENT_TIMEOUT)
         if task.get("_calibration"):
             prompt += (
                 "\nThis adjusts a previous simplification. If the existing verifier "
@@ -2006,6 +2029,8 @@ def evolve_agentic(
             "details to the task instruction or environment.\n"
         )
 
+    if task.get("_role_files"):
+        prompt += _ROLE_PATCH_NOTE
     with session(rewrite, "agent", timeout=AGENT_TIMEOUT) as run:
         try:
             p = _run_codex(run, pkg, prompt)
