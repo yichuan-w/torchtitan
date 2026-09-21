@@ -128,6 +128,43 @@ def _fake_ec(**overrides):
     )
 
 
+@pytest.mark.parametrize("probe_state", ["pass", "unavailable", "error"])
+def test_revalidate_uses_only_daytona_even_with_docker_installed(
+    tmp_path, monkeypatch, probe_state
+):
+    work, task = _pkg(tmp_path, SEED["instruction"], SEED["test_state_py"])
+    monkeypatch.setattr(shutil, "which", lambda _: "/usr/bin/docker")
+
+    def local_execution(*args, **kwargs):
+        pytest.fail("revalidation attempted local execution")
+
+    monkeypatch.setattr(fb.subprocess, "run", local_execution)
+    monkeypatch.setattr(fb.sl, "build_image", local_execution)
+    monkeypatch.setattr(fb.sl, "oracle_check", local_execution)
+    monkeypatch.setattr(fb.sl, "shortcut_check", local_execution)
+    calls = []
+
+    def probe(*args, **kwargs):
+        calls.append(kwargs)
+        if probe_state == "unavailable":
+            return None
+        if probe_state == "error":
+            return {"ok": False, "stage": "daytona_error", "why": "unreachable"}
+        return {"ok": True, "reward": 1.0, "passed": False}
+
+    monkeypatch.setattr(fb, "daytona_probe", probe)
+    verdict = fb.revalidate(work, task)
+
+    if probe_state == "pass":
+        assert verdict["ok"] and verdict["fast_path"] == "daytona_oracle"
+        assert len(calls) == 2 and calls[1]["shortcut"] == ":"
+    else:
+        assert not verdict["ok"] and len(calls) == 1
+        expected = "daytona_unavailable" if probe_state == "unavailable" else "daytona_error"
+        assert verdict["stage"] == expected
+        assert fb.verdicts_of(verdict)["oracle"] == "error"
+
+
 def test_new_dark_paths_names_only_what_nothing_visible_reveals(tmp_path) -> None:
     work, task = _pkg(
         tmp_path,
@@ -262,6 +299,9 @@ def test_revalidate_passes_when_every_unseen_path_is_a_precondition(
 def test_process_one_returns_a_repairable_verdict_to_the_agents_session(
     tmp_path, monkeypatch, stage
 ) -> None:
+    monkeypatch.setattr(
+        fb.sl, "sh", lambda *a, **k: pytest.fail("rewrite attempted local execution")
+    )
     monkeypatch.setenv("EVOLVE_HARDER_OPERATORS", "1")
     rw, r0 = _rewrite(tmp_path, monkeypatch)
     seen = {}
@@ -998,5 +1038,3 @@ def test_a_filtered_session_is_retried_fresh_then_gives_up(
     with pytest.raises(AlwaysFiltered.Filtered):
         fb._evolve_retrying_the_filter(AlwaysFiltered(), rec, "tw_x", rw, {}, [])
     assert len(calls) == 3
-
-

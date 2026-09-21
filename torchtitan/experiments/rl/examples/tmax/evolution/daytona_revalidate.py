@@ -9,9 +9,8 @@
 
 Structural retunes (a verifier tightened, a stage cut, the k/k "harder"
 direction) need their environment rebuilt and their reference solution re-run
-before they can be trusted into the mix. On hosts with docker that is
-feedback_loop's local build path; on della there is no docker, and this is the
-replacement: boot the package's environment exactly the way training rollouts
+before they can be trusted into the mix. The feedback loop uses Daytona on
+every host: boot the package's environment exactly the way training rollouts
 do (same harness, same dockerfile+build_context path, same grading contract),
 run the reference solution, grade with the real verifier, and report reward.
 

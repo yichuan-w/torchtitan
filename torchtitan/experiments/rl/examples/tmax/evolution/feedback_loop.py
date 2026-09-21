@@ -333,9 +333,8 @@ def revalidate(
     baseline=None,
     pretest_file: Path | None = None,
 ) -> dict:
-    """After an adjustment: still builds, still self-consistent, and the
-    verifier still fails an untouched workspace. Building here checks the task
-    is well-formed; it never runs the solver.
+    """Validate the adjusted task on Daytona: the reference solution passes,
+    and the verifier fails an untouched workspace.
 
     The null probe replaced an LLM-guessed shortcut. Of the 148 rewrites that
     probe rejected in one week, 29 had "passed" on `cd /app` or `mkdir -p` --
