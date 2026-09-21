@@ -30,7 +30,7 @@ export TT_DAYTONA_CPU=1 TT_DAYTONA_MEM_GB=2 TT_DAYTONA_DISK_GB=2
 export TT_DAYTONA_EPHEMERAL=1 TT_DAYTONA_AUTO_DELETE_MIN=15 TT_DAYTONA_LABEL=hip_evolve_v2_loop
 # As della's loop: agentic retune on the rollout records, vague hints, easier
 # arm off, student-mode hardening (no operator menu).
-export SWE_RETUNE_AGENT=codex SWE_SIMPLIFY_HINT=vague
+export SWE_RETUNE_AGENT=${SWE_RETUNE_AGENT:-codex} SWE_SIMPLIFY_HINT=${SWE_SIMPLIFY_HINT:-vague}
 export SWE_EVOLVE_SIMPLIFY=${SWE_EVOLVE_SIMPLIFY:-0} EVOLVE_HARDER_OPERATORS=${EVOLVE_HARDER_OPERATORS:-0}
 # claude_env.sh: a Claude turn can think for minutes and a busy proxy stalls
 # longer than the CLI's default reconnects; and Claude at ~1.8 turns/min needs
