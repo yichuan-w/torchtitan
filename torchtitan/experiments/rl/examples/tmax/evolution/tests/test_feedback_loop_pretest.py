@@ -81,7 +81,7 @@ def _agentic(monkeypatch) -> dict:
                 "_agent_validated": True, "_support_changed": [],
                 "_operator": "op", "_family": "fam"}
 
-    def fake_revalidate(work, image, tid, new, orig=None, changed=None, resources=None,
+    def fake_revalidate(work, new, orig=None, changed=None, resources=None,
                         baseline=None, pretest_file=None):
         seen["pretest_file"] = pretest_file
         return {"ok": True, "fast_path": "daytona_oracle", "reward": 1.0}
@@ -95,7 +95,6 @@ def _agentic(monkeypatch) -> dict:
     monkeypatch.setattr(fb.llm, "operator_shortlist",
                         lambda _task, _uo, _uf: [("fam", "op", "definition")])
     monkeypatch.setattr(fb, "revalidate", fake_revalidate)
-    monkeypatch.setattr(fb.shutil, "which", lambda _name: None)
     return seen
 
 

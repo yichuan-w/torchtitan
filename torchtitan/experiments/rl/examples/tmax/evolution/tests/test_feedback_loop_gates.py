@@ -162,7 +162,6 @@ def test_revalidate_keeps_test_failure_when_solution_output_is_empty(
 ) -> None:
     work, task = _pkg(tmp_path, SEED["instruction"], SEED["test_state_py"])
     verifier = {"exit_code": 0, "output_tail": "FAILED test_report: missing report"}
-    monkeypatch.setattr(fb.shutil, "which", lambda _name: None)
     monkeypatch.setattr(
         fb,
         "daytona_probe",
@@ -175,7 +174,7 @@ def test_revalidate_keeps_test_failure_when_solution_output_is_empty(
             "verifier": verifier,
         },
     )
-    verdict = fb.revalidate(work, "img", "tid", task, orig=SEED)
+    verdict = fb.revalidate(work, task, orig=SEED)
     assert not verdict["ok"]
     assert verdict["verifier"] == verifier
     assert verdict["tail"] == verifier["output_tail"]
@@ -209,12 +208,9 @@ def test_revalidate_records_paths_the_untouched_container_lacks(
         return {"ok": True, "stage": "daytona_shortcut", "passed": False}
 
     monkeypatch.setattr(fb, "daytona_probe", fake_probe)
-    monkeypatch.setattr(fb.shutil, "which", lambda _n: None)
 
     v = fb.revalidate(
         work,
-        "img",
-        "tid",
         task,
         orig=SEED,
         changed=["test_state_py"],
@@ -257,13 +253,12 @@ def test_revalidate_passes_when_every_unseen_path_is_a_precondition(
         return {"ok": True, "stage": "daytona_shortcut", "passed": False}
 
     monkeypatch.setattr(fb, "daytona_probe", fake_probe)
-    monkeypatch.setattr(fb.shutil, "which", lambda _n: None)
 
-    v = fb.revalidate(work, "img", "tid", task, orig=SEED, changed=["test_state_py"])
+    v = fb.revalidate(work, task, orig=SEED, changed=["test_state_py"])
     assert v["ok"] is True and v["fast_path"] == "daytona_oracle"
 
 
-@pytest.mark.parametrize("stage", ["step_size", "daytona_oracle", "oracle"])
+@pytest.mark.parametrize("stage", ["step_size", "daytona_oracle"])
 def test_process_one_returns_a_repairable_verdict_to_the_agents_session(
     tmp_path, monkeypatch, stage
 ) -> None:
@@ -318,7 +313,6 @@ def test_process_one_returns_a_repairable_verdict_to_the_agents_session(
         fb.llm, "operator_shortlist", lambda *_a: [("fam", "op", "def")]
     )
     monkeypatch.setattr(fb, "revalidate", lambda *a, **k: next(verdicts))
-    monkeypatch.setattr(fb.shutil, "which", lambda _n: None)
 
     rec = fb.process_one(
         rw, SIGNAL, job="harder", seed_dir=r0, history=({"op": 3}, {"fam": 3})
@@ -339,34 +333,6 @@ def test_process_one_returns_a_repairable_verdict_to_the_agents_session(
         rw.package / "instruction.md"
     ).read_text() == "Write the audit to /app/out.json.\n"
     assert "usage" in rec and rec["t_end"] >= rec["t_start"]
-
-
-@pytest.mark.parametrize("solve_exit", [0, 7])
-def test_docker_oracle_failure_preserves_repair_evidence(
-    tmp_path, monkeypatch, solve_exit
-):
-    work, task = _pkg(tmp_path, SEED["instruction"], SEED["test_state_py"])
-    monkeypatch.setattr(fb, "docker_usable", lambda: True)
-    monkeypatch.setattr(fb.sl, "sh", lambda *a, **k: (0, ""))
-    monkeypatch.setattr(fb.sl, "build_image", lambda *a: (True, ""))
-    monkeypatch.setattr(
-        fb.sl,
-        "oracle_check",
-        lambda *a: {
-            "ok": False,
-            "why": "reward=0",
-            "solve_exit": solve_exit,
-            "solve_tail": "solution output",
-            "test_tail": "FAILED test_report: missing report",
-        },
-    )
-
-    verdict = fb.revalidate(work, "img", "tid", task, orig=SEED)
-
-    assert verdict["ok"] is False and verdict["stage"] == "oracle"
-    assert verdict["solve_exit"] == solve_exit
-    assert verdict["why"] == "reward=0"
-    assert verdict["tail"] == "solution output\n\nFAILED test_report: missing report"
 
 
 def test_process_one_rejects_on_the_verdict_and_says_which_stage(
@@ -399,7 +365,6 @@ def test_process_one_rejects_on_the_verdict_and_says_which_stage(
             "why": "verifier passes on the untouched workspace",
         },
     )
-    monkeypatch.setattr(fb.shutil, "which", lambda _n: None)
 
     rec = fb.process_one(rw, SIGNAL, job="harder", seed_dir=r0)
 
@@ -425,7 +390,6 @@ def test_process_one_keeps_when_the_agent_declines_and_blocks_when_no_axis_fits(
     monkeypatch.setattr(
         fb.llm, "operator_shortlist", lambda *_a: [("fam", "op", "def")]
     )
-    monkeypatch.setattr(fb.shutil, "which", lambda _n: None)
 
     rec = fb.process_one(rw, SIGNAL, job="harder", seed_dir=r0)
     assert rec["status"] == "kept" and "operator-misfit" in rec["reason"]
@@ -496,7 +460,6 @@ def test_process_one_easier_reads_the_records_for_the_chat_arm(
 
     monkeypatch.setenv("SWE_RETUNE_AGENT", "chat")
     monkeypatch.setattr(fb.ev, "simplify", fake_simplify)
-    monkeypatch.setattr(fb.shutil, "which", lambda _n: None)
 
     rec = fb.process_one(
         rw, {**SIGNAL, "direction": "easier", "solved": 0}, job="easier", seed_dir=r0
@@ -529,16 +492,15 @@ def test_easier_uses_full_validation_without_harder_growth(
         calls.append(kwargs)
         return {"ok": True, "passed": False, "reward": 1, "solve_exit": 0}
 
-    monkeypatch.setattr(fb.shutil, "which", lambda _n: None)
     monkeypatch.setattr(fb, "daytona_probe", probe)
     verdict = fb.revalidate(
-        work, "image", "t", task, orig=SEED, changed=["instruction"]
+        work, task, orig=SEED, changed=["instruction"]
     )
     assert verdict["ok"] and verdict["fast_path"] == "daytona_oracle"
     assert len(calls) == 2 and calls[1]["shortcut"] == ":"
     task["_direction"] = "harder"
     verdict = fb.revalidate(
-        work, "image", "t", task, orig=SEED, changed=["instruction"]
+        work, task, orig=SEED, changed=["instruction"]
     )
     assert not verdict["ok"] and verdict["stage"] == "step_size"
 
@@ -554,15 +516,14 @@ def test_calibration_retains_full_validation_and_the_growth_ceiling(
         calls.append(kwargs)
         return {"ok": True, "passed": False, "reward": 1, "solve_exit": 0}
 
-    monkeypatch.setattr(fb.shutil, "which", lambda _n: None)
     monkeypatch.setattr(fb, "daytona_probe", probe)
     verdict = fb.revalidate(
-        work, "image", "t", task, orig=SEED, changed=["instruction"]
+        work, task, orig=SEED, changed=["instruction"]
     )
     assert verdict["ok"] and verdict["fast_path"] == "daytona_oracle"
     assert len(calls) == 2 and calls[1]["shortcut"] == ":"
     task["solve_sh"] += "\necho extra\n" * (fb.ts.MAX_ADDED + 1)
-    verdict = fb.revalidate(work, "image", "t", task, orig=SEED, changed=["solve_sh"])
+    verdict = fb.revalidate(work, task, orig=SEED, changed=["solve_sh"])
     assert not verdict["ok"] and verdict["stage"] == "step_size"
 
 
@@ -577,7 +538,6 @@ def test_incomplete_null_check_cannot_accept_a_rewrite(tmp_path, monkeypatch, nu
         _direction="easier",
         _simplify={"operator": "add_scaffold"},
     )
-    monkeypatch.setattr(fb.shutil, "which", lambda _name: None)
     monkeypatch.setattr(
         fb,
         "daytona_probe",
@@ -586,7 +546,7 @@ def test_incomplete_null_check_cannot_accept_a_rewrite(tmp_path, monkeypatch, nu
         else {"ok": True, "reward": 1},
     )
     verdict = fb.revalidate(
-        work, "image", "t", task, orig=SEED, changed=["instruction"]
+        work, task, orig=SEED, changed=["instruction"]
     )
     assert not verdict["ok"] and verdict["stage"] == "null_check"
 
@@ -668,7 +628,6 @@ def test_simplify_preserves_operator_scope_before_validation(
     monkeypatch.setitem(sys.modules, "evolve_codex", ec)
     monkeypatch.setenv("SWE_RETUNE_AGENT", "codex")
     monkeypatch.setattr(fb, "revalidate", revalidate)
-    monkeypatch.setattr(fb.shutil, "which", lambda _name: None)
     rec = fb.process_one(rw, {**SIGNAL, "solved": 0}, job="easier", seed_dir=r0)
     rejected = extra and (
         operator == "add_scaffold" or extra in ("test_state_py", "tests/helper.py")
@@ -754,7 +713,6 @@ def test_simplify_preserves_unchanged_crlf_verifier(tmp_path, monkeypatch, opera
     monkeypatch.setitem(sys.modules, "evolve_codex", ec)
     monkeypatch.setenv("SWE_RETUNE_AGENT", "codex")
     monkeypatch.setattr(fb, "revalidate", revalidate)
-    monkeypatch.setattr(fb.shutil, "which", lambda _name: None)
     rec = fb.process_one(rw, {**SIGNAL, "solved": 0}, job="easier", seed_dir=r0)
     assert rec["status"] == "accepted", rec
     assert (r0 / verifier).read_bytes() == original
@@ -780,7 +738,6 @@ def test_easier_records_decision_and_can_decline(tmp_path, monkeypatch):
     monkeypatch.setitem(sys.modules, "evolve_codex", ec)
     monkeypatch.setenv("SWE_RETUNE_AGENT", "codex")
     monkeypatch.setattr(fb, "revalidate", lambda *a, **k: {"ok": True})
-    monkeypatch.setattr(fb.shutil, "which", lambda _n: None)
     rec = fb.process_one(rw, {**SIGNAL, "solved": 0}, job="easier", seed_dir=r0)
     assert rec["status"] == "accepted" and rec["simplify"] == choice
     assert rec["operator"] == "reduce_scale" and rec["agent_validated"]
@@ -822,7 +779,6 @@ def test_spec_defect_keeps_the_input_revision_without_starting_repair(
     monkeypatch.setitem(sys.modules, "evolve_codex", ec)
     monkeypatch.setenv("SWE_RETUNE_AGENT", "codex")
     monkeypatch.setattr(fb, "revalidate", unexpected)
-    monkeypatch.setattr(fb.shutil, "which", lambda _n: None)
     rec = fb.process_one(rw, {**SIGNAL, "solved": 0}, job="easier", seed_dir=r0)
     assert rec["action"] == "simplify" and "simplify" not in rec
     assert rec["spec_repair"]["reported"] == report
@@ -842,7 +798,6 @@ def test_final_size_gate_uses_callers_mode(tmp_path, monkeypatch, mode):
     work, task = _pkg(tmp_path, SEED["instruction"], SEED["test_state_py"])
     task.update(solve_sh=SEED["solve_sh"], _direction="harder", _harder_mode="student")
     original = {**SEED, "_harder_mode": mode}
-    monkeypatch.setattr(fb.shutil, "which", lambda _n: None)
     monkeypatch.setattr(
         fb,
         "daytona_probe",
@@ -854,7 +809,7 @@ def test_final_size_gate_uses_callers_mode(tmp_path, monkeypatch, mode):
         },
     )
     result = fb.revalidate(
-        work, "image", "t", task, orig=original, changed=["solve_sh"]
+        work, task, orig=original, changed=["solve_sh"]
     )
     assert result["ok"] is (mode == "student")
     if mode == "operators":
@@ -921,13 +876,10 @@ def test_revalidate_records_names_the_task_never_states(tmp_path, monkeypatch) -
         return {"ok": True, "stage": "daytona_shortcut", "passed": False}
 
     monkeypatch.setattr(fb, "daytona_probe", fake_probe)
-    monkeypatch.setattr(fb.shutil, "which", lambda _n: None)
 
     # The seed's verifier already read input_records unseen; only the new key counts.
     v = fb.revalidate(
         work,
-        "img",
-        "tid",
         task,
         orig=SEED,
         changed=["test_state_py"],
@@ -950,8 +902,6 @@ def test_revalidate_records_names_the_task_never_states(tmp_path, monkeypatch) -
     )
     v = fb.revalidate(
         work,
-        "img",
-        "tid",
         task,
         orig=SEED,
         changed=["test_state_py"],
@@ -1000,9 +950,8 @@ def test_revalidate_sends_back_a_rewrite_that_jumped_too_far(
         return {"ok": True, "stage": "daytona_shortcut", "passed": False}
 
     monkeypatch.setattr(fb, "daytona_probe", fake_probe)
-    monkeypatch.setattr(fb.shutil, "which", lambda _n: None)
 
-    v = fb.revalidate(work, "img", "tid", task, orig=SEED, changed=["solve_sh"])
+    v = fb.revalidate(work, task, orig=SEED, changed=["solve_sh"])
     assert v["ok"] is False and v["stage"] == "step_size"
     assert any("at most 8 more" in s for s in v["step"]) and "size bounds" in v["why"]
 
@@ -1010,7 +959,7 @@ def test_revalidate_sends_back_a_rewrite_that_jumped_too_far(
     task["solve_sh"] = (
         SEED["solve_sh"] + "\n".join(f"step {i}" for i in range(5)) + "\n"
     )
-    v = fb.revalidate(work, "img", "tid", task, orig=SEED, changed=["solve_sh"])
+    v = fb.revalidate(work, task, orig=SEED, changed=["solve_sh"])
     assert v["ok"] is True
 
 
@@ -1051,52 +1000,3 @@ def test_a_filtered_session_is_retried_fresh_then_gives_up(
     assert len(calls) == 3
 
 
-@pytest.mark.parametrize(
-    "which,info_rc,usable",
-    [
-        (None, None, False),            # no client: della, and the original case
-        ("/usr/bin/docker", 0, True),   # client and a daemon that answers
-        ("/usr/bin/docker", 1, False),  # client, no daemon: the case that bit us
-    ],
-)
-def test_docker_is_usable_only_when_the_daemon_answers(
-    monkeypatch, which, info_rc, usable
-) -> None:
-    """A build needs a daemon, not a client.
-
-    The client is a small package that arrives with many base images; the
-    daemon needs a privileged service. A host with one and not the other used
-    to take the local-build branch and fail every structural rewrite at
-    `build` with a socket error, while a configured Daytona probe sat unused
-    beside it.
-    """
-    fb.docker_usable.cache_clear()
-    monkeypatch.setattr(shutil, "which", lambda _name: which)
-    calls = []
-
-    def fake_run(cmd, **kwargs):
-        calls.append(cmd)
-        return types.SimpleNamespace(returncode=info_rc)
-
-    monkeypatch.setattr(fb.subprocess, "run", fake_run)
-    assert fb.docker_usable() is usable
-    # No client means no call at all; the check must not cost a fork to say no.
-    assert calls == ([] if which is None else [["docker", "info"]])
-    fb.docker_usable.cache_clear()
-
-
-def test_docker_daemon_check_survives_its_own_failures(monkeypatch) -> None:
-    """A hung or missing daemon answers "no", not a traceback out of the loop."""
-    fb.docker_usable.cache_clear()
-    monkeypatch.setattr(shutil, "which", lambda _name: "/usr/bin/docker")
-
-    def raise_timeout(cmd, **kwargs):
-        raise fb.subprocess.TimeoutExpired(cmd, 30)
-
-    monkeypatch.setattr(fb.subprocess, "run", raise_timeout)
-    assert fb.docker_usable() is False
-    fb.docker_usable.cache_clear()
-
-    monkeypatch.setattr(fb.subprocess, "run", lambda *a, **k: (_ for _ in ()).throw(OSError()))
-    assert fb.docker_usable() is False
-    fb.docker_usable.cache_clear()

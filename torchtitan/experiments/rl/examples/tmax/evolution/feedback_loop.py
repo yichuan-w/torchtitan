@@ -32,12 +32,10 @@ The loop writes the record and decides what happens to the package.
 
 from __future__ import annotations
 
-import functools
 import json
 import logging
 import os
 import re
-import shutil
 import subprocess
 import sys
 import time
@@ -64,10 +62,8 @@ def _rewrite_age(rewrite: layout.RewriteDir) -> float:
 
 log = logging.getLogger("feedback")
 
-# Daytona revalidation (hosts without docker, e.g. della). The probe runs in
-# the training venv with the Daytona env sourced -- the same platform, harness
-# and grading contract the rollouts use, so passing it is a STRONGER build+
-# oracle check than the local docker shim it stands in for. The interpreter is
+# Daytona revalidation uses the training platform, harness and grading contract.
+# The probe runs in the training venv with the Daytona env sourced. The interpreter is
 # the venv's when TRL_VENV names one, else the one this process runs in; when
 # the credential file is absent this host simply has no build story and
 # structural retunes are declined as before.
@@ -79,38 +75,6 @@ DAYTONA_VENV_PY = (
 DAYTONA_ENV_FILE = os.environ.get(
     "DAYTONA_ENV_FILE", os.path.expanduser("~/.config/daytona/env")
 )
-
-
-@functools.lru_cache(maxsize=1)
-def docker_usable() -> bool:
-    """Whether a build can actually run here, not whether the client is installed.
-
-    The choice between the local build and the Daytona probe used to read
-    `shutil.which("docker")`. A host with the client and no daemon -- the
-    client is a 30 MB package that arrives with half the base images, the
-    daemon needs a privileged service -- answers yes to that and no to the
-    build that follows, so every structural rewrite is rejected at `build`
-    with a socket error while a configured Daytona probe sits unused beside
-    it. Measured on this box 2026-09-20: `docker` at /usr/bin/docker, no
-    /var/run/docker.sock, and the first rewrite the Claude arm produced was
-    thrown away for it.
-
-    `docker info` is the cheapest call that touches the daemon. Cached: the
-    answer cannot change inside one loop process, and the call costs a fork.
-    """
-    if not shutil.which("docker"):
-        return False
-    try:
-        return (
-            subprocess.run(
-                ["docker", "info"],
-                capture_output=True,
-                timeout=30,
-            ).returncode
-            == 0
-        )
-    except (OSError, subprocess.SubprocessError):
-        return False
 
 
 _INFRA_RE = re.compile(
@@ -141,7 +105,7 @@ def daytona_probe(
     only in every rollout afterwards.
     """
     # Three different things used to collapse into one silent `return None`, and
-    # the caller turns None into "neither docker nor Daytona is configured here".
+    # the caller records an unavailable Daytona probe.
     # For a host that genuinely has no credentials that message is true. For a
     # tree where the script is merely missing it is a confident lie, and there is
     # no other trace: measured on della 2026-09-01, a vendoring commit moved this
@@ -224,13 +188,6 @@ def daytona_probe(
         if attempt == 1:
             time.sleep(20)
     return last
-
-
-def image_tag(prefix: str, tid: str) -> str:
-    """A Docker-legal image name. A repository name may not begin or end with a
-    separator, and pool directory ids often end in a truncation underscore."""
-    name = re.sub(r"[^a-z0-9_.-]", "", tid.lower()).strip("_.-")
-    return f"{prefix}-{name or 'task'}"
 
 
 def read_traces(rewrite: layout.RewriteDir) -> list[tuple[dict, list[dict]]]:
@@ -369,8 +326,6 @@ def _patches(task: dict, pkg: Path | None) -> dict[str, str]:
 
 def revalidate(
     work: Path,
-    image: str,
-    tid: str,
     task: dict,
     orig: dict | None = None,
     changed: list[str] | None = None,
@@ -420,171 +375,138 @@ def revalidate(
                 "why": f"leaks={new_leaks} dark={new_dark}"[:200],
             }
         return {"ok": True, "fast_path": "instruction_only"}
-    # A structural change (a stage cut, the verifier tightened) has to be re-run
-    # to be trusted, and that needs a build. On a host without docker -- della,
-    # where the evolution loop runs beside the training -- the build runs on
-    # Daytona instead: same platform, harness and grading contract as the
-    # training rollouts, so an oracle pass there is trust earned on the very
-    # environment the task will be solved in. Only when neither docker nor the
-    # Daytona probe is available does the change stay unshipped.
-    if not docker_usable():
-        # In the box the row will be provisioned at. The probe used to open the
-        # harness default (2/4/6) whatever the row said, so a task that fit
-        # there and not in its training box (1/2/2 on this corpus) passed here
-        # and was starved there, and the timeout read back as "too hard".
-        #
-        # The same container answers whether the verifier's unseen paths are
-        # preconditions or artifacts: a structural rewrite that makes the
-        # verifier demand a file the task never names passed the oracle (the
-        # reference solution knows the name) and then failed every rollout.
-        # That was the instruction-only fast path's audit, never applied here.
-        dark = new_dark_paths(work, task, orig) if orig is not None else []
-        # Static, so it costs nothing to ask before the probe; reported with
-        # whichever failure comes first, so one repair round sees everything.
-        names = (
-            new_dark_literals(work, task, baseline or ()) if orig is not None else []
+    # Revalidate on the same platform and grading contract as training.
+    # In the box the row will be provisioned at. The probe used to open the
+    # harness default (2/4/6) whatever the row said, so a task that fit
+    # there and not in its training box (1/2/2 on this corpus) passed here
+    # and was starved there, and the timeout read back as "too hard".
+    #
+    # The same container answers whether the verifier's unseen paths are
+    # preconditions or artifacts: a structural rewrite that makes the
+    # verifier demand a file the task never names passed the oracle (the
+    # reference solution knows the name) and then failed every rollout.
+    # That was the instruction-only fast path's audit, never applied here.
+    dark = new_dark_paths(work, task, orig) if orig is not None else []
+    # Static, so it costs nothing to ask before the probe; reported with
+    # whichever failure comes first, so one repair round sees everything.
+    names = (
+        new_dark_literals(work, task, baseline or ()) if orig is not None else []
+    )
+    # One rung above the seed, by the size rule task_size.py documents;
+    # the agent's own check applies it first, this is the backstop.
+    step = (
+        ts.violations(
+            ts.size_of(
+                orig["solve_sh"],
+                orig["test_state_py"],
+                _kind(orig),
+                solution_rel=ev.file_map(orig)["solve_sh"],
+                **_patches(orig, orig.get("_seed_dir") or task.get("_seed_dir")),
+            ),
+            ts.size_of(
+                task["solve_sh"],
+                task["test_state_py"],
+                _kind(task),
+                solution_rel=ev.file_map(task)["solve_sh"],
+                **_patches(task, work),
+            ),
+            require_growth=orig.get("_harder_mode") != "student"
+            and not task.get("_calibration"),
         )
-        # One rung above the seed, by the size rule task_size.py documents;
-        # the agent's own check applies it first, this is the backstop.
-        step = (
-            ts.violations(
-                ts.size_of(
-                    orig["solve_sh"],
-                    orig["test_state_py"],
-                    _kind(orig),
-                    solution_rel=ev.file_map(orig)["solve_sh"],
-                    **_patches(orig, orig.get("_seed_dir") or task.get("_seed_dir")),
-                ),
-                ts.size_of(
-                    task["solve_sh"],
-                    task["test_state_py"],
-                    _kind(task),
-                    solution_rel=ev.file_map(task)["solve_sh"],
-                    **_patches(task, work),
-                ),
-                require_growth=orig.get("_harder_mode") != "student"
-                and not task.get("_calibration"),
-            )
-            if orig is not None and task.get("_direction") != "easier"
-            else []
-        )
-        dv = daytona_probe(
-            work, resources=resources, require_paths=dark, pretest_file=pretest_file
-        )
-        if dv is None:
-            return {
-                "ok": False,
-                "stage": "no_docker",
-                "why": "structural change needs a build; neither docker "
-                "nor Daytona is configured here",
-            }
-        also = (("\n\nAlso: " + vl.why(names)) if names else "") + (
-            ("\n\nAlso: " + ts.why(step)) if step else ""
-        )
-        if not dv.get("ok"):
-            return {
-                "ok": False,
-                "stage": dv.get("stage", "daytona"),
-                "why": str(
-                    dv.get("why")
-                    or f"reward={dv.get('reward')} "
-                    f"solve_exit={dv.get('solve_exit')}"
-                )[:200]
-                + also,
-                "literals": names,
-                "tail": "\n\n".join(
-                    text
-                    for text in (
-                        dv.get("tail", ""),
-                        (dv.get("verifier") or {}).get("output_tail", ""),
-                    )
-                    if text
-                ),
-                "verifier": dv.get("verifier", {}),
-                "solve_exit": dv.get("solve_exit"),
-                "measured": dv.get("measured"),
-                "resources": dv.get("resources"),
-            }
-        missing = dv.get("paths_missing") or []
-        # The two audits of what the verifier demands unseen are advice, not
-        # a verdict. Measured on wd-20260904a over 464 rewrites, the names
-        # audit flagged 130 literals without its seed baseline and none with
-        # it, and every one of the 130 was a false positive (fstab column
-        # names, language keywords, environment variables, a jupyter output
-        # line); the paths audit rejected nothing across 621 signals. A gate
-        # with no measured precision has no business discarding a session, so
-        # both ride along in the record for whoever reads it and for the
-        # agent's next prompt, and the size rule below stays the gate.
-        advice = {"dark_paths": missing, "dark_literals": names}
-        if step:
-            return {
-                "ok": False,
-                "stage": "step_size",
-                "step": step,
-                "why": ts.why(step),
-                "advice": advice,
-                "solve_exit": dv.get("solve_exit"),
-                "measured": dv.get("measured"),
-                "resources": dv.get("resources"),
-            }
-        null = (
-            daytona_probe(
-                work, shortcut=":", resources=resources, pretest_file=pretest_file
-            )
-            or {}
-        )
-        if not null.get("ok") or type(null.get("passed")) is not bool:
-            return {
-                "ok": False,
-                "stage": "null_check",
-                "why": "untouched-workspace validation did not complete: "
-                + str(null.get("why") or null.get("stage") or "missing result"),
-                "null": null,
-            }
-        if null.get("passed"):
-            return {
-                "ok": False,
-                "stage": "null_pass",
-                "why": "verifier passes on the untouched workspace",
-            }
+        if orig is not None and task.get("_direction") != "easier"
+        else []
+    )
+    dv = daytona_probe(
+        work, resources=resources, require_paths=dark, pretest_file=pretest_file
+    )
+    if dv is None:
         return {
-            "ok": True,
-            "fast_path": "daytona_oracle",
-            "null": {
-                key: null[key]
-                for key in ("ok", "stage", "passed", "reward", "resources")
-                if key in null
-            },
-            "advice": advice,
-            "reward": dv.get("reward"),
+            "ok": False,
+            "stage": "daytona_unavailable",
+            "why": "structural change requires Daytona validation; probe unavailable",
+        }
+    also = (("\n\nAlso: " + vl.why(names)) if names else "") + (
+        ("\n\nAlso: " + ts.why(step)) if step else ""
+    )
+    if not dv.get("ok"):
+        return {
+            "ok": False,
+            "stage": dv.get("stage", "daytona"),
+            "why": str(
+                dv.get("why")
+                or f"reward={dv.get('reward')} "
+                f"solve_exit={dv.get('solve_exit')}"
+            )[:200]
+            + also,
+            "literals": names,
+            "tail": "\n\n".join(
+                text
+                for text in (
+                    dv.get("tail", ""),
+                    (dv.get("verifier") or {}).get("output_tail", ""),
+                )
+                if text
+            ),
+            "verifier": dv.get("verifier", {}),
+            "solve_exit": dv.get("solve_exit"),
             "measured": dv.get("measured"),
             "resources": dv.get("resources"),
         }
-    sl.sh(["docker", "rmi", "-f", image], 300)
-    ok, tail = sl.build_image(work, image)
-    if not ok:
-        return {"ok": False, "stage": "build", "why": tail[-200:]}
-    oracle = sl.oracle_check(work, image, tid)
-    if not oracle.get("ok"):
+    missing = dv.get("paths_missing") or []
+    # The two audits of what the verifier demands unseen are advice, not
+    # a verdict. Measured on wd-20260904a over 464 rewrites, the names
+    # audit flagged 130 literals without its seed baseline and none with
+    # it, and every one of the 130 was a false positive (fstab column
+    # names, language keywords, environment variables, a jupyter output
+    # line); the paths audit rejected nothing across 621 signals. A gate
+    # with no measured precision has no business discarding a session, so
+    # both ride along in the record for whoever reads it and for the
+    # agent's next prompt, and the size rule below stays the gate.
+    advice = {"dark_paths": missing, "dark_literals": names}
+    if step:
         return {
             "ok": False,
-            "stage": "oracle",
-            "why": (oracle.get("why") or oracle.get("test_tail", ""))[-200:],
-            "solve_exit": oracle.get("solve_exit"),
-            "tail": "\n\n".join(
-                text
-                for text in (oracle.get("solve_tail", ""), oracle.get("test_tail", ""))
-                if text
-            ),
+            "stage": "step_size",
+            "step": step,
+            "why": ts.why(step),
+            "advice": advice,
+            "solve_exit": dv.get("solve_exit"),
+            "measured": dv.get("measured"),
+            "resources": dv.get("resources"),
         }
-    null = sl.shortcut_check(work, image, tid, ":")
+    null = (
+        daytona_probe(
+            work, shortcut=":", resources=resources, pretest_file=pretest_file
+        )
+        or {}
+    )
+    if not null.get("ok") or type(null.get("passed")) is not bool:
+        return {
+            "ok": False,
+            "stage": "null_check",
+            "why": "untouched-workspace validation did not complete: "
+            + str(null.get("why") or null.get("stage") or "missing result"),
+            "null": null,
+        }
     if null.get("passed"):
         return {
             "ok": False,
             "stage": "null_pass",
             "why": "verifier passes on the untouched workspace",
         }
-    return {"ok": True}
+    return {
+        "ok": True,
+        "fast_path": "daytona_oracle",
+        "null": {
+            key: null[key]
+            for key in ("ok", "stage", "passed", "reward", "resources")
+            if key in null
+        },
+        "advice": advice,
+        "reward": dv.get("reward"),
+        "measured": dv.get("measured"),
+        "resources": dv.get("resources"),
+    }
 
 
 def verdicts_of(v: dict | None) -> dict:
@@ -599,7 +521,7 @@ def verdicts_of(v: dict | None) -> dict:
         oracle = "pass"  # the solution passed; the size did not
     elif stage in ("daytona_oracle", "oracle", "build", "null_pass"):
         oracle = "fail"
-    elif stage in ("daytona_error", "no_docker"):
+    elif stage in ("daytona_error", "daytona_unavailable", "no_docker"):
         oracle = "error"
     else:
         oracle = "skipped" if v else None  # audit/empty: nothing was built
@@ -774,7 +696,6 @@ def process_one(
     solved = int(signal.get("solved") or 0)
     graded = int(signal.get("total") or len(signal.get("attempts") or []))
     work = rewrite.package
-    image = image_tag("fb", tid)
     # Retune arm, selectable per run. "chat" (default): one gpt-5.6 call with
     # the trace in the prompt. "codex": agentic, full traces as files +
     # AGENTS.md role (evolve_codex). "none": structural only, ignore the
@@ -979,8 +900,6 @@ def process_one(
         rec["resources"] = box
         v = revalidate(
             work,
-            image,
-            tid,
             new,
             orig=task,
             changed=changed,
@@ -999,7 +918,7 @@ def process_one(
         for iteration in range(1, rounds + 1):
             if v["ok"] or rec["action"] != "evolve":
                 break
-            if v.get("stage") not in ("daytona_oracle", "oracle", "step_size"):
+            if v.get("stage") not in ("daytona_oracle", "step_size"):
                 break
             age = _rewrite_age(rewrite)
             budget = float(os.environ.get("EVOLVE_REWRITE_BUDGET_SEC", str(6 * 3600)))
@@ -1068,8 +987,6 @@ def process_one(
             changed = _changed(task, fixed)
             v2 = revalidate(
                 work,
-                image,
-                tid,
                 fixed,
                 orig=task,
                 changed=changed,
@@ -1099,9 +1016,3 @@ def process_one(
     finally:
         rec["usage"] = llm.usage_since(mark)
         rec["t_end"] = time.time()
-        # The instruction-only fast path builds nothing, so there is no image to
-        # remove; and on a docker-less host the call itself would raise out of
-        # the finally and mask the real result. Clean up only when docker is
-        # actually present.
-        if docker_usable():
-            sl.sh(["docker", "rmi", "-f", image], 300)

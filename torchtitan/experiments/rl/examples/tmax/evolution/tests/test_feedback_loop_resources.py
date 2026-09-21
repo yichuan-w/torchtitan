@@ -106,7 +106,7 @@ def test_process_one_probes_in_the_agents_box_and_sizes_from_its_own_reading(
                 "_box": BOX, "_at_max": False, "_agent_validated": True,
                 "_support_changed": [], "_operator": "op", "_family": "fam"}
 
-    def fake_revalidate(work, image, tid, new, orig=None, changed=None, resources=None,
+    def fake_revalidate(work, new, orig=None, changed=None, resources=None,
                         baseline=None, pretest_file=None):
         seen["probe_box"] = resources
         # The loop's own probe, in that 4 GiB box, read 1200 MB.
@@ -123,7 +123,6 @@ def test_process_one_probes_in_the_agents_box_and_sizes_from_its_own_reading(
     monkeypatch.setattr(fb.llm, "operator_shortlist",
                         lambda _task, _uo, _uf: [("fam", "op", "definition")])
     monkeypatch.setattr(fb, "revalidate", fake_revalidate)
-    monkeypatch.setattr(fb.shutil, "which", lambda _name: None)
 
     rec = fb.process_one(rw, {"task": "task-a", "rev": 0, "run": "r", "group": 1,
                               "direction": "harder", "solved": 16, "total": 16,
