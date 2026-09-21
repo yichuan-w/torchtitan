@@ -374,8 +374,9 @@ def test_process_one_rejects_on_the_verdict_and_says_which_stage(
     assert rec["verdicts"]["oracle"] == "fail"
 
 
+@pytest.mark.parametrize("arm", ["codex", "claude"])
 def test_process_one_keeps_when_the_agent_declines_and_blocks_when_no_axis_fits(
-    tmp_path, monkeypatch
+    tmp_path, monkeypatch, arm
 ) -> None:
     monkeypatch.setenv("EVOLVE_HARDER_OPERATORS", "1")
     rw, r0 = _rewrite(tmp_path, monkeypatch)
@@ -386,7 +387,7 @@ def test_process_one_keeps_when_the_agent_declines_and_blocks_when_no_axis_fits(
 
     ec.evolve_agentic = declines
     monkeypatch.setitem(sys.modules, "evolve_codex", ec)
-    monkeypatch.setenv("SWE_RETUNE_AGENT", "codex")
+    monkeypatch.setenv("SWE_RETUNE_AGENT", arm)
     monkeypatch.setattr(
         fb.llm, "operator_shortlist", lambda *_a: [("fam", "op", "def")]
     )
@@ -403,9 +404,10 @@ def test_process_one_keeps_when_the_agent_declines_and_blocks_when_no_axis_fits(
     assert rec["status"] == "blocked" and rec["stage"] == "operator"
 
 
-def test_student_hardening_never_requests_an_operator(tmp_path, monkeypatch):
+@pytest.mark.parametrize("arm", ["codex", "claude"])
+def test_student_hardening_never_requests_an_operator(tmp_path, monkeypatch, arm):
     rw, r0 = _rewrite(tmp_path, monkeypatch)
-    monkeypatch.setenv("SWE_RETUNE_AGENT", "codex")
+    monkeypatch.setenv("SWE_RETUNE_AGENT", arm)
     monkeypatch.delenv("EVOLVE_HARDER_OPERATORS", raising=False)
 
     def no_shortlist(*args):

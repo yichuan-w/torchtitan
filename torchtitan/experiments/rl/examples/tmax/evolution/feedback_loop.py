@@ -838,7 +838,7 @@ def process_one(
             # remains available for comparison; the legacy chat arm requires it.
             shortlist = None
             fam = operator = None
-            use_operators = arm != "codex" or harder_uses_operators()
+            use_operators = not agentic or harder_uses_operators()
             rec["harder_mode"] = "operators" if use_operators else "student"
             task["_harder_mode"] = rec["harder_mode"]
             rec["require_solution_growth"] = use_operators

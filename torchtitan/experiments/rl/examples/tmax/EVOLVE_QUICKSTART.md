@@ -69,6 +69,7 @@ trainer-side settings decide whether the run takes part in evolution:
 
 | setting | value in our runs | what it does |
 |---|---|---|
+| `SYNTH_EFFORT` | `high` | Reasoning effort passed to Codex through `model_reasoning_effort` and to Claude Code through `--effort`, and recorded in `session.json`. Use a level supported by the selected CLI and model. |
 | `SWE_EVOLUTION_SIGNALS` | `1` (default) | `0` writes no signals at all: the loop has nothing to do, whether or not it runs. |
 | `SWE_EVOLUTION_HARDER_RATIO` | `0.9` (default `1.0`) | A group solved at or above this fraction asks for `harder`; 0.9 on a group of 16 means 15/16 already asks. A group with no solve at all asks for `easier`, whatever this is set to. |
 | `SWE_DATA_HOT_RELOAD` | `1` (default `0`) | Pick up a newly published mix version mid-run. Without it the trainer keeps the version it booted with and evolution never reaches training. |

@@ -301,7 +301,11 @@ def session(
             # fresh home the way _link_session_jsonl does for codex, continue
             # in the home that already holds the thread; this session
             # directory still gets its own prompt, streams and record.
-            meta["claude_config_dir"] = str(resumes.codex_home)
+            prior_meta = json.loads(resumes.meta.read_text())
+            meta["claude_session_id"] = _session_id(resumes)
+            meta["claude_config_dir"] = prior_meta.get("claude_config_dir") or str(
+                resumes.codex_home
+            )
         else:
             _link_session_jsonl(resumes, sd)
     layout.write_json_atomic(sd.meta, meta)
@@ -436,6 +440,8 @@ def _claude_cmd(cwd: Path, session_id: str, *, resume: bool) -> list[str]:
         "",
         "--model",
         CLAUDE_MODEL,
+        "--effort",
+        str(CODEX_EFFORT),
         "--add-dir",
         str(cwd),
     ]

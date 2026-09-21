@@ -901,6 +901,7 @@ harder — and folds the rewrite back into the live training file.
 <!-- `live value` is read off exp-tmax-offline-20260913/evolution/loop.env, the loop's own snapshot of its environment. -->
 | variable | live value | note |
 |---|---|---|
+| `SYNTH_EFFORT` | `high` | Reasoning effort passed to Codex through `model_reasoning_effort` and to Claude Code through `--effort`, and recorded in `session.json`. Use a level supported by the selected CLI and model. |
 | `OPENAI_API_KEY` | *(supplied)* | the retune model. Dies at startup without it. `SYNTH_ENV_FILE` can point at a file holding it instead. |
 | `DAYTONA_API_KEY` | *(supplied)* | structural revalidation. Without it every all-pass retune is declined `no_docker`. |
 | `SYNTH_API_BASE` | unset | only used on the API-key path; this root authenticates Codex with a ChatGPT login (`EVOLVE_CODEX_AUTH_FILE`) instead. When set, note the regional host: `api.openai.com` 401s with "incorrect regional hostname". |

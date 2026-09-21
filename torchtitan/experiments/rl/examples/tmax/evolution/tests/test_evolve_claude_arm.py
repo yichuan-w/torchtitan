@@ -106,6 +106,17 @@ def test_model_is_its_own_knob(monkeypatch, claude):
     assert cmd[cmd.index("--model") + 1] == "sonnet"
 
 
+@pytest.mark.parametrize("effort", ["low", "medium", "high", "xhigh", "max"])
+def test_effort_reaches_both_clis_and_the_session_record(monkeypatch, claude, effort):
+    monkeypatch.setattr(ec, "CODEX_EFFORT", effort)
+    rw = layout.Root.from_env().evolution.task("effort").rewrite("harder")
+    with ec.session(rw, "agent", timeout=10) as run:
+        cmd = ec._claude_cmd(Path("/pkg"), run.meta["claude_session_id"], resume=False)
+        assert cmd[cmd.index("--effort") + 1] == effort
+        assert run.meta["reasoning_effort"] == effort
+    assert f"model_reasoning_effort={effort}" in ec._codex_cmd(Path("/pkg"))
+
+
 def test_env_is_private_and_spends_the_subscription(monkeypatch, claude, tmp_path):
     """An API key left in the environment would bill the API instead of the
     subscription this arm exists to use."""
@@ -177,6 +188,41 @@ def test_resume_continues_in_the_home_holding_the_thread(claude):
         assert second.meta["claude_config_dir"] == str(first_home)
         env = ec._claude_env(Path(second.meta["claude_config_dir"]))
         assert env["CLAUDE_CONFIG_DIR"] == str(first_home)
+
+
+def test_three_repairs_resume_the_same_thread(claude):
+    cli = claude.bin / "claude"
+    cli.write_text(
+        f"#!{sys.executable}\n"
+        "import os, sys\n"
+        "from pathlib import Path\n"
+        "args = sys.argv[1:]\n"
+        "resuming = '--resume' in args\n"
+        "flag = '--resume' if resuming else '--session-id'\n"
+        "sid = args[args.index(flag) + 1]\n"
+        "thread = Path(os.environ['CLAUDE_CONFIG_DIR']) / 'projects' / sid\n"
+        "if resuming and not thread.is_file():\n"
+        "    sys.exit('No conversation found')\n"
+        "thread.parent.mkdir(exist_ok=True)\n"
+        "with thread.open('a') as out:\n"
+        "    out.write(sys.stdin.read() + '\\n')\n"
+    )
+    rw, pkg = _package(claude, "resume-chain")
+    with ec.session(rw, "agent", timeout=10) as first:
+        assert ec._run_codex(first, pkg, "initial").returncode == 0
+        sid = ec._session_id(first.dir)
+        home = first.dir.codex_home
+    prior = first.dir
+    for number in range(3):
+        with ec.session(rw, f"repair-{number}", timeout=10, resumes=prior) as run:
+            result = ec._run_codex(run, pkg, f"repair {number}", resume=ec._session_id(prior))
+            assert result.returncode == 0, result.stderr
+        prior = run.dir
+    assert ec._session_id(prior) == sid
+    assert json.loads(prior.meta.read_text())["claude_config_dir"] == str(home)
+    transcript = (home / "projects" / sid).read_text()
+    for text in ("initial", "repair 0", "repair 1", "repair 2"):
+        assert text in transcript
 
 
 def test_private_home_survives_the_session(claude):
