@@ -1,0 +1,776 @@
+{
+  "tb21_id": "qemu-alpine-ssh",
+  "tb21_profile": {
+    "skill": "Boot a live ISO headless under QEMU, drive the guest's console non-interactively (expect-style) to enable sshd and set a root password, and wire host port 2222 to guest port 22 with user-mode networking so an outside `ssh -p 2222 root@localhost` lands in a shell",
+    "domain": "QEMU system emulation and -netdev user hostfwd, Alpine Linux (apk, OpenRC, setup-sshd), OpenSSH sshd_config PermitRootLogin/PasswordAuthentication, /etc/shadow",
+    "task_form": "configure-a-service / bring a long-running environment up end to end, graded by an external client actually connecting"
+  },
+  "verifier_notes": "The packet grade and work/verifier_strength.json disagree for 27 of this packet's candidates (the strength file was regenerated after the packets were built). I treated a candidate as FREE if EITHER source says FREE. The one that mattered: task_11745 (expect script for SSH password auth) is `strong` in verifier_strength.json but `FREE` in the qemu-startup packet; I read its tests and the packet is right - its 38 tests are almost entirely substring greps over the expect script's source text plus file-exists/executable checks, with no test that runs it. It stays in per_source at rank 7 and is excluded from final_top10. Three TerminalWorld candidates close in subject are FREE (tw_186081 Alpine chroot, tw_101703 ssh-to-localhost-and-capture, tw_12704 ssh brute-forcer) and were dropped; tw_103367 (run a guest under the QEMU i386 system emulator) is TerminalWorld's only system-mode QEMU task and is also FREE, so it is ranked in per_source but excluded from final. task_000179_6760c516 is graded `behavioral`, which is honest: it runs a validator over QEMU config corpora rather than pinning values.\n\n[fix-team 05, corrected-grader pass] The grader that produced this packet's FREE flags was wrong; work/verifier_strength.json is now authoritative and two candidates I had barred are not FREE. Promoted both, and each displaced an incumbent that on re-reading was weaker than its original reason claimed. IN: system-administration_20260601_053159_008 (now `ok`) at rank 5 - I read tests/test_outputs.py and `ok` understates it: the suite opens a real TCP socket to 7777/7778, logs in with root/root, echoes a per-run timestamped marker, requires whoami to say root, then pkills the listener and requires the port to come back. Nothing there is fakeable by producing a file, and it is the one candidate outside the top two that grades the way TB2.1 grades: an external client connects and must land in a root shell. IN: task_002862_e03f4cfc (now `strong`) at rank 8 - its tests are substring assertions over script text, which is what the stale grader punished, but the task itself says the scripts are not to be executed, so the script text *is* the deliverable, and the pinned strings (hostfwd=tcp::2222-:22, -R 9090:localhost:8080, -p 2222, iotuser@localhost, virtio-net-pci) are not given in the prompt - the model has to know the syntax. OUT: task_10686 (was rank 4) and task_000021_ab956b8c (was rank 7). Both keep `strong` grades and both stay in per_source, but re-reading their instructions, each hands the model the answer verbatim: task_10686 prints the exact converted command lines under '## Expected Output', leaving a sed exercise, and task_000021 dictates the full 'qemu-system-x86_64 -m 256 -name ... -netdev user,id=net0,hostfwd=tcp:127.0.0.1:<HOST_PORT>-:<VM_PORT> ...' string, so its real work is bash polling/backup/restart logic against a mocked qemu binary. Neither teaches the hostfwd syntax TB2.1 needs; task_002862_e03f4cfc does, which is why one promotion covers both losses. My earlier call on task_11745 is unchanged: verifier_strength.json now grades it `strong`, but its 38 tests really are greps over the expect script's source with nothing that runs it and no value the prompt does not already state, so it stays out of final_top10.",
+  "searches": [
+    "tools.py search all 'qemu|QEMU'",
+    "tools.py search all 'qemu-system|hostfwd|-cdrom|-nographic'",
+    "tools.py search rts 'ssh server|sshd|SSH daemon|openssh'",
+    "tools.py search rebench 'ssh|paramiko|sftp'",
+    "tools.py search rebench 'docker|container|systemd|daemon|port [0-9]{2,5}|listen'",
+    "tools.py search tw 'qemu|QEMU|KVM|virt-install|libvirt'",
+    "tools.py search smith 'paramiko|Paramiko'",
+    "tools.py show azure__walinuxagent-1425",
+    "[calibforge grep] search calib 'qemu|QEMU'",
+    "[calibforge grep] search calib 'sshd|ssh server|OpenSSH|ssh -p'",
+    "[calibforge grep] search calib 'initramfs|Alpine|busybox|boot(s|ing)? (a |the )?(kernel|VM|virtual machine)'",
+    "[calibforge grep] search calib 'virtual machine|serial console|expect script|pexpect|chroot|guest'",
+    "[calibforge grep] search calib 'port 2222|port-forward|port forwarding'",
+    "[calibforge grep] show system-administration_20260606_172606_007 system-administration_20260606_172622_007 system-administration_20260604_004411_002",
+    "[terminal-lego grep] search lego 'qemu|QEMU|KVM|libvirt'",
+    "[terminal-lego grep] search lego 'expect script|PermitRootLogin|sshd_config|apk add'"
+  ],
+  "per_source": {
+    "TMax-15K": [
+      {
+        "rank": 1,
+        "task_id": "task_002324_f03c9c85",
+        "skill": 5,
+        "domain": 5,
+        "task_form": 5,
+        "overall": 5,
+        "reason": "A startup script must bring up a QEMU VM whose SSH is reachable at localhost:2222 with a password; fix the chain until an external client can log in. Same target, same port."
+      },
+      {
+        "rank": 2,
+        "task_id": "task_003133_85965df1",
+        "skill": 4,
+        "domain": 5,
+        "task_form": 4,
+        "overall": 4,
+        "reason": "Write launch_qemu.sh to run a headless VM in the background, provision its disk, and run connectivity diagnostics against it - the launch-and-verify loop of this task."
+      },
+      {
+        "rank": 3,
+        "task_id": "task_000021_ab956b8c",
+        "skill": 4,
+        "domain": 5,
+        "task_form": 3,
+        "overall": 4,
+        "reason": "Build the exact `-netdev user,hostfwd=tcp:127.0.0.1:HOST-:GUEST` invocation from a manifest - the host-to-guest port-forwarding mechanism that makes ssh -p 2222 work."
+      },
+      {
+        "rank": 4,
+        "task_id": "task_002862_e03f4cfc",
+        "skill": 4,
+        "domain": 5,
+        "task_form": 4,
+        "overall": 4,
+        "reason": "A VM cannot route back to a host service; fix the QEMU guest networking and write the launch script. Guest-to-host reachability is the same failure surface."
+      },
+      {
+        "rank": 5,
+        "task_id": "task_003464_52c8af89",
+        "skill": 4,
+        "domain": 5,
+        "task_form": 4,
+        "overall": 4,
+        "reason": "Run QEMU headless in the background exposing a QMP socket and build a client that drives the running VM; real qemu process lifecycle, not just a command string."
+      },
+      {
+        "rank": 6,
+        "task_id": "task_000256_eb24fabc",
+        "skill": 4,
+        "domain": 4,
+        "task_form": 4,
+        "overall": 4,
+        "reason": "SSH jump server plus TCP router plus backend is broken end to end; make a client connection succeed through the whole chain."
+      },
+      {
+        "rank": 7,
+        "task_id": "task_003446_7ec894d9",
+        "skill": 4,
+        "domain": 5,
+        "task_form": 4,
+        "overall": 4,
+        "reason": "Configure a hardened SSH access point as one stage of a longer workflow, verified by connecting; sshd configuration to a working login."
+      },
+      {
+        "rank": 8,
+        "task_id": "task_001082_5357146e",
+        "skill": 3,
+        "domain": 5,
+        "task_form": 3,
+        "overall": 3,
+        "reason": "Write a script that launches a QEMU VM from a disk image fully headless and detached; the daemonize-and-stay-up half only."
+      },
+      {
+        "rank": 9,
+        "task_id": "task_003089_53b0f155",
+        "skill": 3,
+        "domain": 5,
+        "task_form": 3,
+        "overall": 3,
+        "reason": "Expose a legacy binary through an SSH service you must stand up; sshd bring-up with an external caller as the check."
+      },
+      {
+        "rank": 10,
+        "task_id": "task_002411_d4dd2b5d",
+        "skill": 3,
+        "domain": 5,
+        "task_form": 2,
+        "overall": 3,
+        "reason": "Apply an sshd login-policy rule and emit the headless qemu-system-x86_64 launch line; touches both halves but never actually boots a guest."
+      }
+    ],
+    "Recursive-Task-Synthesis": [
+      {
+        "rank": 1,
+        "task_id": "rts_task_8dadae7a1c158f9787230807",
+        "skill": 4,
+        "domain": 5,
+        "task_form": 4,
+        "overall": 4,
+        "reason": "Make OpenSSH listen on a non-default port, open the firewall for it, and get sshd actually started - the sshd-bring-up half with a port change."
+      },
+      {
+        "rank": 2,
+        "task_id": "rts_task_b893304a896ef5419e2e06ad",
+        "skill": 3,
+        "domain": 4,
+        "task_form": 4,
+        "overall": 3,
+        "reason": "A healthcheck demands a running sshd and a user with a set password; diagnose and fix until it passes. Verified by service state, not by a file."
+      },
+      {
+        "rank": 3,
+        "task_id": "rts_task_e30b33f12cfd6c4d52e3ef5f",
+        "skill": 3,
+        "domain": 4,
+        "task_form": 3,
+        "overall": 3,
+        "reason": "Create a user with a password and get sshd running; the account-and-password half of making root@localhost log in."
+      },
+      {
+        "rank": 4,
+        "task_id": "rts_task_fad5f8cb1801e8eda61752d4",
+        "skill": 3,
+        "domain": 4,
+        "task_form": 3,
+        "overall": 3,
+        "reason": "Define a QEMU-run VM from discovered configuration including the user account and virtualisation options; declarative VM provisioning."
+      },
+      {
+        "rank": 5,
+        "task_id": "rts_task_b8b12e93ac33e984118e8019",
+        "skill": 3,
+        "domain": 4,
+        "task_form": 3,
+        "overall": 3,
+        "reason": "QEMU VM configuration with autologin, passwordless sudo and graphics disabled - the same headless-guest-with-console-access requirements, declared rather than executed."
+      },
+      {
+        "rank": 6,
+        "task_id": "rts_task_6ae8c73772d22f92c56d9473",
+        "skill": 3,
+        "domain": 3,
+        "task_form": 3,
+        "overall": 3,
+        "reason": "Open one TCP port and drop another, then prove reachability from a jump host over ssh; port-reachability reasoning with a live test."
+      },
+      {
+        "rank": 7,
+        "task_id": "rts_task_db4c05963b86a1226ec32cea",
+        "skill": 3,
+        "domain": 4,
+        "task_form": 3,
+        "overall": 3,
+        "reason": "Same user-with-password plus sshd-running requirement with a checksum wrapper; the service-state part transfers."
+      },
+      {
+        "rank": 8,
+        "task_id": "rts_task_a31d31becbf0b5ad7beb4c7a",
+        "skill": 2,
+        "domain": 3,
+        "task_form": 3,
+        "overall": 2,
+        "reason": "Apply iptables rules on a remote host reached over ssh; remote administration, not service bring-up."
+      },
+      {
+        "rank": 9,
+        "task_id": "rts_task_83de36828f335261219f529c",
+        "skill": 2,
+        "domain": 4,
+        "task_form": 3,
+        "overall": 2,
+        "reason": "Another xiaou user-plus-sshd variant with an integrity manifest; near-duplicate of the cluster."
+      },
+      {
+        "rank": 10,
+        "task_id": "rts_task_5877be1b11dcad5ccdcf9c20",
+        "skill": 2,
+        "domain": 4,
+        "task_form": 3,
+        "overall": 2,
+        "reason": "Same family again, listed to fill the quota; RTS has no task that actually boots and configures a guest."
+      }
+    ],
+    "TerminalWorld-Seeds-Clean": [
+      {
+        "rank": 1,
+        "task_id": "tw_11181",
+        "skill": 5,
+        "domain": 4,
+        "task_form": 5,
+        "overall": 4,
+        "reason": "Stand up a guest with sshd installed and running, set the root password, and map a host port to guest 22 so an outside ssh works. Structurally the same task with Docker instead of QEMU."
+      },
+      {
+        "rank": 2,
+        "task_id": "tw_436604",
+        "skill": 4,
+        "domain": 5,
+        "task_form": 4,
+        "overall": 4,
+        "reason": "Provision a real VM from a cloud image with cloud-init, sizing the disk and enabling root login with a password - guest provisioning plus root password auth."
+      },
+      {
+        "rank": 3,
+        "task_id": "tw_656648",
+        "skill": 3,
+        "domain": 5,
+        "task_form": 3,
+        "overall": 3,
+        "reason": "Create an account with a password and ensure the SSH service is running; the login-credential half, strongly verified."
+      },
+      {
+        "rank": 4,
+        "task_id": "tw_141360",
+        "skill": 3,
+        "domain": 5,
+        "task_form": 3,
+        "overall": 3,
+        "reason": "Bootstrap an Alpine root filesystem with static apk-tools, repository list and signing key - the Alpine package machinery you need to add openssh in the guest."
+      },
+      {
+        "rank": 5,
+        "task_id": "tw_149970",
+        "skill": 3,
+        "domain": 4,
+        "task_form": 3,
+        "overall": 3,
+        "reason": "Unlock root by setting a persistent non-empty password hash in /etc/shadow; exactly the step that turns Alpine's passwordless root into a login."
+      },
+      {
+        "rank": 6,
+        "task_id": "tw_119284",
+        "skill": 3,
+        "domain": 4,
+        "task_form": 3,
+        "overall": 3,
+        "reason": "Build an Alpine-based image from a minirootfs and work around Alpine's missing bash; Alpine-specific guest configuration."
+      },
+      {
+        "rank": 7,
+        "task_id": "tw_222108",
+        "skill": 3,
+        "domain": 3,
+        "task_form": 3,
+        "overall": 3,
+        "reason": "Wire a network namespace to the host with a veth pair and addresses on both ends; the host/guest network-plumbing mental model behind hostfwd."
+      },
+      {
+        "rank": 8,
+        "task_id": "tw_103367",
+        "skill": 3,
+        "domain": 5,
+        "task_form": 3,
+        "overall": 3,
+        "reason": "Run a guest under the QEMU i386 system emulator and replay the recorded execution. Only TerminalWorld system-mode QEMU task, but FREE - excluded from final_top10."
+      },
+      {
+        "rank": 9,
+        "task_id": "tw_112618",
+        "skill": 2,
+        "domain": 3,
+        "task_form": 3,
+        "overall": 2,
+        "reason": "Build an Alpine base image and derive container filesystems from snapshots; guest-filesystem work, no service or network."
+      },
+      {
+        "rank": 10,
+        "task_id": "tw_132448",
+        "skill": 2,
+        "domain": 3,
+        "task_form": 3,
+        "overall": 2,
+        "reason": "Install a daemon, start it, enable it at boot and prove local access works; generic service bring-up."
+      }
+    ],
+    "SWE-Smith-Seeds-Clean": [
+      {
+        "rank": 1,
+        "task_id": "paramiko__paramiko.23f92003.func_pm_class_rm_base__by1xmy1p",
+        "skill": 3,
+        "domain": 5,
+        "task_form": 2,
+        "overall": 3,
+        "reason": "SSH Channel lifecycle broken as a context manager; forces reasoning about an SSH session's open/close semantics, the protocol side of this task."
+      },
+      {
+        "rank": 2,
+        "task_id": "paramiko__paramiko.23f92003.lm_rewrite__kc4qu7b1",
+        "skill": 3,
+        "domain": 5,
+        "task_form": 2,
+        "overall": 3,
+        "reason": "Parsing ssh-rsa host-key material fails; the host-key handling an `ssh -p 2222 root@localhost` connection exercises first."
+      },
+      {
+        "rank": 3,
+        "task_id": "paramiko__paramiko.23f92003.combine_file__fn5svpc8",
+        "skill": 3,
+        "domain": 5,
+        "task_form": 2,
+        "overall": 3,
+        "reason": "Key fingerprint computation broken for SHA-1 and SHA-256 variants; SSH key identity handling."
+      },
+      {
+        "rank": 4,
+        "task_id": "paramiko__paramiko.23f92003.lm_rewrite__ff51dugy",
+        "skill": 3,
+        "domain": 5,
+        "task_form": 2,
+        "overall": 3,
+        "reason": "SSH transport encryption failures; debugging why a session will not come up, the same symptom class as a guest sshd that refuses connections."
+      },
+      {
+        "rank": 5,
+        "task_id": "paramiko__paramiko.23f92003.func_pm_class_rm_funcs__sgig7wez",
+        "skill": 2,
+        "domain": 5,
+        "task_form": 2,
+        "overall": 2,
+        "reason": "SFTP attribute serialization breaks all file operations; SSH subsystem internals, further from bring-up."
+      },
+      {
+        "rank": 6,
+        "task_id": "paramiko__paramiko.23f92003.func_pm_ctrl_shuffle__b0o2afet",
+        "skill": 2,
+        "domain": 5,
+        "task_form": 2,
+        "overall": 2,
+        "reason": "SFTPClient.from_transport uses a variable before assignment; narrow control-flow fix inside an SSH client."
+      },
+      {
+        "rank": 7,
+        "task_id": "paramiko__paramiko.23f92003.func_pm_class_rm_funcs__2lma2zco",
+        "skill": 2,
+        "domain": 5,
+        "task_form": 2,
+        "overall": 2,
+        "reason": "Missing PublicBlob constructor; SSH key object plumbing only."
+      },
+      {
+        "rank": 8,
+        "task_id": "paramiko__paramiko.23f92003.combine_file__lcu2l51n",
+        "skill": 2,
+        "domain": 5,
+        "task_form": 2,
+        "overall": 2,
+        "reason": "Key file content handled as str instead of bytes; encoding bug inside SSH key loading."
+      },
+      {
+        "rank": 9,
+        "task_id": "paramiko__paramiko.23f92003.lm_rewrite__v690hn9r",
+        "skill": 2,
+        "domain": 4,
+        "task_form": 2,
+        "overall": 2,
+        "reason": "Bytes/str path concatenation bug in paramiko; minimal transfer beyond the ecosystem."
+      },
+      {
+        "rank": 10,
+        "task_id": "django__daphne.32ac73e1.func_basic__2cpoddzp",
+        "skill": 2,
+        "domain": 2,
+        "task_form": 3,
+        "overall": 2,
+        "reason": "A server refuses to start unless every binding option is given explicitly; default-bind/listen debugging, wrong stack."
+      }
+    ],
+    "SWE-Rebench-Tasks-Clean": [
+      {
+        "rank": 1,
+        "task_id": "azure__walinuxagent-1425",
+        "skill": 3,
+        "domain": 4,
+        "task_form": 2,
+        "overall": 3,
+        "reason": "The Linux guest agent that provisions VMs misidentifies its instance across kernel versions; guest-side VM provisioning code, closest domain match in this corpus."
+      },
+      {
+        "rank": 2,
+        "task_id": "pyca__cryptography-12286",
+        "skill": 3,
+        "domain": 4,
+        "task_form": 2,
+        "overall": 3,
+        "reason": "Inconsistent password handling between PEM and OpenSSH private-key loaders; SSH credential semantics."
+      },
+      {
+        "rank": 3,
+        "task_id": "pyca__cryptography-12342",
+        "skill": 2,
+        "domain": 4,
+        "task_form": 2,
+        "overall": 2,
+        "reason": "load_ssh_private_key lacks the validation-skip option its PEM sibling has; SSH key API parity."
+      },
+      {
+        "rank": 4,
+        "task_id": "agnostiqhq__covalent-1356",
+        "skill": 2,
+        "domain": 3,
+        "task_form": 3,
+        "overall": 2,
+        "reason": "`start`/`restart` brings the service up without a usable port; daemon lifecycle and listening-address debugging."
+      },
+      {
+        "rank": 5,
+        "task_id": "fsspec__universal_pathlib-265",
+        "skill": 2,
+        "domain": 3,
+        "task_form": 2,
+        "overall": 2,
+        "reason": "SSH/SFTP URL handling changed between versions; remote-filesystem-over-ssh semantics."
+      },
+      {
+        "rank": 6,
+        "task_id": "fsspec__universal_pathlib-294",
+        "skill": 2,
+        "domain": 3,
+        "task_form": 2,
+        "overall": 2,
+        "reason": "sftp:// path normalization regression; same ecosystem, narrower bug."
+      },
+      {
+        "rank": 7,
+        "task_id": "celery__celery-9465",
+        "skill": 2,
+        "domain": 2,
+        "task_form": 2,
+        "overall": 2,
+        "reason": "A configured backend port is ignored when connecting; port-configuration-not-taking-effect debugging."
+      },
+      {
+        "rank": 8,
+        "task_id": "gorakhargosh__watchdog-946",
+        "skill": 2,
+        "domain": 2,
+        "task_form": 3,
+        "overall": 2,
+        "reason": "auto-restart changed how it manages a long-running child process; process supervision, which a backgrounded qemu needs."
+      },
+      {
+        "rank": 9,
+        "task_id": "devpi__devpi-1074",
+        "skill": 2,
+        "domain": 2,
+        "task_form": 2,
+        "overall": 2,
+        "reason": "Client no longer stores basic-auth credentials for a server; credential persistence, weak transfer."
+      },
+      {
+        "rank": 10,
+        "task_id": "pypa__pip-10288",
+        "skill": 2,
+        "domain": 2,
+        "task_form": 2,
+        "overall": 2,
+        "reason": "Add a flag forcing password retrieval from the keyring; password-plumbing filler, this corpus has nothing closer."
+      }
+    ],
+    "Terminal-Lego-15k": [
+      {
+        "rank": 1,
+        "task_id": "task_10686",
+        "skill": 5,
+        "domain": 5,
+        "task_form": 3,
+        "overall": 4,
+        "reason": "Translate QEMU's deprecated -redir into modern `-netdev user,hostfwd=...` with a matching -device; literally the flag that makes host 2222 reach guest 22."
+      },
+      {
+        "rank": 2,
+        "task_id": "task_02064",
+        "skill": 4,
+        "domain": 5,
+        "task_form": 4,
+        "overall": 4,
+        "reason": "sshd is not running and localhost:22 is refused; install, configure and start it until `ssh localhost` drops into a shell. Same end condition."
+      },
+      {
+        "rank": 3,
+        "task_id": "task_00392",
+        "skill": 4,
+        "domain": 5,
+        "task_form": 4,
+        "overall": 4,
+        "reason": "Fix `ssh: connect to host localhost port 22: Connection refused` by bringing the daemon up and configuring auth; the failure you hit first here."
+      },
+      {
+        "rank": 4,
+        "task_id": "task_11760",
+        "skill": 4,
+        "domain": 5,
+        "task_form": 3,
+        "overall": 4,
+        "reason": "Configure root SSH access and work around a tty requirement; PermitRootLogin plus non-interactive shell access, both needed for root@localhost."
+      },
+      {
+        "rank": 5,
+        "task_id": "task_11730",
+        "skill": 4,
+        "domain": 5,
+        "task_form": 4,
+        "overall": 4,
+        "reason": "Provision a VM with a custom user so that the tool's ssh shortcut works; VM provisioning plus account setup plus a real ssh login as the check."
+      },
+      {
+        "rank": 6,
+        "task_id": "task_10568",
+        "skill": 3,
+        "domain": 5,
+        "task_form": 3,
+        "overall": 3,
+        "reason": "Resolve conflicting directives between sshd_config and a drop-in override; the config-precedence trap when you flip PermitRootLogin."
+      },
+      {
+        "rank": 7,
+        "task_id": "task_11745",
+        "skill": 5,
+        "domain": 5,
+        "task_form": 4,
+        "overall": 3,
+        "reason": "Expect script answering an SSH password prompt. Skill is right, but its suite greps the script's source text, so treat it as unverified; kept out of final_top10."
+      },
+      {
+        "rank": 8,
+        "task_id": "task_11769",
+        "skill": 3,
+        "domain": 5,
+        "task_form": 3,
+        "overall": 3,
+        "reason": "Non-interactive SSH password authentication without sshpass; the same problem as feeding a password to a guest login from a script."
+      },
+      {
+        "rank": 9,
+        "task_id": "task_11743",
+        "skill": 3,
+        "domain": 5,
+        "task_form": 3,
+        "overall": 3,
+        "reason": "Host answers ping but SSH hangs; systematically diagnose a half-working SSH path, which is how a misconfigured hostfwd presents."
+      },
+      {
+        "rank": 10,
+        "task_id": "task_02578",
+        "skill": 3,
+        "domain": 4,
+        "task_form": 3,
+        "overall": 3,
+        "reason": "Determine and use the default credentials of a booted live-CD image; the same 'what account does this ISO give me' question Alpine's passwordless root poses."
+      }
+    ],
+    "CalibForge": [
+      {
+        "rank": 1,
+        "task_id": "system-administration_20260606_172622_007",
+        "skill": 5,
+        "domain": 5,
+        "task_form": 5,
+        "overall": 5,
+        "reason": "Boot a kernel plus initramfs in QEMU, get networking up inside the guest, run a service on a guest port, and forward a host port to it so curl from the host succeeds. Same shape, different service."
+      },
+      {
+        "rank": 2,
+        "task_id": "system-administration_20260606_172606_007",
+        "skill": 5,
+        "domain": 4,
+        "task_form": 4,
+        "overall": 4,
+        "reason": "Write an expect script that drives an interactive wizard unattended, including a password prompt - the console-automation skill required to configure the Alpine guest."
+      },
+      {
+        "rank": 3,
+        "task_id": "system-administration_20260604_004411_002",
+        "skill": 4,
+        "domain": 5,
+        "task_form": 4,
+        "overall": 4,
+        "reason": "Fix a broken sshd/SFTP setup so a named user with a given password can actually log in, plus a service that must be running and enabled; verified by connecting."
+      },
+      {
+        "rank": 4,
+        "task_id": "system-administration_20260604_193056_006",
+        "skill": 4,
+        "domain": 5,
+        "task_form": 4,
+        "overall": 4,
+        "reason": "sshd is running and the user exists but nothing works end to end; debug until a real SSH client succeeds - the exact debugging loop after the VM boots."
+      },
+      {
+        "rank": 5,
+        "task_id": "system-administration_20260415_182321_006",
+        "skill": 4,
+        "domain": 5,
+        "task_form": 3,
+        "overall": 4,
+        "reason": "Complete an incomplete SSH server configuration on a live host; sshd_config editing with the daemon reloaded and checked."
+      },
+      {
+        "rank": 6,
+        "task_id": "system-administration_20260501_051538_006",
+        "skill": 4,
+        "domain": 5,
+        "task_form": 3,
+        "overall": 4,
+        "reason": "Flip PasswordAuthentication and PermitRootLogin and keep the server reachable - the same two directives this task must set the other way."
+      },
+      {
+        "rank": 7,
+        "task_id": "system-administration_20260601_053159_008",
+        "skill": 4,
+        "domain": 4,
+        "task_form": 4,
+        "overall": 4,
+        "reason": "Stand up serial console servers, one with automatic root login and no password prompt over a TCP port; console-plus-root-access plumbing, checked by connecting."
+      },
+      {
+        "rank": 8,
+        "task_id": "system-administration_20260509_065529_001",
+        "skill": 3,
+        "domain": 5,
+        "task_form": 3,
+        "overall": 3,
+        "reason": "Build QEMU from source for a system-emulation target and produce a working qemu-system binary; deep QEMU domain, build rather than run."
+      },
+      {
+        "rank": 9,
+        "task_id": "system-administration_20260417_112147_001",
+        "skill": 3,
+        "domain": 5,
+        "task_form": 3,
+        "overall": 3,
+        "reason": "Build and install OpenSSH from source against a custom OpenSSL; knowing sshd's build and runtime layout helps when the guest has no openssh package."
+      },
+      {
+        "rank": 10,
+        "task_id": "system-administration_20260501_051538_008",
+        "skill": 3,
+        "domain": 4,
+        "task_form": 4,
+        "overall": 3,
+        "reason": "Repair three broken SSH port forwards to exact host:port pairs; the forwarding mental model behind hostfwd, on the SSH side."
+      }
+    ]
+  },
+  "final_top10": [
+    {
+      "rank": 1,
+      "task_id": "system-administration_20260606_172622_007",
+      "source": "CalibForge",
+      "skill": 5,
+      "domain": 5,
+      "task_form": 5,
+      "overall": 5,
+      "reason": "Boot a guest in QEMU, bring up its networking, run a service inside it, forward a host port to it and prove it from the host. Same task, http instead of ssh."
+    },
+    {
+      "rank": 2,
+      "task_id": "task_002324_f03c9c85",
+      "source": "TMax-15K",
+      "skill": 5,
+      "domain": 5,
+      "task_form": 5,
+      "overall": 5,
+      "reason": "Repair a startup chain until a QEMU VM's SSH is reachable at localhost:2222 with a password; identical endpoint to this task."
+    },
+    {
+      "rank": 3,
+      "task_id": "tw_11181",
+      "source": "TerminalWorld-Seeds-Clean",
+      "skill": 5,
+      "domain": 4,
+      "task_form": 5,
+      "overall": 4,
+      "reason": "Install and run sshd inside a guest, set the root password, and map a host port to guest 22 - the whole task with Docker as the hypervisor."
+    },
+    {
+      "rank": 4,
+      "task_id": "system-administration_20260606_172606_007",
+      "source": "CalibForge",
+      "skill": 5,
+      "domain": 4,
+      "task_form": 4,
+      "overall": 4,
+      "reason": "Automate an interactive wizard with expect, including a password answer - how you configure a guest whose only interface is a console."
+    },
+    {
+      "rank": 5,
+      "task_id": "system-administration_20260601_053159_008",
+      "source": "CalibForge",
+      "skill": 4,
+      "domain": 4,
+      "task_form": 5,
+      "overall": 4,
+      "reason": "Expose a root login shell on a TCP port via agetty, one auto-login and one password-gated, and keep it up; graded by connecting and echoing a marker."
+    },
+    {
+      "rank": 6,
+      "task_id": "system-administration_20260604_193056_006",
+      "source": "CalibForge",
+      "skill": 4,
+      "domain": 5,
+      "task_form": 4,
+      "overall": 4,
+      "reason": "sshd is running and the account exists but no client can actually get in; debug the whole path until a real SSH login succeeds."
+    },
+    {
+      "rank": 7,
+      "task_id": "tw_436604",
+      "source": "TerminalWorld-Seeds-Clean",
+      "skill": 4,
+      "domain": 5,
+      "task_form": 4,
+      "overall": 4,
+      "reason": "Provision a real VM from a cloud image and enable root login with a password; guest provisioning plus root password auth, strongly verified."
+    },
+    {
+      "rank": 8,
+      "task_id": "task_002862_e03f4cfc",
+      "source": "TMax-15K",
+      "skill": 4,
+      "domain": 5,
+      "task_form": 3,
+      "overall": 4,
+      "reason": "Must derive, not copy, the qemu -netdev user,hostfwd=tcp::2222-:22 launch line and the matching ssh -p 2222 localhost invocation."
+    },
+    {
+      "rank": 9,
+      "task_id": "system-administration_20260604_004411_002",
+      "source": "CalibForge",
+      "skill": 4,
+      "domain": 5,
+      "task_form": 4,
+      "overall": 4,
+      "reason": "Make a named user with a given password actually able to log in over SSH against a broken setup, with the service enabled at boot."
+    },
+    {
+      "rank": 10,
+      "task_id": "task_02064",
+      "source": "Terminal-Lego-15k",
+      "skill": 4,
+      "domain": 5,
+      "task_form": 4,
+      "overall": 4,
+      "reason": "sshd is not running and port 22 is refused; install, configure and start it until an ssh to localhost gives a shell - this task's inner loop."
+    }
+  ],
+  "notes": "Both new corpora beat the old pool here, in different halves. CalibForge supplies the only task in the whole pool that actually boots a guest under QEMU, gets networking working inside it, runs a service there and forwards a host port to it (system-administration_20260606_172622_007) - the v1 QEMU cluster in TMax is almost entirely 'emit the exact qemu-system-x86_64 command string' or 'start a headless VNC-only dummy VM', which never boots an OS. CalibForge also supplies the expect-automation task, which is the skill that makes the Alpine console tractable. Terminal-Lego supplies the hostfwd conversion task and a dense, well-verified sshd-troubleshooting cluster (connection refused, root login, sshd_config overrides, non-interactive password auth) that the v1 pool simply did not have. TerminalWorld's tw_11181 is the best structural isomorph outside CalibForge. Every corpus could field 10 defensible candidates here except SWE-Rebench, whose ranks 4-10 are filler - nothing in it configures a service or boots a guest. Four TerminalWorld tasks that are close in subject are FREE and were either dropped (tw_186081, tw_101703, tw_12704) or ranked but excluded from final (tw_103367). Merge note: three of my final ten are from Terminal-Lego and they are individually shallow StackOverflow-scale tasks; if the merge wants depth over coverage, task_10686 and task_02064 are the two worth keeping. Also: the packets' verifier field and work/verifier_strength.json disagree on roughly a quarter of shown candidates - whichever the merge trusts, apply the same rule to every team's output."
+}

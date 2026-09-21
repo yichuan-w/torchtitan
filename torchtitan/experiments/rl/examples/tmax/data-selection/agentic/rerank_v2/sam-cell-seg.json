@@ -1,0 +1,778 @@
+{
+ "tb21_id": "sam-cell-seg",
+ "tb21_profile": {
+  "skill": "Drive a pretrained vision model (MobileSAM) box-prompted per row of a CSV on CPU, then post-process raw masks into non-overlapping, single-contiguous polygon outlines and write them back as coordinate columns",
+  "domain": "PyTorch / OpenCV computer vision, instance segmentation of histopathology cells, pandas CSV geometry columns",
+  "task_form": "implement-from-spec: a reusable argparse CLI script judged on a hidden test set"
+ },
+ "verifier_notes": "task_002047_85e1153f is the single closest TMax match on skill (per-frame bbox refinement scored by mean IoU) but graded FREE, so it is ranked last in per_source and kept out of final_top10. tw_588262 (YOLOv4 inference) is the only TerminalWorld pretrained-detector task and is also FREE; same treatment. Terminal-Lego's CV entries are mostly weak-graded (task_13495 = 0.214); I kept the one whose test pins an IoU threshold rather than file existence. Did not disagree with any grade on inspection.",
+ "searches": [
+  "tools.py search all \"segment anything|mobile_sam|MobileSAM|SAM checkpoint\"",
+  "tools.py search all \"findContours|contour\"",
+  "tools.py search all \"instance segmentation|semantic segmentation|segmentation mask\"",
+  "tools.py search all \"\\bIoU\\b|intersection over union\"",
+  "tools.py search all \"nuclei|histopatholog|microscopy|cell segmentation\"",
+  "tools.py search all \"watershed|connected component\"",
+  "tools.py search all \"state_dict|torch\\.load|checkpoint.*\\.pth\"",
+  "tools.py search all \"polygon|polyline\"",
+  "tools.py search all \"bounding box\"",
+  "tools.py search all \"overlap.*mask|non-overlapping\"",
+  "tools.py search rts \"cv2|OpenCV|Pillow|\\bPIL\\b|pytesseract|torch\\b|scikit-image|imageio\"",
+  "tools.py search rts \"argparse|command-line arguments|--input\"",
+  "tools.py search tw \"cv2|OpenCV|Pillow|PIL\\b|numpy array of pixels|\\.png|\\.jpg|neural network|pytorch|torch\\b|keras|tensorflow\"",
+  "tools.py search smith \"image|mask|coordinate|numpy|array|crop|pixel\"",
+  "tools.py search smith \"fvcore\"",
+  "tools.py search smith \"PageImage|crop|bbox|resize\"",
+  "tools.py search rebench \"segmentation|image|mask|pixel|crop|coordinate|geometry\"",
+  "tools.py show vanvalenlab__deepcell-tf-673 toblerity__shapely-851"
+ ],
+ "per_source": {
+  "TMax-15K": [
+   {
+    "rank": 1,
+    "task_id": "task_009562_91210c7c",
+    "skill": 4,
+    "domain": 4,
+    "task_form": 4,
+    "overall": 4,
+    "reason": "Reconstruct a torch model class from a bare state_dict, load it, run inference, validate outputs against a schema - same weight-loading-and-inference crux"
+   },
+   {
+    "rank": 2,
+    "task_id": "task_007296_a67e32b2",
+    "skill": 4,
+    "domain": 4,
+    "task_form": 4,
+    "overall": 4,
+    "reason": "Rebuild lost PyTorch architecture from a .pth state_dict and score a CSV of features; teaches loading third-party weights correctly"
+   },
+   {
+    "rank": 3,
+    "task_id": "task_005624_f322de3b",
+    "skill": 4,
+    "domain": 4,
+    "task_form": 4,
+    "overall": 4,
+    "reason": "Build the exact described network, load state_dict, eval mode, CPU inference over rows of data - mirrors driving MobileSAM on CPU"
+   },
+   {
+    "rank": 4,
+    "task_id": "task_000617_8d68af4e",
+    "skill": 4,
+    "domain": 4,
+    "task_form": 4,
+    "overall": 4,
+    "reason": "Recreate a lost feature-extraction script from recovered weights and run it over video frames; same recover-the-inference-script shape"
+   },
+   {
+    "rank": 5,
+    "task_id": "task_000318_4bf545ba",
+    "skill": 3,
+    "domain": 4,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Clean tabular data then run a state_dict-loaded FFN over it; weight loading plus pandas column contract, weaker on geometry"
+   },
+   {
+    "rank": 6,
+    "task_id": "task_000498_e2de3c48",
+    "skill": 3,
+    "domain": 4,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Write an inference script over video frames with detection outputs and benchmark it; CV inference pipeline, no mask geometry"
+   },
+   {
+    "rank": 7,
+    "task_id": "task_005069_828dd061",
+    "skill": 3,
+    "domain": 3,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Per-frame pixel analysis producing (x,y) centroid coordinates into a CSV - image-to-coordinate extraction with pinned numeric output"
+   },
+   {
+    "rank": 8,
+    "task_id": "task_004134_9ef500fd",
+    "skill": 3,
+    "domain": 4,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Fluorescence microscopy video analysis: extract quantitative measurements per frame from biological imagery"
+   },
+   {
+    "rank": 9,
+    "task_id": "task_000270_e7c9b86a",
+    "skill": 2,
+    "domain": 3,
+    "task_form": 3,
+    "overall": 2,
+    "reason": "Video frame pixel-region detection plus a script run against a hidden set; only the hidden-test discipline transfers"
+   },
+   {
+    "rank": 10,
+    "task_id": "task_002047_85e1153f",
+    "skill": 3,
+    "domain": 4,
+    "task_form": 3,
+    "overall": 2,
+    "reason": "Contour-matching bounding boxes per frame scored by mean IoU - closest TMax match on mask geometry, but verifier is FREE so excluded from final"
+   }
+  ],
+  "Recursive-Task-Synthesis": [
+   {
+    "rank": 1,
+    "task_id": "rts_task_956ea2e372fe004edbe0d44d",
+    "skill": 3,
+    "domain": 4,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Build a PyTorch model from a JSON architecture config and profile it - constructing a torch model to spec, the nearest RTS has to model work"
+   },
+   {
+    "rank": 2,
+    "task_id": "rts_task_5d4ba831d1b7d9728d4c2c8e",
+    "skill": 2,
+    "domain": 2,
+    "task_form": 4,
+    "overall": 2,
+    "reason": "argparse CLI with positional paths, --help and non-zero exit; matches the script-with-flags contract only"
+   },
+   {
+    "rank": 3,
+    "task_id": "rts_task_ab5bc7c95754d09a283042ed",
+    "skill": 2,
+    "domain": 2,
+    "task_form": 3,
+    "overall": 2,
+    "reason": "Discover inputs, transform rows, emit CSV in a schema-specified column order - the output-CSV-contract half of the task"
+   },
+   {
+    "rank": 4,
+    "task_id": "rts_task_b24ce1172bea8ca237dbe7cf",
+    "skill": 2,
+    "domain": 2,
+    "task_form": 3,
+    "overall": 2,
+    "reason": "Fix a pandas script so it writes a config-specified CSV; pandas column/path discipline, nothing visual"
+   },
+   {
+    "rank": 5,
+    "task_id": "rts_task_f3ddeca041c1c7066e935cb1",
+    "skill": 2,
+    "domain": 2,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "pandas row filtering to CSV preserving original row index - row-alignment discipline like keeping one CSV row per cell"
+   },
+   {
+    "rank": 6,
+    "task_id": "rts_task_3f529f4d3e51cddb5bc8ff1b",
+    "skill": 2,
+    "domain": 2,
+    "task_form": 3,
+    "overall": 2,
+    "reason": "Read raw measurements, reconcile config with actual data, write conforming CSV"
+   },
+   {
+    "rank": 7,
+    "task_id": "rts_task_6289ba1ea01db4bcb05c45d4",
+    "skill": 2,
+    "domain": 2,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Compute a distribution and render it to a PNG; only image output in common"
+   },
+   {
+    "rank": 8,
+    "task_id": "rts_task_a32cabcffa05ce671cb8bbe7",
+    "skill": 1,
+    "domain": 3,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Produce a torch/CUDA dev environment config - shares the PyTorch ecosystem, exercises no modelling skill"
+   },
+   {
+    "rank": 9,
+    "task_id": "rts_task_4b7e8eeef0f9e2692beb9483",
+    "skill": 2,
+    "domain": 1,
+    "task_form": 3,
+    "overall": 2,
+    "reason": "Script must accept flags and --help and behave correctly under them; CLI contract only"
+   },
+   {
+    "rank": 10,
+    "task_id": "rts_task_793773490a340967a9d74163",
+    "skill": 2,
+    "domain": 2,
+    "task_form": 3,
+    "overall": 2,
+    "reason": "Script takes input and output paths as arguments and rewrites a binary image archive; path-parameterised tool shape"
+   }
+  ],
+  "TerminalWorld-Seeds-Clean": [
+   {
+    "rank": 1,
+    "task_id": "tw_105368",
+    "skill": 3,
+    "domain": 4,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Drive the Augmentor image-augmentation library over a real image directory - configuring a third-party CV library end to end"
+   },
+   {
+    "rank": 2,
+    "task_id": "tw_4289",
+    "skill": 3,
+    "domain": 3,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Per-pixel colour quantisation of a PNG into a rendered grid; hands-on pixel-array manipulation"
+   },
+   {
+    "rank": 3,
+    "task_id": "tw_718060",
+    "skill": 3,
+    "domain": 4,
+    "task_form": 2,
+    "overall": 3,
+    "reason": "Define a PyTorch model and profile it with torchmeter; torch model plumbing, no vision geometry"
+   },
+   {
+    "rank": 4,
+    "task_id": "tw_191493",
+    "skill": 3,
+    "domain": 3,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Run a three-stage SVR eye-tracking pipeline over imaging data with specific flags - driving a research pipeline with awkward arguments"
+   },
+   {
+    "rank": 5,
+    "task_id": "tw_208504",
+    "skill": 2,
+    "domain": 3,
+    "task_form": 3,
+    "overall": 2,
+    "reason": "Extract hidden payloads from JPEGs; byte-level image handling, unrelated modelling"
+   },
+   {
+    "rank": 6,
+    "task_id": "tw_588262",
+    "skill": 3,
+    "domain": 4,
+    "task_form": 3,
+    "overall": 2,
+    "reason": "YOLOv4 detection inference from a compiled-from-source CV binding - closest TerminalWorld analogue to running a pretrained detector, but FREE verifier so excluded from final"
+   },
+   {
+    "rank": 7,
+    "task_id": "tw_232264",
+    "skill": 2,
+    "domain": 2,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Compute a distribution and save a PNG plot; only image output overlaps"
+   },
+   {
+    "rank": 8,
+    "task_id": "tw_519670",
+    "skill": 1,
+    "domain": 3,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Provision a CUDA/torch environment image; ecosystem only"
+   },
+   {
+    "rank": 9,
+    "task_id": "tw_11045",
+    "skill": 1,
+    "domain": 2,
+    "task_form": 2,
+    "overall": 1,
+    "reason": "Parse a CSV into a nested dict; shares only pandas/CSV plumbing"
+   },
+   {
+    "rank": 10,
+    "task_id": "tw_487175",
+    "skill": 1,
+    "domain": 2,
+    "task_form": 2,
+    "overall": 1,
+    "reason": "Drop NaN rows and write a CSV - boilerplate CSV work, no transfer"
+   }
+  ],
+  "SWE-Smith-Seeds-Clean": [
+   {
+    "rank": 1,
+    "task_id": "facebookresearch__fvcore.a491d5b9.func_basic__9v6fbo43",
+    "skill": 4,
+    "domain": 5,
+    "task_form": 2,
+    "overall": 4,
+    "reason": "HFlipTransform flips y instead of x when applying a transform to coordinates - exactly the mask-coordinate bookkeeping the TB task must get right"
+   },
+   {
+    "rank": 2,
+    "task_id": "facebookresearch__fvcore.a491d5b9.func_pm_op_swap__bybhuobu",
+    "skill": 4,
+    "domain": 5,
+    "task_form": 2,
+    "overall": 3,
+    "reason": "giou_loss computes box overlap wrongly; reasoning about box intersection/union is the overlap constraint in the TB task"
+   },
+   {
+    "rank": 3,
+    "task_id": "facebookresearch__fvcore.a491d5b9.combine_module__uxncj1ip",
+    "skill": 3,
+    "domain": 5,
+    "task_form": 2,
+    "overall": 3,
+    "reason": "Broken to_numpy in fvcore/transforms - array/tensor conversion inside a detectron-family image transform stack"
+   },
+   {
+    "rank": 4,
+    "task_id": "facebookresearch__fvcore.a491d5b9.func_pm_remove_assign__jafbltn2",
+    "skill": 3,
+    "domain": 5,
+    "task_form": 2,
+    "overall": 3,
+    "reason": "Another fvcore.transforms defect; same image-transform module family the TB task's preprocessing sits in"
+   },
+   {
+    "rank": 5,
+    "task_id": "facebookresearch__fvcore.a491d5b9.func_pm_ctrl_shuffle__n9luhuy3",
+    "skill": 3,
+    "domain": 4,
+    "task_form": 2,
+    "overall": 3,
+    "reason": "Checkpointer.load misbehaves - loading pretrained weights correctly is a prerequisite of using MobileSAM"
+   },
+   {
+    "rank": 6,
+    "task_id": "amueller__word_cloud.ec24191c.func_pm_ctrl_shuffle__p0vuu6sd",
+    "skill": 3,
+    "domain": 3,
+    "task_form": 2,
+    "overall": 3,
+    "reason": "Boolean-mask conversion broken; converting arbitrary arrays into a usable binary mask is the same primitive"
+   },
+   {
+    "rank": 7,
+    "task_id": "amueller__word_cloud.ec24191c.combine_file__do6xqi4d",
+    "skill": 3,
+    "domain": 3,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Recolouring fails when the source image is smaller than the canvas - index-bounds reasoning on image arrays"
+   },
+   {
+    "rank": 8,
+    "task_id": "jsvine__pdfplumber.02ff4313.lm_rewrite__fkldf5pb",
+    "skill": 3,
+    "domain": 3,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Rendered page ignores the crop bbox; bounding-box-to-raster mapping bug"
+   },
+   {
+    "rank": 9,
+    "task_id": "amueller__word_cloud.ec24191c.func_basic__em24z2r4",
+    "skill": 2,
+    "domain": 3,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Width/height swapped when a mask is used; axis-order confusion, the classic xy/row-col bug in mask code"
+   },
+   {
+    "rank": 10,
+    "task_id": "dask__dask.5f61e423.lm_rewrite__ffikl1dk",
+    "skill": 2,
+    "domain": 3,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Slice-direction bug for arrays with fractional coordinates; array indexing correctness only"
+   }
+  ],
+  "SWE-Rebench-Tasks-Clean": [
+   {
+    "rank": 1,
+    "task_id": "vanvalenlab__deepcell-tf-673",
+    "skill": 4,
+    "domain": 5,
+    "task_form": 2,
+    "overall": 4,
+    "reason": "Padding removal in a cell-segmentation application's tile/untile path returns empty arrays - literally cell segmentation model inference plumbing"
+   },
+   {
+    "rank": 2,
+    "task_id": "toblerity__shapely-851",
+    "skill": 4,
+    "domain": 4,
+    "task_form": 2,
+    "overall": 3,
+    "reason": "polylabel fails on a polygon with holes; polygon interior reasoning is what turning masks into clean polylines needs"
+   },
+   {
+    "rank": 3,
+    "task_id": "toblerity__shapely-1090",
+    "skill": 3,
+    "domain": 4,
+    "task_form": 2,
+    "overall": 3,
+    "reason": "Canonical ring ordering/normalisation of polygons - the same vertex-ordering questions a polyline output raises"
+   },
+   {
+    "rank": 4,
+    "task_id": "scitools__cartopy-2378",
+    "skill": 3,
+    "domain": 4,
+    "task_form": 2,
+    "overall": 3,
+    "reason": "LinearRing construction failure from projected polygon vertices; invalid-ring handling in a geometry stack"
+   },
+   {
+    "rank": 5,
+    "task_id": "corteva__rioxarray-841",
+    "skill": 2,
+    "domain": 4,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Spurious coordinate emitted for a raster; raster coordinate bookkeeping"
+   },
+   {
+    "rank": 6,
+    "task_id": "cs-si__eodag-1717",
+    "skill": 2,
+    "domain": 3,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Polygon geometry passed through a search API; geometry serialisation only"
+   },
+   {
+    "rank": 7,
+    "task_id": "fatiando__harmonica-479",
+    "skill": 2,
+    "domain": 3,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Sign inversion in a grid filter caught by comparing to an analytic expectation; numeric-array debugging"
+   },
+   {
+    "rank": 8,
+    "task_id": "huggingface__transformers-36497",
+    "skill": 2,
+    "domain": 4,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Add deterministic seeding to a torch data collator; torch API surface, no vision geometry"
+   },
+   {
+    "rank": 9,
+    "task_id": "pyg-team__pytorch_geometric-9099",
+    "skill": 2,
+    "domain": 4,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "PyTorch-ecosystem library fix; same stack, different capability"
+   },
+   {
+    "rank": 10,
+    "task_id": "psd-tools__psd-tools-452",
+    "skill": 2,
+    "domain": 3,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Path handling regression in a layered-image library; image file I/O only"
+   }
+  ],
+  "Terminal-Lego-15k": [
+   {
+    "rank": 1,
+    "task_id": "task_13495",
+    "skill": 4,
+    "domain": 4,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Locate an object in an image with CV/ML and emit coordinates judged by IoU against ground truth - localisation plus overlap scoring"
+   },
+   {
+    "rank": 2,
+    "task_id": "task_08936",
+    "skill": 3,
+    "domain": 3,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Decide whether two axis-aligned rectangles overlap; the TB task must guarantee masks do not overlap"
+   },
+   {
+    "rank": 3,
+    "task_id": "task_09105",
+    "skill": 3,
+    "domain": 3,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Polygon area from an ordered vertex list - the shoelace/vertex-ordering reasoning polyline masks require"
+   },
+   {
+    "rank": 4,
+    "task_id": "task_08965",
+    "skill": 4,
+    "domain": 3,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Polygon inflate/deflate offsetting: producing a valid non-self-intersecting polygon from vertices"
+   },
+   {
+    "rank": 5,
+    "task_id": "task_13486",
+    "skill": 3,
+    "domain": 3,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Implement mAP with IoU between predicted and ground-truth boxes; the exact evaluation metric behind the TB task"
+   },
+   {
+    "rank": 6,
+    "task_id": "task_14932",
+    "skill": 3,
+    "domain": 2,
+    "task_form": 3,
+    "overall": 2,
+    "reason": "Cover a set of rectangles with a minimal set of non-overlapping rectangles - the non-overlap constraint as a geometry problem"
+   },
+   {
+    "rank": 7,
+    "task_id": "task_04575",
+    "skill": 2,
+    "domain": 4,
+    "task_form": 3,
+    "overall": 2,
+    "reason": "Stack channel arrays into a valid RGB image at large sizes; numpy/PIL image array handling"
+   },
+   {
+    "rank": 8,
+    "task_id": "task_13519",
+    "skill": 3,
+    "domain": 4,
+    "task_form": 3,
+    "overall": 2,
+    "reason": "Match logos in query images with descriptors/template matching; classic CV pipeline, weakly verified"
+   },
+   {
+    "rank": 9,
+    "task_id": "task_08952",
+    "skill": 3,
+    "domain": 3,
+    "task_form": 3,
+    "overall": 2,
+    "reason": "Parse a maze image into a grid and search it; image-to-structure conversion"
+   },
+   {
+    "rank": 10,
+    "task_id": "task_04431",
+    "skill": 2,
+    "domain": 4,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Load an RGB image into a correct numpy array; the smallest piece of the TB preprocessing"
+   }
+  ],
+  "CalibForge": [
+   {
+    "rank": 1,
+    "task_id": "model-training_20260603_181444_001",
+    "skill": 4,
+    "domain": 5,
+    "task_form": 4,
+    "overall": 4,
+    "reason": "Segmentation checkpoints ranked by mean IoU against ground-truth masks, with an inflated-metric bug to find - mask evaluation plus checkpoint loading"
+   },
+   {
+    "rank": 2,
+    "task_id": "data-science_20260616_094815_008",
+    "skill": 4,
+    "domain": 4,
+    "task_form": 5,
+    "overall": 4,
+    "reason": "argparse script computing per-polygon statistics over a raster and writing a CSV keyed by feature id - same CLI+geometry+CSV contract"
+   },
+   {
+    "rank": 3,
+    "task_id": "model-training_20260505_093950_003",
+    "skill": 4,
+    "domain": 5,
+    "task_form": 3,
+    "overall": 4,
+    "reason": "Load a checkpoint saved with pruning wrappers still attached and re-save it clean - exactly the third-party-weights loading trap MobileSAM poses"
+   },
+   {
+    "rank": 4,
+    "task_id": "data-science_20260606_172554_008",
+    "skill": 4,
+    "domain": 3,
+    "task_form": 4,
+    "overall": 3,
+    "reason": "Point-in-polygon against a boundary with interior rings; correct handling of holes and containment, as polyline masks need"
+   },
+   {
+    "rank": 5,
+    "task_id": "machine-learning_20260414_211453_002",
+    "skill": 3,
+    "domain": 5,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Fix a focal loss used for class-imbalanced semantic segmentation; segmentation training internals"
+   },
+   {
+    "rank": 6,
+    "task_id": "data-processing_20260514_010833_001",
+    "skill": 4,
+    "domain": 3,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Detect unclosed rings, wrong winding order and self-intersections in geometries - validity rules the output polylines must satisfy"
+   },
+   {
+    "rank": 7,
+    "task_id": "data-science_20260604_193056_008",
+    "skill": 3,
+    "domain": 3,
+    "task_form": 4,
+    "overall": 3,
+    "reason": "Repair invalid polygons and compute areas/distances in a projected CRS into a rounded CSV; geometry repair plus strict output"
+   },
+   {
+    "rank": 8,
+    "task_id": "video-processing_20260612_191200_001",
+    "skill": 3,
+    "domain": 4,
+    "task_form": 4,
+    "overall": 3,
+    "reason": "cv2-only script detecting shot boundaries and writing keyframes; CPU OpenCV pipeline with a fixed dependency list"
+   },
+   {
+    "rank": 9,
+    "task_id": "video-processing_20260604_004411_001",
+    "skill": 3,
+    "domain": 4,
+    "task_form": 4,
+    "overall": 3,
+    "reason": "cv2/numpy-only QC analyser detecting several frame-level anomalies; same restricted-library CV scripting"
+   },
+   {
+    "rank": 10,
+    "task_id": "model-training_20260508_161717_002",
+    "skill": 3,
+    "domain": 5,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Migrate old checkpoints into a refactored architecture - state_dict key remapping, the failure mode when loading a repo's weights"
+   }
+  ]
+ },
+ "final_top10": [
+  {
+   "rank": 1,
+   "task_id": "model-training_20260603_181444_001",
+   "skill": 4,
+   "domain": 5,
+   "task_form": 4,
+   "overall": 4,
+   "reason": "Segmentation masks scored by IoU with a checkpoint-loading bug; closest thing in the pool to mask quality plus weight loading",
+   "source": "CalibForge"
+  },
+  {
+   "rank": 2,
+   "task_id": "vanvalenlab__deepcell-tf-673",
+   "skill": 4,
+   "domain": 5,
+   "task_form": 2,
+   "overall": 4,
+   "reason": "Cell-segmentation inference: tile/untile padding bug that empties the predicted mask - same domain and same pipeline stage",
+   "source": "SWE-Rebench-Tasks-Clean"
+  },
+  {
+   "rank": 3,
+   "task_id": "task_009562_91210c7c",
+   "skill": 4,
+   "domain": 4,
+   "task_form": 4,
+   "overall": 4,
+   "reason": "Reconstruct the model behind a state_dict, run it, and emit schema-valid output - the load-weights-and-infer crux, strongly verified",
+   "source": "TMax-15K"
+  },
+  {
+   "rank": 4,
+   "task_id": "data-science_20260616_094815_008",
+   "skill": 4,
+   "domain": 4,
+   "task_form": 5,
+   "overall": 4,
+   "reason": "argparse CLI over an image plus per-feature polygons producing a CSV keyed by id; identical interface and output contract",
+   "source": "CalibForge"
+  },
+  {
+   "rank": 5,
+   "task_id": "model-training_20260505_093950_003",
+   "skill": 4,
+   "domain": 5,
+   "task_form": 3,
+   "overall": 4,
+   "reason": "Loading someone else's checkpoint whose keys are wrapped, without editing their code - the MobileSAM weight-loading trap",
+   "source": "CalibForge"
+  },
+  {
+   "rank": 6,
+   "task_id": "task_007296_a67e32b2",
+   "skill": 4,
+   "domain": 4,
+   "task_form": 4,
+   "overall": 4,
+   "reason": "Infer architecture from a .pth and score a dataset; pinned expected values make it safe RL signal",
+   "source": "TMax-15K"
+  },
+  {
+   "rank": 7,
+   "task_id": "task_005624_f322de3b",
+   "skill": 4,
+   "domain": 4,
+   "task_form": 4,
+   "overall": 3,
+   "reason": "Construct the specified network, load state_dict, eval-mode CPU inference over every row - CPU-only inference discipline",
+   "source": "TMax-15K"
+  },
+  {
+   "rank": 8,
+   "task_id": "data-science_20260606_172554_008",
+   "skill": 4,
+   "domain": 3,
+   "task_form": 4,
+   "overall": 3,
+   "reason": "Containment against polygons with holes; correct polygon semantics for the polyline masks the TB task must emit",
+   "source": "CalibForge"
+  },
+  {
+   "rank": 9,
+   "task_id": "facebookresearch__fvcore.a491d5b9.func_basic__9v6fbo43",
+   "skill": 4,
+   "domain": 5,
+   "task_form": 2,
+   "overall": 3,
+   "reason": "Coordinate transform flips the wrong axis in Meta's own CV utility library - the xy bookkeeping that breaks mask conversion",
+   "source": "SWE-Smith-Seeds-Clean"
+  },
+  {
+   "rank": 10,
+   "task_id": "task_13495",
+   "skill": 4,
+   "domain": 4,
+   "task_form": 3,
+   "overall": 3,
+   "reason": "Localise an object in an image and be judged by IoU overlap with truth; localisation plus overlap scoring, weak but non-FREE verifier",
+   "source": "Terminal-Lego-15k"
+  }
+ ],
+ "notes": "Nothing in any of the seven corpora mentions SAM, MobileSAM or prompt-based segmentation - zero hits for the model itself. The two new corpora clearly win here: CalibForge supplies the only true segmentation-with-IoU task (model-training_20260603_181444_001), the only realistic checkpoint-loading traps, and the best-matching argparse+geometry+CSV form, taking 4 of the final 10; Terminal-Lego contributes real CV/geometry problems (IoU localisation, polygon offsetting, rectangle overlap) that the v1 pool lacked, though nearly all are weak-graded so only one made the final. Recursive-Task-Synthesis and TerminalWorld have no defensible 10: RTS's best is a torch-model-from-config chore and the rest are /app CSV boilerplate (all `absent`), TerminalWorld's only pretrained-detector task is FREE. SWE-Smith transfers narrowly but genuinely through fvcore, which is Meta's own detection-utility library (coordinate transforms, box IoU loss, Checkpointer)."
+}

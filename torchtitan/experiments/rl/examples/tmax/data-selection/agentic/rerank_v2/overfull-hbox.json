@@ -1,0 +1,125 @@
+{
+  "tb21_id": "overfull-hbox",
+  "tb21_profile": {
+    "skill": "Run pdflatex, read its log for overfull-hbox diagnostics, and search a restricted synonym-substitution space until every warning is gone",
+    "domain": "LaTeX/TeX typesetting toolchain (pdflatex, .tex/.log), plain-text source editing",
+    "task_form": "optimise/satisfy-a-constraint under a hard edit restriction, with a compiler as the only oracle; iterate until diagnostics are empty"
+  },
+  "verifier_notes": "No grade disputed. Noted that the whole LaTeX-domain slice of Recursive-Task-Synthesis is 'absent' (corpus-wide), and TerminalWorld's LaTeX/PDF slice is almost entirely FREE (tw_495570, tw_430004, tw_481830, tw_220417, tw_129867, tw_362046) - those are listed in per_source but kept out of final_top10. tw_96480 and tw_287590 are the only graded LaTeX tasks TerminalWorld has.",
+  "searches": [
+    "tools.py search all 'pdflatex|xelatex|lualatex|\\bLaTeX\\b'",
+    "tools.py search all 'TeX Live|texlive|tlmgr|bibtex|biblatex|tikz|beamer|\\.tex\\b|documentclass|typeset'",
+    "tools.py search all 'without any warnings|no warnings|zero warnings|warning-free|-Werror|eliminate (all )?warnings'",
+    "tools.py search all 'synonym|thesaurus'",
+    "tools.py search all 'text justification|word wrap|line[- ]break|justif(y|ied) (the )?text|greedy wrapping|fill column'",
+    "tools.py search smith,rebench 'weasyprint'",
+    "tools.py search smith,rebench 'hyphen'",
+    "tools.py search rebench 'kozea|pango|font|glyph|render.*text|css'",
+    "tools.py search smith 'prettytable'",
+    "tools.py search smith 'python-docx|pdfminer|pdfplumber|python-pptx|reportlab|weasy'",
+    "tools.py search tmax 'latex|\\.tex\\b|typeset|-Werror|zero warnings|no warnings|compiler warning'",
+    "tools.py search tmax 'only .{0,20}(replace|substitut|edit)|may not modify|must not modify|without modifying|search over (all )?(possible|combinations)|brute.force.*(combinations|search)'",
+    "tools.py search calib 'latex|typeset|\\.tex\\b|pdf'",
+    "tools.py search lego 'latex|tex file|\\.tex\\b'",
+    "tools.py search tw 'latex|pdf|document|typeset|font'"
+  ],
+  "per_source": {
+    "TMax-15K": [
+      {"rank": 1, "task_id": "task_002074_9bdcebd9", "skill": 4, "domain": 1, "task_form": 4, "overall": 3, "reason": "Must not modify the validator binary; edit only the input lines until the oracle stops crashing - same restricted-edit feedback loop."},
+      {"rank": 2, "task_id": "task_002869_18f98df5", "skill": 4, "domain": 1, "task_form": 3, "overall": 3, "reason": "Constraint satisfaction over a finite candidate space (z3 or brute force) - the synonym search in overfull-hbox is the same shape."},
+      {"rank": 3, "task_id": "task_000583_85cb2773", "skill": 3, "domain": 2, "task_form": 3, "overall": 3, "reason": "Fix C sources until make with -Wall -Werror -O3 emits nothing; iterate on compiler diagnostics rather than on a spec."},
+      {"rank": 4, "task_id": "task_006537_1fae990e", "skill": 3, "domain": 2, "task_form": 3, "overall": 3, "reason": "-Werror halts the build on a returned stack pointer; must read the diagnostic and edit source until the toolchain is silent."},
+      {"rank": 5, "task_id": "task_009887_3b3d8380", "skill": 3, "domain": 2, "task_form": 3, "overall": 3, "reason": "Makefile configured with -Werror fails; repeated build-read-error-edit cycles, same loop as pdflatex-log-driven editing."},
+      {"rank": 6, "task_id": "task_002328_02147ea3", "skill": 3, "domain": 2, "task_form": 3, "overall": 3, "reason": "-Werror catches implicit declarations; fix includes until the build target passes. Warning-elimination loop, different toolchain."},
+      {"rank": 7, "task_id": "task_003199_7b080b2f", "skill": 3, "domain": 2, "task_form": 3, "overall": 3, "reason": "Fix CMakeLists so cmake && make succeeds WITHOUT modifying the source - an edit-restriction constraint like the synonyms-only rule."},
+      {"rank": 8, "task_id": "task_002557_b000897e", "skill": 3, "domain": 2, "task_form": 3, "overall": 3, "reason": "Repair C until gcc -O2 -Wall -Werror compiles it, then run and check output; compiler-in-the-loop repair."},
+      {"rank": 9, "task_id": "task_002492_6497095b", "skill": 3, "domain": 2, "task_form": 3, "overall": 3, "reason": "Circular struct dependency blocks compilation; diagnose from compiler output and restructure until it builds."},
+      {"rank": 10, "task_id": "task_003214_257a68d0", "skill": 2, "domain": 2, "task_form": 3, "overall": 2, "reason": "Author a Makefile that compiles under -Wall -Werror; build-toolchain work but no search and no diagnostic-driven iteration."}
+    ],
+    "Recursive-Task-Synthesis": [
+      {"rank": 1, "task_id": "rts_task_8c3c874eeb0e8e539b6a1d81", "skill": 4, "domain": 5, "task_form": 3, "overall": 4, "reason": "pdflatex itself is broken and must be diagnosed from its own error output before the document will compile - same tool, same log-reading."},
+      {"rank": 2, "task_id": "rts_task_891c28df009cf61e04497265", "skill": 4, "domain": 5, "task_form": 4, "overall": 4, "reason": "PDF must contain no '??' placeholders: forces re-running pdflatex and reading its cross-reference diagnostics until clean, exactly the hbox loop."},
+      {"rank": 3, "task_id": "rts_task_42dbe1500f876578d41c1cac", "skill": 4, "domain": 5, "task_form": 3, "overall": 4, "reason": "LaTeX compilation must succeed with no missing-package or font errors; read pdflatex errors, install, recompile, repeat."},
+      {"rank": 4, "task_id": "rts_task_55ca4a0dc153fe57ea58ae65", "skill": 3, "domain": 5, "task_form": 3, "overall": 3, "reason": "Compile showcase.tex with a custom document class and make sure cross-references resolve - multi-pass pdflatex discipline."},
+      {"rank": 5, "task_id": "rts_task_0671c14dff57b9cade9ba19e", "skill": 4, "domain": 2, "task_form": 4, "overall": 3, "reason": "Clean rebuild with all compiler warnings enabled and confirm zero remain - the warning-elimination goal in a C toolchain."},
+      {"rank": 6, "task_id": "rts_task_52a962d6d68b73c1ddba4309", "skill": 4, "domain": 2, "task_form": 4, "overall": 3, "reason": "Splint must report no warnings, and the exact flags must be discovered from the source; drive a checker to silence."},
+      {"rank": 7, "task_id": "rts_task_d448afe0430c6c0bd7720f5c", "skill": 3, "domain": 5, "task_form": 3, "overall": 3, "reason": "Produce .tex with required layout markers, compile with pdflatex, then pass validate.sh - LaTeX source editing judged by a checker."},
+      {"rank": 8, "task_id": "rts_task_f60b35a6555f2a94f80c09a7", "skill": 2, "domain": 5, "task_form": 2, "overall": 3, "reason": "Requires parsing the generated .tex for every referenced package; LaTeX source comprehension but no compile-feedback loop."},
+      {"rank": 9, "task_id": "rts_task_210815961cc7c0fd739fcac0", "skill": 2, "domain": 5, "task_form": 2, "overall": 3, "reason": "Produce a standalone .tex from history and compile it with pdflatex; LaTeX toolchain use, mostly git plumbing otherwise."},
+      {"rank": 10, "task_id": "rts_task_2cd22333d471af070224d36d", "skill": 2, "domain": 4, "task_form": 2, "overall": 2, "reason": "pdflatex compile is only a sanity check inside a git/pandoc chore; shares the tool, not the failure mode."}
+    ],
+    "TerminalWorld-Seeds-Clean": [
+      {"rank": 1, "task_id": "tw_96480", "skill": 3, "domain": 5, "task_form": 3, "overall": 4, "reason": "Fill a LaTeX template from data, emit .tex, compile to PDF; real pdflatex work and one of only two graded LaTeX tasks here."},
+      {"rank": 2, "task_id": "tw_287590", "skill": 3, "domain": 5, "task_form": 3, "overall": 3, "reason": "Compile showcase.tex with the Metanorma class to a valid 5-page PDF; class-file placement errors must be read out of the pdflatex log."},
+      {"rank": 3, "task_id": "tw_362046", "skill": 3, "domain": 2, "task_form": 3, "overall": 2, "reason": "Run Splint on two C files and compare diagnostics; static-analyser-output reading, but FREE-graded so excluded from final_top10."},
+      {"rank": 4, "task_id": "tw_495570", "skill": 2, "domain": 4, "task_form": 2, "overall": 2, "reason": "HTML to LaTeX intermediate to PDF; LaTeX domain only, FREE verifier - a PDF that merely exists passes."},
+      {"rank": 5, "task_id": "tw_430004", "skill": 2, "domain": 4, "task_form": 2, "overall": 2, "reason": "Produce a standalone .tex and commit it; touches LaTeX source but never compiles it. FREE verifier."},
+      {"rank": 6, "task_id": "tw_220417", "skill": 2, "domain": 3, "task_form": 2, "overall": 2, "reason": "AsciiDoc book to PDF - a document-build toolchain that will fail loudly and need iteration, but FREE-graded."},
+      {"rank": 7, "task_id": "tw_322195", "skill": 2, "domain": 1, "task_form": 3, "overall": 2, "reason": "Build Git from source with OpenSSL and cURL: configure-build-read-error loop, unrelated domain, but strongly verified."},
+      {"rank": 8, "task_id": "tw_481830", "skill": 2, "domain": 3, "task_form": 2, "overall": 2, "reason": "Webpage to PDF with any tool; only the PDF-production domain overlaps, and the verifier is FREE."},
+      {"rank": 9, "task_id": "tw_129867", "skill": 2, "domain": 1, "task_form": 3, "overall": 2, "reason": "Build a project from source until compilation completes; generic build-until-it-works, FREE verifier."},
+      {"rank": 10, "task_id": "tw_510751", "skill": 2, "domain": 1, "task_form": 2, "overall": 2, "reason": "Compile and run an MPI program; toolchain invocation only, no diagnostic-driven search."}
+    ],
+    "SWE-Smith-Seeds-Clean": [
+      {"rank": 1, "task_id": "prettytable__prettytable.ca90b055.lm_rewrite__gp2dm2y4", "skill": 4, "domain": 3, "task_form": 2, "overall": 3, "reason": "Table does not respect its max width, causing unexpected line breaks and misalignment - the same width-overflow reasoning as an overfull hbox."},
+      {"rank": 2, "task_id": "jsvine__pdfplumber.02ff4313.func_pm_ctrl_invert_if__tv5b85l9", "skill": 3, "domain": 3, "task_form": 2, "overall": 3, "reason": "layout_width / layout_width_chars mutual-exclusion bug in PDF text layout; reasoning about measured widths on a page."},
+      {"rank": 3, "task_id": "amueller__word_cloud.ec24191c.lm_rewrite__mck8czap", "skill": 3, "domain": 2, "task_form": 2, "overall": 2, "reason": "Word-cloud placement fits words into a bounded canvas by search over sizes and positions; box-packing intuition transfers weakly."},
+      {"rank": 4, "task_id": "python-openxml__python-docx.0cf6d71f.combine_file__pu7zvue4", "skill": 2, "domain": 3, "task_form": 2, "overall": 2, "reason": "Document object model for a typeset format (paragraphs, runs, styles); shares the typesetting subject, not the compile loop."},
+      {"rank": 5, "task_id": "pdfminer__pdfminer.six.1a8bd2f7.pr_887", "skill": 2, "domain": 3, "task_form": 2, "overall": 2, "reason": "PDF text extraction depends on glyph boxes and line grouping - adjacent to how TeX measures boxes, but a pure library bug fix."},
+      {"rank": 6, "task_id": "scanny__python-pptx.278b47b1.lm_rewrite__36gjsryw", "skill": 2, "domain": 3, "task_form": 2, "overall": 2, "reason": "Presentation document model and layout placeholders; same 'lay content into fixed boxes' territory, no compiler feedback."},
+      {"rank": 7, "task_id": "lepture__mistune.bf54ef67.lm_rewrite__16rgzg4j", "skill": 2, "domain": 2, "task_form": 2, "overall": 2, "reason": "Markup renderer bug: parse markup, emit formatted output. Markup processing only, no typographic constraint."},
+      {"rank": 8, "task_id": "Knio__dominate.9082227e.func_basic__s567f7gk", "skill": 2, "domain": 2, "task_form": 2, "overall": 2, "reason": "Programmatic document generation with nested markup; shares the 'emit a document that must be well formed' shape."},
+      {"rank": 9, "task_id": "getnikola__nikola.0f4c230e.lm_rewrite__57clvdod", "skill": 2, "domain": 2, "task_form": 2, "overall": 2, "reason": "Static-site document build pipeline; a build-and-render chain, but the failure is a Python regression, not a renderer diagnostic."},
+      {"rank": 10, "task_id": "lincolnloop__python-qrcode.456b01d4.func_pm_remove_loop__lvhgphel", "skill": 2, "domain": 1, "task_form": 2, "overall": 1, "reason": "2D module placement in a fixed grid; only the vaguest layout analogy, unrelated stack."}
+    ],
+    "SWE-Rebench-Tasks-Clean": [
+      {"rank": 1, "task_id": "kozea__weasyprint-2416", "skill": 4, "domain": 4, "task_form": 2, "overall": 4, "reason": "Hyphenation fails when a nbsp appears in the word: a line-breaking bug in a paginating layout engine, the exact mechanism behind overfull hboxes."},
+      {"rank": 2, "task_id": "kozea__weasyprint-2404", "skill": 3, "domain": 4, "task_form": 2, "overall": 3, "reason": "Duplicate text when RTL runs are laid out into PDF; requires reasoning about how a renderer breaks and places text runs."},
+      {"rank": 3, "task_id": "kozea__weasyprint-2405", "skill": 3, "domain": 4, "task_form": 2, "overall": 3, "reason": "Font unicode-range handling in a HTML-to-PDF renderer; font metrics decide box widths, so the domain is genuinely shared."},
+      {"rank": 4, "task_id": "executablebooks__myst-parser-734", "skill": 3, "domain": 5, "task_form": 2, "overall": 3, "reason": "Crash inside Sphinx's LaTeX builder while assembling the doctree; the only Rebench task in the actual LaTeX output path."},
+      {"rank": 5, "task_id": "googlefonts__glyphslib-563", "skill": 2, "domain": 3, "task_form": 2, "overall": 2, "reason": "Font source tooling; glyph metrics are what make a line overfull, but the task is a data round-trip bug."},
+      {"rank": 6, "task_id": "python-markdown__markdown-1072", "skill": 2, "domain": 2, "task_form": 2, "overall": 2, "reason": "Parser loses content across line breaks in raw blocks; markup line-handling, no layout measurement."},
+      {"rank": 7, "task_id": "pallets__jinja-1449", "skill": 2, "domain": 2, "task_form": 2, "overall": 2, "reason": "Template rendering and whitespace handling; document generation, but nothing measures or constrains output width."},
+      {"rank": 8, "task_id": "pyccel__pyccel-1780", "skill": 2, "domain": 2, "task_form": 2, "overall": 2, "reason": "Transpile-then-compile pipeline where the backend compiler's errors surface to the user; mild compiler-in-the-loop overlap."},
+      {"rank": 9, "task_id": "roskakori__pygount-55", "skill": 2, "domain": 1, "task_form": 2, "overall": 2, "reason": "Line-level analysis of source text; shares only the 'reason about lines of a text file' surface."},
+      {"rank": 10, "task_id": "tox-dev__pipdeptree-394", "skill": 1, "domain": 1, "task_form": 2, "overall": 1, "reason": "Dependency-tree text rendering; listed to fill the quota, nothing about typography or constrained search transfers."}
+    ],
+    "Terminal-Lego-15k": [
+      {"rank": 1, "task_id": "task_03843", "skill": 4, "domain": 5, "task_form": 3, "overall": 4, "reason": "Real LaTeX authoring problem: get a literal backslash through \\write, verified by actually running pdflatex and checking the emitted file."},
+      {"rank": 2, "task_id": "task_13005", "skill": 3, "domain": 5, "task_form": 3, "overall": 3, "reason": "Install a TeX distribution and drive nbconvert's pdflatex backend until conversion succeeds; failures surface only as pdflatex errors."},
+      {"rank": 3, "task_id": "task_13013", "skill": 3, "domain": 5, "task_form": 3, "overall": 3, "reason": "Same conversion via the xelatex backend; TeX-distribution package hunting driven by the engine's own error messages."},
+      {"rank": 4, "task_id": "task_11636", "skill": 2, "domain": 5, "task_form": 2, "overall": 3, "reason": "Whole-project LaTeX workflow including latexdiff and ignoring .aux/.log build artefacts; teaches the TeX build model, not the hbox fix."},
+      {"rank": 5, "task_id": "task_10664", "skill": 3, "domain": 5, "task_form": 2, "overall": 2, "reason": "Make tlmgr fonts visible to xelatex/lualatex via fontconfig - genuine TeX-distribution debugging, but FREE-graded so barred from final_top10."},
+      {"rank": 6, "task_id": "task_05008", "skill": 2, "domain": 4, "task_form": 2, "overall": 2, "reason": "Write and render LaTeX math in Jupyter; LaTeX syntax practice with a MathJax renderer instead of a TeX engine."},
+      {"rank": 7, "task_id": "task_05082", "skill": 2, "domain": 4, "task_form": 2, "overall": 2, "reason": "Control SymPy's LaTeX rendering of multi-expression cells; LaTeX output plumbing, no compilation constraint."},
+      {"rank": 8, "task_id": "task_04907", "skill": 2, "domain": 4, "task_form": 2, "overall": 2, "reason": "Get Angstrom and lambda to render through matplotlib's LaTeX text path; font/encoding troubleshooting in a mathtext renderer."},
+      {"rank": 9, "task_id": "task_04822", "skill": 2, "domain": 4, "task_form": 2, "overall": 2, "reason": "Embed a LaTeX formula in a matplotlib legend; escaping and mathtext syntax only."},
+      {"rank": 10, "task_id": "task_07985", "skill": 2, "domain": 1, "task_form": 3, "overall": 2, "reason": "Read a compiler's fatal error and fix the Makefile include path until make succeeds; diagnostic-driven repair, wrong toolchain."}
+    ],
+    "CalibForge": [
+      {"rank": 1, "task_id": "software-engineering_20260604_004411_002", "skill": 5, "domain": 2, "task_form": 4, "overall": 4, "reason": "System CFLAGS carry -Werror and must not be overridden: the only legal move is editing the source until every warning disappears. Structurally identical constraint."},
+      {"rank": 2, "task_id": "software-engineering_20260606_153537_001", "skill": 4, "domain": 2, "task_form": 4, "overall": 3, "reason": "K&R C must build with zero warnings under the provided Makefile, which you may not relax; iterate on gcc diagnostics until silent."},
+      {"rank": 3, "task_id": "software-engineering_20260610_112157_020", "skill": 4, "domain": 2, "task_form": 3, "overall": 3, "reason": "make must build library and test program with no warnings or errors; repeated build-read-fix cycles against fixed flags."},
+      {"rank": 4, "task_id": "software-engineering_20260501_000112_004", "skill": 4, "domain": 2, "task_form": 3, "overall": 3, "reason": "Eliminate strict-aliasing warnings under -Wall -Wextra and UBSan findings too; two independent diagnostic streams must both go quiet."},
+      {"rank": 5, "task_id": "software-engineering_20260604_002443_006", "skill": 4, "domain": 2, "task_form": 3, "overall": 3, "reason": "Get a legacy tool compiling cleanly under -Wall -Wextra -Werror -O2 and produce correct output; warning elimination plus a pinned result."},
+      {"rank": 6, "task_id": "software-engineering_20260611_210349_001", "skill": 4, "domain": 2, "task_form": 3, "overall": 3, "reason": "Stricter gcc with -Werror in the Makefile rejects code that used to build; read each diagnostic and repair rather than loosen flags."},
+      {"rank": 7, "task_id": "software-engineering_20260602_105139_017", "skill": 4, "domain": 2, "task_form": 3, "overall": 3, "reason": "Must compile under -Wall -Wextra -Werror -O2 while keeping output format fixed - two constraints held simultaneously, like main.tex being off-limits."},
+      {"rank": 8, "task_id": "software-engineering_20260604_003113_005", "skill": 3, "domain": 2, "task_form": 3, "overall": 3, "reason": "Install a compiler, then make csv2json build cleanly under -Wall -Werror -Wextra and behave correctly; toolchain setup plus warning cleanup."},
+      {"rank": 9, "task_id": "debugging_20260604_002443_004", "skill": 3, "domain": 2, "task_form": 3, "overall": 3, "reason": "Produce correct statistics with no warnings and fix header dependency tracking; build-system reasoning under a no-warnings requirement."},
+      {"rank": 10, "task_id": "software-engineering_20260511_150433_002", "skill": 3, "domain": 2, "task_form": 3, "overall": 3, "reason": "2005-era sources will not compile on modern GCC; repeatedly read compiler complaints and adjust until the shared library links."}
+    ]
+  },
+  "final_top10": [
+    {"rank": 1, "task_id": "task_03843", "source": "Terminal-Lego-15k", "skill": 4, "domain": 5, "task_form": 3, "overall": 4, "reason": "The only graded task in the pool that writes LaTeX and is verified by actually running pdflatex and inspecting what it produced."},
+    {"rank": 2, "task_id": "rts_task_891c28df009cf61e04497265", "source": "Recursive-Task-Synthesis", "skill": 4, "domain": 5, "task_form": 4, "overall": 4, "reason": "No '??' placeholders allowed in the PDF: forces multi-pass pdflatex and log reading until a typographic defect is gone. Verifier absent."},
+    {"rank": 3, "task_id": "software-engineering_20260604_004411_002", "source": "CalibForge", "skill": 5, "domain": 2, "task_form": 4, "overall": 4, "reason": "-Werror is fixed and unoverridable, so the only legal move is editing content until the tool stops complaining - the same constrained loop, strongly verified."},
+    {"rank": 4, "task_id": "kozea__weasyprint-2416", "source": "SWE-Rebench-Tasks-Clean", "skill": 4, "domain": 4, "task_form": 2, "overall": 4, "reason": "A line-breaking and hyphenation bug in a paginating layout engine: the exact mechanism that produces an overfull hbox."},
+    {"rank": 5, "task_id": "rts_task_8c3c874eeb0e8e539b6a1d81", "source": "Recursive-Task-Synthesis", "skill": 4, "domain": 5, "task_form": 3, "overall": 4, "reason": "pdflatex itself is broken and must be diagnosed from its output before anything compiles; same tool, same log-reading skill."},
+    {"rank": 6, "task_id": "tw_96480", "source": "TerminalWorld-Seeds-Clean", "skill": 3, "domain": 5, "task_form": 3, "overall": 4, "reason": "Generate a .tex from a template and compile it to PDF with a graded verifier - TerminalWorld's only genuinely checked LaTeX task."},
+    {"rank": 7, "task_id": "rts_task_42dbe1500f876578d41c1cac", "source": "Recursive-Task-Synthesis", "skill": 4, "domain": 5, "task_form": 3, "overall": 4, "reason": "Compilation must succeed with no missing-package or font errors; read pdflatex errors, install, recompile until the log is clean."},
+    {"rank": 8, "task_id": "task_13005", "source": "Terminal-Lego-15k", "skill": 3, "domain": 5, "task_form": 3, "overall": 3, "reason": "Install a TeX distribution and drive the pdflatex backend until conversion succeeds; failures appear only as pdflatex diagnostics."},
+    {"rank": 9, "task_id": "software-engineering_20260606_153537_001", "source": "CalibForge", "skill": 4, "domain": 2, "task_form": 4, "overall": 3, "reason": "Zero warnings required under a Makefile you may not relax; pure diagnostic-elimination loop with a well-pinned verifier."},
+    {"rank": 10, "task_id": "rts_task_0671c14dff57b9cade9ba19e", "source": "Recursive-Task-Synthesis", "skill": 4, "domain": 2, "task_form": 4, "overall": 3, "reason": "Clean rebuild with all warnings enabled and confirm zero remain - the warning-count-to-zero objective, in C rather than TeX."}
+  ],
+  "notes": "The pool has essentially no task about constrained word substitution or text justification; searches for 'synonym', 'thesaurus', 'text justification' and 'word wrap' returned nothing usable. So transfer here splits into two families: (a) LaTeX/pdflatex domain, which only Recursive-Task-Synthesis (all 'absent'), Terminal-Lego and two TerminalWorld tasks supply, and (b) 'edit the content until a fixed, unmodifiable tool emits zero diagnostics', which CalibForge supplies in quantity and with the best verifiers. CalibForge contains no LaTeX at all; TMax contains no LaTeX at all. TerminalWorld could not field 10 defensible candidates - ranks 3-10 are filler and six of them are FREE. SWE-Smith ranks 4-10 and SWE-Rebench ranks 5-10 are also quota filler, scored 1-2 accordingly. RTS's LaTeX slice is large but is the same online-CV-to-PDF template repeated dozens of times; I picked the variants that actually require reacting to compiler output rather than the pure git/pandoc chores."
+}

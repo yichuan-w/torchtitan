@@ -1,0 +1,784 @@
+{
+  "tb21_id": "raman-fitting",
+  "tb21_profile": {
+    "skill": "Non-linear least-squares fitting of overlapping Lorentzian peaks (x0, gamma, amplitude, offset) to a noisy 1D spectrum and emitting the parameters as structured JSON",
+    "domain": "Numerical/scientific Python: numpy + scipy.optimize curve fitting, Raman/vibrational spectroscopy of graphene (G and 2D bands)",
+    "task_form": "implement-from-spec: read a data file, model it, write a fixed-schema JSON result that is checked numerically"
+  },
+  "verifier_notes": "The packet's `verifier` field and work/verifier_strength.json disagree for several CalibForge ids; verifier_strength.json is the newer file (23:01 vs the 22:56 packet) and I trusted it after reading the tests. scientific-computing_20260415_123352_007 is shown as `weak` in the packet but its tests/test_outputs.py holds the 5 true Lorentzian parameters and asserts peak positions within 10 cm^-1, >=4/5 centres within 5 cm^-1 and gamma/amplitude within a factor of 3 - verifier_strength.json grades it strong/0.875, which is right. Same direction for scientific-computing_20260416_031414_007 and scientific-computing_20260508_045557_007 (packet weak/ok, file strong). scientific-computing_20260504_125558_004 is a near-perfect Raman/fluorescence-baseline match but FREE in both sources, so it is out of final_top10 and out of per_source. task_001144_e1380e49 (multi-Lorentzian PSD fit) is a strong skill match but FREE, likewise excluded. Note work/free_verifier_tasks.tsv is NOT a FREE list - it lists any task with a cheap assertion, including strong ones - do not use it as the gate.",
+  "searches": [
+    "tools.py search rts \"Lorentzian|lorentzian\"",
+    "tools.py search rts \"curve_fit\"",
+    "tools.py search rts \"least.squares|least_squares\"",
+    "tools.py search rts \"spectr\"",
+    "tools.py search rts \"Gaussian|gaussian\"",
+    "tools.py search rts \"scipy\"",
+    "tools.py search rts \"numpy\"",
+    "tools.py search rts \"interpolat\"",
+    "tools.py search rts \"regression\"",
+    "tools.py search rts \"TTree|ROOT file\"",
+    "tools.py words rts spectrum peak fit gaussian curve data analysis json",
+    "tools.py search tmax \"Lorentzian|lorentzian|Voigt|FWHM\"",
+    "tools.py search tmax \"curve_fit\"",
+    "tools.py search tw \"curve_fit|scipy|Gaussian|spectr|peak\"",
+    "tools.py search tw \"numerical|matrix|eigen|statistic|regression|mean of|compute the\"",
+    "tools.py search rebench \"curve_fit|least_squares|lmfit\"",
+    "tools.py search rebench \"spectr\"",
+    "tools.py search rebench \"Gaussian|gaussian|Lorentz\"",
+    "tools.py search rebench \"\\bfit\\b|fitting\"",
+    "tools.py search smith \"curve_fit|least_squares|lmfit\"",
+    "tools.py search smith \"spectr\"",
+    "tools.py search smith \"scipy|numpy|optimiz\"",
+    "grep -rl \"raman|lorentzian\" /data/yichuan_wang/calibforge/*/*/instruction.md",
+    "grep -rl \"curve_fit|Lorentzian|scipy.optimize\" /data/yichuan_wang/terminal-lego-15k/*/instruction.md"
+  ],
+  "per_source": {
+    "TMax-15K": [
+      {
+        "rank": 1,
+        "task_id": "task_005968_01db9842",
+        "skill": 5,
+        "domain": 5,
+        "task_form": 4,
+        "overall": 5,
+        "reason": "Fits one- and two-Lorentzian-plus-baseline models to a noisy spectrum with scipy curve_fit and writes fitted parameters as JSON."
+      },
+      {
+        "rank": 2,
+        "task_id": "task_000242_341bf3b8",
+        "skill": 5,
+        "domain": 4,
+        "task_form": 3,
+        "overall": 4,
+        "reason": "Fits the exact double-Lorentzian-with-constant-offset model (A, Gamma, omega, C) to a reconstructed spectrum; extra video/HTTP scaffolding dilutes it."
+      },
+      {
+        "rank": 3,
+        "task_id": "task_003567_2bffa97d",
+        "skill": 4,
+        "domain": 5,
+        "task_form": 3,
+        "overall": 4,
+        "reason": "Multi-peak model fit to synthetic Raman spectroscopy data with lmfit; same peak-fitting crux, wrapped in a package-repair chore."
+      },
+      {
+        "rank": 4,
+        "task_id": "task_003588_e3556b7c",
+        "skill": 4,
+        "domain": 4,
+        "task_form": 3,
+        "overall": 4,
+        "reason": "Fits Voigt peaks plus polynomial background to noisy emission spectra and bootstraps peak-centre uncertainty; same estimator, harder statistics."
+      },
+      {
+        "rank": 5,
+        "task_id": "task_000519_d3a5ee97",
+        "skill": 4,
+        "domain": 4,
+        "task_form": 3,
+        "overall": 3,
+        "reason": "Validates spectra against an expected peak centre and maximum FWHM, so it teaches peak localisation and width estimation on wavelength/intensity CSVs."
+      },
+      {
+        "rank": 6,
+        "task_id": "task_004131_aa1a8b75",
+        "skill": 4,
+        "domain": 4,
+        "task_form": 3,
+        "overall": 3,
+        "reason": "Decomposes an NMR spectrum as a least-squares linear combination of candidate component spectra; same fit-a-model-to-a-spectrum reasoning."
+      },
+      {
+        "rank": 7,
+        "task_id": "task_002198_ebf7bf60",
+        "skill": 3,
+        "domain": 4,
+        "task_form": 3,
+        "overall": 3,
+        "reason": "Baseline-drift removal and separating overlapping spectroscopy signals before factorisation; baseline handling is the part raman-fitting also needs."
+      },
+      {
+        "rank": 8,
+        "task_id": "task_000434_3584987b",
+        "skill": 3,
+        "domain": 4,
+        "task_form": 4,
+        "overall": 3,
+        "reason": "FFT a synthetic FID and validate extracted spectral peak positions/widths against an analytic solution; numeric spectral-parameter extraction."
+      },
+      {
+        "rank": 9,
+        "task_id": "task_003817_5cece7b9",
+        "skill": 3,
+        "domain": 3,
+        "task_form": 4,
+        "overall": 3,
+        "reason": "Non-linear sigmoid curve fitting of qPCR amplification curves read from HDF5; same scipy fitting loop, different curve family."
+      },
+      {
+        "rank": 10,
+        "task_id": "task_001776_6e8891c7",
+        "skill": 2,
+        "domain": 5,
+        "task_form": 2,
+        "overall": 3,
+        "reason": "Raman spectra generation/peak detection domain, but the actual work is wrapping a stripped binary in a REST API; little fitting transfer."
+      }
+    ],
+    "Recursive-Task-Synthesis": [
+      {
+        "rank": 1,
+        "task_id": "rts_task_02ef885f0aea4cf4fafb697c",
+        "skill": 3,
+        "domain": 2,
+        "task_form": 3,
+        "overall": 2,
+        "reason": "Parses a scientific ROOT TTree, regenerates a stale index and computes per-column means into JSON; nearest thing to numeric data analysis in this corpus."
+      },
+      {
+        "rank": 2,
+        "task_id": "rts_task_aa3db4f023400748db590c7d",
+        "skill": 3,
+        "domain": 2,
+        "task_form": 3,
+        "overall": 2,
+        "reason": "Same ROOT/TTree numeric-aggregation family: read a physics data file, compute statistics, emit a fixed JSON schema."
+      },
+      {
+        "rank": 3,
+        "task_id": "rts_task_d8dbf8758bbe5fe915a2f97d",
+        "skill": 3,
+        "domain": 2,
+        "task_form": 3,
+        "overall": 2,
+        "reason": "ROOT TTree column statistics into result.json; exercises scientific-file parsing and numeric output formatting only."
+      },
+      {
+        "rank": 4,
+        "task_id": "rts_task_48473d9e78ac52917abbd069",
+        "skill": 3,
+        "domain": 2,
+        "task_form": 3,
+        "overall": 2,
+        "reason": "Another ROOT TTree mean-computation variant; no model fitting, but real numeric extraction from a binary science format."
+      },
+      {
+        "rank": 5,
+        "task_id": "rts_task_ffd5ed4bf34ca24ccb4779c5",
+        "skill": 2,
+        "domain": 2,
+        "task_form": 3,
+        "overall": 2,
+        "reason": "ROOT TTree aggregation variant; transfer limited to numpy-style column reductions and JSON serialisation."
+      },
+      {
+        "rank": 6,
+        "task_id": "rts_task_b0259cede190f1ef494456f5",
+        "skill": 2,
+        "domain": 2,
+        "task_form": 3,
+        "overall": 2,
+        "reason": "numpy/pandas NaN cleaning to CSV; touches the same array libraries but nothing about model fitting."
+      },
+      {
+        "rank": 7,
+        "task_id": "rts_task_f3ddeca041c1c7066e935cb1",
+        "skill": 2,
+        "domain": 2,
+        "task_form": 3,
+        "overall": 2,
+        "reason": "Duplicate-family numpy NaN-dropping chore; only numeric-library familiarity transfers."
+      },
+      {
+        "rank": 8,
+        "task_id": "rts_task_55a18b2c079a228567cda10a",
+        "skill": 2,
+        "domain": 2,
+        "task_form": 3,
+        "overall": 2,
+        "reason": "Same pandas NaN-drop-to-CSV chore; included because the corpus offers nothing closer."
+      },
+      {
+        "rank": 9,
+        "task_id": "rts_task_94682afb4bb55eea423bfda5",
+        "skill": 2,
+        "domain": 1,
+        "task_form": 3,
+        "overall": 2,
+        "reason": "Word-frequency analysis demonstrating Zipf's law: an empirical distribution fit, but textual and with no least-squares step."
+      },
+      {
+        "rank": 10,
+        "task_id": "rts_task_9fc576bfba789ec7cbb43fbb",
+        "skill": 2,
+        "domain": 1,
+        "task_form": 3,
+        "overall": 1,
+        "reason": "Counts event types in a compressed JSON dataset; shares only the load-data-then-write-JSON shell with raman-fitting."
+      }
+    ],
+    "TerminalWorld-Seeds-Clean": [
+      {
+        "rank": 1,
+        "task_id": "tw_276310",
+        "skill": 3,
+        "domain": 2,
+        "task_form": 3,
+        "overall": 2,
+        "reason": "Reads a ROOT TTree and writes per-column means to result.json; scientific-data parsing to a numeric JSON schema, no fitting."
+      },
+      {
+        "rank": 2,
+        "task_id": "tw_125967",
+        "skill": 3,
+        "domain": 2,
+        "task_form": 3,
+        "overall": 2,
+        "reason": "Sweeps 1000 resolution values of a Louvain objective and reports the numeric results; parameter-sweep reasoning resembles initial-guess search."
+      },
+      {
+        "rank": 3,
+        "task_id": "tw_125964",
+        "skill": 2,
+        "domain": 2,
+        "task_form": 3,
+        "overall": 2,
+        "reason": "Two-gamma Louvain clustering run on a numeric matrix; parameterised numeric analysis of a CSV, no model estimation."
+      },
+      {
+        "rank": 4,
+        "task_id": "tw_257385",
+        "skill": 3,
+        "domain": 3,
+        "task_form": 3,
+        "overall": 2,
+        "reason": "Computes a colour rendering index from illuminant spectra with the colour library; spectral-data numerics, but a single library call."
+      },
+      {
+        "rank": 5,
+        "task_id": "tw_241711",
+        "skill": 2,
+        "domain": 2,
+        "task_form": 3,
+        "overall": 2,
+        "reason": "Computes Shannon entropy and type-observation statistics to a fixed report format; numeric summary statistics only."
+      },
+      {
+        "rank": 6,
+        "task_id": "tw_125169",
+        "skill": 2,
+        "domain": 3,
+        "task_form": 3,
+        "overall": 2,
+        "reason": "Numerical-precision demonstration solving linear systems with Posit vs IEEE floats; floating-point conditioning matters in fitting too."
+      },
+      {
+        "rank": 7,
+        "task_id": "tw_323887",
+        "skill": 2,
+        "domain": 2,
+        "task_form": 3,
+        "overall": 2,
+        "reason": "Trains models and writes a single float (cosine similarity) that is numerically checked; teaches reproducible float output."
+      },
+      {
+        "rank": 8,
+        "task_id": "tw_550958",
+        "skill": 2,
+        "domain": 1,
+        "task_form": 3,
+        "overall": 1,
+        "reason": "Deterministic inode-offset arithmetic script; numeric but purely integer bookkeeping, nothing about noisy data."
+      },
+      {
+        "rank": 9,
+        "task_id": "tw_569867",
+        "skill": 2,
+        "domain": 2,
+        "task_form": 3,
+        "overall": 1,
+        "reason": "Drives a scientific dataset library and serialises the results to result.json; only the load-library-write-JSON pattern transfers."
+      },
+      {
+        "rank": 10,
+        "task_id": "tw_694721",
+        "skill": 1,
+        "domain": 1,
+        "task_form": 3,
+        "overall": 1,
+        "reason": "GCD table to results.txt; shares only the compute-and-write-a-file shell. TerminalWorld has essentially nothing on curve fitting."
+      }
+    ],
+    "SWE-Smith-Seeds-Clean": [
+      {
+        "rank": 1,
+        "task_id": "dask__dask.5f61e423.pr_6749",
+        "skill": 3,
+        "domain": 3,
+        "task_form": 2,
+        "overall": 3,
+        "reason": "Fixes least-squares (lstsq) residual shapes in dask.array.linalg; the only linear-least-squares bug in the corpus."
+      },
+      {
+        "rank": 2,
+        "task_id": "sunpy__sunpy.f8edfd5c.func_pm_remove_assign__bwwq2e4c",
+        "skill": 2,
+        "domain": 3,
+        "task_form": 2,
+        "overall": 2,
+        "reason": "Solar-physics data handling in sunpy; closest scientific-instrument-data ecosystem SWE-Smith offers, but not a fitting bug."
+      },
+      {
+        "rank": 3,
+        "task_id": "pydicom__pydicom.7d361b3d.pr_2069",
+        "skill": 2,
+        "domain": 3,
+        "task_form": 2,
+        "overall": 2,
+        "reason": "Scientific instrument file format (DICOM) parsing bug; transfers reading measurement files carefully, not peak fitting."
+      },
+      {
+        "rank": 4,
+        "task_id": "pandas-dev__pandas.95280573.pr_45301",
+        "skill": 2,
+        "domain": 3,
+        "task_form": 2,
+        "overall": 2,
+        "reason": "pandas numeric-handling regression; shares the array/dataframe stack the fitting script would use for the input data."
+      },
+      {
+        "rank": 5,
+        "task_id": "dask__dask.5f61e423.lm_rewrite__mkzy35wr",
+        "skill": 2,
+        "domain": 3,
+        "task_form": 2,
+        "overall": 2,
+        "reason": "Numeric array-library internals in dask; exercises reasoning about numpy semantics that a fitting script relies on."
+      },
+      {
+        "rank": 6,
+        "task_id": "pydicom__pydicom.7d361b3d.combine_file__n8nc5k8w",
+        "skill": 2,
+        "domain": 3,
+        "task_form": 2,
+        "overall": 2,
+        "reason": "More DICOM measurement-data parsing; same scientific-file-reading skill, no modelling."
+      },
+      {
+        "rank": 7,
+        "task_id": "facebookresearch__fvcore.a491d5b9.lm_rewrite__pef4qmpy",
+        "skill": 2,
+        "domain": 2,
+        "task_form": 2,
+        "overall": 2,
+        "reason": "Numeric utility code in a PyTorch support library; tenuous, only shares Python numeric debugging."
+      },
+      {
+        "rank": 8,
+        "task_id": "pandas-dev__pandas.95280573.pr_48966",
+        "skill": 2,
+        "domain": 2,
+        "task_form": 2,
+        "overall": 2,
+        "reason": "pandas internals fix; the dataframe layer sits under the spectrum-loading step and nothing more."
+      },
+      {
+        "rank": 9,
+        "task_id": "cantools__cantools.0c6a7871.combine_file__2yrjny26",
+        "skill": 2,
+        "domain": 1,
+        "task_form": 2,
+        "overall": 1,
+        "reason": "Off-by-one on a signal scaling/offset property; the word 'offset' is the only real link to the TB2.1 task."
+      },
+      {
+        "rank": 10,
+        "task_id": "dask__dask.5f61e423.pr_8954",
+        "skill": 1,
+        "domain": 2,
+        "task_form": 2,
+        "overall": 1,
+        "reason": "General dask array bug fix; included to fill the quota, transfer is near zero for spectrum fitting."
+      }
+    ],
+    "SWE-Rebench-Tasks-Clean": [
+      {
+        "rank": 1,
+        "task_id": "rhayes777__pyautofit-876",
+        "skill": 4,
+        "domain": 4,
+        "task_form": 2,
+        "overall": 3,
+        "reason": "PyAutoFit is a non-linear model-fitting framework; the change concerns how fits are driven, so model-fitting mechanics transfer."
+      },
+      {
+        "rank": 2,
+        "task_id": "gammapy__gammapy-5366",
+        "skill": 3,
+        "domain": 4,
+        "task_form": 2,
+        "overall": 3,
+        "reason": "Spectral binning/rounding bug producing wavy artefacts in a gamma-ray spectrum; same spectrum-axis reasoning as wavenumber binning."
+      },
+      {
+        "rank": 3,
+        "task_id": "rhayes777__pyautofit-1096",
+        "skill": 3,
+        "domain": 4,
+        "task_form": 2,
+        "overall": 3,
+        "reason": "Fit-result aggregation API in PyAutoFit; exposure to how non-linear-search results and parameter posteriors are stored."
+      },
+      {
+        "rank": 4,
+        "task_id": "statsmodels__statsmodels-9311",
+        "skill": 3,
+        "domain": 4,
+        "task_form": 2,
+        "overall": 3,
+        "reason": "statsmodels estimator mutating its input array; teaches care with in-place numeric side effects during model estimation."
+      },
+      {
+        "rank": 5,
+        "task_id": "gammapy__gammapy-5389",
+        "skill": 3,
+        "domain": 4,
+        "task_form": 2,
+        "overall": 3,
+        "reason": "Gamma-ray spectral-analysis library fix; same astronomy spectral-fitting stack as the TB2.1 spectroscopy domain."
+      },
+      {
+        "rank": 6,
+        "task_id": "bashtage__arch-741",
+        "skill": 3,
+        "domain": 3,
+        "task_form": 2,
+        "overall": 2,
+        "reason": "Maximum-likelihood model fitting in the arch package; parameter-estimation convergence reasoning, but on time series."
+      },
+      {
+        "rank": 7,
+        "task_id": "scikit-optimize__scikit-optimize-1063",
+        "skill": 3,
+        "domain": 3,
+        "task_form": 2,
+        "overall": 2,
+        "reason": "Numerical optimiser behaviour in scikit-optimize; the optimiser layer under curve_fit is the shared capability."
+      },
+      {
+        "rank": 8,
+        "task_id": "gammapy__gammapy-5508",
+        "skill": 3,
+        "domain": 4,
+        "task_form": 2,
+        "overall": 2,
+        "reason": "Another gammapy spectral/map fix; same astrophysical spectrum ecosystem, only incidental fitting content."
+      },
+      {
+        "rank": 9,
+        "task_id": "simpeg__simpeg-1550",
+        "skill": 3,
+        "domain": 3,
+        "task_form": 2,
+        "overall": 2,
+        "reason": "SimPEG geophysical inversion: regularised least-squares parameter recovery, but from a very different forward model."
+      },
+      {
+        "rank": 10,
+        "task_id": "laspy__laspy-200",
+        "skill": 2,
+        "domain": 2,
+        "task_form": 2,
+        "overall": 2,
+        "reason": "Scaling/offset handling when reading LAS point-cloud data; only instrument-file scaling semantics transfer."
+      }
+    ],
+    "Terminal-Lego-15k": [
+      {
+        "rank": 1,
+        "task_id": "task_04540",
+        "skill": 4,
+        "domain": 3,
+        "task_form": 3,
+        "overall": 3,
+        "reason": "Fits a piecewise-linear model with an optimised breakpoint via scipy.optimize; same non-linear-least-squares parameter recovery, simpler model."
+      },
+      {
+        "rank": 2,
+        "task_id": "task_04376",
+        "skill": 4,
+        "domain": 3,
+        "task_form": 3,
+        "overall": 3,
+        "reason": "Implements exponential and logarithmic curve fitting and reports the fitted coefficients; direct curve_fit practice."
+      },
+      {
+        "rank": 3,
+        "task_id": "task_13601",
+        "skill": 3,
+        "domain": 3,
+        "task_form": 3,
+        "overall": 3,
+        "reason": "Diagnoses and fixes L-BFGS-B line-search failure on a Gaussian-mixture likelihood; exactly the convergence-failure mode peak fitting hits."
+      },
+      {
+        "rank": 4,
+        "task_id": "task_04622",
+        "skill": 3,
+        "domain": 3,
+        "task_form": 3,
+        "overall": 3,
+        "reason": "Straight scipy.optimize.curve_fit exercise: define model, fit, print parameters, plot; the core mechanic, at toy difficulty."
+      },
+      {
+        "rank": 5,
+        "task_id": "task_13528",
+        "skill": 3,
+        "domain": 3,
+        "task_form": 3,
+        "overall": 3,
+        "reason": "Fits many candidate probability distributions to real data and picks the best by goodness of fit; model selection over fitted parameters."
+      },
+      {
+        "rank": 6,
+        "task_id": "task_12865",
+        "skill": 2,
+        "domain": 3,
+        "task_form": 3,
+        "overall": 2,
+        "reason": "Builds a correct FFT pipeline with a properly derived frequency axis; spectral-axis correctness, no peak-shape estimation."
+      },
+      {
+        "rank": 7,
+        "task_id": "task_09121",
+        "skill": 2,
+        "domain": 3,
+        "task_form": 3,
+        "overall": 2,
+        "reason": "Extracts magnitude/phase from complex FFT output of real signals; adjacent spectral analysis, no fitting."
+      },
+      {
+        "rank": 8,
+        "task_id": "task_12877",
+        "skill": 2,
+        "domain": 3,
+        "task_form": 2,
+        "overall": 2,
+        "reason": "Solves a nonlinear system with scipy.optimize.fsolve; shares the nonlinear-solver API and initial-guess sensitivity only."
+      },
+      {
+        "rank": 9,
+        "task_id": "task_01236",
+        "skill": 3,
+        "domain": 2,
+        "task_form": 3,
+        "overall": 2,
+        "reason": "Peak detection in a 2D pressure array; peak-localisation intuition transfers but the verifier is FREE, so keep it out of training."
+      },
+      {
+        "rank": 10,
+        "task_id": "task_08965",
+        "skill": 2,
+        "domain": 1,
+        "task_form": 3,
+        "overall": 2,
+        "reason": "Polygon offsetting geometry algorithm; implement-a-numeric-algorithm shape, unrelated subject matter."
+      }
+    ],
+    "CalibForge": [
+      {
+        "rank": 1,
+        "task_id": "scientific-computing_20260419_065313_007",
+        "skill": 5,
+        "domain": 5,
+        "task_form": 5,
+        "overall": 5,
+        "reason": "Raman spectrum of a carbon sample: despike, remove fluorescence background, convert nm to cm^-1, then fit the peaks. Same instrument, same crux."
+      },
+      {
+        "rank": 2,
+        "task_id": "scientific-computing_20260415_123352_007",
+        "skill": 5,
+        "domain": 5,
+        "task_form": 5,
+        "overall": 5,
+        "reason": "Baseline-correct a vibrational spectrum and fit Lorentzians, reporting x0/gamma/amplitude in results.json; literally the TB2.1 output schema."
+      },
+      {
+        "rank": 3,
+        "task_id": "scientific-computing_20260606_172622_002",
+        "skill": 5,
+        "domain": 5,
+        "task_form": 4,
+        "overall": 5,
+        "reason": "Raman spectrum with five overlapping Voigt bands to deconvolve; strictly harder version of fitting the G and 2D peaks."
+      },
+      {
+        "rank": 4,
+        "task_id": "scientific-computing_20260509_111805_007",
+        "skill": 4,
+        "domain": 4,
+        "task_form": 5,
+        "overall": 4,
+        "reason": "Shirley background subtraction plus constrained multi-Gaussian fit of an XPS doublet; background-then-peaks pipeline with pinned expectations."
+      },
+      {
+        "rank": 5,
+        "task_id": "scientific-computing_20260508_045557_007",
+        "skill": 4,
+        "domain": 4,
+        "task_form": 5,
+        "overall": 4,
+        "reason": "Baseline-correct an XRD pattern and fit overlapping pseudo-Voigt peaks into a JSON parameter file; same two-stage spectral fit."
+      },
+      {
+        "rank": 6,
+        "task_id": "scientific-computing_20260416_031414_007",
+        "skill": 4,
+        "domain": 3,
+        "task_form": 5,
+        "overall": 4,
+        "reason": "Three overlapping chromatographic peaks on a drifting baseline, fitted and reported as per-peak parameters in JSON; identical work shape."
+      },
+      {
+        "rank": 7,
+        "task_id": "scientific-computing_20260604_002443_003",
+        "skill": 4,
+        "domain": 4,
+        "task_form": 3,
+        "overall": 4,
+        "reason": "Debugs a wrong pseudo-Voigt lineshape whose normalisation makes all fitted FWHMs too small; teaches what a correct peak function must satisfy."
+      },
+      {
+        "rank": 8,
+        "task_id": "data-science_20260610_112157_004",
+        "skill": 4,
+        "domain": 3,
+        "task_form": 5,
+        "overall": 4,
+        "reason": "Determine the number of Gaussian peaks in a noisy 1D signal, fit their centres/amplitudes/widths, report R^2 in JSON."
+      },
+      {
+        "rank": 9,
+        "task_id": "scientific-computing_20260503_182123_007",
+        "skill": 4,
+        "domain": 3,
+        "task_form": 4,
+        "overall": 4,
+        "reason": "Separates overlapping DSC thermal transitions by peak fitting and integrates each; same deconvolution, thermal-analysis domain."
+      },
+      {
+        "rank": 10,
+        "task_id": "scientific-computing_20260606_172622_005",
+        "skill": 4,
+        "domain": 4,
+        "task_form": 3,
+        "overall": 4,
+        "reason": "Repairs a spectroscopy script that reports spurious peaks with wrong parameters after baseline correction and Gaussian fitting."
+      }
+    ]
+  },
+  "final_top10": [
+    {
+      "rank": 1,
+      "task_id": "scientific-computing_20260419_065313_007",
+      "source": "CalibForge",
+      "skill": 5,
+      "domain": 5,
+      "task_form": 5,
+      "overall": 5,
+      "reason": "Raman spectrum of carbon: despike, subtract fluorescence background, convert to cm^-1, fit peaks. Same instrument and same fitting crux."
+    },
+    {
+      "rank": 2,
+      "task_id": "scientific-computing_20260415_123352_007",
+      "source": "CalibForge",
+      "skill": 5,
+      "domain": 5,
+      "task_form": 5,
+      "overall": 5,
+      "reason": "Baseline-correct a vibrational spectrum and fit Lorentzians, emitting x0/gamma/amplitude to results.json; the TB2.1 output schema exactly."
+    },
+    {
+      "rank": 3,
+      "task_id": "task_005968_01db9842",
+      "source": "TMax-15K",
+      "skill": 5,
+      "domain": 5,
+      "task_form": 4,
+      "overall": 5,
+      "reason": "Fits one- and two-Lorentzian-plus-baseline models with scipy curve_fit to a noisy spectrum and writes fitted parameters as JSON."
+    },
+    {
+      "rank": 4,
+      "task_id": "scientific-computing_20260606_172622_002",
+      "source": "CalibForge",
+      "skill": 5,
+      "domain": 5,
+      "task_form": 4,
+      "overall": 5,
+      "reason": "Deconvolves five overlapping Voigt bands in a Raman spectrum; a strictly harder version of resolving the G and 2D peaks."
+    },
+    {
+      "rank": 5,
+      "task_id": "task_000242_341bf3b8",
+      "source": "TMax-15K",
+      "skill": 5,
+      "domain": 4,
+      "task_form": 3,
+      "overall": 4,
+      "reason": "Fits the exact double-Lorentzian-with-constant-offset model (A, Gamma, omega, C) the TB2.1 task asks for, on a reconstructed spectrum."
+    },
+    {
+      "rank": 6,
+      "task_id": "scientific-computing_20260509_111805_007",
+      "source": "CalibForge",
+      "skill": 4,
+      "domain": 4,
+      "task_form": 5,
+      "overall": 4,
+      "reason": "Shirley background subtraction then a constrained multi-peak fit of an XPS doublet; the background-then-peaks pipeline with pinned values."
+    },
+    {
+      "rank": 7,
+      "task_id": "scientific-computing_20260508_045557_007",
+      "source": "CalibForge",
+      "skill": 4,
+      "domain": 4,
+      "task_form": 5,
+      "overall": 4,
+      "reason": "Baseline-corrects an XRD pattern and fits overlapping pseudo-Voigt peaks into a JSON parameter file; same two-stage spectral fit."
+    },
+    {
+      "rank": 8,
+      "task_id": "task_003567_2bffa97d",
+      "source": "TMax-15K",
+      "skill": 4,
+      "domain": 5,
+      "task_form": 3,
+      "overall": 4,
+      "reason": "Fits a multi-peak model to synthetic Raman spectroscopy data with lmfit; same domain and estimator, wrapped in a packaging repair."
+    },
+    {
+      "rank": 9,
+      "task_id": "scientific-computing_20260416_031414_007",
+      "source": "CalibForge",
+      "skill": 4,
+      "domain": 3,
+      "task_form": 5,
+      "overall": 4,
+      "reason": "Three overlapping chromatographic peaks on a drifting baseline, fitted and reported as per-peak parameters in a fixed JSON schema."
+    },
+    {
+      "rank": 10,
+      "task_id": "task_003588_e3556b7c",
+      "source": "TMax-15K",
+      "skill": 4,
+      "domain": 4,
+      "task_form": 3,
+      "overall": 4,
+      "reason": "Fits Voigt peaks plus a polynomial background to noisy emission spectra and bootstraps peak-centre uncertainty; same estimator, deeper stats."
+    }
+  ],
+  "notes": "CalibForge is a genuine and large upgrade here: it supplies six of the final ten, including two real Raman tasks and one whose results.json schema (x0/gamma/amplitude per Lorentzian) is the TB2.1 schema. Before v2 the best available were TMax's task_005968_01db9842 and task_000242_341bf3b8, which are still strong, so CalibForge beats but does not replace TMax. Terminal-Lego contributes nothing to the top ten: its curve-fitting tasks are toy-scale (fit a quadratic to four points) and the corpus was only reachable by grepping /data/yichuan_wang/terminal-lego-15k (tools.py does not index it); task_04540, task_13601, task_04622 and task_12877 came from that grep rather than the packet. Recursive-Task-Synthesis and TerminalWorld genuinely have fewer than 10 defensible candidates - `search rts \"Lorentzian|curve_fit|spectr|gaussian\"` returns zero hits and `search tw` for the same returns two irrelevant ones - so their lists are filled with generic numeric-analysis chores scored 1-2 and should be ignored downstream. SWE-Smith likewise has no fitting content; only dask lstsq is defensible. Two excellent skill matches were excluded from final_top10 for the FREE rule: scientific-computing_20260504_125558_004 (Raman fluorescence-baseline removal plus peak fitting) and task_001144_e1380e49 (multi-Lorentzian PSD fit). If the FREE rule is ever relaxed for a task with a repairable verifier, those two are the first to reconsider."
+}

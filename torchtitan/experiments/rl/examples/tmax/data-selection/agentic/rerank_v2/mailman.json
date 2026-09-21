@@ -1,0 +1,772 @@
+{
+ "tb21_id": "mailman",
+ "tb21_profile": {
+  "skill": "Configure two real daemons (Postfix MTA and Mailman3) and the transport between them so that address-driven list operations -- join, leave, post, with confirmation replies -- actually flow to local unix mailboxes",
+  "domain": "Linux mail stack: Postfix main.cf/master.cf and aliases, Mailman3 mailman.cfg and runners, LMTP/local delivery, /var/mail mbox, service supervision",
+  "task_form": "configure-a-service end to end: multi-daemon integration verified by driving the real protocol and reading the resulting mailboxes"
+ },
+ "verifier_notes": "No grade I disagreed with. Worth noting for the merge: CalibForge's mail-server family is unusually well verified for a configure-a-service genre -- eight of the nine I ranked are strong with 4-9 pinned assertions, which for this kind of task means the tests actually send and read mail rather than grepping a config file. The one exception, system-administration_20260607_104421_006, is weak (3 pinned of 16) and I ranked it ninth partly for that. TMax's mailing-list family is mostly mock SMTP sinks rather than real MTAs, and several of its closest-by-wording entries (task_000472_bda99d41, task_006143_6d8cc883, task_003053_1f939255, task_006682_2131f432) are FREE; all are excluded.",
+ "searches": [
+  "tools.py search all 'postfix|mailman|dovecot|exim|sendmail|SMTP server|/var/mail|mbox|mailing list'",
+  "tools.py search all 'postfix|mailman|dovecot|exim4|main\\.cf|newaliases|/etc/aliases'",
+  "tools.py search tw 'install and configure|systemd|daemon|/etc/.*conf|server (on|listening)|LDAP|IMAP|mail'",
+  "tools.py search rts 'mail|smtp|postfix|dovecot|alias|/etc/aliases|IMAP'",
+  "tools.py search smith 'email|smtp|mime|rfc 822|header|imap'",
+  "tools.py search smith 'config file|configuration file|gunicorn|server settings|\\.cfg|\\.ini'",
+  "tools.py search rebench 'email|smtp|mime|imap|mail'",
+  "tools.py search rebench 'ses|sns|mailbox|listserv|subscri'",
+  "(new corpora) 'postfix|mailman|dovecot|exim|sendmail|SMTP|mbox|/var/mail|mailing list|IMAP'",
+  "(new corpora, CalibForge) '\\b(postfix|dovecot|opendkim|exim|sendmail|mailx|procmail|maildir|mbox)\\b'",
+  "(new corpora, CalibForge) 'systemd|supervisord|nginx\\.conf|listen on port|must be running|start the (service|daemon|server)|/etc/(nginx|ssh|postfix|apache)'",
+  "(new corpora) listed every CalibForge id whose category prefix is system-administration_"
+ ],
+ "per_source": {
+  "CalibForge": [
+   {
+    "rank": 1,
+    "task_id": "system-administration_20260605_015435_008",
+    "skill": 5,
+    "domain": 5,
+    "task_form": 5,
+    "overall": 5,
+    "reason": "Get Postfix and Dovecot delivering mail between two local unix users and readable from their mailboxes -- TB2.1's exact end-to-end local-delivery setup."
+   },
+   {
+    "rank": 2,
+    "task_id": "system-administration_20260602_105139_004",
+    "skill": 5,
+    "domain": 5,
+    "task_form": 5,
+    "overall": 5,
+    "reason": "Postfix, Dovecot, OpenDKIM and dnsmasq are installed but nothing works end-to-end; make the whole mail path work, like wiring postfix into mailman3."
+   },
+   {
+    "rank": 3,
+    "task_id": "system-administration_20260617_104707_007",
+    "skill": 5,
+    "domain": 5,
+    "task_form": 5,
+    "overall": 5,
+    "reason": "Postfix and Dovecot installed but not talking to each other; the crux is the transport/handoff between two mail daemons, as with postfix-to-mailman LMTP."
+   },
+   {
+    "rank": 4,
+    "task_id": "system-administration_20260610_111012_007",
+    "skill": 5,
+    "domain": 5,
+    "task_form": 5,
+    "overall": 5,
+    "reason": "Build a complete Postfix+Dovecot server for a domain with two named users who must send and receive; same deliverable, verified by real delivery."
+   },
+   {
+    "rank": 5,
+    "task_id": "system-administration_20260604_193356_004",
+    "skill": 5,
+    "domain": 5,
+    "task_form": 4,
+    "overall": 5,
+    "reason": "Postfix/Dovecot/OpenDKIM for one domain is misconfigured and a named local user must be able to send and receive; debug-the-mail-stack."
+   },
+   {
+    "rank": 6,
+    "task_id": "system-administration_20260616_094815_004",
+    "skill": 5,
+    "domain": 5,
+    "task_form": 4,
+    "overall": 4,
+    "reason": "A self-inflicted broken Postfix/Dovecot virtual-hosting config must be repaired until submission and delivery work; same config-archaeology."
+   },
+   {
+    "rank": 7,
+    "task_id": "system-administration_20260615_143301_004",
+    "skill": 5,
+    "domain": 5,
+    "task_form": 5,
+    "overall": 4,
+    "reason": "Configure the box as the mail server for an internal domain with two named users; identical genre, slightly simpler than adding list semantics."
+   },
+   {
+    "rank": 8,
+    "task_id": "system-administration_20260617_210354_003",
+    "skill": 4,
+    "domain": 5,
+    "task_form": 4,
+    "overall": 4,
+    "reason": "Two virtual domains served by Postfix+Dovecot with submission and standard SMTP; multi-domain routing on top of the same stack."
+   },
+   {
+    "rank": 9,
+    "task_id": "system-administration_20260607_104421_006",
+    "skill": 5,
+    "domain": 5,
+    "task_form": 4,
+    "overall": 4,
+    "reason": "A partially configured Postfix+Dovecot install must be made fully functional; the diagnose-a-half-built-mail-server shape TB2.1 shares."
+   },
+   {
+    "rank": 10,
+    "task_id": "personal-assistant_20260604_194036_001",
+    "skill": 3,
+    "domain": 5,
+    "task_form": 3,
+    "overall": 4,
+    "reason": "Parses an mbox of a company mailing list into threads; mailing-list message structure and mbox parsing, which TB2.1's verification also depends on."
+   }
+  ],
+  "TMax-15K": [
+   {
+    "rank": 1,
+    "task_id": "task_004723_794b068a",
+    "skill": 5,
+    "domain": 5,
+    "task_form": 4,
+    "overall": 4,
+    "reason": "Installs and configures a real local postfix SMTP server on port 25 as a mail relay, alongside locale/timezone setup; genuine Postfix configuration."
+   },
+   {
+    "rank": 2,
+    "task_id": "task_004874_dd948629",
+    "skill": 4,
+    "domain": 5,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Works with real postfix/main.cf and dovecot/dovecot.conf files extracted from an archive; reading and reasoning about actual MTA config syntax."
+   },
+   {
+    "rank": 3,
+    "task_id": "task_001291_a1ca084c",
+    "skill": 4,
+    "domain": 4,
+    "task_form": 4,
+    "overall": 3,
+    "reason": "Provisions a user-level mailing-list pipeline around a closed-source routing engine; list membership plus mail routing, but simulated rather than real MTA."
+   },
+   {
+    "rank": 4,
+    "task_id": "task_003069_80c9e8f1",
+    "skill": 3,
+    "domain": 4,
+    "task_form": 4,
+    "overall": 3,
+    "reason": "Builds a service manager and rolling deployment for a mock mailing-list server and writes a postfix-style .cf config; service lifecycle plus mail config."
+   },
+   {
+    "rank": 5,
+    "task_id": "task_001573_284ed7a8",
+    "skill": 3,
+    "domain": 4,
+    "task_form": 4,
+    "overall": 3,
+    "reason": "Deploys a mailing-list processing daemon under supervisord in an unprivileged container; keeping a mail daemon alive and verified end-to-end."
+   },
+   {
+    "rank": 6,
+    "task_id": "task_003221_5d5043c2",
+    "skill": 3,
+    "domain": 4,
+    "task_form": 4,
+    "overall": 3,
+    "reason": "Idempotent C tool that sets up the mail spool environment plus timezone/locale for a mailing-list container; mail spool layout is TB2.1's /var/mail."
+   },
+   {
+    "rank": 7,
+    "task_id": "task_004180_1658d3d8",
+    "skill": 3,
+    "domain": 4,
+    "task_form": 4,
+    "overall": 3,
+    "reason": "Restores a legacy mailing-list stack (SMTP receiver, Redis, archive worker) and sets up process supervision; multi-service mail restoration."
+   },
+   {
+    "rank": 8,
+    "task_id": "task_005031_61743d33",
+    "skill": 2,
+    "domain": 5,
+    "task_form": 2,
+    "overall": 3,
+    "reason": "Audit that captures the Postfix main.cf among other system files; touches real Postfix config but only reads it."
+   },
+   {
+    "rank": 9,
+    "task_id": "task_001377_21657d03",
+    "skill": 3,
+    "domain": 3,
+    "task_form": 4,
+    "overall": 3,
+    "reason": "Diagnoses why a mailing-list service failed to start from its log output; the read-the-daemon-log-and-fix-the-config loop TB2.1 forces."
+   },
+   {
+    "rank": 10,
+    "task_id": "task_001409_f24c2eda",
+    "skill": 2,
+    "domain": 5,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Appends a properly formatted email message to an mbox file; RFC-formatted messages in mbox, the format TB2.1's tests read back."
+   }
+  ],
+  "Terminal-Lego-15k": [
+   {
+    "rank": 1,
+    "task_id": "task_10797",
+    "skill": 4,
+    "domain": 5,
+    "task_form": 4,
+    "overall": 4,
+    "reason": "Fixes newaliases/postalias failing from a script -- the Postfix alias database, which is exactly how postfix hands list addresses to mailman."
+   },
+   {
+    "rank": 2,
+    "task_id": "task_11093",
+    "skill": 3,
+    "domain": 5,
+    "task_form": 4,
+    "overall": 3,
+    "reason": "Sends mail from a shell script through the local mail utilities, which requires a working local MTA path."
+   },
+   {
+    "rank": 3,
+    "task_id": "task_11037",
+    "skill": 3,
+    "domain": 5,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Builds an MTA socket server that must survive non-UTF-8 byte sequences; SMTP-server-side message handling."
+   },
+   {
+    "rank": 4,
+    "task_id": "task_12218",
+    "skill": 3,
+    "domain": 5,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Sends mail directly to the recipient's mail exchanger over raw SMTP after an MX lookup; the SMTP conversation TB2.1's flow depends on."
+   },
+   {
+    "rank": 5,
+    "task_id": "task_00804",
+    "skill": 3,
+    "domain": 4,
+    "task_form": 4,
+    "overall": 3,
+    "reason": "Bash script that sends email notifications from the terminal; the sending half of the local mail loop."
+   },
+   {
+    "rank": 6,
+    "task_id": "task_03415",
+    "skill": 3,
+    "domain": 4,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Drives an IMAP session by hand over openssl; reading mail out of a server by protocol, as TB2.1 verifies delivery."
+   },
+   {
+    "rank": 7,
+    "task_id": "task_10204",
+    "skill": 3,
+    "domain": 4,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Modernises an aiosmtpd-based SMTP server's event loop usage; running an SMTP daemon in Python."
+   },
+   {
+    "rank": 8,
+    "task_id": "task_03172",
+    "skill": 2,
+    "domain": 4,
+    "task_form": 3,
+    "overall": 2,
+    "reason": "MX record lookup in C#; mail routing lookup only, no server configuration."
+   },
+   {
+    "rank": 9,
+    "task_id": "task_05301",
+    "skill": 2,
+    "domain": 4,
+    "task_form": 3,
+    "overall": 2,
+    "reason": "Fixes an ImportError in a Python script that sends email with attachments; email-module plumbing."
+   },
+   {
+    "rank": 10,
+    "task_id": "task_10722",
+    "skill": 2,
+    "domain": 3,
+    "task_form": 3,
+    "overall": 2,
+    "reason": "Ansible playbook exporting systemd service status; service-state inspection, the verification habit but no mail."
+   }
+  ],
+  "TerminalWorld-Seeds-Clean": [
+   {
+    "rank": 1,
+    "task_id": "tw_132448",
+    "skill": 4,
+    "domain": 3,
+    "task_form": 5,
+    "overall": 4,
+    "reason": "Install and configure MariaDB so the daemon runs, is enabled, and holds a created database -- same install-configure-verify-a-real-service loop."
+   },
+   {
+    "rank": 2,
+    "task_id": "tw_15324",
+    "skill": 4,
+    "domain": 3,
+    "task_form": 5,
+    "overall": 3,
+    "reason": "Install and configure pyload 0.4.x so its daemon is actually running in the container; dependency-hostile daemon bring-up."
+   },
+   {
+    "rank": 3,
+    "task_id": "tw_138158",
+    "skill": 4,
+    "domain": 3,
+    "task_form": 4,
+    "overall": 3,
+    "reason": "Apache vhost directory layout must exist and the service must be running; configuration files plus a live daemon."
+   },
+   {
+    "rank": 4,
+    "task_id": "tw_134374",
+    "skill": 4,
+    "domain": 3,
+    "task_form": 4,
+    "overall": 3,
+    "reason": "Builds a LEMP stack with PHP-FPM, i.e. two daemons that must be wired to each other -- the postfix-to-mailman handoff in another domain."
+   },
+   {
+    "rank": 5,
+    "task_id": "tw_12554",
+    "skill": 3,
+    "domain": 3,
+    "task_form": 4,
+    "overall": 3,
+    "reason": "Edit /etc/redis/redis.conf to change the bind directive and ensure the service is running; config-edit-then-restart discipline."
+   },
+   {
+    "rank": 6,
+    "task_id": "tw_117157",
+    "skill": 3,
+    "domain": 3,
+    "task_form": 4,
+    "overall": 3,
+    "reason": "Change the SSH port in sshd_config and make the daemon actually listen there; the config-and-daemon-must-agree check."
+   },
+   {
+    "rank": 7,
+    "task_id": "tw_273601",
+    "skill": 3,
+    "domain": 4,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Makes a script using a mail decorator and bare email-address literals valid and runnable; mail-adjacent, mostly Python packaging."
+   },
+   {
+    "rank": 8,
+    "task_id": "tw_346538",
+    "skill": 2,
+    "domain": 2,
+    "task_form": 3,
+    "overall": 2,
+    "reason": "Wires a Node.js entry point to a Python module through MetaCall; cross-runtime integration, no service configuration."
+   },
+   {
+    "rank": 9,
+    "task_id": "tw_174570",
+    "skill": 3,
+    "domain": 2,
+    "task_form": 4,
+    "overall": 2,
+    "reason": "Ansible role installing and configuring a Storj farmer node; declarative service provisioning with verified end state."
+   },
+   {
+    "rank": 10,
+    "task_id": "tw_102785",
+    "skill": 2,
+    "domain": 3,
+    "task_form": 3,
+    "overall": 2,
+    "reason": "Query an app running as a named systemd service; only touches service state, no configuration."
+   }
+  ],
+  "Recursive-Task-Synthesis": [
+   {
+    "rank": 1,
+    "task_id": "rts_task_478a3e0a7c6967e4c91eba91",
+    "skill": 4,
+    "domain": 4,
+    "task_form": 4,
+    "overall": 3,
+    "reason": "One setting must be true in both the Postgres database and /etc/asterisk config; two stores of a service's config must agree, like mailman.cfg and postfix."
+   },
+   {
+    "rank": 2,
+    "task_id": "rts_task_f36d69cc78128ce3ebff13b8",
+    "skill": 4,
+    "domain": 3,
+    "task_form": 4,
+    "overall": 3,
+    "reason": "Install salt-master and salt-minion, enable both at boot via systemd wants symlinks, and comply with a written policy; two-daemon bring-up."
+   },
+   {
+    "rank": 3,
+    "task_id": "rts_task_af688a3c8a8fe31987daf194",
+    "skill": 3,
+    "domain": 3,
+    "task_form": 4,
+    "overall": 3,
+    "reason": "Reconcile a running Samba AD domain against a manifest by creating missing users -- membership management against a live directory daemon."
+   },
+   {
+    "rank": 4,
+    "task_id": "rts_task_6f007a58d55c71f96dc4619e",
+    "skill": 3,
+    "domain": 3,
+    "task_form": 4,
+    "overall": 3,
+    "reason": "Same Samba AD reconciliation with deliverables; adding users to a running service and proving they exist."
+   },
+   {
+    "rank": 5,
+    "task_id": "rts_task_919bbeb246b0c10ad2df5e81",
+    "skill": 3,
+    "domain": 3,
+    "task_form": 4,
+    "overall": 2,
+    "reason": "Another Samba AD desired-state variant producing a user list; near-duplicate of the two above."
+   },
+   {
+    "rank": 6,
+    "task_id": "rts_task_be9e4b097d88db9821c98f33",
+    "skill": 3,
+    "domain": 3,
+    "task_form": 4,
+    "overall": 2,
+    "reason": "Another Samba AD reconciliation producing three state files; near-duplicate."
+   },
+   {
+    "rank": 7,
+    "task_id": "rts_task_3077105b084bb4228409dff2",
+    "skill": 3,
+    "domain": 3,
+    "task_form": 3,
+    "overall": 2,
+    "reason": "Repair a broken profile config before an MQTT listener can connect; fix-the-config-then-the-client-works, in a messaging protocol."
+   },
+   {
+    "rank": 8,
+    "task_id": "rts_task_b60150e067bd342137c54f0a",
+    "skill": 2,
+    "domain": 3,
+    "task_form": 3,
+    "overall": 2,
+    "reason": "Build and install an MQTT client library so it satisfies a declared install manifest; build-and-place-files, no daemon."
+   },
+   {
+    "rank": 9,
+    "task_id": "rts_task_f9bee9817e16e140d83eca82",
+    "skill": 3,
+    "domain": 3,
+    "task_form": 3,
+    "overall": 2,
+    "reason": "Samba AD DC with accounts and OUs declared in /etc/samba/domain.cfg; config-file-declared users against a live service."
+   },
+   {
+    "rank": 10,
+    "task_id": "rts_task_05d8d5258b12d88b4dad3b70",
+    "skill": 2,
+    "domain": 3,
+    "task_form": 3,
+    "overall": 2,
+    "reason": "Ensure a specific configuration key exists with the right value in a service's backing table; a single config assertion."
+   }
+  ],
+  "SWE-Smith-Seeds-Clean": [
+   {
+    "rank": 1,
+    "task_id": "benoitc__gunicorn.bacbf8aa.combine_module__ernek77y",
+    "skill": 3,
+    "domain": 3,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Gunicorn configuration loading is broken; how a server reads and merges its config file is the class of bug that breaks mailman.cfg."
+   },
+   {
+    "rank": 2,
+    "task_id": "benoitc__gunicorn.bacbf8aa.combine_file__l5lzzje0",
+    "skill": 3,
+    "domain": 3,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "A change makes gunicorn config loading fail and the app exit; server-startup-from-config debugging."
+   },
+   {
+    "rank": 3,
+    "task_id": "adrienverge__yamllint.8513d9b9.pr_627",
+    "skill": 3,
+    "domain": 3,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Unknown options in a rule configuration are silently accepted; the silent-bad-config failure mode that makes daemon setup hard to debug."
+   },
+   {
+    "rank": 4,
+    "task_id": "adrienverge__yamllint.8513d9b9.func_pm_remove_cond__5kcukc4y",
+    "skill": 3,
+    "domain": 3,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Validation lets incompatible configuration settings coexist; config-consistency checking."
+   },
+   {
+    "rank": 5,
+    "task_id": "adrienverge__yamllint.8513d9b9.pr_572",
+    "skill": 2,
+    "domain": 3,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Configuration file lookup should walk parent directories; config-discovery semantics."
+   },
+   {
+    "rank": 6,
+    "task_id": "PyCQA__flake8.cf1542ce.combine_module__a7f2sl8j",
+    "skill": 2,
+    "domain": 3,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Options registered by plugins must behave the same on the command line and in a config file; config/CLI precedence."
+   },
+   {
+    "rank": 7,
+    "task_id": "PyCQA__flake8.cf1542ce.lm_rewrite__tdi0h139",
+    "skill": 2,
+    "domain": 3,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Local plugins declared in the configuration are no longer detected; config-driven component loading, like mailman's runners."
+   },
+   {
+    "rank": 8,
+    "task_id": "alecthomas__voluptuous.a7a55f83.lm_rewrite__vkae3usr",
+    "skill": 2,
+    "domain": 3,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Email address validation misses edge cases; only the address-syntax corner of the mail domain."
+   },
+   {
+    "rank": 9,
+    "task_id": "benoitc__gunicorn.bacbf8aa.pr_3003",
+    "skill": 2,
+    "domain": 3,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Content-Length header acceptance is too lax; wire-protocol header parsing, adjacent to SMTP header handling."
+   },
+   {
+    "rank": 10,
+    "task_id": "benoitc__gunicorn.bacbf8aa.combine_module__gyo8me06",
+    "skill": 2,
+    "domain": 3,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Worker initialisation is broken in a process-managing server; daemon lifecycle debugging, far from mail."
+   }
+  ],
+  "SWE-Rebench-Tasks-Clean": [
+   {
+    "rank": 1,
+    "task_id": "boto__botocore-626",
+    "skill": 2,
+    "domain": 3,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Header timestamp conversion goes through email.utils.formatdate and breaks off-UTC; the only genuine RFC-822 mail-header content here."
+   },
+   {
+    "rank": 2,
+    "task_id": "celery__celery-9331",
+    "skill": 3,
+    "domain": 2,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "A long-running daemon's scheduler database gets corrupted; multi-process service state, the failure class of a half-configured runner."
+   },
+   {
+    "rank": 3,
+    "task_id": "conda__conda-7598",
+    "skill": 2,
+    "domain": 2,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Package-manager scheduling of downgrades; dependency and service-install reasoning only."
+   },
+   {
+    "rank": 4,
+    "task_id": "aio-libs__aiohttp-8823",
+    "skill": 2,
+    "domain": 2,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "A protocol parser accepts any value containing 'chunked'; strict wire-protocol validation, transferable to SMTP verb parsing."
+   },
+   {
+    "rank": 5,
+    "task_id": "microsoft__azuretre-3714",
+    "skill": 2,
+    "domain": 2,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Address-space validation rejects a valid update; service-configuration validation logic."
+   },
+   {
+    "rank": 6,
+    "task_id": "getmoto__moto-7965",
+    "skill": 2,
+    "domain": 2,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Account creation with an Email field in a cloud-API mock; only the word email transfers."
+   },
+   {
+    "rank": 7,
+    "task_id": "pallets__werkzeug-2686",
+    "skill": 2,
+    "domain": 3,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Authorization header parsing chokes on base64 padding; header-parsing of an RFC-defined field."
+   },
+   {
+    "rank": 8,
+    "task_id": "delgan__loguru-960",
+    "skill": 2,
+    "domain": 2,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Log rotation misbehaves in a long-running process; operational file handling for a daemon."
+   },
+   {
+    "rank": 9,
+    "task_id": "aio-libs__aiohttp-6653",
+    "skill": 1,
+    "domain": 2,
+    "task_form": 2,
+    "overall": 1,
+    "reason": "Async HTTP client/server framework bug; shares only the notion of a server."
+   },
+   {
+    "rank": 10,
+    "task_id": "sanic-org__sanic-2837",
+    "skill": 1,
+    "domain": 2,
+    "task_form": 2,
+    "overall": 1,
+    "reason": "A bare cookie breaks cookie parsing; header-parsing robustness, nothing mail or config related."
+   }
+  ]
+ },
+ "final_top10": [
+  {
+   "rank": 1,
+   "task_id": "system-administration_20260605_015435_008",
+   "skill": 5,
+   "domain": 5,
+   "task_form": 5,
+   "overall": 5,
+   "reason": "Postfix plus Dovecot must actually deliver mail between two local unix users and be readable from their mailboxes -- TB2.1's exact end-to-end setup.",
+   "source": "CalibForge"
+  },
+  {
+   "rank": 2,
+   "task_id": "system-administration_20260602_105139_004",
+   "skill": 5,
+   "domain": 5,
+   "task_form": 5,
+   "overall": 5,
+   "reason": "Four mail daemons installed but nothing works end-to-end; making the whole path flow is the same integration job as postfix-to-mailman3.",
+   "source": "CalibForge"
+  },
+  {
+   "rank": 3,
+   "task_id": "system-administration_20260617_104707_007",
+   "skill": 5,
+   "domain": 5,
+   "task_form": 5,
+   "overall": 5,
+   "reason": "Postfix and Dovecot will not talk to each other; the crux is the transport handoff between two mail daemons, exactly TB2.1's hard part.",
+   "source": "CalibForge"
+  },
+  {
+   "rank": 4,
+   "task_id": "system-administration_20260610_111012_007",
+   "skill": 5,
+   "domain": 5,
+   "task_form": 5,
+   "overall": 5,
+   "reason": "Stand up a complete Postfix+Dovecot server for a domain with two named users who must send and receive; same deliverable, verified by real delivery.",
+   "source": "CalibForge"
+  },
+  {
+   "rank": 5,
+   "task_id": "system-administration_20260604_193356_004",
+   "skill": 5,
+   "domain": 5,
+   "task_form": 4,
+   "overall": 5,
+   "reason": "A misconfigured Postfix/Dovecot/OpenDKIM stack must let a named local user send and receive; debug-the-mail-stack under a concrete acceptance test.",
+   "source": "CalibForge"
+  },
+  {
+   "rank": 6,
+   "task_id": "system-administration_20260615_143301_004",
+   "skill": 5,
+   "domain": 5,
+   "task_form": 5,
+   "overall": 4,
+   "reason": "Configure this box as the mail server for an internal domain with two named users; identical genre, one step short of list semantics.",
+   "source": "CalibForge"
+  },
+  {
+   "rank": 7,
+   "task_id": "system-administration_20260616_094815_004",
+   "skill": 5,
+   "domain": 5,
+   "task_form": 4,
+   "overall": 4,
+   "reason": "Repair a self-broken Postfix/Dovecot virtual-hosting config until submission and delivery work; the config-archaeology TB2.1 rewards.",
+   "source": "CalibForge"
+  },
+  {
+   "rank": 8,
+   "task_id": "task_004723_794b068a",
+   "skill": 5,
+   "domain": 5,
+   "task_form": 4,
+   "overall": 4,
+   "reason": "Installs and configures a real local postfix SMTP relay on port 25; genuine Postfix configuration rather than a mock SMTP sink.",
+   "source": "TMax-15K"
+  },
+  {
+   "rank": 9,
+   "task_id": "task_10797",
+   "skill": 4,
+   "domain": 5,
+   "task_form": 4,
+   "overall": 4,
+   "reason": "Fixes newaliases/postalias failing -- the Postfix alias database is precisely how list addresses get handed to mailman.",
+   "source": "Terminal-Lego-15k"
+  },
+  {
+   "rank": 10,
+   "task_id": "system-administration_20260617_210354_003",
+   "skill": 4,
+   "domain": 5,
+   "task_form": 4,
+   "overall": 4,
+   "reason": "Postfix+Dovecot serving two virtual domains with submission and SMTP; multi-domain routing layered on the same stack.",
+   "source": "CalibForge"
+  }
+ ],
+ "notes": "CalibForge decisively beats the old pool here and takes 8 of the final 10. It contains an entire Postfix+Dovecot mail-server family -- at least a dozen tasks, most graded strong -- covering fresh setup, virtual domains, and repairing a half-configured stack. Nothing in the v1 pool comes close: TMax's 'mailing list server' tasks are almost all mock SMTP sinks on unprivileged ports, and TerminalWorld/RTS offer only generic install-and-configure-a-daemon transfer. Terminal-Lego contributes one real win, task_10797 on newaliases/postalias, which is the Postfix alias mechanism TB2.1 depends on; the rest of its mail content is client-side SMTP/TLS in C# and PHP and should be discounted. SWE-Smith and SWE-Rebench have nothing on mail-server configuration; I ranked them on config-file-loading and daemon-lifecycle bugs and nothing there exceeds overall 2, so the merge step should not draw from them for this task. Recursive-Task-Synthesis's best offering is the Samba AD desired-state family (membership management against a live directory daemon) plus one asterisk/kamailio two-places-must-agree config task; all absent-graded."
+}

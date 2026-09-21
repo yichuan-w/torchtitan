@@ -1,0 +1,117 @@
+{
+  "tb21_id": "crack-7z-hash",
+  "tb21_profile": {
+    "skill": "Crack a password-protected 7z archive: extract the archive hash (7z2john), run a dictionary/brute-force attack (john/hashcat + wordlist), then extract secret_file.txt with the recovered password",
+    "domain": "Offensive-security tooling / cryptography: password & hash cracking, archive formats (7-zip, zip), rockyou-style wordlists",
+    "task_form": "reverse-engineer/crack a secret to recover data — find-the-password then extract, single answer written to a file"
+  },
+  "verifier_notes": "security_20260420_020307_002 (OpenSSL AES cred-cracking, an ideal skill match) is graded FREE — its 2 tests only check solution.txt looks right — so it is deliberately kept out and not even shortlisted. security_20260610_111702_002 (GPG passphrase recovery) is also FREE and stays in CalibForge per_source only. RTS crackme family is all 'absent' (no verifier in our copy); I keep the closest ones in final_top10 as the spec allows, but note the verification gap. TMax zip/hash-crack tasks graded 'ok'/'strong' do pin the recovered password in a test, which is the load-bearing check here.",
+  "searches": [
+    "tools.py search all '7z|7-zip|hashcat|john the ripper|rockyou|zip2john|crack.*password|password.*crack|brute.?force|dictionary attack'",
+    "tools.py words tmax password crack archive zip encrypted recover secret decrypt hash extract",
+    "tools.py search tmax 'crack|hashcat|rockyou|zip.*password|password.*zip|7z|brute.?force|wordlist|john '",
+    "tools.py search smith 'crypt|hash|password|archive|zip|tarfile|extract|cipher|decrypt'",
+    "tools.py search rebench 'crypt|hash|password|zip|tarfile|cipher|decrypt|7z|archive'",
+    "new-corpora regex: CalibForge 'rockyou|hashcat|john|7z|\\.7z|brute.?force|crack|wordlist|password'",
+    "new-corpora regex: Terminal-Lego '7z|hashcat|john the ripper|rockyou|crack.*password|brute.?force|wordlist|zip.*password|password.*protect'"
+  ],
+  "per_source": {
+    "TMax-15K": [
+      {"rank": 1, "task_id": "task_000306_b7243206", "skill": 5, "domain": 5, "task_form": 5, "overall": 5, "reason": "Uses a clue plus /app/wordlist.txt to crack the password of /app/bundle.zip and extract it — the exact wordlist-attack-on-a-protected-archive workflow."},
+      {"rank": 2, "task_id": "task_000404_22839b0e", "skill": 5, "domain": 5, "task_form": 5, "overall": 5, "reason": "Given a partial password, brute-forces the remainder to open the encrypted /app/network_logs.zip; same archive-password recovery, then extract-and-use contents."},
+      {"rank": 3, "task_id": "task_000631_386f48f2", "skill": 5, "domain": 5, "task_form": 5, "overall": 5, "reason": "Brute-forces a PIN protecting backup.zip and extracts it; identical crack-the-archive-then-read-the-file loop the TB task needs."},
+      {"rank": 4, "task_id": "task_000686_867b10d0", "skill": 5, "domain": 5, "task_form": 4, "overall": 5, "reason": "Extracts an MD5 hash from a binary and cracks it against a rockyou-style wordlist — the exact hash-plus-wordlist skill implied by '7z-hash'."},
+      {"rank": 5, "task_id": "task_003528_a9c79a93", "skill": 4, "domain": 5, "task_form": 4, "overall": 4, "reason": "Recovers contents of an encrypted archive (payload.zip) from a breached host; archive-decryption in a forensics setting."},
+      {"rank": 6, "task_id": "task_000476_14b909cc", "skill": 4, "domain": 4, "task_form": 4, "overall": 4, "reason": "Cryptanalysis: recovers a master token by brute-forcing the last chars against an MD5 hash; small-keyspace hash cracking, strong verifier."},
+      {"rank": 7, "task_id": "task_000180_a74736b1", "skill": 4, "domain": 4, "task_form": 4, "overall": 4, "reason": "Writes a brute-forcer that recovers a 6-digit PIN from a salted MD5 hash; core brute-force-against-a-hash capability."},
+      {"rank": 8, "task_id": "task_000111_b2f871c2", "skill": 4, "domain": 4, "task_form": 4, "overall": 4, "reason": "Cracks a user's password from a leaked shadow fragment; classic hash-cracking, though the artifact is /etc/shadow not a 7z."},
+      {"rank": 9, "task_id": "task_003700_a8bc55c7", "skill": 3, "domain": 5, "task_form": 4, "overall": 4, "reason": "Extracts evidence from a recovered encrypted archive and image; same encrypted-archive-recovery domain, strong verifier."},
+      {"rank": 10, "task_id": "task_000147_436bd973", "skill": 3, "domain": 4, "task_form": 4, "overall": 3, "reason": "Brute-forces a 1-byte XOR key using ELF magic to recover a binary; small-keyspace brute-force reasoning, weaker archive link."}
+    ],
+    "Recursive-Task-Synthesis": [
+      {"rank": 1, "task_id": "rts_task_6e8029aca9566b2126985d35", "skill": 3, "domain": 4, "task_form": 5, "overall": 4, "reason": "Reverse-engineer a crackme to recover its password and write it to solution.txt; same find-the-secret-write-the-answer genre, RE instead of cracking."},
+      {"rank": 2, "task_id": "rts_task_5d6a0a000cb4fb920b833a82", "skill": 3, "domain": 4, "task_form": 5, "overall": 4, "reason": "Crackme password recovery via objdump/gdb/strings; verify by running the binary — password-discovery workflow with a concrete answer."},
+      {"rank": 3, "task_id": "rts_task_ee046ca2ea14fe903af968ec", "skill": 3, "domain": 4, "task_form": 5, "overall": 4, "reason": "Analyze crackme logic (do not guess) to recover the password; same secret-recovery task, absent verifier though."},
+      {"rank": 4, "task_id": "rts_task_1500a1cfed9639f3d760f48e", "skill": 3, "domain": 4, "task_form": 4, "overall": 3, "reason": "Recover crackme password and also emit its SHA-256; password discovery plus a hashing side-task."},
+      {"rank": 5, "task_id": "rts_task_ce14122249b0cd406c3d636e", "skill": 3, "domain": 4, "task_form": 4, "overall": 3, "reason": "Recover crackme password 'without brute-forcing'; teaches deriving a password from program logic, complementary to cracking."},
+      {"rank": 6, "task_id": "rts_task_db69b40a996d889ce10d574d", "skill": 3, "domain": 4, "task_form": 4, "overall": 3, "reason": "Reverse three crackme binaries to recover three passwords; multi-target password recovery, verify each by running it."},
+      {"rank": 7, "task_id": "rts_task_e50a96c707a8de4f7c7d0d00", "skill": 2, "domain": 3, "task_form": 3, "overall": 2, "reason": "Extracts a .7z archive to install a toolchain; touches the 7z format but it is plain extraction, no password."},
+      {"rank": 8, "task_id": "rts_task_8e547891e079468b99d21cb7", "skill": 2, "domain": 3, "task_form": 3, "overall": 2, "reason": "Recovers deleted credentials from git history; secret-recovery in a different (VCS forensics) domain."},
+      {"rank": 9, "task_id": "rts_task_a48b5b8f4779dc03bc771142", "skill": 2, "domain": 2, "task_form": 3, "overall": 2, "reason": "Purge a secret.key commit from git history and verify a manifest; secret handling, not cracking."},
+      {"rank": 10, "task_id": "rts_task_37896ed011ace68af43e2cba", "skill": 2, "domain": 3, "task_form": 3, "overall": 2, "reason": "Retrieve and decrypt an RSA-encrypted daily file via a script; decryption workflow, but keys are provided not cracked."}
+    ],
+    "TerminalWorld-Seeds-Clean": [
+      {"rank": 1, "task_id": "tw_383451", "skill": 3, "domain": 4, "task_form": 5, "overall": 4, "reason": "Reverse-engineer a crackme binary to discover its password and write it out; same find-the-password-verify-by-running genre."},
+      {"rank": 2, "task_id": "tw_125882", "skill": 3, "domain": 4, "task_form": 4, "overall": 3, "reason": "Recovers a magic constant by solving constraints with dynamic symbolic execution; secret-recovery via automated search, adjacent to cracking."},
+      {"rank": 3, "task_id": "tw_17667", "skill": 3, "domain": 3, "task_form": 4, "overall": 3, "reason": "OverTheWire-Bandit-style: find a hidden password and write it to solution.txt; same recover-a-secret-to-a-file shape."},
+      {"rank": 4, "task_id": "tw_459969", "skill": 2, "domain": 3, "task_form": 4, "overall": 3, "reason": "Recover a secret baked into a Docker image layer; digging a hidden value out of a layered archive-like artifact."},
+      {"rank": 5, "task_id": "tw_117526", "skill": 2, "domain": 3, "task_form": 3, "overall": 2, "reason": "Extract a compressed archive embedded in an ext4 disk image; archive extraction from an unusual container."},
+      {"rank": 6, "task_id": "tw_256057", "skill": 2, "domain": 3, "task_form": 3, "overall": 2, "reason": "Encode, corrupt, repair and decode a blkar SBX archive; archive-format manipulation and integrity, no password."},
+      {"rank": 7, "task_id": "tw_48562", "skill": 2, "domain": 3, "task_form": 3, "overall": 2, "reason": "Live-patch a binary at a specific address; low-level binary manipulation, related to crackme RE."},
+      {"rank": 8, "task_id": "tw_41811", "skill": 2, "domain": 3, "task_form": 2, "overall": 2, "reason": "Use git-secret to encrypt/decrypt a tracked file round-trip; encryption tooling, keys provided."},
+      {"rank": 9, "task_id": "tw_120441", "skill": 1, "domain": 3, "task_form": 3, "overall": 2, "reason": "Extract a GPG key fingerprint to solution.txt; same write-a-recovered-value shape, trivial extraction."},
+      {"rank": 10, "task_id": "tw_245501", "skill": 2, "domain": 3, "task_form": 2, "overall": 2, "reason": "GPG encrypt/decrypt round-trip with ssm; crypto tooling but FREE verifier, so kept out of final_top10."}
+    ],
+    "SWE-Smith-Seeds-Clean": [
+      {"rank": 1, "task_id": "getmoto__moto.694ce1f4.func_pm_ctrl_shuffle__lqoqu8rl", "skill": 2, "domain": 3, "task_form": 1, "overall": 2, "reason": "Fixes SecretsManager list_secrets filtering; touches secret storage/retrieval, but it is a library bug fix, not cracking."},
+      {"rank": 2, "task_id": "cookiecutter__cookiecutter.b4451231.func_pm_remove_cond__s38a2g7u", "skill": 2, "domain": 3, "task_form": 1, "overall": 2, "reason": "Repairs broken ZIP-archive handling (download, unpack); archive-format code, wrong genre and no password work."},
+      {"rank": 3, "task_id": "cookiecutter__cookiecutter.b4451231.func_pm_remove_assign__sr0dfj04", "skill": 2, "domain": 3, "task_form": 1, "overall": 2, "reason": "NameError on local zip files; another zip-extraction fix, only the archive domain overlaps."},
+      {"rank": 4, "task_id": "conan-io__conan.86f29e13.pr_14378", "skill": 1, "domain": 3, "task_form": 1, "overall": 2, "reason": "Dependency graph over openssl/cryptopp/libzip; brushes the crypto+archive ecosystem, exercises none of its capability."},
+      {"rank": 5, "task_id": "jawah__charset_normalizer.1fdd6463.func_pm_ctrl_invert_if__gfmne36l", "skill": 2, "domain": 2, "task_form": 1, "overall": 2, "reason": "CLI must error when encoding can't be identified; byte-level decoding logic, weakly related to recovering unknown-format data."},
+      {"rank": 6, "task_id": "chardet__chardet.9630f238.combine_file__1gm3nc5e", "skill": 2, "domain": 2, "task_form": 1, "overall": 2, "reason": "Encoding detection fix; guessing an unknown byte encoding is a faint analogue of recovering an unknown archive's contents."},
+      {"rank": 7, "task_id": "cknd__stackprinter.219fcc52.lm_rewrite__hydje3e0", "skill": 1, "domain": 2, "task_form": 1, "overall": 1, "reason": "Suppress a 'password' variable in tracebacks; only the word 'password' connects it."},
+      {"rank": 8, "task_id": "iterative__dvc.1d6ea681.pr_9635", "skill": 1, "domain": 2, "task_form": 1, "overall": 1, "reason": "checkout force flag still prompts; file/cache handling, unrelated to cracking."},
+      {"rank": 9, "task_id": "pdfminer__pdfminer.six.1a8bd2f7.func_pm_ctrl_shuffle__p83c0pkl", "skill": 1, "domain": 2, "task_form": 1, "overall": 1, "reason": "PDF parsing fix; binary-format parsing at best, nothing security-facing."},
+      {"rank": 10, "task_id": "encode__starlette.db5063c2.pr_2583", "skill": 1, "domain": 1, "task_form": 1, "overall": 1, "reason": "StaticFiles long-filename handling; shares only the shell, no transfer."}
+    ],
+    "SWE-Rebench-Tasks-Clean": [
+      {"rank": 1, "task_id": "getmoto__moto-6127", "skill": 2, "domain": 3, "task_form": 1, "overall": 2, "reason": "SecretsManager can't resolve partial ARNs; secret-retrieval code, but a library bug fix, not password recovery."},
+      {"rank": 2, "task_id": "borgbackup__borg-8872", "skill": 2, "domain": 3, "task_form": 1, "overall": 2, "reason": "Buzhash chunker seed bug in a backup/archive tool; closest to archive-format+hashing internals here."},
+      {"rank": 3, "task_id": "conan-io__conan-18327", "skill": 1, "domain": 3, "task_form": 1, "overall": 2, "reason": "Reword messages when uncompressing archives (untargz); archive-handling code path, trivial change."},
+      {"rank": 4, "task_id": "academysoftwarefoundation__opentimelineio-1862", "skill": 1, "domain": 2, "task_form": 1, "overall": 1, "reason": "otioconvert to a zipped OTIOZ bundle fails on relative urls; archive-packaging fix only."},
+      {"rank": 5, "task_id": "cadquery__cadquery-1690", "skill": 1, "domain": 1, "task_form": 1, "overall": 1, "reason": "CAD export color comparison bug; no meaningful overlap beyond shipping a zip repro."},
+      {"rank": 6, "task_id": "delgan__loguru-960", "skill": 1, "domain": 1, "task_form": 1, "overall": 1, "reason": "Log rotation file bug; unrelated capability and domain."},
+      {"rank": 7, "task_id": "pypa__setuptools-4676", "skill": 1, "domain": 1, "task_form": 1, "overall": 1, "reason": "Wheel ABI tag on debug Python; packaging fix, no transfer."},
+      {"rank": 8, "task_id": "huggingface__transformers-19219", "skill": 1, "domain": 1, "task_form": 1, "overall": 1, "reason": "Transformers issue; unrelated to cracking or archives."},
+      {"rank": 9, "task_id": "roskakori__pygount-55", "skill": 1, "domain": 1, "task_form": 1, "overall": 1, "reason": "Line-count classification regex fix; unrelated."},
+      {"rank": 10, "task_id": "pytest-dev__pyfakefs-975", "skill": 1, "domain": 1, "task_form": 1, "overall": 1, "reason": "Fake os.link missing a parameter; unrelated filesystem-mock fix."}
+    ],
+    "Terminal-Lego-15k": [
+      {"rank": 1, "task_id": "task_01697", "skill": 4, "domain": 5, "task_form": 3, "overall": 4, "reason": "Fixes a Python MD5-hash cracker that iterates a wordlist; the wordlist-against-a-hash mechanic is exactly the 7z-hash crack, as a bug fix."},
+      {"rank": 2, "task_id": "task_06671", "skill": 3, "domain": 5, "task_form": 3, "overall": 3, "reason": "Builds an MD5 hash lookup/reverse tool contrasting hashing vs encryption; hash-cracking-by-lookup capability, same domain."},
+      {"rank": 3, "task_id": "task_06798", "skill": 3, "domain": 5, "task_form": 3, "overall": 3, "reason": "Demonstrates a rainbow-table attack cracking password hashes; precomputed-hash cracking, adjacent to wordlist attacks."},
+      {"rank": 4, "task_id": "task_03899", "skill": 3, "domain": 4, "task_form": 3, "overall": 3, "reason": "Creates a password-protected compressed archive; the inverse of the TB task and forces understanding of archive encryption."},
+      {"rank": 5, "task_id": "task_06753", "skill": 2, "domain": 4, "task_form": 3, "overall": 3, "reason": "Removes 40-bit PDF encryption and merges files; defeating a document's encryption, related archive/crypto domain."},
+      {"rank": 6, "task_id": "task_03964", "skill": 2, "domain": 4, "task_form": 3, "overall": 3, "reason": "Zip-bomb detection tool that inspects archive internals; reasoning about compressed-archive structure, strong verifier."},
+      {"rank": 7, "task_id": "task_06692", "skill": 2, "domain": 4, "task_form": 3, "overall": 2, "reason": "Password-salting analysis comparing salt strategies; password-security understanding but no cracking."},
+      {"rank": 8, "task_id": "task_06950", "skill": 2, "domain": 4, "task_form": 3, "overall": 2, "reason": "Implement secure password storage/hashing; defensive side of the same domain, strong verifier."},
+      {"rank": 9, "task_id": "task_03897", "skill": 2, "domain": 3, "task_form": 3, "overall": 2, "reason": "Extract a tar.gz archive with native tooling; plain archive extraction, no password."},
+      {"rank": 10, "task_id": "task_00612", "skill": 1, "domain": 3, "task_form": 2, "overall": 2, "reason": "Shell script for no-echo password input; touches passwords, exercises nothing the crack task needs."}
+    ],
+    "CalibForge": [
+      {"rank": 1, "task_id": "security_20260501_172213_002", "skill": 4, "domain": 5, "task_form": 5, "overall": 5, "reason": "README says passwords are in rockyou; crack the passphrase to extract steghide-hidden content and write it to /app/solution.txt — wordlist attack, same output."},
+      {"rank": 2, "task_id": "security_20260513_205011_002", "skill": 4, "domain": 4, "task_form": 5, "overall": 4, "reason": "Recover the password of backup.enc (a 'word+year' pattern) using clues in notes, then write the decrypted secret; a rule/dictionary crack to solution.txt."},
+      {"rank": 3, "task_id": "security_20260604_193356_002", "skill": 4, "domain": 4, "task_form": 5, "overall": 4, "reason": "Extract secret.txt from an encrypted zip archive to /app/solution.txt; directly the crack-an-archive-and-read-a-file task, different tool than 7z."},
+      {"rank": 4, "task_id": "security_20260528_174918_002", "skill": 4, "domain": 4, "task_form": 4, "overall": 4, "reason": "Reverse-engineer a crypt binary to figure out its scheme, then decrypt secret.txt.enc to solution.txt; RE-then-recover, strong single-value test."},
+      {"rank": 5, "task_id": "security_20260415_123352_002", "skill": 4, "domain": 4, "task_form": 4, "overall": 4, "reason": "Recover data hidden in an image using a provided /app/wordlist.txt; the wordlist-driven extraction is the same cracking loop."},
+      {"rank": 6, "task_id": "security_20260513_204848_002", "skill": 3, "domain": 5, "task_form": 4, "overall": 3, "reason": "Forensic recovery from a KeePass .kdbx and a backup archive; same keepass2john/crack-the-container territory as 7z2john."},
+      {"rank": 7, "task_id": "security_20260601_053159_002", "skill": 3, "domain": 4, "task_form": 4, "overall": 3, "reason": "Extract hidden secret data from a recovered project directory to solution.txt; find-and-recover-a-secret with a pinned answer."},
+      {"rank": 8, "task_id": "security_20260610_111012_002", "skill": 3, "domain": 4, "task_form": 4, "overall": 3, "reason": "Figure out how to decrypt data.enc using only clues in a git repo, write plaintext to solution.txt; decryption-by-investigation."},
+      {"rank": 9, "task_id": "mathematics_20260616_094815_004", "skill": 3, "domain": 3, "task_form": 4, "overall": 3, "reason": "Reverse-engineer an auth token from dumped flash via a knapsack; cryptanalysis to recover a secret value, different math."},
+      {"rank": 10, "task_id": "security_20260610_111702_002", "skill": 3, "domain": 4, "task_form": 4, "overall": 2, "reason": "Find a leaked GPG passphrase in a repo, decrypt secret.gpg to solution.txt — good match but FREE verifier, so excluded from final_top10."}
+    ]
+  },
+  "final_top10": [
+    {"rank": 1, "task_id": "task_000306_b7243206", "source": "TMax-15K", "skill": 5, "domain": 5, "task_form": 5, "overall": 5, "reason": "Cracks the password of /app/bundle.zip using a clue plus a wordlist, then extracts it — the exact protected-archive wordlist attack."},
+    {"rank": 2, "task_id": "task_000404_22839b0e", "source": "TMax-15K", "skill": 5, "domain": 5, "task_form": 5, "overall": 5, "reason": "Brute-forces the rest of a partly-known password to open encrypted network_logs.zip; same archive-password recovery then extract."},
+    {"rank": 3, "task_id": "task_000686_867b10d0", "source": "TMax-15K", "skill": 5, "domain": 5, "task_form": 4, "overall": 5, "reason": "Extracts an MD5 hash from a binary and cracks it against a rockyou-style wordlist — the hash-plus-wordlist skill '7z-hash' names."},
+    {"rank": 4, "task_id": "task_000631_386f48f2", "source": "TMax-15K", "skill": 5, "domain": 5, "task_form": 5, "overall": 5, "reason": "Brute-forces a PIN protecting backup.zip and extracts it; identical crack-then-read-the-file loop."},
+    {"rank": 5, "task_id": "security_20260501_172213_002", "source": "CalibForge", "skill": 4, "domain": 5, "task_form": 5, "overall": 5, "reason": "Cracks a passphrase from the rockyou wordlist to extract hidden content, writing it to /app/solution.txt — same tools and same output file."},
+    {"rank": 6, "task_id": "task_003528_a9c79a93", "source": "TMax-15K", "skill": 4, "domain": 5, "task_form": 4, "overall": 4, "reason": "Recovers the contents of an encrypted archive (payload.zip) from a breached host; archive decryption in a forensics context."},
+    {"rank": 7, "task_id": "task_000476_14b909cc", "source": "TMax-15K", "skill": 4, "domain": 4, "task_form": 4, "overall": 4, "reason": "Brute-forces the tail of a master token against an MD5 hash; small-keyspace hash cracking with a strong verifier."},
+    {"rank": 8, "task_id": "security_20260513_205011_002", "source": "CalibForge", "skill": 4, "domain": 4, "task_form": 5, "overall": 4, "reason": "Recovers backup.enc's 'word+year' password from contextual clues and writes the decrypted secret; a rule/dictionary crack to solution.txt."},
+    {"rank": 9, "task_id": "security_20260604_193356_002", "source": "CalibForge", "skill": 4, "domain": 4, "task_form": 5, "overall": 4, "reason": "Extracts secret.txt from an encrypted zip archive to /app/solution.txt; the crack-an-archive-and-read-a-file task in a different archive format."},
+    {"rank": 10, "task_id": "rts_task_6e8029aca9566b2126985d35", "source": "Recursive-Task-Synthesis", "skill": 3, "domain": 4, "task_form": 5, "overall": 4, "reason": "Reverse-engineers a crackme to recover its password and write it out; the find-a-secret-and-report-it genre, though verification is absent."}
+  ],
+  "notes": "TMax-15K is clearly the strongest pool for this task and dominates the top of final_top10: it has genuine zip/PIN password-cracking and hash-cracking-with-rockyou tasks that transfer almost one-to-one, with pinned-value verifiers. CalibForge is a close second and contributes three verified crack/decrypt-to-solution.txt tasks (the exact output path), so the two new corpora DO beat the old ones in one place — CalibForge's security_* set outranks everything from TerminalWorld/RTS/SWE except TMax. Terminal-Lego's contribution is real but weaker: it teaches the hash-cracking/archive domain via 'demonstrate/implement' exercises rather than an actual crack, so its best (task_01697, a wordlist MD5 cracker fix) is a 4 at most. RTS has no verifier (all absent) but its crackme family is the honest closest match there; I placed one in final_top10 per the spec and flagged the gap. SWE-Smith and SWE-Rebench have essentially nothing on password cracking — their best entries are secrets-manager/archive-handling library fixes that top out at overall 2; both corpora should be treated as filler here. No FREE candidate appears in final_top10 (security_20260420_020307_002 and security_20260610_111702_002, both ideal-looking but FREE, are excluded)."
+}

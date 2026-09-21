@@ -1,0 +1,773 @@
+{
+  "tb21_id": "extract-elf",
+  "tb21_profile": {
+    "skill": "Parse the ELF container by hand from raw bytes - header, program headers, PT_LOAD segments - map file offsets to virtual addresses, and emit every loadable word as address->little-endian integer; no ELF library, only Buffer reads and offset arithmetic.",
+    "domain": "ELF / Linux executables, binary file formats, low-level memory layout, Node.js Buffer I/O, JSON output.",
+    "task_form": "Implement-from-spec / reverse-engineer-a-binary-format: write one program that reads a binary and prints a precisely specified structured dump."
+  },
+  "verifier_notes": "file-operations_20260617_051646_002 (Node.js binary-plist parser to JSON) is the single closest match in the whole pool - same `node prog.js <binary>` shape, same hand-decoded header. The packet grades it `strong` but work/verifier_strength.json grades it FREE (strength 0.0, 9 tests, 24 cheap checks). I took the stricter reading and kept it out of final_top10; it stays at CalibForge rank 2 because it is the best offering by skill. Note the two grade sources disagree on several ids here (also software-engineering_20260604_003113_018: packet `ok`, current file `weak`); where they disagree I excluded on the pessimistic one. task_003272_43f94d44 (TMax, parse Elf64 e_entry in C++ into a markdown placeholder) is FREE and excluded despite a decent ELF-header match. TerminalWorld is badly hit: tw_18948 (debugging an ELF parser on busybox-mips-phdr), tw_130138, tw_197833, tw_442639, tw_50221, tw_21329, tw_165683, tw_134335, tw_42850 and tw_101812 are all FREE, i.e. most of its on-topic binary work is unverifiable; its per_source list is the non-FREE remainder. In Terminal-Lego the on-topic task_15029 (C# struct marshalling from a byte array), task_11151 (raw 16-bit x86 disassembly), task_14104 (PE disassembly), task_12491, task_00352 and task_00488 are all FREE and were left out.",
+  "searches": [
+    "tools.py search tmax '(?i)(\\bELF\\b|readelf|objdump|program header|section header|struct\\.unpack|little.endian|binary format|hexdump|\\.text section)'",
+    "tools.py search tmax '(?i)(Elf64_Phdr|program header|PT_LOAD|p_vaddr|e_entry|section header|\\.rodata|virtual address)'",
+    "tools.py search rts '(?i)(\\bELF\\b|readelf|objdump|disassembl|reverse.engineer|binary format|hexdump|xxd|little.endian|struct\\.unpack)'",
+    "tools.py words tw elf readelf objdump binary disassemble radare2 reverse-engineer hexdump symbols",
+    "tools.py search tw '(?i)(byte|offset|patch the binary|hex|magic|firmware|\\.so\\b|symbol table|nm |strip)'",
+    "tools.py search smith '(?i)(struct\\.unpack|byte order|endian|LEB128|bytecode|magic number|binary file|parse.*header|raw bytes)'",
+    "tools.py search smith 'cantools'",
+    "tools.py search rebench '(?i)(struct\\.unpack|byte order|big.endian|little.endian|binary format|memory address|\\bELF\\b|dtype byte|frombuffer|memoryview)'",
+    "tools.py search rebench 'pfp'",
+    "tools.py words rebench binary parse bytes decode header offset format",
+    "grep -rliE '\\bELF\\b|readelf|objdump|struct\\.unpack|little-endian|binary file format|hex dump|Buffer\\.read|nm -|disassembl' --include=instruction.md /data/yichuan_wang/terminal-lego-15k",
+    "grep -rliE 'parse the .* header|magic number|byte offset|unpack|serializ.*binary|deserializ' --include=instruction.md /data/yichuan_wang/terminal-lego-15k",
+    "grep -rliE '\\bELF\\b|program header|section header|readelf|objdump|LEB128|Mach-O|PE header' --include=instruction.md /data/yichuan_wang/calibforge"
+  ],
+  "per_source": {
+    "TMax-15K": [
+      {
+        "rank": 1,
+        "task_id": "task_002410_b5ee16be",
+        "skill": 5,
+        "domain": 5,
+        "task_form": 4,
+        "overall": 4,
+        "reason": "Parse ELF headers in Rust and print one JSON line per file with e_machine and e_entry; ELF fields in, JSON out."
+      },
+      {
+        "rank": 2,
+        "task_id": "task_000135_8b1a9518",
+        "skill": 5,
+        "domain": 5,
+        "task_form": 4,
+        "overall": 4,
+        "reason": "Walk 64-bit ELF program headers for PT_GNU_STACK flags and dynamic DT_RPATH tags; the phdr table extract-elf must traverse."
+      },
+      {
+        "rank": 3,
+        "task_id": "task_003397_35f53b7c",
+        "skill": 5,
+        "domain": 5,
+        "task_form": 4,
+        "overall": 4,
+        "reason": "Read e_type at 0x10, e_machine at 0x12, e_entry at 0x18 as raw little-endian bytes, with magic-based dispatch - literal offset arithmetic."
+      },
+      {
+        "rank": 4,
+        "task_id": "task_002416_e537f00a",
+        "skill": 4,
+        "domain": 5,
+        "task_form": 3,
+        "overall": 4,
+        "reason": "Check ELF magic then read e_entry natively in C at offset 0x18; no library, just bytes at known offsets."
+      },
+      {
+        "rank": 5,
+        "task_id": "task_000101_5b83d1ba",
+        "skill": 4,
+        "domain": 3,
+        "task_form": 5,
+        "overall": 4,
+        "reason": "Reverse-engineer an undocumented binary format by observing a reference parser, then re-emit it as JSON; same infer-then-dump loop."
+      },
+      {
+        "rank": 6,
+        "task_id": "task_000958_b2a9b10b",
+        "skill": 4,
+        "domain": 5,
+        "task_form": 3,
+        "overall": 3,
+        "reason": "Read Elf64_Ehdr from a file and print the entry point in a fixed format; ELF header layout in C."
+      },
+      {
+        "rank": 7,
+        "task_id": "task_000005_ceefb305",
+        "skill": 3,
+        "domain": 5,
+        "task_form": 3,
+        "overall": 3,
+        "reason": "Find 64-bit ELF files in a tree and parse each Elf64_Ehdr for e_entry; ELF recognition plus header decoding."
+      },
+      {
+        "rank": 8,
+        "task_id": "task_000047_9e04faa8",
+        "skill": 4,
+        "domain": 3,
+        "task_form": 4,
+        "overall": 3,
+        "reason": "Parse a custom container: signature then length-prefixed records with 16/32-bit little-endian fields; the same cursor-walking discipline."
+      },
+      {
+        "rank": 9,
+        "task_id": "task_000071_b7b35e9a",
+        "skill": 4,
+        "domain": 3,
+        "task_form": 4,
+        "overall": 3,
+        "reason": "Validate a 4-byte LE magic then stream IEEE-754 doubles from a binary file; strict magic-and-offsets parsing with rejection rules."
+      },
+      {
+        "rank": 10,
+        "task_id": "task_002139_0d87c243",
+        "skill": 3,
+        "domain": 5,
+        "task_form": 3,
+        "overall": 3,
+        "reason": "Find the .text section's virtual address and emit it as 8 little-endian bytes; section-to-vaddr lookup plus byte packing."
+      }
+    ],
+    "Recursive-Task-Synthesis": [
+      {
+        "rank": 1,
+        "task_id": "rts_task_27d9611d05b6a0d7288b1436",
+        "skill": 3,
+        "domain": 5,
+        "task_form": 4,
+        "overall": 3,
+        "reason": "Produce a validated metadata.json of a binary's ELF type, architecture, entrypoint and sections; ELF header fields into structured JSON."
+      },
+      {
+        "rank": 2,
+        "task_id": "rts_task_cbbf60a5f9ac26f1323b6aa1",
+        "skill": 3,
+        "domain": 5,
+        "task_form": 4,
+        "overall": 3,
+        "reason": "Emit valid JSON of ELF header metadata plus a function/xref listing, to a specified schema; binary facts into a strict JSON contract."
+      },
+      {
+        "rank": 3,
+        "task_id": "rts_task_603591463b051b83c89fa67a",
+        "skill": 3,
+        "domain": 5,
+        "task_form": 3,
+        "overall": 3,
+        "reason": "Report architecture, ELF class, entry point and strip status of a built binary; requires understanding what the ELF header holds."
+      },
+      {
+        "rank": 4,
+        "task_id": "rts_task_398ef7a86484502bf2dd8313",
+        "skill": 3,
+        "domain": 4,
+        "task_form": 3,
+        "overall": 3,
+        "reason": "Diff original vs patched binary with xxd/cmp and prove only the intended bytes changed; byte-offset reasoning inside an executable."
+      },
+      {
+        "rank": 5,
+        "task_id": "rts_task_bdc7b03261cf73df2b159f82",
+        "skill": 3,
+        "domain": 4,
+        "task_form": 3,
+        "overall": 2,
+        "reason": "Build a libc-free ARM64 ELF using raw syscalls and verify it with objdump -p; forces awareness of what makes a valid ELF."
+      },
+      {
+        "rank": 6,
+        "task_id": "rts_task_8aa6db9bc06f71d90094230a",
+        "skill": 2,
+        "domain": 4,
+        "task_form": 3,
+        "overall": 2,
+        "reason": "Place data in the .data section of AArch64 asm and verify with readelf -h; section layout awareness, tool-driven."
+      },
+      {
+        "rank": 7,
+        "task_id": "rts_task_58f3228202580aa6fa0ff7d9",
+        "skill": 2,
+        "domain": 4,
+        "task_form": 3,
+        "overall": 2,
+        "reason": "Extract ELF notes and build-id with readelf -n into an exact report; reads a specific ELF structure, but via a tool."
+      },
+      {
+        "rank": 8,
+        "task_id": "rts_task_10f00b2dbc88cdebecff9aae",
+        "skill": 2,
+        "domain": 4,
+        "task_form": 3,
+        "overall": 2,
+        "reason": "Same ELF-note/build-id extraction inside a git workflow; ELF metadata retrieval with extra scaffolding."
+      },
+      {
+        "rank": 9,
+        "task_id": "rts_task_070cf5269ca7c548f70d7007",
+        "skill": 2,
+        "domain": 4,
+        "task_form": 3,
+        "overall": 2,
+        "reason": "Gather real binary properties with objdump/ldd into a report validated against the binary itself; no hand parsing."
+      },
+      {
+        "rank": 10,
+        "task_id": "rts_task_5d6a0a000cb4fb920b833a82",
+        "skill": 2,
+        "domain": 4,
+        "task_form": 3,
+        "overall": 2,
+        "reason": "Reverse-engineer a crackme with objdump/gdb/strings; binary comprehension, but the answer is a password, not a format dump."
+      }
+    ],
+    "TerminalWorld-Seeds-Clean": [
+      {
+        "rank": 1,
+        "task_id": "tw_381835",
+        "skill": 4,
+        "domain": 5,
+        "task_form": 3,
+        "overall": 3,
+        "reason": "Patch the PT_INTERP program header of an ELF; requires locating a phdr entry and editing its bytes in place."
+      },
+      {
+        "rank": 2,
+        "task_id": "tw_48562",
+        "skill": 4,
+        "domain": 5,
+        "task_form": 3,
+        "overall": 3,
+        "reason": "Overwrite bytes at virtual address 0x4872f5 in /bin/bash - exactly the vaddr-to-file-offset mapping extract-elf must get right."
+      },
+      {
+        "rank": 3,
+        "task_id": "tw_12138",
+        "skill": 3,
+        "domain": 5,
+        "task_form": 3,
+        "overall": 3,
+        "reason": "Overwrite the four ELF magic bytes at file offset 0; small, but it is direct byte-offset surgery on an ELF."
+      },
+      {
+        "rank": 4,
+        "task_id": "tw_306630",
+        "skill": 3,
+        "domain": 4,
+        "task_form": 3,
+        "overall": 3,
+        "reason": "Drive r2pipe to analyse /bin/ls and emit the function list and xrefs in a fixed structure; binary facts into structured output."
+      },
+      {
+        "rank": 5,
+        "task_id": "tw_125882",
+        "skill": 3,
+        "domain": 4,
+        "task_form": 3,
+        "overall": 2,
+        "reason": "Recover a magic constant a binary checks against, via symbolic execution; extracting embedded data values from an executable."
+      },
+      {
+        "rank": 6,
+        "task_id": "tw_92698",
+        "skill": 3,
+        "domain": 4,
+        "task_form": 3,
+        "overall": 2,
+        "reason": "Analyse a raw memory dump with Volatility; reasoning about addresses and contents of a memory image."
+      },
+      {
+        "rank": 7,
+        "task_id": "tw_18610",
+        "skill": 3,
+        "domain": 2,
+        "task_form": 3,
+        "overall": 2,
+        "reason": "Reconstruct a byte stream from a raw capture, applying 0x7f backspaces; careful byte-level state machine over a buffer."
+      },
+      {
+        "rank": 8,
+        "task_id": "tw_188928",
+        "skill": 2,
+        "domain": 2,
+        "task_form": 3,
+        "overall": 2,
+        "reason": "Accumulate fixed-width 32-byte hash outputs into one binary file; writing exact binary layout rather than text."
+      },
+      {
+        "rank": 9,
+        "task_id": "tw_383451",
+        "skill": 2,
+        "domain": 4,
+        "task_form": 2,
+        "overall": 2,
+        "reason": "Reverse-engineer a crackme to recover its password; binary comprehension, but the deliverable is a string."
+      },
+      {
+        "rank": 10,
+        "task_id": "tw_289006",
+        "skill": 2,
+        "domain": 4,
+        "task_form": 2,
+        "overall": 2,
+        "reason": "Three crackmes to reverse in one task; more of the same binary-analysis skill, still not format parsing."
+      }
+    ],
+    "SWE-Smith-Seeds-Clean": [
+      {
+        "rank": 1,
+        "task_id": "pydicom__pydicom.7d361b3d.func_basic__9x07lkr7",
+        "skill": 4,
+        "domain": 3,
+        "task_form": 2,
+        "overall": 3,
+        "reason": "Fix leanread's raw walk over DICOM elements across implicit/explicit VR and both byte orders; offset-by-offset binary traversal."
+      },
+      {
+        "rank": 2,
+        "task_id": "pydicom__pydicom.7d361b3d.func_pm_remove_assign__mxjvd8f5",
+        "skill": 3,
+        "domain": 3,
+        "task_form": 2,
+        "overall": 3,
+        "reason": "Restore file-position tracking while parsing DICOM; the cursor bookkeeping any binary reader depends on."
+      },
+      {
+        "rank": 3,
+        "task_id": "pyasn1__pyasn1.0f07d724.lm_rewrite__p6q0xdxm",
+        "skill": 3,
+        "domain": 3,
+        "task_form": 2,
+        "overall": 3,
+        "reason": "Produce byte-exact integer and BitString encodings; one wrong byte fails, like a misread ELF field."
+      },
+      {
+        "rank": 4,
+        "task_id": "pyasn1__pyasn1.0f07d724.combine_module__3s86p0tx",
+        "skill": 3,
+        "domain": 3,
+        "task_form": 2,
+        "overall": 3,
+        "reason": "asOctets reverses byte order; a byte-order bug of precisely the kind that breaks little-endian word extraction."
+      },
+      {
+        "rank": 5,
+        "task_id": "cantools__cantools.0c6a7871.func_pm_op_change_const__66td47t4",
+        "skill": 3,
+        "domain": 3,
+        "task_form": 2,
+        "overall": 3,
+        "reason": "Signal bit offsets/lengths miscomputed so signals no longer fit their frames; bit-level packing arithmetic."
+      },
+      {
+        "rank": 6,
+        "task_id": "kurtmckee__feedparser.cad965a3.combine_file__nnkc1cw9",
+        "skill": 2,
+        "domain": 2,
+        "task_form": 2,
+        "overall": 2,
+        "reason": "StreamFactory fails to return a binary file object; dispatching on raw bytes versus text."
+      },
+      {
+        "rank": 7,
+        "task_id": "pallets__jinja.ada0a9a6.combine_file__9n0lapkf",
+        "skill": 2,
+        "domain": 2,
+        "task_form": 2,
+        "overall": 2,
+        "reason": "Bytecode cache serialisation/deserialisation round-trip; writing and re-reading a private binary format."
+      },
+      {
+        "rank": 8,
+        "task_id": "jsvine__pdfplumber.02ff4313.func_pm_remove_wrapper__gcyvr6sb",
+        "skill": 2,
+        "domain": 2,
+        "task_form": 2,
+        "overall": 2,
+        "reason": "Raw byte fields left undecoded when reading PDF objects; bytes-vs-text handling inside a binary container."
+      },
+      {
+        "rank": 9,
+        "task_id": "pdfminer__pdfminer.six.1a8bd2f7.pr_887",
+        "skill": 2,
+        "domain": 2,
+        "task_form": 2,
+        "overall": 2,
+        "reason": "Extraction fails on certain PDFs; robustness of a binary document parser against malformed input."
+      },
+      {
+        "rank": 10,
+        "task_id": "dask__dask.5f61e423.pr_10972",
+        "skill": 2,
+        "domain": 2,
+        "task_form": 2,
+        "overall": 2,
+        "reason": "Big-endian machine exposes a missing byteswap; endianness assumptions made explicit."
+      }
+    ],
+    "SWE-Rebench-Tasks-Clean": [
+      {
+        "rank": 1,
+        "task_id": "d0c-s4vage__pfp-112",
+        "skill": 5,
+        "domain": 4,
+        "task_form": 2,
+        "overall": 4,
+        "reason": "pfp is a binary-template interpreter; this bug is in implicit-array handling while parsing a DEX file with uleb128 fields."
+      },
+      {
+        "rank": 2,
+        "task_id": "d0c-s4vage__pfp-126",
+        "skill": 4,
+        "domain": 4,
+        "task_form": 2,
+        "overall": 3,
+        "reason": "Same engine failing on a PNG binary template; chunk-structured binary parsing driven by a declarative layout."
+      },
+      {
+        "rank": 3,
+        "task_id": "d0c-s4vage__pfp-114",
+        "skill": 4,
+        "domain": 4,
+        "task_form": 2,
+        "overall": 3,
+        "reason": "Enum fields and _pfp__parse mis-set values while decoding a binary stream; field decoding semantics."
+      },
+      {
+        "rank": 4,
+        "task_id": "d0c-s4vage__pfp-109",
+        "skill": 3,
+        "domain": 4,
+        "task_form": 2,
+        "overall": 3,
+        "reason": "Implement Memcmp in the binary-template interpreter; byte-range comparison inside a parsed file."
+      },
+      {
+        "rank": 5,
+        "task_id": "d0c-s4vage__pfp-128",
+        "skill": 3,
+        "domain": 4,
+        "task_form": 2,
+        "overall": 3,
+        "reason": "Control-flow semantics in the same binary-template engine; keeps the parser's evaluation model honest."
+      },
+      {
+        "rank": 6,
+        "task_id": "laspy__laspy-200",
+        "skill": 3,
+        "domain": 3,
+        "task_form": 2,
+        "overall": 3,
+        "reason": "LAS point-cloud scaling bug: header scale/offset applied wrongly to packed integer records; header-driven decoding of binary records."
+      },
+      {
+        "rank": 7,
+        "task_id": "nipy__nibabel-1336",
+        "skill": 3,
+        "domain": 3,
+        "task_form": 2,
+        "overall": 3,
+        "reason": "NIfTI extension record layout redesign; a binary medical-image header with length-prefixed extensions."
+      },
+      {
+        "rank": 8,
+        "task_id": "jelmer__dulwich-1500",
+        "skill": 2,
+        "domain": 3,
+        "task_form": 2,
+        "overall": 2,
+        "reason": "Annotated tag objects in Git's own binary object format; constructing a byte-exact object body."
+      },
+      {
+        "rank": 9,
+        "task_id": "jcrist__msgspec-225",
+        "skill": 2,
+        "domain": 3,
+        "task_form": 2,
+        "overall": 2,
+        "reason": "Extend msgspec's encode/decode for datetimes; binary serialisation codec correctness."
+      },
+      {
+        "rank": 10,
+        "task_id": "d0c-s4vage__pfp-116",
+        "skill": 2,
+        "domain": 3,
+        "task_form": 2,
+        "overall": 2,
+        "reason": "Chained assignment in the pfp language; interpreter plumbing rather than binary decoding itself."
+      }
+    ],
+    "Terminal-Lego-15k": [
+      {
+        "rank": 1,
+        "task_id": "task_11081",
+        "skill": 4,
+        "domain": 5,
+        "task_form": 3,
+        "overall": 3,
+        "reason": "Demonstrate and verify .bss vs .data in ELF binaries; exactly the distinction between segments that carry bytes and ones that do not."
+      },
+      {
+        "rank": 2,
+        "task_id": "task_03855",
+        "skill": 3,
+        "domain": 3,
+        "task_form": 3,
+        "overall": 3,
+        "reason": "Write numbers to a file in little-endian binary; the encoding side of the same byte-order arithmetic."
+      },
+      {
+        "rank": 3,
+        "task_id": "task_07239",
+        "skill": 3,
+        "domain": 5,
+        "task_form": 3,
+        "overall": 3,
+        "reason": "Determine which ELF binaries carry debug symbols; inspecting ELF section presence to classify files."
+      },
+      {
+        "rank": 4,
+        "task_id": "task_00344",
+        "skill": 3,
+        "domain": 5,
+        "task_form": 3,
+        "overall": 3,
+        "reason": "Modify RPATH inside a compiled ELF; editing a dynamic-section entry in place in an existing binary."
+      },
+      {
+        "rank": 5,
+        "task_id": "task_09721",
+        "skill": 3,
+        "domain": 3,
+        "task_form": 3,
+        "overall": 2,
+        "reason": "Circular buffer in JavaScript; index and wrap arithmetic over a fixed backing store, the JS side of buffer handling."
+      },
+      {
+        "rank": 6,
+        "task_id": "task_10524",
+        "skill": 3,
+        "domain": 3,
+        "task_form": 3,
+        "overall": 2,
+        "reason": "Git loose-object storage: zlib stream with a 'blob <len>\\0' binary header and SHA1 naming; a real binary container walked by hand."
+      },
+      {
+        "rank": 7,
+        "task_id": "task_03868",
+        "skill": 3,
+        "domain": 3,
+        "task_form": 3,
+        "overall": 2,
+        "reason": "Read WAV audio data into arrays; parse a RIFF header then decode fixed-width little-endian samples."
+      },
+      {
+        "rank": 8,
+        "task_id": "task_12158",
+        "skill": 3,
+        "domain": 3,
+        "task_form": 3,
+        "overall": 2,
+        "reason": "Cross-platform float serialisation with explicit endianness handling; byte-order conversion done deliberately."
+      },
+      {
+        "rank": 9,
+        "task_id": "task_01159",
+        "skill": 2,
+        "domain": 3,
+        "task_form": 3,
+        "overall": 2,
+        "reason": "Python .pyc internals: magic number, header, marshalled code; another magic-plus-header container."
+      },
+      {
+        "rank": 10,
+        "task_id": "task_12769",
+        "skill": 2,
+        "domain": 3,
+        "task_form": 3,
+        "overall": 2,
+        "reason": "Detect gzip by reading the file's magic bytes in C; the simplest form of format identification from raw bytes."
+      }
+    ],
+    "CalibForge": [
+      {
+        "rank": 1,
+        "task_id": "software-engineering_20260415_094424_014",
+        "skill": 5,
+        "domain": 5,
+        "task_form": 4,
+        "overall": 5,
+        "reason": "Node.js program that parses an ELF file and loads its segments into a memory image before executing - the exact parse-and-map step."
+      },
+      {
+        "rank": 2,
+        "task_id": "file-operations_20260617_051646_002",
+        "skill": 5,
+        "domain": 4,
+        "task_form": 5,
+        "overall": 5,
+        "reason": "node parse.js <binary> printing JSON: hand-decode a header, offset table and typed objects from bytes. Same invocation and same deliverable."
+      },
+      {
+        "rank": 3,
+        "task_id": "software-engineering_20260503_182123_010",
+        "skill": 5,
+        "domain": 5,
+        "task_form": 4,
+        "overall": 5,
+        "reason": "Dependency-free ELF loader in C: read program headers and map segments at their virtual addresses; the crux of address-to-offset mapping."
+      },
+      {
+        "rank": 4,
+        "task_id": "software-engineering_20260509_065529_014",
+        "skill": 5,
+        "domain": 5,
+        "task_form": 4,
+        "overall": 4,
+        "reason": "Another Node.js RISC-V interpreter that must load a real ELF before it can run anything; ELF parsing in JavaScript."
+      },
+      {
+        "rank": 5,
+        "task_id": "software-engineering_20260604_003113_018",
+        "skill": 5,
+        "domain": 5,
+        "task_form": 3,
+        "overall": 4,
+        "reason": "Emit a valid 64-bit ELF executable byte by byte from C; forces exact knowledge of every header field and offset."
+      },
+      {
+        "rank": 6,
+        "task_id": "file-operations_20260604_003814_002",
+        "skill": 4,
+        "domain": 4,
+        "task_form": 5,
+        "overall": 4,
+        "reason": "Parse a Java .class constant pool straight from bytes and print JSON, with decompilers explicitly banned; identical shape."
+      },
+      {
+        "rank": 7,
+        "task_id": "software-engineering_20260510_005520_026",
+        "skill": 4,
+        "domain": 5,
+        "task_form": 3,
+        "overall": 4,
+        "reason": "Fix an ELF symbol-table parser that crashes on malformed binaries; bounds and offset validation inside ELF structures."
+      },
+      {
+        "rank": 8,
+        "task_id": "software-engineering_20260501_172213_014",
+        "skill": 4,
+        "domain": 4,
+        "task_form": 4,
+        "overall": 4,
+        "reason": "Parse the WebAssembly binary format in JS - magic, version, sections, LEB128 - then execute it; the same JS byte-walking."
+      },
+      {
+        "rank": 9,
+        "task_id": "file-operations_20260604_003113_002",
+        "skill": 4,
+        "domain": 3,
+        "task_form": 5,
+        "overall": 4,
+        "reason": "Decode protobuf wire format without a schema and print JSON; infer structure from bytes alone and dump it."
+      },
+      {
+        "rank": 10,
+        "task_id": "software-engineering_20260510_053611_014",
+        "skill": 4,
+        "domain": 5,
+        "task_form": 3,
+        "overall": 4,
+        "reason": "Python RISC-V emulator that must load an ELF binary into memory before stepping instructions; segment loading again."
+      }
+    ]
+  },
+  "final_top10": [
+    {
+      "rank": 1,
+      "task_id": "software-engineering_20260415_094424_014",
+      "source": "CalibForge",
+      "skill": 5,
+      "domain": 5,
+      "task_form": 4,
+      "overall": 5,
+      "reason": "Node.js, parses a real ELF and loads its segments into memory; same language, same file format, same parse-and-map core."
+    },
+    {
+      "rank": 2,
+      "task_id": "software-engineering_20260503_182123_010",
+      "source": "CalibForge",
+      "skill": 5,
+      "domain": 5,
+      "task_form": 4,
+      "overall": 5,
+      "reason": "Dependency-free ELF loader: read program headers and place segments at their virtual addresses, which is what the output keys mean."
+    },
+    {
+      "rank": 3,
+      "task_id": "software-engineering_20260509_065529_014",
+      "source": "CalibForge",
+      "skill": 5,
+      "domain": 5,
+      "task_form": 4,
+      "overall": 4,
+      "reason": "Second Node.js interpreter that must load a real ELF first; ELF parsing with Buffer reads rather than a library."
+    },
+    {
+      "rank": 4,
+      "task_id": "software-engineering_20260604_003113_018",
+      "source": "CalibForge",
+      "skill": 5,
+      "domain": 5,
+      "task_form": 3,
+      "overall": 4,
+      "reason": "Hand-construct a valid 64-bit ELF byte by byte in C; the inverse skill, and it pins down every header field and offset."
+    },
+    {
+      "rank": 5,
+      "task_id": "file-operations_20260604_003814_002",
+      "source": "CalibForge",
+      "skill": 4,
+      "domain": 4,
+      "task_form": 5,
+      "overall": 4,
+      "reason": "Parse a Java .class constant pool from raw bytes to JSON with decompilers banned; same no-library binary-to-JSON contract."
+    },
+    {
+      "rank": 6,
+      "task_id": "software-engineering_20260510_005520_026",
+      "source": "CalibForge",
+      "skill": 4,
+      "domain": 5,
+      "task_form": 3,
+      "overall": 4,
+      "reason": "Harden an ELF symbol-table parser against malformed files; teaches bounds checking on ELF offsets and sizes."
+    },
+    {
+      "rank": 7,
+      "task_id": "software-engineering_20260501_172213_014",
+      "source": "CalibForge",
+      "skill": 4,
+      "domain": 4,
+      "task_form": 4,
+      "overall": 4,
+      "reason": "Parse WASM magic, version, sections and LEB128 integers in JavaScript; the closest non-ELF analogue of the same byte-walking in Node."
+    },
+    {
+      "rank": 8,
+      "task_id": "task_002410_b5ee16be",
+      "source": "TMax-15K",
+      "skill": 5,
+      "domain": 5,
+      "task_form": 4,
+      "overall": 4,
+      "reason": "Parse ELF headers and print JSON with the extracted fields; ELF in, JSON out, exactly the output discipline required."
+    },
+    {
+      "rank": 9,
+      "task_id": "task_000135_8b1a9518",
+      "source": "TMax-15K",
+      "skill": 5,
+      "domain": 5,
+      "task_form": 4,
+      "overall": 4,
+      "reason": "Traverse 64-bit ELF program headers and dynamic tags to classify binaries; the phdr walk extract-elf is built on."
+    },
+    {
+      "rank": 10,
+      "task_id": "file-operations_20260604_003113_002",
+      "source": "CalibForge",
+      "skill": 4,
+      "domain": 3,
+      "task_form": 5,
+      "overall": 4,
+      "reason": "Decode protobuf wire format with no schema and emit JSON; infer record structure from bytes alone and dump it verbatim."
+    }
+  ],
+  "notes": "CalibForge is overwhelmingly the best corpus for this task and takes 8 of the top 10 - it contains an entire family of hand-written binary-format parsers (ELF loaders, RISC-V ELF interpreters in Node and Python, WASM, bplist, .class, protobuf, tar, SQLite freeblocks), several of them in Node.js with the same `node prog.js <binary> > json` shape. This is the clearest case so far where a new corpus beats everything in v1. TMax is a strong second: `tools.py search` over it returns 1008 ELF/binary hits, far more than the shortlist surfaced, and its ELF-header tasks are genuinely on point; retrieval had put generic ETL and config-drift tasks at the top instead. Terminal-Lego has real ELF content (.bss/.data, RPATH, debug symbols) but its best binary items are disproportionately FREE. TerminalWorld is the worst hit: most of its on-topic reverse-engineering tasks are FREE, so its list is the non-FREE remainder and overall scores cap at 3. Recursive-Task-Synthesis only ever inspects ELF through readelf/objdump, never parses bytes, so skill caps at 3. SWE-Rebench's pfp cluster (a 010-Editor binary-template interpreter) was invisible to lexical retrieval and is its genuinely best offering."
+}

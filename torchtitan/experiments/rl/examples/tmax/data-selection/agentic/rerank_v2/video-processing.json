@@ -1,0 +1,776 @@
+{
+ "tb21_id": "video-processing",
+ "tb21_profile": {
+  "skill": "Segment a moving subject against a static background in monocular video and pick out the exact frames where its motion state changes, by designing and tuning a per-frame signal",
+  "domain": "Python computer vision: cv2 + numpy frame-by-frame MP4 analysis, TOML output",
+  "task_form": "implement-from-spec: a standalone script producing a schema-exact structured file that must generalise to unseen videos of the same setup"
+ },
+ "verifier_notes": "video-processing_20260603_181444_001 is graded weak (0.167) but its suite pins the exact event count (4) and per-event start/end/peak frame windows for all four events; in substance it is strong. video-processing_20260604_193356_001 (oscillator_analyzer) is the single closest skill match in CalibForge but is graded FREE, so it appears only in per_source. tw_588262 (OpenCV YOLO) and task_13590 (rectangle detection) are likewise FREE and kept out of final_top10.",
+ "searches": [
+  "tools.py search all 'cv2\\.(VideoCapture|absdiff|findContours|calcOpticalFlow|createBackgroundSubtractor)'",
+  "tools.py search all 'frame (number|index) where|motion detect|background subtract|first frame (in )?which|detect(s|ing)? (the )?(onset|takeoff|transition)'",
+  "tools.py words all opencv cv2 video frame numpy detect",
+  "tools.py words rts opencv cv2 image video frames pixel",
+  "tools.py search rts 'ffmpeg|\\.mp4|Pillow|PIL\\.'",
+  "tools.py search rts 'numpy|scipy|matplotlib'",
+  "tools.py search tw 'video|ffmpeg|opencv|cv2|image|frame'",
+  "tools.py search tw 'cv2|OpenCV|\\.mp4|\\.png|pixel|grayscale|imagemagick|ImageMagick|Pillow|PIL\\b'",
+  "tools.py search rebench 'opencv|cv2|scikit-image|skimage|moviepy|imageio|Pillow|PIL\\b|ffmpeg|video|frame rate|pixel'",
+  "tools.py search smith 'opencv|cv2|skimage|moviepy|imageio|PIL\\b|ffmpeg|video|pixel|image'",
+  "tools.py search smith 'scipy|signal|numpy array|interpolat'",
+  "tools.py show task_000113_8a2ee560 task_002224_352f4b22",
+  "tools.py show spikeinterface__spikeinterface-3047",
+  "grep -rl -iE 'cv2\\.|opencv' --include=instruction.md /data/yichuan_wang/terminal-lego-15k",
+  "grep -rl -iE 'frame[- ]by[- ]frame|motion detect|VideoCapture|track(ing)? (an? )?(object|ball|person)|optical flow' --include=instruction.md /data/yichuan_wang/terminal-lego-15k",
+  "grep -rl -iE 'cv2\\.|opencv|VideoCapture' --include=instruction.md /data/yichuan_wang/calibforge"
+ ],
+ "per_source": {
+  "TMax-15K": [
+   {
+    "rank": 1,
+    "task_id": "task_000113_8a2ee560",
+    "skill": 5,
+    "domain": 4,
+    "task_form": 3,
+    "overall": 4,
+    "reason": "Tracks a single moving object's Y centre per frame with cv2, then fits kinematics: same detect-object-per-frame-then-reason-about-motion pipeline."
+   },
+   {
+    "rank": 2,
+    "task_id": "task_005228_4c636013",
+    "skill": 5,
+    "domain": 4,
+    "task_form": 4,
+    "overall": 4,
+    "reason": "Motion detection / brightness thresholding over frames to count discrete door-open events; same event-segmentation-from-video crux."
+   },
+   {
+    "rank": 3,
+    "task_id": "task_005184_470a6a5e",
+    "skill": 3,
+    "domain": 4,
+    "task_form": 4,
+    "overall": 3,
+    "reason": "Robust per-frame scan of an MP4 for a visual marker; teaches frame iteration and thresholding, but marker is exact-valued, not inferred."
+   },
+   {
+    "rank": 4,
+    "task_id": "task_004556_5c0f90b5",
+    "skill": 3,
+    "domain": 4,
+    "task_form": 4,
+    "overall": 3,
+    "reason": "Build a reliable frame-level detector over a dashcam video corpus; same generalise-beyond-the-example-video pressure."
+   },
+   {
+    "rank": 5,
+    "task_id": "task_001922_6cf7ce11",
+    "skill": 4,
+    "domain": 4,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Dynamic Mode Decomposition on high-speed camera footage: extracting physical motion structure from pixel time-series."
+   },
+   {
+    "rank": 6,
+    "task_id": "task_005403_20e405d2",
+    "skill": 3,
+    "domain": 4,
+    "task_form": 4,
+    "overall": 3,
+    "reason": "ETL over conveyor-belt video that must classify corrupted frames; frame-differencing and threshold choice transfer."
+   },
+   {
+    "rank": 7,
+    "task_id": "task_004636_d349929a",
+    "skill": 3,
+    "domain": 4,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Denoise a monochrome sensor video then detect anomalies; same noise-vs-signal thresholding judgement on pixel arrays."
+   },
+   {
+    "rank": 8,
+    "task_id": "task_000242_341bf3b8",
+    "skill": 3,
+    "domain": 4,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Turns a raw video feed of a luminescent sensor into a numeric time series; same per-frame measurement extraction."
+   },
+   {
+    "rank": 9,
+    "task_id": "task_001475_4a67fb93",
+    "skill": 3,
+    "domain": 4,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Extract per-frame features from a factory video feed into structured output; frame loop plus schema-exact emission."
+   },
+   {
+    "rank": 10,
+    "task_id": "task_005400_cd0ecb8e",
+    "skill": 2,
+    "domain": 4,
+    "task_form": 3,
+    "overall": 2,
+    "reason": "Decodes a 5x5 on/off sensor grid from video frames; pixel reading is trivial thresholding, no motion reasoning."
+   }
+  ],
+  "Recursive-Task-Synthesis": [
+   {
+    "rank": 1,
+    "task_id": "rts_task_df21d691f36823d826dbaef7",
+    "skill": 2,
+    "domain": 2,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Only image-analysis task in the corpus: run an MNIST image-similarity workflow; numpy image arrays, no video or event detection."
+   },
+   {
+    "rank": 2,
+    "task_id": "rts_task_b03e51290519516337fed40c",
+    "skill": 2,
+    "domain": 2,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Same sds-mnist image-similarity workflow, with a debug-and-rerun loop; nearest thing RTS has to pixel work."
+   },
+   {
+    "rank": 3,
+    "task_id": "rts_task_80b8cb34a1bac14ea77e6701",
+    "skill": 2,
+    "domain": 2,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "sds-mnist image classification that crashes first; teaches reading a traceback in a numpy image pipeline."
+   },
+   {
+    "rank": 4,
+    "task_id": "rts_task_f60bb1206c5e937c48ce045f",
+    "skill": 2,
+    "domain": 2,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "sds-mnist setup plus output post-processing; numpy/image ecosystem only, no CV algorithm."
+   },
+   {
+    "rank": 5,
+    "task_id": "rts_task_945e147d1c700438e3be05f6",
+    "skill": 2,
+    "domain": 2,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "sds-mnist example workflow capture; same shallow image-library exposure."
+   },
+   {
+    "rank": 6,
+    "task_id": "rts_task_c7feb58984461e735f00e6fd",
+    "skill": 2,
+    "domain": 2,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "sds-mnist with a path-discovery twist; ecosystem overlap only."
+   },
+   {
+    "rank": 7,
+    "task_id": "rts_task_b6970c32992ed9c866d0d411",
+    "skill": 2,
+    "domain": 2,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Clone and run sds-mnist image similarity from the correct run dir; ecosystem overlap only."
+   },
+   {
+    "rank": 8,
+    "task_id": "rts_task_1b9d4a6a372614dbbd50b4d4",
+    "skill": 2,
+    "domain": 2,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Recover data hidden in two JPEGs; forces byte- and pixel-level inspection of image files."
+   },
+   {
+    "rank": 9,
+    "task_id": "rts_task_f3ddeca041c1c7066e935cb1",
+    "skill": 1,
+    "domain": 2,
+    "task_form": 2,
+    "overall": 1,
+    "reason": "NumPy/pandas NaN cleaning to an exact output file; shares numpy array handling and exact-format output, nothing visual."
+   },
+   {
+    "rank": 10,
+    "task_id": "rts_task_b0259cede190f1ef494456f5",
+    "skill": 1,
+    "domain": 2,
+    "task_form": 2,
+    "overall": 1,
+    "reason": "Same NumPy NaN-to-CSV chore; included only because RTS has no closer candidate."
+   }
+  ],
+  "TerminalWorld-Seeds-Clean": [
+   {
+    "rank": 1,
+    "task_id": "tw_588262",
+    "skill": 4,
+    "domain": 5,
+    "task_form": 2,
+    "overall": 3,
+    "reason": "YOLOv4 object detection through OpenCV bindings on real images: same detect-object-in-frame domain, but the work is build/run, not algorithm design. Verifier is FREE."
+   },
+   {
+    "rank": 2,
+    "task_id": "tw_4289",
+    "skill": 3,
+    "domain": 3,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Reads a PNG pixel grid and maps each cell's colour to terminal output; direct pixel-array manipulation."
+   },
+   {
+    "rank": 3,
+    "task_id": "tw_105368",
+    "skill": 2,
+    "domain": 4,
+    "task_form": 3,
+    "overall": 2,
+    "reason": "Builds an image augmentation pipeline (rotate/flip/crop/resize) with exact probabilities; image-processing ecosystem, no detection."
+   },
+   {
+    "rank": 4,
+    "task_id": "tw_12457",
+    "skill": 2,
+    "domain": 4,
+    "task_form": 3,
+    "overall": 2,
+    "reason": "Re-encode an MP4 with subtitles via MEncoder at exact bitrate; video container/codec domain only."
+   },
+   {
+    "rank": 5,
+    "task_id": "tw_217787",
+    "skill": 2,
+    "domain": 3,
+    "task_form": 3,
+    "overall": 2,
+    "reason": "PHP script generating parameterised image frame data from a byte stream; frame-data reasoning, wrong language and no CV."
+   },
+   {
+    "rank": 6,
+    "task_id": "tw_232264",
+    "skill": 2,
+    "domain": 2,
+    "task_form": 3,
+    "overall": 2,
+    "reason": "Numeric frequency analysis plus a matplotlib PNG; numpy analysis shape, unrelated subject."
+   },
+   {
+    "rank": 7,
+    "task_id": "tw_104869",
+    "skill": 1,
+    "domain": 3,
+    "task_form": 3,
+    "overall": 2,
+    "reason": "Batch FFmpeg conversion of audio files; media-tooling domain, strong verifier, no pixel or event reasoning."
+   },
+   {
+    "rank": 8,
+    "task_id": "tw_647708",
+    "skill": 1,
+    "domain": 1,
+    "task_form": 3,
+    "overall": 1,
+    "reason": "CSV aggregation to an exact output file; only the exact-format-output habit transfers."
+   },
+   {
+    "rank": 9,
+    "task_id": "tw_11045",
+    "skill": 1,
+    "domain": 1,
+    "task_form": 3,
+    "overall": 1,
+    "reason": "CSV parsing into a nested dict; filler, no visual or temporal reasoning."
+   },
+   {
+    "rank": 10,
+    "task_id": "tw_248066",
+    "skill": 1,
+    "domain": 1,
+    "task_form": 2,
+    "overall": 1,
+    "reason": "Julia type-system demo with exact field values; included only to fill the quota."
+   }
+  ],
+  "SWE-Smith-Seeds-Clean": [
+   {
+    "rank": 1,
+    "task_id": "facebookresearch__fvcore.a491d5b9.lm_rewrite__mynbot4f",
+    "skill": 3,
+    "domain": 4,
+    "task_form": 2,
+    "overall": 3,
+    "reason": "Broken tensor-to-numpy conversion breaks ScaleTransform on images; debugging image-array shape/dtype handling is a real sub-skill here."
+   },
+   {
+    "rank": 2,
+    "task_id": "facebookresearch__fvcore.a491d5b9.combine_module__uxncj1ip",
+    "skill": 3,
+    "domain": 4,
+    "task_form": 2,
+    "overall": 3,
+    "reason": "Same to_numpy permutation bug on HxWxC image arrays; axis-order reasoning on image tensors."
+   },
+   {
+    "rank": 3,
+    "task_id": "facebookresearch__fvcore.a491d5b9.func_pm_remove_assign__jafbltn2",
+    "skill": 2,
+    "domain": 4,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Repr of a transform holding a large numpy image array; fvcore image-transform domain, trivial fix."
+   },
+   {
+    "rank": 4,
+    "task_id": "amueller__word_cloud.ec24191c.combine_file__do6xqi4d",
+    "skill": 3,
+    "domain": 3,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "ImageColorGenerator fails when the mask image is smaller than the canvas; pixel-coordinate bounds reasoning."
+   },
+   {
+    "rank": 5,
+    "task_id": "amueller__word_cloud.ec24191c.combine_file__9bx7cdni",
+    "skill": 2,
+    "domain": 3,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Several wordcloud rendering bugs at once; PIL image generation domain."
+   },
+   {
+    "rank": 6,
+    "task_id": "jsvine__pdfplumber.02ff4313.lm_rewrite__fkldf5pb",
+    "skill": 3,
+    "domain": 3,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Cropped page rendering produces wrong image bounds; coordinate/geometry bug in a raster pipeline."
+   },
+   {
+    "rank": 7,
+    "task_id": "jsvine__pdfplumber.02ff4313.func_pm_ctrl_invert_if__o8gi71b3",
+    "skill": 2,
+    "domain": 3,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "PageImage debug_tablefinder rejects a settings dict; same raster-rendering module, shallower bug."
+   },
+   {
+    "rank": 8,
+    "task_id": "hukkin__tomli.443a0c1b.combine_file__417c3yvo",
+    "skill": 2,
+    "domain": 3,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "TOML parser bugs in float and file loading; the TB2.1 answer is a TOML file, so TOML value semantics matter marginally."
+   },
+   {
+    "rank": 9,
+    "task_id": "hukkin__tomli.443a0c1b.pr_238",
+    "skill": 2,
+    "domain": 3,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Add error-location reporting to TOMLDecodeError; TOML grammar knowledge, nothing visual."
+   },
+   {
+    "rank": 10,
+    "task_id": "seperman__deepdiff.ed252022.pr_390",
+    "skill": 1,
+    "domain": 3,
+    "task_form": 2,
+    "overall": 1,
+    "reason": "TOML read/write breakage after a library swap; ecosystem-only overlap."
+   }
+  ],
+  "SWE-Rebench-Tasks-Clean": [
+   {
+    "rank": 1,
+    "task_id": "zulko__moviepy-1768",
+    "skill": 3,
+    "domain": 5,
+    "task_form": 2,
+    "overall": 3,
+    "reason": "FFmpegInfosParser fails on newer libavformat output; same video-metadata ecosystem and the parse-what-the-tool-actually-emits skill."
+   },
+   {
+    "rank": 2,
+    "task_id": "gammapy__gammapy-5366",
+    "skill": 4,
+    "domain": 3,
+    "task_form": 2,
+    "overall": 3,
+    "reason": "Pixel coordinates rounded to nearest integer create wavy artefacts; exactly the off-by-half/index-vs-coordinate care a frame-index answer needs."
+   },
+   {
+    "rank": 3,
+    "task_id": "psd-tools__psd-tools-334",
+    "skill": 3,
+    "domain": 4,
+    "task_form": 2,
+    "overall": 3,
+    "reason": "Layer compositing produces wrong pixels; debugging a raster compositing pipeline over numpy arrays."
+   },
+   {
+    "rank": 4,
+    "task_id": "corteva__rioxarray-841",
+    "skill": 3,
+    "domain": 3,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Reprojection of a raster with renamed x/y dims; pixel-grid and axis-naming reasoning."
+   },
+   {
+    "rank": 5,
+    "task_id": "spikeinterface__spikeinterface-3047",
+    "skill": 3,
+    "domain": 3,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Electrophysiology analyzer round-trip bug; the corpus's closest neighbour to detecting discrete events in a sampled signal."
+   },
+   {
+    "rank": 6,
+    "task_id": "psd-tools__psd-tools-452",
+    "skill": 2,
+    "domain": 4,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Path-type handling when opening image files; same raster library, shallow fix."
+   },
+   {
+    "rank": 7,
+    "task_id": "laspy__laspy-182",
+    "skill": 2,
+    "domain": 2,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "LAS point-cloud reading; binary sensor-data parsing, unrelated to frames."
+   },
+   {
+    "rank": 8,
+    "task_id": "laspy__laspy-327",
+    "skill": 2,
+    "domain": 2,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Another laspy point-cloud issue; included for domain breadth only."
+   },
+   {
+    "rank": 9,
+    "task_id": "hdmf-dev__hdmf-1122",
+    "skill": 2,
+    "domain": 2,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Imaging-plane grid_spacing spec in HDMF; pixel-spacing metadata, no computation."
+   },
+   {
+    "rank": 10,
+    "task_id": "sdispater__tomlkit-71",
+    "skill": 2,
+    "domain": 2,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "TOML document handling in tomlkit; only the output-format sub-skill overlaps."
+   }
+  ],
+  "Terminal-Lego-15k": [
+   {
+    "rank": 1,
+    "task_id": "task_09110",
+    "skill": 4,
+    "domain": 4,
+    "task_form": 4,
+    "overall": 4,
+    "reason": "Implement an image-similarity metric tool and defend a threshold; same design-a-pixel-metric-and-pick-a-cutoff crux, strong verifier."
+   },
+   {
+    "rank": 2,
+    "task_id": "task_09375",
+    "skill": 4,
+    "domain": 4,
+    "task_form": 4,
+    "overall": 3,
+    "reason": "Near-duplicate image detection: must build a distance measure over images and threshold it, exactly the decision the jump detector needs."
+   },
+   {
+    "rank": 3,
+    "task_id": "task_13495",
+    "skill": 4,
+    "domain": 4,
+    "task_form": 4,
+    "overall": 3,
+    "reason": "Locate a target within a cluttered image via template/colour matching; object localisation in a frame."
+   },
+   {
+    "rank": 4,
+    "task_id": "task_13590",
+    "skill": 4,
+    "domain": 4,
+    "task_form": 4,
+    "overall": 3,
+    "reason": "Rectangle detection in line images: contour/geometry extraction from pixels, the closest CV-algorithm task in this corpus. Verifier is FREE."
+   },
+   {
+    "rank": 5,
+    "task_id": "task_13515",
+    "skill": 3,
+    "domain": 4,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Resize-vs-pad preprocessing with aspect-ratio preservation; concrete numpy/cv2 geometry on image arrays."
+   },
+   {
+    "rank": 6,
+    "task_id": "task_12899",
+    "skill": 2,
+    "domain": 4,
+    "task_form": 3,
+    "overall": 2,
+    "reason": "Compare cv2 interpolation methods on resize; cv2 API familiarity, no detection logic."
+   },
+   {
+    "rank": 7,
+    "task_id": "task_12888",
+    "skill": 2,
+    "domain": 3,
+    "task_form": 3,
+    "overall": 2,
+    "reason": "Pipe matplotlib frames straight into ffmpeg to build an MP4; frame-sequence plumbing in the other direction."
+   },
+   {
+    "rank": 8,
+    "task_id": "task_09778",
+    "skill": 2,
+    "domain": 3,
+    "task_form": 3,
+    "overall": 2,
+    "reason": "Parse MP4 ISO-BMFF boxes by hand to extract duration; container-level, not pixel-level, video reasoning."
+   },
+   {
+    "rank": 9,
+    "task_id": "task_14037",
+    "skill": 2,
+    "domain": 3,
+    "task_form": 3,
+    "overall": 2,
+    "reason": "CAPTCHA OCR pipeline: preprocess an image then extract structured text; image-cleanup heuristics transfer weakly."
+   },
+   {
+    "rank": 10,
+    "task_id": "task_12022",
+    "skill": 1,
+    "domain": 3,
+    "task_form": 2,
+    "overall": 1,
+    "reason": "Rotate an MP4 by rewriting metadata only; container tinkering, nothing about frames."
+   }
+  ],
+  "CalibForge": [
+   {
+    "rank": 1,
+    "task_id": "video-processing_20260604_144210_001",
+    "skill": 5,
+    "domain": 5,
+    "task_form": 5,
+    "overall": 5,
+    "reason": "Track each vehicle across frames from a fixed camera and derive a physical metric, emitting TOML to /app: same template and same tracking crux as the hurdle jump."
+   },
+   {
+    "rank": 2,
+    "task_id": "video-processing_20260603_181444_001",
+    "skill": 5,
+    "domain": 5,
+    "task_form": 5,
+    "overall": 5,
+    "reason": "Static-camera motion events with exact start/end/peak frame numbers, robust to illumination change: the jump takeoff/land problem with two events instead of one."
+   },
+   {
+    "rank": 3,
+    "task_id": "video-processing_20260508_045920_001",
+    "skill": 4,
+    "domain": 5,
+    "task_form": 5,
+    "overall": 4,
+    "reason": "Shot-cut detection where a naive frame-difference threshold is explicitly stated to fail; forces the robust-statistic thinking the jump detector needs."
+   },
+   {
+    "rank": 4,
+    "task_id": "video-processing_20260417_112147_001",
+    "skill": 4,
+    "domain": 5,
+    "task_form": 5,
+    "overall": 4,
+    "reason": "Detect several classes of frame anomaly with timestamps; 11 pinned tests make it the best-verified frame-event task in the pool."
+   },
+   {
+    "rank": 5,
+    "task_id": "video-processing_20260419_065313_001",
+    "skill": 4,
+    "domain": 5,
+    "task_form": 4,
+    "overall": 4,
+    "reason": "Stabilisation requires estimating inter-frame motion (optical flow / feature matching) and separating it from intended motion."
+   },
+   {
+    "rank": 6,
+    "task_id": "video-processing_20260429_103257_001",
+    "skill": 3,
+    "domain": 5,
+    "task_form": 5,
+    "overall": 4,
+    "reason": "Frozen/scene/quality frame classification with pinned expectations; frame-difference metric design, no object tracking."
+   },
+   {
+    "rank": 7,
+    "task_id": "video-processing_20260612_191200_001",
+    "skill": 3,
+    "domain": 5,
+    "task_form": 5,
+    "overall": 3,
+    "reason": "Shot boundaries plus representative keyframe extraction; temporal segmentation of a video into events."
+   },
+   {
+    "rank": 8,
+    "task_id": "video-processing_20260508_045800_001",
+    "skill": 3,
+    "domain": 5,
+    "task_form": 4,
+    "overall": 3,
+    "reason": "Broadcast QC analyser reporting black/freeze/scene anomalies with timestamps; well-pinned but per-frame statistics only."
+   },
+   {
+    "rank": 9,
+    "task_id": "video-processing_20260604_193356_001",
+    "skill": 5,
+    "domain": 5,
+    "task_form": 5,
+    "overall": 3,
+    "reason": "Tracks bright moving objects and fits damped-oscillation parameters - closest physical-motion-from-video match, but its verifier is FREE so it cannot be used."
+   },
+   {
+    "rank": 10,
+    "task_id": "video-processing_20260613_152233_001",
+    "skill": 3,
+    "domain": 5,
+    "task_form": 4,
+    "overall": 3,
+    "reason": "Find duplicated frame sequences anywhere in a video; whole-video temporal matching rather than object motion."
+   }
+  ]
+ },
+ "final_top10": [
+  {
+   "rank": 1,
+   "task_id": "video-processing_20260604_144210_001",
+   "source": "CalibForge",
+   "skill": 5,
+   "domain": 5,
+   "task_form": 5,
+   "overall": 5,
+   "reason": "Track each vehicle across frames from a fixed camera, derive a metric, write TOML to /app: same template, same tracking crux."
+  },
+  {
+   "rank": 2,
+   "task_id": "video-processing_20260603_181444_001",
+   "source": "CalibForge",
+   "skill": 5,
+   "domain": 5,
+   "task_form": 5,
+   "overall": 5,
+   "reason": "Static-camera motion events with exact start/end/peak frames; the jump takeoff/land problem with multiple events."
+  },
+  {
+   "rank": 3,
+   "task_id": "task_000113_8a2ee560",
+   "source": "TMax-15K",
+   "skill": 5,
+   "domain": 4,
+   "task_form": 3,
+   "overall": 4,
+   "reason": "Tracks a single moving object's Y centre per frame with cv2 then reasons about its kinematics."
+  },
+  {
+   "rank": 4,
+   "task_id": "video-processing_20260508_045920_001",
+   "source": "CalibForge",
+   "skill": 4,
+   "domain": 5,
+   "task_form": 5,
+   "overall": 4,
+   "reason": "Cut detection where a naive frame-difference threshold is stated to fail; forces robust-statistic threshold design."
+  },
+  {
+   "rank": 5,
+   "task_id": "video-processing_20260417_112147_001",
+   "source": "CalibForge",
+   "skill": 4,
+   "domain": 5,
+   "task_form": 5,
+   "overall": 4,
+   "reason": "Frame-anomaly detection with timestamps and 11 pinned assertions; best-verified frame-event task available."
+  },
+  {
+   "rank": 6,
+   "task_id": "task_005228_4c636013",
+   "source": "TMax-15K",
+   "skill": 5,
+   "domain": 4,
+   "task_form": 4,
+   "overall": 4,
+   "reason": "Motion/brightness thresholding over frames to count discrete events; same event-segmentation-from-video crux."
+  },
+  {
+   "rank": 7,
+   "task_id": "video-processing_20260419_065313_001",
+   "source": "CalibForge",
+   "skill": 4,
+   "domain": 5,
+   "task_form": 4,
+   "overall": 4,
+   "reason": "Estimating inter-frame motion and separating wanted from unwanted motion; the motion-estimation half of jump detection."
+  },
+  {
+   "rank": 8,
+   "task_id": "video-processing_20260429_103257_001",
+   "source": "CalibForge",
+   "skill": 3,
+   "domain": 5,
+   "task_form": 5,
+   "overall": 4,
+   "reason": "Frozen/scene frame classification with pinned expectations; frame-difference metric design on MP4s."
+  },
+  {
+   "rank": 9,
+   "task_id": "task_005184_470a6a5e",
+   "source": "TMax-15K",
+   "skill": 3,
+   "domain": 4,
+   "task_form": 4,
+   "overall": 3,
+   "reason": "Robust per-frame scan of an MP4 for a visual marker, generalising past the example video."
+  },
+  {
+   "rank": 10,
+   "task_id": "task_001922_6cf7ce11",
+   "source": "TMax-15K",
+   "skill": 4,
+   "domain": 4,
+   "task_form": 3,
+   "overall": 3,
+   "reason": "Extracts physical motion structure (DMD modes) from high-speed camera footage pixel time-series."
+  }
+ ],
+ "notes": "CalibForge dominates: its video-processing category uses literally the same task template as this TB2.1 item (write <name>.py to /app, cv2+numpy+toml only, example_video.mp4, exact TOML/JSON schema), so six of the final ten come from it. TMax supplies the only true object-tracking-from-video tasks (task_000113, task_005228). Recursive-Task-Synthesis has zero computer-vision content - no ffmpeg, no cv2, no mp4 anywhere in the corpus - so its ten entries are filler and should be given no weight downstream. TerminalWorld is nearly as empty; its only OpenCV task is FREE-graded. Terminal-Lego has genuine image-processing tasks but nothing temporal: no video-frame-sequence reasoning at all. SWE-Smith/Rebench contribute only ecosystem adjacency (image arrays, TOML, ffmpeg parsing) and should not displace anything."
+}

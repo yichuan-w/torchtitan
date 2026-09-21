@@ -1,0 +1,121 @@
+{
+  "tb21_id": "build-pov-ray",
+  "tb21_profile": {
+    "skill": "Locate and fetch a 1990s source archive, then make ancient K&R-era C compile and link under a modern gcc/make toolchain and install the binary",
+    "domain": "Legacy C / Unix build toolchain: tarballs, hand-written Makefiles, autoconf, gcc diagnostics, /usr/local install prefix, raytracer image output",
+    "task_form": "build/packaging from source — download, extract, patch-to-compile, install, verified by running the produced binary"
+  },
+  "verifier_notes": "software-engineering_20260603_181444_002 is graded ok(0.333) but its suite pins 'Zip 3.0' from zip -v and checks real archive contents — effectively strong. software-engineering_20260604_003113_002 (strong) confirmed: pins GNU Make 3.81 version string, the extracted /app/make-3.81 tree and the specific glob.c __alloca fix. Several TMax build tasks that look ideal by text are FREE and excluded from final: task_000441_7a89002c (liblbfgs vendored build, 4 exists-only tests), task_002323_addb8182, task_002457_7969272e, task_001157_8c18d2d8. TerminalWorld's top-ranked build hits (tw_504009, tw_129867, tw_17688, tw_179356) are all FREE, so the TerminalWorld slate below is drawn from my own searches, not the shortlist.",
+  "searches": [
+    "tools.py sources",
+    "tools.py search all 'K&R|pre-ANSI|ANSI C |implicit declaration'",
+    "tools.py search tmax 'compile.{0,40}(from source|the source)|build.{0,30}from source' -n 25",
+    "tools.py search tw 'compile|build .*from source|make install|configure' -n 400",
+    "tools.py search tw 'from source|compile|\\bbuild\\b' -n 300",
+    "tools.py search rts 'build .{0,20}from source|compile .{0,30}source|make install|\\./configure' -n 40",
+    "tools.py search smith 'cmake|autotools|compiler|toolchain|linker|Makefile' -n 30",
+    "tools.py search rebench 'cmake|compil|gcc|\\bmake\\b|autotools|build extension|C extension|linker' -n 40",
+    "tools.py search rebench 'cmake|cython|C extension|build_ext|wheel|sdist|setup\\.py|toolchain|cross-compil' -n 40",
+    "grep -ril 'make install' --include=instruction.md /data/yichuan_wang/terminal-lego-15k",
+    "grep -ril -E 'compile .*(from source|with gcc)|gcc -|Makefile|undefined reference|ld: cannot find' --include=instruction.md /data/yichuan_wang/terminal-lego-15k"
+  ],
+  "per_source": {
+    "CalibForge": [
+      {"rank": 1, "task_id": "software-engineering_20260604_003113_002", "skill": 5, "domain": 5, "task_form": 5, "overall": 5, "reason": "Download GNU Make 3.81 tarball, extract to /app/make-3.81, fix a linker error in old C, install to /usr/local/bin. Same task template."},
+      {"rank": 2, "task_id": "software-engineering_20260613_152233_002", "skill": 5, "domain": 5, "task_form": 5, "overall": 5, "reason": "Pre-ANSI K&R C that modern GCC rejects; fix sources and Makefile, install binary. Exactly the patching skill POV-Ray 2.2 needs."},
+      {"rank": 3, "task_id": "software-engineering_20260611_205750_002", "skill": 5, "domain": 5, "task_form": 4, "overall": 5, "reason": "1992 legacy C base64 tool must be fixed to compile under strict modern flags without touching the Makefile. Same era, same diagnostics."},
+      {"rank": 4, "task_id": "software-engineering_20260430_081156_002", "skill": 5, "domain": 5, "task_form": 4, "overall": 5, "reason": "1998 C library that no longer compiles; repair sources until GCC accepts it, then install. Identical legacy-C repair skill."},
+      {"rank": 5, "task_id": "software-engineering_20260604_144210_002", "skill": 4, "domain": 4, "task_form": 5, "overall": 4, "reason": "Fetch NASM 2.07 source, build, install to /usr/local/bin/nasm, graded by running the binary on a test input. Same fetch-build-run loop."},
+      {"rank": 6, "task_id": "software-engineering_20260617_051646_002", "skill": 4, "domain": 5, "task_form": 4, "overall": 4, "reason": "GNU indent 1.9.1 build dies partway; diagnose the compile failure and finish the install. Old GNU package, modern compiler."},
+      {"rank": 7, "task_id": "software-engineering_20260603_181444_002", "skill": 4, "domain": 4, "task_form": 5, "overall": 4, "reason": "Must locate zip30.tar.gz on SourceForge unaided, then build and install zip 3.0. Trains the find-the-archive half of POV-Ray."},
+      {"rank": 8, "task_id": "software-engineering_20260510_062946_002", "skill": 4, "domain": 5, "task_form": 4, "overall": 4, "reason": "Netpbm from tarball with PNG/JPEG/TIFF delegates; same configure-with-image-libraries build, and output is verified by rendering images."},
+      {"rank": 9, "task_id": "software-engineering_20260606_172554_002", "skill": 4, "domain": 5, "task_form": 4, "overall": 4, "reason": "C project whose build system is broken on this host; repair it, compile, install to /usr/local/bin, tested by running the tool."},
+      {"rank": 10, "task_id": "software-engineering_20260615_143301_002", "skill": 4, "domain": 4, "task_form": 4, "overall": 4, "reason": "libpng 1.0.15 plus zlib and libjpeg all built from source and stacked by prefix — the dependency-ordering part of an old graphics build."}
+    ],
+    "TMax-15K": [
+      {"rank": 1, "task_id": "task_002737_29eccf53", "skill": 4, "domain": 4, "task_form": 5, "overall": 4, "reason": "Download FFTW 3.3.10 tarball, extract, configure with a custom prefix, install, then compile a C program against it. Same build pipeline."},
+      {"rank": 2, "task_id": "task_000263_23bac718", "skill": 4, "domain": 4, "task_form": 4, "overall": 4, "reason": "Service fails to compile; must read the compiler errors in the source tree and fix the build. Same diagnose-a-build-failure loop."},
+      {"rank": 3, "task_id": "task_003218_708929a5", "skill": 4, "domain": 4, "task_form": 4, "overall": 4, "reason": "Vendored package fails to build offline; patch its C sources and build config until install succeeds. No network fallback, like an old tarball."},
+      {"rank": 4, "task_id": "task_000563_b76283bf", "skill": 4, "domain": 4, "task_form": 3, "overall": 4, "reason": "Fix a Makefile with missing library links and wrong C++ standard flags so the binary builds. Same class of link/flag repair."},
+      {"rank": 5, "task_id": "task_002098_e267701e", "skill": 4, "domain": 4, "task_form": 3, "overall": 4, "reason": "Build file is misconfigured so the C extension misses libm; fix and compile from source. Missing-library link error, as in POV-Ray."},
+      {"rank": 6, "task_id": "task_000578_c53a235b", "skill": 3, "domain": 4, "task_form": 4, "overall": 3, "reason": "Edit pen.c to remove a planted defect, then compile the package from source and install the executable under a prefix."},
+      {"rank": 7, "task_id": "task_002509_67cbe77b", "skill": 3, "domain": 4, "task_form": 3, "overall": 3, "reason": "Compile a scientific C program from source, modifying the build invocation to get the right executable. Small but same compile-and-install core."},
+      {"rank": 8, "task_id": "task_001038_3f8088d2", "skill": 3, "domain": 4, "task_form": 3, "overall": 3, "reason": "Half-finished C project broken in several ways including the build; repair until it compiles and runs. C build debugging, different subject."},
+      {"rank": 9, "task_id": "task_001729_4a50be56", "skill": 3, "domain": 3, "task_form": 3, "overall": 3, "reason": "Fix source and build files in a versioned source tree /app/nano_ode_aligner-2.1.0 then compile. Build-tree work, but the crux is a logic bug."},
+      {"rank": 10, "task_id": "task_001720_063b58e8", "skill": 3, "domain": 4, "task_form": 4, "overall": 3, "reason": "Clone, configure and compile aubio from source before using it. Right shape, but behavioral-only tests make it a weak training signal."}
+    ],
+    "Terminal-Lego-15k": [
+      {"rank": 1, "task_id": "task_11963", "skill": 4, "domain": 4, "task_form": 4, "overall": 4, "reason": "Build a newer CMake from source because the packaged one is too old; bootstrap, make, install. Same reason-for-source-build as POV-Ray."},
+      {"rank": 2, "task_id": "task_00216", "skill": 3, "domain": 5, "task_form": 4, "overall": 3, "reason": "configure --prefix / make / make install into a non-default directory. Directly the install-location half of the task; verifier is mostly exists checks."},
+      {"rank": 3, "task_id": "task_02412", "skill": 4, "domain": 4, "task_form": 3, "overall": 3, "reason": "Missing gnu/stubs-32.h breaks a 32-bit compile; must find the right dev package and retry. Same read-the-error-and-supply-the-header skill."},
+      {"rank": 4, "task_id": "task_13077", "skill": 4, "domain": 4, "task_form": 3, "overall": 3, "reason": "Resolve 'cannot find -lssl / -lcrypto' link failures by fixing library paths and flags. The link-stage failure mode of an old build."},
+      {"rank": 5, "task_id": "task_03441", "skill": 3, "domain": 4, "task_form": 4, "overall": 3, "reason": "Build OpenSSL from source on Linux: config, make, make install. Same genre; verification is thin (weak)."},
+      {"rank": 6, "task_id": "task_00465", "skill": 3, "domain": 4, "task_form": 3, "overall": 3, "reason": "Write a configure script for a C application, handling feature detection. Teaches what POV-Ray's hand-rolled makefiles are doing."},
+      {"rank": 7, "task_id": "task_07891", "skill": 3, "domain": 4, "task_form": 3, "overall": 3, "reason": "Fix SQLite linker errors caused by wrong build configuration; adjust the link line until the binary builds."},
+      {"rank": 8, "task_id": "task_02611", "skill": 3, "domain": 4, "task_form": 4, "overall": 3, "reason": "Source-built OpenSSL installed but the old binary still wins; fix prefix, PATH and ldconfig. The install-actually-took-effect problem."},
+      {"rank": 9, "task_id": "task_10702", "skill": 3, "domain": 4, "task_form": 4, "overall": 3, "reason": "Install Python 2 from source when no package exists: fetch, configure, make altinstall. Same fetch-build-install chain, weak tests."},
+      {"rank": 10, "task_id": "task_00277", "skill": 3, "domain": 4, "task_form": 2, "overall": 3, "reason": "Undefined reference to clock_gettime fixed by adding -lrt. Narrow, but it is precisely the missing-library link error class."}
+    ],
+    "TerminalWorld-Seeds-Clean": [
+      {"rank": 1, "task_id": "tw_177860", "skill": 4, "domain": 4, "task_form": 5, "overall": 4, "reason": "Download the linux-4.16.3 tarball from a named URL, extract and build it. Same fetch-extract-compile-a-specific-old-version pipeline."},
+      {"rank": 2, "task_id": "tw_204493", "skill": 4, "domain": 4, "task_form": 4, "overall": 4, "reason": "Install asciinema from source on CentOS 7 where the runtime and build deps are missing; assemble the toolchain first, then build."},
+      {"rank": 3, "task_id": "tw_30437", "skill": 4, "domain": 4, "task_form": 5, "overall": 4, "reason": "Fetch Aircrack-ng 1.2-rc2 from the official download site, compile and install system-wide. Find-the-archive plus build, as here."},
+      {"rank": 4, "task_id": "tw_112262", "skill": 3, "domain": 4, "task_form": 4, "overall": 3, "reason": "Clone Singularity, check out a branch, autogen/configure/make/make install. Standard autotools build-and-install of a C project."},
+      {"rank": 5, "task_id": "tw_473702", "skill": 3, "domain": 4, "task_form": 4, "overall": 3, "reason": "Compile the SCTK C toolkit from its repo so sclite is built and installed; old academic makefiles much like POV-Ray's."},
+      {"rank": 6, "task_id": "tw_355252", "skill": 3, "domain": 4, "task_form": 4, "overall": 3, "reason": "Compile kernel 5.8.3 from source and install modules and headers. Long compile with configuration, but kernel config dominates."},
+      {"rank": 7, "task_id": "tw_338947", "skill": 3, "domain": 4, "task_form": 4, "overall": 3, "reason": "Build an image-processing benchmark in an out-of-tree build dir against GraphicsMagick; nearest thing here to a graphics build."},
+      {"rank": 8, "task_id": "tw_214711", "skill": 3, "domain": 4, "task_form": 4, "overall": 3, "reason": "Build packages from source with SlackBuild scripts and install them; exercises reading someone else's build recipe on an old distro."},
+      {"rank": 9, "task_id": "tw_433816", "skill": 3, "domain": 4, "task_form": 3, "overall": 3, "reason": "Build a binary from a tutorial Makefile variant; small, but pinned-value tests make it the best-verified plain make task here."},
+      {"rank": 10, "task_id": "tw_322195", "skill": 3, "domain": 4, "task_form": 3, "overall": 3, "reason": "Build Git from source from the official repo; strong verifier, though the SSH-to-remote wrapper adds unrelated work."}
+    ],
+    "Recursive-Task-Synthesis": [
+      {"rank": 1, "task_id": "rts_task_afd60c089eb038e4ad5ef336", "skill": 4, "domain": 4, "task_form": 5, "overall": 4, "reason": "Download the PostgreSQL 16.2 tarball, build from source and install under an explicit prefix. Closest RTS match to the fetch-build-install form."},
+      {"rank": 2, "task_id": "rts_task_9965081d51c73ac4a610b6d6", "skill": 4, "domain": 4, "task_form": 4, "overall": 4, "reason": "Clone NetworkManager-l2tp, install every build dependency yourself, then autotools-build it. Dependency hunting plus C build."},
+      {"rank": 3, "task_id": "rts_task_43c0269eab61f4f5fb8cafaf", "skill": 4, "domain": 4, "task_form": 4, "overall": 4, "reason": "Build rar from local sources to /usr/local/bin/rar and then use the built tool to check an archive. Build-then-run-it verification."},
+      {"rank": 4, "task_id": "rts_task_0a6d1ddf1245375a08107edf", "skill": 3, "domain": 4, "task_form": 4, "overall": 3, "reason": "Old CentOS 7 host lacks Python 3 and build deps; fetch and verify the archive, then build asciinema from source."},
+      {"rank": 5, "task_id": "rts_task_b536912d566a3f76636b9fce", "skill": 3, "domain": 4, "task_form": 4, "overall": 3, "reason": "Compile the SCTK C toolkit from its source repo until sclite is built and installed; legacy makefiles, no packaging."},
+      {"rank": 6, "task_id": "rts_task_a5f47e5894671e3dbdf5d07f", "skill": 3, "domain": 4, "task_form": 4, "overall": 3, "reason": "No extraction tool exists, so build one from source per written instructions and then use it. Build-a-tool-to-do-the-job shape."},
+      {"rank": 7, "task_id": "rts_task_abd324af884bad21c1069d2e", "skill": 3, "domain": 3, "task_form": 4, "overall": 3, "reason": "Build docker-lvm-plugin from source including the man page and install system-wide via its Makefile targets."},
+      {"rank": 8, "task_id": "rts_task_a1fb5d219782b2ad9fd0ccbe", "skill": 3, "domain": 4, "task_form": 4, "overall": 3, "reason": "Another PostgreSQL 16.2 source build to a given prefix; near-duplicate of rank 1, included because RTS offers little else."},
+      {"rank": 9, "task_id": "rts_task_7bb9ebf9b110ca175c13ffc0", "skill": 3, "domain": 4, "task_form": 3, "overall": 3, "reason": "Compile C++ through a provided Makefile with a specific ABI and RTTI settings; reading and honouring an existing build recipe."},
+      {"rank": 10, "task_id": "rts_task_9ec532a97109d637e0e771c1", "skill": 2, "domain": 3, "task_form": 3, "overall": 2, "reason": "Fetch two small C projects and compile each with its Makefile. Trivial builds, no failure to diagnose; weakest of the ten."}
+    ],
+    "SWE-Smith-Seeds-Clean": [
+      {"rank": 1, "task_id": "conan-io__conan.86f29e13.pr_11678", "skill": 3, "domain": 4, "task_form": 2, "overall": 3, "reason": "AutotoolsToolchain mishandles compiler flags; fixing it requires knowing what CFLAGS/LDFLAGS autotools expects — same knowledge POV-Ray needs."},
+      {"rank": 2, "task_id": "conan-io__conan.86f29e13.combine_module__ox7m3k6h", "skill": 3, "domain": 4, "task_form": 2, "overall": 3, "reason": "Wrong C++ standard flags emitted for Clang and GCC; reasoning about -std selection per compiler version."},
+      {"rank": 3, "task_id": "conan-io__conan.86f29e13.lm_rewrite__m0121wmw", "skill": 3, "domain": 4, "task_form": 2, "overall": 3, "reason": "GnuToolchain resolves CC/CXX/AR incorrectly; the bug is about how a configure-based build picks its compiler, which POV-Ray also hits."},
+      {"rank": 4, "task_id": "conan-io__conan.86f29e13.combine_module__0jv2n7d9", "skill": 3, "domain": 4, "task_form": 2, "overall": 3, "reason": "Incorrect C++ standard flags for Clang; same compiler-flag semantics, different surface."},
+      {"rank": 5, "task_id": "conan-io__conan.86f29e13.func_pm_remove_cond__ucg6f79v", "skill": 3, "domain": 4, "task_form": 2, "overall": 3, "reason": "CMakeDeps mishandles transitive dependencies — the link-ordering problem a from-source build with stacked deps runs into."},
+      {"rank": 6, "task_id": "cantools__cantools.0c6a7871.pr_602", "skill": 3, "domain": 3, "task_form": 2, "overall": 3, "reason": "Generated fuzzer Makefile gets paths wrong; requires understanding what a working C makefile must contain."},
+      {"rank": 7, "task_id": "conan-io__conan.86f29e13.pr_13267", "skill": 2, "domain": 4, "task_form": 2, "overall": 2, "reason": "CMakeDeps build-context configuration mismatch; same C/C++ build tooling ecosystem, but the fix is Python bookkeeping."},
+      {"rank": 8, "task_id": "conan-io__conan.86f29e13.pr_16279", "skill": 2, "domain": 4, "task_form": 2, "overall": 2, "reason": "CMakeDeps generates wrong config files for multiple versions of a package; dependency-resolution detail in a build tool."},
+      {"rank": 9, "task_id": "conan-io__conan.86f29e13.pr_12294", "skill": 2, "domain": 4, "task_form": 2, "overall": 2, "reason": "VirtualBuildEnv fails to emit deactivate scripts; build-environment shell handling, only loosely connected to compiling C."},
+      {"rank": 10, "task_id": "conan-io__conan.86f29e13.pr_15422", "skill": 2, "domain": 3, "task_form": 2, "overall": 2, "reason": "Add a jobs parameter to CMakePresets for parallel builds; touches make -j semantics, otherwise a small feature request."}
+    ],
+    "SWE-Rebench-Tasks-Clean": [
+      {"rank": 1, "task_id": "scikit-build__scikit-build-core-793", "skill": 3, "domain": 4, "task_form": 2, "overall": 3, "reason": "Bug in a CMake-driven build backend; debugging it means reading real CMake configure/build output, as POV-Ray's build does."},
+      {"rank": 2, "task_id": "joerick__cibuildwheel-295", "skill": 3, "domain": 4, "task_form": 2, "overall": 3, "reason": "Wheel builds involving native compilation in constrained images; same class of 'why did this build fail on this platform'."},
+      {"rank": 3, "task_id": "bloomberg__memray-552", "skill": 3, "domain": 4, "task_form": 2, "overall": 3, "reason": "Memray is a C/C++ extension project; issues here require building and reasoning about the compiled component, not just Python."},
+      {"rank": 4, "task_id": "systemd__mkosi-2861", "skill": 2, "domain": 4, "task_form": 3, "overall": 3, "reason": "Broken CLI option in an OS-image build tool; build-orchestration domain and a concrete reproduce-then-fix loop."},
+      {"rank": 5, "task_id": "pypa__setuptools-1554", "skill": 2, "domain": 4, "task_form": 2, "overall": 2, "reason": "build_meta omits setup.py from the sdist; about what a source distribution must contain to be buildable elsewhere."},
+      {"rank": 6, "task_id": "pypa__setuptools-1389", "skill": 2, "domain": 4, "task_form": 2, "overall": 2, "reason": "setup.py develop fails; packaging-install debugging, the Python analogue of a failing make install."},
+      {"rank": 7, "task_id": "takluyver__flit-234", "skill": 2, "domain": 3, "task_form": 2, "overall": 2, "reason": "Build-backend bug in flit; same packaging territory but no native compilation at all."},
+      {"rank": 8, "task_id": "cekit__cekit-937", "skill": 2, "domain": 3, "task_form": 2, "overall": 2, "reason": "Container image build tool defect; build orchestration, far from C compilation."},
+      {"rank": 9, "task_id": "pypa__pipx-1625", "skill": 2, "domain": 3, "task_form": 2, "overall": 2, "reason": "Argument parsing bug in an install tool; shares only the install-a-program setting."},
+      {"rank": 10, "task_id": "pypa__setuptools-4676", "skill": 2, "domain": 3, "task_form": 2, "overall": 2, "reason": "Another setuptools packaging defect; included to fill the quota, transfer to a C build is thin."}
+    ]
+  },
+  "final_top10": [
+    {"rank": 1, "task_id": "software-engineering_20260604_003113_002", "source": "CalibForge", "skill": 5, "domain": 5, "task_form": 5, "overall": 5, "reason": "Download GNU Make 3.81 tarball, extract to a fixed path, fix a linker error in old C, install to /usr/local/bin. Same template."},
+    {"rank": 2, "task_id": "software-engineering_20260613_152233_002", "source": "CalibForge", "skill": 5, "domain": 5, "task_form": 5, "overall": 5, "reason": "Pre-ANSI K&R C rejected by modern GCC; fix sources and Makefile, install the binary. Exactly POV-Ray 2.2's central difficulty."},
+    {"rank": 3, "task_id": "software-engineering_20260611_205750_002", "source": "CalibForge", "skill": 5, "domain": 5, "task_form": 4, "overall": 5, "reason": "1992 C program must compile under strict modern flags without editing the Makefile; same era, same compiler diagnostics."},
+    {"rank": 4, "task_id": "software-engineering_20260430_081156_002", "source": "CalibForge", "skill": 5, "domain": 5, "task_form": 4, "overall": 5, "reason": "1998 C library repaired until GCC accepts it, then installed. Legacy-source repair with a pinned-value verifier."},
+    {"rank": 5, "task_id": "software-engineering_20260604_144210_002", "source": "CalibForge", "skill": 4, "domain": 4, "task_form": 5, "overall": 4, "reason": "Fetch NASM 2.07 source, build, install to /usr/local/bin, graded by running the binary on a supplied input file."},
+    {"rank": 6, "task_id": "software-engineering_20260617_051646_002", "source": "CalibForge", "skill": 4, "domain": 5, "task_form": 4, "overall": 4, "reason": "Old GNU package whose build dies partway; diagnose the compile failure and complete the install."},
+    {"rank": 7, "task_id": "software-engineering_20260603_181444_002", "source": "CalibForge", "skill": 4, "domain": 4, "task_form": 5, "overall": 4, "reason": "Must find zip30.tar.gz on SourceForge unaided, then build and install zip 3.0 — trains the locate-the-archive half."},
+    {"rank": 8, "task_id": "software-engineering_20260606_172554_002", "source": "CalibForge", "skill": 4, "domain": 5, "task_form": 4, "overall": 4, "reason": "C project with a build system broken on this host; repair it, compile, install, verified by running the tool."},
+    {"rank": 9, "task_id": "software-engineering_20260510_062946_002", "source": "CalibForge", "skill": 4, "domain": 5, "task_form": 4, "overall": 4, "reason": "Netpbm from tarball with PNG/JPEG/TIFF delegates; configure-with-image-libraries build checked by producing images."},
+    {"rank": 10, "task_id": "task_002737_29eccf53", "source": "TMax-15K", "skill": 4, "domain": 4, "task_form": 5, "overall": 4, "reason": "Download FFTW tarball, configure with a custom prefix, install, then compile a C program against it. Full build pipeline."}
+  ],
+  "notes": "CalibForge is overwhelmingly the best pool for this task: it contains a whole family of 'build <old package> version <X> from source and install to /usr/local/bin' tasks with pinned-value verifiers, several of which are legacy-C-fails-on-modern-GCC exactly like POV-Ray 2.2. Nine of the final ten are CalibForge and that is the honest answer, not a quota artefact. Terminal-Lego has real build-from-source content (CMake, OpenSSL, custom prefixes, linker errors) but its verifiers are thin — most are weak/ok dominated by file-exists checks — so it never outranks CalibForge. TerminalWorld has the right genre in bulk but its top retrieval hits are almost all FREE; the ten listed came from my own searches and are all ok or better. Recursive-Task-Synthesis is dominated by near-duplicate PostgreSQL-from-source tasks; ranks 8 and 10 are makeweights. SWE-Smith reduces to conan (C/C++ toolchain semantics) and SWE-Rebench to Python packaging — both lose on task_form as expected, and neither belongs in the top 10."
+}

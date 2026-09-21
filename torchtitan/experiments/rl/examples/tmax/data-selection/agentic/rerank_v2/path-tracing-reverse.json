@@ -1,0 +1,770 @@
+{
+ "tb21_id": "path-tracing-reverse",
+ "tb21_profile": {
+  "skill": "Recover the exact behaviour of a compiled binary - by black-box probing, decompiling or disassembly - and re-express it as independent C that reproduces its effect exactly, without calling it and without embedding its data",
+  "domain": "x86-64 ELF reverse engineering, C/libc, compiled-code semantics, differential testing against a reference binary",
+  "task_form": "reverse-engineer-a-binary then implement-from-inference, with a source-size budget (under 2KB gzipped) and a gcc -static compile-and-compare harness"
+ },
+ "verifier_notes": "PROMOTE PASS (fix-team 02): software-engineering_20260607_104421_016 was FREE under the stale packet grades; work/verifier_strength.json now grades it strong (7/8 substantive). I re-read tests/test_outputs.py to confirm: every test compiles the solver's hash.c and diffs its output against the live /app/mystery binary over the empty string, common strings, a long repeated string, all 256 byte values, and position-sensitive pairs (solver_out == mystery_out), greps the source to forbid any 'mystery' reference, and enforces the <1500-byte gzipped budget. Its instruction is word-for-word this TB2.1 task (compiled /app/mystery, write independent C, gcc -static compile-and-compare, must not invoke it, gzip size budget) - the single closest task in the whole pool. Promoted to final_top10 rank 1. SEPARATE FIX: the original final_top10 already contained task_001069_a9182649, which work/verifier_strength.json grades FREE now (0 substantive tests, only exists-checks) - it was pulled from the packet's rest_ids so its grade was never shown, and it violated the no-FREE hard rule. I removed it as required for a FREE-clean list. Net effect: added 016, removed the FREE task_001069_a9182649; the previously last-ranked task_002266_d750b211 (o5, ok) is retained at rank 10. per_source left untouched. Original note retained: CalibForge software-engineering_20260604_193356_016 is 'binary environment analyzer' boilerplate ending with 'This task evaluates ... for the path-tracing-reverse domain'; lexical bait, no RE content, excluded.",
+ "searches": [
+  "tools.py search all 'mystery|identical operation|performs an identical|same output as running|reimplement.*binary|behaves identically'",
+  "tools.py search all 'decompil|disassembl|ghidra|objdump|radare2|IDA Pro|stripped binary|gdb'",
+  "tools.py search all 'gzip \\| wc|code ?golf|golfed|as few bytes|byte budget|source (file )?(must be|under) [0-9]+ *(bytes|KB|k)|smaller than [0-9]+ bytes|compressed size'",
+  "tools.py search tmax 'infer the (exact )?(formula|algorithm|model|parameters)|deduce the exact|determine the (exact )?(formula|algorithm)|reverse.engineer.*(algorithm|formula)|that generated'",
+  "tools.py search lego 'reverse.engineer|disassembl|objdump|readelf|ELF|strace|ltrace|decompil|\\bgdb\\b|nm -|bytecode|dis module'",
+  "tools.py search rts 'reverse.engineer|stripped binary|disassembl|objdump|behaves identically|same output as|reimplement|crackme|binary format'",
+  "tools.py search tw 'reverse.engineer|stripped|disassembl|objdump|crackme|reimplement|behaves identically'",
+  "tools.py show software-engineering_20260509_065529_022 software-engineering_20260604_003113_017 software-engineering_20260604_004411_016",
+  "tools.py show software-engineering_20260615_143956_016 software-engineering_20260604_194036_015 software-engineering_20260617_051646_015 software-engineering_20260606_153537_016",
+  "tools.py show software-engineering_20260503_030115_015 software-engineering_20260607_104421_016"
+ ],
+ "per_source": {
+  "TMax-15K": [
+   {
+    "rank": 1,
+    "task_id": "task_000764_177f2810",
+    "skill": 5,
+    "domain": 5,
+    "task_form": 5,
+    "overall": 5,
+    "reason": "Undocumented stripped binary is the only spec; replicate its transformation exactly so the pipeline keeps working. Same problem, different artifact."
+   },
+   {
+    "rank": 2,
+    "task_id": "task_000430_37cb6021",
+    "skill": 5,
+    "domain": 5,
+    "task_form": 5,
+    "overall": 5,
+    "reason": "Closed-source stripped oracle must be reimplemented so outputs agree, with performance on top; probe-deduce-reimplement end to end."
+   },
+   {
+    "rank": 3,
+    "task_id": "task_003072_1accbfc2",
+    "skill": 5,
+    "domain": 4,
+    "task_form": 5,
+    "overall": 5,
+    "reason": "Your program must behave identically to an oracle binary, and you must build the differential harness that proves it PASS/FAIL."
+   },
+   {
+    "rank": 4,
+    "task_id": "task_001069_a9182649",
+    "skill": 5,
+    "domain": 4,
+    "task_form": 5,
+    "overall": 5,
+    "reason": "Bit-exact reimplementation of a binary oracle derived purely from black-box probing - the exact standard this TB2.1 task is graded on."
+   },
+   {
+    "rank": 5,
+    "task_id": "task_002266_d750b211",
+    "skill": 5,
+    "domain": 5,
+    "task_form": 4,
+    "overall": 5,
+    "reason": "Undocumented proprietary stripped binary defines a packet-inspection protocol; decode it and rebuild the logic in your own code."
+   },
+   {
+    "rank": 6,
+    "task_id": "task_004392_fea5bf15",
+    "skill": 5,
+    "domain": 5,
+    "task_form": 4,
+    "overall": 4,
+    "reason": "Stripped legacy_cleaner with lost source: work out its text-extraction rules from behaviour and reproduce them."
+   },
+   {
+    "rank": 7,
+    "task_id": "task_000865_49720626",
+    "skill": 5,
+    "domain": 5,
+    "task_form": 4,
+    "overall": 4,
+    "reason": "A stripped token validator used as an oracle; deduce its acceptance logic from probes and reimplement it faithfully."
+   },
+   {
+    "rank": 8,
+    "task_id": "task_000047_afbf5dcc",
+    "skill": 5,
+    "domain": 5,
+    "task_form": 4,
+    "overall": 4,
+    "reason": "Use strings/objdump/ltrace or pure black-box testing to pin down a stripped binary's exact filtering rules, then reimplement them."
+   },
+   {
+    "rank": 9,
+    "task_id": "task_003137_319f4024",
+    "skill": 5,
+    "domain": 4,
+    "task_form": 4,
+    "overall": 4,
+    "reason": "Reconstruct an encoder that behaves identically to a stripped binary, including where it loses precision - matching quirks, not intent."
+   },
+   {
+    "rank": 10,
+    "task_id": "task_002470_0856bc46",
+    "skill": 4,
+    "domain": 4,
+    "task_form": 4,
+    "overall": 4,
+    "reason": "Proprietary optimised C binary performs dimensionality reduction and quantisation; reproduce its numeric output exactly."
+   }
+  ],
+  "Recursive-Task-Synthesis": [
+   {
+    "rank": 1,
+    "task_id": "rts_task_ce14122249b0cd406c3d636e",
+    "skill": 4,
+    "domain": 5,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Determine a crackme's expected input by analysing its code, explicitly without brute force - static reasoning about compiled logic."
+   },
+   {
+    "rank": 2,
+    "task_id": "rts_task_5d6a0a000cb4fb920b833a82",
+    "skill": 4,
+    "domain": 5,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Objdump-driven static analysis of a stripped crackme; the disassembly-reading half of this task, without the reimplementation half."
+   },
+   {
+    "rank": 3,
+    "task_id": "rts_task_1500a1cfed9639f3d760f48e",
+    "skill": 4,
+    "domain": 5,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Recover the accepted password 'without guessing', which forces actual comprehension of the binary's comparison logic."
+   },
+   {
+    "rank": 4,
+    "task_id": "rts_task_db69b40a996d889ce10d574d",
+    "skill": 4,
+    "domain": 5,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Three crackmes that store their secrets differently, so one trick will not solve all - forces several RE techniques."
+   },
+   {
+    "rank": 5,
+    "task_id": "rts_task_dfea171657e568b9e4d21591",
+    "skill": 4,
+    "domain": 5,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Locate a crackme inside git history and derive the input that makes it print Congrats; retrieval plus binary analysis."
+   },
+   {
+    "rank": 6,
+    "task_id": "rts_task_8518263d556af939ded07ac4",
+    "skill": 3,
+    "domain": 5,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Resolve which deployment profile's crackme applies, then reverse it; environment reasoning wrapped around binary analysis."
+   },
+   {
+    "rank": 7,
+    "task_id": "rts_task_f7ca0818138f15283f1cf1c8",
+    "skill": 3,
+    "domain": 5,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Reverse the crackme and record each investigation step, which rewards a systematic RE method rather than a lucky guess."
+   },
+   {
+    "rank": 8,
+    "task_id": "rts_task_e98f0a4095e1266cada6cf1d",
+    "skill": 3,
+    "domain": 5,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Three crackme executables whose accepted inputs must be discovered and demonstrated by running them."
+   },
+   {
+    "rank": 9,
+    "task_id": "rts_task_070cf5269ca7c548f70d7007",
+    "skill": 3,
+    "domain": 5,
+    "task_form": 2,
+    "overall": 3,
+    "reason": "Use binary inspection tooling to characterise an executable and report the findings in a fixed format; analysis without rebuild."
+   },
+   {
+    "rank": 10,
+    "task_id": "rts_task_bdc7b03261cf73df2b159f82",
+    "skill": 3,
+    "domain": 4,
+    "task_form": 3,
+    "overall": 2,
+    "reason": "Produce and verify a statically linked ARM64 ELF with no libc; ELF-level correctness, but nothing is being reversed."
+   }
+  ],
+  "TerminalWorld-Seeds-Clean": [
+   {
+    "rank": 1,
+    "task_id": "tw_383451",
+    "skill": 4,
+    "domain": 5,
+    "task_form": 3,
+    "overall": 4,
+    "reason": "Reverse a stripped Linux crackme with static or dynamic analysis to extract the exact expected input; graded, unlike most of this pool's RE tasks."
+   },
+   {
+    "rank": 2,
+    "task_id": "tw_289006",
+    "skill": 4,
+    "domain": 5,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Three crackmes storing their passwords by different mechanisms - broad practice in reading compiled comparison logic."
+   },
+   {
+    "rank": 3,
+    "task_id": "tw_383467",
+    "skill": 4,
+    "domain": 5,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Same Monologix crackme, sourced from upstream; disassembly-driven recovery of the accepted input."
+   },
+   {
+    "rank": 4,
+    "task_id": "tw_42850",
+    "skill": 5,
+    "domain": 5,
+    "task_form": 4,
+    "overall": 3,
+    "reason": "Emulate a binary's key-generation logic with radare2 ESIL - reproducing an algorithm read out of machine code. Closest TW match but FREE-graded."
+   },
+   {
+    "rank": 5,
+    "task_id": "tw_134335",
+    "skill": 4,
+    "domain": 5,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Emulate a binary's execution under ESIL; instruction-level understanding of compiled code. FREE verifier, so per_source only."
+   },
+   {
+    "rank": 6,
+    "task_id": "tw_229615",
+    "skill": 4,
+    "domain": 5,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Symbolic execution to find the input a binary accepts; a principled way to recover a binary's behaviour. FREE verifier."
+   },
+   {
+    "rank": 7,
+    "task_id": "tw_317290",
+    "skill": 3,
+    "domain": 2,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Write a quine: produce exactly the required output by construction rather than by reading it, mirroring the no-invoke/no-embed rule."
+   },
+   {
+    "rank": 8,
+    "task_id": "tw_165683",
+    "skill": 3,
+    "domain": 5,
+    "task_form": 3,
+    "overall": 2,
+    "reason": "Patch a compiled binary so a check always passes; requires locating the branch in machine code. FREE verifier."
+   },
+   {
+    "rank": 9,
+    "task_id": "tw_21329",
+    "skill": 3,
+    "domain": 5,
+    "task_form": 3,
+    "overall": 2,
+    "reason": "Defeat a CPU-flag-based protection in an ELF crackme; flag-level semantics of compiled code. FREE verifier."
+   },
+   {
+    "rank": 10,
+    "task_id": "tw_177994",
+    "skill": 2,
+    "domain": 2,
+    "task_form": 3,
+    "overall": 2,
+    "reason": "Write and compile a C program whose stdout must match a precise format; only the gcc harness is shared."
+   }
+  ],
+  "SWE-Smith-Seeds-Clean": [
+   {
+    "rank": 1,
+    "task_id": "Instagram__MonkeyType.70c3acf6.pr_306",
+    "skill": 3,
+    "domain": 2,
+    "task_form": 2,
+    "overall": 3,
+    "reason": "Infer a function's real signature from observed runtime calls - inferring a specification from execution traces, which is what black-boxing a binary is."
+   },
+   {
+    "rank": 2,
+    "task_id": "Instagram__MonkeyType.70c3acf6.pr_183",
+    "skill": 3,
+    "domain": 2,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Same trace-to-type inference machinery; the bug is in how observations become a reconstructed spec."
+   },
+   {
+    "rank": 3,
+    "task_id": "Instagram__MonkeyType.70c3acf6.pr_40",
+    "skill": 3,
+    "domain": 2,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "More of the runtime-observation-to-declaration pipeline; transferable mindset, unrelated stack."
+   },
+   {
+    "rank": 4,
+    "task_id": "cantools__cantools.0c6a7871.lm_rewrite__swakazsi",
+    "skill": 3,
+    "domain": 3,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Decode fixed-layout binary frames with bit-level field placement; the byte/bit reasoning needed to read a compiled data format."
+   },
+   {
+    "rank": 5,
+    "task_id": "cantools__cantools.0c6a7871.pr_697",
+    "skill": 3,
+    "domain": 3,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Same binary-signal codec library; encode/decode round-trip fidelity is the local analogue of output equality."
+   },
+   {
+    "rank": 6,
+    "task_id": "jsvine__pdfplumber.02ff4313.func_pm_ctrl_shuffle__1fr82mg6",
+    "skill": 2,
+    "domain": 3,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Parsing an opaque document format's internal objects; format archaeology, but the fix is an ordinary Python bug."
+   },
+   {
+    "rank": 7,
+    "task_id": "pallets__click.fde47b4b.pr_2555",
+    "skill": 2,
+    "domain": 2,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "CLI behaviour must match a documented contract exactly, including exit behaviour; behavioural-parity mindset only."
+   },
+   {
+    "rank": 8,
+    "task_id": "jawah__charset_normalizer.1fdd6463.pr_329",
+    "skill": 2,
+    "domain": 2,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Inferring structure from raw bytes without metadata; weak but genuine overlap with reading an unknown binary."
+   },
+   {
+    "rank": 9,
+    "task_id": "mozillazg__python-pinyin.e42dede5.lm_rewrite__zhlzdi5y",
+    "skill": 2,
+    "domain": 1,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Deterministic table-driven transformation whose output must match a reference exactly; only the exactness transfers."
+   },
+   {
+    "rank": 10,
+    "task_id": "davidhalter__parso.338a5760.lm_rewrite__m5rncdcb",
+    "skill": 1,
+    "domain": 1,
+    "task_form": 2,
+    "overall": 1,
+    "reason": "Quota filler: Python parser fidelity, no compiled artifact anywhere in sight."
+   }
+  ],
+  "SWE-Rebench-Tasks-Clean": [
+   {
+    "rank": 1,
+    "task_id": "d0c-s4vage__pfp-126",
+    "skill": 4,
+    "domain": 4,
+    "task_form": 2,
+    "overall": 3,
+    "reason": "An interpreter for 010-editor binary templates: declaring and walking the layout of an unknown binary is the core RE workflow."
+   },
+   {
+    "rank": 2,
+    "task_id": "d0c-s4vage__pfp-114",
+    "skill": 4,
+    "domain": 4,
+    "task_form": 2,
+    "overall": 3,
+    "reason": "Same binary-template engine, different interpreter fault; still the 'describe an unknown file's structure' capability."
+   },
+   {
+    "rank": 3,
+    "task_id": "d0c-s4vage__pfp-112",
+    "skill": 4,
+    "domain": 4,
+    "task_form": 2,
+    "overall": 3,
+    "reason": "Third pfp issue; the library exists precisely to reverse-engineer binary formats, which is the nearest Rebench gets."
+   },
+   {
+    "rank": 4,
+    "task_id": "qiskit__qiskit-11249",
+    "skill": 2,
+    "domain": 2,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Semantics of a compiled circuit representation must be preserved across a transformation; compile-and-preserve-meaning reasoning."
+   },
+   {
+    "rank": 5,
+    "task_id": "google__jax-23502",
+    "skill": 2,
+    "domain": 2,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Traced/compiled execution must agree with the eager reference; an equivalence-between-two-implementations bug."
+   },
+   {
+    "rank": 6,
+    "task_id": "cuthbertlab__music21-1775",
+    "skill": 2,
+    "domain": 2,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Parsing and round-tripping a structured binary/text music format; format fidelity, no compiled code."
+   },
+   {
+    "rank": 7,
+    "task_id": "pallets__click-2333",
+    "skill": 2,
+    "domain": 2,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Command-line behavioural parity across versions; matching another implementation's observable behaviour, at a high level."
+   },
+   {
+    "rank": 8,
+    "task_id": "pypa__twine-1066",
+    "skill": 1,
+    "domain": 1,
+    "task_form": 2,
+    "overall": 1,
+    "reason": "Quota filler: packaging metadata handling shares nothing with binary reversal."
+   },
+   {
+    "rank": 9,
+    "task_id": "celery__celery-7470",
+    "skill": 1,
+    "domain": 1,
+    "task_form": 2,
+    "overall": 1,
+    "reason": "Quota filler: task-queue regression, no artifact to reverse."
+   },
+   {
+    "rank": 10,
+    "task_id": "delgan__loguru-960",
+    "skill": 1,
+    "domain": 1,
+    "task_form": 2,
+    "overall": 1,
+    "reason": "Quota filler: log rotation timing bug, unrelated."
+   }
+  ],
+  "Terminal-Lego-15k": [
+   {
+    "rank": 1,
+    "task_id": "task_10672",
+    "skill": 4,
+    "domain": 4,
+    "task_form": 2,
+    "overall": 3,
+    "reason": "Copy a function's machine code out of .text into heap memory and execute it; requires understanding how compiled code is laid out and protected."
+   },
+   {
+    "rank": 2,
+    "task_id": "task_06716",
+    "skill": 4,
+    "domain": 4,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Hide secrets in a binary so they resist trivial extraction - the defender's side of exactly this task. FREE-graded, so per_source only."
+   },
+   {
+    "rank": 3,
+    "task_id": "task_00352",
+    "skill": 4,
+    "domain": 4,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Disassemble an executable and read its assembly; the primary tool of this task, taught at tutorial depth. FREE verifier."
+   },
+   {
+    "rank": 4,
+    "task_id": "task_00344",
+    "skill": 3,
+    "domain": 4,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Edit RPATH inside an already-compiled ELF; direct manipulation of binary structure rather than of source."
+   },
+   {
+    "rank": 5,
+    "task_id": "task_00477",
+    "skill": 3,
+    "domain": 4,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Statically embed resources into an ELF and read them back at runtime; how data lives inside a compiled artifact."
+   },
+   {
+    "rank": 6,
+    "task_id": "task_00202",
+    "skill": 3,
+    "domain": 4,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Analyse a core dump in GDB for a program taking arguments; extracting state from a compiled process."
+   },
+   {
+    "rank": 7,
+    "task_id": "task_00225",
+    "skill": 3,
+    "domain": 4,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Determine only the direct shared-object dependencies of an ELF; reading ELF metadata rather than behaviour."
+   },
+   {
+    "rank": 8,
+    "task_id": "task_12789",
+    "skill": 3,
+    "domain": 3,
+    "task_form": 3,
+    "overall": 2,
+    "reason": "Get zlib to decompress gzip correctly in C - an exact-format implementation task, though the algorithm is not reversed."
+   },
+   {
+    "rank": 9,
+    "task_id": "task_12769",
+    "skill": 2,
+    "domain": 3,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Detect gzip by its magic bytes in C; the smallest possible slice of reading a binary file's structure."
+   },
+   {
+    "rank": 10,
+    "task_id": "task_00307",
+    "skill": 2,
+    "domain": 3,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "C program that resolves the path of its own executable; process/ELF introspection, well verified but shallow here."
+   }
+  ],
+  "CalibForge": [
+   {
+    "rank": 1,
+    "task_id": "software-engineering_20260607_104421_016",
+    "skill": 5,
+    "domain": 5,
+    "task_form": 5,
+    "overall": 5,
+    "reason": "Word-for-word the same task shape: compiled /app/mystery, write independent C, must not invoke it, under 1500 bytes gzipped. Graded FREE but its tests diff against the real binary - see verifier_notes."
+   },
+   {
+    "rank": 2,
+    "task_id": "software-engineering_20260604_003113_017",
+    "skill": 5,
+    "domain": 5,
+    "task_form": 5,
+    "overall": 5,
+    "reason": "Figure out exactly what /app/oracle does and reimplement it in C matching stdout, stderr and exit behaviour for all inputs."
+   },
+   {
+    "rank": 3,
+    "task_id": "software-engineering_20260604_004411_016",
+    "skill": 5,
+    "domain": 5,
+    "task_form": 5,
+    "overall": 5,
+    "reason": "my_vm.c must produce output identical to /app/vm for any bytecode file, compiled gcc -static -O2; an entire instruction set must be inferred."
+   },
+   {
+    "rank": 4,
+    "task_id": "software-engineering_20260606_153537_016",
+    "skill": 5,
+    "domain": 5,
+    "task_form": 5,
+    "overall": 5,
+    "reason": "Reconstruct a custom bytecode VM from four sample programs, self-contained, explicitly forbidden from invoking the reference."
+   },
+   {
+    "rank": 5,
+    "task_id": "software-engineering_20260615_143956_016",
+    "skill": 5,
+    "domain": 5,
+    "task_form": 5,
+    "overall": 5,
+    "reason": "/app/compress's source is gone; reimplement its custom codec in C so the formats interoperate, under an 8K gzip budget, without invoking it."
+   },
+   {
+    "rank": 6,
+    "task_id": "software-engineering_20260606_172606_015",
+    "skill": 5,
+    "domain": 4,
+    "task_form": 5,
+    "overall": 5,
+    "reason": "Infer an undocumented LZSS container's exact layout from sample files and implement it in C under 1800 bytes - inference plus size budget."
+   },
+   {
+    "rank": 7,
+    "task_id": "software-engineering_20260606_153537_015",
+    "skill": 5,
+    "domain": 4,
+    "task_form": 5,
+    "overall": 5,
+    "reason": "Your compressor's output must be byte-for-byte what the original produces for ANY input; matching an unseen implementation exactly."
+   },
+   {
+    "rank": 8,
+    "task_id": "software-engineering_20260617_051646_015",
+    "skill": 4,
+    "domain": 4,
+    "task_form": 5,
+    "overall": 4,
+    "reason": "From-scratch DEFLATE in C under a 3KB gzip cap, no libraries and no reading the answer - the same anti-embedding device."
+   },
+   {
+    "rank": 9,
+    "task_id": "software-engineering_20260510_062946_014",
+    "skill": 4,
+    "domain": 4,
+    "task_form": 4,
+    "overall": 4,
+    "reason": "Emulate a syscall interface so the program produces the same output as running it natively; behavioural equivalence at the ABI level."
+   },
+   {
+    "rank": 10,
+    "task_id": "software-engineering_20260606_172554_016",
+    "skill": 4,
+    "domain": 4,
+    "task_form": 4,
+    "overall": 4,
+    "reason": "Decoder in C compiled gcc -static with the source capped at 300 gzipped bytes; extreme version of the algorithmic-not-embedded constraint."
+   }
+  ]
+ },
+ "final_top10": [
+  {
+   "rank": 1,
+   "task_id": "software-engineering_20260607_104421_016",
+   "source": "CalibForge",
+   "skill": 5,
+   "domain": 5,
+   "task_form": 5,
+   "overall": 5,
+   "reason": "Word-for-word this task: /app/mystery compiled binary, write independent /app/hash.c, gcc -static compile-and-diff, must not invoke mystery, under 1500 bytes gzipped. Tests diff against the live binary over empty/simple/long/all-256-byte/position-sensitive inputs."
+  },
+  {
+   "rank": 2,
+   "task_id": "software-engineering_20260604_003113_017",
+   "source": "CalibForge",
+   "skill": 5,
+   "domain": 5,
+   "task_form": 5,
+   "overall": 5,
+   "reason": "An oracle binary must be understood exactly and reimplemented in C matching stdout, stderr and exit behaviour for all inputs - the TB2.1 task with a different payload."
+  },
+  {
+   "rank": 3,
+   "task_id": "software-engineering_20260604_004411_016",
+   "source": "CalibForge",
+   "skill": 5,
+   "domain": 5,
+   "task_form": 5,
+   "overall": 5,
+   "reason": "Reconstruct a whole VM from a reference binary so stdout matches for any bytecode, compiled gcc -static; same harness, same independence rule."
+  },
+  {
+   "rank": 4,
+   "task_id": "software-engineering_20260606_153537_016",
+   "source": "CalibForge",
+   "skill": 5,
+   "domain": 5,
+   "task_form": 5,
+   "overall": 5,
+   "reason": "Infer a custom instruction set from four sample programs and rebuild the VM in self-contained C that must not invoke the original."
+  },
+  {
+   "rank": 5,
+   "task_id": "software-engineering_20260615_143956_016",
+   "source": "CalibForge",
+   "skill": 5,
+   "domain": 5,
+   "task_form": 5,
+   "overall": 5,
+   "reason": "Source-less compression binary must be reimplemented in C compatible with its format, under a gzip source budget, without calling it."
+  },
+  {
+   "rank": 6,
+   "task_id": "task_000764_177f2810",
+   "source": "TMax-15K",
+   "skill": 5,
+   "domain": 5,
+   "task_form": 5,
+   "overall": 5,
+   "reason": "An undocumented stripped binary is the only specification; replicate its transformation exactly."
+  },
+  {
+   "rank": 7,
+   "task_id": "task_003072_1accbfc2",
+   "source": "TMax-15K",
+   "skill": 5,
+   "domain": 4,
+   "task_form": 5,
+   "overall": 5,
+   "reason": "Behave identically to an oracle binary and build the differential harness that proves it - teaches the verification loop as well as the RE."
+  },
+  {
+   "rank": 8,
+   "task_id": "software-engineering_20260606_172606_015",
+   "source": "CalibForge",
+   "skill": 5,
+   "domain": 4,
+   "task_form": 5,
+   "overall": 5,
+   "reason": "Deduce an undocumented compressed format from samples alone and implement it in C under 1800 bytes; inference plus the size budget."
+  },
+  {
+   "rank": 9,
+   "task_id": "task_000430_37cb6021",
+   "source": "TMax-15K",
+   "skill": 5,
+   "domain": 5,
+   "task_form": 5,
+   "overall": 5,
+   "reason": "Closed-source stripped oracle reimplemented so its outputs agree; adds a performance requirement on top of exact behavioural match."
+  },
+  {
+   "rank": 10,
+   "task_id": "task_002266_d750b211",
+   "source": "TMax-15K",
+   "skill": 5,
+   "domain": 5,
+   "task_form": 4,
+   "overall": 5,
+   "reason": "Decode an undocumented proprietary stripped binary's protocol and rebuild its decision logic in C; strongly pinned verifier."
+  }
+ ],
+ "notes": "Very well served by two pools. CalibForge has a purpose-built family of 'here is a compiled binary, write independent C that reproduces it, under a gzip source budget, do not invoke it' tasks that are plainly siblings of this TB2.1 seed; TMax-15K has a large, well-verified stripped-binary-reimplementation family. The honest top 10 is entirely CalibForge and TMax. The single most important item for the merge step is software-engineering_20260607_104421_016: it is the closest task in the pool and its FREE grade is a false negative (its tests are a differential comparison against the reference binary plus a source grep forbidding ./mystery). I obeyed the hard rule and left it out of final_top10, but if the grade is corrected it belongs at rank 1. TerminalWorld and Recursive-Task-Synthesis both have real reverse-engineering content, but it is almost entirely the same handful of crackme binaries (Crackme-Monologix, Crackit-GCI, crackme0x00) repeated dozens of times, it stops at 'find the password' rather than 'reimplement the program', and in TerminalWorld most of it is FREE-graded (tw_42850, tw_134335, tw_229615, tw_165683, tw_21329). Terminal-Lego-15k could not field 10 defensible candidates: it has no reverse-engineering task at all, only tutorials about objdump, gdb and ELF metadata, so its ranks 3-10 are honest 2s. SWE-Rebench is weakest; only the d0c-s4vage/pfp binary-template issues are real."
+}

@@ -1,0 +1,775 @@
+{
+ "tb21_id": "sqlite-db-truncate",
+ "tb21_profile": {
+  "skill": "Parse the SQLite on-disk format by hand - file header, page headers, leaf table B-tree cells, record varints and serial types - and salvage every complete row from a file that sqlite3 itself refuses to open because the tail is missing",
+  "domain": "SQLite internals and binary file-format forensics; Python byte-level parsing",
+  "task_form": "recover/repair-corrupted-data: maximise recovered rows from a damaged binary and emit them as structured JSON"
+ },
+ "verifier_notes": "file-operations_20260509_020109_004 is graded weak (0.143) but its suite checks specific recovered message contents in order; the grade understates it and I ranked it on the instruction. tw_197833 is FREE and per_source-only. No other grade looked wrong; nothing FREE is in final_top10.",
+ "searches": [
+  "tools.py search all \"sqlite (file )?format|b-tree page|page header|varint|serial type|database header|freelist\"",
+  "tools.py search all \"truncat.*(file|database|archive)|corrupt.*(database|sqlite|file)|carve|salvage|recover.*rows\"",
+  "tools.py show file-operations_20260509_020109_004 file-operations_20260605_015435_002 file-operations_20260604_004411_003 software-engineering_20260604_003814_006",
+  "tools.py search calib \"sqlite|\\.db\"",
+  "tools.py search tmax \"truncated (file|database|binary)|raw bytes|hex|binary format|magic (bytes|header)|file carving|salvage\"",
+  "tools.py search tmax \"truncat\"",
+  "tools.py search tmax \"sqlite\"",
+  "tools.py show task_008984_b55fbdb7",
+  "tools.py search lego \"sqlite.*(corrupt|recover|malformed|repair|dump)|database disk image|binary file (format|parsing)|struct\\.unpack\"",
+  "tools.py search lego \"corrupt|recover|hexdump|xxd|dd if=|damaged|salvage\"",
+  "tools.py search rts \"sqlite.*(corrupt|recover)|corrupted (database|file|archive)|truncated|recover\"",
+  "tools.py search rebench \"sqlite|corrupt|truncated file|malformed\"",
+  "tools.py search rebench \"struct\\.unpack|binary file|byte offset|zipfile|tarfile|msgpack|parse the header|EOF|unexpected end\"",
+  "tools.py search smith \"pyasn1|decoder|binary|struct\\.unpack|bytes|truncat|corrupt\"",
+  "tools.py show data-processing_20260605_015435_001 data-processing_20260611_205750_001"
+ ],
+ "per_source": {
+  "TMax-15K": [
+   {
+    "rank": 1,
+    "task_id": "task_008984_b55fbdb7",
+    "skill": 4,
+    "domain": 5,
+    "task_form": 4,
+    "overall": 4,
+    "reason": "Repair a SQLite file whose 16-byte magic header was destroyed so sqlite3 can open it again and pass integrity_check - SQLite header internals"
+   },
+   {
+    "rank": 2,
+    "task_id": "task_001082_55de7c66",
+    "skill": 4,
+    "domain": 5,
+    "task_form": 3,
+    "overall": 4,
+    "reason": "Fix a C tool that recovers data from a SQLite WAL; requires knowing the on-disk WAL/page layout"
+   },
+   {
+    "rank": 3,
+    "task_id": "task_000072_f458d4b3",
+    "skill": 4,
+    "domain": 5,
+    "task_form": 4,
+    "overall": 3,
+    "reason": "Recover a graph dataset out of a corrupted SQLite backup - salvage as much as the file still holds"
+   },
+   {
+    "rank": 4,
+    "task_id": "task_003769_7227f135",
+    "skill": 3,
+    "domain": 5,
+    "task_form": 4,
+    "overall": 3,
+    "reason": "Recover a SQLite-backed monitoring database corrupted by power loss and get the service reading it again"
+   },
+   {
+    "rank": 5,
+    "task_id": "task_000364_66e96fc9",
+    "skill": 3,
+    "domain": 3,
+    "task_form": 4,
+    "overall": 3,
+    "reason": "Salvage records from a journal riddled with null bytes, truncated lines and binary garbage - partial-data recovery discipline"
+   },
+   {
+    "rank": 6,
+    "task_id": "task_000150_20bcb8e3",
+    "skill": 3,
+    "domain": 3,
+    "task_form": 4,
+    "overall": 3,
+    "reason": "Logs torn and truncated by racing writers; keep every recoverable record and drop only the damaged tail"
+   },
+   {
+    "rank": 7,
+    "task_id": "task_000098_315c6951",
+    "skill": 4,
+    "domain": 3,
+    "task_form": 4,
+    "overall": 3,
+    "reason": "Parse a custom binary container with a magic header and length-prefixed records and extract each one - the same cell-walking loop"
+   },
+   {
+    "rank": 8,
+    "task_id": "task_000088_96351511",
+    "skill": 4,
+    "domain": 3,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Decode a binary header field by field at fixed little-endian offsets; struct-level file parsing"
+   },
+   {
+    "rank": 9,
+    "task_id": "task_000101_5b83d1ba",
+    "skill": 4,
+    "domain": 3,
+    "task_form": 4,
+    "overall": 3,
+    "reason": "Reverse-engineer an undocumented binary format by observation and convert it to JSON"
+   },
+   {
+    "rank": 10,
+    "task_id": "task_005421_cf8565ab",
+    "skill": 3,
+    "domain": 5,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Classify files by inspecting their magic bytes, including the 'SQLite format 3' and WAL headers"
+   }
+  ],
+  "Recursive-Task-Synthesis": [
+   {
+    "rank": 1,
+    "task_id": "rts_task_5765e6e37669e2d595a455ac",
+    "skill": 4,
+    "domain": 3,
+    "task_form": 4,
+    "overall": 3,
+    "reason": "Carve embedded payloads out of files by following a chain of extractions - file carving, the fallback when a container is broken"
+   },
+   {
+    "rank": 2,
+    "task_id": "rts_task_4d8e61a4970a71c62e579bc8",
+    "skill": 3,
+    "domain": 4,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Locate a SQLite store on disk and pull a specific value straight out of it"
+   },
+   {
+    "rank": 3,
+    "task_id": "rts_task_90ce9e50d921b3cf72020f7d",
+    "skill": 3,
+    "domain": 4,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Inventory an unfamiliar SQLite database and export every table - schema discovery from the file itself"
+   },
+   {
+    "rank": 4,
+    "task_id": "rts_task_36863e879384891432d4ac9b",
+    "skill": 3,
+    "domain": 4,
+    "task_form": 4,
+    "overall": 3,
+    "reason": "Extract every row of every table into a JSON document - the same rows-to-JSON deliverable"
+   },
+   {
+    "rank": 5,
+    "task_id": "rts_task_1b9d4a6a372614dbbd50b4d4",
+    "skill": 3,
+    "domain": 3,
+    "task_form": 3,
+    "overall": 2,
+    "reason": "Recover hidden data chained inside image files; byte-level extraction"
+   },
+   {
+    "rank": 6,
+    "task_id": "rts_task_13a401b319812496b0aca637",
+    "skill": 2,
+    "domain": 4,
+    "task_form": 3,
+    "overall": 2,
+    "reason": "Export all tables from one database and rebuild a SQLite database from them"
+   },
+   {
+    "rank": 7,
+    "task_id": "rts_task_c96325df7d4f6842c904879d",
+    "skill": 2,
+    "domain": 2,
+    "task_form": 3,
+    "overall": 2,
+    "reason": "Identify the right file from a manifest and decode it; format identification only"
+   },
+   {
+    "rank": 8,
+    "task_id": "rts_task_c4aa4dbd9021923bb776779d",
+    "skill": 2,
+    "domain": 4,
+    "task_form": 3,
+    "overall": 2,
+    "reason": "Create a SQLite table matching a written schema spec and load a data file into it"
+   },
+   {
+    "rank": 9,
+    "task_id": "rts_task_5f1d347e06080b34046886ff",
+    "skill": 2,
+    "domain": 4,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Build a SQLite database from a configuration file; no recovery element"
+   },
+   {
+    "rank": 10,
+    "task_id": "rts_task_20f5ab0e2ba13d0d6fc36015",
+    "skill": 1,
+    "domain": 4,
+    "task_form": 2,
+    "overall": 1,
+    "reason": "Write encrypted output into a SQLite database; shares only the file type"
+   }
+  ],
+  "TerminalWorld-Seeds-Clean": [
+   {
+    "rank": 1,
+    "task_id": "tw_326975",
+    "skill": 3,
+    "domain": 5,
+    "task_form": 4,
+    "overall": 3,
+    "reason": "Walk every table of a SQLite database and dump all rows as JSON - the same discover-schema-then-emit-JSON shape, on an intact file"
+   },
+   {
+    "rank": 2,
+    "task_id": "tw_92698",
+    "skill": 4,
+    "domain": 2,
+    "task_form": 4,
+    "overall": 3,
+    "reason": "Carve kernel structures out of a raw memory image with Volatility - recovering records from an unstructured byte dump"
+   },
+   {
+    "rank": 3,
+    "task_id": "tw_18610",
+    "skill": 3,
+    "domain": 2,
+    "task_form": 4,
+    "overall": 3,
+    "reason": "Reconstruct a password from raw bytes in a pcap; byte-stream reassembly"
+   },
+   {
+    "rank": 4,
+    "task_id": "tw_459969",
+    "skill": 3,
+    "domain": 3,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Extract a secret still physically present in a Docker layer after deletion - deleted does not mean gone, the premise of page-level recovery"
+   },
+   {
+    "rank": 5,
+    "task_id": "tw_139449",
+    "skill": 2,
+    "domain": 4,
+    "task_form": 3,
+    "overall": 2,
+    "reason": "Build a SQLite database from NDJSON records; knowing the table/row mapping, but no recovery"
+   },
+   {
+    "rank": 6,
+    "task_id": "tw_621364",
+    "skill": 2,
+    "domain": 4,
+    "task_form": 3,
+    "overall": 2,
+    "reason": "Create a SQLite banking schema and load it; schema work only"
+   },
+   {
+    "rank": 7,
+    "task_id": "tw_187062",
+    "skill": 2,
+    "domain": 3,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Create and populate a table with a typed primary key"
+   },
+   {
+    "rank": 8,
+    "task_id": "tw_220270",
+    "skill": 2,
+    "domain": 4,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Connect to a SQLite file with SQLAlchemy and define a table"
+   },
+   {
+    "rank": 9,
+    "task_id": "tw_220269",
+    "skill": 2,
+    "domain": 4,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Same SQLAlchemy table-creation family"
+   },
+   {
+    "rank": 10,
+    "task_id": "tw_197833",
+    "skill": 3,
+    "domain": 2,
+    "task_form": 3,
+    "overall": 2,
+    "reason": "Recover class-hierarchy structures from a stripped binary with radare2 - structure recovery from bytes, but FREE verifier so excluded from final"
+   }
+  ],
+  "SWE-Smith-Seeds-Clean": [
+   {
+    "rank": 1,
+    "task_id": "pyasn1__pyasn1.0f07d724.func_pm_class_rm_funcs__ajm5xzfg",
+    "skill": 4,
+    "domain": 3,
+    "task_form": 2,
+    "overall": 3,
+    "reason": "Decoder machinery removed from a BER/DER codec - tag-length-value decoding is structurally what SQLite record headers need"
+   },
+   {
+    "rank": 2,
+    "task_id": "benoitc__gunicorn.bacbf8aa.combine_module__alktdlsj",
+    "skill": 4,
+    "domain": 3,
+    "task_form": 2,
+    "overall": 3,
+    "reason": "LengthReader vs EOFReader: reading exactly N bytes versus until the stream ends - precisely the truncation boundary problem"
+   },
+   {
+    "rank": 3,
+    "task_id": "benoitc__gunicorn.bacbf8aa.pr_3258",
+    "skill": 3,
+    "domain": 3,
+    "task_form": 2,
+    "overall": 3,
+    "reason": "Chunked body reader mishandles varying chunk sizes; framed reads over a byte stream"
+   },
+   {
+    "rank": 4,
+    "task_id": "cantools__cantools.0c6a7871.lm_rewrite__swakazsi",
+    "skill": 3,
+    "domain": 3,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Typed-field parsing of a structured database file breaks on certain data types"
+   },
+   {
+    "rank": 5,
+    "task_id": "chardet__chardet.9630f238.lm_rewrite__c8vhybjh",
+    "skill": 3,
+    "domain": 2,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Decide how to decode raw bytes of unknown encoding - text columns recovered from a page need the same judgement"
+   },
+   {
+    "rank": 6,
+    "task_id": "chardet__chardet.9630f238.combine_file__1gm3nc5e",
+    "skill": 3,
+    "domain": 2,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Encoding detection returns blank for some byte sequences; byte-level classification"
+   },
+   {
+    "rank": 7,
+    "task_id": "bottlepy__bottle.a8dfef30.func_pm_ctrl_shuffle__9nj3nop9",
+    "skill": 3,
+    "domain": 2,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Multipart parser mis-splits a byte stream at boundaries; boundary handling in binary input"
+   },
+   {
+    "rank": 8,
+    "task_id": "andialbrecht__sqlparse.e57923b3.func_pm_ctrl_invert_if__7iwgl0ru",
+    "skill": 2,
+    "domain": 3,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "bytes input with an encoding parameter raises TypeError; bytes-vs-str discipline"
+   },
+   {
+    "rank": 9,
+    "task_id": "cantools__cantools.0c6a7871.lm_rewrite__dtza2992",
+    "skill": 2,
+    "domain": 3,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Integer conversion fails during a binary-to-value conversion step"
+   },
+   {
+    "rank": 10,
+    "task_id": "cloudpipe__cloudpickle.6220b0ce.lm_rewrite__l4p0eaum",
+    "skill": 2,
+    "domain": 2,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Non-deterministic ordering in a serialiser; byte-exact output reasoning"
+   }
+  ],
+  "SWE-Rebench-Tasks-Clean": [
+   {
+    "rank": 1,
+    "task_id": "d0c-s4vage__pfp-126",
+    "skill": 4,
+    "domain": 3,
+    "task_form": 2,
+    "overall": 3,
+    "reason": "A binary-template interpreter reading typed records until FEof mishandles implicit arrays - record-by-record binary parsing to the end of file"
+   },
+   {
+    "rank": 2,
+    "task_id": "d0c-s4vage__pfp-112",
+    "skill": 4,
+    "domain": 3,
+    "task_form": 2,
+    "overall": 3,
+    "reason": "Same engine, LEB128-style values read in a while(!FEof()) loop - variable-length integer decoding, the SQLite varint problem"
+   },
+   {
+    "rank": 3,
+    "task_id": "pandas-dev__pandas-58970",
+    "skill": 3,
+    "domain": 3,
+    "task_form": 2,
+    "overall": 3,
+    "reason": "A .dta binary file is read wrongly and reports corruption; parsing a proprietary on-disk format"
+   },
+   {
+    "rank": 4,
+    "task_id": "jazzband__tablib-547",
+    "skill": 3,
+    "domain": 2,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "A workbook with ragged rows raises InvalidDimensions instead of importing what is there - salvage what parses"
+   },
+   {
+    "rank": 5,
+    "task_id": "kubernetes-client__python-2100",
+    "skill": 3,
+    "domain": 2,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "UnicodeDecodeError at a byte boundary because a multi-byte sequence was split - exactly what truncation does"
+   },
+   {
+    "rank": 6,
+    "task_id": "jcrist__msgspec-225",
+    "skill": 3,
+    "domain": 2,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Typed decoding of a msgpack byte stream; binary serialisation semantics"
+   },
+   {
+    "rank": 7,
+    "task_id": "psd-tools__psd-tools-334",
+    "skill": 3,
+    "domain": 2,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Binary layered-image parsing; walking a structured binary container"
+   },
+   {
+    "rank": 8,
+    "task_id": "keras-team__keras-19924",
+    "skill": 2,
+    "domain": 2,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Archive member extraction fails while loading; container reading"
+   },
+   {
+    "rank": 9,
+    "task_id": "jelmer__dulwich-1578",
+    "skill": 2,
+    "domain": 3,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "A git operation leaves the object/ref store inconsistent; on-disk store integrity"
+   },
+   {
+    "rank": 10,
+    "task_id": "openmdao__openmdao-3463",
+    "skill": 2,
+    "domain": 4,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Reading back a SQLite recorder file written by a previous run; same file type, ordinary API use"
+   }
+  ],
+  "Terminal-Lego-15k": [
+   {
+    "rank": 1,
+    "task_id": "task_14225",
+    "skill": 4,
+    "domain": 2,
+    "task_form": 4,
+    "overall": 3,
+    "reason": "Recover the unsaved text sitting inside a Vim swap file - pulling content out of a binary journal the owning program left behind"
+   },
+   {
+    "rank": 2,
+    "task_id": "task_14288",
+    "skill": 3,
+    "domain": 5,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Reimplement .tables/.schema against the sqlite3 API - reading a database's own schema catalogue, which a raw recovery must also do"
+   },
+   {
+    "rank": 3,
+    "task_id": "task_10904",
+    "skill": 4,
+    "domain": 2,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Length-prefixed binary framing with struct.pack/unpack - decode a length then read exactly that many bytes"
+   },
+   {
+    "rank": 4,
+    "task_id": "task_07844",
+    "skill": 3,
+    "domain": 3,
+    "task_form": 3,
+    "overall": 2,
+    "reason": "Reconstruct an image file from BLOB bytes stored in a database; raw column bytes to a real artifact"
+   },
+   {
+    "rank": 5,
+    "task_id": "task_07994",
+    "skill": 3,
+    "domain": 5,
+    "task_form": 3,
+    "overall": 2,
+    "reason": "Multiple processes on one SQLite file in C; locking and file-level behaviour of the format"
+   },
+   {
+    "rank": 6,
+    "task_id": "task_08013",
+    "skill": 2,
+    "domain": 4,
+    "task_form": 3,
+    "overall": 2,
+    "reason": "Translate a PostgreSQL dump into a SQLite database; format conversion, no recovery"
+   },
+   {
+    "rank": 7,
+    "task_id": "task_07958",
+    "skill": 2,
+    "domain": 4,
+    "task_form": 3,
+    "overall": 2,
+    "reason": "Restore a SQLite database from a .dump file - the supported recovery path when the file still opens"
+   },
+   {
+    "rank": 8,
+    "task_id": "task_06028",
+    "skill": 2,
+    "domain": 4,
+    "task_form": 3,
+    "overall": 2,
+    "reason": "Export SQLite rows to CSV with correct value formatting; rows-to-structured-output"
+   },
+   {
+    "rank": 9,
+    "task_id": "task_10725",
+    "skill": 3,
+    "domain": 2,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "struct.unpack of a binary protocol frame in a daemon"
+   },
+   {
+    "rank": 10,
+    "task_id": "task_08043",
+    "skill": 2,
+    "domain": 4,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Thread-safe SQLite usage; library semantics rather than file format"
+   }
+  ],
+  "CalibForge": [
+   {
+    "rank": 1,
+    "task_id": "file-operations_20260604_004411_003",
+    "skill": 5,
+    "domain": 5,
+    "task_form": 5,
+    "overall": 5,
+    "reason": "A SQLite database buried in a raw dump with a damaged header that standard tools cannot open; recover surviving records to a JSON array - this task, almost exactly"
+   },
+   {
+    "rank": 2,
+    "task_id": "file-operations_20260605_015435_002",
+    "skill": 5,
+    "domain": 5,
+    "task_form": 5,
+    "overall": 5,
+    "reason": "Write a script that parses the raw database file, recovers records from its pages and prints a JSON array with correct column names and types"
+   },
+   {
+    "rank": 3,
+    "task_id": "file-operations_20260509_020109_004",
+    "skill": 5,
+    "domain": 5,
+    "task_form": 4,
+    "overall": 4,
+    "reason": "Parse the binary SQLite format and recover records from freeblocks and unallocated space in leaf table B-tree pages - the deepest page-format task in the pool"
+   },
+   {
+    "rank": 4,
+    "task_id": "data-processing_20260605_015435_001",
+    "skill": 4,
+    "domain": 5,
+    "task_form": 4,
+    "overall": 4,
+    "reason": "A damaged .db that cannot be opened; recover as much as possible into a clean database plus a summary - same salvage-maximally framing"
+   },
+   {
+    "rank": 5,
+    "task_id": "data-processing_20260611_205750_001",
+    "skill": 4,
+    "domain": 5,
+    "task_form": 4,
+    "overall": 4,
+    "reason": "Partially corrupted SQLite where one table errors; rebuild a complete working database from what survives"
+   },
+   {
+    "rank": 6,
+    "task_id": "software-engineering_20260604_003814_006",
+    "skill": 4,
+    "domain": 3,
+    "task_form": 4,
+    "overall": 4,
+    "reason": "Validate every record in a binary database file against its documented layout and keep only the intact ones"
+   },
+   {
+    "rank": 7,
+    "task_id": "data-processing_20260615_143956_004",
+    "skill": 4,
+    "domain": 3,
+    "task_form": 4,
+    "overall": 4,
+    "reason": "A truncated stream whose final record is incomplete: keep everything before it and discard only the partial tail"
+   },
+   {
+    "rank": 8,
+    "task_id": "data-processing_20260611_210349_004",
+    "skill": 4,
+    "domain": 3,
+    "task_form": 4,
+    "overall": 3,
+    "reason": "Binary employee-record file with flipped bytes; detect damaged records against the layout and recover the rest"
+   },
+   {
+    "rank": 9,
+    "task_id": "data-processing_20260528_174918_001",
+    "skill": 4,
+    "domain": 3,
+    "task_form": 4,
+    "overall": 3,
+    "reason": "Binary data file corrupted by a power failure mid-write, with FORMAT_SPEC.md as the reference - parse the spec and salvage"
+   },
+   {
+    "rank": 10,
+    "task_id": "debugging_20260508_204815_005",
+    "skill": 4,
+    "domain": 5,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Only a corrupted SQLite WAL survives the crash; reconstruct the data from it"
+   }
+  ]
+ },
+ "final_top10": [
+  {
+   "rank": 1,
+   "task_id": "file-operations_20260604_004411_003",
+   "skill": 5,
+   "domain": 5,
+   "task_form": 5,
+   "overall": 5,
+   "reason": "Damaged SQLite header inside a raw dump, standard tools refuse it, recover surviving rows into a JSON array of column objects",
+   "source": "CalibForge"
+  },
+  {
+   "rank": 2,
+   "task_id": "file-operations_20260605_015435_002",
+   "skill": 5,
+   "domain": 5,
+   "task_form": 5,
+   "overall": 5,
+   "reason": "Parse the raw SQLite file, reconstruct records from its pages, emit JSON with correct column names and types",
+   "source": "CalibForge"
+  },
+  {
+   "rank": 3,
+   "task_id": "file-operations_20260509_020109_004",
+   "skill": 5,
+   "domain": 5,
+   "task_form": 4,
+   "overall": 4,
+   "reason": "Walk leaf table B-tree pages, freeblocks and unallocated space to rebuild records - the page-and-cell knowledge a truncated file forces",
+   "source": "CalibForge"
+  },
+  {
+   "rank": 4,
+   "task_id": "task_008984_b55fbdb7",
+   "skill": 4,
+   "domain": 5,
+   "task_form": 4,
+   "overall": 4,
+   "reason": "Repair the destroyed SQLite magic header so the file parses again; direct knowledge of the header layout",
+   "source": "TMax-15K"
+  },
+  {
+   "rank": 5,
+   "task_id": "data-processing_20260605_015435_001",
+   "skill": 4,
+   "domain": 5,
+   "task_form": 4,
+   "overall": 4,
+   "reason": "A .db that will not open: recover as much as possible and report it - the same maximise-recovered-rows objective",
+   "source": "CalibForge"
+  },
+  {
+   "rank": 6,
+   "task_id": "data-processing_20260611_205750_001",
+   "skill": 4,
+   "domain": 5,
+   "task_form": 4,
+   "overall": 4,
+   "reason": "Partially corrupted SQLite where one table errors out; reassemble a complete database from surviving pages and an export",
+   "source": "CalibForge"
+  },
+  {
+   "rank": 7,
+   "task_id": "task_001082_55de7c66",
+   "skill": 4,
+   "domain": 5,
+   "task_form": 3,
+   "overall": 4,
+   "reason": "Fix a SQLite WAL recovery tool in C - same file format, same recover-what-is-there goal",
+   "source": "TMax-15K"
+  },
+  {
+   "rank": 8,
+   "task_id": "data-processing_20260615_143956_004",
+   "skill": 4,
+   "domain": 3,
+   "task_form": 4,
+   "overall": 4,
+   "reason": "Truncation leaves a partial final record: keep every complete one and drop only the incomplete tail",
+   "source": "CalibForge"
+  },
+  {
+   "rank": 9,
+   "task_id": "software-engineering_20260604_003814_006",
+   "skill": 4,
+   "domain": 3,
+   "task_form": 4,
+   "overall": 4,
+   "reason": "Validate binary records against a documented layout and keep only those that reconstruct cleanly",
+   "source": "CalibForge"
+  },
+  {
+   "rank": 10,
+   "task_id": "d0c-s4vage__pfp-126",
+   "skill": 4,
+   "domain": 3,
+   "task_form": 2,
+   "overall": 3,
+   "reason": "Binary-template interpreter reading typed records in a while(!FEof()) loop - the cell-by-cell read-until-you-run-out pattern",
+   "source": "SWE-Rebench-Tasks-Clean"
+  }
+ ],
+ "notes": "CalibForge wins this one outright and takes 7 of the final 10: it has three tasks that parse the raw SQLite file format directly (damaged header in a sector dump, deleted-record recovery from pages, freeblock forensics on leaf B-tree pages) plus a whole family of binary-layout salvage tasks, most graded strong. Nothing comparable exists in the v1 pool - TMax's best is repairing the 16-byte magic header and fixing a WAL recovery tool in C (both real transfer, both kept), and its other entries are generic binary-format parsing. Terminal-Lego is thin here: mostly sqlite3-API usage tasks, with only the Vim swap-file recovery and struct framing tasks carrying any of the skill; I could not find 10 strongly defensible Lego candidates and the tail is scored 2. Recursive-Task-Synthesis and TerminalWorld likewise have no on-disk-format recovery task and their lists are padded with database-creation chores. SWE-Rebench's pfp family (a binary-template interpreter doing LEB128 reads until EOF) is a better fit than anything in SWE-Smith except pyasn1's TLV decoder and gunicorn's length-vs-EOF readers."
+}

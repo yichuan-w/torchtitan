@@ -1,0 +1,771 @@
+{
+ "tb21_id": "torch-tensor-parallelism",
+ "tb21_profile": {
+  "skill": "Write nn.Module subclasses that slice a full weight matrix along a chosen dimension per rank, run the sharded matmul, and reproduce all_gather / all_reduce semantics so that outputs AND weight/bias gradients match an unsharded reference at world_size 1, 2 and 4",
+  "domain": "PyTorch nn.Module and autograd, tensor shape/dimension algebra, torch.distributed rank/world_size, Megatron-style column/row tensor parallelism",
+  "task_form": "implement-from-spec: two classes with a fixed signature, verified by numerical equivalence of forward output and backward gradients against a reference"
+ },
+ "verifier_notes": "IMPORTANT DISCREPANCY the merge step must know about: work/verifier_strength.json (written 23:02, after work/packets_v2/ at 22:56, by a verifier_strength.py edited at 23:01) disagrees with the `verifier` field embedded in the packets for 1,986 of the 6,543 shown candidates, and it is always the more generous of the two. 109 CalibForge, 96 TMax, 139 Terminal-Lego and 208 TerminalWorld ids are FREE in the packet but not FREE in the newer global file; only 10 ids go the other way. Example: software-engineering_20260509_205636_024 is `FREE 0.0` in the packet and `strong 0.947` over 19 tests in the global file; task_13182 is `weak 0.125` in the packet and `strong 0.708` globally. I resolved this conservatively across all five of my tasks: a candidate is treated as FREE if EITHER source calls it FREE, so final_top10 is clean under whichever file the checker reads. For this task that cost me software-engineering_20260509_205636_024 (implement a torch.autograd.Function with a correct custom backward), which on the newer grade would have been a top-3 pick.",
+ "searches": [
+  "tools.py search all 'torch\\.distributed|P2POp|isend|irecv|all_reduce|all_gather|pipeline parallel|tensor parallel|DistributedDataParallel|NCCL|nccl'",
+  "tools.py search tmax 'block matrix|matrix multiplication|linear layer|weight matrix|torch\\.nn|nn\\.Linear|BLAS|GEMM'",
+  "tools.py search rts 'matrix|numpy|linear algebra|eigen|dot product|BLAS'",
+  "tools.py search rts 'model_config\\.json|nn\\.Module|state_dict|checkpoint|\\.pt\\b|\\.pth\\b'",
+  "tools.py search tw 'matrix|numpy|neural|tensor|linear algebra|CUDA|GPU'",
+  "tools.py search smith 'torch|PyTorch|tensor|gradient|neural'",
+  "tools.py search rebench 'torch|PyTorch|keras|jax|gradient|autodiff'",
+  "grep -rliE 'shard|split the weight|nn\\.Linear|weight matrix|matmul|all_gather|column-wise|row-wise' --include=instruction.md calibforge",
+  "grep -rliE 'autograd\\.Function|gradient accumulation|microbatch|micro-batch|torchrun|activation checkpoint' --include=instruction.md calibforge",
+  "grep -rliE 'torch\\.(split|chunk|cat|stack)|matrix multiplication|nn\\.Linear|custom (layer|module)|matmul' --include=instruction.md terminal-lego-15k",
+  "grep -rliE 'PyTorch|torch\\.|backpropagation|neural network|autograd' --include=instruction.md terminal-lego-15k"
+ ],
+ "per_source": {
+  "TMax-15K": [
+   {
+    "rank": 1,
+    "task_id": "task_001030_45a9959c",
+    "skill": 4,
+    "domain": 3,
+    "task_form": 4,
+    "overall": 4,
+    "reason": "Reimplement a proprietary linear projection layer by hand and prove its output matches the reference model; the exact weight-times-input-plus-bias correctness this task grades."
+   },
+   {
+    "rank": 2,
+    "task_id": "task_009562_91210c7c",
+    "skill": 3,
+    "domain": 4,
+    "task_form": 4,
+    "overall": 3,
+    "reason": "Rebuild an undocumented torch model from the shapes of its saved weights; same shape reasoning used to pick a split axis."
+   },
+   {
+    "rank": 3,
+    "task_id": "task_007296_a67e32b2",
+    "skill": 3,
+    "domain": 4,
+    "task_form": 4,
+    "overall": 3,
+    "reason": "Reconstruct a torch model from a weight backup so regenerated embeddings match exactly; numerical-equivalence-to-a-reference verification."
+   },
+   {
+    "rank": 4,
+    "task_id": "task_001561_d6785f7c",
+    "skill": 3,
+    "domain": 3,
+    "task_form": 4,
+    "overall": 3,
+    "reason": "Build inference from an architecture-plus-weights JSON export; forces getting per-layer weight orientation and bias handling right by hand."
+   },
+   {
+    "rank": 5,
+    "task_id": "task_004753_df1f62f5",
+    "skill": 3,
+    "domain": 3,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Hand-write C++ inference for a pretrained linear autoencoder; matrix-times-vector plus bias implemented from scratch against pinned outputs."
+   },
+   {
+    "rank": 6,
+    "task_id": "task_005107_3ae8339b",
+    "skill": 3,
+    "domain": 3,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Apply a saved linear model's weights to a validation batch manually; small but exactly the affine-layer arithmetic being sharded here."
+   },
+   {
+    "rank": 7,
+    "task_id": "task_001697_f00c5c92",
+    "skill": 3,
+    "domain": 4,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Infer an MLP's two Linear layers and their shapes from checkpoint keys; layer-shape algebra in torch."
+   },
+   {
+    "rank": 8,
+    "task_id": "task_001320_3c8ed6ab",
+    "skill": 3,
+    "domain": 2,
+    "task_form": 3,
+    "overall": 2,
+    "reason": "Find an off-by-one out-of-bounds access inside a C matrix multiply; index-arithmetic discipline of the kind a per-rank slice needs."
+   },
+   {
+    "rank": 9,
+    "task_id": "task_003103_c5ee5fa5",
+    "skill": 2,
+    "domain": 4,
+    "task_form": 3,
+    "overall": 2,
+    "reason": "Load raw weights into a network and score many inputs; torch weight loading with pinned outputs, no sharding or gradients."
+   },
+   {
+    "rank": 10,
+    "task_id": "task_001192_5700e518",
+    "skill": 2,
+    "domain": 2,
+    "task_form": 3,
+    "overall": 2,
+    "reason": "Recover a 2x3 weight matrix and apply the documented linear transform; tiny, but the forward arithmetic must be exactly right."
+   }
+  ],
+  "Recursive-Task-Synthesis": [
+   {
+    "rank": 1,
+    "task_id": "rts_task_956ea2e372fe004edbe0d44d",
+    "skill": 3,
+    "domain": 4,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Build a PyTorch model from a JSON architecture spec; constructing nn.Module layers with the right in/out features from a description."
+   },
+   {
+    "rank": 2,
+    "task_id": "rts_task_2d69f2e120a06f1fad03633d",
+    "skill": 2,
+    "domain": 2,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Run a program across 4 MPI ranks after fixing the environment; the closest this corpus gets to world_size-parameterised execution."
+   },
+   {
+    "rank": 3,
+    "task_id": "rts_task_c413bfccf3e263bf900811a4",
+    "skill": 2,
+    "domain": 2,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Same 4-rank MPI run with environment configuration; only the multi-rank launch concept transfers."
+   },
+   {
+    "rank": 4,
+    "task_id": "rts_task_8707933864bb7358405a6226",
+    "skill": 2,
+    "domain": 2,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Makefile that compiles with mpicc and runs the binary under mpirun; multi-process build and execution mechanics."
+   },
+   {
+    "rank": 5,
+    "task_id": "rts_task_c0553555675bcd47828f4c07",
+    "skill": 2,
+    "domain": 2,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Compile an MPI program, verify libmpi linkage, run under mpirun; distributed runtime plumbing only."
+   },
+   {
+    "rank": 6,
+    "task_id": "rts_task_be071fe2ff8cf7f46af5a47e",
+    "skill": 1,
+    "domain": 2,
+    "task_form": 2,
+    "overall": 1,
+    "reason": "Compile mpiprocname.c and run it across ranks; establishes that ranks exist and nothing more."
+   },
+   {
+    "rank": 7,
+    "task_id": "rts_task_945e147d1c700438e3be05f6",
+    "skill": 1,
+    "domain": 3,
+    "task_form": 2,
+    "overall": 1,
+    "reason": "Set up an env and run an sds/numpy MNIST classification workflow; ML-adjacent environment work, no layer implementation."
+   },
+   {
+    "rank": 8,
+    "task_id": "rts_task_b0259cede190f1ef494456f5",
+    "skill": 1,
+    "domain": 2,
+    "task_form": 2,
+    "overall": 1,
+    "reason": "Clean NaNs from a 5x3 NumPy array into CSV; array-shape handling at the smallest possible scale."
+   },
+   {
+    "rank": 9,
+    "task_id": "rts_task_c97cadfb47ad0e8723c026af",
+    "skill": 1,
+    "domain": 1,
+    "task_form": 2,
+    "overall": 1,
+    "reason": "pyperaptor parallel pipeline driven by a config; lexical match on parallel, no tensor or gradient content."
+   },
+   {
+    "rank": 10,
+    "task_id": "rts_task_edec5810a8d291f0ef994764",
+    "skill": 1,
+    "domain": 2,
+    "task_form": 1,
+    "overall": 1,
+    "reason": "Write an envd build file for a CUDA/torch image; touches the PyTorch ecosystem only at the packaging level."
+   }
+  ],
+  "TerminalWorld-Seeds-Clean": [
+   {
+    "rank": 1,
+    "task_id": "tw_718060",
+    "skill": 3,
+    "domain": 4,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Define a named PyTorch network and profile it, writing structured results; requires building an nn.Module correctly, the only such task here."
+   },
+   {
+    "rank": 2,
+    "task_id": "tw_125169",
+    "skill": 2,
+    "domain": 2,
+    "task_form": 3,
+    "overall": 2,
+    "reason": "Posit-arithmetic experiments including a 100x100 matrix; numerical-precision discipline on matrix operations."
+   },
+   {
+    "rank": 3,
+    "task_id": "tw_276570",
+    "skill": 2,
+    "domain": 3,
+    "task_form": 3,
+    "overall": 2,
+    "reason": "Obtain a NumPy view over a C++ vector's buffer; memory-layout and view-versus-copy reasoning, which sharding also depends on."
+   },
+   {
+    "rank": 4,
+    "task_id": "tw_211906",
+    "skill": 2,
+    "domain": 2,
+    "task_form": 3,
+    "overall": 2,
+    "reason": "Multi-feature Julia task including NumPy interop with propagated uncertainty; exact-value numerical verification."
+   },
+   {
+    "rank": 5,
+    "task_id": "tw_326628",
+    "skill": 2,
+    "domain": 3,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Run an sds/numpy MNIST classifier end to end; ML workflow with a pinned classification result."
+   },
+   {
+    "rank": 6,
+    "task_id": "tw_125964",
+    "skill": 2,
+    "domain": 2,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Run Louvain community detection over a network adjacency matrix; matrix-shaped data with a checked numeric output."
+   },
+   {
+    "rank": 7,
+    "task_id": "tw_166586",
+    "skill": 2,
+    "domain": 1,
+    "task_form": 3,
+    "overall": 2,
+    "reason": "Produce a numeric answer to 12 decimal places from a program you build; the exactness standard this TB2.1 test applies."
+   },
+   {
+    "rank": 8,
+    "task_id": "tw_423671",
+    "skill": 1,
+    "domain": 2,
+    "task_form": 2,
+    "overall": 1,
+    "reason": "Build Gunrock with CUDA and run SSSP; GPU-stack build, nothing about layers or gradients."
+   },
+   {
+    "rank": 9,
+    "task_id": "tw_114781",
+    "skill": 1,
+    "domain": 1,
+    "task_form": 2,
+    "overall": 1,
+    "reason": "Erlang leader election across communicating processes; multi-process coordination in an unrelated stack."
+   },
+   {
+    "rank": 10,
+    "task_id": "tw_487175",
+    "skill": 1,
+    "domain": 2,
+    "task_form": 2,
+    "overall": 1,
+    "reason": "Drop NaN rows from a NumPy-backed DataFrame; filler, this corpus has almost no PyTorch content."
+   }
+  ],
+  "SWE-Smith-Seeds-Clean": [
+   {
+    "rank": 1,
+    "task_id": "facebookresearch__fvcore.a491d5b9.combine_file__htnzvb1x",
+    "skill": 3,
+    "domain": 4,
+    "task_form": 2,
+    "overall": 3,
+    "reason": "Weight initialisation sets constants onto module.weight incorrectly when bias is None; exactly the weight-and-bias-init branch this TB2.1 task specifies."
+   },
+   {
+    "rank": 2,
+    "task_id": "facebookresearch__fvcore.a491d5b9.lm_rewrite__1lp7kdh2",
+    "skill": 3,
+    "domain": 4,
+    "task_form": 2,
+    "overall": 3,
+    "reason": "Einsum flop count wrong; requires reasoning about which axes contract in a matmul, the same algebra that decides a column versus row split."
+   },
+   {
+    "rank": 3,
+    "task_id": "facebookresearch__fvcore.a491d5b9.lm_rewrite__pcccevul",
+    "skill": 3,
+    "domain": 4,
+    "task_form": 2,
+    "overall": 3,
+    "reason": "Parameter counts mis-aggregated across modules and submodules; walking a module tree and accounting for each weight tensor."
+   },
+   {
+    "rank": 4,
+    "task_id": "facebookresearch__fvcore.a491d5b9.combine_module__uxncj1ip",
+    "skill": 2,
+    "domain": 4,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Tensor shape handling broken in to_numpy; dimension bookkeeping across conversions, the commonest way a shard goes wrong."
+   },
+   {
+    "rank": 5,
+    "task_id": "facebookresearch__fvcore.a491d5b9.func_pm_ctrl_shuffle__kd43vy4l",
+    "skill": 2,
+    "domain": 4,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Flop counter mishandles matrix multiplication operations; shape-driven accounting over matmuls."
+   },
+   {
+    "rank": 6,
+    "task_id": "facebookresearch__fvcore.a491d5b9.lm_rewrite__m0xnjits",
+    "skill": 2,
+    "domain": 4,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Operations mis-tracked in the computation graph; forces an accurate model of what torch executes per layer."
+   },
+   {
+    "rank": 7,
+    "task_id": "facebookresearch__fvcore.a491d5b9.func_basic__fmm3wkfc",
+    "skill": 2,
+    "domain": 4,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Module hierarchy rendered in reverse; nested-module traversal order in torch."
+   },
+   {
+    "rank": 8,
+    "task_id": "facebookresearch__fvcore.a491d5b9.lm_rewrite__lo7njclv",
+    "skill": 2,
+    "domain": 3,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Running mean and variance not updated correctly; per-layer buffer state, which a sharded layer must also replicate."
+   },
+   {
+    "rank": 9,
+    "task_id": "dask__dask.5f61e423.pr_10042",
+    "skill": 2,
+    "domain": 2,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Blocked-array behaviour in Dask; splitting an array into chunks and recombining results is the same shape of idea, different library."
+   },
+   {
+    "rank": 10,
+    "task_id": "pandas-dev__pandas.95280573.pr_48050",
+    "skill": 1,
+    "domain": 2,
+    "task_form": 2,
+    "overall": 1,
+    "reason": "pandas internals bug; array-of-columns reasoning only, no torch and no gradients."
+   }
+  ],
+  "SWE-Rebench-Tasks-Clean": [
+   {
+    "rank": 1,
+    "task_id": "cornellius-gp__gpytorch-216",
+    "skill": 3,
+    "domain": 3,
+    "task_form": 2,
+    "overall": 3,
+    "reason": "Kronecker-product lazy tensor only works for square symmetric matrices; factorised matrix representations, the closest thing here to a partitioned weight."
+   },
+   {
+    "rank": 2,
+    "task_id": "openmined__pysyft-232",
+    "skill": 3,
+    "domain": 3,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Implement in-place scatter_ to PyTorch's documented semantics with tests; implement-a-tensor-primitive-from-spec, same genre and same doc source."
+   },
+   {
+    "rank": 3,
+    "task_id": "openmined__pysyft-233",
+    "skill": 3,
+    "domain": 3,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Implement gather returning a new tensor, matching PyTorch semantics; index-along-a-dimension, the operation a shard gather mirrors."
+   },
+   {
+    "rank": 4,
+    "task_id": "cornellius-gp__gpytorch-782",
+    "skill": 2,
+    "domain": 3,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Indexing a lazy covariance along the batch dimension fails; leading-dimension bookkeeping under a non-materialised representation."
+   },
+   {
+    "rank": 5,
+    "task_id": "cornellius-gp__gpytorch-973",
+    "skill": 2,
+    "domain": 3,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Batch evaluation silently produces wrongly shaped output; the same silent-shape-bug failure mode a bad split produces."
+   },
+   {
+    "rank": 6,
+    "task_id": "cornellius-gp__gpytorch-484",
+    "skill": 2,
+    "domain": 3,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "gpytorch lazy-tensor shape/behaviour bug; torch tensor algebra in a library built on non-materialised matrices."
+   },
+   {
+    "rank": 7,
+    "task_id": "pyg-team__pytorch_geometric-8870",
+    "skill": 2,
+    "domain": 3,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "PyG bug involving tensor handling in a real torch library; domain match, no sharding or custom module."
+   },
+   {
+    "rank": 8,
+    "task_id": "pyg-team__pytorch_geometric-9494",
+    "skill": 2,
+    "domain": 3,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Another PyG defect in tensor/batching code; same ecosystem, fix-a-bug genre."
+   },
+   {
+    "rank": 9,
+    "task_id": "openmined__pysyft-188",
+    "skill": 2,
+    "domain": 3,
+    "task_form": 3,
+    "overall": 2,
+    "reason": "Implement log/log1p plus in-place variants to PyTorch semantics with unit tests; spec-to-tensor-op but elementwise and trivial."
+   },
+   {
+    "rank": 10,
+    "task_id": "huggingface__transformers-36497",
+    "skill": 1,
+    "domain": 4,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Seeding and reproducibility in transformers; the library that supplies the reference model, unrelated concern."
+   }
+  ],
+  "Terminal-Lego-15k": [
+   {
+    "rank": 1,
+    "task_id": "task_13171",
+    "skill": 4,
+    "domain": 4,
+    "task_form": 4,
+    "overall": 4,
+    "reason": "Prove nn.LSTM equals a hand-written loop over LSTMCell with the same weights; reimplement a torch module from primitives and show exact numerical equality."
+   },
+   {
+    "rank": 2,
+    "task_id": "task_13180",
+    "skill": 3,
+    "domain": 4,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Access and index each layer's weight tensor inside nn.Sequential; the parameter-indexing you need before you can slice a master weight."
+   },
+   {
+    "rank": 3,
+    "task_id": "task_13182",
+    "skill": 3,
+    "domain": 4,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Show exactly how nn.Embedding stores its weight table and performs the lookup; internal layout of a layer's weight, verified against torch."
+   },
+   {
+    "rank": 4,
+    "task_id": "task_13160",
+    "skill": 3,
+    "domain": 4,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Compute each layer's output dimensions for an arbitrary network; the in_features/out_features algebra a column split changes."
+   },
+   {
+    "rank": 5,
+    "task_id": "task_13173",
+    "skill": 3,
+    "domain": 4,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Verify that batched and accumulated gradient computations agree in PyTorch; gradient-equivalence checking, which this TB2.1 test also does."
+   },
+   {
+    "rank": 6,
+    "task_id": "task_04346",
+    "skill": 3,
+    "domain": 3,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Implement matrix operations through einsum index notation; makes the contraction axis explicit, which is what column versus row sharding chooses."
+   },
+   {
+    "rank": 7,
+    "task_id": "task_13177",
+    "skill": 2,
+    "domain": 4,
+    "task_form": 3,
+    "overall": 2,
+    "reason": "Reduce a tensor over several dimensions at once; reshape-and-reduce-along-an-axis manipulation."
+   },
+   {
+    "rank": 8,
+    "task_id": "task_04362",
+    "skill": 2,
+    "domain": 3,
+    "task_form": 3,
+    "overall": 2,
+    "reason": "Matrix-vector multiplication shape semantics and why elementwise broadcast is not matmul; the mistake a careless shard makes."
+   },
+   {
+    "rank": 9,
+    "task_id": "task_13178",
+    "skill": 2,
+    "domain": 4,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Relationship between autograd.Variable and modern tensors with requires_grad; the gradient-tracking model the sharded parameters need."
+   },
+   {
+    "rank": 10,
+    "task_id": "task_13155",
+    "skill": 2,
+    "domain": 4,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Explain and compute world size, rank and local rank; the only torch.distributed content in this corpus, demonstration-shaped."
+   }
+  ],
+  "CalibForge": [
+   {
+    "rank": 1,
+    "task_id": "model-training_20260508_045557_002",
+    "skill": 5,
+    "domain": 5,
+    "task_form": 4,
+    "overall": 4,
+    "reason": "Physically slice weight and bias tensors along the channel dimensions and rebuild layers so outputs are unchanged; the sharding operation itself."
+   },
+   {
+    "rank": 2,
+    "task_id": "model-training_20260514_011125_001",
+    "skill": 4,
+    "domain": 5,
+    "task_form": 3,
+    "overall": 4,
+    "reason": "Embedding shape mismatch under 8-way tensor parallelism; the only task in the pool that is literally about splitting a weight across ranks."
+   },
+   {
+    "rank": 3,
+    "task_id": "model-training_20260604_003113_003",
+    "skill": 4,
+    "domain": 5,
+    "task_form": 4,
+    "overall": 4,
+    "reason": "Port trained weights into a refactored architecture with three shape differences; mapping a master weight onto a different tensor layout."
+   },
+   {
+    "rank": 4,
+    "task_id": "model-training_20260610_112157_003",
+    "skill": 4,
+    "domain": 5,
+    "task_form": 4,
+    "overall": 4,
+    "reason": "Rebuild an equivalent PyTorch model from per-layer .npy weights and a config, getting every transposition right so outputs match."
+   },
+   {
+    "rank": 5,
+    "task_id": "model-training_20260604_193056_002",
+    "skill": 4,
+    "domain": 4,
+    "task_form": 4,
+    "overall": 4,
+    "reason": "Implement forward and backward by hand with no autograd; the weight-and-bias gradient derivation these tests check on each shard."
+   },
+   {
+    "rank": 6,
+    "task_id": "software-engineering_20260604_003113_023",
+    "skill": 4,
+    "domain": 5,
+    "task_form": 5,
+    "overall": 4,
+    "reason": "Write /app/moe.py implementing an MoE layer with router and expert FFNs from a long spec; same write-a-parallel-transformer-module-from-signature genre."
+   },
+   {
+    "rank": 7,
+    "task_id": "model-training_20260617_051646_003",
+    "skill": 3,
+    "domain": 4,
+    "task_form": 4,
+    "overall": 3,
+    "reason": "Port a pure-NumPy network to torch, identifying which stored weight files the model actually consumes; weight-to-layer correspondence."
+   },
+   {
+    "rank": 8,
+    "task_id": "software-engineering_20260414_211532_023",
+    "skill": 3,
+    "domain": 5,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Multi-process torch training under torchrun fails; the multi-rank harness and cross-rank correctness mindset this TB2.1 task assumes."
+   },
+   {
+    "rank": 9,
+    "task_id": "machine-learning_20260503_030115_002",
+    "skill": 3,
+    "domain": 5,
+    "task_form": 4,
+    "overall": 3,
+    "reason": "Implement a focal-loss class in torch to a precise written spec with pinned numeric behaviour; same implement-a-torch-class-from-spec discipline."
+   },
+   {
+    "rank": 10,
+    "task_id": "machine-learning_20260615_143956_003",
+    "skill": 3,
+    "domain": 4,
+    "task_form": 4,
+    "overall": 3,
+    "reason": "K-means quantise each layer's weight tensor and reconstruct the network; per-layer weight surgery with accuracy preserved."
+   }
+  ]
+ },
+ "final_top10": [
+  {
+   "rank": 1,
+   "task_id": "model-training_20260508_045557_002",
+   "source": "CalibForge",
+   "skill": 5,
+   "domain": 5,
+   "task_form": 4,
+   "overall": 4,
+   "reason": "Physically slice weight and bias tensors along the channel dimensions and rebuild layers so outputs are unchanged; the sharding operation itself."
+  },
+  {
+   "rank": 2,
+   "task_id": "model-training_20260514_011125_001",
+   "source": "CalibForge",
+   "skill": 4,
+   "domain": 5,
+   "task_form": 3,
+   "overall": 4,
+   "reason": "Debug an embedding shape mismatch under 8-way tensor parallelism; the only task in the 76,786 pool that is explicitly about tensor parallelism."
+  },
+  {
+   "rank": 3,
+   "task_id": "model-training_20260604_003113_003",
+   "source": "CalibForge",
+   "skill": 4,
+   "domain": 5,
+   "task_form": 4,
+   "overall": 4,
+   "reason": "Map a trained master weight set onto an architecture whose layer shapes differ; the tensor-layout reasoning a column/row split demands."
+  },
+  {
+   "rank": 4,
+   "task_id": "model-training_20260604_193056_002",
+   "source": "CalibForge",
+   "skill": 4,
+   "domain": 4,
+   "task_form": 4,
+   "overall": 4,
+   "reason": "Derive and implement forward and backward by hand with no autograd; these tests grade weight and bias gradients, not just outputs."
+  },
+  {
+   "rank": 5,
+   "task_id": "model-training_20260610_112157_003",
+   "source": "CalibForge",
+   "skill": 4,
+   "domain": 5,
+   "task_form": 4,
+   "overall": 4,
+   "reason": "Rebuild a torch model from raw per-layer weight arrays and a config, getting every transpose right so outputs match the original."
+  },
+  {
+   "rank": 6,
+   "task_id": "task_13171",
+   "source": "Terminal-Lego-15k",
+   "skill": 4,
+   "domain": 4,
+   "task_form": 4,
+   "overall": 4,
+   "reason": "Reimplement nn.LSTM as an explicit LSTMCell loop sharing weights and prove numerical equality; rebuild-a-module-and-match-the-reference."
+  },
+  {
+   "rank": 7,
+   "task_id": "software-engineering_20260604_003113_023",
+   "source": "CalibForge",
+   "skill": 4,
+   "domain": 5,
+   "task_form": 5,
+   "overall": 4,
+   "reason": "Implement an MoE layer with router and experts into a named file from a precise spec; closest task_form match, a parallel transformer module from signature."
+  },
+  {
+   "rank": 8,
+   "task_id": "task_001030_45a9959c",
+   "source": "TMax-15K",
+   "skill": 4,
+   "domain": 3,
+   "task_form": 4,
+   "overall": 4,
+   "reason": "Reimplement a linear projection layer from scratch and validate its output against the reference model; exact affine-layer arithmetic."
+  },
+  {
+   "rank": 9,
+   "task_id": "software-engineering_20260414_211532_023",
+   "source": "CalibForge",
+   "skill": 3,
+   "domain": 5,
+   "task_form": 3,
+   "overall": 3,
+   "reason": "Multi-process torch training under torchrun breaks; supplies the rank/world_size harness experience these world_size 1/2/4 tests assume."
+  },
+  {
+   "rank": 10,
+   "task_id": "task_009562_91210c7c",
+   "source": "TMax-15K",
+   "skill": 3,
+   "domain": 4,
+   "task_form": 4,
+   "overall": 3,
+   "reason": "Rebuild an undocumented torch model from the shapes of its saved weights; same shape reasoning used to pick a split axis."
+  }
+ ],
+ "notes": "Same headline as torch-pipeline-parallelism: the v1 pool has essentially no distributed-PyTorch content (one hit across 56,307 instructions for a torch.distributed/all_reduce/tensor-parallel regex), so both new corpora beat it. CalibForge wins outright again - seven of my final ten - and it contributes the only task in the entire pool that names tensor parallelism (model-training_20260514_011125_001). But Terminal-Lego genuinely earns a final_top10 slot here, which it did not for the other tasks: its StackOverflow-derived PyTorch cluster (task_131xx) is mostly trivia, yet task_13171 (prove nn.LSTM equals a hand-rolled LSTMCell loop over the same weights, 25 tests) is a better task_form match than anything in TMax, and task_13180/13182/13160 are real weight-layout exercises. Note that these Terminal-Lego grades are among the ones where the packet and the newer global verifier file disagree sharply (packet weak, global strong); see verifier_notes. Recursive-Task-Synthesis is the corpus where I could not find ten defensible candidates - it has exactly one PyTorch task and its shortlist for this TB2.1 task was shell-script and Clojure noise, so entries 6-10 are filler at overall 1. TerminalWorld is nearly as thin, one real nn.Module task (tw_718060) and then numerical-computing stand-ins. SWE-Smith's fvcore cluster is the honest domain match on that side; I promoted combine_file__htnzvb1x to rank 1 there because its bug is specifically about setting weight constants when bias is None, which lines up with this task's initialize-bias-to-zero requirement. No candidate appears in final_top10 that is FREE under either the packet grade or the newer global grade."
+}

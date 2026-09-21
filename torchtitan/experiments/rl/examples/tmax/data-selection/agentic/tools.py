@@ -27,6 +27,8 @@ CACHE = HERE / "work" / "cache"
 DB = HERE / "work" / "pool.sqlite"
 CORPORA = {
     "TMax-15K": "tmax",
+    "Terminal-Lego-15k": "lego",
+    "CalibForge": "calib",
     "Recursive-Task-Synthesis": "rts",
     "TerminalWorld-Seeds-Clean": "tw",
     "SWE-Smith-Seeds-Clean": "smith",

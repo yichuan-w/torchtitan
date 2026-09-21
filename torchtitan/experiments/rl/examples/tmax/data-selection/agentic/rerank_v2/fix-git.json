@@ -1,0 +1,774 @@
+{
+  "tb21_id": "fix-git",
+  "tb21_profile": {
+    "skill": "Diagnose from an unhelpful description that work exists but is unreachable from any branch, find it with reflog / fsck --lost-found / stash / dangling objects, and graft it onto master without losing anything",
+    "domain": "Git internals: HEAD, refs, reflog, the object store, detached HEAD, stash, merge",
+    "task_form": "Recover-and-repair with no pointer to the fault: inspect repository state, work out what happened, then restore it"
+  },
+  "verifier_notes": "CORRECTION PASS (fix-team 03, verifier_strength.json now authoritative). software-engineering_20260503_182123_007 was kept out of final_top10 only by the stale FREE grade; it is `ok` and is now promoted to rank 8. I read its tests: six pytest cases that check the recovered src/feature.py defines calculate() returning a + b and also calculate_average, that test_feature.py carries `from feature import calculate` and test_add, and that the feature commits are reachable from git log --all - real content checks on recovered work, not file-exists. On merit it is the closest CalibForge item to this TB2.1 task: unreachable commits plus a deliberately noisy reflog, recovered and applied to the mainline branch, which is the TB2.1 task with the failure mode changed from detached HEAD to reset --hard. It displaces jelmer__dulwich-1578, the weakest of the ten here - a library-internals bug fix (porcelain.add writes an empty tree entry) that scores task_form 2 and teaches debugging dulwich rather than recovering a repository. SWE-Rebench therefore no longer appears in the final ten; that is the honest outcome, not an oversight. Retained from the original pass: tw_590222 (rebase onto master) and tw_590773 (cherry-pick) are TerminalWorld's most relevant entries; tw_590222 is also rehabilitated (now `strong`) but at overall 3 it states the goal without the diagnosis that is this task's whole difficulty, so it stays out. task_001466_99e645e3 is graded behavioral, not FREE; its tests run the artifact and assert on exit status, which the spec allows in final_top10, and its instruction is unusually specific about reflogs and dangling blobs.",
+  "searches": [
+    "grep over Terminal-Lego/CalibForge instructions: reflog",
+    "detached HEAD",
+    "dangling|fsck|lost-found|unreachable commit",
+    "git stash",
+    "reflog|detached|dangling|git fsck (CalibForge)",
+    "git repo (CalibForge)",
+    "tools.py search tmax \"git reflog|reflog\"",
+    "tools.py search tmax \"dangling|git fsck|orphan commit|unreachable\"",
+    "tools.py search tmax \"git history|git log --all|lost commit|deleted branch\"",
+    "tools.py search rts \"reflog|dangling|git fsck|lost commit|recover.{0,20}commit|detached\"",
+    "tools.py search smith \"git |repository|commit|branch|version control|vcs\"",
+    "id2corpus scan for dulwich and gitpython ids",
+    "tools.py show jelmer__dulwich-1578 jelmer__dulwich-1500",
+    "nshow task_11565 task_11577 task_11606"
+  ],
+  "per_source": {
+    "TMax-15K": [
+      {
+        "rank": 1,
+        "task_id": "task_001466_99e645e3",
+        "skill": 5,
+        "domain": 5,
+        "task_form": 3,
+        "overall": 4,
+        "reason": "Explicitly tells you to search reflogs, deleted commits and dangling blobs for a file that is not on any branch"
+      },
+      {
+        "rank": 2,
+        "task_id": "task_001747_e183561b",
+        "skill": 5,
+        "domain": 5,
+        "task_form": 4,
+        "overall": 4,
+        "reason": "Recover a deleted script from traces left in the local repository's reflog; exactly the lost-work recovery move"
+      },
+      {
+        "rank": 3,
+        "task_id": "task_000705_dd1c4aef",
+        "skill": 4,
+        "domain": 5,
+        "task_form": 3,
+        "overall": 4,
+        "reason": "Recover a config file that was committed then deleted, out of git history, and restore it to the working tree"
+      },
+      {
+        "rank": 4,
+        "task_id": "task_000445_b85b29ed",
+        "skill": 4,
+        "domain": 5,
+        "task_form": 3,
+        "overall": 3,
+        "reason": "Search a repo's history for the good version of settings.py that a bad commit replaced, then restore service"
+      },
+      {
+        "rank": 5,
+        "task_id": "task_000117_20c3d5b7",
+        "skill": 4,
+        "domain": 5,
+        "task_form": 3,
+        "overall": 3,
+        "reason": "Locate where in git history a formula regressed and repair it; walking history to find the commit that matters"
+      },
+      {
+        "rank": 6,
+        "task_id": "task_000590_6eed907d",
+        "skill": 4,
+        "domain": 5,
+        "task_form": 3,
+        "overall": 3,
+        "reason": "Hunt a regression introduced somewhere in git history during a refactor; bisect-style history reasoning"
+      },
+      {
+        "rank": 7,
+        "task_id": "task_000467_5793d509",
+        "skill": 3,
+        "domain": 5,
+        "task_form": 3,
+        "overall": 3,
+        "reason": "Dig into repository history for a calibration value that was removed; strong verifier"
+      },
+      {
+        "rank": 8,
+        "task_id": "task_000091_e1698167",
+        "skill": 3,
+        "domain": 4,
+        "task_form": 3,
+        "overall": 3,
+        "reason": "Recover a secret from git history alongside code fixes; history archaeology is one phase of several"
+      },
+      {
+        "rank": 9,
+        "task_id": "task_000387_5cbd2f2c",
+        "skill": 3,
+        "domain": 5,
+        "task_form": 3,
+        "overall": 3,
+        "reason": "Find a password that was committed and removed shortly after, near a known bad commit"
+      },
+      {
+        "rank": 10,
+        "task_id": "task_000637_10f341c4",
+        "skill": 3,
+        "domain": 4,
+        "task_form": 3,
+        "overall": 3,
+        "reason": "Git history forensics to recover a value, plus SQL and shell fixes in the same repository"
+      }
+    ],
+    "Recursive-Task-Synthesis": [
+      {
+        "rank": 1,
+        "task_id": "rts_task_a971cc3d2028318433e50b01",
+        "skill": 4,
+        "domain": 5,
+        "task_form": 3,
+        "overall": 3,
+        "reason": "Find the commit where a file was last correct and the commit that redacted it, then recover the content; history archaeology, verifier absent"
+      },
+      {
+        "rank": 2,
+        "task_id": "rts_task_f82a4c6cdff312518a7e9862",
+        "skill": 4,
+        "domain": 5,
+        "task_form": 3,
+        "overall": 3,
+        "reason": "Recover the pre-redaction version of a tracked file from the commit just before the redaction, with hash and diff"
+      },
+      {
+        "rank": 3,
+        "task_id": "rts_task_3d79fe7694776e5ed5d5311a",
+        "skill": 4,
+        "domain": 5,
+        "task_form": 3,
+        "overall": 3,
+        "reason": "Recover content that only exists in an earlier commit plus the introducing commit hash and a forensic diff"
+      },
+      {
+        "rank": 4,
+        "task_id": "rts_task_be3d2173c9594ce8341c8a4c",
+        "skill": 4,
+        "domain": 5,
+        "task_form": 3,
+        "overall": 3,
+        "reason": "Locate the repository from a clue, find the tagged commit holding the good content and recover it"
+      },
+      {
+        "rank": 5,
+        "task_id": "rts_task_7e3bffafe6489b4ec3e16feb",
+        "skill": 3,
+        "domain": 5,
+        "task_form": 3,
+        "overall": 3,
+        "reason": "Identify the commit that first introduced the redaction by walking the file's history"
+      },
+      {
+        "rank": 6,
+        "task_id": "rts_task_5f02bafbac1b2cd31d3df6c0",
+        "skill": 3,
+        "domain": 5,
+        "task_form": 3,
+        "overall": 3,
+        "reason": "Produce the full commit log touching a file and diff the authoritative version against the tip"
+      },
+      {
+        "rank": 7,
+        "task_id": "rts_task_bbc7437e2f0f430d5ce1d84b",
+        "skill": 3,
+        "domain": 5,
+        "task_form": 4,
+        "overall": 3,
+        "reason": "Capture everything a branch added since diverging from main and put it on a new branch; getting work from one line onto another"
+      },
+      {
+        "rank": 8,
+        "task_id": "rts_task_0fb8b2dec494755df4c7154b",
+        "skill": 3,
+        "domain": 5,
+        "task_form": 3,
+        "overall": 3,
+        "reason": "Stash all uncommitted work including untracked files before switching branches; the work-in-flight side of this problem"
+      },
+      {
+        "rank": 9,
+        "task_id": "rts_task_b106839caf060043cddf696a",
+        "skill": 2,
+        "domain": 5,
+        "task_form": 3,
+        "overall": 2,
+        "reason": "Stash with a specific message and switch branch; a narrower variant of the above"
+      },
+      {
+        "rank": 10,
+        "task_id": "rts_task_0b5a2626aba6146e66e946d6",
+        "skill": 2,
+        "domain": 5,
+        "task_form": 3,
+        "overall": 2,
+        "reason": "Handle an untracked work-in-progress file on master; near-duplicate of the stash family"
+      }
+    ],
+    "TerminalWorld-Seeds-Clean": [
+      {
+        "rank": 1,
+        "task_id": "tw_241831",
+        "skill": 4,
+        "domain": 5,
+        "task_form": 4,
+        "overall": 4,
+        "reason": "Extract every change a branch introduced since it diverged from main and carry it over; moving work between lines of history"
+      },
+      {
+        "rank": 2,
+        "task_id": "tw_230022",
+        "skill": 3,
+        "domain": 5,
+        "task_form": 4,
+        "overall": 3,
+        "reason": "A nuclear-reset escape hatch for a repository in a messy state: back up the tree, then reclone; repository-state triage"
+      },
+      {
+        "rank": 3,
+        "task_id": "tw_364652",
+        "skill": 4,
+        "domain": 5,
+        "task_form": 3,
+        "overall": 3,
+        "reason": "Walk a branch from a tag to locate the bad commit; history search rather than surface git usage"
+      },
+      {
+        "rank": 4,
+        "task_id": "tw_207321",
+        "skill": 3,
+        "domain": 5,
+        "task_form": 3,
+        "overall": 3,
+        "reason": "Save all uncommitted work including untracked files with a stash before moving on"
+      },
+      {
+        "rank": 5,
+        "task_id": "tw_107566",
+        "skill": 3,
+        "domain": 5,
+        "task_form": 3,
+        "overall": 3,
+        "reason": "Repair a linked worktree checked out on another branch; reasoning about where HEAD and refs actually point"
+      },
+      {
+        "rank": 6,
+        "task_id": "tw_590222",
+        "skill": 4,
+        "domain": 5,
+        "task_form": 4,
+        "overall": 3,
+        "reason": "Rebase a branch onto master and fast-forward master to include it, which is the TB2.1 goal, but FREE verifier so barred from final_top10"
+      },
+      {
+        "rank": 7,
+        "task_id": "tw_182063",
+        "skill": 3,
+        "domain": 5,
+        "task_form": 3,
+        "overall": 3,
+        "reason": "Split one file's changes into separate commits; deliberate control over what lands in each commit"
+      },
+      {
+        "rank": 8,
+        "task_id": "tw_590773",
+        "skill": 3,
+        "domain": 5,
+        "task_form": 3,
+        "overall": 2,
+        "reason": "Cherry-pick an upstream commit into a local checkout; transplanting a commit, FREE verifier"
+      },
+      {
+        "rank": 9,
+        "task_id": "tw_423974",
+        "skill": 2,
+        "domain": 5,
+        "task_form": 3,
+        "overall": 2,
+        "reason": "Stage only part of the unstaged changes; index manipulation only"
+      },
+      {
+        "rank": 10,
+        "task_id": "tw_513744",
+        "skill": 2,
+        "domain": 4,
+        "task_form": 3,
+        "overall": 2,
+        "reason": "Lerna monorepo versioning workflow; git-adjacent release plumbing, no recovery"
+      }
+    ],
+    "SWE-Smith-Seeds-Clean": [
+      {
+        "rank": 1,
+        "task_id": "iterative__dvc.1d6ea681.pr_9635",
+        "skill": 3,
+        "domain": 3,
+        "task_form": 3,
+        "overall": 3,
+        "reason": "checkout with force still prompting before deleting; checkout semantics and working-tree state in a git-backed tool"
+      },
+      {
+        "rank": 2,
+        "task_id": "conan-io__conan.86f29e13.func_pm_class_rm_funcs__8p349qfg",
+        "skill": 3,
+        "domain": 2,
+        "task_form": 3,
+        "overall": 3,
+        "reason": "Lockfile update and merge logic broken; reconciling two versions of a dependency graph, merge-shaped reasoning"
+      },
+      {
+        "rank": 3,
+        "task_id": "iterative__dvc.1d6ea681.lm_rewrite__oja8anff",
+        "skill": 3,
+        "domain": 3,
+        "task_form": 3,
+        "overall": 3,
+        "reason": "DVC defect in its git-backed versioning layer"
+      },
+      {
+        "rank": 4,
+        "task_id": "iterative__dvc.1d6ea681.pr_8343",
+        "skill": 3,
+        "domain": 3,
+        "task_form": 3,
+        "overall": 2,
+        "reason": "Another DVC defect around repo state handling"
+      },
+      {
+        "rank": 5,
+        "task_id": "iterative__dvc.1d6ea681.combine_file__ela813xu",
+        "skill": 3,
+        "domain": 3,
+        "task_form": 3,
+        "overall": 2,
+        "reason": "DVC multi-file defect touching repository bookkeeping"
+      },
+      {
+        "rank": 6,
+        "task_id": "cookiecutter__cookiecutter.b4451231.lm_rewrite__gsks0ek9",
+        "skill": 2,
+        "domain": 3,
+        "task_form": 3,
+        "overall": 2,
+        "reason": "cookiecutter repository/VCS handling defect"
+      },
+      {
+        "rank": 7,
+        "task_id": "seperman__deepdiff.ed252022.pr_403",
+        "skill": 2,
+        "domain": 1,
+        "task_form": 3,
+        "overall": 2,
+        "reason": "Structural diffing defect; diff semantics in the abstract"
+      },
+      {
+        "rank": 8,
+        "task_id": "Suor__funcy.207a7810.func_pm_remove_assign__v58qm31z",
+        "skill": 2,
+        "domain": 1,
+        "task_form": 3,
+        "overall": 2,
+        "reason": "merge_with combining mappings incorrectly; merge semantics, nothing to do with git"
+      },
+      {
+        "rank": 9,
+        "task_id": "marshmallow-code__marshmallow.9716fc62.lm_rewrite__2e5o6co9",
+        "skill": 2,
+        "domain": 1,
+        "task_form": 3,
+        "overall": 1,
+        "reason": "merge_errors mishandles differing error types; merge-shaped only by name"
+      },
+      {
+        "rank": 10,
+        "task_id": "iterative__dvc.1d6ea681.lm_rewrite__6hhmyoma",
+        "skill": 2,
+        "domain": 3,
+        "task_form": 3,
+        "overall": 2,
+        "reason": "Further DVC defect; nearest available git-adjacent ecosystem, weak transfer"
+      }
+    ],
+    "SWE-Rebench-Tasks-Clean": [
+      {
+        "rank": 1,
+        "task_id": "jelmer__dulwich-1578",
+        "skill": 4,
+        "domain": 5,
+        "task_form": 3,
+        "overall": 4,
+        "reason": "porcelain.add writes an empty filename into the tree and corrupts the repo; debugging git object and tree internals directly"
+      },
+      {
+        "rank": 2,
+        "task_id": "jelmer__dulwich-1500",
+        "skill": 4,
+        "domain": 5,
+        "task_form": 3,
+        "overall": 3,
+        "reason": "Another dulwich defect in the pure-Python git implementation; refs and object handling"
+      },
+      {
+        "rank": 3,
+        "task_id": "jelmer__dulwich-1482",
+        "skill": 4,
+        "domain": 5,
+        "task_form": 3,
+        "overall": 3,
+        "reason": "dulwich defect in git plumbing behaviour"
+      },
+      {
+        "rank": 4,
+        "task_id": "jelmer__dulwich-1568",
+        "skill": 4,
+        "domain": 5,
+        "task_form": 3,
+        "overall": 3,
+        "reason": "dulwich porcelain behaviour defect; how git commands should actually behave"
+      },
+      {
+        "rank": 5,
+        "task_id": "gitpython-developers__gitpython-1832",
+        "skill": 3,
+        "domain": 5,
+        "task_form": 3,
+        "overall": 3,
+        "reason": "GitPython defect; driving git refs and commits from Python"
+      },
+      {
+        "rank": 6,
+        "task_id": "gitpython-developers__gitpython-744",
+        "skill": 3,
+        "domain": 5,
+        "task_form": 3,
+        "overall": 3,
+        "reason": "GitPython repository-object defect"
+      },
+      {
+        "rank": 7,
+        "task_id": "jelmer__dulwich-1167",
+        "skill": 3,
+        "domain": 5,
+        "task_form": 3,
+        "overall": 3,
+        "reason": "Older dulwich defect in git object handling"
+      },
+      {
+        "rank": 8,
+        "task_id": "gitpython-developers__gitpython-685",
+        "skill": 3,
+        "domain": 5,
+        "task_form": 3,
+        "overall": 3,
+        "reason": "GitPython defect around repository and index state"
+      },
+      {
+        "rank": 9,
+        "task_id": "jelmer__dulwich-1020",
+        "skill": 3,
+        "domain": 5,
+        "task_form": 3,
+        "overall": 3,
+        "reason": "dulwich defect in the git protocol/object layer"
+      },
+      {
+        "rank": 10,
+        "task_id": "gitpython-developers__gitpython-746",
+        "skill": 3,
+        "domain": 5,
+        "task_form": 3,
+        "overall": 2,
+        "reason": "Another GitPython defect; same library, thinner relevance"
+      }
+    ],
+    "Terminal-Lego-15k": [
+      {
+        "rank": 1,
+        "task_id": "task_11565",
+        "skill": 5,
+        "domain": 5,
+        "task_form": 5,
+        "overall": 5,
+        "reason": "Literally the TB2.1 task: commits made in a detached HEAD that are on no branch must end up reachable from master, with master checked out"
+      },
+      {
+        "rank": 2,
+        "task_id": "task_11606",
+        "skill": 5,
+        "domain": 5,
+        "task_form": 5,
+        "overall": 5,
+        "reason": "HEAD is detached at a newer commit while refs/heads/master is stale; diagnose it and get the commit onto master"
+      },
+      {
+        "rank": 3,
+        "task_id": "task_11465",
+        "skill": 4,
+        "domain": 5,
+        "task_form": 5,
+        "overall": 4,
+        "reason": "A commit landed on the wrong branch; move it to where it belongs without losing anything"
+      },
+      {
+        "rank": 4,
+        "task_id": "task_01865",
+        "skill": 5,
+        "domain": 5,
+        "task_form": 4,
+        "overall": 4,
+        "reason": "Recover from detached HEAD by branching before switching away, and use reflog to find commits already lost"
+      },
+      {
+        "rank": 5,
+        "task_id": "task_10506",
+        "skill": 5,
+        "domain": 5,
+        "task_form": 4,
+        "overall": 4,
+        "reason": "Locate where deleted branches last pointed using git reflog and git fsck --lost-found, then recreate them"
+      },
+      {
+        "rank": 6,
+        "task_id": "task_11376",
+        "skill": 4,
+        "domain": 5,
+        "task_form": 4,
+        "overall": 4,
+        "reason": "Use reflog to find the commit that preceded a merge and reset back to it; navigating by reflog rather than by branch"
+      },
+      {
+        "rank": 7,
+        "task_id": "task_11577",
+        "skill": 4,
+        "domain": 5,
+        "task_form": 4,
+        "overall": 4,
+        "reason": "Repository stuck mid-rebase and not on any branch; abort cleanly and restore the original commits"
+      },
+      {
+        "rank": 8,
+        "task_id": "task_11392",
+        "skill": 4,
+        "domain": 5,
+        "task_form": 4,
+        "overall": 4,
+        "reason": "Find the dangling commit left by a dropped stash and recover its diff; pure unreachable-object recovery"
+      },
+      {
+        "rank": 9,
+        "task_id": "task_11607",
+        "skill": 4,
+        "domain": 5,
+        "task_form": 3,
+        "overall": 3,
+        "reason": "Undo a fast-forward merge by recovering the pre-merge commit from the reflog"
+      },
+      {
+        "rank": 10,
+        "task_id": "task_01833",
+        "skill": 4,
+        "domain": 5,
+        "task_form": 4,
+        "overall": 3,
+        "reason": "Repair a damaged repository, recovering objects from the reflog until fsck is clean"
+      }
+    ],
+    "CalibForge": [
+      {
+        "rank": 1,
+        "task_id": "file-operations_20260604_003113_005",
+        "skill": 4,
+        "domain": 5,
+        "task_form": 4,
+        "overall": 4,
+        "reason": "Repository wrecked by an interrupted rebase and force-pushes: restore the main line intact and preserve the in-progress feature work"
+      },
+      {
+        "rank": 2,
+        "task_id": "security_20260509_205636_006",
+        "skill": 5,
+        "domain": 5,
+        "task_form": 3,
+        "overall": 4,
+        "reason": "Someone ran git reflog expire --expire=now --all then git gc; recover data that is now unreferenced in the object database"
+      },
+      {
+        "rank": 3,
+        "task_id": "security_20260601_053159_001",
+        "skill": 5,
+        "domain": 5,
+        "task_form": 3,
+        "overall": 4,
+        "reason": "Investigate a repository's object database for dangling and unreferenced blobs to recover content no ref points at"
+      },
+      {
+        "rank": 4,
+        "task_id": "software-engineering_20260415_182321_007",
+        "skill": 4,
+        "domain": 5,
+        "task_form": 4,
+        "overall": 4,
+        "reason": "A developer messed the repository up with a test checkout and needs the state untangled; the same diagnose-then-restore loop"
+      },
+      {
+        "rank": 5,
+        "task_id": "software-engineering_20260503_182123_007",
+        "skill": 5,
+        "domain": 5,
+        "task_form": 4,
+        "overall": 4,
+        "reason": "Recover commits thrown away by git reset --hard HEAD~3; the canonical reflog rescue, but packet grades it FREE so it stays out of final_top10"
+      },
+      {
+        "rank": 6,
+        "task_id": "software-engineering_20260604_193056_025",
+        "skill": 4,
+        "domain": 5,
+        "task_form": 4,
+        "overall": 4,
+        "reason": "git log says the branch has no commits after a disk failure; repair refs so history is reachable again"
+      },
+      {
+        "rank": 7,
+        "task_id": "file-operations_20260606_172606_001",
+        "skill": 4,
+        "domain": 5,
+        "task_form": 4,
+        "overall": 4,
+        "reason": "Corrupted HEAD reference and a missing blob; rebuild the refs and objects until git log and fsck work"
+      },
+      {
+        "rank": 8,
+        "task_id": "debugging_20260427_204204_005",
+        "skill": 4,
+        "domain": 5,
+        "task_form": 4,
+        "overall": 3,
+        "reason": "Power failure left staged-but-uncommitted modules only in the object store; recover work that no commit points to"
+      },
+      {
+        "rank": 9,
+        "task_id": "software-engineering_20260514_011856_009",
+        "skill": 3,
+        "domain": 5,
+        "task_form": 4,
+        "overall": 3,
+        "reason": "A feature branch in a broken state that must be untangled; branch-state reasoning rather than object recovery"
+      },
+      {
+        "rank": 10,
+        "task_id": "file-operations_20260611_205750_005",
+        "skill": 3,
+        "domain": 5,
+        "task_form": 4,
+        "overall": 3,
+        "reason": "Restore each branch tip to the correct commit and check out main with a clean fsck"
+      }
+    ]
+  },
+  "final_top10": [
+    {
+      "rank": 1,
+      "task_id": "task_11565",
+      "source": "Terminal-Lego-15k",
+      "skill": 5,
+      "domain": 5,
+      "task_form": 5,
+      "overall": 5,
+      "reason": "Commits made in a detached HEAD are on no branch; find them and merge them into master, ending with master checked out"
+    },
+    {
+      "rank": 2,
+      "task_id": "task_11606",
+      "source": "Terminal-Lego-15k",
+      "skill": 5,
+      "domain": 5,
+      "task_form": 5,
+      "overall": 5,
+      "reason": "HEAD detached at a newer commit while refs/heads/master is stale; diagnose why the work is invisible and fold it into master"
+    },
+    {
+      "rank": 3,
+      "task_id": "task_01865",
+      "source": "Terminal-Lego-15k",
+      "skill": 5,
+      "domain": 5,
+      "task_form": 4,
+      "overall": 5,
+      "reason": "Recovering from detached HEAD: branch before switching away and use reflog to find commits already dropped"
+    },
+    {
+      "rank": 4,
+      "task_id": "task_10506",
+      "source": "Terminal-Lego-15k",
+      "skill": 5,
+      "domain": 5,
+      "task_form": 4,
+      "overall": 4,
+      "reason": "Use git reflog and git fsck --lost-found to find where deleted branches pointed, then recreate them"
+    },
+    {
+      "rank": 5,
+      "task_id": "task_11465",
+      "source": "Terminal-Lego-15k",
+      "skill": 4,
+      "domain": 5,
+      "task_form": 5,
+      "overall": 4,
+      "reason": "A commit landed on the wrong branch and has to be moved to the intended one without losing history"
+    },
+    {
+      "rank": 6,
+      "task_id": "security_20260509_205636_006",
+      "source": "CalibForge",
+      "skill": 5,
+      "domain": 5,
+      "task_form": 3,
+      "overall": 4,
+      "reason": "After git reflog expire --all plus git gc, recover content that no ref reaches any more; the hardest version of this skill"
+    },
+    {
+      "rank": 7,
+      "task_id": "task_001466_99e645e3",
+      "source": "TMax-15K",
+      "skill": 5,
+      "domain": 5,
+      "task_form": 3,
+      "overall": 4,
+      "reason": "Search reflogs, deleted commits and dangling blobs for a file reachable from no branch; the exact search the TB2.1 task needs"
+    },
+    {
+      "rank": 8,
+      "task_id": "software-engineering_20260503_182123_007",
+      "source": "CalibForge",
+      "skill": 5,
+      "domain": 5,
+      "task_form": 4,
+      "overall": 4,
+      "reason": "Commits dropped by git reset --hard HEAD~3 with a messy reflog; find them in the object store and graft them back onto main"
+    },
+    {
+      "rank": 9,
+      "task_id": "file-operations_20260604_003113_005",
+      "source": "CalibForge",
+      "skill": 4,
+      "domain": 5,
+      "task_form": 4,
+      "overall": 4,
+      "reason": "Interrupted rebase plus force-pushes: restore the main line and keep the unfinished feature work, leaving no dangling objects"
+    },
+    {
+      "rank": 10,
+      "task_id": "task_11392",
+      "source": "Terminal-Lego-15k",
+      "skill": 4,
+      "domain": 5,
+      "task_form": 4,
+      "overall": 4,
+      "reason": "Locate the dangling commit a dropped stash left behind and recover its diff; unreachable-object recovery in miniature"
+    }
+  ],
+  "notes": "This is the clearest case in my five where the new corpora beat the v1 pool outright. Terminal-Lego-15k contains a dense cluster of git-recovery tasks and task_11565 ('Merge Commits Made in a Detached HEAD State onto Master') is effectively the same task as this TB2.1 item, with task_11606 a close second; five of the final ten are Terminal-Lego and all five are strong or better. CalibForge adds a second family - git repositories broken by disk failure, interrupted rebases or an over-eager gc - that is strongly verified and teaches object-store repair. SWE-Rebench turns out to be unexpectedly useful because it carries eight dulwich and six gitpython issues, i.e. debugging the guts of git itself; I filled its ten from those two libraries and one of them earns a final_top10 slot despite the task_form penalty. TMax's own shortlist was almost entirely irrelevant data-organisation chores - everything I used from TMax came from my own reflog/history searches. SWE-Smith has nothing on git at all; its ten are DVC and lockfile-merge tasks chosen as the least-bad adjacency and should be discounted at merge. Recursive-Task-Synthesis and TerminalWorld both cover git but mostly as ordinary usage (stash, submodules, cherry-pick), not recovery."
+}

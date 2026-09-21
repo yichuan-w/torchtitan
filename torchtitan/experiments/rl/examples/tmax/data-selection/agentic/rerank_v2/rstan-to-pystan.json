@@ -1,0 +1,779 @@
+{
+  "tb21_id": "rstan-to-pystan",
+  "tb21_profile": {
+    "skill": "Port a Bayesian model across bindings of the same inference engine: read R/RStan source you are forbidden to run, recover the Stan program and the sampler hyperparameters, express them through a different API with identical semantics and a fixed seed, then run MCMC and report posterior means that match a reference",
+    "domain": "Bayesian statistics and MCMC (Stan/NUTS, Gaussian-process regression with alpha/rho/sigma, PyStan 3.10 pinned install and its C++ build), plus R-to-Python scientific translation",
+    "task_form": "port-a-script / implement-from-spec, verified numerically: install a pinned library, translate, run the sampler, write plain numeric CSVs that are compared against reference posterior means"
+  },
+  "verifier_notes": "The packet and work/verifier_strength.json disagree sharply for the CalibForge data-science_*_007 family: the packet shows weak/ok for data-science_20260604_002443_007, _20260610_111012_007 and _20260613_152233_007, while verifier_strength.json grades all of them strong. I checked the direction of the disagreement on this family and the newer grading is the defensible one - these tasks are scored on numeric output files compared against reference values, not on file existence - so I used verifier_strength.json and required non-FREE under both sources for final_top10. data-science_20260617_051646_007 is FREE in both and excluded. Separately: CalibForge contains auto-generated filler tasks named '<category>_<timestamp>_inspector.py' that are tagged to a TB2.1 domain but are generic directory-hashing utilities - data-science_20260615_143956_007 is one for this task and scores well lexically; I excluded it and the merge step should filter that whole family.",
+  "searches": [
+    "tools.py search tmax \"PyStan|pystan|Stan model|cmdstan|rstan|brms|JAGS\"",
+    "tools.py search tw \"PyStan|pystan|Stan model|cmdstan|rstan|brms|JAGS\"",
+    "tools.py search rts \"PyStan|pystan|Stan model|cmdstan|rstan|brms|JAGS\"",
+    "tools.py search smith \"PyStan|pystan|Stan model|cmdstan|rstan|brms|JAGS\"",
+    "tools.py search rebench \"PyStan|pystan|Stan model|cmdstan|rstan|brms|JAGS\"",
+    "tools.py search tmax \"MCMC|Markov Chain Monte Carlo|posterior|Bayesian|Gibbs sampl|Metropolis\"",
+    "tools.py search tmax \"Rscript|R script|\\bggplot|tidyverse|data.frame\\(\"",
+    "tools.py search tmax \"port .{0,20}to Python|translate .{0,20}to Python|rewrite .{0,25}in Python|equivalent Python\"",
+    "tools.py search tw \"MCMC|Bayesian|posterior|statistical model|regression|R script|Rscript\"",
+    "tools.py search rts \"MCMC|Bayesian|posterior|statistical model|regression|R script|Rscript\"",
+    "tools.py search rebench \"statsmodels|pymc|arviz|emcee|scipy.stats|pyautofit|bambi|sampler|likelihood\"",
+    "tools.py search rebench \"pymc|numpyro|gpflow|gaussian process|MCMC|NUTS|posterior\"",
+    "tools.py search smith \"statsmodels|scipy.stats|sklearn|likelihood|sampler|probability distribution\"",
+    "tools.py search smith \"random_state|random seed|reproducib|deterministic|np.random\"",
+    "tools.py show pymc-devs__pymc-7637 pyro-ppl__numpyro-1918 gpflow__gpflow-2096",
+    "grep -rlwE \"PyStan|pystan|CmdStan|cmdstanpy|RStan|brms|Stan\" /data/yichuan_wang/calibforge/*/*/instruction.md",
+    "grep -rliE \"not allowed to install R|cannot install R|may NOT install R|reproduce.*in Python|convert.*R script\" /data/yichuan_wang/calibforge/*/*/instruction.md",
+    "grep -rliE \"MCMC|Bayesian|posterior|maximum likelihood|log-likelihood|gaussian process\" /data/yichuan_wang/terminal-lego-15k/*/instruction.md",
+    "grep -rliE \"convert.*from R|R equivalent|rpy2\" /data/yichuan_wang/terminal-lego-15k/*/instruction.md"
+  ],
+  "per_source": {
+    "TMax-15K": [
+      {
+        "rank": 1,
+        "task_id": "task_000138_e5f9026c",
+        "skill": 4,
+        "domain": 5,
+        "task_form": 4,
+        "overall": 4,
+        "reason": "Reshape a raw spectra file and drive a Go MCMC fitter to estimate the posterior of a Gaussian peak model; MCMC posterior extraction across a language boundary."
+      },
+      {
+        "rank": 2,
+        "task_id": "task_000032_5b0167e2",
+        "skill": 4,
+        "domain": 5,
+        "task_form": 3,
+        "overall": 4,
+        "reason": "Fit a Bayesian model to count data with a hand-written Metropolis-Hastings sampler; forces understanding priors, likelihood and chain configuration from the model statement."
+      },
+      {
+        "rank": 3,
+        "task_id": "task_000361_91b89625",
+        "skill": 4,
+        "domain": 5,
+        "task_form": 3,
+        "overall": 3,
+        "reason": "A Rust Metropolis-Hastings sampler estimating posteriors for a damped oscillator; same posterior-mean-from-chains workflow in a foreign language."
+      },
+      {
+        "rank": 4,
+        "task_id": "task_000265_23b37d70",
+        "skill": 3,
+        "domain": 5,
+        "task_form": 3,
+        "overall": 3,
+        "reason": "Fit a nonlinear model to particle trajectories via MCMC inside a scientific pipeline; sampler configuration plus parameter estimates as the deliverable."
+      },
+      {
+        "rank": 5,
+        "task_id": "task_000034_75581bb2",
+        "skill": 3,
+        "domain": 5,
+        "task_form": 3,
+        "overall": 3,
+        "reason": "Drive a legacy C MCMC sampler for posterior estimation from a Bash pipeline; treating an inference engine as a black box with fixed hyperparameters."
+      },
+      {
+        "rank": 6,
+        "task_id": "task_000004_b4949f3f",
+        "skill": 3,
+        "domain": 5,
+        "task_form": 3,
+        "overall": 3,
+        "reason": "Fit a multi-component sinusoidal decay model to observational audio and estimate posterior distributions of its parameters."
+      },
+      {
+        "rank": 7,
+        "task_id": "task_000235_d861beea",
+        "skill": 3,
+        "domain": 5,
+        "task_form": 3,
+        "overall": 3,
+        "reason": "Build a Bayesian linear regression over operational telemetry; priors and posterior summaries, the same statistical vocabulary."
+      },
+      {
+        "rank": 8,
+        "task_id": "task_002988_38e1cb81",
+        "skill": 4,
+        "domain": 2,
+        "task_form": 4,
+        "overall": 3,
+        "reason": "Translate legacy JavaScript evaluation logic into Python so results match exactly; cross-language port judged on output equivalence, like the R-to-Python requirement."
+      },
+      {
+        "rank": 9,
+        "task_id": "task_001875_026926a7",
+        "skill": 4,
+        "domain": 2,
+        "task_form": 4,
+        "overall": 3,
+        "reason": "Translate a JS signature-validation function into Python with identical behaviour; read-source-you-cannot-run and reimplement it faithfully."
+      },
+      {
+        "rank": 10,
+        "task_id": "task_002819_74e6e3b7",
+        "skill": 3,
+        "domain": 3,
+        "task_form": 4,
+        "overall": 3,
+        "reason": "Reimplement C-library numerics in Python and agree to within 1e-6; numerical-equivalence porting, the same acceptance criterion shape."
+      }
+    ],
+    "Recursive-Task-Synthesis": [
+      {
+        "rank": 1,
+        "task_id": "rts_task_634e80a627f837bf3aa0b8e7",
+        "skill": 3,
+        "domain": 3,
+        "task_form": 3,
+        "overall": 2,
+        "reason": "Create environments installing a package at a version pinned by a project spec file, then validate it; the pinned-install half of 'Install PyStan 3.10.0'."
+      },
+      {
+        "rank": 2,
+        "task_id": "rts_task_b8ba2787af5dbf0d00352dbc",
+        "skill": 3,
+        "domain": 3,
+        "task_form": 3,
+        "overall": 2,
+        "reason": "Make an uninstalled third-party Python library importable and use it from a script; environment bootstrapping for a library that is not on the path."
+      },
+      {
+        "rank": 3,
+        "task_id": "rts_task_e6c55ffb24ccfd0fb185d825",
+        "skill": 2,
+        "domain": 3,
+        "task_form": 3,
+        "overall": 2,
+        "reason": "Read a scientific data file (ROOT TTree) and write computed numeric means to JSON; numeric-output-file discipline only."
+      },
+      {
+        "rank": 4,
+        "task_id": "rts_task_543da1fe00310a178d9c3f37",
+        "skill": 2,
+        "domain": 3,
+        "task_form": 3,
+        "overall": 2,
+        "reason": "Repair a broken numeric data-cleaning script over a .npy input and produce a CSV; debugging a scientific script to a numeric deliverable."
+      },
+      {
+        "rank": 5,
+        "task_id": "rts_task_135eae5a3a60b02488448b6e",
+        "skill": 2,
+        "domain": 2,
+        "task_form": 3,
+        "overall": 2,
+        "reason": "Fix or rewrite a starter Ruby script so it produces the required numeric result and CSV report; reimplementing someone else's script faithfully."
+      },
+      {
+        "rank": 6,
+        "task_id": "rts_task_1096c042a8dee553561f1fb5",
+        "skill": 2,
+        "domain": 2,
+        "task_form": 3,
+        "overall": 2,
+        "reason": "Fix a buggy generate.rb or write your own equivalent; same read-foreign-source-then-reproduce-its-output shape, trivial mathematics."
+      },
+      {
+        "rank": 7,
+        "task_id": "rts_task_a9678aa978038258431a17ef",
+        "skill": 2,
+        "domain": 2,
+        "task_form": 3,
+        "overall": 2,
+        "reason": "Write a script that reads paths from a config file and writes computed numbers to the specified output; only the CLI and output plumbing transfers."
+      },
+      {
+        "rank": 8,
+        "task_id": "rts_task_5380139858aedf4e863509e0",
+        "skill": 2,
+        "domain": 2,
+        "task_form": 3,
+        "overall": 1,
+        "reason": "Config-driven numeric computation with the output path discovered from the project; boilerplate overlap, no statistics."
+      },
+      {
+        "rank": 9,
+        "task_id": "rts_task_d5a44c8ca235d14a089fcb97",
+        "skill": 2,
+        "domain": 2,
+        "task_form": 3,
+        "overall": 1,
+        "reason": "Diagnose and fix a Python script that fails at runtime while profiling classes; generic debugging."
+      },
+      {
+        "rank": 10,
+        "task_id": "rts_task_9afb050a71b088c627d3adf5",
+        "skill": 1,
+        "domain": 1,
+        "task_form": 3,
+        "overall": 1,
+        "reason": "Digit-permutation puzzle with a CSV report; present only to fill the quota - RTS has no Bayesian or statistical content at all."
+      }
+    ],
+    "TerminalWorld-Seeds-Clean": [
+      {
+        "rank": 1,
+        "task_id": "tw_718060",
+        "skill": 3,
+        "domain": 3,
+        "task_form": 3,
+        "overall": 2,
+        "reason": "Define a PyTorch model and produce numeric profiling outputs with torchmeter; driving a modelling library to exact numeric artefacts."
+      },
+      {
+        "rank": 2,
+        "task_id": "tw_24569",
+        "skill": 3,
+        "domain": 3,
+        "task_form": 3,
+        "overall": 2,
+        "reason": "Add a --seed option so a random-number script becomes reproducible - the same seeded-reproducibility idea as random_seed=1 - but graded FREE, so per_source only."
+      },
+      {
+        "rank": 3,
+        "task_id": "tw_647708",
+        "skill": 2,
+        "domain": 3,
+        "task_form": 3,
+        "overall": 2,
+        "reason": "Join two CSVs and compute combined area statistics into a numeric CSV; data-in/statistics-out with a pinned expected result."
+      },
+      {
+        "rank": 4,
+        "task_id": "tw_276310",
+        "skill": 2,
+        "domain": 3,
+        "task_form": 3,
+        "overall": 2,
+        "reason": "Compute per-column means from a scientific data file and write them as JSON numbers; summary-statistic extraction only."
+      },
+      {
+        "rank": 5,
+        "task_id": "tw_125964",
+        "skill": 2,
+        "domain": 3,
+        "task_form": 3,
+        "overall": 2,
+        "reason": "Run a clustering algorithm at two specified hyperparameter values and report the results; hyperparameter fidelity, no inference."
+      },
+      {
+        "rank": 6,
+        "task_id": "tw_584886",
+        "skill": 2,
+        "domain": 3,
+        "task_form": 3,
+        "overall": 2,
+        "reason": "Count the same quantity from two different file representations (VCF.gz and Parquet) and agree; cross-representation equivalence in a small way."
+      },
+      {
+        "rank": 7,
+        "task_id": "tw_100135",
+        "skill": 2,
+        "domain": 3,
+        "task_form": 3,
+        "overall": 2,
+        "reason": "Parse unstructured scientific temperature data into a clean numeric CSV; input-format wrangling before analysis."
+      },
+      {
+        "rank": 8,
+        "task_id": "tw_11045",
+        "skill": 2,
+        "domain": 2,
+        "task_form": 3,
+        "overall": 1,
+        "reason": "Build a nested dictionary from a CSV; parsing only."
+      },
+      {
+        "rank": 9,
+        "task_id": "tw_6185",
+        "skill": 1,
+        "domain": 2,
+        "task_form": 3,
+        "overall": 1,
+        "reason": "Read and clean a CSV header row; near-zero transfer."
+      },
+      {
+        "rank": 10,
+        "task_id": "tw_14593",
+        "skill": 1,
+        "domain": 2,
+        "task_form": 3,
+        "overall": 1,
+        "reason": "Random selection from a fixed list in Python 2; only the randomness vocabulary overlaps. TerminalWorld has no statistical-modelling content."
+      }
+    ],
+    "SWE-Smith-Seeds-Clean": [
+      {
+        "rank": 1,
+        "task_id": "dask__dask.5f61e423.pr_6749",
+        "skill": 3,
+        "domain": 4,
+        "task_form": 2,
+        "overall": 3,
+        "reason": "Least-squares solver residual shapes in dask.array.linalg; the only statistical-estimation bug in this corpus."
+      },
+      {
+        "rank": 2,
+        "task_id": "facebookresearch__fvcore.a491d5b9.lm_rewrite__lo7njclv",
+        "skill": 3,
+        "domain": 4,
+        "task_form": 2,
+        "overall": 3,
+        "reason": "update_bn_stats computes precise batch-norm statistics incorrectly; accumulating running statistics correctly over passes, like chain summaries."
+      },
+      {
+        "rank": 3,
+        "task_id": "pandas-dev__pandas.95280573.pr_57488",
+        "skill": 2,
+        "domain": 4,
+        "task_form": 2,
+        "overall": 2,
+        "reason": "pandas numeric-handling fix; the dataframe layer under every CSV load and posterior summary here."
+      },
+      {
+        "rank": 4,
+        "task_id": "sunpy__sunpy.f8edfd5c.func_pm_ctrl_shuffle__ke1azpfz",
+        "skill": 2,
+        "domain": 4,
+        "task_form": 2,
+        "overall": 2,
+        "reason": "Scientific-data library internals in sunpy; the closest research-computing ecosystem SWE-Smith offers."
+      },
+      {
+        "rank": 5,
+        "task_id": "seperman__deepdiff.ed252022.pr_390",
+        "skill": 3,
+        "domain": 2,
+        "task_form": 2,
+        "overall": 2,
+        "reason": "Behaviour must be preserved after swapping one library for another (tomli to toml); the same must-match-across-implementations pressure."
+      },
+      {
+        "rank": 6,
+        "task_id": "pandas-dev__pandas.95280573.pr_48966",
+        "skill": 2,
+        "domain": 4,
+        "task_form": 2,
+        "overall": 2,
+        "reason": "pandas internals affecting numeric results; shallow but same stack."
+      },
+      {
+        "rank": 7,
+        "task_id": "dask__dask.5f61e423.lm_rewrite__mkzy35wr",
+        "skill": 2,
+        "domain": 4,
+        "task_form": 2,
+        "overall": 2,
+        "reason": "Numeric array-library semantics in dask; numpy-level reasoning that a posterior summary relies on."
+      },
+      {
+        "rank": 8,
+        "task_id": "facebookresearch__fvcore.a491d5b9.combine_module__zkwkfq69",
+        "skill": 2,
+        "domain": 3,
+        "task_form": 2,
+        "overall": 2,
+        "reason": "smooth_l1_loss computed incorrectly; implementing a published formula exactly, which model translation also demands."
+      },
+      {
+        "rank": 9,
+        "task_id": "arrow-py__arrow.1d70d009.combine_file__8pbefy25",
+        "skill": 2,
+        "domain": 2,
+        "task_form": 2,
+        "overall": 1,
+        "reason": "Date-handling library bug; no statistical content, listed to fill the quota."
+      },
+      {
+        "rank": 10,
+        "task_id": "cloudpipe__cloudpickle.6220b0ce.lm_rewrite__l4p0eaum",
+        "skill": 2,
+        "domain": 2,
+        "task_form": 2,
+        "overall": 1,
+        "reason": "Serialisation determinism in cloudpickle; reproducibility only in the loosest sense."
+      }
+    ],
+    "SWE-Rebench-Tasks-Clean": [
+      {
+        "rank": 1,
+        "task_id": "pymc-devs__pymc-7637",
+        "skill": 4,
+        "domain": 5,
+        "task_form": 2,
+        "overall": 4,
+        "reason": "pm.sample with a seeded RNG stopped being deterministic; this is exactly the random_seed=1 reproducibility requirement, in the PPL that most resembles PyStan."
+      },
+      {
+        "rank": 2,
+        "task_id": "pyro-ppl__numpyro-1918",
+        "skill": 4,
+        "domain": 5,
+        "task_form": 2,
+        "overall": 4,
+        "reason": "MCMC.run fails after MCMC.warmup with the AIES kernel; the warmup/sampling driver API that the RStan-to-PyStan port has to configure correctly."
+      },
+      {
+        "rank": 3,
+        "task_id": "gpflow__gpflow-2096",
+        "skill": 4,
+        "domain": 5,
+        "task_form": 2,
+        "overall": 4,
+        "reason": "Gaussian-process library internals; the TB2.1 model is a GP with per-dimension lengthscales rho, amplitude alpha and noise sigma."
+      },
+      {
+        "rank": 4,
+        "task_id": "pymc-devs__pymc-7809",
+        "skill": 3,
+        "domain": 5,
+        "task_form": 2,
+        "overall": 3,
+        "reason": "PyMC model/sampling internals; exposure to how a probabilistic program is built and sampled in a Python PPL."
+      },
+      {
+        "rank": 5,
+        "task_id": "pyro-ppl__numpyro-1914",
+        "skill": 3,
+        "domain": 5,
+        "task_form": 2,
+        "overall": 3,
+        "reason": "NumPyro inference behaviour; another Python MCMC engine with the same warmup/draws/chains configuration surface."
+      },
+      {
+        "rank": 6,
+        "task_id": "cornellius-gp__gpytorch-223",
+        "skill": 3,
+        "domain": 5,
+        "task_form": 2,
+        "overall": 3,
+        "reason": "GPyTorch kernel and lengthscale handling; GP hyperparameter semantics, which is what alpha and rho mean in this model."
+      },
+      {
+        "rank": 7,
+        "task_id": "rhayes777__pyautofit-888",
+        "skill": 3,
+        "domain": 4,
+        "task_form": 2,
+        "overall": 3,
+        "reason": "PyAutoFit non-linear-search framework; how model parameters, priors and fit results are organised and read back."
+      },
+      {
+        "rank": 8,
+        "task_id": "statsmodels__statsmodels-9311",
+        "skill": 3,
+        "domain": 4,
+        "task_form": 2,
+        "overall": 3,
+        "reason": "A statsmodels test silently mutates the input series; the kind of hidden difference that makes a Python port disagree with R."
+      },
+      {
+        "rank": 9,
+        "task_id": "onnx__sklearn-onnx-1163",
+        "skill": 3,
+        "domain": 3,
+        "task_form": 2,
+        "overall": 3,
+        "reason": "Converting a fitted model between frameworks while preserving numeric output; cross-framework equivalence, different model class."
+      },
+      {
+        "rank": 10,
+        "task_id": "bashtage__arch-741",
+        "skill": 3,
+        "domain": 3,
+        "task_form": 2,
+        "overall": 2,
+        "reason": "Maximum-likelihood model estimation in the arch package; estimator convergence and parameter reporting on time series."
+      }
+    ],
+    "Terminal-Lego-15k": [
+      {
+        "rank": 1,
+        "task_id": "task_13527",
+        "skill": 3,
+        "domain": 4,
+        "task_form": 3,
+        "overall": 3,
+        "reason": "Implement logistic regression with Octave's fminunc and fmincg and compare the fits; specifying and estimating a statistical model in a second numeric language."
+      },
+      {
+        "rank": 2,
+        "task_id": "task_13509",
+        "skill": 3,
+        "domain": 4,
+        "task_form": 3,
+        "overall": 3,
+        "reason": "Fix a batch gradient descent implementation for linear regression so the parameter estimates come out right; estimator correctness judged on the numbers."
+      },
+      {
+        "rank": 3,
+        "task_id": "task_09244",
+        "skill": 3,
+        "domain": 4,
+        "task_form": 3,
+        "overall": 3,
+        "reason": "Implement an exponential-distribution pseudorandom generator from uniform draws; sampling from a named distribution is the primitive MCMC is built on."
+      },
+      {
+        "rank": 4,
+        "task_id": "task_13522",
+        "skill": 3,
+        "domain": 4,
+        "task_form": 3,
+        "overall": 3,
+        "reason": "Compute the empirical CDF of a sample vector; summarising a set of draws into a distributional statistic, as posterior means do over chains."
+      },
+      {
+        "rank": 5,
+        "task_id": "task_14925",
+        "skill": 3,
+        "domain": 3,
+        "task_form": 3,
+        "overall": 3,
+        "reason": "Compute mean and standard deviation over a vector of samples in C++ with Boost; chain-summary statistics, implemented in another language."
+      },
+      {
+        "rank": 6,
+        "task_id": "task_13334",
+        "skill": 2,
+        "domain": 3,
+        "task_form": 3,
+        "overall": 2,
+        "reason": "Make a RandomForest treat categorical features as grouped variables; model-specification fidelity, but frequentist ML rather than Bayesian inference."
+      },
+      {
+        "rank": 7,
+        "task_id": "task_04443",
+        "skill": 2,
+        "domain": 3,
+        "task_form": 3,
+        "overall": 2,
+        "reason": "Compute means of array values within bin edges using SciPy/NumPy; numeric aggregation over samples and nothing more."
+      },
+      {
+        "rank": 8,
+        "task_id": "task_13792",
+        "skill": 2,
+        "domain": 3,
+        "task_form": 3,
+        "overall": 2,
+        "reason": "Column-wise median of a large CSV without loading it into memory; streaming summary statistics from a data file."
+      },
+      {
+        "rank": 9,
+        "task_id": "task_13530",
+        "skill": 2,
+        "domain": 3,
+        "task_form": 3,
+        "overall": 2,
+        "reason": "Mean normalisation of a feature; the arithmetic of standardisation, which matters for priors, at the shallowest level."
+      },
+      {
+        "rank": 10,
+        "task_id": "task_12817",
+        "skill": 2,
+        "domain": 3,
+        "task_form": 3,
+        "overall": 2,
+        "reason": "Compute a column mean in pandas and write it to an output file; only the load-data-compute-a-number-write-a-file shell transfers."
+      }
+    ],
+    "CalibForge": [
+      {
+        "rank": 1,
+        "task_id": "data-science_20260604_194036_007",
+        "skill": 5,
+        "domain": 4,
+        "task_form": 5,
+        "overall": 5,
+        "reason": "R script plus /app/train_X.csv, train_y.csv, test_X.csv; you may read but not run R and not install it, and must write a Python script producing numeric-only CSVs. Structurally the same task."
+      },
+      {
+        "rank": 2,
+        "task_id": "data-science_20260606_172606_007",
+        "skill": 5,
+        "domain": 5,
+        "task_form": 5,
+        "overall": 5,
+        "reason": "An R brms script (brms compiles to Stan) must be reproduced in PyMC with identical priors and sampler settings, with R forbidden; the same model-port-across-bindings problem."
+      },
+      {
+        "rank": 3,
+        "task_id": "data-science_20260604_002443_007",
+        "skill": 5,
+        "domain": 5,
+        "task_form": 5,
+        "overall": 5,
+        "reason": "Convert /app/model.stan to PyMC preserving priors, likelihood and the non-centred parameterisation, reading train_X/train_y/meta.json; reading Stan source is the crux."
+      },
+      {
+        "rank": 4,
+        "task_id": "data-science_20260610_111012_007",
+        "skill": 5,
+        "domain": 5,
+        "task_form": 4,
+        "overall": 4,
+        "reason": "Convert a Stan random-effects meta-regression to NumPyro; same Stan-source-to-another-engine translation with matching posterior expectations."
+      },
+      {
+        "rank": 5,
+        "task_id": "data-science_20260613_152233_007",
+        "skill": 4,
+        "domain": 5,
+        "task_form": 4,
+        "overall": 4,
+        "reason": "Port a BUGS/JAGS changepoint model to NumPyro; reading a declarative model language and re-expressing it in a Python PPL."
+      },
+      {
+        "rank": 6,
+        "task_id": "data-science_20260601_053159_007",
+        "skill": 4,
+        "domain": 4,
+        "task_form": 5,
+        "overall": 4,
+        "reason": "Port an entire R survival analysis to Python because the environment cannot run R, emitting numeric-only headerless CSVs at named paths."
+      },
+      {
+        "rank": 7,
+        "task_id": "scientific-computing_20260610_111012_001",
+        "skill": 4,
+        "domain": 5,
+        "task_form": 4,
+        "overall": 4,
+        "reason": "Implement GP regression with kernel hyperparameter optimisation from Rasmussen & Williams; the same GP with amplitude, lengthscale and noise the TB2.1 model fits."
+      },
+      {
+        "rank": 8,
+        "task_id": "data-science_20260509_205636_007",
+        "skill": 4,
+        "domain": 4,
+        "task_form": 4,
+        "overall": 4,
+        "reason": "An R lme4 model ported to statsmodels gives wrong numbers; diagnose why the Python port disagrees with the R reference coefficients."
+      },
+      {
+        "rank": 9,
+        "task_id": "data-science_20260617_104707_007",
+        "skill": 4,
+        "domain": 4,
+        "task_form": 4,
+        "overall": 4,
+        "reason": "Read an R lme4 script, find the model-specification mistakes and produce a correct statsmodels analysis; same read-R-then-reimplement loop."
+      },
+      {
+        "rank": 10,
+        "task_id": "data-science_20260604_144210_007",
+        "skill": 3,
+        "domain": 5,
+        "task_form": 3,
+        "overall": 3,
+        "reason": "Debug a Metropolis-Hastings Bayesian logistic regression until the posterior estimates are right; sampler correctness and posterior summaries."
+      }
+    ]
+  },
+  "final_top10": [
+    {
+      "rank": 1,
+      "task_id": "data-science_20260604_194036_007",
+      "source": "CalibForge",
+      "skill": 5,
+      "domain": 4,
+      "task_form": 5,
+      "overall": 5,
+      "reason": "R script with train_X.csv/train_y.csv/test_X.csv, R forbidden to install or run, write a Python script producing numeric-only CSVs. The same task with a different estimator."
+    },
+    {
+      "rank": 2,
+      "task_id": "data-science_20260606_172606_007",
+      "source": "CalibForge",
+      "skill": 5,
+      "domain": 5,
+      "task_form": 5,
+      "overall": 5,
+      "reason": "Reproduce an R brms model (brms compiles to Stan) in PyMC with identical priors and sampler settings, without R; model-port-across-bindings with matching posteriors."
+    },
+    {
+      "rank": 3,
+      "task_id": "data-science_20260604_002443_007",
+      "source": "CalibForge",
+      "skill": 5,
+      "domain": 5,
+      "task_form": 5,
+      "overall": 5,
+      "reason": "Read /app/model.stan and convert it to PyMC preserving priors, likelihood and non-centred parameterisation; reading Stan source is the crux in both."
+    },
+    {
+      "rank": 4,
+      "task_id": "data-science_20260610_111012_007",
+      "source": "CalibForge",
+      "skill": 5,
+      "domain": 5,
+      "task_form": 4,
+      "overall": 4,
+      "reason": "Convert a Stan random-effects meta-regression to NumPyro; Stan-source-to-other-engine translation checked against posterior expectations."
+    },
+    {
+      "rank": 5,
+      "task_id": "scientific-computing_20260610_111012_001",
+      "source": "CalibForge",
+      "skill": 4,
+      "domain": 5,
+      "task_form": 4,
+      "overall": 4,
+      "reason": "Implement GP regression with kernel hyperparameter optimisation; the TB2.1 model is a GP whose alpha, rho and sigma are exactly these hyperparameters."
+    },
+    {
+      "rank": 6,
+      "task_id": "data-science_20260601_053159_007",
+      "source": "CalibForge",
+      "skill": 4,
+      "domain": 4,
+      "task_form": 5,
+      "overall": 4,
+      "reason": "Port an entire R analysis to Python because R cannot run in the environment, writing numeric-only headerless CSVs at named paths."
+    },
+    {
+      "rank": 7,
+      "task_id": "pymc-devs__pymc-7637",
+      "source": "SWE-Rebench-Tasks-Clean",
+      "skill": 4,
+      "domain": 5,
+      "task_form": 2,
+      "overall": 4,
+      "reason": "Seeded pm.sample stopped being deterministic; this is the random_seed=1 reproducibility requirement, in the PPL closest to PyStan."
+    },
+    {
+      "rank": 8,
+      "task_id": "data-science_20260509_205636_007",
+      "source": "CalibForge",
+      "skill": 4,
+      "domain": 4,
+      "task_form": 4,
+      "overall": 4,
+      "reason": "An lme4-to-statsmodels port that disagrees with the R reference coefficients; diagnosing why a faithful-looking translation gives different numbers."
+    },
+    {
+      "rank": 9,
+      "task_id": "task_000138_e5f9026c",
+      "source": "TMax-15K",
+      "skill": 4,
+      "domain": 5,
+      "task_form": 4,
+      "overall": 4,
+      "reason": "Reshape a raw spectra file and drive a Go MCMC fitter to get the posterior of a Gaussian peak model; MCMC posterior extraction across a language boundary."
+    },
+    {
+      "rank": 10,
+      "task_id": "task_000032_5b0167e2",
+      "source": "TMax-15K",
+      "skill": 4,
+      "domain": 5,
+      "task_form": 3,
+      "overall": 4,
+      "reason": "Fit a Bayesian count model with a hand-written Metropolis-Hastings sampler; forces reading priors, likelihood and chain settings off a model statement."
+    }
+  ],
+  "notes": "This is the clearest win for CalibForge of my five, and it is close to a categorical one. The v1 pool has literally zero Stan content: `search <corpus> \"PyStan|Stan model|cmdstan|rstan|brms|JAGS\"` returns no genuine hit in TMax, TerminalWorld, Recursive-Task-Synthesis or SWE-Smith (every apparent match is the substring 'stan' inside 'understand' or 'instance'). CalibForge supplies a cluster of six R-or-Stan-to-Python porting tasks, three of which reproduce the TB2.1 setup almost line for line - same /app/train_X.csv, /app/train_y.csv, /app/test_X.csv file names, the same 'you may read the R script but may not install or run R' constraint, and the same numeric-CSV deliverable - and all six are strong-verified in work/verifier_strength.json. It also supplies the only Gaussian-process-from-scratch task in the pool, which matters because the TB2.1 model is a GP. SWE-Rebench is the one v1 corpus that contributes something real: it has PyMC, NumPyro, GPflow and GPyTorch repositories, and pymc-devs__pymc-7637 is specifically about seeded sampling determinism, which the TB2.1 task pins with random_seed=1. TMax keeps two slots on generic MCMC-posterior work. Terminal-Lego-15k is also near-empty for this task: a grep of all 15,048 instructions for MCMC/Bayesian/posterior/likelihood/Gaussian-process returns four hits, none of them Bayesian, so its list is filled with sample-statistics and regression-fitting exercises scoring 2-3. Recursive-Task-Synthesis and TerminalWorld cannot field 10 defensible candidates at all here - their best entries are generic 'compute numbers and write a CSV' chores scoring 1-2, and their shortlists were driven entirely by the boilerplate overlap on '/app/*.csv' and 'write a Python script'. Two things for the merge step: (1) CalibForge's auto-generated '<category>_<timestamp>_inspector.py' filler tasks name the TB2.1 domain in their text but are generic directory-hashing utilities (data-science_20260615_143956_007 here, software-engineering_20260612_191200_021 under regex-chess) and should be filtered globally; (2) the packet `verifier` field is stale relative to work/verifier_strength.json for much of this CalibForge family - the packet undercounts them as weak/ok where the newer pass says strong."
+}

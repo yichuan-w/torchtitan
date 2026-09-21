@@ -1,0 +1,772 @@
+{
+ "tb21_id": "headless-terminal",
+ "tb21_profile": {
+  "skill": "Implement a PTY-backed terminal driver: fork/exec an interactive bash on a pseudo-terminal, manage fds and process groups, inject raw keystrokes including control bytes, and read output without deadlocking.",
+  "domain": "Unix tty/process layer from Python - pty, os.fork/execvp, termios, select, signals, subprocess reaping.",
+  "task_form": "Implement-from-spec against a supplied abstract base class, in a fixed file path, with behavioural tests that drive the object."
+ },
+ "verifier_notes": "software-engineering_20260501_172213_011 is graded weak (0.111) but I read tests/test_outputs.py: every test constructs PtyTerminal, sends real keystrokes including \\x03, and asserts on side effects the shell must actually produce (file contents, shell responsive after SIGINT, exported var persisting). The assertions are path.exists()/read_text() so the regex scores them cheap, but they are unreachable without a working PTY shell. Same argument applies to 20260415_123352_011 and 20260508_045740_011 (both weak). I therefore kept weak-graded PTY tasks at the top of final_top10. No FREE candidate is in final_top10; the packet-FREE candidates I ranked are all TerminalWorld (tw_84824, tw_96755, tw_682259, tw_17320, tw_32666, tw_8593) and they stay in per_source only; only tw_682259 and tw_32666 are still FREE in the regenerated grade file. NOTE ON GRADES: work/verifier_strength.json was regenerated after work/packets_v2 was built and the two disagree on ~27% of shown candidates (844 of them flip into or out of FREE). Where they disagree I treated a candidate as FREE if EITHER source calls it FREE, so nothing in final_top10 is FREE under either file.",
+ "searches": [
+  "tools.py search all '\\b(pty|PTY|pseudo-?terminal|termios|forkpty|openpty)\\b'",
+  "tools.py search all 'pexpect'",
+  "tools.py search all 'ANSI escape|escape sequence|terminal emulat|vt100|curses'",
+  "tools.py search tmax 'process group|setsid|SIGWINCH|SIGINT|Ctrl-C|control character|\\\\x03'",
+  "tools.py search tmax 'abstract base class|inherits from `Base|ABC\\b'",
+  "tools.py search tw 'termios|raw mode|arrow key|tmux|screen session|interactive shell|readline|curses|tty'",
+  "tools.py search rts 'termios|raw mode|arrow key|fork\\(\\)|execvp|interactive shell'",
+  "tools.py search smith 'ptyprocess|\\bpty\\b|terminal|tty|subprocess|signal|fork'",
+  "tools.py search smith 'ptyprocess'",
+  "tools.py search rebench 'ptyprocess|\\bpty\\b|isatty|terminal|subprocess|SIGINT|process group'",
+  "(new corpora, local grep) search CalibForge '\\b(pty|PTY|pseudo-?terminal|termios|forkpty|openpty|pexpect)\\b'",
+  "(new corpora, local grep) search Terminal-Lego-15k '\\b(pty|PTY|pseudo-?terminal|termios|forkpty|openpty|pexpect|expect script)\\b'",
+  "(new corpora, local grep) words Terminal-Lego-15k 'interactive shell' subprocess send stdin bash"
+ ],
+ "per_source": {
+  "TMax-15K": [
+   {
+    "rank": 1,
+    "task_id": "task_000963_f95a4d5e",
+    "skill": 3,
+    "domain": 4,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Drives an interactive text shell with pexpect: spawn, expect prompt, send keys, parse output. Consumer side of the TB interface."
+   },
+   {
+    "rank": 2,
+    "task_id": "task_005019_716557a7",
+    "skill": 3,
+    "domain": 4,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Expect script that spawns a pseudo-terminal running an interactive tool and answers its prompts; same PTY plumbing, scripted."
+   },
+   {
+    "rank": 3,
+    "task_id": "task_000055_daa08509",
+    "skill": 3,
+    "domain": 4,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "pexpect automation of an interactive CLI daemon; requires prompt synchronisation and timing, like reading PTY output."
+   },
+   {
+    "rank": 4,
+    "task_id": "task_005232_7c8286b2",
+    "skill": 3,
+    "domain": 3,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "pexpect session against a mock router CLI, extracting metrics from interactive output; prompt matching transfers."
+   },
+   {
+    "rank": 5,
+    "task_id": "task_001150_f5d9f9a4",
+    "skill": 3,
+    "domain": 3,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Automates an interactive bash rollout script with pexpect plus header crypto; half the task is interactive-process control."
+   },
+   {
+    "rank": 6,
+    "task_id": "task_003490_3939d4e0",
+    "skill": 3,
+    "domain": 3,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "pexpect-driven passkey prompt plus PATH/cwd-independent execution; strong verifier, real interactive-process handling."
+   },
+   {
+    "rank": 7,
+    "task_id": "task_007825_b9fff083",
+    "skill": 3,
+    "domain": 3,
+    "task_form": 4,
+    "overall": 3,
+    "reason": "Wraps an unmodifiable interactive Python script into a fully automated background service - same 'own the child process' framing."
+   },
+   {
+    "rank": 8,
+    "task_id": "task_001086_9b03aaeb",
+    "skill": 3,
+    "domain": 3,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Loops pexpect over a device inventory, automating the same interactive utility repeatedly; session setup/teardown discipline."
+   },
+   {
+    "rank": 9,
+    "task_id": "task_002109_9cdbde18",
+    "skill": 2,
+    "domain": 3,
+    "task_form": 3,
+    "overall": 2,
+    "reason": "Automates a flagless interactive backup tool; shallow pexpect use, mostly prompt-answering."
+   },
+   {
+    "rank": 10,
+    "task_id": "task_003288_e131a9f5",
+    "skill": 2,
+    "domain": 3,
+    "task_form": 3,
+    "overall": 2,
+    "reason": "pexpect over a UNIX socket monitor; interactive automation but no terminal-layer reasoning."
+   }
+  ],
+  "Recursive-Task-Synthesis": [
+   {
+    "rank": 1,
+    "task_id": "rts_task_6ba244b698500a5585a1f154",
+    "skill": 3,
+    "domain": 4,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Implements a shell in C: fork/execvp command loop, background '&', exit handling - the child-process half of a terminal."
+   },
+   {
+    "rank": 2,
+    "task_id": "rts_task_701e16e9d021bd75c7ab3ba5",
+    "skill": 3,
+    "domain": 4,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Same shell-in-C task with a config-derived prompt; fork/exec/wait and prompt emission are the transferable parts."
+   },
+   {
+    "rank": 3,
+    "task_id": "rts_task_6bc013ec046568959cb4f29f",
+    "skill": 3,
+    "domain": 4,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Shell in C plus build-profile-driven compile; exercises reading commands and dispatching children, not PTY allocation."
+   },
+   {
+    "rank": 4,
+    "task_id": "rts_task_8ba47aca945b360b3a5dadd9",
+    "skill": 3,
+    "domain": 4,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Minimal fork/execvp shell with background jobs and error reporting; closest RTS gets to process/terminal control."
+   },
+   {
+    "rank": 5,
+    "task_id": "rts_task_2b9d8f607138ec35af1bacae",
+    "skill": 3,
+    "domain": 4,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Minimal Linux shell in C with prompt, execvp and background execution; duplicate-family but independently defensible."
+   },
+   {
+    "rank": 6,
+    "task_id": "rts_task_3519c385716c9537486cc1bc",
+    "skill": 3,
+    "domain": 4,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Another fork/execvp shell variant; teaches wait/waitpid and background detach, useful for terminal child management."
+   },
+   {
+    "rank": 7,
+    "task_id": "rts_task_33057397070279428e9d5f7d",
+    "skill": 3,
+    "domain": 3,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Unix shell in C, prompt plus execvp dispatch; near-duplicate of the family, low marginal value."
+   },
+   {
+    "rank": 8,
+    "task_id": "rts_task_c38537f82fe9111484d34eeb",
+    "skill": 3,
+    "domain": 3,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Shell in C variant; same fork/exec skill, near-duplicate so keep at most one or two of this family."
+   },
+   {
+    "rank": 9,
+    "task_id": "rts_task_e668b3cd39ae69c05ab425ef",
+    "skill": 2,
+    "domain": 3,
+    "task_form": 3,
+    "overall": 2,
+    "reason": "Interactive terminal Hangman with a non-interactive --validate path; exercises stdin loops, not PTY mechanics."
+   },
+   {
+    "rank": 10,
+    "task_id": "rts_task_16e09c78445fef9e29d7ec18",
+    "skill": 2,
+    "domain": 3,
+    "task_form": 3,
+    "overall": 2,
+    "reason": "Hangman CLI with stdin word lists and replay prompts; interactive I/O only, no process or tty control."
+   }
+  ],
+  "TerminalWorld-Seeds-Clean": [
+   {
+    "rank": 1,
+    "task_id": "tw_479594",
+    "skill": 3,
+    "domain": 4,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "C shell: fork, execvp, wait unless '&', clean exit on 'exit'. Child-process dispatch, graded ok."
+   },
+   {
+    "rank": 2,
+    "task_id": "tw_479208",
+    "skill": 3,
+    "domain": 4,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Same fork/execvp shell with error path for invalid commands; process spawning skill, no PTY layer."
+   },
+   {
+    "rank": 3,
+    "task_id": "tw_84824",
+    "skill": 3,
+    "domain": 4,
+    "task_form": 3,
+    "overall": 2,
+    "reason": "Arrow-key navigable bash menu needs raw keypress reads and escape-sequence decoding, but the packet grades it FREE (the regenerated grade file says ok)."
+   },
+   {
+    "rank": 4,
+    "task_id": "tw_96755",
+    "skill": 3,
+    "domain": 3,
+    "task_form": 3,
+    "overall": 2,
+    "reason": "Requires driving an interactive Python CLI to build state and persist it; relevant framing; packet grades it FREE, regenerated file says strong."
+   },
+   {
+    "rank": 5,
+    "task_id": "tw_266088",
+    "skill": 2,
+    "domain": 3,
+    "task_form": 3,
+    "overall": 2,
+    "reason": "Install kubectl completion and make it persist via /root/.bashrc - the startup-file sourcing requirement, config only."
+   },
+   {
+    "rank": 6,
+    "task_id": "tw_682259",
+    "skill": 3,
+    "domain": 3,
+    "task_form": 3,
+    "overall": 2,
+    "reason": "Unix shell in C with prompt loop and exec; FREE in both grade files, so the suite passes on a stub."
+   },
+   {
+    "rank": 7,
+    "task_id": "tw_17320",
+    "skill": 2,
+    "domain": 3,
+    "task_form": 3,
+    "overall": 2,
+    "reason": "Extend an interactive ordering CLI and run a session; interactive-loop work; packet grades it FREE, regenerated file says ok."
+   },
+   {
+    "rank": 8,
+    "task_id": "tw_273601",
+    "skill": 2,
+    "domain": 2,
+    "task_form": 3,
+    "overall": 2,
+    "reason": "Make a broken script importable/runnable; only shares 'run the program and produce output'."
+   },
+   {
+    "rank": 9,
+    "task_id": "tw_32666",
+    "skill": 1,
+    "domain": 3,
+    "task_form": 2,
+    "overall": 1,
+    "reason": "A single .bashrc shell option (cmdhist); touches interactive shell config, teaches nothing about PTYs. FREE in both grade files."
+   },
+   {
+    "rank": 10,
+    "task_id": "tw_8593",
+    "skill": 1,
+    "domain": 3,
+    "task_form": 2,
+    "overall": 1,
+    "reason": "Build/install/uninstall the st terminal emulator from source; terminal only by name, build task."
+   }
+  ],
+  "SWE-Smith-Seeds-Clean": [
+   {
+    "rank": 1,
+    "task_id": "pexpect__ptyprocess.1067dbda.func_pm_remove_assign__ivbnyzsb",
+    "skill": 4,
+    "domain": 5,
+    "task_form": 2,
+    "overall": 4,
+    "reason": "Fix PtyProcess.isalive() mis-handling signal termination - exactly the waitpid/exitstatus bookkeeping the TB class needs."
+   },
+   {
+    "rank": 2,
+    "task_id": "pexpect__ptyprocess.1067dbda.func_pm_remove_loop__exlxfztz",
+    "skill": 4,
+    "domain": 5,
+    "task_form": 2,
+    "overall": 4,
+    "reason": "Fix ptyprocess waitnoecho(), i.e. polling termios ECHO state on a freshly spawned PTY child. Same library, same layer."
+   },
+   {
+    "rank": 3,
+    "task_id": "benoitc__gunicorn.bacbf8aa.func_pm_ctrl_shuffle__ktzw70ry",
+    "skill": 3,
+    "domain": 4,
+    "task_form": 2,
+    "overall": 3,
+    "reason": "Worker spawn broken around the fork()==0 branch; forces reasoning about parent/child divergence after fork."
+   },
+   {
+    "rank": 4,
+    "task_id": "google__textfsm.c31b6007.pr_127",
+    "skill": 3,
+    "domain": 3,
+    "task_form": 2,
+    "overall": 3,
+    "reason": "Terminal module AttributeError in ANSI escape handling and terminal-size calculation; output-side terminal semantics."
+   },
+   {
+    "rank": 5,
+    "task_id": "google__textfsm.c31b6007.lm_rewrite__2egqcc5c",
+    "skill": 3,
+    "domain": 3,
+    "task_form": 2,
+    "overall": 3,
+    "reason": "ANSI escape sequence stripping/parsing is broken; the screen-state reasoning a terminal driver needs on the read side."
+   },
+   {
+    "rank": 6,
+    "task_id": "google__textfsm.c31b6007.func_pm_class_rm_funcs__l5u9pdpm",
+    "skill": 2,
+    "domain": 3,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Missing Pager.Page() in the terminal module; terminal-adjacent but the fix is restoring a method."
+   },
+   {
+    "rank": 7,
+    "task_id": "rsalmei__alive-progress.35853799.combine_module__8md0qs0g",
+    "skill": 2,
+    "domain": 3,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Progress bar cursor movement and terminal output corrupted; requires reasoning about escape codes and tty state."
+   },
+   {
+    "rank": 8,
+    "task_id": "rsalmei__alive-progress.35853799.func_pm_remove_assign__pzcxs0so",
+    "skill": 2,
+    "domain": 3,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "print_cells NameError in the terminal-cell renderer; shallow fix, terminal rendering domain only."
+   },
+   {
+    "rank": 9,
+    "task_id": "benoitc__gunicorn.bacbf8aa.func_pm_ctrl_shuffle__dsta2igz",
+    "skill": 2,
+    "domain": 3,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Config worker_class UnboundLocalError; same prefork server codebase but no process or tty reasoning."
+   },
+   {
+    "rank": 10,
+    "task_id": "django__daphne.32ac73e1.func_pm_class_rm_funcs__0vv9kfjo",
+    "skill": 1,
+    "domain": 2,
+    "task_form": 2,
+    "overall": 1,
+    "reason": "CommandLineInterface missing __init__; CLI plumbing only, no overlap with terminal or process control."
+   }
+  ],
+  "SWE-Rebench-Tasks-Clean": [
+   {
+    "rank": 1,
+    "task_id": "kubernetes-client__python-2050",
+    "skill": 3,
+    "domain": 3,
+    "task_form": 2,
+    "overall": 3,
+    "reason": "exec_provider crashes on sys.stdout.isatty() when no console is attached - tty-presence reasoning the TB task also needs."
+   },
+   {
+    "rank": 2,
+    "task_id": "gorakhargosh__watchdog-946",
+    "skill": 3,
+    "domain": 3,
+    "task_form": 2,
+    "overall": 3,
+    "reason": "watchmedo auto-restart respawns child processes continuously; requires getting subprocess lifecycle and exit detection right."
+   },
+   {
+    "rank": 3,
+    "task_id": "pypa__build-290",
+    "skill": 2,
+    "domain": 3,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Backend build output goes straight to the terminal with no capture hook; adds redirection of a child's stdio."
+   },
+   {
+    "rank": 4,
+    "task_id": "tqdm__tqdm-617",
+    "skill": 2,
+    "domain": 3,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Semaphore leak when a terminal progress bar is used across forked DataLoader workers; fork-safety of tty state."
+   },
+   {
+    "rank": 5,
+    "task_id": "bloomberg__memray-552",
+    "skill": 2,
+    "domain": 3,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "memray run rewrites sys.argv[0] and sys.path when launching the target; process-launch environment fidelity."
+   },
+   {
+    "rank": 6,
+    "task_id": "textualize__rich-2806",
+    "skill": 2,
+    "domain": 3,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Rich console misdetects the output stream (ipykernel OutStream) and duplicates output; is-this-a-terminal detection."
+   },
+   {
+    "rank": 7,
+    "task_id": "textualize__rich-3518",
+    "skill": 1,
+    "domain": 3,
+    "task_form": 2,
+    "overall": 1,
+    "reason": "Table auto-highlighting regression in Rich; terminal rendering library, no process or tty mechanics."
+   },
+   {
+    "rank": 8,
+    "task_id": "pypa__pipx-1625",
+    "skill": 1,
+    "domain": 2,
+    "task_form": 2,
+    "overall": 1,
+    "reason": "CLI argument parsing bug in pipx upgrade; shares only 'a command-line tool misbehaves'."
+   },
+   {
+    "rank": 9,
+    "task_id": "celery__celery-9247",
+    "skill": 1,
+    "domain": 2,
+    "task_form": 2,
+    "overall": 1,
+    "reason": "Signal receiver cannot be disconnected after connect(retry=True); 'signal' here is a dispatcher, not POSIX."
+   },
+   {
+    "rank": 10,
+    "task_id": "wntrblm__nox-829",
+    "skill": 1,
+    "domain": 2,
+    "task_form": 2,
+    "overall": 1,
+    "reason": "Nox resolves the wrong start directory through a symlinked noxfile; unrelated capability."
+   }
+  ],
+  "Terminal-Lego-15k": [
+   {
+    "rank": 1,
+    "task_id": "task_00268",
+    "skill": 4,
+    "domain": 4,
+    "task_form": 4,
+    "overall": 4,
+    "reason": "Configures a tty with termios in non-canonical/raw mode and tests it over an openpty pair - the exact fd/termios work."
+   },
+   {
+    "rank": 2,
+    "task_id": "task_02418",
+    "skill": 4,
+    "domain": 4,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Raw-mode termios reads and decoding arrow-key ANSI escape sequences; same modifier/control-byte handling as \\x03."
+   },
+   {
+    "rank": 3,
+    "task_id": "task_10453",
+    "skill": 3,
+    "domain": 4,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "C shell loop that must react to Ctrl+D/EOF correctly from terminal input; canonical-mode and EOF semantics transfer."
+   },
+   {
+    "rank": 4,
+    "task_id": "task_01322",
+    "skill": 3,
+    "domain": 4,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Detect single keypresses via termios/tty raw mode instead of line-buffered stdin; same terminal-mode reasoning."
+   },
+   {
+    "rank": 5,
+    "task_id": "task_11772",
+    "skill": 3,
+    "domain": 4,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Diagnose why ssh non-interactive exec hangs while interactive works - login/interactive shell and stdio semantics."
+   },
+   {
+    "rank": 6,
+    "task_id": "task_11066",
+    "skill": 3,
+    "domain": 3,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "socat-created PTY device pair wired to a serial endpoint; practical /dev/pts allocation and lifetime."
+   },
+   {
+    "rank": 7,
+    "task_id": "task_00102",
+    "skill": 3,
+    "domain": 3,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Query terminal geometry via fcntl/termios ioctls - the TIOCGWINSZ side of driving a headless terminal."
+   },
+   {
+    "rank": 8,
+    "task_id": "task_11237",
+    "skill": 2,
+    "domain": 4,
+    "task_form": 3,
+    "overall": 2,
+    "reason": "Bash wrapper that runs init commands then hands back interactive control; touches interactive-shell startup only."
+   },
+   {
+    "rank": 9,
+    "task_id": "task_05382",
+    "skill": 2,
+    "domain": 3,
+    "task_form": 3,
+    "overall": 2,
+    "reason": "Fix readline support so arrow keys recall history in the interpreter; terminal input handling but config-level."
+   },
+   {
+    "rank": 10,
+    "task_id": "task_00642",
+    "skill": 2,
+    "domain": 3,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Why ~/.bashrc is not sourced for a non-login SSH shell - explains the startup-file requirement, no implementation."
+   }
+  ],
+  "CalibForge": [
+   {
+    "rank": 1,
+    "task_id": "software-engineering_20260501_172213_011",
+    "skill": 5,
+    "domain": 5,
+    "task_form": 5,
+    "overall": 5,
+    "reason": "Same task: PtyTerminal spawning bash on a PTY, sending \\x03, process-group signal delivery, clean teardown."
+   },
+   {
+    "rank": 2,
+    "task_id": "software-engineering_20260417_145736_011",
+    "skill": 5,
+    "domain": 5,
+    "task_form": 5,
+    "overall": 5,
+    "reason": "PTYProcessManager: proper PTY allocation so startup files source and interactive programs work; closes all PTY fds."
+   },
+   {
+    "rank": 3,
+    "task_id": "software-engineering_20260508_045557_011",
+    "skill": 5,
+    "domain": 5,
+    "task_form": 5,
+    "overall": 5,
+    "reason": "PTYRunner from a BasePTYRunner ABC; must avoid the write-side PTY buffer deadlock the TB task also hits."
+   },
+   {
+    "rank": 4,
+    "task_id": "software-engineering_20260415_123352_011",
+    "skill": 5,
+    "domain": 5,
+    "task_form": 5,
+    "overall": 5,
+    "reason": "Manages named PTY bash sessions, sends keystrokes, reads output, sources startup files - TB task plus multiplexing."
+   },
+   {
+    "rank": 5,
+    "task_id": "software-engineering_20260507_093408_011",
+    "skill": 4,
+    "domain": 5,
+    "task_form": 4,
+    "overall": 4,
+    "reason": "PTY runner leaking devices/fds; teaches the fd lifecycle discipline a headless terminal needs. Strong verifier."
+   },
+   {
+    "rank": 6,
+    "task_id": "software-engineering_20260510_130518_011",
+    "skill": 4,
+    "domain": 5,
+    "task_form": 4,
+    "overall": 4,
+    "reason": "ProcessController spawning children under a PTY, pattern-matching output and injecting input; same syscall surface."
+   },
+   {
+    "rank": 7,
+    "task_id": "software-engineering_20260419_065313_011",
+    "skill": 4,
+    "domain": 5,
+    "task_form": 4,
+    "overall": 4,
+    "reason": "PTY session pool: interactive shells, keystroke send, zombie reaping and PTY exhaustion under repeated spawns."
+   },
+   {
+    "rank": 8,
+    "task_id": "software-engineering_20260508_045740_011",
+    "skill": 4,
+    "domain": 5,
+    "task_form": 4,
+    "overall": 4,
+    "reason": "Debug a PTY bash session pool that orphans background jobs; process-group and PTY close semantics transfer directly."
+   },
+   {
+    "rank": 9,
+    "task_id": "software-engineering_20260415_182321_011",
+    "skill": 4,
+    "domain": 4,
+    "task_form": 5,
+    "overall": 4,
+    "reason": "Implement CommandExecutor against an ABC handling pipe deadlock, zombies and orphans - the non-PTY half of this skill."
+   },
+   {
+    "rank": 10,
+    "task_id": "software-engineering_20260604_004411_011",
+    "skill": 3,
+    "domain": 4,
+    "task_form": 5,
+    "overall": 3,
+    "reason": "ProcessSupervisor from a base class: spawn/monitor/terminate named children thread-safely; process control, no PTY."
+   }
+  ]
+ },
+ "final_top10": [
+  {
+   "rank": 1,
+   "task_id": "software-engineering_20260501_172213_011",
+   "source": "CalibForge",
+   "skill": 5,
+   "domain": 5,
+   "task_form": 5,
+   "overall": 5,
+   "reason": "PtyTerminal on a PTY-backed bash: send \\x03, process-group signals, clean teardown. Verifier graded weak but tests really drive the PTY."
+  },
+  {
+   "rank": 2,
+   "task_id": "software-engineering_20260417_145736_011",
+   "source": "CalibForge",
+   "skill": 5,
+   "domain": 5,
+   "task_form": 5,
+   "overall": 5,
+   "reason": "PTYProcessManager must allocate a real PTY so startup files source and interactive programs work; also closes every PTY fd."
+  },
+  {
+   "rank": 3,
+   "task_id": "software-engineering_20260508_045557_011",
+   "source": "CalibForge",
+   "skill": 5,
+   "domain": 5,
+   "task_form": 5,
+   "overall": 5,
+   "reason": "PTYRunner against a base ABC; the crux is bidirectional PTY I/O that does not deadlock when the buffer fills."
+  },
+  {
+   "rank": 4,
+   "task_id": "software-engineering_20260415_123352_011",
+   "source": "CalibForge",
+   "skill": 5,
+   "domain": 5,
+   "task_form": 5,
+   "overall": 5,
+   "reason": "Named PTY bash sessions with keystroke send and output read, startup files sourced; TB task plus session multiplexing."
+  },
+  {
+   "rank": 5,
+   "task_id": "software-engineering_20260507_093408_011",
+   "source": "CalibForge",
+   "skill": 4,
+   "domain": 5,
+   "task_form": 4,
+   "overall": 4,
+   "reason": "PTY device/fd exhaustion in a runner; strongest verifier of the PTY family and teaches fd lifetime discipline."
+  },
+  {
+   "rank": 6,
+   "task_id": "software-engineering_20260510_130518_011",
+   "source": "CalibForge",
+   "skill": 4,
+   "domain": 5,
+   "task_form": 4,
+   "overall": 4,
+   "reason": "ProcessController spawns under a PTY, matches output patterns and writes input; same pty/select/waitpid surface."
+  },
+  {
+   "rank": 7,
+   "task_id": "software-engineering_20260419_065313_011",
+   "source": "CalibForge",
+   "skill": 4,
+   "domain": 5,
+   "task_form": 4,
+   "overall": 4,
+   "reason": "PTY session pool for interactive shells: device exhaustion and zombie reaping across hundreds of spawns."
+  },
+  {
+   "rank": 8,
+   "task_id": "software-engineering_20260415_182321_011",
+   "source": "CalibForge",
+   "skill": 4,
+   "domain": 4,
+   "task_form": 5,
+   "overall": 4,
+   "reason": "Implement a robust CommandExecutor from an ABC: pipe deadlock, zombies, orphaned children. Strong verifier."
+  },
+  {
+   "rank": 9,
+   "task_id": "pexpect__ptyprocess.1067dbda.func_pm_remove_assign__ivbnyzsb",
+   "source": "SWE-Smith-Seeds-Clean",
+   "skill": 4,
+   "domain": 5,
+   "task_form": 2,
+   "overall": 4,
+   "reason": "Bug inside ptyprocess itself: isalive() must set exitstatus when the PTY child dies by signal. Repo tests."
+  },
+  {
+   "rank": 10,
+   "task_id": "task_00268",
+   "source": "Terminal-Lego-15k",
+   "skill": 4,
+   "domain": 4,
+   "task_form": 4,
+   "overall": 4,
+   "reason": "termios raw/non-canonical configuration of a tty plus an openpty-based test harness - the fd and mode work in C."
+  }
+ ]
+}

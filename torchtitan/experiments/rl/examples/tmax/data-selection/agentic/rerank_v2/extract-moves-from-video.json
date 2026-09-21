@@ -1,0 +1,123 @@
+{
+  "tb21_id": "extract-moves-from-video",
+  "tb21_profile": {
+    "skill": "Drive ffmpeg to sample frames from an MP4, OCR the terminal text on each frame, stitch the scrolling screen back into one continuous transcript by deduplicating overlapping text, then distinguish the lines the player typed from the game's own output and emit them in order.",
+    "domain": "ffmpeg/OpenCV frame extraction, tesseract OCR, terminal/console text, interactive-fiction (Zork) session transcripts.",
+    "task_form": "Recover-data-from-a-media-artifact: a multi-stage extraction pipeline ending in a strict one-item-per-line text file."
+  },
+  "verifier_notes": "task_002141_0af84f66, task_005108_cf5dd4f1 and task_003013_eea28a62 (TMax video tasks) are FREE and excluded; task_003013_eea28a62 in particular - a video recording of a device screen plus a JSONL log - is otherwise a decent match. games_20260416_172928_001 and security_20260415_123352_001 (CalibForge) are FREE. tw_229615, tw_180 and tw_126622 (TerminalWorld) are FREE. task_000411_42185240 (TMax, flashing frames each showing an ID, OCR them) is graded `absent` with 0 tests in work/verifier_strength.json even though the corpus normally ships one, so I left it out of final_top10 and out of per_source in favour of graded siblings. task_001906_46d1eb8c and task_004253_a219ac05 pass with only 1 pinned test each; they are `ok`, not FREE, but treat their scores as less certain than their rank suggests.",
+  "searches": [
+    "tools.py search tmax '(?i)(tesseract|\\bOCR\\b|optical character|pytesseract|transcribe the text|read the text from|screencast|terminal recording|asciinema)'",
+    "tools.py words tmax video ffmpeg frames tesseract ocr terminal transcribe screen console text",
+    "tools.py show task_004605_6a1e7020 task_001779_b04c543c",
+    "tools.py words rts video ffmpeg frames tesseract ocr transcribe screenshot image audio",
+    "tools.py words tw video ffmpeg frames tesseract ocr transcribe screenshot image subtitle",
+    "tools.py search tw '(?i)(session transcript|spoticli|typed|prompt|command history|terminal session|screen recording|asciinema)'",
+    "tools.py search smith 'textfsm'",
+    "tools.py search rebench 'moviepy'",
+    "tools.py search rebench '(?i)(moviepy|ffmpeg|frame|tesseract|ocr|video)'",
+    "tools.py search rebench '(?i)(textual|rich.*console|terminal width|ansi escape|wrap text)'",
+    "tools.py search rebench '(?i)(pdfminer|pdfplumber|pytesseract|\\bOCR\\b|extract text|pillow|imageio|scikit-image|opencv)'",
+    "grep -rliE 'tesseract|\\bOCR\\b|pytesseract|ffmpeg|opencv|cv2|video frame|extract frames|\\.mp4' --include=instruction.md /data/yichuan_wang/terminal-lego-15k",
+    "grep -rliE 'tesseract|\\bOCR\\b|pytesseract|transcribe|subtitle|text from.*(image|video|frame)|screenshot' --include=instruction.md /data/yichuan_wang/calibforge"
+  ],
+  "per_source": {
+    "TMax-15K": [
+      {"rank": 1, "task_id": "task_001779_b04c543c", "skill": 5, "domain": 5, "task_form": 5, "overall": 5, "reason": "OCR a scrolling terminal video and explicitly deduplicate overlapping text to reconstruct the continuous ordered log - the exact hard part here."},
+      {"rank": 2, "task_id": "task_001906_46d1eb8c", "skill": 5, "domain": 5, "task_form": 5, "overall": 5, "reason": "Recover deployment-log state from a forensic screen recording of console output; same recover-text-from-terminal-video pipeline."},
+      {"rank": 3, "task_id": "task_004605_6a1e7020", "skill": 4, "domain": 5, "task_form": 4, "overall": 4, "reason": "ffmpeg plus tesseract over a terminal screencast, then dedupe to unique tokens and emit a sorted one-per-line file."},
+      {"rank": 4, "task_id": "task_000249_ff55f46a", "skill": 4, "domain": 5, "task_form": 4, "overall": 4, "reason": "Recover what an attacker did from a screen recording of their terminal; reading typed commands off frames."},
+      {"rank": 5, "task_id": "task_005198_27da4d18", "skill": 4, "domain": 5, "task_form": 4, "overall": 4, "reason": "Video of a terminal session running a tool; extract the session content from frames rather than from a log file."},
+      {"rank": 6, "task_id": "task_004253_a219ac05", "skill": 4, "domain": 5, "task_form": 4, "overall": 4, "reason": "A low-framerate screen recording of a console is the only surviving record; frame sampling plus OCR under frame-drop."},
+      {"rank": 7, "task_id": "task_003457_dffbb50a", "skill": 4, "domain": 4, "task_form": 4, "overall": 4, "reason": "Rebuild a transaction log from a screen recording of the database console; ordered reconstruction from frames."},
+      {"rank": 8, "task_id": "task_000038_b0af17b4", "skill": 4, "domain": 4, "task_form": 4, "overall": 4, "reason": "Explicitly ffmpeg + tesseract-ocr over a video to recover every LINK record and rebuild the full topology file."},
+      {"rank": 9, "task_id": "task_001414_80b8c27d", "skill": 4, "domain": 4, "task_form": 4, "overall": 4, "reason": "Recover a replication topology from a diagnostic video recording; the text exists only in the pixels."},
+      {"rank": 10, "task_id": "task_000159_edb7847d", "skill": 4, "domain": 3, "task_form": 4, "overall": 3, "reason": "OCR specific frames and concatenate the strings in frame order; ordering across frames is the shared difficulty."}
+    ],
+    "Recursive-Task-Synthesis": [
+      {"rank": 1, "task_id": "rts_task_7eefa8c4246cf6df33bd2f2a", "skill": 4, "domain": 4, "task_form": 4, "overall": 4, "reason": "Pick out the lines beginning with the interactive prompt in a CLI session transcript - the same input-vs-output discrimination Zork needs."},
+      {"rank": 2, "task_id": "rts_task_70ed7609fbfbba6f50de99ab", "skill": 4, "domain": 4, "task_form": 4, "overall": 4, "reason": "Extract every user-issued control command from a session transcript in order; one command per output line."},
+      {"rank": 3, "task_id": "rts_task_a1e39edf2edb0f23c15e7c51", "skill": 4, "domain": 4, "task_form": 4, "overall": 4, "reason": "Identify commands by the `spoticli ~$` prompt marker; identical to spotting the '>' prompt lines in a Zork session."},
+      {"rank": 4, "task_id": "rts_task_24c622e27d8e191de82952bc", "skill": 4, "domain": 4, "task_form": 4, "overall": 3, "reason": "Same transcript-to-command-list extraction with a specified command vocabulary to filter against."},
+      {"rank": 5, "task_id": "rts_task_e80728a179b2c638a0cc684c", "skill": 3, "domain": 4, "task_form": 4, "overall": 3, "reason": "Another variant of the transcript command extraction; reinforces prompt-line parsing but adds nothing new."},
+      {"rank": 6, "task_id": "rts_task_2c6794e6c4d86fd5e12cbd72", "skill": 3, "domain": 4, "task_form": 4, "overall": 3, "reason": "Transcript command extraction again, phrased without naming the tool; same filtering problem."},
+      {"rank": 7, "task_id": "rts_task_9769e71646eb8099ac186168", "skill": 3, "domain": 4, "task_form": 4, "overall": 3, "reason": "Bash-script version of the transcript extractor; forces a line-oriented shell pipeline over the session text."},
+      {"rank": 8, "task_id": "rts_task_1b9d4a6a372614dbbd50b4d4", "skill": 3, "domain": 2, "task_form": 4, "overall": 2, "reason": "Recover a chain of hidden data out of JPEG images; extracting content that only exists inside a media file."},
+      {"rank": 9, "task_id": "rts_task_2a5a90dca1ff15e910fa475e", "skill": 2, "domain": 2, "task_form": 3, "overall": 2, "reason": "Run a tool and capture its generated links into an exact output file; output-capture discipline only."},
+      {"rank": 10, "task_id": "rts_task_ebc879e1a7981aa446f06aef", "skill": 1, "domain": 1, "task_form": 2, "overall": 1, "reason": "Composer setup then run gendiff; shares only the produce-a-text-file-from-a-tool shell."}
+    ],
+    "TerminalWorld-Seeds-Clean": [
+      {"rank": 1, "task_id": "tw_345797", "skill": 4, "domain": 4, "task_form": 4, "overall": 4, "reason": "A CLI session transcript where each command line starts with the prompt; extract what the user typed - the second half of this task."},
+      {"rank": 2, "task_id": "tw_18610", "skill": 4, "domain": 3, "task_form": 4, "overall": 3, "reason": "Reconstruct what a user actually typed from a raw stream, applying 0x7f backspaces; recovering input from a noisy rendering."},
+      {"rank": 3, "task_id": "tw_114823", "skill": 2, "domain": 4, "task_form": 2, "overall": 2, "reason": "Record a terminal session to a self-contained HTML capture; the production side of terminal-session recordings."},
+      {"rank": 4, "task_id": "tw_12457", "skill": 2, "domain": 4, "task_form": 2, "overall": 2, "reason": "Mux a subtitle track into an MP4 with MEncoder; text-and-video tooling with an encoding gotcha."},
+      {"rank": 5, "task_id": "tw_104869", "skill": 2, "domain": 4, "task_form": 2, "overall": 2, "reason": "Batch ffmpeg conversion over extracted media files; ffmpeg driving, no extraction of meaning."},
+      {"rank": 6, "task_id": "tw_747251", "skill": 3, "domain": 2, "task_form": 3, "overall": 2, "reason": "Write out the exact ordered sequence of commands for a workflow; an ordered command list as the deliverable."},
+      {"rank": 7, "task_id": "tw_166689", "skill": 2, "domain": 2, "task_form": 3, "overall": 2, "reason": "Filter a file to its non-comment non-blank lines, one per line with a trailing newline; the output contract, nothing else."},
+      {"rank": 8, "task_id": "tw_6636", "skill": 2, "domain": 1, "task_form": 3, "overall": 2, "reason": "Select the lines matching a precise predicate and write exactly those; line-level filtering discipline."},
+      {"rank": 9, "task_id": "tw_120441", "skill": 1, "domain": 2, "task_form": 2, "overall": 1, "reason": "Pull one fingerprint string out of tool output into solution.txt; extraction, but trivial and single-valued."},
+      {"rank": 10, "task_id": "tw_570064", "skill": 1, "domain": 1, "task_form": 2, "overall": 1, "reason": "Find files by name or content and list them; shares only the write-a-list-to-a-file shape."}
+    ],
+    "SWE-Smith-Seeds-Clean": [
+      {"rank": 1, "task_id": "google__textfsm.c31b6007.func_pm_class_rm_funcs__ryghe69p", "skill": 4, "domain": 4, "task_form": 2, "overall": 3, "reason": "TextFSM is a state machine for turning raw CLI terminal output into records; this bug is in List-value accumulation across lines."},
+      {"rank": 2, "task_id": "google__textfsm.c31b6007.func_basic__ajsqn8d7", "skill": 4, "domain": 4, "task_form": 2, "overall": 3, "reason": "List values initialised wrongly so multi-line captures from console output break; accumulating matched lines in order."},
+      {"rank": 3, "task_id": "google__textfsm.c31b6007.combine_file__ued7oy1f", "skill": 3, "domain": 4, "task_form": 2, "overall": 3, "reason": "TextFSMValue/TextFSMRule round-tripping; the rule language that decides which terminal lines count as data."},
+      {"rank": 4, "task_id": "google__textfsm.c31b6007.func_pm_class_rm_funcs__l5u9pdpm", "skill": 2, "domain": 4, "task_form": 2, "overall": 2, "reason": "Pager in TextFSM's terminal module; terminal text paging, adjacent but not extraction."},
+      {"rank": 5, "task_id": "google__textfsm.c31b6007.combine_file__7milf7b7", "skill": 2, "domain": 3, "task_form": 2, "overall": 2, "reason": "Inverted column-filter logic in texttable; selecting which parsed rows/columns survive."},
+      {"rank": 6, "task_id": "google__textfsm.c31b6007.func_basic__c99ey74q", "skill": 2, "domain": 3, "task_form": 2, "overall": 2, "reason": "Row append returns a string instead of a list; record-building semantics in the same parsing library."},
+      {"rank": 7, "task_id": "Cog-Creators__Red-DiscordBot.33e0eac7.func_pm_remove_assign__z4uptllb", "skill": 3, "domain": 2, "task_form": 2, "overall": 2, "reason": "pagify must split long text into pages without breaking lines; boundary handling of overlapping text chunks."},
+      {"rank": 8, "task_id": "borntyping__python-colorlog.dfa10f59.lm_rewrite__7enf7xmd", "skill": 2, "domain": 3, "task_form": 2, "overall": 2, "reason": "Missing ANSI escape codes in formatted output; the escape noise OCR of a colourised terminal has to survive."},
+      {"rank": 9, "task_id": "tweepy__tweepy.91a41c6e.lm_rewrite__0phsmhs8", "skill": 2, "domain": 3, "task_form": 2, "overall": 2, "reason": "Chunked MP4 upload fails; MP4 handling, but transport rather than decoding."},
+      {"rank": 10, "task_id": "amueller__word_cloud.ec24191c.func_pm_remove_cond__as5zu4uh", "skill": 1, "domain": 2, "task_form": 2, "overall": 1, "reason": "CLI FileType mishandles '-' for stdin/stdout; only the text-in/text-out CLI plumbing is shared."}
+    ],
+    "SWE-Rebench-Tasks-Clean": [
+      {"rank": 1, "task_id": "zulko__moviepy-1768", "skill": 4, "domain": 5, "task_form": 2, "overall": 4, "reason": "FFmpegInfosParser breaks when ffmpeg changes its console indentation; parsing ffmpeg's textual output while driving video decoding."},
+      {"rank": 2, "task_id": "textualize__rich-3180", "skill": 3, "domain": 4, "task_form": 2, "overall": 3, "reason": "Text silently disappears when wrapping wide characters; terminal line-wrapping is what makes a scrolling screen hard to reassemble."},
+      {"rank": 3, "task_id": "kozea__weasyprint-2404", "skill": 3, "domain": 3, "task_form": 2, "overall": 3, "reason": "Text extracted from a rendered document comes out duplicated; the same duplicate-text failure mode as re-reading overlapping frames."},
+      {"rank": 4, "task_id": "textualize__rich-3130", "skill": 2, "domain": 4, "task_form": 2, "overall": 2, "reason": "Console rendering drops all but one link inside a table cell; content lost between model and rendered screen."},
+      {"rank": 5, "task_id": "textualize__rich-3296", "skill": 2, "domain": 4, "task_form": 2, "overall": 2, "reason": "Another rich console rendering defect; reasoning about what actually reaches the terminal surface."},
+      {"rank": 6, "task_id": "textualize__rich-2806", "skill": 2, "domain": 3, "task_form": 2, "overall": 2, "reason": "Console output misbehaves in a non-tty environment; terminal output plumbing."},
+      {"rank": 7, "task_id": "python-markdown__markdown-1072", "skill": 2, "domain": 2, "task_form": 2, "overall": 2, "reason": "Unclosed tag inside a code span; line-oriented text parsing where delimiters decide record boundaries."},
+      {"rank": 8, "task_id": "psd-tools__psd-tools-452", "skill": 2, "domain": 3, "task_form": 2, "overall": 2, "reason": "Image-file library input handling; opening and decoding image data, the stage before OCR."},
+      {"rank": 9, "task_id": "roskakori__pygount-55", "skill": 2, "domain": 2, "task_form": 2, "overall": 2, "reason": "Classify source lines as code/comment/empty; per-line classification of a text stream."},
+      {"rank": 10, "task_id": "textualize__rich-2943", "skill": 1, "domain": 3, "task_form": 2, "overall": 1, "reason": "Style hash not reset when meta and links are cleared; terminal-rendering internals with no extraction content."}
+    ],
+    "Terminal-Lego-15k": [
+      {"rank": 1, "task_id": "task_14037", "skill": 4, "domain": 4, "task_form": 4, "overall": 4, "reason": "CAPTCHA recognition: preprocess an image, run OCR, clean the noisy result - the OCR half of this task, with the noise."},
+      {"rank": 2, "task_id": "task_13520", "skill": 4, "domain": 4, "task_form": 4, "overall": 4, "reason": "Build an OCR pipeline that first detects text rectangles then recognises them; exactly how you would read a terminal frame."},
+      {"rank": 3, "task_id": "task_10476", "skill": 3, "domain": 4, "task_form": 3, "overall": 3, "reason": "Fix a detection program that reads frames from video with OpenCV; frame-loop plumbing plus a detection stage."},
+      {"rank": 4, "task_id": "task_09110", "skill": 3, "domain": 3, "task_form": 3, "overall": 3, "reason": "Measure similarity between two images; the comparison used to drop near-identical consecutive frames."},
+      {"rank": 5, "task_id": "task_13590", "skill": 3, "domain": 3, "task_form": 3, "overall": 3, "reason": "Detect rectangles in a binary image; locating text regions on a frame before recognising them."},
+      {"rank": 6, "task_id": "task_09778", "skill": 2, "domain": 4, "task_form": 3, "overall": 2, "reason": "Read duration straight out of the MP4 ISO-BMFF box structure; understanding the container this task's input is."},
+      {"rank": 7, "task_id": "task_12888", "skill": 2, "domain": 4, "task_form": 3, "overall": 2, "reason": "Pipe generated frames directly into ffmpeg; the frames-and-ffmpeg plumbing, in the opposite direction."},
+      {"rank": 8, "task_id": "task_13515", "skill": 2, "domain": 3, "task_form": 3, "overall": 2, "reason": "Resize versus pad with aspect-ratio preservation; the preprocessing choices that make or break OCR accuracy."},
+      {"rank": 9, "task_id": "task_07642", "skill": 2, "domain": 4, "task_form": 3, "overall": 2, "reason": "Run ffmpeg from Python subprocess and control its banner on stderr; driving ffmpeg cleanly from a script."},
+      {"rank": 10, "task_id": "task_04431", "skill": 2, "domain": 3, "task_form": 3, "overall": 2, "reason": "Convert an RGB image into a correctly shaped numpy array; the array handling every frame-processing loop starts with."}
+    ],
+    "CalibForge": [
+      {"rank": 1, "task_id": "file-operations_20260610_111702_003", "skill": 5, "domain": 4, "task_form": 4, "overall": 4, "reason": "Recover C source code from a screenshot - transcribing monospaced text out of pixels, exactly the OCR fidelity this task needs."},
+      {"rank": 2, "task_id": "video-processing_20260605_015435_001", "skill": 3, "domain": 5, "task_form": 3, "overall": 3, "reason": "Extract the frame nearest each target timestamp with correct presentation-time handling; correct frame sampling from an MP4."},
+      {"rank": 3, "task_id": "video-processing_20260602_105139_001", "skill": 3, "domain": 5, "task_form": 3, "overall": 3, "reason": "Group near-duplicate frames rather than exact copies; the deduplication a scrolling terminal recording forces."},
+      {"rank": 4, "task_id": "video-processing_20260610_111012_001", "skill": 3, "domain": 5, "task_form": 3, "overall": 3, "reason": "Detect frames identical to their predecessor; the cheap filter that stops you OCRing the same screen fifty times."},
+      {"rank": 5, "task_id": "video-processing_20260607_104421_001", "skill": 3, "domain": 5, "task_form": 3, "overall": 3, "reason": "Detect every visual change point in a video; in a terminal recording those are exactly the moments new text appears."},
+      {"rank": 6, "task_id": "video-processing_20260611_210349_001", "skill": 3, "domain": 5, "task_form": 3, "overall": 3, "reason": "Locate hard cuts in an MP4; same change-point detection over a frame sequence."},
+      {"rank": 7, "task_id": "video-processing_20260508_045920_001", "skill": 3, "domain": 5, "task_form": 3, "overall": 3, "reason": "Scene-cut detection where a naive per-pixel threshold fails; teaches robust frame-difference metrics."},
+      {"rank": 8, "task_id": "video-processing_20260612_191200_001", "skill": 3, "domain": 5, "task_form": 3, "overall": 3, "reason": "Shot boundaries plus one representative keyframe per shot; picking the frames worth reading."},
+      {"rank": 9, "task_id": "games_20260604_002443_001", "skill": 3, "domain": 3, "task_form": 4, "overall": 3, "reason": "Read a Minesweeper board out of a screenshot into structured state; recovering symbolic content from a rendered grid."},
+      {"rank": 10, "task_id": "video-processing_20260604_003113_001", "skill": 3, "domain": 5, "task_form": 3, "overall": 3, "reason": "Frame-by-frame analysis of an MP4 given as a CLI argument; the basic decode-and-iterate loop, no text."}
+    ]
+  },
+  "final_top10": [
+    {"rank": 1, "task_id": "task_001779_b04c543c", "source": "TMax-15K", "skill": 5, "domain": 5, "task_form": 5, "overall": 5, "reason": "OCR a scrolling terminal video and deduplicate overlapping text into one ordered transcript; the identical hard part."},
+    {"rank": 2, "task_id": "task_001906_46d1eb8c", "source": "TMax-15K", "skill": 5, "domain": 5, "task_form": 5, "overall": 5, "reason": "Rebuild console log state from a screen recording; the whole deliverable exists only as text on video frames."},
+    {"rank": 3, "task_id": "task_004605_6a1e7020", "source": "TMax-15K", "skill": 4, "domain": 5, "task_form": 4, "overall": 4, "reason": "ffmpeg plus tesseract over a terminal screencast, dedupe to unique entries, emit an ordered one-per-line file."},
+    {"rank": 4, "task_id": "task_000249_ff55f46a", "source": "TMax-15K", "skill": 4, "domain": 5, "task_form": 4, "overall": 4, "reason": "Read the commands an attacker typed off a screen recording of their terminal; same input-line recovery."},
+    {"rank": 5, "task_id": "task_005198_27da4d18", "source": "TMax-15K", "skill": 4, "domain": 5, "task_form": 4, "overall": 4, "reason": "Extract the content of a recorded terminal session from frames; no log file exists, only the video."},
+    {"rank": 6, "task_id": "task_000038_b0af17b4", "source": "TMax-15K", "skill": 4, "domain": 4, "task_form": 4, "overall": 4, "reason": "Named ffmpeg + tesseract-ocr pipeline that must recover every record from the video and rebuild the full file."},
+    {"rank": 7, "task_id": "task_004253_a219ac05", "source": "TMax-15K", "skill": 4, "domain": 5, "task_form": 4, "overall": 4, "reason": "Low-framerate console recording as the sole record; forces sensible frame sampling under dropped content."},
+    {"rank": 8, "task_id": "rts_task_7eefa8c4246cf6df33bd2f2a", "source": "Recursive-Task-Synthesis", "skill": 4, "domain": 4, "task_form": 4, "overall": 4, "reason": "Separate the user's typed commands from tool output in a session transcript by prompt prefix; the Zork half exactly."},
+    {"rank": 9, "task_id": "file-operations_20260610_111702_003", "source": "CalibForge", "skill": 5, "domain": 4, "task_form": 4, "overall": 4, "reason": "Transcribe monospaced source code out of a screenshot; the OCR-fidelity problem with no room for near-misses."},
+    {"rank": 10, "task_id": "tw_345797", "source": "TerminalWorld-Seeds-Clean", "skill": 4, "domain": 4, "task_form": 4, "overall": 4, "reason": "Pull the commands the user typed out of a CLI session transcript identified by its prompt marker."}
+  ],
+  "notes": "This is the one task where the v1 pool clearly beats the new corpora. TMax has a whole family of 'the only record is a screen recording of a terminal' tasks (task_001779_b04c543c, task_001906_46d1eb8c, task_004253_a219ac05, task_000249_ff55f46a, task_005198_27da4d18, task_003457_dffbb50a, task_001414_80b8c27d, task_004605_6a1e7020) plus ~800 further ffmpeg+tesseract hits; lexical retrieval surfaced generic /app/video.mp4 numeric-pipeline tasks instead and missed almost all of them. CalibForge has 20+ video-processing tasks but every one is visual analysis (scene cuts, freeze detection, stabilisation) - it has essentially no OCR-from-video, and its single best entry here is a screenshot-to-source-code task from file-operations. Terminal-Lego contributes two genuine OCR tasks (CAPTCHA recognition, an OCR pipeline) but nothing that combines OCR with video. The sleeper find is the Recursive-Task-Synthesis / TerminalWorld 'spoticli session transcript' family (seven RTS variants plus tw_345797): they are the second half of this task - deciding which lines of a terminal session the user typed - in pure text form, and retrieval did rank them, correctly for once. SWE-Smith's only real contribution is the google__textfsm cluster (a state machine for parsing raw CLI output into records), which is a better skill match than its `task_form` score suggests."
+}

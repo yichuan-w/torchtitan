@@ -1,0 +1,776 @@
+{
+  "tb21_id": "pypi-server",
+  "tb21_profile": {
+    "skill": "End-to-end Python packaging plumbing: author a distributable package whose metadata (name, version, root __init__ exports) is exactly right, build a wheel/sdist, stand up a PEP 503 simple index over HTTP on a chosen port, and install back through pip --index-url",
+    "domain": "Python packaging ecosystem - setuptools/pyproject.toml, build, pip index resolution, pypiserver/PEP 503, a local HTTP service on port 8080",
+    "task_form": "build/packaging plus configure-a-service, verified by an end-to-end round trip (pip install from your own server, then import and call)"
+  },
+  "verifier_notes": "CORRECTION PASS (fix-team 03, verifier_strength.json now authoritative). task_05331 ('Create a Local PyPI Repository Index Without Mirroring') was held out only by the stale FREE grade; it is `ok` (12 tests, strength 0.333) and is now promoted to rank 9. I read its tests: beyond the existence checks they require the root index.html to anchor-link both projects, each project index to link the exact sdist/wheel filenames, every index to contain real <a href=...> tags, and project directory names to be PEP 503-normalised. Those are checks on the artifact that IS the deliverable, so there is little room to satisfy them without generating a correct simple index. On merit it is the only task in the pool that builds the PEP 503 index format itself, which is precisely what the server on :8080/simple must emit for `pip install --index-url` to resolve vectorops==0.1.0. It displaces task_13067 (overall 3), an explain-the-difference-between---find-links-and---index-url exercise: the same subject matter but no artifact built and no service stood up. Terminal-Lego keeps its single slot, now with its better item. Retained from the original pass: the packet's verifier field and verifier_strength.json disagree on roughly a quarter of shown candidates. TMax task_003677_f4f9c42a also flipped (FREE -> strong) but the original pass dropped it from per_source entirely, so it is not eligible for final_top10 without re-opening per_source, which this pass leaves untouched. All seven Recursive-Task-Synthesis picks are graded 'absent' because that corpus ships no verifier in our copy; three of them are nonetheless the closest tasks in the entire pool, and the spec permits 'absent' in final_top10, so they remain promoted.",
+  "searches": [
+    "tools.py search all \"pypiserver|devpi|index-url|simple index|private (pypi|package index)|local pypi|twine\"",
+    "tools.py search rts \"pypiserver|devpi|local (pypi|package index)|index-url|/simple\"",
+    "tools.py search rts \"local PyPI server|pypi-server|pypiserver\"",
+    "tools.py show rts_task_9173775e4fed0b1b6ea3bb20 rts_task_70ff71f74af760685fa4c933 rts_task_48c4507057707ef10d25fe0d rts_task_b848ecf9d31631614baaa373 rts_task_8bc1e45fce83ca22dfa3d386 rts_task_a699d3a65c6c8290cbb0561f",
+    "tools.py show rts_task_173dafbc789b2867d531fa17 rts_task_7f4fd9a04408e198c5f9b6c3 rts_task_f1d6d4328e136c5a59f3090e rts_task_9a8e138f280a86e599824dc2 rts_task_632da3e3d77b7b76ea39f0a3",
+    "tools.py words tw pypi pip package wheel setup.py virtualenv index",
+    "tools.py show tw_485539 tw_677186 tw_677182",
+    "tools.py search tmax \"pypi|wheel|sdist|pyproject.toml|pip install \\.|twine|--index-url\"",
+    "tools.py words tmax pypi wheel pyproject.toml setup.py \"pip install\" \"package index\" http.server \"port 8080\"",
+    "tools.py show task_002897_90442cbb task_001241_92797f38 task_009002_dc7ea592",
+    "tools.py search rebench \"pypi|pip|setuptools|wheel|packaging|twine|bandersnatch|devpi\"",
+    "tools.py search rebench \"devpi|bandersnatch|pip-tools|setuptools|pypa\"",
+    "tools.py show devpi__devpi-1074 pypa__build-290 pypa__packaging-29 pypa__bandersnatch-1557 jazzband__pip-tools-737 pypa__setuptools-4676 pypa__pip-10288",
+    "tools.py search smith \"setuptools|pip |wheel|packaging|dist-info|entry.point\"",
+    "grep -rliE 'pypiserver|devpi|--index-url|simple/|twine|local pypi' /data/yichuan_wang/terminal-lego-15k",
+    "grep -rliE 'pypiserver|devpi|--index-url|/simple|twine' /data/yichuan_wang/calibforge"
+  ],
+  "per_source": {
+    "Recursive-Task-Synthesis": [
+      {
+        "rank": 1,
+        "task_id": "rts_task_9173775e4fed0b1b6ea3bb20",
+        "skill": 5,
+        "domain": 5,
+        "task_form": 5,
+        "overall": 5,
+        "reason": "Build a wheel from source, drop it in a served directory, start a local PyPI server on port 8080, then pip-install it into a venv and read __version__ back. Same round trip."
+      },
+      {
+        "rank": 2,
+        "task_id": "rts_task_173dafbc789b2867d531fa17",
+        "skill": 5,
+        "domain": 5,
+        "task_form": 5,
+        "overall": 5,
+        "reason": "Build the package from source into a dist directory, serve it at localhost:8080, install from that server and confirm the installed version; the whole TB2.1 pipeline."
+      },
+      {
+        "rank": 3,
+        "task_id": "rts_task_7f4fd9a04408e198c5f9b6c3",
+        "skill": 5,
+        "domain": 5,
+        "task_form": 5,
+        "overall": 5,
+        "reason": "Wheel build, local index on 8080, install from it, import and read __version__ - identical steps, with an env-index report bolted on."
+      },
+      {
+        "rank": 4,
+        "task_id": "rts_task_70ff71f74af760685fa4c933",
+        "skill": 4,
+        "domain": 5,
+        "task_form": 4,
+        "overall": 4,
+        "reason": "Run the local PyPI server on 8080 with logging and prove from the log that pip actually fetched from it - the strongest check that the index really served the package."
+      },
+      {
+        "rank": 5,
+        "task_id": "rts_task_f1d6d4328e136c5a59f3090e",
+        "skill": 4,
+        "domain": 5,
+        "task_form": 4,
+        "overall": 4,
+        "reason": "Health-check the local index before installing, install from localhost:8080, then shut the server down cleanly; adds index-endpoint verification."
+      },
+      {
+        "rank": 6,
+        "task_id": "rts_task_48c4507057707ef10d25fe0d",
+        "skill": 4,
+        "domain": 5,
+        "task_form": 4,
+        "overall": 4,
+        "reason": "Start the local PyPI server on 8080 from a package directory and install into a venv, then exercise a console command the installed package ships."
+      },
+      {
+        "rank": 7,
+        "task_id": "rts_task_632da3e3d77b7b76ea39f0a3",
+        "skill": 3,
+        "domain": 5,
+        "task_form": 4,
+        "overall": 3,
+        "reason": "Same server-on-8080 plus venv install, then use a command the installed package exposes; server setup is assumed rather than built."
+      },
+      {
+        "rank": 8,
+        "task_id": "rts_task_8bc1e45fce83ca22dfa3d386",
+        "skill": 3,
+        "domain": 5,
+        "task_form": 3,
+        "overall": 3,
+        "reason": "Local index on 8080 and venv install, with the work afterwards being data regeneration inside the installed package."
+      },
+      {
+        "rank": 9,
+        "task_id": "rts_task_b848ecf9d31631614baaa373",
+        "skill": 3,
+        "domain": 5,
+        "task_form": 3,
+        "overall": 3,
+        "reason": "Install myutility_internal from the server at localhost:8080 into a venv; the pip-through-a-local-index half only."
+      },
+      {
+        "rank": 10,
+        "task_id": "rts_task_a699d3a65c6c8290cbb0561f",
+        "skill": 3,
+        "domain": 5,
+        "task_form": 3,
+        "overall": 3,
+        "reason": "Same install-from-local-index setup with a post-install report; near-duplicate of ranks 8-9, listed because this corpus really does have thirty of these."
+      }
+    ],
+    "CalibForge": [
+      {
+        "rank": 1,
+        "task_id": "software-engineering_20260414_211453_020",
+        "skill": 4,
+        "domain": 5,
+        "task_form": 4,
+        "overall": 4,
+        "reason": "Package migrated to pyproject.toml with a src layout installs cleanly but its CLI entry point is broken; exactly the metadata-vs-import-path trap vectorops can fall into."
+      },
+      {
+        "rank": 2,
+        "task_id": "software-engineering_20260422_235124_007",
+        "skill": 4,
+        "domain": 5,
+        "task_form": 4,
+        "overall": 4,
+        "reason": "Adding a pyproject.toml breaks `pip install .` with a cryptic import error; diagnosing why a build backend cannot find the package, verified strong 1.0."
+      },
+      {
+        "rank": 3,
+        "task_id": "software-engineering_20260414_091921_020",
+        "skill": 4,
+        "domain": 5,
+        "task_form": 4,
+        "overall": 4,
+        "reason": "Package fails to build and its CLI commands are missing; must fix both the build config and the console-script declarations."
+      },
+      {
+        "rank": 4,
+        "task_id": "software-engineering_20260413_173854_020",
+        "skill": 4,
+        "domain": 5,
+        "task_form": 4,
+        "overall": 4,
+        "reason": "`pip install /app/myproject` fails with a module import error and the installed command must work afterwards; the same install-then-use acceptance test."
+      },
+      {
+        "rank": 5,
+        "task_id": "software-engineering_20260414_211532_005",
+        "skill": 4,
+        "domain": 5,
+        "task_form": 4,
+        "overall": 4,
+        "reason": "Migrate a legacy setup.py to PEP 621 pyproject.toml with no behaviour change; authoring correct name/version/packages metadata from scratch."
+      },
+      {
+        "rank": 6,
+        "task_id": "software-engineering_20260417_112147_020",
+        "skill": 3,
+        "domain": 5,
+        "task_form": 3,
+        "overall": 3,
+        "reason": "A package with both pyproject.toml and setup.py declares three console scripts that do not appear; entry-point resolution across two config files."
+      },
+      {
+        "rank": 7,
+        "task_id": "software-engineering_20260419_112101_020",
+        "skill": 3,
+        "domain": 5,
+        "task_form": 3,
+        "overall": 3,
+        "reason": "`pip install -e .` succeeds but the qsim-run command is not found; the classic entry-points/packages mismatch."
+      },
+      {
+        "rank": 8,
+        "task_id": "software-engineering_20260418_044216_020",
+        "skill": 3,
+        "domain": 5,
+        "task_form": 3,
+        "overall": 3,
+        "reason": "Install a package into a specific virtualenv where pip currently fails; venv-targeted installation, which the TB2.1 round trip also needs."
+      },
+      {
+        "rank": 9,
+        "task_id": "software-engineering_20260414_080620_009",
+        "skill": 3,
+        "domain": 5,
+        "task_form": 3,
+        "overall": 3,
+        "reason": "Finish an abandoned package so it installs and works; the make-it-installable goal with several independent misconfigurations."
+      },
+      {
+        "rank": 10,
+        "task_id": "software-engineering_20260414_091921_009",
+        "skill": 3,
+        "domain": 5,
+        "task_form": 3,
+        "overall": 3,
+        "reason": "Editable install leaves the datatool command unavailable; another entry-point fix, near-duplicate of rank 7."
+      }
+    ],
+    "TMax-15K": [
+      {
+        "rank": 1,
+        "task_id": "task_002897_90442cbb",
+        "skill": 4,
+        "domain": 5,
+        "task_form": 4,
+        "overall": 4,
+        "reason": "Author a package with setup.py and a console entry point, pip install -e it, serve on port 8080 and verify end to end with curl; packaging plus local service in one task."
+      },
+      {
+        "rank": 2,
+        "task_id": "task_006441_caacf65d",
+        "skill": 4,
+        "domain": 5,
+        "task_form": 3,
+        "overall": 4,
+        "reason": "Review a PR that moves a package to a new build system and fix what it broke; build-backend migration judged by the package still working."
+      },
+      {
+        "rank": 3,
+        "task_id": "task_001241_92797f38",
+        "skill": 3,
+        "domain": 5,
+        "task_form": 4,
+        "overall": 3,
+        "reason": "Resolve conflicting dependency constraints in pyproject.toml until `pip install .` succeeds, then stand up a service; dependency resolution plus a local endpoint."
+      },
+      {
+        "rank": 4,
+        "task_id": "task_009002_dc7ea592",
+        "skill": 3,
+        "domain": 5,
+        "task_form": 3,
+        "overall": 3,
+        "reason": "A legacy package with a broken installation configuration must be made installable; setup/metadata repair under Python 3."
+      },
+      {
+        "rank": 5,
+        "task_id": "task_000440_cadc0d86",
+        "skill": 3,
+        "domain": 5,
+        "task_form": 3,
+        "overall": 3,
+        "reason": "Fix a broken PR for a Python package with an optional C extension so it installs and imports; package layout and optional-build handling."
+      },
+      {
+        "rank": 6,
+        "task_id": "task_007057_db8b3737",
+        "skill": 3,
+        "domain": 4,
+        "task_form": 3,
+        "overall": 3,
+        "reason": "Complete a distributable package that wraps a C solver; getting the package importable with its exported function, like dotproduct at the root."
+      },
+      {
+        "rank": 7,
+        "task_id": "task_004929_6fae75bb",
+        "skill": 3,
+        "domain": 5,
+        "task_form": 3,
+        "overall": 3,
+        "reason": "A locally vendored scientific package will not install into the pipeline; installing from a local source rather than public PyPI."
+      },
+      {
+        "rank": 8,
+        "task_id": "task_008670_018cd1e6",
+        "skill": 3,
+        "domain": 4,
+        "task_form": 3,
+        "overall": 3,
+        "reason": "Port a hybrid Python/Rust package so it builds and runs in a minimal environment; end-to-end build-install-run with a pinned result."
+      },
+      {
+        "rank": 9,
+        "task_id": "task_009792_351a2026",
+        "skill": 2,
+        "domain": 4,
+        "task_form": 3,
+        "overall": 2,
+        "reason": "Repair a broken Python package inside a CI pipeline step; packaging failure diagnosis in a build-automation frame."
+      },
+      {
+        "rank": 10,
+        "task_id": "task_003446_7ec894d9",
+        "skill": 2,
+        "domain": 4,
+        "task_form": 3,
+        "overall": 2,
+        "reason": "Fix a vendored auditing package and expose it behind an API; packaging plus service, but the bulk of the work is elsewhere."
+      }
+    ],
+    "TerminalWorld-Seeds-Clean": [
+      {
+        "rank": 1,
+        "task_id": "tw_485539",
+        "skill": 4,
+        "domain": 5,
+        "task_form": 4,
+        "overall": 4,
+        "reason": "Create a venv and install myutility_internal from a local PyPI server at localhost:8080 serving a package directory, then import it and read __version__. The TB2.1 install half exactly."
+      },
+      {
+        "rank": 2,
+        "task_id": "tw_677186",
+        "skill": 4,
+        "domain": 5,
+        "task_form": 4,
+        "overall": 4,
+        "reason": "Build a Python project into a wheel under dist/ and install it so the package is importable; the build-and-install half exactly."
+      },
+      {
+        "rank": 3,
+        "task_id": "tw_677182",
+        "skill": 4,
+        "domain": 5,
+        "task_form": 4,
+        "overall": 3,
+        "reason": "Build the same project as a wheel, install it and run the full suite including CLI entry-point tests; adds the entry-point-must-work check."
+      },
+      {
+        "rank": 4,
+        "task_id": "tw_385269",
+        "skill": 2,
+        "domain": 5,
+        "task_form": 3,
+        "overall": 3,
+        "reason": "Create a venv and pip install a package into it, recording install details; the venv-and-pip mechanics, no index server. Verifier strong."
+      },
+      {
+        "rank": 5,
+        "task_id": "tw_260060",
+        "skill": 3,
+        "domain": 5,
+        "task_form": 3,
+        "overall": 3,
+        "reason": "Install a specific version of a package with native extensions into a named venv; version-pinned installation like vectorops==0.1.0."
+      },
+      {
+        "rank": 6,
+        "task_id": "tw_220186",
+        "skill": 3,
+        "domain": 3,
+        "task_form": 4,
+        "overall": 3,
+        "reason": "Build a local Helm chart repository from chart source and serve it as an index; the same package-index-from-scratch shape in a different ecosystem."
+      },
+      {
+        "rank": 7,
+        "task_id": "tw_355118",
+        "skill": 2,
+        "domain": 4,
+        "task_form": 2,
+        "overall": 2,
+        "reason": "Provision a Python toolchain with pip and pipenv available system-wide; the environment the packaging round trip runs in. Verifier strong."
+      },
+      {
+        "rank": 8,
+        "task_id": "tw_528959",
+        "skill": 2,
+        "domain": 4,
+        "task_form": 2,
+        "overall": 2,
+        "reason": "Compile CPython from source and verify the interpreter; the layer underneath pip, useful but not the task."
+      },
+      {
+        "rank": 9,
+        "task_id": "tw_257385",
+        "skill": 1,
+        "domain": 4,
+        "task_form": 2,
+        "overall": 2,
+        "reason": "Create a conda environment and install a package into it, then use it; environment-and-install only, different package manager."
+      },
+      {
+        "rank": 10,
+        "task_id": "tw_5976",
+        "skill": 1,
+        "domain": 1,
+        "task_form": 2,
+        "overall": 1,
+        "reason": "Run a script and save stdout; filler - beyond rank 6 this corpus has nothing about package indexes."
+      }
+    ],
+    "Terminal-Lego-15k": [
+      {
+        "rank": 1,
+        "task_id": "task_05331",
+        "skill": 4,
+        "domain": 5,
+        "task_form": 4,
+        "overall": 4,
+        "reason": "Generate a PEP 503 simple index over a directory of packages so pip --index-url can install from it; the server-side format this task must serve. Graded FREE in the packet - not promoted."
+      },
+      {
+        "rank": 2,
+        "task_id": "task_13067",
+        "skill": 3,
+        "domain": 5,
+        "task_form": 3,
+        "overall": 3,
+        "reason": "Demonstrate concretely how --find-links differs from --index-url, including what pip expects at each; the resolution semantics the TB2.1 command depends on."
+      },
+      {
+        "rank": 3,
+        "task_id": "task_05234",
+        "skill": 3,
+        "domain": 5,
+        "task_form": 3,
+        "overall": 3,
+        "reason": "Configure pip to consult several package indexes at once; index precedence and configuration, the same flag family."
+      },
+      {
+        "rank": 4,
+        "task_id": "task_05284",
+        "skill": 3,
+        "domain": 5,
+        "task_form": 3,
+        "overall": 3,
+        "reason": "Install from TestPyPI while resolving dependencies from real PyPI; the classic failure of pointing --index-url at a partial index."
+      },
+      {
+        "rank": 5,
+        "task_id": "task_05232",
+        "skill": 2,
+        "domain": 5,
+        "task_form": 3,
+        "overall": 2,
+        "reason": "Point a requirements.txt at an alternative package index; declaring a non-default index in a config file."
+      },
+      {
+        "rank": 6,
+        "task_id": "task_05237",
+        "skill": 2,
+        "domain": 5,
+        "task_form": 3,
+        "overall": 2,
+        "reason": "Create and configure a pip.conf so pip picks up settings without command-line flags; the persistent-config counterpart of --index-url."
+      },
+      {
+        "rank": 7,
+        "task_id": "task_01567",
+        "skill": 3,
+        "domain": 4,
+        "task_form": 3,
+        "overall": 2,
+        "reason": "Make a package runnable with python -m via __main__.py; package-root layout and what belongs at the top level, like dotproduct in __init__.py."
+      },
+      {
+        "rank": 8,
+        "task_id": "task_01412",
+        "skill": 3,
+        "domain": 4,
+        "task_form": 3,
+        "overall": 2,
+        "reason": "Build a Python egg from scratch and inspect what it contains; distribution-artifact anatomy, older format."
+      },
+      {
+        "rank": 9,
+        "task_id": "task_13019",
+        "skill": 2,
+        "domain": 4,
+        "task_form": 3,
+        "overall": 2,
+        "reason": "Create a package and show how editable installs behave; building a minimal installable package, then verifying import behaviour."
+      },
+      {
+        "rank": 10,
+        "task_id": "task_01077",
+        "skill": 2,
+        "domain": 5,
+        "task_form": 2,
+        "overall": 2,
+        "reason": "Install a specific pinned version with pip; the version-pinning clause of the target command and nothing more."
+      }
+    ],
+    "SWE-Rebench-Tasks-Clean": [
+      {
+        "rank": 1,
+        "task_id": "pypa__bandersnatch-1557",
+        "skill": 4,
+        "domain": 5,
+        "task_form": 2,
+        "overall": 4,
+        "reason": "Implement PEP 700 fields in a PyPI mirror's simple index; this is the wire format the local index server must produce for pip."
+      },
+      {
+        "rank": 2,
+        "task_id": "devpi__devpi-1074",
+        "skill": 3,
+        "domain": 5,
+        "task_form": 2,
+        "overall": 3,
+        "reason": "devpi is a private PyPI index server; the bug is in how a client talks to a self-hosted index URL - the same client/server pair as here."
+      },
+      {
+        "rank": 3,
+        "task_id": "pypa__packaging-29",
+        "skill": 3,
+        "domain": 5,
+        "task_form": 2,
+        "overall": 3,
+        "reason": "pip install from a devpi +simple/ index fails intermittently on a pre-release specifier; version-specifier semantics behind vectorops==0.1.0."
+      },
+      {
+        "rank": 4,
+        "task_id": "pypa__build-290",
+        "skill": 3,
+        "domain": 5,
+        "task_form": 2,
+        "overall": 3,
+        "reason": "The pypa build frontend that turns a source tree into a wheel; the exact tool the TB2.1 solution invokes."
+      },
+      {
+        "rank": 5,
+        "task_id": "pypa__setuptools-4676",
+        "skill": 3,
+        "domain": 5,
+        "task_form": 2,
+        "overall": 3,
+        "reason": "Wheel ABI tag computed wrongly; wheel filename tags decide whether pip will even consider the artifact your index serves."
+      },
+      {
+        "rank": 6,
+        "task_id": "pypa__pip-10288",
+        "skill": 2,
+        "domain": 5,
+        "task_form": 2,
+        "overall": 2,
+        "reason": "pip's handling of credentials when talking to an index; the client side of self-hosted index access."
+      },
+      {
+        "rank": 7,
+        "task_id": "jazzband__pip-tools-737",
+        "skill": 2,
+        "domain": 5,
+        "task_form": 2,
+        "overall": 2,
+        "reason": "pip-sync invokes the wrong pip from PATH; which interpreter and environment an install actually lands in."
+      },
+      {
+        "rank": 8,
+        "task_id": "joerick__cibuildwheel-295",
+        "skill": 2,
+        "domain": 5,
+        "task_form": 2,
+        "overall": 2,
+        "reason": "Build wheels for a package living in a subdirectory; build-invocation plumbing for distributions."
+      },
+      {
+        "rank": 9,
+        "task_id": "jazzband__pip-tools-798",
+        "skill": 2,
+        "domain": 5,
+        "task_form": 2,
+        "overall": 2,
+        "reason": "Requirement compilation and pinning behaviour; dependency-pinning mechanics adjacent to the install command."
+      },
+      {
+        "rank": 10,
+        "task_id": "conda__conda-8184",
+        "skill": 2,
+        "domain": 3,
+        "task_form": 2,
+        "overall": 2,
+        "reason": "Channel and package resolution in conda; the same index-and-resolver problem in a different packaging world."
+      }
+    ],
+    "SWE-Smith-Seeds-Clean": [
+      {
+        "rank": 1,
+        "task_id": "pallets__click.fde47b4b.pr_2604",
+        "skill": 3,
+        "domain": 4,
+        "task_form": 2,
+        "overall": 3,
+        "reason": "How a function name becomes an exposed command name; the naming layer between a package's code and the console script pip installs."
+      },
+      {
+        "rank": 2,
+        "task_id": "conan-io__conan.86f29e13.pr_10619",
+        "skill": 3,
+        "domain": 4,
+        "task_form": 2,
+        "overall": 2,
+        "reason": "Package metadata file is not created on export in a package manager; metadata-generation bugs of the kind that break an index entry."
+      },
+      {
+        "rank": 3,
+        "task_id": "conan-io__conan.86f29e13.pr_14886",
+        "skill": 2,
+        "domain": 4,
+        "task_form": 2,
+        "overall": 2,
+        "reason": "Serialization of a package requirement loses its path; recipe/requirement metadata fidelity in a package manager."
+      },
+      {
+        "rank": 4,
+        "task_id": "conan-io__conan.86f29e13.pr_12380",
+        "skill": 2,
+        "domain": 4,
+        "task_form": 2,
+        "overall": 2,
+        "reason": "Dependency-graph package-type processing yields wrong resolutions; resolver behaviour, the conceptual sibling of pip's index resolution."
+      },
+      {
+        "rank": 5,
+        "task_id": "pyupio__safety.7654596b.pr_508",
+        "skill": 2,
+        "domain": 4,
+        "task_form": 2,
+        "overall": 2,
+        "reason": "A packaging-ecosystem CLI missing a documented auth mode; tool-plus-index interaction in the Python supply chain."
+      },
+      {
+        "rank": 6,
+        "task_id": "iterative__dvc.1d6ea681.pr_8343",
+        "skill": 2,
+        "domain": 3,
+        "task_form": 2,
+        "overall": 2,
+        "reason": "Importing an artifact from remote storage without downloading it; fetching a versioned artifact from a remote store."
+      },
+      {
+        "rank": 7,
+        "task_id": "benoitc__gunicorn.bacbf8aa.lm_rewrite__4twhroug",
+        "skill": 2,
+        "domain": 3,
+        "task_form": 2,
+        "overall": 2,
+        "reason": "Server sockets are not unlinked on shutdown; the local-HTTP-server lifecycle concerns that bite when you background a pypiserver."
+      },
+      {
+        "rank": 8,
+        "task_id": "encode__starlette.db5063c2.pr_2264",
+        "skill": 2,
+        "domain": 3,
+        "task_form": 2,
+        "overall": 1,
+        "reason": "HTTP framework behaviour on responses; serving files over HTTP correctly, at one remove."
+      },
+      {
+        "rank": 9,
+        "task_id": "pyupio__safety.7654596b.pr_661",
+        "skill": 1,
+        "domain": 3,
+        "task_form": 2,
+        "overall": 1,
+        "reason": "A --debug flag does nothing in a Python-dependency scanner; CLI wiring in the packaging ecosystem. Filler."
+      },
+      {
+        "rank": 10,
+        "task_id": "Instagram__MonkeyType.70c3acf6.pr_151",
+        "skill": 1,
+        "domain": 2,
+        "task_form": 2,
+        "overall": 1,
+        "reason": "Type-annotation generation tooling; filler - SWE-Smith contains no packaging or index-server task."
+      }
+    ]
+  },
+  "final_top10": [
+    {
+      "rank": 1,
+      "task_id": "rts_task_9173775e4fed0b1b6ea3bb20",
+      "source": "Recursive-Task-Synthesis",
+      "skill": 5,
+      "domain": 5,
+      "task_form": 5,
+      "overall": 5,
+      "reason": "Build a wheel from source, serve it from a local PyPI server on port 8080, pip-install it into a venv and read the installed version back. Same task, different package."
+    },
+    {
+      "rank": 2,
+      "task_id": "rts_task_173dafbc789b2867d531fa17",
+      "source": "Recursive-Task-Synthesis",
+      "skill": 5,
+      "domain": 5,
+      "task_form": 5,
+      "overall": 5,
+      "reason": "Build the distribution from source into a served directory, run the index at localhost:8080, install from it and verify the version; the identical round trip."
+    },
+    {
+      "rank": 3,
+      "task_id": "rts_task_7f4fd9a04408e198c5f9b6c3",
+      "source": "Recursive-Task-Synthesis",
+      "skill": 5,
+      "domain": 5,
+      "task_form": 5,
+      "overall": 5,
+      "reason": "Wheel build, local index on port 8080, install through it, then import the package and read __version__ - every step of the TB2.1 task."
+    },
+    {
+      "rank": 4,
+      "task_id": "tw_485539",
+      "source": "TerminalWorld-Seeds-Clean",
+      "skill": 4,
+      "domain": 5,
+      "task_form": 4,
+      "overall": 4,
+      "reason": "Install a package from a local PyPI server at localhost:8080 into a venv and import it; the pip --index-url half, with a real verifier attached."
+    },
+    {
+      "rank": 5,
+      "task_id": "rts_task_70ff71f74af760685fa4c933",
+      "source": "Recursive-Task-Synthesis",
+      "skill": 4,
+      "domain": 5,
+      "task_form": 4,
+      "overall": 4,
+      "reason": "Run the index on 8080 with logging and prove from the server log that pip fetched the package from it - the strongest end-to-end check of the serving half."
+    },
+    {
+      "rank": 6,
+      "task_id": "task_002897_90442cbb",
+      "source": "TMax-15K",
+      "skill": 4,
+      "domain": 5,
+      "task_form": 4,
+      "overall": 4,
+      "reason": "Author a package with setup.py and a console entry point, pip install it, bring up a service on port 8080 and verify through it with curl; packaging plus local service."
+    },
+    {
+      "rank": 7,
+      "task_id": "software-engineering_20260414_211453_020",
+      "source": "CalibForge",
+      "skill": 4,
+      "domain": 5,
+      "task_form": 4,
+      "overall": 4,
+      "reason": "A pyproject/src-layout package installs but its entry point does not work; the metadata-vs-import-path trap that decides whether `from vectorops import dotproduct` succeeds."
+    },
+    {
+      "rank": 8,
+      "task_id": "software-engineering_20260422_235124_007",
+      "source": "CalibForge",
+      "skill": 4,
+      "domain": 5,
+      "task_form": 4,
+      "overall": 4,
+      "reason": "pip install . fails with a cryptic import error after adding pyproject.toml; diagnosing why a build backend cannot find the package. Verified strong 1.0."
+    },
+    {
+      "rank": 9,
+      "task_id": "task_05331",
+      "source": "Terminal-Lego-15k",
+      "skill": 4,
+      "domain": 5,
+      "task_form": 4,
+      "overall": 4,
+      "reason": "Generate a PEP 503 simple index (root plus per-project index.html, normalised names) over a package directory so pip --index-url can install from it"
+    },
+    {
+      "rank": 10,
+      "task_id": "pypa__bandersnatch-1557",
+      "source": "SWE-Rebench-Tasks-Clean",
+      "skill": 4,
+      "domain": 5,
+      "task_form": 2,
+      "overall": 3,
+      "reason": "Implement PEP 700 fields in a PyPI mirror's simple index - the exact wire format the server at :8080/simple has to emit for pip."
+    }
+  ],
+  "notes": "This is the one task of my five where an OLD corpus wins outright. Recursive-Task-Synthesis contains roughly thirty near-identical tasks built on 'start a local PyPI server on http://localhost:8080/ and pip-install myutility_internal from it', and three of them (9173775e, 173dafbc, 7f4fd9a0) additionally build the wheel from source first, which makes them a step-for-step match for this TB2.1 task - closer than anything in either new corpus. TerminalWorld carries the seed of that same family (tw_485539). Retrieval surfaced almost none of it: the packet's RTS shortlist was benchmark/portfolio noise, and I found the family by searching for 'pypiserver|devpi|local pypi|index-url'. The new corpora are still strong but on the other half of the task: CalibForge has a large, uniformly well-verified family of Python-packaging repair tasks (software-engineering_*_020/_007/_009 - pyproject migration, src layout, entry points, pip install failures) that teach getting a package's metadata right, and nothing about index servers; Terminal-Lego has a pip-configuration cluster covering --index-url semantics, including the best simple-index task in the pool (task_05331, PEP 503 index generation) which I could not promote because the packet grades it FREE. Two caveats for the merge: (1) the RTS family is homogeneous, so three of them is already the point of diminishing returns and all thirty share one fictional package; (2) all RTS entries are 'absent' verifier, so if the merge wants graded coverage of the serving half, tw_485539 and pypa__bandersnatch-1557 are the graded substitutes. SWE-Smith is the only genuinely weak corpus here - it has no packaging or index task at all, so its ranks 6-10 are filler at overall 1-2."
+}

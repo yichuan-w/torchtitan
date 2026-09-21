@@ -1,0 +1,766 @@
+{
+  "tb21_id": "db-wal-recovery",
+  "tb21_profile": {
+    "skill": "Understand the SQLite WAL on-disk binary format (header magic, page size, frame headers, checksums), repair a corrupted/tampered WAL so SQLite will replay it, and extract every committed record exactly",
+    "domain": "SQLite internals and WAL, database file-format parsing/repair, binary data recovery",
+    "task_form": "recover/repair-corrupted-data: fix a damaged binary DB artifact and emit exact records as JSON sorted by id"
+  },
+  "verifier_notes": "TMax task_002015_30c1f280 (WAL recovery tool -> JSON) reads as an ideal match but is FREE per work/verifier_strength.json (single non-value test), so it is ranked in TMax per_source only, not final_top10. CalibForge debugging_20260508_204815_005 is strong (the packet's inline field understated it) and is a bullseye: it corrupts the WAL header magic + page-size fields, exactly the 'fix the WAL file so SQLite can read it' step.",
+  "searches": [
+    "tools.py packet review across all seven corpora",
+    "grade lookups via work/verifier_strength.json for ~55 candidates",
+    "tools.py search smith 'sqlite|SQLite|wal|write-ahead|checksum|binary format|struct.unpack|parquet|deserial|recover'",
+    "tools.py search rebench 'sqlite|SQLite|write-ahead| wal |checksum|parquet|deserial|recover|corrupt'",
+    "new-corpora scan: CalibForge file-operations_* / debugging_* (SQLite WAL recovery, corrupted-header repair, recovered.json output)",
+    "new-corpora scan: Terminal-Lego task_14420/08015/07852/07920/14378 (SQLite WAL checkpoint/management)"
+  ],
+  "per_source": {
+    "TMax-15K": [
+      {
+        "rank": 1,
+        "task_id": "task_001233_2cf2dc10",
+        "skill": 4,
+        "domain": 5,
+        "task_form": 4,
+        "overall": 4,
+        "reason": "Recover a SQLite database left in WAL state, then continue processing; SQLite-WAL recovery is the crux, strong verifier."
+      },
+      {
+        "rank": 2,
+        "task_id": "task_002461_c1a45b43",
+        "skill": 4,
+        "domain": 5,
+        "task_form": 4,
+        "overall": 4,
+        "reason": "A segfault left an orphaned SQLite .db-wal; recover the database from the .db + .db-wal pair \u2014 the same artifact and recovery goal."
+      },
+      {
+        "rank": 3,
+        "task_id": "task_008316_09995a25",
+        "skill": 4,
+        "domain": 4,
+        "task_form": 4,
+        "overall": 4,
+        "reason": "Main db corrupted but the WAL survived; fix a recovery script so it extracts ALL records, mirroring '5 shown, 11 expected'."
+      },
+      {
+        "rank": 4,
+        "task_id": "task_006301_63d62c7b",
+        "skill": 4,
+        "domain": 4,
+        "task_form": 4,
+        "overall": 3,
+        "reason": "Partially corrupted WAL crashes a recovery script with a decode error; fix the WAL parsing to recover data."
+      },
+      {
+        "rank": 5,
+        "task_id": "task_004777_b2057787",
+        "skill": 3,
+        "domain": 4,
+        "task_form": 4,
+        "overall": 3,
+        "reason": "A WAL whose last entry is truncated crashes on a slice-out-of-bounds; handle the malformed tail and replay \u2014 WAL-truncation repair."
+      },
+      {
+        "rank": 6,
+        "task_id": "task_006555_9c55c13d",
+        "skill": 3,
+        "domain": 4,
+        "task_form": 4,
+        "overall": 3,
+        "reason": "Fix a C tool that replays a WAL to reconstruct DB state; WAL replay logic, custom KV store rather than SQLite."
+      },
+      {
+        "rank": 7,
+        "task_id": "task_002240_b361df6f",
+        "skill": 3,
+        "domain": 4,
+        "task_form": 4,
+        "overall": 3,
+        "reason": "Recovery segfaults while reading a WAL on restart; debug the WAL-replay path so state restores \u2014 same recover-from-log skill."
+      },
+      {
+        "rank": 8,
+        "task_id": "task_001670_683b74b0",
+        "skill": 3,
+        "domain": 4,
+        "task_form": 3,
+        "overall": 3,
+        "reason": "A C++ parser reads an embedded database's WAL but hangs; fix the WAL parser \u2014 WAL binary-parsing debugging."
+      },
+      {
+        "rank": 9,
+        "task_id": "task_003856_796f1e10",
+        "skill": 2,
+        "domain": 4,
+        "task_form": 3,
+        "overall": 2,
+        "reason": "A crash left a SQLite results.db in a bad state; recover and finish the pipeline; SQLite recovery but not WAL-format-specific."
+      },
+      {
+        "rank": 10,
+        "task_id": "task_002015_30c1f280",
+        "skill": 4,
+        "domain": 4,
+        "task_form": 4,
+        "overall": 3,
+        "reason": "Fix a stripped WAL-recovery binary that loops on corrupt WAL edge cases and emit recovered JSON \u2014 great skill match but FREE verifier, so excluded from final_top10."
+      }
+    ],
+    "Recursive-Task-Synthesis": [
+      {
+        "rank": 1,
+        "task_id": "rts_task_36863e879384891432d4ac9b",
+        "skill": 2,
+        "domain": 4,
+        "task_form": 3,
+        "overall": 3,
+        "reason": "Extract all data from every table of a SQLite database into JSON keyed by table; same dump-a-SQLite-DB-to-JSON output, no corruption to repair."
+      },
+      {
+        "rank": 2,
+        "task_id": "rts_task_644ca8602b2a49d2f23554e3",
+        "skill": 2,
+        "domain": 4,
+        "task_form": 2,
+        "overall": 2,
+        "reason": "Build a SQLite banking DB from split files and report balances; SQLite-domain data handling, no recovery."
+      },
+      {
+        "rank": 3,
+        "task_id": "rts_task_e2c6bbec2f1915090a5e041b",
+        "skill": 2,
+        "domain": 4,
+        "task_form": 2,
+        "overall": 2,
+        "reason": "Assemble a SQLite DB from SQL files per a manifest and report; SQLite construction, not WAL repair."
+      },
+      {
+        "rank": 4,
+        "task_id": "rts_task_c4346910d88ec9585dafa5ce",
+        "skill": 2,
+        "domain": 4,
+        "task_form": 2,
+        "overall": 2,
+        "reason": "Initialize a SQLite DB via SQLAlchemy, resolve a UNIQUE-constraint failure and load JSON rows; SQLite plumbing, no binary recovery."
+      },
+      {
+        "rank": 5,
+        "task_id": "rts_task_c4aa4dbd9021923bb776779d",
+        "skill": 2,
+        "domain": 4,
+        "task_form": 2,
+        "overall": 2,
+        "reason": "Parse a schema spec, create a SQLite table and load a CSV honoring constraints; SQLite data loading only."
+      },
+      {
+        "rank": 6,
+        "task_id": "rts_task_5bd71683ba5d75073045fac8",
+        "skill": 1,
+        "domain": 4,
+        "task_form": 2,
+        "overall": 2,
+        "reason": "Initialize tables and round-trip a User row through SQLAlchemy; SQLite ORM basics, low transfer."
+      },
+      {
+        "rank": 7,
+        "task_id": "rts_task_f1d8fef5e246a26c1c1a9b56",
+        "skill": 2,
+        "domain": 3,
+        "task_form": 2,
+        "overall": 2,
+        "reason": "SQLAlchemy schema init plus a migration across git tags; DB migration reasoning, unrelated to WAL bytes."
+      },
+      {
+        "rank": 8,
+        "task_id": "rts_task_4665918243a7630a2f7b85f7",
+        "skill": 1,
+        "domain": 3,
+        "task_form": 2,
+        "overall": 1,
+        "reason": "Start MySQL and harden a table with encrypted columns; different DB, no recovery."
+      },
+      {
+        "rank": 9,
+        "task_id": "rts_task_56448315bf9b797b92fd8147",
+        "skill": 1,
+        "domain": 2,
+        "task_form": 2,
+        "overall": 1,
+        "reason": "Start a MySQL container and drop a DB per config; DB admin, no transfer."
+      },
+      {
+        "rank": 10,
+        "task_id": "rts_task_4d475f6b1386cbca7c4af253",
+        "skill": 1,
+        "domain": 2,
+        "task_form": 2,
+        "overall": 1,
+        "reason": "Bring a Docker setup into spec compliance; not a database-recovery task at all."
+      }
+    ],
+    "TerminalWorld-Seeds-Clean": [
+      {
+        "rank": 1,
+        "task_id": "tw_139449",
+        "skill": 2,
+        "domain": 4,
+        "task_form": 3,
+        "overall": 3,
+        "reason": "Convert NDJSON into a SQLite database with a defined table and verify the records; SQLite-data construction and exact-record output, no corruption to repair."
+      },
+      {
+        "rank": 2,
+        "task_id": "tw_12138",
+        "skill": 3,
+        "domain": 3,
+        "task_form": 3,
+        "overall": 3,
+        "reason": "Overwrite an ELF file's magic bytes at offset 0 with an exact sequence; byte-level header editing, the same low-level skill as repairing a WAL header magic."
+      },
+      {
+        "rank": 3,
+        "task_id": "tw_117526",
+        "skill": 2,
+        "domain": 3,
+        "task_form": 4,
+        "overall": 2,
+        "reason": "Recover a compressed archive embedded in an ext4 disk image and extract its files; binary-container data recovery, different format."
+      },
+      {
+        "rank": 4,
+        "task_id": "tw_102538",
+        "skill": 1,
+        "domain": 4,
+        "task_form": 2,
+        "overall": 2,
+        "reason": "Run a scanner backed by a cve.sqlite3 database and emit a report; SQLite-domain adjacency, no recovery."
+      },
+      {
+        "rank": 5,
+        "task_id": "tw_338947",
+        "skill": 1,
+        "domain": 2,
+        "task_form": 2,
+        "overall": 1,
+        "reason": "Build an image-processing benchmark with a custom static library; unrelated build task, filler."
+      },
+      {
+        "rank": 6,
+        "task_id": "tw_248132",
+        "skill": 1,
+        "domain": 2,
+        "task_form": 2,
+        "overall": 1,
+        "reason": "Clone and CMake-build FluffOS; unrelated build task."
+      },
+      {
+        "rank": 7,
+        "task_id": "tw_672607",
+        "skill": 1,
+        "domain": 2,
+        "task_form": 2,
+        "overall": 1,
+        "reason": "Exercise a C++ project's full Makefile lifecycle; unrelated to database recovery."
+      },
+      {
+        "rank": 8,
+        "task_id": "tw_120186",
+        "skill": 1,
+        "domain": 1,
+        "task_form": 1,
+        "overall": 1,
+        "reason": "Build a hello program with a custom compiler; no transfer."
+      },
+      {
+        "rank": 9,
+        "task_id": "tw_132320",
+        "skill": 1,
+        "domain": 1,
+        "task_form": 1,
+        "overall": 1,
+        "reason": "Install a CLI tool system-wide; no transfer."
+      },
+      {
+        "rank": 10,
+        "task_id": "tw_764682",
+        "skill": 1,
+        "domain": 2,
+        "task_form": 1,
+        "overall": 1,
+        "reason": "Compile then strip a binary for GDB practice; toolchain adjacency only, FREE verifier."
+      }
+    ],
+    "SWE-Smith-Seeds-Clean": [
+      {
+        "rank": 1,
+        "task_id": "conan-io__conan.86f29e13.lm_rewrite__1eyqewe7",
+        "skill": 2,
+        "domain": 3,
+        "task_form": 1,
+        "overall": 2,
+        "reason": "Fix a cache.sqlite3 DB migration that fails to add a column; SQLite-schema-migration debugging, though it is a library fix not binary recovery."
+      },
+      {
+        "rank": 2,
+        "task_id": "dask__dask.5f61e423.pr_11233",
+        "skill": 2,
+        "domain": 3,
+        "task_form": 1,
+        "overall": 2,
+        "reason": "Parquet round-trip loses timestamp resolution; a columnar binary-format correctness bug, closest analogue of the corrupted-Parquet sibling task."
+      },
+      {
+        "rank": 3,
+        "task_id": "dask__dask.5f61e423.pr_8758",
+        "skill": 2,
+        "domain": 3,
+        "task_form": 1,
+        "overall": 2,
+        "reason": "Parquet engine selection NameError; binary-format IO debugging, wrong genre."
+      },
+      {
+        "rank": 4,
+        "task_id": "Instagram__MonkeyType.70c3acf6.pr_306",
+        "skill": 1,
+        "domain": 3,
+        "task_form": 1,
+        "overall": 1,
+        "reason": "Records land in monkeytype.sqlite3; SQLite-storage domain only, trivial."
+      },
+      {
+        "rank": 5,
+        "task_id": "django-money__django-money.835c1ab8.func_pm_remove_loop__fp1iuyn2",
+        "skill": 2,
+        "domain": 2,
+        "task_form": 1,
+        "overall": 1,
+        "reason": "Deserializer loses records; recover-lost-records shape, but pure serialization logic."
+      },
+      {
+        "rank": 6,
+        "task_id": "django-money__django-money.835c1ab8.func_pm_ctrl_invert_if__n03jq7mo",
+        "skill": 1,
+        "domain": 2,
+        "task_form": 1,
+        "overall": 1,
+        "reason": "Money fields not deserialized; serialization bug, faint overlap."
+      },
+      {
+        "rank": 7,
+        "task_id": "cloudpipe__cloudpickle.6220b0ce.lm_rewrite__89r7c7sh",
+        "skill": 1,
+        "domain": 2,
+        "task_form": 1,
+        "overall": 1,
+        "reason": "Serialize/deserialize ABCs fails; round-trip correctness only."
+      },
+      {
+        "rank": 8,
+        "task_id": "davidhalter__parso.338a5760.func_pm_remove_wrapper__8fki8qk0",
+        "skill": 1,
+        "domain": 2,
+        "task_form": 1,
+        "overall": 1,
+        "reason": "Parser error-recovery on malformed input; 'recover from corruption' by analogy, unrelated stack."
+      },
+      {
+        "rank": 9,
+        "task_id": "dask__dask.5f61e423.pr_10042",
+        "skill": 1,
+        "domain": 2,
+        "task_form": 1,
+        "overall": 1,
+        "reason": "Parquet filter NoneType bug; binary-format IO adjacency only."
+      },
+      {
+        "rank": 10,
+        "task_id": "Instagram__MonkeyType.70c3acf6.pr_17",
+        "skill": 1,
+        "domain": 1,
+        "task_form": 1,
+        "overall": 1,
+        "reason": "Generic-type serialization round-trip; no meaningful transfer."
+      }
+    ],
+    "SWE-Rebench-Tasks-Clean": [
+      {
+        "rank": 1,
+        "task_id": "celery__celery-9331",
+        "skill": 2,
+        "domain": 3,
+        "task_form": 1,
+        "overall": 2,
+        "reason": "A persistent scheduler database becomes corrupted after releases; diagnosing/handling a corrupted DB file is the closest recovery flavour here."
+      },
+      {
+        "rank": 2,
+        "task_id": "djrobstep__sqlakeyset-106",
+        "skill": 2,
+        "domain": 3,
+        "task_form": 1,
+        "overall": 2,
+        "reason": "Keyset pagination over a SQLite/SQLAlchemy DB; SQLite-domain fix, no binary recovery."
+      },
+      {
+        "rank": 3,
+        "task_id": "mila-udem__fuel-217",
+        "skill": 2,
+        "domain": 2,
+        "task_form": 1,
+        "overall": 1,
+        "reason": "H5PyDataset breaks after deserialization by closing its file handle; binary-dataset IO reasoning, unrelated stack."
+      },
+      {
+        "rank": 4,
+        "task_id": "getmoto__moto-6085",
+        "skill": 1,
+        "domain": 2,
+        "task_form": 1,
+        "overall": 1,
+        "reason": "Checksum context handling in an AWS mock; the word 'checksum' overlaps WAL checksums, nothing deeper."
+      },
+      {
+        "rank": 5,
+        "task_id": "agnostiqhq__covalent-1622",
+        "skill": 1,
+        "domain": 2,
+        "task_form": 1,
+        "overall": 1,
+        "reason": "SQLite DB directory not created before use; SQLite-plumbing fix, low transfer."
+      },
+      {
+        "rank": 6,
+        "task_id": "jelmer__dulwich-1578",
+        "skill": 1,
+        "domain": 2,
+        "task_form": 1,
+        "overall": 1,
+        "reason": "porcelain.add corrupts a branch; a corruption bug, but git objects not DB pages."
+      },
+      {
+        "rank": 7,
+        "task_id": "getmoto__moto-7646",
+        "skill": 1,
+        "domain": 1,
+        "task_form": 1,
+        "overall": 1,
+        "reason": "Second checksum-context fix; negligible overlap."
+      },
+      {
+        "rank": 8,
+        "task_id": "materials-consortia__optimade-python-tools-1844",
+        "skill": 1,
+        "domain": 2,
+        "task_form": 1,
+        "overall": 1,
+        "reason": "Deserialization regression resolving child databases; serialization fix, unrelated."
+      },
+      {
+        "rank": 9,
+        "task_id": "hikari-py__hikari-1812",
+        "skill": 1,
+        "domain": 1,
+        "task_form": 1,
+        "overall": 1,
+        "reason": "Deserializing a nullable field crashes; generic deserialization bug."
+      },
+      {
+        "rank": 10,
+        "task_id": "celery__celery-8982",
+        "skill": 1,
+        "domain": 1,
+        "task_form": 1,
+        "overall": 1,
+        "reason": "Serializer signature validation; no transfer to WAL recovery."
+      }
+    ],
+    "Terminal-Lego-15k": [
+      {
+        "rank": 1,
+        "task_id": "task_14420",
+        "skill": 4,
+        "domain": 5,
+        "task_form": 3,
+        "overall": 4,
+        "reason": "Checkpoint (merge) a SQLite WAL back into the main .db so all rows are visible; the 'make SQLite read all records' operation, strongly verified."
+      },
+      {
+        "rank": 2,
+        "task_id": "task_08015",
+        "skill": 3,
+        "domain": 5,
+        "task_form": 3,
+        "overall": 3,
+        "reason": "Correctly back up a SQLite DB with WAL, handling the -wal/-shm auxiliary files; teaches how WAL data lives outside the main file."
+      },
+      {
+        "rank": 3,
+        "task_id": "task_07920",
+        "skill": 2,
+        "domain": 5,
+        "task_form": 3,
+        "overall": 3,
+        "reason": "Configure and manage SQLite journal/WAL mode and its file patterns; understanding of the -wal/-shm layout the task depends on."
+      },
+      {
+        "rank": 4,
+        "task_id": "task_07852",
+        "skill": 2,
+        "domain": 5,
+        "task_form": 3,
+        "overall": 3,
+        "reason": "Demonstrate and manage SQLite WAL-mode files; WAL-file-mechanics knowledge, no corruption repair."
+      },
+      {
+        "rank": 5,
+        "task_id": "task_14378",
+        "skill": 2,
+        "domain": 4,
+        "task_form": 3,
+        "overall": 2,
+        "reason": "Fix a 'no such table' error caused by WAL journal files created before copying a DB; WAL-file-handling gotcha, tangential."
+      },
+      {
+        "rank": 6,
+        "task_id": "task_07994",
+        "skill": 2,
+        "domain": 4,
+        "task_form": 3,
+        "overall": 2,
+        "reason": "C program for safe multi-process SQLite access; SQLite-internals adjacency, concurrency not recovery."
+      },
+      {
+        "rank": 7,
+        "task_id": "task_06715",
+        "skill": 2,
+        "domain": 3,
+        "task_form": 3,
+        "overall": 2,
+        "reason": "File-level encryption for a SQLite/JSON store; the 'WAL may be encrypted' angle, but a build-from-scratch task."
+      },
+      {
+        "rank": 8,
+        "task_id": "task_07860",
+        "skill": 1,
+        "domain": 4,
+        "task_form": 2,
+        "overall": 2,
+        "reason": "Thread-safe SQLite access in Python; SQLite domain, no WAL-format work."
+      },
+      {
+        "rank": 9,
+        "task_id": "task_07895",
+        "skill": 1,
+        "domain": 4,
+        "task_form": 2,
+        "overall": 2,
+        "reason": "Multi-user concurrent SQLite access test; concurrency, unrelated to recovery."
+      },
+      {
+        "rank": 10,
+        "task_id": "task_08043",
+        "skill": 1,
+        "domain": 4,
+        "task_form": 2,
+        "overall": 2,
+        "reason": "Thread-safe SQLite operations demo; SQLite domain only."
+      }
+    ],
+    "CalibForge": [
+      {
+        "rank": 1,
+        "task_id": "file-operations_20260501_051538_002",
+        "skill": 5,
+        "domain": 5,
+        "task_form": 5,
+        "overall": 5,
+        "reason": "Main .db lost, WAL survived; parse the WAL and recover all records (incl. deleted) to JSON \u2014 the TB task almost exactly, strongly verified."
+      },
+      {
+        "rank": 2,
+        "task_id": "file-operations_20260501_172213_004",
+        "skill": 5,
+        "domain": 5,
+        "task_form": 5,
+        "overall": 5,
+        "reason": "messages.db lost, recover the records from messages.db-wal; identical artifact and recover-all-records goal, strong verifier."
+      },
+      {
+        "rank": 3,
+        "task_id": "file-operations_20260416_172928_002",
+        "skill": 5,
+        "domain": 5,
+        "task_form": 5,
+        "overall": 5,
+        "reason": "Corrupted SQLite WAL: SQLite stops at the first bad checksum; write a tool that recovers all valid frames \u2014 requires the WAL binary format and checksums."
+      },
+      {
+        "rank": 4,
+        "task_id": "debugging_20260508_204815_005",
+        "skill": 5,
+        "domain": 5,
+        "task_form": 5,
+        "overall": 5,
+        "reason": "WAL header magic and page-size fields corrupted; understand the WAL binary format to repair and recover \u2014 the 'fix the WAL file so SQLite can read it' step, strongly verified."
+      },
+      {
+        "rank": 5,
+        "task_id": "file-operations_20260430_081156_004",
+        "skill": 4,
+        "domain": 5,
+        "task_form": 5,
+        "overall": 4,
+        "reason": "DB deleted before checkpoint; parse the surviving WAL and write all records to a JSON array \u2014 same never-checkpointed-data recovery and JSON output."
+      },
+      {
+        "rank": 6,
+        "task_id": "file-operations_20260501_000112_004",
+        "skill": 4,
+        "domain": 5,
+        "task_form": 4,
+        "overall": 4,
+        "reason": "Recover never-committed transaction records from a lone .db-wal into a new SQLite DB; WAL frame parsing with a strong verifier."
+      },
+      {
+        "rank": 7,
+        "task_id": "file-operations_20260415_182321_004",
+        "skill": 4,
+        "domain": 5,
+        "task_form": 4,
+        "overall": 4,
+        "reason": "WAL header corrupted but frame data intact; standard tools fail, so parse the frames by hand to extract the uncommitted transaction."
+      },
+      {
+        "rank": 8,
+        "task_id": "file-operations_20260506_213248_004",
+        "skill": 4,
+        "domain": 5,
+        "task_form": 4,
+        "overall": 4,
+        "reason": "A .db + .db-wal where some records are missing on normal query; recover the hidden ones \u2014 the exact '5 visible, more expected' symptom."
+      },
+      {
+        "rank": 9,
+        "task_id": "file-operations_20260604_004411_001",
+        "skill": 3,
+        "domain": 4,
+        "task_form": 5,
+        "overall": 4,
+        "reason": "Recover all records from a corrupted binary (Parquet) into /app/recovered.json sorted by id ascending \u2014 the TB output format verbatim, different container."
+      },
+      {
+        "rank": 10,
+        "task_id": "file-operations_20260509_020109_004",
+        "skill": 3,
+        "domain": 5,
+        "task_form": 4,
+        "overall": 3,
+        "reason": "Forensic recovery of deleted rows from raw SQLite bytes (pre-VACUUM); parsing SQLite page structure by hand, adjacent to WAL frames."
+      }
+    ]
+  },
+  "final_top10": [
+    {
+      "rank": 1,
+      "task_id": "file-operations_20260501_051538_002",
+      "source": "CalibForge",
+      "skill": 5,
+      "domain": 5,
+      "task_form": 5,
+      "overall": 5,
+      "reason": "Main .db lost, parse the surviving SQLite WAL and recover all records to JSON; the TB task almost verbatim, strongly verified."
+    },
+    {
+      "rank": 2,
+      "task_id": "file-operations_20260416_172928_002",
+      "source": "CalibForge",
+      "skill": 5,
+      "domain": 5,
+      "task_form": 5,
+      "overall": 5,
+      "reason": "Corrupted WAL where SQLite drops frames after a bad checksum; recover all valid frames \u2014 demands the WAL binary format and checksum logic."
+    },
+    {
+      "rank": 3,
+      "task_id": "debugging_20260508_204815_005",
+      "source": "CalibForge",
+      "skill": 5,
+      "domain": 5,
+      "task_form": 5,
+      "overall": 5,
+      "reason": "WAL header magic + page-size corrupted; repair the header from knowledge of the WAL format so the data reads \u2014 the TB's 'fix the WAL' step exactly."
+    },
+    {
+      "rank": 4,
+      "task_id": "file-operations_20260501_172213_004",
+      "source": "CalibForge",
+      "skill": 5,
+      "domain": 5,
+      "task_form": 5,
+      "overall": 5,
+      "reason": "Recover message records from a lone messages.db-wal after the .db was lost; identical artifact and recover-all-records objective."
+    },
+    {
+      "rank": 5,
+      "task_id": "file-operations_20260430_081156_004",
+      "source": "CalibForge",
+      "skill": 4,
+      "domain": 5,
+      "task_form": 5,
+      "overall": 5,
+      "reason": "Parse a never-checkpointed WAL and write every record as a JSON array; same recovery-to-JSON shape as the TB output."
+    },
+    {
+      "rank": 6,
+      "task_id": "file-operations_20260415_182321_004",
+      "source": "CalibForge",
+      "skill": 4,
+      "domain": 5,
+      "task_form": 4,
+      "overall": 4,
+      "reason": "Corrupted WAL header, intact frames, standard tools fail; hand-parse the frames to extract the data \u2014 the repair-then-read skill."
+    },
+    {
+      "rank": 7,
+      "task_id": "file-operations_20260506_213248_004",
+      "source": "CalibForge",
+      "skill": 4,
+      "domain": 5,
+      "task_form": 4,
+      "overall": 4,
+      "reason": ".db + .db-wal where records appear missing on a normal query; recover the hidden ones \u2014 the exact '5 visible, more expected' symptom."
+    },
+    {
+      "rank": 8,
+      "task_id": "task_001233_2cf2dc10",
+      "source": "TMax-15K",
+      "skill": 4,
+      "domain": 5,
+      "task_form": 4,
+      "overall": 4,
+      "reason": "Recover a SQLite database left in WAL state before continuing a pipeline; SQLite-WAL recovery is the crux, strong verifier."
+    },
+    {
+      "rank": 9,
+      "task_id": "task_14420",
+      "source": "Terminal-Lego-15k",
+      "skill": 4,
+      "domain": 5,
+      "task_form": 3,
+      "overall": 4,
+      "reason": "Checkpoint/merge a SQLite WAL into the main .db so all rows become visible; the 'make SQLite read all records' operation, strongly verified."
+    },
+    {
+      "rank": 10,
+      "task_id": "file-operations_20260604_004411_001",
+      "source": "CalibForge",
+      "skill": 3,
+      "domain": 4,
+      "task_form": 5,
+      "overall": 4,
+      "reason": "Recover all records from a corrupted binary file into /app/recovered.json sorted by id ascending \u2014 the TB output format verbatim, strong verifier."
+    }
+  ],
+  "notes": "CalibForge is a near-perfect match for this task and dominates final_top10 (7 of 10): it contains multiple SQLite-WAL-recovery tasks that reproduce the TB premise almost exactly \u2014 lost/lost-then-recover .db-wal, corrupted WAL header (magic + page size), checksum-mismatch frame dropping, records-missing-on-normal-query, and even the /app/recovered.json 'sorted by id, recover all N records' output format \u2014 and they are strongly verified. This is the clearest case in my five tasks where the new corpora beat the old pool outright. TMax is a solid second: a deep bench of WAL-replay/recovery tasks (SQLite and custom KV/C++), though only task_001233 and task_002461 are truly SQLite-WAL; its ideal-looking task_002015 is FREE and excluded. Terminal-Lego contributes real value via task_14420 (SQLite WAL checkpoint) plus several WAL-file-management tasks that teach the -wal/-shm layout. Recursive-Task-Synthesis has SQLite construction/dump tasks (one shares the dump-to-JSON output) but no WAL-corruption recovery, all absent-verifier. SWE-Smith and SWE-Rebench have essentially nothing on WAL binary recovery; their best offerings are SQLite-schema-migration/Parquet-roundtrip/corrupted-scheduler-DB library fixes, all overall 1-2 and effectively filler \u2014 the merge step should not expect real transfer from them. No FREE candidate is in final_top10."
+}

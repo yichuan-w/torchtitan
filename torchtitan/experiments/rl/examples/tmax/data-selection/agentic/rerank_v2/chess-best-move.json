@@ -1,0 +1,122 @@
+{
+  "tb21_id": "chess-best-move",
+  "tb21_profile": {
+    "skill": "Recover a discrete board state from a rendered PNG (segment the grid, identify each piece by its glyph), then find every winning move for the side to move — normally by building a FEN and driving a chess engine — and emit it in an exact notation",
+    "domain": "Image-to-structured-data extraction (PIL/OpenCV, template matching) plus chess: FEN, UCI move notation, python-chess or Stockfish",
+    "task_form": "implement-from-spec with one exact answer written to a file; no starter code, the whole pipeline must be built"
+  },
+  "verifier_notes": "Nothing misgraded that I checked. Worth flagging the opposite of the usual warning: Terminal-Lego's games-and-vision block is unusually well verified for that corpus — task_13538 (chess engine) is strong at 13/21 substantive, task_09056 (board-state detection) 13/19, task_14899 (image comparison) 22/36 — so those are real training signal, not the thin Keras-style entries elsewhere in that pool. Several CalibForge games tasks are graded 'ok' only because they ship one or two tests, but each of those tests pins the exact expected move or score (games_20260611_112034_001, games_20260606_172622_001, games_20260615_143956_001 are all 1.0 strength with a single pinned test); they are stronger than the grade label suggests.",
+  "searches": [
+    "tools.py search tmax '\\.png|\\.jpg|OCR|scanned image|image at `|from the image|pixel' -n 30",
+    "tools.py search tmax 'chess|sudoku|puzzle|optimal (move|solution|sequence)|minimax|game (tree|state)|solver .{0,30}(search|BFS|DFS)|shortest sequence' -n 26",
+    "tools.py search tw 'chess|sudoku|puzzle|game|\\.png|image|OCR|solver|minimax' -n 32",
+    "tools.py search tw '\\.png|\\.jpg|imagemagick|opencv|pillow|tesseract|QR code|pixel|crop|thumbnail|chess|sudoku|solver|maze|puzzle' -n 34",
+    "tools.py search rts 'chess|sudoku|puzzle|\\.png|image|OCR|maze|solver|best move|board' -n 36",
+    "tools.py search rts 'ASCII art|pixel|Pillow|PIL|sudoku|N-Queens|N Queens|tic-tac-toe|game of|adventure game|minimax|optimal move|shortest path|Prolog' -n 30",
+    "tools.py search rts 'convert the image|ASCII art representation|Mario.png|imagemagick|steganograph|hidden (data|message)|extract .{0,20}from the (image|photo)|QR code|render.{0,20}terminal' -n 25",
+    "tools.py search smith 'image|pixel|chess|board|game|qrcode|PIL|wordcloud|matrix' -n 26",
+    "tools.py search rebench 'image|pixel|chess|board game|PIL|Pillow|opencv|scikit-image|matplotlib' -n 26",
+    "tools.py search rebench 'coordinate|grid|raster|tile|png|jpeg|binary format|parse .{0,20}file format|board|puzzle|solver' -n 26",
+    "grep -ril -E 'chess|stockfish|opencv|template match|OCR|tesseract|pixel|image recognition' --include=instruction.md /data/yichuan_wang/terminal-lego-15k",
+    "listing of CalibForge games_* instructions by first lines"
+  ],
+  "per_source": {
+    "CalibForge": [
+      {"rank": 1, "task_id": "games_20260604_004411_001", "skill": 5, "domain": 5, "task_form": 5, "overall": 5, "reason": "Read a board out of board.png, decide whose move and the best one, write it to /app/move.txt. The same task with a smaller game."},
+      {"rank": 2, "task_id": "games_20260611_112034_001", "skill": 5, "domain": 4, "task_form": 5, "overall": 5, "reason": "Extract stone positions from a rendered board PNG, then find the best move for the side to play. Both halves, single pinned answer."},
+      {"rank": 3, "task_id": "games_20260601_053159_001", "skill": 5, "domain": 4, "task_form": 5, "overall": 5, "reason": "Segment a 9x9 grid out of an image, read each cell, solve, and write the exact result. Pure image-to-board-state plus search."},
+      {"rank": 4, "task_id": "games_20260416_020953_001", "skill": 5, "domain": 4, "task_form": 5, "overall": 4, "reason": "Classify every cell of a minesweeper board from its image (numbers, flags, unrevealed) then deduce. Per-cell glyph recognition, as with pieces."},
+      {"rank": 5, "task_id": "games_20260606_172622_001", "skill": 4, "domain": 5, "task_form": 4, "overall": 4, "reason": "Drive Stockfish over FEN positions and write one UCI best move per line. Exactly the engine half, same notation."},
+      {"rank": 6, "task_id": "games_20260612_191200_001", "skill": 5, "domain": 4, "task_form": 4, "overall": 4, "reason": "Locate the grid in a wood-textured board photo and classify dark/light stones against background; the hardest part of reading a rendered board."},
+      {"rank": 7, "task_id": "games_20260615_105532_001", "skill": 5, "domain": 4, "task_form": 5, "overall": 4, "reason": "Board image plus an engine, determine side to move, write the single best move to a file. Same pipeline end to end."},
+      {"rank": 8, "task_id": "games_20260615_143956_001", "skill": 4, "domain": 5, "task_form": 4, "overall": 4, "reason": "Analyse PGN games with Stockfish and find the largest evaluation swing; teaches engine scores, mate values and move selection."},
+      {"rank": 9, "task_id": "games_20260611_205750_001", "skill": 4, "domain": 3, "task_form": 4, "overall": 4, "reason": "Decode a 20x20-pixel-per-cell rendering into a live/dead grid; the pure pixel-to-cell-matrix step, verified on the exact grid."},
+      {"rank": 10, "task_id": "games_20260606_172554_001", "skill": 3, "domain": 5, "task_form": 4, "overall": 4, "reason": "Chess position plus PGN database, produce structured analysis of every move played from it; chess semantics with thirteen pinned tests."}
+    ],
+    "Terminal-Lego-15k": [
+      {"rank": 1, "task_id": "task_13538", "skill": 5, "domain": 5, "task_form": 4, "overall": 4, "reason": "Implement a chess engine with legal move generation, search and evaluation — the find-the-best-move half, in the same game, strongly verified."},
+      {"rank": 2, "task_id": "task_13590", "skill": 4, "domain": 4, "task_form": 3, "overall": 4, "reason": "Detect rectangles in a line image; finding the 8x8 grid geometry in a rendered board is this same detection problem."},
+      {"rank": 3, "task_id": "task_09056", "skill": 4, "domain": 4, "task_form": 4, "overall": 4, "reason": "Decide the state of an n x n board from its cell contents, for several board sizes; board-state reasoning with 13 pinned tests."},
+      {"rank": 4, "task_id": "task_14899", "skill": 4, "domain": 4, "task_form": 3, "overall": 4, "reason": "Fast image comparison for duplicate detection — the template-matching primitive used to identify which piece occupies a square."},
+      {"rank": 5, "task_id": "task_14927", "skill": 4, "domain": 5, "task_form": 3, "overall": 4, "reason": "Encode a full chess game state, board plus move list, into a compact binary form; forces exact knowledge of positions and legal moves."},
+      {"rank": 6, "task_id": "task_13495", "skill": 4, "domain": 4, "task_form": 3, "overall": 3, "reason": "Locate a specific small pattern inside a large cluttered image using computer vision; piece localisation under a different name."},
+      {"rank": 7, "task_id": "task_12859", "skill": 3, "domain": 4, "task_form": 3, "overall": 3, "reason": "Manipulate image data as numpy arrays, including per-pixel access and dtype handling; the substrate for sampling squares from a PNG."},
+      {"rank": 8, "task_id": "task_10476", "skill": 3, "domain": 4, "task_form": 3, "overall": 3, "reason": "Repair a broken OpenCV detection pipeline until it finds objects in images; practical CV debugging in the same libraries."},
+      {"rank": 9, "task_id": "task_09236", "skill": 3, "domain": 3, "task_form": 3, "overall": 3, "reason": "N-Queens with performance constraints; board-geometry search over squares, but no image and no chess rules beyond attack lines."},
+      {"rank": 10, "task_id": "task_11304", "skill": 2, "domain": 4, "task_form": 2, "overall": 2, "reason": "Resize an image with PIL preserving aspect ratio; only the library plumbing, no extraction or reasoning."}
+    ],
+    "TMax-15K": [
+      {"rank": 1, "task_id": "task_000102_3d7b64bf", "skill": 4, "domain": 3, "task_form": 4, "overall": 4, "reason": "Decode a 100x100 pixel dashboard into per-node state, then run a shortest-path computation on it. Pixels to grid to algorithm to exact answer."},
+      {"rank": 2, "task_id": "task_000019_9b7bd652", "skill": 4, "domain": 4, "task_form": 3, "overall": 3, "reason": "Find the centroid of a few-pixel white dot per frame and convert to coordinates; pixel geometry into discrete positions."},
+      {"rank": 3, "task_id": "task_000107_b1e4c6c2", "skill": 3, "domain": 4, "task_form": 3, "overall": 3, "reason": "Turn frames into a normalised 16x16 grayscale grid; downsampling an image into a fixed cell matrix, as a board reader must."},
+      {"rank": 4, "task_id": "task_000050_e43cb92c", "skill": 3, "domain": 4, "task_form": 4, "overall": 3, "reason": "Decode a bit stream from the centre pixel of each frame and hit 95% accuracy; pixel value to discrete symbol, judged on the decoded content."},
+      {"rank": 5, "task_id": "task_000530_a1f20118", "skill": 3, "domain": 3, "task_form": 3, "overall": 3, "reason": "Read a data table out of a PNG and build the network it describes; image to structured data before any computation can start."},
+      {"rank": 6, "task_id": "task_000009_8e53cc34", "skill": 3, "domain": 3, "task_form": 3, "overall": 3, "reason": "Recover an equation from an image and reimplement it to match an oracle exactly; the read-it-off-the-picture step with an exact target."},
+      {"rank": 7, "task_id": "task_000039_b35ec90f", "skill": 3, "domain": 3, "task_form": 3, "overall": 3, "reason": "Extract information from a photographed handwritten note and act on it; harder OCR, but text rather than board geometry."},
+      {"rank": 8, "task_id": "task_000077_662ef3eb", "skill": 3, "domain": 3, "task_form": 3, "overall": 3, "reason": "Rules live only in an image; read them and implement the filter they describe. Same dependency on getting the image right first."},
+      {"rank": 9, "task_id": "task_000113_8a2ee560", "skill": 3, "domain": 3, "task_form": 3, "overall": 3, "reason": "Track a bright blob across frames with a known pixel-to-metre scale; geometric reasoning over pixel coordinates."},
+      {"rank": 10, "task_id": "task_004503_73bd22c3", "skill": 3, "domain": 2, "task_form": 3, "overall": 2, "reason": "Search for an optimal restoration sequence under constraints and emit it exactly; the search-for-the-best-answer shape, no image."}
+    ],
+    "TerminalWorld-Seeds-Clean": [
+      {"rank": 1, "task_id": "tw_4289", "skill": 4, "domain": 4, "task_form": 3, "overall": 3, "reason": "Sample a PNG into a grid of coloured block characters; literally reducing an image to a per-cell symbol matrix."},
+      {"rank": 2, "task_id": "tw_144971", "skill": 3, "domain": 4, "task_form": 3, "overall": 3, "reason": "Step a Sudoku solver through a puzzle and capture its reasoning; grid-constraint solving with an exact final state."},
+      {"rank": 3, "task_id": "tw_372371", "skill": 3, "domain": 4, "task_form": 4, "overall": 3, "reason": "Implement an N-Queens solver CLI with exact output; search over board squares under attack constraints."},
+      {"rank": 4, "task_id": "tw_208504", "skill": 3, "domain": 4, "task_form": 3, "overall": 3, "reason": "Multi-stage forensics on two JPEGs to recover hidden content; getting data out of image files, though by bytes not pixels."},
+      {"rank": 5, "task_id": "tw_320307", "skill": 3, "domain": 3, "task_form": 4, "overall": 3, "reason": "Solve a small constraint puzzle in Prolog and report the exact pair of numbers; declarative search to one checked answer."},
+      {"rank": 6, "task_id": "tw_105368", "skill": 3, "domain": 4, "task_form": 3, "overall": 3, "reason": "Build an image transformation pipeline with precise geometric operations (rotation, flip, crop); image-library competence, both tests pinned."},
+      {"rank": 7, "task_id": "tw_414193", "skill": 3, "domain": 4, "task_form": 3, "overall": 3, "reason": "Craft a JPEG whose internal structure triggers specific behaviour; demands real understanding of an image container format."},
+      {"rank": 8, "task_id": "tw_757069", "skill": 3, "domain": 2, "task_form": 3, "overall": 2, "reason": "Explore a game world and solve its puzzles to reach a goal state; planning and search, no board and no image."},
+      {"rank": 9, "task_id": "tw_561688", "skill": 2, "domain": 2, "task_form": 3, "overall": 2, "reason": "Run a named solver on a named problem and report the result; only the call-a-solver-and-report-the-answer shape."},
+      {"rank": 10, "task_id": "tw_123683", "skill": 2, "domain": 3, "task_form": 3, "overall": 2, "reason": "Produce and render a QR code in the terminal; a 2D module grid, but generated rather than read."}
+    ],
+    "Recursive-Task-Synthesis": [
+      {"rank": 1, "task_id": "rts_task_2629efb30267270e1cd69b57", "skill": 3, "domain": 4, "task_form": 4, "overall": 3, "reason": "Implement an N-Queens solver CLI producing exact placements; board-square search with attack constraints, closest RTS gets to chess."},
+      {"rank": 2, "task_id": "rts_task_1b9d4a6a372614dbbd50b4d4", "skill": 3, "domain": 4, "task_form": 3, "overall": 3, "reason": "Recover data concealed in two JPEGs through a chained multi-stage process; extracting content from image files."},
+      {"rank": 3, "task_id": "rts_task_9305461558a34d451dacb0f1", "skill": 3, "domain": 4, "task_form": 3, "overall": 3, "reason": "Same JPEG forensics chain stated as a staged challenge; image-file analysis with an exact recovered answer."},
+      {"rank": 4, "task_id": "rts_task_5765e6e37669e2d595a455ac", "skill": 3, "domain": 4, "task_form": 3, "overall": 3, "reason": "Extract embedded payloads from two JPEGs with given passphrases; tool-driven image inspection to a pinned result."},
+      {"rank": 5, "task_id": "rts_task_e85347a71c0fd3b15f23220a", "skill": 3, "domain": 4, "task_form": 3, "overall": 2, "reason": "Another phrasing of the JPEG hidden-data chain; listed because RTS has almost nothing else image-related."},
+      {"rank": 6, "task_id": "rts_task_f22231cbc101fefef9d3c774", "skill": 3, "domain": 2, "task_form": 4, "overall": 2, "reason": "Solve a two-variable constraint puzzle from a config file and write the exact answer; tiny search, exact output contract."},
+      {"rank": 7, "task_id": "rts_task_9b5cd88d91ed3e500ddb0b11", "skill": 3, "domain": 3, "task_form": 3, "overall": 2, "reason": "Decode a message hidden in a two-symbol whitespace encoding; mapping a grid of symbols back to content."},
+      {"rank": 8, "task_id": "rts_task_e2dbfd678ecb4108cdf4e11a", "skill": 2, "domain": 2, "task_form": 3, "overall": 2, "reason": "Configure and beat a text adventure's puzzles; goal-directed search, no board state and no image."},
+      {"rank": 9, "task_id": "rts_task_ac9a6eba7dc5c731ed7faee6", "skill": 2, "domain": 3, "task_form": 2, "overall": 2, "reason": "Build two tic-tac-toe game projects from source; shares only the game subject, the work is compilation."},
+      {"rank": 10, "task_id": "rts_task_c7620582bd5b6565a783d554", "skill": 2, "domain": 2, "task_form": 2, "overall": 2, "reason": "Produce an ASCII-art document to a precise layout; exact textual output, essentially nothing else transfers."}
+    ],
+    "SWE-Smith-Seeds-Clean": [
+      {"rank": 1, "task_id": "amueller__word_cloud.ec24191c.func_pm_ctrl_shuffle__p0vuu6sd", "skill": 4, "domain": 4, "task_form": 2, "overall": 3, "reason": "Boolean mask derivation from an image array is broken; thresholding pixels into a binary grid is the board-reader's first step."},
+      {"rank": 2, "task_id": "amueller__word_cloud.ec24191c.combine_file__do6xqi4d", "skill": 3, "domain": 4, "task_form": 2, "overall": 3, "reason": "Recolouring fails when the source image is smaller than the canvas; pixel-coordinate mapping between two image spaces."},
+      {"rank": 3, "task_id": "lincolnloop__python-qrcode.456b01d4.func_pm_remove_loop__lvhgphel", "skill": 3, "domain": 4, "task_form": 2, "overall": 3, "reason": "QR module grid generation loop removed; reasoning about a 2D matrix of cells and its rendering."},
+      {"rank": 4, "task_id": "pydicom__pydicom.7d361b3d.pr_2163", "skill": 3, "domain": 4, "task_form": 2, "overall": 3, "reason": "Image pixel-data handling in a medical imaging library; decoding raw pixel buffers into an array."},
+      {"rank": 5, "task_id": "amueller__word_cloud.ec24191c.combine_file__9bx7cdni", "skill": 3, "domain": 4, "task_form": 2, "overall": 3, "reason": "Rendering produces wrong output images; requires checking rendered pixels against expectation, the inverse of reading a board."},
+      {"rank": 6, "task_id": "facebookresearch__fvcore.a491d5b9.func_pm_remove_assign__jafbltn2", "skill": 3, "domain": 4, "task_form": 2, "overall": 2, "reason": "BlendTransform over an image array misbehaves; array-level image transform arithmetic."},
+      {"rank": 7, "task_id": "lincolnloop__python-qrcode.456b01d4.func_pm_remove_assign__jraqjgd5", "skill": 3, "domain": 3, "task_form": 2, "overall": 2, "reason": "Another QR matrix construction defect; same 2D-cell-grid reasoning, small scope."},
+      {"rank": 8, "task_id": "pydicom__pydicom.7d361b3d.func_pm_remove_assign__mxjvd8f5", "skill": 2, "domain": 4, "task_form": 2, "overall": 2, "reason": "Imaging-library internals defect; same image-data ecosystem, little pipeline-building content."},
+      {"rank": 9, "task_id": "amueller__word_cloud.ec24191c.func_basic__em24z2r4", "skill": 2, "domain": 3, "task_form": 2, "overall": 2, "reason": "SVG export path broken; geometry serialisation rather than image analysis."},
+      {"rank": 10, "task_id": "amueller__word_cloud.ec24191c.func_pm_ctrl_invert_if__fmeyu99c", "skill": 2, "domain": 3, "task_form": 2, "overall": 2, "reason": "Colormap selection logic inverted; colour handling only, weakest of the image cluster."}
+    ],
+    "SWE-Rebench-Tasks-Clean": [
+      {"rank": 1, "task_id": "d0c-s4vage__pfp-126", "skill": 4, "domain": 4, "task_form": 2, "overall": 3, "reason": "PNG chunk structures are not reachable through scope in a binary template engine; decoding an image container by its layout."},
+      {"rank": 2, "task_id": "d0c-s4vage__pfp-112", "skill": 3, "domain": 4, "task_form": 2, "overall": 3, "reason": "Array semantics in binary file templates over png/mp4 inputs; precise parsing of a binary media format."},
+      {"rank": 3, "task_id": "gammapy__gammapy-5366", "skill": 3, "domain": 4, "task_form": 2, "overall": 3, "reason": "Pixel-coordinate geometry in a map class; converting between world coordinates and integer pixel indices, as square-to-file-rank does."},
+      {"rank": 4, "task_id": "corteva__rioxarray-841", "skill": 3, "domain": 4, "task_form": 2, "overall": 2, "reason": "Raster arrays with non-standard dimension names break the accessor; indexing a 2D pixel grid correctly."},
+      {"rank": 5, "task_id": "cuthbertlab__music21-1475", "skill": 3, "domain": 3, "task_form": 2, "overall": 2, "reason": "Enumerate all fingerings of a chord instead of only the first; exhaustive enumeration over a symbolic structure, like listing all winning moves."},
+      {"rank": 6, "task_id": "cuthbertlab__music21-1775", "skill": 3, "domain": 3, "task_form": 2, "overall": 2, "reason": "Chord symbol bass resolution returns None; rule-driven reasoning over a formal notation system."},
+      {"rank": 7, "task_id": "axelrod-python__axelrod-1458", "skill": 3, "domain": 3, "task_form": 2, "overall": 2, "reason": "Limited history window not respected by a strategy; game-playing agent state, adjacent to move selection."},
+      {"rank": 8, "task_id": "corteva__rioxarray-559", "skill": 2, "domain": 4, "task_form": 2, "overall": 2, "reason": "Georeferenced raster handling defect; same 2D-array domain, thin transfer."},
+      {"rank": 9, "task_id": "axelrod-python__axelrod-783", "skill": 2, "domain": 3, "task_form": 2, "overall": 2, "reason": "Classification of stochastic strategies in a game library; game vocabulary, no board reasoning."},
+      {"rank": 10, "task_id": "fatiando__harmonica-479", "skill": 2, "domain": 3, "task_form": 2, "overall": 2, "reason": "Coordinate and grid vector maths in a geoscience library; only the coordinate handling overlaps."}
+    ]
+  },
+  "final_top10": [
+    {"rank": 1, "task_id": "games_20260604_004411_001", "source": "CalibForge", "skill": 5, "domain": 5, "task_form": 5, "overall": 5, "reason": "Read the board from board.png, pick the best move for the side to play, write it to /app/move.txt. Same task, simpler game."},
+    {"rank": 2, "task_id": "games_20260611_112034_001", "source": "CalibForge", "skill": 5, "domain": 4, "task_form": 5, "overall": 5, "reason": "Extract the position from a rendered board image then find the best move for the player to move; both halves, exact answer."},
+    {"rank": 3, "task_id": "games_20260601_053159_001", "source": "CalibForge", "skill": 5, "domain": 4, "task_form": 5, "overall": 5, "reason": "Segment a 9x9 grid from an image, read every cell, solve it, write the exact result. The image-to-board-state skill, strongly verified."},
+    {"rank": 4, "task_id": "games_20260606_172622_001", "source": "CalibForge", "skill": 4, "domain": 5, "task_form": 4, "overall": 4, "reason": "Drive Stockfish over FEN positions and emit one UCI move per line — the engine half in the same game and notation."},
+    {"rank": 5, "task_id": "games_20260416_020953_001", "source": "CalibForge", "skill": 5, "domain": 4, "task_form": 5, "overall": 4, "reason": "Classify each cell of a board image into numbers, flags or unrevealed, then deduce. Per-cell glyph recognition, like naming pieces."},
+    {"rank": 6, "task_id": "games_20260612_191200_001", "source": "CalibForge", "skill": 5, "domain": 4, "task_form": 4, "overall": 4, "reason": "Find the grid in a textured board photo and separate dark from light stones; the hardest part of reading a rendered board."},
+    {"rank": 7, "task_id": "games_20260615_105532_001", "source": "CalibForge", "skill": 5, "domain": 4, "task_form": 5, "overall": 4, "reason": "Board image plus an engine: determine the side to move and write the single best move to a file. Identical pipeline."},
+    {"rank": 8, "task_id": "task_13538", "source": "Terminal-Lego-15k", "skill": 5, "domain": 5, "task_form": 4, "overall": 4, "reason": "Build a chess engine with legal move generation, search and evaluation; the only real chess-rules implementation in the pool."},
+    {"rank": 9, "task_id": "games_20260611_205750_001", "source": "CalibForge", "skill": 4, "domain": 3, "task_form": 4, "overall": 4, "reason": "Decode a fixed-cell-size rendering into an exact live/dead grid; the pixel-to-cell-matrix step on its own, checked cell by cell."},
+    {"rank": 10, "task_id": "games_20260615_143956_001", "source": "CalibForge", "skill": 4, "domain": 5, "task_form": 4, "overall": 4, "reason": "Stockfish analysis across PGN games hunting the biggest evaluation swing; teaches engine scores and mate handling this task needs."}
+  ],
+  "notes": "CalibForge has a whole `games` category that is almost purpose-built for this TB2.1 task: several entries are board-image-in, best-move-file-out with pinned answers, and others supply the Stockfish-driving half in chess itself. Nine of the final ten come from there and it is not close. The one outsider, Terminal-Lego task_13538, is the pool's only implement-a-chess-engine task and is strongly verified — Terminal-Lego genuinely beats the v1 pool here, as it also does on board-state detection (task_09056) and image comparison (task_14899). TMax has no game content whatsoever; its slate is its read-data-out-of-a-PNG family, which covers the extraction half only, and task_000102_3d7b64bf is the best of them if merge wants TMax representation. TerminalWorld and Recursive-Task-Synthesis have essentially nothing: RTS ranks 2-5 are four rephrasings of one JPEG steganography task and should count as a single item. SWE-Smith and SWE-Rebench contribute only image-library and pixel-geometry bug fixes; do not promote them."
+}

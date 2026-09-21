@@ -1,0 +1,126 @@
+{
+  "tb21_id": "code-from-image",
+  "tb21_profile": {
+    "skill": "Read code off a raster image (vision or tesseract OCR), reconstruct the pseudocode exactly including loop bounds and operator details, then execute its semantics faithfully to produce one exact final value",
+    "domain": "OCR / image-to-text on a code screenshot, plus small-program semantics and hex-digest arithmetic; no library stack in particular",
+    "task_form": "reverse-engineer-a-spec-from-an-artifact then implement-from-spec, graded on a single exact string in /app/output.txt"
+  },
+  "verifier_notes": "No grade I checked looked wrong for this task. Three of the TerminalWorld picks (tw_102792, tw_318029, tw_352867) are FREE and their grades look right: each is satisfied by producing a non-empty file or a valid-looking artifact, so none of them entered final_top10. task_000079_76a46e77 and task_000060_fb4491c0 in TMax are `behavioral` (exit-status only) which is why stronger-graded siblings from the same OCR family outrank them.",
+  "searches": [
+    "tools.py search all \"OCR|tesseract|extract (the )?text from (an? )?(image|png|screenshot|photo)|read the text in the image\"",
+    "tools.py search tw \"\\.png|image (of|at|file)|screenshot\"",
+    "tools.py search rts \"read (the )?text .{0,20}image|image (of|at) .{0,30}\\.png|screenshot|OCR|tesseract\"",
+    "tools.py search smith \"Pillow|PIL|pytesseract|image processing|scikit-image|opencv|matplotlib figure\"",
+    "tools.py search rebench \"Pillow|PIL\\.|pytesseract|scikit-image|opencv|imageio|matplotlib\"",
+    "tools.py search smith \"from PIL|Image\\.open|pixel|wordcloud|WordCloud|qrcode|barcode|\\.png\"",
+    "tools.py search rebench \"from PIL|Image\\.open|pixel_array|pixel|imread|qrcode|scikit-image|dicom\"",
+    "tools.py search smith \"pdfplumber|extract_text|extract_words|char(s)? bounding|layout|ocr\"",
+    "tools.py search rebench \"pdfplumber|extract_text|pypdf|psd-tools|PSDImage|tesseract|render\"",
+    "tools.py search rts \"specification file somewhere|hidden flag|sha256|checksum of|the exact (value|answer|result)|implement the algorithm described\"",
+    "tools.py search tw \"sha256|md5|hash of|implement the algorithm|compute the .{0,25}(value|result) and write|evaluate .{0,25}expressions\"",
+    "nt.py search all \"OCR|tesseract|extract (the )?text from (an? )?(image|png|screenshot|photo)|image of|\\.png\\`? (file )?(that )?contains\"",
+    "nt.py search cal \"\\.png|\\.jpg|image (of|at|file)|screenshot|OCR\"",
+    "nt.py search cal \"image of a|board.png|read the (text|values|numbers) (from|in)|handwritten|screenshot|chart image|fragment_1.png\"",
+    "nt.py search lego \"OCR|tesseract|read (the )?text (from|in) (an? )?image|CAPTCHA|template match|pixel data|barcode|QR code\"",
+    "nt.py search lego \"metacircular|Scheme interpreter|write an interpreter|evaluate the (expression|program)|pseudocode|trace through the code|what (does|will) (this|the) (code|program|snippet) (print|output)\""
+  ],
+  "per_source": {
+    "TMax-15K": [
+      {"rank": 1, "task_id": "task_005252_9cc400a9", "skill": 5, "domain": 5, "task_form": 5, "overall": 5, "reason": "formula.png holds a maths formula and a processing rule; read it off the image and implement the exact transformation. Same two-step task as reading code.png"},
+      {"rank": 2, "task_id": "task_004606_391aae46", "skill": 5, "domain": 5, "task_form": 5, "overall": 5, "reason": "spec.png contains the filter and aggregation logic; OCR it then implement the rules faithfully. Nearly the same instruction shape"},
+      {"rank": 3, "task_id": "task_000105_2c3c3a76", "skill": 5, "domain": 5, "task_form": 4, "overall": 4, "reason": "Read multiplier and modulus out of a PNG and replicate the PRNG exactly; a wrong digit changes the final number, as with the hash here"},
+      {"rank": 4, "task_id": "task_000333_7a82aa70", "skill": 5, "domain": 5, "task_form": 4, "overall": 4, "reason": "Scanned image of a model's architecture and weights is the only surviving source; rebuild the scoring model from it"},
+      {"rank": 5, "task_id": "task_000108_71ef0b2f", "skill": 4, "domain": 5, "task_form": 4, "overall": 4, "reason": "OCR a cryptographic salt out of ransom_note.png and build a Python replica whose digest must match"},
+      {"rank": 6, "task_id": "task_004642_36a8d8c9", "skill": 4, "domain": 5, "task_form": 4, "overall": 4, "reason": "query_spec.png carries a schema and a query to implement over CSVs; reading structured logic out of an image"},
+      {"rank": 7, "task_id": "task_000117_7c63eddc", "skill": 4, "domain": 5, "task_form": 4, "overall": 4, "reason": "Extract a calibration factor from specs.png with tesseract and use it downstream; strongest verifier of the OCR family (4/4 pinned)"},
+      {"rank": 8, "task_id": "task_000075_862ad640", "skill": 4, "domain": 5, "task_form": 4, "overall": 4, "reason": "Read mu and sigma from an image, then write a C++ program whose numeric output depends on getting both right"},
+      {"rank": 9, "task_id": "task_001554_6e88d897", "skill": 4, "domain": 5, "task_form": 3, "overall": 3, "reason": "The only copy of a numerical filter's configuration is an old presentation image; recover it and apply the filter"},
+      {"rank": 10, "task_id": "task_003981_82e9c073", "skill": 3, "domain": 4, "task_form": 3, "overall": 3, "reason": "An image of a configuration snippet drives a C data processor; OCR is one step in a larger deployment chore"}
+    ],
+    "Recursive-Task-Synthesis": [
+      {"rank": 1, "task_id": "rts_task_f9be8e49ac93e031600624e6", "skill": 3, "domain": 2, "task_form": 3, "overall": 3, "reason": "Discover values scattered in the environment, compose them by a stated rule, write the resulting number and its checksum; same derive-one-exact-value shape"},
+      {"rank": 2, "task_id": "rts_task_f51b001d1c10ef5fa8e59bcf", "skill": 3, "domain": 2, "task_form": 3, "overall": 3, "reason": "Read an unfamiliar program to work out what it computes and recover the flag it guards; program-comprehension to a single answer string"},
+      {"rank": 3, "task_id": "rts_task_9d5673afdf2d8d4d310fd6d1", "skill": 3, "domain": 2, "task_form": 3, "overall": 2, "reason": "Follow REPORT_SPEC.txt to the letter while inspecting a binary; exact-format output where any deviation fails"},
+      {"rank": 4, "task_id": "rts_task_48df84de654aa6cc91465b6f", "skill": 3, "domain": 2, "task_form": 3, "overall": 2, "reason": "Implement a quine from a spec file after checksum-verifying it; implement-exactly-what-the-spec-says with a single correct output"},
+      {"rank": 5, "task_id": "rts_task_e3ddfde764242615391a7b47", "skill": 3, "domain": 2, "task_form": 3, "overall": 2, "reason": "The prompt text and multiplication factor live in a spec file hidden in the tree; find them, then implement the computation in ARM64 asm"},
+      {"rank": 6, "task_id": "rts_task_873db11313f43a0308ed3f21", "skill": 2, "domain": 2, "task_form": 3, "overall": 2, "reason": "Produce result.txt to a config-driven spec and then its SHA-256; the digest is only right if the computation was"},
+      {"rank": 7, "task_id": "rts_task_30d9556aedb5a69951327590", "skill": 2, "domain": 2, "task_form": 3, "overall": 2, "reason": "Carry out operations defined in a config file and hash the result; spec-to-exact-value with a hex digest as the artifact"},
+      {"rank": 8, "task_id": "rts_task_c96325df7d4f6842c904879d", "skill": 3, "domain": 2, "task_form": 2, "overall": 2, "reason": "Pick the real multi-layer encoded payload out of decoys and unwrap it; decoding chains to one exact answer, no image involved"},
+      {"rank": 9, "task_id": "rts_task_6289ba1ea01db4bcb05c45d4", "skill": 2, "domain": 3, "task_form": 2, "overall": 2, "reason": "Word-frequency computation rendered to a log-log PNG; touches image output rather than image reading"},
+      {"rank": 10, "task_id": "rts_task_807982015f1468e298325332", "skill": 2, "domain": 1, "task_form": 2, "overall": 1, "reason": "Build driven by a device spec file hidden under /app; only the find-the-spec-then-follow-it habit transfers"}
+    ],
+    "TerminalWorld-Seeds-Clean": [
+      {"rank": 1, "task_id": "tw_286149", "skill": 3, "domain": 3, "task_form": 3, "overall": 3, "reason": "Every row's password must become the exact SHA-512 of a precisely specified concatenation; one wrong step gives a wrong digest, as here"},
+      {"rank": 2, "task_id": "tw_189933", "skill": 3, "domain": 3, "task_form": 3, "overall": 3, "reason": "Compute a base16 encoding and then the SHA256 of that hex string; the answer is a single exact digest derived by following a stated recipe"},
+      {"rank": 3, "task_id": "tw_14342", "skill": 3, "domain": 3, "task_form": 3, "overall": 2, "reason": "Implement MD5 brute-force over an alphabet; requires getting a hash pipeline exactly right to land on one value"},
+      {"rank": 4, "task_id": "tw_102792", "skill": 3, "domain": 2, "task_form": 3, "overall": 2, "reason": "Feed expressions through an unfamiliar interpreter and capture the exact output; closest thing here to executing a snippet's semantics, but FREE"},
+      {"rank": 5, "task_id": "tw_332154", "skill": 2, "domain": 2, "task_form": 3, "overall": 2, "reason": "Five computations whose results must appear as exactly-formatted JSON arrays; exactness of the final value is the graded property"},
+      {"rank": 6, "task_id": "tw_49852", "skill": 2, "domain": 2, "task_form": 3, "overall": 2, "reason": "Run a program under the Red interpreter and save its exact printed output; execute-and-capture only, no reconstruction"},
+      {"rank": 7, "task_id": "tw_232264", "skill": 2, "domain": 3, "task_form": 2, "overall": 2, "reason": "Compute a frequency distribution and render it as a PNG plot; image work is on the output side"},
+      {"rank": 8, "task_id": "tw_11045", "skill": 2, "domain": 1, "task_form": 2, "overall": 2, "reason": "Build an exactly specified nested structure from fielded rows; spec-fidelity practice with no image or algorithm reconstruction"},
+      {"rank": 9, "task_id": "tw_318029", "skill": 2, "domain": 3, "task_form": 2, "overall": 2, "reason": "Construct an MD5 collision from a compiled prefix; hash-domain but the verifier is FREE and the work is tool-driving"},
+      {"rank": 10, "task_id": "tw_352867", "skill": 1, "domain": 2, "task_form": 1, "overall": 1, "reason": "Produce a valid animated GIF; shares only the raster-image file type, and the verifier is FREE"}
+    ],
+    "SWE-Smith-Seeds-Clean": [
+      {"rank": 1, "task_id": "jsvine__pdfplumber.02ff4313.func_pm_ctrl_invert_if__ngsgk4s9", "skill": 4, "domain": 4, "task_form": 2, "overall": 3, "reason": "cluster_list mis-groups glyphs when a tolerance is given: this is the grouping-characters-into-lines step any OCR-style reconstruction depends on"},
+      {"rank": 2, "task_id": "jsvine__pdfplumber.02ff4313.func_pm_ctrl_invert_if__tv5b85l9", "skill": 4, "domain": 4, "task_form": 2, "overall": 3, "reason": "Layout-preserving text extraction breaks without layout_width_chars; reconstructing spatial text layout, the crux of reading code off a page"},
+      {"rank": 3, "task_id": "jsvine__pdfplumber.02ff4313.func_pm_ctrl_shuffle__umw5eacx", "skill": 3, "domain": 4, "task_form": 2, "overall": 3, "reason": "Table extraction strategies broken; inferring structure from positioned marks on a rendered page"},
+      {"rank": 4, "task_id": "jsvine__pdfplumber.02ff4313.lm_rewrite__fkldf5pb", "skill": 3, "domain": 4, "task_form": 2, "overall": 3, "reason": "page.to_image with a cropbox renders wrongly; rasterising a document page and reasoning about its pixel coordinates"},
+      {"rank": 5, "task_id": "jsvine__pdfplumber.02ff4313.func_pm_remove_wrapper__gcyvr6sb", "skill": 3, "domain": 4, "task_form": 2, "overall": 2, "reason": "Extracted strings stay raw bytes instead of decoded text; the decode step between an artifact and usable characters"},
+      {"rank": 6, "task_id": "lincolnloop__python-qrcode.456b01d4.combine_module__5afzzdl8", "skill": 3, "domain": 3, "task_form": 2, "overall": 2, "reason": "QR image generation broken; encoding data into a raster that must decode back exactly, the inverse of reading code from a picture"},
+      {"rank": 7, "task_id": "lincolnloop__python-qrcode.456b01d4.func_pm_ctrl_invert_if__q01zoi9f", "skill": 3, "domain": 3, "task_form": 2, "overall": 2, "reason": "QR optimisation produces wrong encodings; exactness of a machine-readable visual encoding"},
+      {"rank": 8, "task_id": "amueller__word_cloud.ec24191c.func_pm_ctrl_shuffle__p0vuu6sd", "skill": 3, "domain": 3, "task_form": 2, "overall": 2, "reason": "_get_bolean_mask converts an image array to a mask incorrectly; pixel-array thresholding, the primitive OCR preprocessing step"},
+      {"rank": 9, "task_id": "amueller__word_cloud.ec24191c.combine_file__do6xqi4d", "skill": 2, "domain": 3, "task_form": 2, "overall": 2, "reason": "Text placement within the image is wrong; rendering glyphs into a raster, adjacent but on the generation side"},
+      {"rank": 10, "task_id": "gawel__pyquery.811cd048.lm_rewrite__t1i34968", "skill": 2, "domain": 2, "task_form": 2, "overall": 2, "reason": "extract_text misbehaves on markup; text extraction from a structured document, no visual component"}
+    ],
+    "SWE-Rebench-Tasks-Clean": [
+      {"rank": 1, "task_id": "psd-tools__psd-tools-334", "skill": 3, "domain": 4, "task_form": 2, "overall": 3, "reason": "Toggle layers and export each rendered variant; composing and rasterising a layered image, closest image-rendering work in this corpus"},
+      {"rank": 2, "task_id": "psd-tools__psd-tools-452", "skill": 3, "domain": 4, "task_form": 2, "overall": 2, "reason": "Regression opening PSD images by path object; image-file decoding library debugging, same ecosystem as reading a PNG"},
+      {"rank": 3, "task_id": "py-pdf__pypdf2-813", "skill": 3, "domain": 3, "task_form": 2, "overall": 2, "reason": "PyPDF2 document handling bug; parsing a rendered-document format back into content"},
+      {"rank": 4, "task_id": "py-pdf__pypdf2-787", "skill": 2, "domain": 3, "task_form": 2, "overall": 2, "reason": "PdfFileWriter stream attribute error; document-object plumbing in the same read-a-page-into-text ecosystem"},
+      {"rank": 5, "task_id": "gammapy__gammapy-5366", "skill": 3, "domain": 3, "task_form": 2, "overall": 2, "reason": "Pixel-index rounding produces off-by-one coordinates; the exact failure mode when mapping image pixels to a grid of cells"},
+      {"rank": 6, "task_id": "kozea__weasyprint-2416", "skill": 2, "domain": 3, "task_form": 2, "overall": 2, "reason": "Text rendering breaks around a non-breaking space; glyph layout reasoning, the inverse of recovering text from a layout"},
+      {"rank": 7, "task_id": "corteva__rioxarray-841", "skill": 2, "domain": 3, "task_form": 2, "overall": 2, "reason": "Raster with non-standard x/y dimension names mishandled; pixel-grid bookkeeping in an image-array library"},
+      {"rank": 8, "task_id": "nipy__nibabel-1336", "skill": 2, "domain": 3, "task_form": 2, "overall": 2, "reason": "Image array data-type exposure for medical image formats; decoding pixel data out of a container format"},
+      {"rank": 9, "task_id": "fatiando__harmonica-479", "skill": 2, "domain": 2, "task_form": 2, "overall": 1, "reason": "Gridded-data handling in a geophysics library; shares only array-over-a-grid reasoning"},
+      {"rank": 10, "task_id": "keras-team__keras-20602", "skill": 1, "domain": 2, "task_form": 2, "overall": 1, "reason": "Numpy/Keras batch-prediction regression; no image reading and no exact-value reconstruction"}
+    ],
+    "Terminal-Lego-15k": [
+      {"rank": 1, "task_id": "task_09114", "skill": 4, "domain": 3, "task_form": 4, "overall": 4, "reason": "The implementation must match the given pseudocode exactly, both loops from 0 to n-1, no library shortcuts; the second half of this TB2.1 task verbatim"},
+      {"rank": 2, "task_id": "task_14037", "skill": 4, "domain": 5, "task_form": 3, "overall": 4, "reason": "Build a CAPTCHA recogniser: OCR distorted text out of an image and produce the exact characters, with 6 pinned assertions"},
+      {"rank": 3, "task_id": "task_13520", "skill": 4, "domain": 5, "task_form": 3, "overall": 3, "reason": "Implement an OCR pipeline that detects text regions and returns bounding boxes plus text; the machinery code.png needs"},
+      {"rank": 4, "task_id": "task_00385", "skill": 3, "domain": 5, "task_form": 3, "overall": 3, "reason": "A CLI that takes an image path and writes the recognised text to a file; the exact harness shape for reading code.png"},
+      {"rank": 5, "task_id": "task_13495", "skill": 3, "domain": 4, "task_form": 3, "overall": 3, "reason": "Locate a template inside a larger image by pixel matching; reading structure out of raster data without OCR"},
+      {"rank": 6, "task_id": "task_05121", "skill": 2, "domain": 4, "task_form": 2, "overall": 2, "reason": "Verify a rendered PNG actually contains varied pixel data; inspecting image contents programmatically, on the output side"},
+      {"rank": 7, "task_id": "task_03780", "skill": 2, "domain": 3, "task_form": 2, "overall": 2, "reason": "Decode base64 to a byte-correct image file; binary-vs-text handling that also breaks naive image pipelines"},
+      {"rank": 8, "task_id": "task_06960", "skill": 2, "domain": 3, "task_form": 3, "overall": 2, "reason": "Design a text-based CAPTCHA alternative; adjacent to OCR by subject but no image is ever read"},
+      {"rank": 9, "task_id": "task_04916", "skill": 2, "domain": 3, "task_form": 2, "overall": 2, "reason": "Produce and validate a PNG at a given resolution and DPI; image-file property checking only"},
+      {"rank": 10, "task_id": "task_07175", "skill": 2, "domain": 1, "task_form": 2, "overall": 2, "reason": "Trace through a codebase with grep alone to find which handlers fire; static reasoning about code you cannot run"}
+    ],
+    "CalibForge": [
+      {"rank": 1, "task_id": "file-operations_20260610_111702_003", "skill": 5, "domain": 5, "task_form": 5, "overall": 5, "reason": "Recover a C calculator's source from a screenshot at /app/backup.png and rebuild the working project; literally code-from-image, 11 pinned assertions"},
+      {"rank": 2, "task_id": "games_20260601_053159_001", "skill": 5, "domain": 5, "task_form": 4, "overall": 5, "reason": "Extract a Sudoku grid from sudoku.png, solve it, write the exact completed grid; read-the-image-then-compute-the-exact-answer in one step"},
+      {"rank": 3, "task_id": "games_20260611_205750_001", "skill": 5, "domain": 5, "task_form": 4, "overall": 4, "reason": "Read a Game of Life pattern off a PNG at a stated 20x20 pixel cell size and simulate it; reconstruct semantics from a picture, then execute them"},
+      {"rank": 4, "task_id": "games_20260604_002443_001", "skill": 4, "domain": 5, "task_form": 4, "overall": 4, "reason": "Parse a Minesweeper screenshot cell by cell from its described rendering and deduce the answer; careful pixel-to-symbol reading"},
+      {"rank": 5, "task_id": "file-operations_20260509_111805_001", "skill": 4, "domain": 5, "task_form": 4, "overall": 4, "reason": "Repair four PNG fragments and read the Code: field out of each, then concatenate into the exact unlock code"},
+      {"rank": 6, "task_id": "games_20260606_172606_001", "skill": 4, "domain": 5, "task_form": 4, "overall": 4, "reason": "Read a 19x19 Go position off an image, then apply the rules to compute territory; image-to-state plus exact rule execution"},
+      {"rank": 7, "task_id": "games_20260612_191200_001", "skill": 4, "domain": 5, "task_form": 3, "overall": 3, "reason": "Extract a 9x9 Go position from a wood-textured board image and score it; harder vision, simpler computation"},
+      {"rank": 8, "task_id": "games_20260611_112034_001", "skill": 4, "domain": 5, "task_form": 3, "overall": 3, "reason": "Recover stone placements from a rendered Go board and choose a move; only one pinned assertion so the verifier is thin"},
+      {"rank": 9, "task_id": "games_20260416_020953_001", "skill": 4, "domain": 5, "task_form": 3, "overall": 3, "reason": "Read a partially-revealed Minesweeper board image including flags and raised buttons; visual state extraction"},
+      {"rank": 10, "task_id": "games_20260604_004411_001", "skill": 3, "domain": 5, "task_form": 3, "overall": 3, "reason": "Read a tic-tac-toe board image and output the best move as an exact row,col string; same genre at trivial depth"}
+    ]
+  },
+  "final_top10": [
+    {"rank": 1, "task_id": "file-operations_20260610_111702_003", "source": "CalibForge", "skill": 5, "domain": 5, "task_form": 5, "overall": 5, "reason": "Rebuild a C project from a screenshot of its source; the same read-code-out-of-a-PNG-and-make-it-run problem, strongly verified"},
+    {"rank": 2, "task_id": "task_005252_9cc400a9", "source": "TMax-15K", "skill": 5, "domain": 5, "task_form": 5, "overall": 5, "reason": "formula.png holds the formula and processing rule; OCR it and implement the exact transformation and sort"},
+    {"rank": 3, "task_id": "games_20260601_053159_001", "source": "CalibForge", "skill": 5, "domain": 5, "task_form": 4, "overall": 5, "reason": "Extract a Sudoku grid from an image then compute and emit the one exact correct solution"},
+    {"rank": 4, "task_id": "task_004606_391aae46", "source": "TMax-15K", "skill": 5, "domain": 5, "task_form": 5, "overall": 5, "reason": "spec.png carries the business logic; read it off the image and implement the filter and aggregation exactly"},
+    {"rank": 5, "task_id": "games_20260611_205750_001", "source": "CalibForge", "skill": 5, "domain": 5, "task_form": 4, "overall": 4, "reason": "Decode a Life pattern from a PNG at a known cell size and simulate it forward; image-to-semantics then exact execution"},
+    {"rank": 6, "task_id": "task_000105_2c3c3a76", "source": "TMax-15K", "skill": 5, "domain": 5, "task_form": 4, "overall": 4, "reason": "OCR a multiplier and modulus from a PNG and replicate the PRNG; one misread digit ruins the final number"},
+    {"rank": 7, "task_id": "games_20260604_002443_001", "source": "CalibForge", "skill": 4, "domain": 5, "task_form": 4, "overall": 4, "reason": "Parse a Minesweeper screenshot cell by cell against a stated rendering spec, then deduce the answer"},
+    {"rank": 8, "task_id": "task_000333_7a82aa70", "source": "TMax-15K", "skill": 5, "domain": 5, "task_form": 4, "overall": 4, "reason": "A scanned image of model architecture and weights is the only source; reconstruct the scoring model from it"},
+    {"rank": 9, "task_id": "file-operations_20260509_111805_001", "source": "CalibForge", "skill": 4, "domain": 5, "task_form": 4, "overall": 4, "reason": "Repair PNG fragments, read the code text out of each, and assemble the exact unlock string"},
+    {"rank": 10, "task_id": "task_09114", "source": "Terminal-Lego-15k", "skill": 4, "domain": 3, "task_form": 4, "overall": 4, "reason": "Implement an algorithm matching the supplied pseudocode exactly, loops included, with no library shortcut; 12 pinned assertions"}
+  ],
+  "notes": "This is a two-halves task (read the image, then execute the snippet) and the pools split on it. CalibForge has a whole games_* family of read-a-rendered-board-then-compute tasks plus one literal code-from-screenshot task, and it wins outright. TMax-15K has an equally strong OCR-spec family (task_0000xx through task_0001xx are all 'extract a constant or a rule from a PNG then implement it'), which retrieval only partially surfaced - task_005252_9cc400a9 and task_004606_391aae46 were in the shortlist but the OCR cluster around task_000105/000108/000117 had to be found by searching for 'tesseract'. Terminal-Lego contributes exactly one strong candidate (task_09114, implement-from-pseudocode-literally) and three thin OCR ones; ranks 6-10 there are filler. TerminalWorld and Recursive-Task-Synthesis have no image-reading tasks at all - `tools.py search tw/rts` for OCR/tesseract/screenshot returns nothing relevant - so both lists are honest adjacency picks (exact-digest computation, follow-a-hidden-spec) and none scores above 3. SWE-Smith's pdfplumber cluster is a genuinely useful surprise: glyph clustering and layout-preserving extraction is the algorithmic core of reading text off a page, and retrieval surfaced none of it."
+}

@@ -15,6 +15,13 @@ import json
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
+VSTRENGTH = HERE / "work" / "verifier_strength.json"
+# CalibForge ships 98 auto-generated "environment analyzer" tasks whose text
+# pastes a Terminal-Bench task name in as a domain label ("...for the
+# `path-tracing` domain") while the body is a generic directory-hashing
+# utility. They match the query by name, verify cleanly, and teach nothing --
+# the worst possible combination for retrieval. Drop them from the packets.
+BLOCKLIST = HERE / "work" / "calibforge_inspector_filler.txt"
 
 
 def main() -> int:
@@ -25,6 +32,15 @@ def main() -> int:
     ap.add_argument("--snippet", type=int, default=520)
     args = ap.parse_args()
     args.dst.mkdir(parents=True, exist_ok=True)
+    # Verifier grade travels with every candidate: a task whose tests can be
+    # passed without solving it is bad training data however well it matches.
+    vs = json.loads(VSTRENGTH.read_text()) if VSTRENGTH.exists() else {}
+    if vs:
+        print(f"[packets] carrying verifier grades for {len(vs)} tasks")
+    blocked = set()
+    if BLOCKLIST.exists():
+        blocked = {l.split("\t")[0] for l in BLOCKLIST.read_text().splitlines() if l.strip()}
+        print(f"[packets] blocklisting {len(blocked)} name-matching filler tasks")
 
     sizes = []
     for src in sorted(args.src.glob("*.json")):
@@ -44,6 +60,7 @@ def main() -> int:
             "candidates": {},
         }
         for corpus, lst in raw["candidates"].items():
+            lst = [e for e in lst if e["task_id"] not in blocked]
             shown = [
                 {
                     "task_id": e["task_id"],
@@ -52,6 +69,8 @@ def main() -> int:
                     "found_by": sorted(e["signals"]),
                     "inst_chars": e["inst_chars"],
                     "snippet": " ".join(e["snippet"].split())[: args.snippet],
+                    "verifier": (vs.get(e["task_id"]) or {}).get("grade", "unknown"),
+                    "verifier_strength": (vs.get(e["task_id"]) or {}).get("strength"),
                 }
                 for e in lst[: args.show]
             ]

@@ -1,0 +1,130 @@
+{
+  "tb21_id": "cobol-modernization",
+  "tb21_profile": {
+    "skill": "Read a program in an unfamiliar legacy language (COBOL record layouts, PIC/level-01 fields, sequential .DAT file I/O) and re-implement its semantics in Python so the mutated data files come out byte-identical",
+    "domain": "GnuCOBOL 3 / mainframe-style fixed-format flat-file batch processing (accounts, books, transactions .DAT records) re-hosted on Python",
+    "task_form": "implement-from-spec by cross-language port, verified differentially against the reference implementation's output"
+  },
+  "verifier_notes": "software-engineering_20260419_065313_005 is graded `weak` (1/11 substantive) but its test_output_matches_awk actually shells out to gawk on the reference script and diffs the Python output line by line - that is the same differential check cobol-modernization itself uses, so the grade badly understates it; I treat it as strong. software-engineering_20260606_172606_005 is graded FREE and the grade is wrong: tests/test_outputs.py runs the C binary and moviedb.py on the same command stream and compares every field of the resulting binary DB (asserts live inside a run_and_compare helper, which the regex heuristic misses). Because the FREE rule is checked mechanically I kept it out of final_top10 anyway; it is the single best-shaped CalibForge candidate after the AWK one and a merge step that can re-grade should promote it. tw_12315 (FREE) is the only TerminalWorld candidate with real cross-language-format skill; kept in per_source, barred from final.",
+  "searches": [
+    "tools.py search all \"COBOL|GnuCOBOL|cobc \"",
+    "tools.py search all \"re-?implement .{0,40}in Python|port(ing)? (the|this) .{0,30}(program|script|code|tool) to Python|rewrite .{0,40} in Python\"",
+    "tools.py search all \"packed decimal|COMP-3|EBCDIC|copybook|fixed-width record|fixed width record\"",
+    "tools.py search all \"byte-for-byte identical|byte-identical|bit-identical|identical to (the|those) produced\"",
+    "tools.py search rts \"re-?implement|port(ing)? .{0,25}to Python|rewrite .{0,30} in (Python|C)|equivalent Python|translate .{0,25}(to|into) Python\"",
+    "tools.py search rts \"binary (record|file format)|fixed-width|struct\\.unpack|packed decimal|legacy (program|application|system|script)|ldpl|Fortran\"",
+    "tools.py search rts \"must (be identical|match) (the|exactly).{0,60}(program|binary|output)|same output as\"",
+    "tools.py search rts \"identical (output|content|behaviou?r)|replicate the (logic|behaviou?r)|same (logic|behaviou?r) as|mirror(s|ing)? the (logic|behaviou?r)\"",
+    "tools.py search tw \"re-?implement|port(ing)? .{0,25}to Python|rewrite .{0,30} in (Python|C)|equivalent Python|translate|convert .{0,20}(to|into) (Python|C\\+\\+)\"",
+    "tools.py search tw \"binary (record|file format|data)|fixed-width|struct\\.unpack|legacy|Fortran|awk|dBase|mainframe\"",
+    "tools.py search tw \"compile .{0,40}(program|source|file) (using|with) the|interpreter|bytecode|EBCDIC|encoding compat|serializ\"",
+    "tools.py search rebench \"pyccel|transpil|Fortran|code generation|codegen\"",
+    "tools.py search smith \"transpil|Fortran|fixed-width|binary (format|record)|struct\\.unpack|decimal\"",
+    "tools.py search smith \"transpil|dialect\"",
+    "tools.py search smith \"cantools|DBC file|SYM file|struct\\.pack|fixed-length|record layout|COBOL\"",
+    "nt.py search all \"COBOL|GnuCOBOL|cobc \"  (Terminal-Lego + CalibForge index)",
+    "nt.py search cal \"port(ing)? (it|this|the)? ?.{0,30}to Python|reimplement|re-implement|behaves identically|identical to (the|what) (the )?(C|legacy|original)\"",
+    "nt.py search lego \"port(ing)? .{0,25}to Python|equivalent (Python|of the)|translate .{0,30}(to|into) Python|awk script|Perl script|fixed-width|struct\\.unpack|binary record\"",
+    "nt.py search lego \"convert (a |an |the )?.{0,25}(script|program|code) (to|into) (Python|C\\+\\+|Java)|rewrite .{0,25}(in|to) Python|from (Perl|MATLAB|VB|Fortran|Ruby|PHP) to Python|reimplement\"",
+    "nt.py search lego \"fixed[- ]width|pack\\(|unpack\\(|record layout|flat file|struct.pack|columns at fixed\""
+  ],
+  "per_source": {
+    "TMax-15K": [
+      {"rank": 1, "task_id": "task_001549_376af22d", "skill": 5, "domain": 3, "task_form": 5, "overall": 4, "reason": "Rewrite a legacy tool in Python with bit-exact output compatibility; same port-and-match-the-reference crux as the COBOL port"},
+      {"rank": 2, "task_id": "task_003400_a6cc667a", "skill": 5, "domain": 3, "task_form": 5, "overall": 4, "reason": "Migrate off a legacy C scoring engine by reimplementing its exact behavior in Python; exactness of numeric/text output is the whole task"},
+      {"rank": 3, "task_id": "task_004796_0a0519b2", "skill": 4, "domain": 4, "task_form": 4, "overall": 4, "reason": "Legacy tool that parses proprietary .dat records must be reproduced in Python; same record-layout reasoning as COBOL PIC fields"},
+      {"rank": 4, "task_id": "task_002223_e0a30625", "skill": 4, "domain": 3, "task_form": 4, "overall": 4, "reason": "Source lost; write Python that exactly reproduces a legacy report generator's stdout, including formatting of numeric columns"},
+      {"rank": 5, "task_id": "task_003429_b867fc12", "skill": 4, "domain": 3, "task_form": 4, "overall": 4, "reason": "Reads Rust source and re-implements its parsing state machine in Python; porting from readable foreign source, like reading program.cbl"},
+      {"rank": 6, "task_id": "task_007893_afa5eeb2", "skill": 4, "domain": 4, "task_form": 3, "overall": 3, "reason": "Decode fixed-layout binary .dat transaction records into CSV from a reverse-engineered struct definition; direct analogue of copybook-driven record parsing"},
+      {"rank": 7, "task_id": "task_003266_90b0df8c", "skill": 4, "domain": 3, "task_form": 4, "overall": 3, "reason": "Port a stripped recovery tool to Python; behaviour must match, but blackbox probing replaces source reading"},
+      {"rank": 8, "task_id": "task_004948_2a342f84", "skill": 4, "domain": 3, "task_form": 4, "overall": 3, "reason": "Port wal_packer to Python preserving its on-disk output format; file-format fidelity is the graded property"},
+      {"rank": 9, "task_id": "task_002056_ad7c8830", "skill": 4, "domain": 3, "task_form": 4, "overall": 3, "reason": "Rewrite a C encoder for a custom binary format in Python; byte-level encoder equivalence, no source available"},
+      {"rank": 10, "task_id": "task_002786_384ba32b", "skill": 3, "domain": 3, "task_form": 4, "overall": 3, "reason": "Explicitly forbids shelling out to the legacy tool: the logic must be reimplemented natively, same constraint as re-hosting COBOL in Python"}
+    ],
+    "Recursive-Task-Synthesis": [
+      {"rank": 1, "task_id": "rts_task_0d5afc463bf841d8422b9cc2", "skill": 4, "domain": 2, "task_form": 4, "overall": 3, "reason": "Repackage script logic as an Elixir escript and prove it produces identical output: a behaviour-preserving cross-language port with a diff check"},
+      {"rank": 2, "task_id": "rts_task_cd27089af42b385840c603b5", "skill": 4, "domain": 2, "task_form": 4, "overall": 3, "reason": "Same escript port pattern; the graded property is output equality with the original script, as with program.cbl"},
+      {"rank": 3, "task_id": "rts_task_3a3b0cec3442902a8f2b9a42", "skill": 4, "domain": 2, "task_form": 4, "overall": 3, "reason": "Build mix.exs plus lib module from an existing script and confirm the escript reproduces its output exactly"},
+      {"rank": 4, "task_id": "rts_task_67edde733089b7f4377bb7b7", "skill": 3, "domain": 2, "task_form": 4, "overall": 3, "reason": "Port the same logic into a Mix project and verify identical output, with config reconciliation layered on top"},
+      {"rank": 5, "task_id": "rts_task_0b3deb7e3aa16773dfafffdb", "skill": 3, "domain": 2, "task_form": 4, "overall": 3, "reason": "Script-to-escript port checked by output equality; transfers the discipline of matching a reference implementation byte for byte"},
+      {"rank": 6, "task_id": "rts_task_431f2dc564da397d36446704", "skill": 3, "domain": 2, "task_form": 4, "overall": 3, "reason": "Escript build whose acceptance is that it emits the same text as the original script under a reconciled config"},
+      {"rank": 7, "task_id": "rts_task_a612d57eced2b1c490ce84a4", "skill": 3, "domain": 3, "task_form": 3, "overall": 3, "reason": "Edit LDPL source (a deliberately COBOL-like English-syntax language) so its greeting/farewell output matches a required format"},
+      {"rank": 8, "task_id": "rts_task_78cd0a708b4e73b477778a87", "skill": 2, "domain": 3, "task_form": 3, "overall": 2, "reason": "Compile an LDPL program from /app/src per a spec file: closest thing in this pool to driving the GnuCOBOL toolchain"},
+      {"rank": 9, "task_id": "rts_task_f14b579f6dfe8069ac177883", "skill": 3, "domain": 2, "task_form": 3, "overall": 2, "reason": "A self-contained run.sh must reproduce exactly what the original binary prints; repackaging with output-equality as the gate"},
+      {"rank": 10, "task_id": "rts_task_9b539584f9698c9c66230886", "skill": 2, "domain": 3, "task_form": 3, "overall": 2, "reason": "Compile and run interactive LDPL, capturing exact stdout; legacy-language compile-and-run only, no reimplementation"}
+    ],
+    "TerminalWorld-Seeds-Clean": [
+      {"rank": 1, "task_id": "tw_241070", "skill": 3, "domain": 3, "task_form": 3, "overall": 3, "reason": "Write an AirLang source file and drive its compiler airc end to end; the same obscure-compiler-toolchain work GnuCOBOL demands"},
+      {"rank": 2, "task_id": "tw_12315", "skill": 4, "domain": 3, "task_form": 3, "overall": 3, "reason": "Make Python and Haskell agree on MessagePack bytes: cross-language serialization fidelity, but its verifier is FREE so unusable for RL"},
+      {"rank": 3, "task_id": "tw_49852", "skill": 2, "domain": 2, "task_form": 3, "overall": 2, "reason": "Run a Red interpreter program and capture its exact output; only the exact-output-capture habit transfers"},
+      {"rank": 4, "task_id": "tw_621364", "skill": 2, "domain": 3, "task_form": 2, "overall": 2, "reason": "Builds accounts/balances/transactions tables with triggers: same ledger subject matter as ACCOUNTS.DAT/TRANSACTIONS.DAT, different skill"},
+      {"rank": 5, "task_id": "tw_204417", "skill": 3, "domain": 2, "task_form": 3, "overall": 2, "reason": "Run one program under several runtimes and compare captured outputs; differential-output reasoning, trivial implementation"},
+      {"rank": 6, "task_id": "tw_11045", "skill": 2, "domain": 2, "task_form": 2, "overall": 2, "reason": "Parse a fielded CSV into an exactly specified nested structure; record-field parsing at a much lower difficulty"},
+      {"rank": 7, "task_id": "tw_338947", "skill": 2, "domain": 3, "task_form": 3, "overall": 2, "reason": "Compile a C project plus a static helper library and run it from a prescribed directory; build-and-run only"},
+      {"rank": 8, "task_id": "tw_319907", "skill": 2, "domain": 1, "task_form": 3, "overall": 2, "reason": "Implement a program to match a published reference description exactly; spec-fidelity genre, unrelated domain"},
+      {"rank": 9, "task_id": "tw_479594", "skill": 2, "domain": 2, "task_form": 3, "overall": 2, "reason": "Write a C command interpreter with an exact prompt string; implement-from-spec with byte-exact output requirements"},
+      {"rank": 10, "task_id": "tw_730164", "skill": 1, "domain": 2, "task_form": 2, "overall": 1, "reason": "C preprocessor include-from-stdin trick; shares only the compile-a-C-thing shell, no porting or record work"}
+    ],
+    "SWE-Smith-Seeds-Clean": [
+      {"rank": 1, "task_id": "cantools__cantools.0c6a7871.func_pm_op_change_const__66td47t4", "skill": 4, "domain": 4, "task_form": 2, "overall": 3, "reason": "Signal bit lengths computed too large so signals no longer fit their message; bit-level record-layout arithmetic, the COBOL PIC problem in CAN clothing"},
+      {"rank": 2, "task_id": "cantools__cantools.0c6a7871.lm_rewrite__swakazsi", "skill": 4, "domain": 4, "task_form": 2, "overall": 3, "reason": "Fix loading signals from SYM files: parsing a declarative record-layout description exactly like a COBOL copybook"},
+      {"rank": 3, "task_id": "cantools__cantools.0c6a7871.combine_file__2yrjny26", "skill": 4, "domain": 4, "task_form": 2, "overall": 3, "reason": "Decoded value off by one from expected; scaling/offset conversion of a packed field, same class of encode/decode fidelity bug"},
+      {"rank": 4, "task_id": "cantools__cantools.0c6a7871.func_pm_remove_assign__e0sp70d9", "skill": 3, "domain": 4, "task_form": 2, "overall": 3, "reason": "Multiplexed SYM signals not loaded: variant record layouts, the analogue of REDEFINES/occurs-depending-on in a copybook"},
+      {"rank": 5, "task_id": "tobymao__sqlglot.036601ba.lm_rewrite__1zefdldo", "skill": 4, "domain": 2, "task_form": 2, "overall": 3, "reason": "Dialect-specific parsing broken in a SQL transpiler; preserving semantics while translating between languages is the shared skill"},
+      {"rank": 6, "task_id": "tobymao__sqlglot.036601ba.lm_rewrite__57d1a6ra", "skill": 4, "domain": 2, "task_form": 2, "overall": 3, "reason": "LAG/LEAD default values mistranslated into the Doris dialect; a semantics-preserving translation bug, same failure mode a sloppy COBOL port makes"},
+      {"rank": 7, "task_id": "django-money__django-money.835c1ab8.lm_rewrite__2r9my608", "skill": 3, "domain": 3, "task_form": 2, "overall": 3, "reason": "decimal_places lost through arithmetic; fixed-point money precision is exactly what COBOL PIC S9(n)V99 fields encode"},
+      {"rank": 8, "task_id": "pyasn1__pyasn1.0f07d724.func_pm_remove_assign__9sem23aa", "skill": 3, "domain": 3, "task_form": 2, "overall": 2, "reason": "GeneralizedTime with subseconds mis-encoded; fixed-format field encoding where every character position matters"},
+      {"rank": 9, "task_id": "gweis__isodate.17cb25eb.func_pm_remove_loop__iwtk97lo", "skill": 3, "domain": 2, "task_form": 2, "overall": 2, "reason": "Parsing a rigid positional string format with a comma decimal separator; fixed-format field extraction, small scope"},
+      {"rank": 10, "task_id": "andialbrecht__sqlparse.e57923b3.lm_rewrite__pasuag9j", "skill": 2, "domain": 2, "task_form": 2, "overall": 2, "reason": "Tokenizer fix for dialect-specific quoting; reading grammar-level code carefully, but little record or port transfer"}
+    ],
+    "SWE-Rebench-Tasks-Clean": [
+      {"rank": 1, "task_id": "axelrod-python__axelrod-1113", "skill": 4, "domain": 3, "task_form": 3, "overall": 4, "reason": "A Python strategy must reproduce the original Fortran implementation's behaviour exactly; literally the port-must-match-the-legacy-program problem"},
+      {"rank": 2, "task_id": "axelrod-python__axelrod-1152", "skill": 4, "domain": 3, "task_form": 3, "overall": 4, "reason": "Python implementation diverges from the Fortran source it was ported from; diagnose and restore semantic equivalence"},
+      {"rank": 3, "task_id": "pyccel__pyccel-2038", "skill": 4, "domain": 3, "task_form": 2, "overall": 3, "reason": "List aliasing means Python and the generated Fortran/C disagree; reasoning about where source-language semantics fail to carry over"},
+      {"rank": 4, "task_id": "pyccel__pyccel-780", "skill": 3, "domain": 3, "task_form": 2, "overall": 3, "reason": "Descending for-loops mistranslated to C and Fortran; loop-semantics mismatch across a language boundary"},
+      {"rank": 5, "task_id": "pyccel__pyccel-1810", "skill": 3, "domain": 3, "task_form": 2, "overall": 3, "reason": "Array-to-slice assignment wrong in the Fortran backend; getting the target language's data-movement semantics right"},
+      {"rank": 6, "task_id": "pyccel__pyccel-264", "skill": 3, "domain": 3, "task_form": 2, "overall": 3, "reason": "Type conversions in expressions break translation; numeric type/precision mapping between languages, as with COBOL PIC to Python numerics"},
+      {"rank": 7, "task_id": "pyccel__pyccel-2114", "skill": 3, "domain": 3, "task_form": 2, "overall": 2, "reason": "Reusing a set twice in a Fortran translation traces back; codegen state bug in a transpiler, narrower transfer"},
+      {"rank": 8, "task_id": "pyccel__pyccel-2019", "skill": 3, "domain": 3, "task_form": 2, "overall": 2, "reason": "Implement set copy() for the C and Fortran backends: writing the target-language equivalent of a source-language operation"},
+      {"rank": 9, "task_id": "pyccel__pyccel-2277", "skill": 3, "domain": 3, "task_form": 2, "overall": 2, "reason": "Support dicts as results in Fortran; mapping a high-level type onto a language that lacks it, like mapping COBOL records onto Python"},
+      {"rank": 10, "task_id": "pyccel__pyccel-2186", "skill": 2, "domain": 3, "task_form": 2, "overall": 2, "reason": "Multidimensional array codegen failure in the Fortran backend; same transpiler codebase, narrower and more internal"}
+    ],
+    "Terminal-Lego-15k": [
+      {"rank": 1, "task_id": "task_04419", "skill": 4, "domain": 3, "task_form": 3, "overall": 3, "reason": "Convert MATLAB code to equivalent Python/numpy: a genuine source-to-source port, though far shallower than a COBOL batch program"},
+      {"rank": 2, "task_id": "task_04521", "skill": 4, "domain": 3, "task_form": 3, "overall": 3, "reason": "MATLAB and NumPy compute stddev differently; the exact silent-divergence trap that breaks a naive port"},
+      {"rank": 3, "task_id": "task_10029", "skill": 3, "domain": 2, "task_form": 3, "overall": 2, "reason": "Translate Boost threading code to C++11 equivalents; API-level port with behaviour preservation, different stack"},
+      {"rank": 4, "task_id": "task_00611", "skill": 2, "domain": 3, "task_form": 2, "overall": 2, "reason": "Zero-pad integers to a fixed width of five digits: exactly how COBOL PIC 9(5) display fields are written into .DAT records"},
+      {"rank": 5, "task_id": "task_01617", "skill": 2, "domain": 3, "task_form": 2, "overall": 2, "reason": "Format floats to fixed width with alignment; output-formatting fidelity is what makes or breaks byte-identical .DAT files"},
+      {"rank": 6, "task_id": "task_09308", "skill": 2, "domain": 3, "task_form": 2, "overall": 2, "reason": "Sort a fixed-width-field file while preserving a header; reasoning about column positions in a flat record file"},
+      {"rank": 7, "task_id": "task_03855", "skill": 3, "domain": 3, "task_form": 2, "overall": 2, "reason": "Write binary files with little-endian numeric fields in Perl; explicit control of on-disk byte representation"},
+      {"rank": 8, "task_id": "task_03719", "skill": 3, "domain": 3, "task_form": 2, "overall": 2, "reason": "Write and read back fixed-size binary records in C; the write-then-verify-record-layout loop the COBOL port needs"},
+      {"rank": 9, "task_id": "task_10904", "skill": 3, "domain": 2, "task_form": 3, "overall": 2, "reason": "Length-prefixed framing with struct.pack/unpack and a stateful deframer; binary record boundary handling in pure Python"},
+      {"rank": 10, "task_id": "task_09686", "skill": 2, "domain": 3, "task_form": 2, "overall": 2, "reason": "Cross-compiler struct packing attributes; struct padding is the classic reason a record layout fails to round-trip"}
+    ],
+    "CalibForge": [
+      {"rank": 1, "task_id": "software-engineering_20260419_065313_005", "skill": 5, "domain": 4, "task_form": 5, "overall": 5, "reason": "Re-implement a legacy AWK script from /app/src in Python so the output file is byte-identical; same template, same differential check, same run-from-/app framing"},
+      {"rank": 2, "task_id": "software-engineering_20260419_023954_005", "skill": 4, "domain": 5, "task_form": 4, "overall": 5, "reason": "Parse an actual COBOL copybook and decode the fixed-layout mainframe record file it describes; the only real copybook task in the pool"},
+      {"rank": 3, "task_id": "software-engineering_20260507_093408_005", "skill": 4, "domain": 5, "task_form": 4, "overall": 4, "reason": "38-byte records with EBCDIC cp500 strings and COMP-3 packed decimal balances; the exact data representations GnuCOBOL writes"},
+      {"rank": 4, "task_id": "software-engineering_20260606_172606_005", "skill": 5, "domain": 4, "task_form": 5, "overall": 4, "reason": "Port a legacy C database tool to Python that behaves identically; graded FREE by the heuristic but really differential-tested, so barred from final only"},
+      {"rank": 5, "task_id": "software-engineering_20260508_204815_005", "skill": 4, "domain": 4, "task_form": 4, "overall": 4, "reason": "Re-implement a multi-script shell pipeline as one Python script producing the same report files; cross-language rewrite with output equality"},
+      {"rank": 6, "task_id": "software-engineering_20260430_081156_005", "skill": 4, "domain": 5, "task_form": 3, "overall": 4, "reason": "Convert an EBCDIC mainframe export to CSV using only a README describing the record layout; layout-from-documentation decoding"},
+      {"rank": 7, "task_id": "data-processing_20260613_152233_004", "skill": 3, "domain": 5, "task_form": 3, "overall": 3, "reason": "Restructure a twenty-year-old COBOL system's non-standard flat export into JSON; same fixed-format legacy data, lighter logic"},
+      {"rank": 8, "task_id": "data-processing_20260528_174918_003", "skill": 3, "domain": 4, "task_form": 3, "overall": 3, "reason": "Reconcile a COBOL-copybook flat file against JSON Lines; requires reading a copybook layout to extract transaction records"},
+      {"rank": 9, "task_id": "data-science_20260601_053159_007", "skill": 4, "domain": 2, "task_form": 4, "overall": 3, "reason": "Port an R survival analysis to Python/lifelines with numerically matching outputs; same port-and-match genre, unrelated stack"},
+      {"rank": 10, "task_id": "software-engineering_20260604_003113_017", "skill": 3, "domain": 3, "task_form": 4, "overall": 3, "reason": "Reimplement an oracle binary from scratch so stdout and stderr match for all inputs; behaviour-equivalence goal, blackbox rather than source-reading"}
+    ]
+  },
+  "final_top10": [
+    {"rank": 1, "task_id": "software-engineering_20260419_065313_005", "source": "CalibForge", "skill": 5, "domain": 4, "task_form": 5, "overall": 5, "reason": "Re-implement a legacy AWK script from /app/src in Python with byte-identical output, verified by diffing against the real awk run"},
+    {"rank": 2, "task_id": "software-engineering_20260419_023954_005", "source": "CalibForge", "skill": 4, "domain": 5, "task_form": 4, "overall": 5, "reason": "Parse a COBOL copybook and decode the fixed-layout record file it defines; teaches the PIC/level-01 reading the port needs"},
+    {"rank": 3, "task_id": "software-engineering_20260507_093408_005", "source": "CalibForge", "skill": 4, "domain": 5, "task_form": 4, "overall": 4, "reason": "Decode 38-byte records with EBCDIC cp500 text and COMP-3 packed decimals: the data encodings GnuCOBOL actually emits"},
+    {"rank": 4, "task_id": "task_001549_376af22d", "source": "TMax-15K", "skill": 5, "domain": 3, "task_form": 5, "overall": 4, "reason": "Rewrite a legacy tool in Python with bit-exact output compatibility; identical port-and-match-the-reference crux"},
+    {"rank": 5, "task_id": "software-engineering_20260508_204815_005", "source": "CalibForge", "skill": 4, "domain": 4, "task_form": 4, "overall": 4, "reason": "Collapse a legacy shell pipeline into one Python script that reproduces every report file exactly"},
+    {"rank": 6, "task_id": "task_003400_a6cc667a", "source": "TMax-15K", "skill": 5, "domain": 3, "task_form": 5, "overall": 4, "reason": "Reimplement a legacy C engine's exact behaviour in Python to retire it; exactness of output is the graded property"},
+    {"rank": 7, "task_id": "software-engineering_20260430_081156_005", "source": "CalibForge", "skill": 4, "domain": 5, "task_form": 3, "overall": 4, "reason": "Convert an EBCDIC mainframe binary export to CSV from a prose record-layout README"},
+    {"rank": 8, "task_id": "task_004796_0a0519b2", "source": "TMax-15K", "skill": 4, "domain": 4, "task_form": 4, "overall": 4, "reason": "Finish migrating a legacy .dat telemetry parser to Python; proprietary fixed record layout must be reproduced exactly"},
+    {"rank": 9, "task_id": "task_002223_e0a30625", "source": "TMax-15K", "skill": 4, "domain": 3, "task_form": 4, "overall": 4, "reason": "Rewrite a lost-source report generator in Python that reproduces its printed capacity report exactly"},
+    {"rank": 10, "task_id": "axelrod-python__axelrod-1113", "source": "SWE-Rebench-Tasks-Clean", "skill": 4, "domain": 3, "task_form": 3, "overall": 4, "reason": "Make a Python strategy match the original Fortran implementation it was ported from; repo-tests verifier, real legacy-port debugging"}
+  ],
+  "notes": "CalibForge is decisively the best pool for this task and the only one containing real COBOL material (copybooks, EBCDIC cp500, COMP-3): the v1 pool has zero COBOL hits under `tools.py search all \"COBOL|GnuCOBOL|cobc \"`. Terminal-Lego-15k is the weakest corpus here - it is StackOverflow-derived and has no port-a-legacy-program tasks at all; ranks 4-10 there are fixed-width formatting and binary-record fragments and none deserve above overall 3. TerminalWorld is nearly as thin: only tw_241070 and tw_12315 are defensible, and tw_12315 is FREE. Recursive-Task-Synthesis has nothing verified (all `absent`) but its Elixir escript family is a genuine behaviour-preserving port genre that retrieval never surfaced; the shortlist for RTS was entirely compute_gcd/fstab boilerplate. SWE-Smith and SWE-Rebench lose on task_form as expected, but Rebench's axelrod (Python-must-match-Fortran) and pyccel (Python-to-Fortran/C transpiler) clusters are a much better answer than anything retrieval returned for that corpus. Merge step: rank 1 and the CalibForge moviedb task (kept out of final_top10 only because of the mechanical FREE rule) are both near-duplicates of this TB2.1 task's template; if only one port-template task can be taken, take rank 1."
+}

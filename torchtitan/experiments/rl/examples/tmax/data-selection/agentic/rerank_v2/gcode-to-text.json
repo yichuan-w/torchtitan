@@ -1,0 +1,775 @@
+{
+  "tb21_id": "gcode-to-text",
+  "tb21_profile": {
+    "skill": "Interpret a machine-instruction stream (G-code motion/extrusion commands) as geometry, reconstruct the raster it draws, and read the glyphs back out as a string",
+    "domain": "3D printing / CNC toolpaths, 2D geometry and rasterisation, glyph recognition",
+    "task_form": "reverse-engineer-a-format: derive one exact answer from an opaque artefact, no code to repair"
+  },
+  "verifier_notes": "No grade overturned. Flagging the FREE ones I still ranked because they are the closest matches in their pools: file-operations_20260610_111012_004 (repair a PNG then read the text rendered in it), task_13590 (detect rectangles in a line drawing), tw_134335 (emulate an unknown-arch binary), tw_316684 and tw_42359. None appear in final_top10. [fix-team 05, corrected-grader pass] The stale grader's FREE flag on file-operations_20260610_111012_004 was wrong (now `ok`) and it was the only thing keeping that candidate out, so I promoted it to rank 3. I read its tests: there are only two - out.txt exists, and out.txt contains 'FLAGM9RS3C9D32924'. The old grader saw a substring check; what it actually is, is a 17-character high-entropy token that exists nowhere but inside the repaired image, so the only way to pass is to fix the PNG's CRCs, render it and read the glyphs. For a derive-one-exact-answer task that is the right verifier, and it is the same contract TB2.1 uses (one string, /app/out.txt). It displaced task_13520 (was rank 8, overall 3, grade unaffected, still in per_source): re-reading it, the model generates the test image itself from three strings printed in the prompt and is then checked for finding 'Hello', 'Vision' and 'OCR' in it, so its OCR step is circular and teaches far less than its rank implied. The other rehabilitated candidates here stay out on merit, not on grade: task_13590 (now `strong`) recovers rectangles from stroked lines, which is the geometry half but never reads text; tw_134335, tw_318475 and tw_42359 (now `ok`) are all overall 2-3 and below every remaining entry.",
+  "searches": [
+    "tools.py search all '(?i)g-?code|cnc|3d print|stl file|slicer'",
+    "tools.py search all '(?i)ascii art|render.{0,20}(text|glyph|character)|OCR'",
+    "tools.py search tw '(?i)image|plot|render|ocr|font'",
+    "tools.py search tw '(?i)what (the|will|does).{0,60}(print|output|display)|determine the output|hidden (flag|message)|extract the (text|message)'",
+    "tools.py search smith '(?i)\\bsvg|font|glyph|render|coordinate|matplotlib|image'",
+    "tools.py search smith '(?i)pdfminer'",
+    "tools.py search rebench '(?i)matplotlib|svg|font|glyph|render.{0,20}text|plot'",
+    "tools.py search rebench '(?i)pdfminer|weasyprint|fonttools|glyph|pdf text|vector'",
+    "tools.py search rebench '(?i)cadquery|\\bstl\\b|mesh|shapely|geometry|raster|pillow|\\bPIL\\b'",
+    "tools.py search rts '(?i)hidden (message|flag|text)|steganograph|decode the|extract the (hidden|embedded)'",
+    "tools.py search rts '(?i)(custom|proprietary|undocumented) (binary )?(format|encoding)|reverse[- ]engineer'",
+    "grep -rlE -i 'gcode|G-code|CNC|stepper|Marlin' /data/yichuan_wang/terminal-lego-15k/*/instruction.md",
+    "grep -rlE -i 'OCR|tesseract|image to text' /data/yichuan_wang/terminal-lego-15k/*/instruction.md",
+    "grep -rlE -i 'bitmap|pixel|glyph|font render|freetype' /data/yichuan_wang/terminal-lego-15k/*/instruction.md",
+    "grep -rlE -i 'coordinate|trajectory|turtle|robot arm|toolpath' /data/yichuan_wang/terminal-lego-15k/*/instruction.md"
+  ],
+  "per_source": {
+    "TMax-15K": [
+      {
+        "rank": 1,
+        "task_id": "task_001718_513bde5d",
+        "skill": 3,
+        "domain": 5,
+        "task_form": 3,
+        "overall": 4,
+        "reason": "Audits G-code against machine envelope limits, so it must parse X/Y/Z motion words and track the toolpath extent - real G-code geometry parsing."
+      },
+      {
+        "rank": 2,
+        "task_id": "task_000845_2fd86cc2",
+        "skill": 3,
+        "domain": 5,
+        "task_form": 3,
+        "overall": 3,
+        "reason": "Rewrites G1 X<num> Y<num> commands in place; forces correct tokenising of motion words and coordinates. Strong verifier."
+      },
+      {
+        "rank": 3,
+        "task_id": "task_001716_41d80b42",
+        "skill": 3,
+        "domain": 5,
+        "task_form": 3,
+        "overall": 3,
+        "reason": "Sums E parameters over G1 lines from a compressed stream - accumulating extruder state across a motion program."
+      },
+      {
+        "rank": 4,
+        "task_id": "task_000206_34d0712c",
+        "skill": 3,
+        "domain": 5,
+        "task_form": 3,
+        "overall": 3,
+        "reason": "Normalises a legacy-machine G-code file, which means understanding which commands and encodings are semantically equivalent."
+      },
+      {
+        "rank": 5,
+        "task_id": "task_003934_ff2aa56d",
+        "skill": 3,
+        "domain": 5,
+        "task_form": 3,
+        "overall": 3,
+        "reason": "Standardises messy user G-code: strip comments, canonicalise commands - dialect literacy, but no geometry reconstruction."
+      },
+      {
+        "rank": 6,
+        "task_id": "task_006571_183ad43d",
+        "skill": 2,
+        "domain": 5,
+        "task_form": 2,
+        "overall": 3,
+        "reason": "C++ parser for G-code metadata headers; same file format, only the comment block rather than the toolpath."
+      },
+      {
+        "rank": 7,
+        "task_id": "task_000287_e6531ea7",
+        "skill": 2,
+        "domain": 5,
+        "task_form": 2,
+        "overall": 2,
+        "reason": "Identifies G-code by its FLAVOR marker and pulls fields out; format sniffing, no motion semantics."
+      },
+      {
+        "rank": 8,
+        "task_id": "task_000149_70d2b440",
+        "skill": 3,
+        "domain": 4,
+        "task_form": 3,
+        "overall": 3,
+        "reason": "CNC project files in an undocumented run-length encoding must be decoded before anything can be read - decode-an-opaque-format."
+      },
+      {
+        "rank": 9,
+        "task_id": "task_004315_ad2da364",
+        "skill": 3,
+        "domain": 3,
+        "task_form": 3,
+        "overall": 2,
+        "reason": "Legacy .bin container mixing documentation and printer calibration scripts; carve records out of an undocumented layout."
+      },
+      {
+        "rank": 10,
+        "task_id": "task_001741_122fbc18",
+        "skill": 2,
+        "domain": 5,
+        "task_form": 2,
+        "overall": 2,
+        "reason": "C++ tool diffing G-code files against a manifest; G-code as opaque bytes, so almost no transfer beyond the domain."
+      }
+    ],
+    "Recursive-Task-Synthesis": [
+      {
+        "rank": 1,
+        "task_id": "rts_task_9b5cd88d91ed3e500ddb0b11",
+        "skill": 4,
+        "domain": 2,
+        "task_form": 4,
+        "overall": 3,
+        "reason": "Decode a message hidden in whitespace using a supplied encoding spec: read the spec, apply it mechanically, emit the exact string."
+      },
+      {
+        "rank": 2,
+        "task_id": "rts_task_137409e0e90b4f6f7d2881d7",
+        "skill": 4,
+        "domain": 2,
+        "task_form": 3,
+        "overall": 3,
+        "reason": "Build a decoder for 7-bit binary lines with a configurable offset; turn a numeric stream into text, like turning moves into glyphs."
+      },
+      {
+        "rank": 3,
+        "task_id": "rts_task_2aeb92f2f635487ef89e67ad",
+        "skill": 4,
+        "domain": 2,
+        "task_form": 4,
+        "overall": 3,
+        "reason": "Recover a flag from two-symbol whitespace steganography and emit only that string - same answer-is-one-string shape."
+      },
+      {
+        "rank": 4,
+        "task_id": "rts_task_1b9d4a6a372614dbbd50b4d4",
+        "skill": 4,
+        "domain": 3,
+        "task_form": 3,
+        "overall": 3,
+        "reason": "Chained steganographic extraction, binary carving and decryption where the method itself is the puzzle; closest RTS gets to open-ended decoding."
+      },
+      {
+        "rank": 5,
+        "task_id": "rts_task_a58ec57dcf95657991bfccf7",
+        "skill": 3,
+        "domain": 2,
+        "task_form": 3,
+        "overall": 3,
+        "reason": "Same whitespace decode plus a schema-conforming report; the report boilerplate dilutes it."
+      },
+      {
+        "rank": 6,
+        "task_id": "rts_task_0ad05e82540d299c832ed065",
+        "skill": 3,
+        "domain": 2,
+        "task_form": 3,
+        "overall": 2,
+        "reason": "Decode whitespace steganography with Chepy and validate the flag against a regex; tool-driven rather than derived."
+      },
+      {
+        "rank": 7,
+        "task_id": "rts_task_6e8029aca9566b2126985d35",
+        "skill": 3,
+        "domain": 3,
+        "task_form": 3,
+        "overall": 2,
+        "reason": "Reverse-engineer a crackme to state the exact string it expects - derive one answer from an opaque artefact, no source."
+      },
+      {
+        "rank": 8,
+        "task_id": "rts_task_e98f0a4095e1266cada6cf1d",
+        "skill": 3,
+        "domain": 3,
+        "task_form": 3,
+        "overall": 2,
+        "reason": "Three crackmes needing static and runtime analysis; same derive-the-string genre, different substrate."
+      },
+      {
+        "rank": 9,
+        "task_id": "rts_task_c7620582bd5b6565a783d554",
+        "skill": 2,
+        "domain": 3,
+        "task_form": 2,
+        "overall": 2,
+        "reason": "Render phrases as ASCII-art glyphs from a spec; text-to-glyph, the inverse direction of this task."
+      },
+      {
+        "rank": 10,
+        "task_id": "rts_task_ae2cb011de11bf6f835a868f",
+        "skill": 2,
+        "domain": 2,
+        "task_form": 2,
+        "overall": 2,
+        "reason": "Zero-width encode then decode round trip with a given library; the decoding is handed to you."
+      }
+    ],
+    "TerminalWorld-Seeds-Clean": [
+      {
+        "rank": 1,
+        "task_id": "tw_134335",
+        "skill": 4,
+        "domain": 3,
+        "task_form": 4,
+        "overall": 3,
+        "reason": "Emulate a binary for an unfamiliar architecture to work out what it does - interpret an instruction stream you cannot run natively. FREE verifier."
+      },
+      {
+        "rank": 2,
+        "task_id": "tw_316684",
+        "skill": 3,
+        "domain": 2,
+        "task_form": 4,
+        "overall": 3,
+        "reason": "Decode a whitespace-steganography message and write the exact decoded text; same answer shape, FREE verifier."
+      },
+      {
+        "rank": 3,
+        "task_id": "tw_383451",
+        "skill": 3,
+        "domain": 3,
+        "task_form": 4,
+        "overall": 3,
+        "reason": "Reverse-engineer a crackme statically or dynamically to recover the exact password string it wants."
+      },
+      {
+        "rank": 4,
+        "task_id": "tw_117526",
+        "skill": 3,
+        "domain": 2,
+        "task_form": 3,
+        "overall": 2,
+        "reason": "Find and extract an archive embedded inside a raw disk image - locate structure in undifferentiated bytes."
+      },
+      {
+        "rank": 5,
+        "task_id": "tw_318475",
+        "skill": 3,
+        "domain": 2,
+        "task_form": 4,
+        "overall": 2,
+        "reason": "Predict the exact bytes a program would emit and write them out; pure what-would-this-produce reasoning, but FREE."
+      },
+      {
+        "rank": 6,
+        "task_id": "tw_42359",
+        "skill": 3,
+        "domain": 3,
+        "task_form": 3,
+        "overall": 2,
+        "reason": "Reverse a validation binary to reveal the flag it prints; FREE verifier so a guessed string could pass."
+      },
+      {
+        "rank": 7,
+        "task_id": "tw_6336",
+        "skill": 2,
+        "domain": 2,
+        "task_form": 3,
+        "overall": 2,
+        "reason": "Pull the title text out of a windows-1251 page and re-encode it; encoding care, trivial extraction."
+      },
+      {
+        "rank": 8,
+        "task_id": "tw_249297",
+        "skill": 2,
+        "domain": 2,
+        "task_form": 2,
+        "overall": 2,
+        "reason": "Drive a C-to-wasm pipeline and capture the program's printed output; toolchain work, not interpretation."
+      },
+      {
+        "rank": 9,
+        "task_id": "tw_713684",
+        "skill": 2,
+        "domain": 3,
+        "task_form": 2,
+        "overall": 2,
+        "reason": "Write ARM64 assembly that prints a computed result; machine-level thinking but authored, not read."
+      },
+      {
+        "rank": 10,
+        "task_id": "tw_12117",
+        "skill": 1,
+        "domain": 1,
+        "task_form": 2,
+        "overall": 1,
+        "reason": "Write a fixed string to a file - pure write-the-answer-file boilerplate, included only to fill the quota."
+      }
+    ],
+    "SWE-Smith-Seeds-Clean": [
+      {
+        "rank": 1,
+        "task_id": "pdfminer__pdfminer.six.1a8bd2f7.pr_887",
+        "skill": 4,
+        "domain": 4,
+        "task_form": 2,
+        "overall": 4,
+        "reason": "Text extraction from a page-description language fails on particular character layouts - the exact problem of reading text out of drawing commands."
+      },
+      {
+        "rank": 2,
+        "task_id": "pdfminer__pdfminer.six.1a8bd2f7.lm_rewrite__0ya3bz6x",
+        "skill": 4,
+        "domain": 4,
+        "task_form": 2,
+        "overall": 3,
+        "reason": "Character-width lookup by glyph id drives text positioning; glyph metrics are what turn drawn strokes back into readable characters."
+      },
+      {
+        "rank": 3,
+        "task_id": "pdfminer__pdfminer.six.1a8bd2f7.func_pm_class_rm_base__xlh8zdw4",
+        "skill": 3,
+        "domain": 4,
+        "task_form": 2,
+        "overall": 3,
+        "reason": "Broken converter/layout pipeline for extract_text; layout analysis groups positioned glyphs into lines, same reconstruction step."
+      },
+      {
+        "rank": 4,
+        "task_id": "pdfminer__pdfminer.six.1a8bd2f7.func_pm_class_rm_funcs__3n178krv",
+        "skill": 3,
+        "domain": 4,
+        "task_form": 2,
+        "overall": 3,
+        "reason": "Core PDF object parsing is broken; teaches reading a structured, stateful document format end to end."
+      },
+      {
+        "rank": 5,
+        "task_id": "pdfminer__pdfminer.six.1a8bd2f7.combine_file__cyuuf905",
+        "skill": 4,
+        "domain": 3,
+        "task_form": 2,
+        "overall": 3,
+        "reason": "CCITT G4 decoder emits wrong bit patterns and cursor positions - reconstructing a raster scanline by scanline from a coded stream."
+      },
+      {
+        "rank": 6,
+        "task_id": "pdfminer__pdfminer.six.1a8bd2f7.func_pm_ctrl_shuffle__p83c0pkl",
+        "skill": 3,
+        "domain": 3,
+        "task_form": 2,
+        "overall": 3,
+        "reason": "CCITTFaxDecoder.output_line builds each row of the bitmap; row-buffer construction is how a toolpath becomes an image."
+      },
+      {
+        "rank": 7,
+        "task_id": "pdfminer__pdfminer.six.1a8bd2f7.combine_file__9pxesytc",
+        "skill": 3,
+        "domain": 3,
+        "task_form": 2,
+        "overall": 2,
+        "reason": "LZW decoder with a missing run step; stateful stream decoding with an exact expected byte string."
+      },
+      {
+        "rank": 8,
+        "task_id": "pdfminer__pdfminer.six.1a8bd2f7.func_pm_remove_assign__fttd0cma",
+        "skill": 3,
+        "domain": 3,
+        "task_form": 2,
+        "overall": 2,
+        "reason": "Run-length decoder broken; short but pins exact decoded output, the same kind of literal answer."
+      },
+      {
+        "rank": 9,
+        "task_id": "pdfminer__pdfminer.six.1a8bd2f7.func_pm_remove_assign__2z8y7em8",
+        "skill": 2,
+        "domain": 4,
+        "task_form": 2,
+        "overall": 2,
+        "reason": "XRef-stream parsing breaks extract_text; document-structure navigation rather than glyph reasoning."
+      },
+      {
+        "rank": 10,
+        "task_id": "amueller__word_cloud.ec24191c.func_basic__em24z2r4",
+        "skill": 3,
+        "domain": 3,
+        "task_form": 2,
+        "overall": 2,
+        "reason": "SVG export of laid-out words: converting placed glyphs into vector path output, the direction this task must invert."
+      }
+    ],
+    "SWE-Rebench-Tasks-Clean": [
+      {
+        "rank": 1,
+        "task_id": "kozea__weasyprint-2404",
+        "skill": 3,
+        "domain": 4,
+        "task_form": 2,
+        "overall": 3,
+        "reason": "Text is emitted twice in generated PDF with RTL runs; debugging how characters become positioned glyphs on a page."
+      },
+      {
+        "rank": 2,
+        "task_id": "kozea__weasyprint-2405",
+        "skill": 3,
+        "domain": 4,
+        "task_form": 2,
+        "overall": 3,
+        "reason": "unicode-range font matching decides which face draws which glyph - the mapping from characters to drawn shapes."
+      },
+      {
+        "rank": 3,
+        "task_id": "kozea__weasyprint-2416",
+        "skill": 3,
+        "domain": 4,
+        "task_form": 2,
+        "overall": 3,
+        "reason": "Line-breaking in the text layout engine; reasoning about how glyph runs are placed into a rendered area."
+      },
+      {
+        "rank": 4,
+        "task_id": "googlefonts__glyphslib-563",
+        "skill": 3,
+        "domain": 4,
+        "task_form": 2,
+        "overall": 3,
+        "reason": "Round-tripping a font source format; glyph outlines and contour data are exactly the shapes the printer is drawing."
+      },
+      {
+        "rank": 5,
+        "task_id": "cadquery__cadquery-1623",
+        "skill": 3,
+        "domain": 4,
+        "task_form": 2,
+        "overall": 3,
+        "reason": "Top-level location transform lost on CAD export - composing coordinate transforms in 3D solid modelling, the same coordinate discipline."
+      },
+      {
+        "rank": 6,
+        "task_id": "cadquery__cadquery-1690",
+        "skill": 2,
+        "domain": 4,
+        "task_form": 2,
+        "overall": 2,
+        "reason": "Reused CAD objects in an assembly export; 3D modelling domain, ordinary object-identity bug."
+      },
+      {
+        "rank": 7,
+        "task_id": "toblerity__shapely-1090",
+        "skill": 3,
+        "domain": 3,
+        "task_form": 2,
+        "overall": 2,
+        "reason": "Expose geometry normalisation, which canonicalises LineString point order - 2D polyline reasoning."
+      },
+      {
+        "rank": 8,
+        "task_id": "scitools__cartopy-2378",
+        "skill": 2,
+        "domain": 3,
+        "task_form": 2,
+        "overall": 2,
+        "reason": "LinearRing construction fails on degenerate coordinate arrays; handling point sequences that do not form valid paths."
+      },
+      {
+        "rank": 9,
+        "task_id": "corteva__rioxarray-841",
+        "skill": 2,
+        "domain": 3,
+        "task_form": 2,
+        "overall": 2,
+        "reason": "Raster reprojection emits a spurious coordinate; grid/coordinate bookkeeping between a raster and its axes."
+      },
+      {
+        "rank": 10,
+        "task_id": "psd-tools__psd-tools-452",
+        "skill": 2,
+        "domain": 3,
+        "task_form": 2,
+        "overall": 2,
+        "reason": "Layered image format library; typing fix only, so the format-parsing domain is all that transfers."
+      }
+    ],
+    "Terminal-Lego-15k": [
+      {
+        "rank": 1,
+        "task_id": "task_14037",
+        "skill": 4,
+        "domain": 4,
+        "task_form": 4,
+        "overall": 4,
+        "reason": "Recognise characters from a rendered, noisy image and output the string - the last mile of this task, with pinned expected text."
+      },
+      {
+        "rank": 2,
+        "task_id": "task_13520",
+        "skill": 4,
+        "domain": 4,
+        "task_form": 3,
+        "overall": 3,
+        "reason": "Build an OCR pipeline that turns images into text; exactly the capability needed once the toolpath is rasterised."
+      },
+      {
+        "rank": 3,
+        "task_id": "task_13590",
+        "skill": 3,
+        "domain": 4,
+        "task_form": 3,
+        "overall": 3,
+        "reason": "Recover shapes from an image made only of lines - reading structure out of stroked geometry. FREE verifier, so excluded from top10."
+      },
+      {
+        "rank": 4,
+        "task_id": "task_04707",
+        "skill": 3,
+        "domain": 3,
+        "task_form": 3,
+        "overall": 3,
+        "reason": "Bin scattered coordinate points into a 2D grid image; that binning step is how extrusion moves become pixels."
+      },
+      {
+        "rank": 5,
+        "task_id": "task_04595",
+        "skill": 3,
+        "domain": 3,
+        "task_form": 3,
+        "overall": 2,
+        "reason": "Draw line segments between given endpoints on a canvas; the primitive a G-code renderer applies per move."
+      },
+      {
+        "rank": 6,
+        "task_id": "task_14945",
+        "skill": 2,
+        "domain": 3,
+        "task_form": 3,
+        "overall": 2,
+        "reason": "Concave hull of a 2D point set; outline reconstruction from scattered points, adjacent but not the same."
+      },
+      {
+        "rank": 7,
+        "task_id": "task_08985",
+        "skill": 2,
+        "domain": 3,
+        "task_form": 3,
+        "overall": 2,
+        "reason": "2D point rotation maths; coordinate transforms needed to orient a toolpath before reading it."
+      },
+      {
+        "rank": 8,
+        "task_id": "task_09178",
+        "skill": 2,
+        "domain": 3,
+        "task_form": 3,
+        "overall": 2,
+        "reason": "Compute 2D positions for graph nodes; geometry synthesis rather than geometry interpretation."
+      },
+      {
+        "rank": 9,
+        "task_id": "task_12961",
+        "skill": 2,
+        "domain": 3,
+        "task_form": 2,
+        "overall": 2,
+        "reason": "Render charts headlessly in a terminal; useful habit for visualising data with no display, shallow otherwise."
+      },
+      {
+        "rank": 10,
+        "task_id": "task_10401",
+        "skill": 2,
+        "domain": 3,
+        "task_form": 2,
+        "overall": 2,
+        "reason": "Distinguishes code points, characters and glyphs; conceptually relevant to reading rendered text, but it is an explainer."
+      }
+    ],
+    "CalibForge": [
+      {
+        "rank": 1,
+        "task_id": "file-operations_20260611_210349_004",
+        "skill": 5,
+        "domain": 4,
+        "task_form": 5,
+        "overall": 5,
+        "reason": "Headerless grayscale byte dump whose pixels spell out a key: reshape raw numbers into a raster and read the text. Same two steps."
+      },
+      {
+        "rank": 2,
+        "task_id": "file-operations_20260610_111012_004",
+        "skill": 5,
+        "domain": 4,
+        "task_form": 5,
+        "overall": 4,
+        "reason": "Repair a broken PNG then read the text rendered inside the image; nearly identical shape, but FREE so it cannot enter top10."
+      },
+      {
+        "rank": 3,
+        "task_id": "file-operations_20260604_002443_004",
+        "skill": 4,
+        "domain": 3,
+        "task_form": 5,
+        "overall": 4,
+        "reason": "MIDI note events encode a message: interpret a timed machine-command stream as characters and write them to /app/out.txt."
+      },
+      {
+        "rank": 4,
+        "task_id": "file-operations_20260616_094815_004",
+        "skill": 4,
+        "domain": 3,
+        "task_form": 5,
+        "overall": 4,
+        "reason": "Demodulate a text message out of an audio recording with no documented scheme; infer the encoding, then emit the string."
+      },
+      {
+        "rank": 5,
+        "task_id": "file-operations_20260604_193056_004",
+        "skill": 4,
+        "domain": 3,
+        "task_form": 4,
+        "overall": 4,
+        "reason": "Reverse an undocumented binary record layout using a partially known roster as ground truth - infer the format from what you can already read."
+      },
+      {
+        "rank": 6,
+        "task_id": "file-operations_20260611_112034_004",
+        "skill": 4,
+        "domain": 3,
+        "task_form": 4,
+        "overall": 4,
+        "reason": "Legacy container with only magic bytes remembered; reconstruct the record structure and reassemble the text across entries."
+      },
+      {
+        "rank": 7,
+        "task_id": "file-operations_20260604_144210_004",
+        "skill": 4,
+        "domain": 3,
+        "task_form": 4,
+        "overall": 3,
+        "reason": "Parse a header of little-endian fields and strip bytes inserted at a stride - exact-offset reasoning over an opaque payload."
+      },
+      {
+        "rank": 8,
+        "task_id": "file-operations_20260606_153537_004",
+        "skill": 3,
+        "domain": 3,
+        "task_form": 4,
+        "overall": 3,
+        "reason": "Recover a message hidden in a malformed WAV; same infer-the-scheme-then-emit-the-string loop, audio substrate."
+      },
+      {
+        "rank": 9,
+        "task_id": "file-operations_20260617_104707_004",
+        "skill": 3,
+        "domain": 3,
+        "task_form": 4,
+        "overall": 3,
+        "reason": "Extract a message concealed in an ordinary-looking PNG; pixel-level decoding, but the scheme is a standard one."
+      },
+      {
+        "rank": 10,
+        "task_id": "file-operations_20260613_152233_002",
+        "skill": 3,
+        "domain": 3,
+        "task_form": 3,
+        "overall": 3,
+        "reason": "Write a program that recovers text from a corrupted docx; format repair plus text extraction, strongest verifier in this set."
+      }
+    ]
+  },
+  "final_top10": [
+    {
+      "rank": 1,
+      "task_id": "file-operations_20260611_210349_004",
+      "source": "CalibForge",
+      "skill": 5,
+      "domain": 4,
+      "task_form": 5,
+      "overall": 5,
+      "reason": "Raw byte dump reshaped into an image whose pixels spell a key: rasterise-then-read, the same two steps as this task."
+    },
+    {
+      "rank": 2,
+      "task_id": "file-operations_20260604_002443_004",
+      "source": "CalibForge",
+      "skill": 4,
+      "domain": 3,
+      "task_form": 5,
+      "overall": 4,
+      "reason": "A timed machine-command stream (MIDI events) that secretly spells text; interpret the commands, not the file's nominal purpose."
+    },
+    {
+      "rank": 3,
+      "task_id": "file-operations_20260610_111012_004",
+      "source": "CalibForge",
+      "skill": 4,
+      "domain": 3,
+      "task_form": 5,
+      "overall": 4,
+      "reason": "Make an unreadable artefact readable, then read the glyphs rendered inside it and write the exact string to /app/out.txt - this task's second half, same output contract."
+    },
+    {
+      "rank": 4,
+      "task_id": "task_14037",
+      "source": "Terminal-Lego-15k",
+      "skill": 4,
+      "domain": 4,
+      "task_form": 4,
+      "overall": 4,
+      "reason": "Read characters out of a noisy rendered image and output the exact string - the recognition half of gcode-to-text."
+    },
+    {
+      "rank": 5,
+      "task_id": "task_001718_513bde5d",
+      "source": "TMax-15K",
+      "skill": 3,
+      "domain": 5,
+      "task_form": 3,
+      "overall": 4,
+      "reason": "Parses real G-code motion words and tracks the toolpath extent against machine limits; the only genuine G-code geometry task found."
+    },
+    {
+      "rank": 6,
+      "task_id": "pdfminer__pdfminer.six.1a8bd2f7.pr_887",
+      "source": "SWE-Smith-Seeds-Clean",
+      "skill": 4,
+      "domain": 4,
+      "task_form": 2,
+      "overall": 4,
+      "reason": "Text extraction from a page-description language fails on specific glyph layouts - recovering characters from drawing commands."
+    },
+    {
+      "rank": 7,
+      "task_id": "file-operations_20260616_094815_004",
+      "source": "CalibForge",
+      "skill": 4,
+      "domain": 3,
+      "task_form": 5,
+      "overall": 4,
+      "reason": "Infer an undocumented modulation scheme from an audio file and emit the message to /app/out.txt; guess-the-encoding under a one-string answer."
+    },
+    {
+      "rank": 8,
+      "task_id": "file-operations_20260604_193056_004",
+      "source": "CalibForge",
+      "skill": 4,
+      "domain": 3,
+      "task_form": 4,
+      "overall": 4,
+      "reason": "Infer an undocumented binary record layout by anchoring on the few records you can already read - the format-inference core."
+    },
+    {
+      "rank": 9,
+      "task_id": "file-operations_20260611_112034_004",
+      "source": "CalibForge",
+      "skill": 4,
+      "domain": 3,
+      "task_form": 4,
+      "overall": 4,
+      "reason": "Reconstruct a lost container format from magic bytes alone and reassemble the message spread across its entries."
+    },
+    {
+      "rank": 10,
+      "task_id": "task_000845_2fd86cc2",
+      "source": "TMax-15K",
+      "skill": 3,
+      "domain": 5,
+      "task_form": 3,
+      "overall": 3,
+      "reason": "Tokenise and rewrite G1 X/Y coordinate commands; G-code motion-word parsing with a strong verifier."
+    }
+  ],
+  "notes": "Retrieval buried the right answers: the TMax shortlist is dominated by 3D-printing file-organisation chores that match on the word gcode and teach nothing, while the actual transfer lives in CalibForge's decode-an-opaque-artefact-into-text family and in pdfminer (SWE-Smith), which I had to find with my own searches - the pdfminer cluster is the single best-motivated SWE-Smith block I have seen for any task, since PDF text extraction is literally reading text back out of drawing commands. Both new corpora beat the old ones here: CalibForge takes five of the top ten and Terminal-Lego supplies the only OCR tasks in the pool. TerminalWorld could not field 10 defensible candidates (ranks 7-10 are filler, and three of its best are FREE). Recursive-Task-Synthesis offers only steganography decode variants, heavily duplicated; I picked across distinct sub-families rather than ten near-copies. No corpus contains a G-code interpreter or a toolpath renderer, so no candidate covers the whole task end to end."
+}

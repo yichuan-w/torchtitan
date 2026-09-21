@@ -1,0 +1,128 @@
+{
+  "tb21_id": "pytorch-model-cli",
+  "tb21_profile": {
+    "skill": "Reimplement a trained neural net's forward pass by hand from exported weights, decode a PNG into normalized pixels, and ship it as a compiled CLI binary with an exact argv/stdout contract",
+    "domain": "PyTorch/MNIST inference, JSON weight serialization, PNG image decoding, C/Go/Rust compilation and packaging into an executable",
+    "task_form": "implement-from-spec plus build/packaging: produce an artifact (binary + weights.json + prediction.txt) at exact paths"
+  },
+  "verifier_notes": "Checked tests for model-training_20260617_051646_002 (strong, 5 tests / 3 pinned) and model-training_20260612_191200_002 (strong, 6 tests / 4 pinned) via work/verifier_strength.json; both genuinely pin numeric predictions, so the grades hold. tw_588262 (YOLOv4 inference on a real image) is the only TerminalWorld entry that is close in domain and it is FREE (0 substantive of its suite) - ranked in per_source, excluded from final_top10. task_003915_9cae8761 is graded weak (4 of 5 tests are file-exists); its one substantive test does check the prediction output, so it is usable but thin.",
+  "searches": [
+    "tools.py search all 'MNIST'",
+    "tools.py search tmax 'MNIST'",
+    "tools.py search tw 'MNIST'",
+    "tools.py search all 'weights\\.json'",
+    "tools.py search all 'inference (engine|program|binary) in (C|C\\+\\+|Rust|Go)'",
+    "tools.py words tmax inference C++ compile binary forward weights",
+    "tools.py words tw inference classifier model predict image weights binary compile",
+    "tools.py search rebench 'torch\\.|state_dict|load_state_dict'",
+    "tools.py search smith 'argmax|state_dict|numpy inference'",
+    "tools.py show task_004118_161aa034 task_000333_7a82aa70",
+    "tools.py show facebookresearch__fvcore.a491d5b9.combine_file__htnzvb1x facebookresearch__fvcore.a491d5b9.lm_rewrite__pef4qmpy pydicom__pydicom.7d361b3d.combine_file__361olr8k",
+    "[calibforge grep] search calib 'inference engine|from scratch in (C|NumPy)|pure NumPy'",
+    "[calibforge grep] search calib '\\.png|PNG'",
+    "[calibforge grep] search calib 'MNIST'",
+    "[terminal-lego grep] search lego 'MNIST'",
+    "[terminal-lego grep] words lego neural network numpy forward matrix multiplication implement scratch",
+    "[terminal-lego grep] search lego 'read (a )?PNG|decode (a )?PNG|image file into (a )?(numpy|array)|pixel values'",
+    "[terminal-lego grep] search lego 'command.line tool|standalone executable|argparse.*image'"
+  ],
+  "per_source": {
+    "TMax-15K": [
+      {"rank": 1, "task_id": "task_000333_7a82aa70", "skill": 5, "domain": 4, "task_form": 5, "overall": 5, "reason": "Reconstruct an MLP from a spec image, implement inference in Go, compile to an exact binary path with strict stdout float format - same artifact contract."},
+      {"rank": 2, "task_id": "task_004118_161aa034", "skill": 5, "domain": 4, "task_form": 4, "overall": 4, "reason": "Hand-written C++ MLP forward pass (ReLU/sigmoid) parsing a plain-text weights file, compiled with -O3 and driven by a script; same from-scratch inference in a compiled language."},
+      {"rank": 3, "task_id": "task_005224_3e9e8c27", "skill": 4, "domain": 4, "task_form": 4, "overall": 4, "reason": "Rebuild a missing inference pipeline as a C++ engine over exported weights; same reconstruct-then-compile shape as building cli_tool."},
+      {"rank": 4, "task_id": "task_008434_7c53cbf4", "skill": 4, "domain": 4, "task_form": 3, "overall": 4, "reason": "Manual MLP forward pass from W1/b1/W2/b2 in weights.json with explicit ReLU equations - exactly the arithmetic cli_tool must reproduce."},
+      {"rank": 5, "task_id": "task_008706_debd496c", "skill": 4, "domain": 4, "task_form": 3, "overall": 4, "reason": "Only raw weights.json survives; must reconstruct a 3-4-1 MLP and run inference, no framework available - same weights-to-forward-pass reasoning."},
+      {"rank": 6, "task_id": "task_008223_43ecb72c", "skill": 4, "domain": 4, "task_form": 3, "overall": 4, "reason": "Reconstruct an MLP binary classifier from extracted weights/biases JSON and score CSV batches; same layer-order and bias-shape reasoning."},
+      {"rank": 7, "task_id": "task_000318_4bf545ba", "skill": 4, "domain": 5, "task_form": 3, "overall": 4, "reason": "Actual PyTorch .pth weights plus a scanned note; must infer the architecture that matches the state dict before inference - the crux of loading weights.json."},
+      {"rank": 8, "task_id": "task_004054_26658123", "skill": 4, "domain": 4, "task_form": 3, "overall": 4, "reason": "Only raw numpy arrays in architecture_and_weights.json remain, no PyTorch object; rebuild the MLP and run it - identical weight-file-to-model transfer."},
+      {"rank": 9, "task_id": "task_004753_df1f62f5", "skill": 4, "domain": 3, "task_form": 4, "overall": 4, "reason": "Write and compile a C++ program that applies a pre-trained linear autoencoder to data; compiled numeric inference with pinned outputs."},
+      {"rank": 10, "task_id": "task_003915_9cae8761", "skill": 4, "domain": 4, "task_form": 3, "overall": 3, "reason": "Given architecture plus weights.json and no inference code, write it and benchmark; thin verifier (4 of 5 tests only check files exist)."}
+    ],
+    "Recursive-Task-Synthesis": [
+      {"rank": 1, "task_id": "rts_task_cfde1b05b8a1844862f09b68", "skill": 3, "domain": 2, "task_form": 4, "overall": 3, "reason": "Compile cli.c with flags discovered from BUILD_INFO, chmod the binary, then satisfy a validation script - same compile-a-CLI-binary-to-contract shape."},
+      {"rank": 2, "task_id": "rts_task_740bf3408f1fc025c9edc371", "skill": 3, "domain": 2, "task_form": 4, "overall": 3, "reason": "Write a C program, place it where a config says, build it into a named executable with exact stdout - the build/packaging half of cli_tool."},
+      {"rank": 3, "task_id": "rts_task_b4fbd2bfa54b2dfa015c0763", "skill": 2, "domain": 4, "task_form": 3, "overall": 3, "reason": "Fix imports in an MNIST digit-classification script and capture the predicted digit to a file; same MNIST subject and digit-output contract, but no model implementation."},
+      {"rank": 4, "task_id": "rts_task_1ac9025acaba641e46b46f39", "skill": 3, "domain": 2, "task_form": 3, "overall": 3, "reason": "Make a script honour its own --help argv contract, stdin fallback and exit codes - the CLI-contract discipline cli_tool is graded on."},
+      {"rank": 5, "task_id": "rts_task_31e850d29f72501c0e90c2e4", "skill": 2, "domain": 4, "task_form": 3, "overall": 3, "reason": "Diagnose a traceback in the MNIST similarity classifier and patch it so the example classification runs; MNIST domain, debugging rather than implementation."},
+      {"rank": 6, "task_id": "rts_task_02474e37b7e96aba877b7397", "skill": 2, "domain": 2, "task_form": 3, "overall": 2, "reason": "Build wheel/sdist and get a command-line tool onto PATH after install; only the packaging axis transfers."},
+      {"rank": 7, "task_id": "rts_task_a21326b78a1d0c61d50bac15", "skill": 2, "domain": 4, "task_form": 2, "overall": 2, "reason": "MNIST digit-similarity workflow setup; shares the dataset and the predicted-digit output but the work is venv plumbing."},
+      {"rank": 8, "task_id": "rts_task_f60bb1206c5e937c48ce045f", "skill": 2, "domain": 4, "task_form": 2, "overall": 2, "reason": "Clone sds-mnist and run its digit classification example; MNIST domain only, no inference code written."},
+      {"rank": 9, "task_id": "rts_task_18137d0ffd7557a4f477b823", "skill": 2, "domain": 3, "task_form": 2, "overall": 2, "reason": "MNIST archive download plus SHA256 verification before fixing a runtime error; mostly data plumbing."},
+      {"rank": 10, "task_id": "rts_task_81597cead6f4cbf4345a7122", "skill": 2, "domain": 3, "task_form": 2, "overall": 2, "reason": "Another sds-mnist setup-and-verify variant; near-duplicate of the cluster above, listed to fill the quota."}
+    ],
+    "TerminalWorld-Seeds-Clean": [
+      {"rank": 1, "task_id": "tw_18273", "skill": 3, "domain": 3, "task_form": 3, "overall": 3, "reason": "Split a dataset, train an SVM with the libsvm CLI and produce a pinned prediction file; classifier-inference plumbing with a checked numeric result."},
+      {"rank": 2, "task_id": "tw_588262", "skill": 3, "domain": 4, "task_form": 3, "overall": 3, "reason": "Closest in domain: run object-detection inference on an image with weights and a config, building the library from source. FREE verifier, so excluded from final_top10."},
+      {"rank": 3, "task_id": "tw_443383", "skill": 3, "domain": 2, "task_form": 4, "overall": 3, "reason": "Implement a CLI tool from scratch that must be invocable as `tool <arg> --output <dir>` after install; same argv-contract-plus-packaging discipline."},
+      {"rank": 4, "task_id": "tw_18271", "skill": 3, "domain": 3, "task_form": 3, "overall": 3, "reason": "Libsvm train/predict split variant; same classifier-run-to-pinned-accuracy shape as tw_18273, weaker verifier."},
+      {"rank": 5, "task_id": "tw_120186", "skill": 2, "domain": 2, "task_form": 4, "overall": 2, "reason": "Build a program into an executable binary at an exact path with an unusual compiler and capture its output - the packaging half only."},
+      {"rank": 6, "task_id": "tw_479208", "skill": 2, "domain": 2, "task_form": 3, "overall": 2, "reason": "Write and compile a C program with a precise runtime behaviour contract; transfers only as C-from-spec practice."},
+      {"rank": 7, "task_id": "tw_191493", "skill": 2, "domain": 3, "task_form": 2, "overall": 2, "reason": "Run a three-stage train/predict SVR pipeline with awkward CLI flags; ML domain but the model is given, nothing is implemented."},
+      {"rank": 8, "task_id": "tw_473702", "skill": 2, "domain": 2, "task_form": 3, "overall": 2, "reason": "Build a toolkit from source so a named binary exists under a fixed path; build-to-artifact only."},
+      {"rank": 9, "task_id": "tw_204417", "skill": 2, "domain": 2, "task_form": 3, "overall": 2, "reason": "Compile to a native image and run it; same compiled-artifact endpoint, unrelated skill."},
+      {"rank": 10, "task_id": "tw_132320", "skill": 2, "domain": 2, "task_form": 3, "overall": 2, "reason": "Install a CLI so it is executable at an exact path; only the executable-at-exact-path requirement overlaps."}
+    ],
+    "SWE-Smith-Seeds-Clean": [
+      {"rank": 1, "task_id": "facebookresearch__fvcore.a491d5b9.combine_file__htnzvb1x", "skill": 3, "domain": 4, "task_form": 2, "overall": 3, "reason": "PyTorch weight-init internals: fan_in/fan_out, nonlinearity, bias handling - the same layer/tensor-shape reasoning needed to map weights.json onto an architecture."},
+      {"rank": 2, "task_id": "cantools__cantools.0c6a7871.pr_602", "skill": 3, "domain": 3, "task_form": 2, "overall": 3, "reason": "CLI that emits C source and a makefile to a specified output dir; debugging generated-artifact paths, close to producing a compiled tool at an exact location."},
+      {"rank": 3, "task_id": "amueller__word_cloud.ec24191c.func_pm_remove_cond__as5zu4uh", "skill": 3, "domain": 3, "task_form": 2, "overall": 3, "reason": "Image-producing CLI whose argv/stdout file handling is broken; same strict-CLI-contract debugging, image tooling domain."},
+      {"rank": 4, "task_id": "facebookresearch__fvcore.a491d5b9.lm_rewrite__pef4qmpy", "skill": 3, "domain": 4, "task_form": 2, "overall": 3, "reason": "Walks a PyTorch module tree to attribute per-module statistics; exercises reading a model's structure the way inspecting a state dict does."},
+      {"rank": 5, "task_id": "pydicom__pydicom.7d361b3d.combine_file__361olr8k", "skill": 3, "domain": 3, "task_form": 2, "overall": 3, "reason": "Binary medical-image pixel decoding in Python; nearest thing here to decoding raw image bytes into an array."},
+      {"rank": 6, "task_id": "pdfminer__pdfminer.six.1a8bd2f7.func_pm_ctrl_shuffle__e26dfxwi", "skill": 2, "domain": 2, "task_form": 2, "overall": 2, "reason": "CLI crashes in argument parsing before doing work; only argv-handling discipline transfers."},
+      {"rank": 7, "task_id": "amueller__word_cloud.ec24191c.func_pm_ctrl_invert_if__blw7429z", "skill": 2, "domain": 3, "task_form": 2, "overall": 2, "reason": "Same wordcloud CLI, stdout '-' file-mode bug; narrow CLI I/O fix in an image tool."},
+      {"rank": 8, "task_id": "jawah__charset_normalizer.1fdd6463.func_pm_ctrl_invert_if__gfmne36l", "skill": 2, "domain": 2, "task_form": 2, "overall": 2, "reason": "CLI must fail cleanly when it cannot decide; exit-code and message contract practice only."},
+      {"rank": 9, "task_id": "theskumar__python-dotenv.2b8635b7.func_basic__ej1leqso", "skill": 2, "domain": 2, "task_form": 2, "overall": 2, "reason": "`dotenv run` fails to exec a child program; process/argv plumbing, nothing numeric."},
+      {"rank": 10, "task_id": "tox-dev__pipdeptree.c31b6418.pr_271", "skill": 2, "domain": 2, "task_form": 2, "overall": 2, "reason": "get_options TypeError in CLI argument parsing; filler - shares only the command-line surface."}
+    ],
+    "SWE-Rebench-Tasks-Clean": [
+      {"rank": 1, "task_id": "keras-team__keras-19924", "skill": 3, "domain": 4, "task_form": 2, "overall": 3, "reason": "Saved weights file cannot be found/loaded on reload; same serialize-then-reload-weights failure class as consuming weights.json."},
+      {"rank": 2, "task_id": "keras-team__keras-20079", "skill": 3, "domain": 4, "task_form": 2, "overall": 3, "reason": "A preprocessing (Rescaling) layer breaks round-tripping a saved model - exactly the normalization-lost-on-export trap in reimplementing MNIST preprocessing."},
+      {"rank": 3, "task_id": "cornellius-gp__gpytorch-223", "skill": 3, "domain": 4, "task_form": 2, "overall": 3, "reason": "PyTorch tensor-shape/matmul bug; the same shape-alignment reasoning a hand-written forward pass needs."},
+      {"rank": 4, "task_id": "rstudio__vetiver-python-201", "skill": 3, "domain": 3, "task_form": 2, "overall": 3, "reason": "Model-deployment tooling: getting a trained model into a servable, loadable artifact - the deployment framing of this TB task."},
+      {"rank": 5, "task_id": "stanfordnlp__dspy-1651", "skill": 2, "domain": 3, "task_form": 2, "overall": 2, "reason": "Loading an optimized saved model fails downstream; checkpoint-load debugging, unrelated stack otherwise."},
+      {"rank": 6, "task_id": "rasbt__mlxtend-1087", "skill": 2, "domain": 3, "task_form": 2, "overall": 2, "reason": "Classical-ML estimator behaviour fix; shares predict-path semantics only."},
+      {"rank": 7, "task_id": "vanvalenlab__deepcell-tf-673", "skill": 2, "domain": 3, "task_form": 2, "overall": 2, "reason": "Deep-learning image-model library bug; same image-in/label-out pipeline area, different work."},
+      {"rank": 8, "task_id": "alteryx__evalml-1318", "skill": 2, "domain": 3, "task_form": 2, "overall": 2, "reason": "ML pipeline library fix; domain-adjacent only."},
+      {"rank": 9, "task_id": "agnostiqhq__covalent-1622", "skill": 2, "domain": 2, "task_form": 2, "overall": 2, "reason": "Every CLI command fails on a fresh machine; environment-sensitive CLI startup debugging."},
+      {"rank": 10, "task_id": "openmdao__openmdao-2952", "skill": 2, "domain": 2, "task_form": 2, "overall": 2, "reason": "CLI subcommand calls a method that moved; filler, shares only the command-line entry point."}
+    ],
+    "Terminal-Lego-15k": [
+      {"rank": 1, "task_id": "task_13557", "skill": 4, "domain": 4, "task_form": 3, "overall": 4, "reason": "Implement a neural network forward pass from scratch in Python with explicit matmuls and activations - the computational core of cli_tool."},
+      {"rank": 2, "task_id": "task_12739", "skill": 3, "domain": 5, "task_form": 3, "overall": 3, "reason": "Deserialize an MNIST pickle and recover the 28x28 digit images; same MNIST data layout and pixel-array handling the CLI must get right."},
+      {"rank": 3, "task_id": "task_12880", "skill": 3, "domain": 4, "task_form": 3, "overall": 3, "reason": "Load grayscale PNGs into numpy arrays with correct dtype and shape; the image-ingest half of `cli_tool weights.json image.png`."},
+      {"rank": 4, "task_id": "task_13611", "skill": 3, "domain": 4, "task_form": 3, "overall": 3, "reason": "Derive per-layer parameter counts from an architecture; the inverse of inferring an architecture from the shapes in weights.json."},
+      {"rank": 5, "task_id": "task_04356", "skill": 3, "domain": 4, "task_form": 3, "overall": 3, "reason": "Implement numerically-stable softmax in NumPy - the output-layer operation cli_tool must reimplement before argmax."},
+      {"rank": 6, "task_id": "task_12881", "skill": 3, "domain": 4, "task_form": 3, "overall": 3, "reason": "Classifier always predicts class 0; debug the inference path end to end, the exact failure mode a hand-rolled MNIST forward pass produces."},
+      {"rank": 7, "task_id": "task_11344", "skill": 3, "domain": 3, "task_form": 3, "overall": 3, "reason": "Round-trip PIL image to NumPy array and back with correct channel/dtype handling; pixel-buffer correctness for the image input."},
+      {"rank": 8, "task_id": "task_13143", "skill": 3, "domain": 4, "task_form": 3, "overall": 3, "reason": "Compute channel-wise mean/std used for model normalization; getting normalization right is what makes a hand-written MNIST digit prediction match."},
+      {"rank": 9, "task_id": "task_13272", "skill": 3, "domain": 4, "task_form": 2, "overall": 3, "reason": "Copy every weight tensor between two identical architectures; forces correct per-layer weight ordering and shape, as reading weights.json does."},
+      {"rank": 10, "task_id": "task_13483", "skill": 3, "domain": 4, "task_form": 3, "overall": 3, "reason": "Implement cross-entropy and gradient descent by hand in NumPy; from-scratch numerics in the same corner, weak verifier."}
+    ],
+    "CalibForge": [
+      {"rank": 1, "task_id": "model-training_20260617_051646_002", "skill": 5, "domain": 5, "task_form": 5, "overall": 5, "reason": "Export weights to a flat file, write infer.c that loads them, runs a 64-128-10 ReLU forward pass and prints the predicted class 0-9, compiled to a binary. Near-isomorphic."},
+      {"rank": 2, "task_id": "model-training_20260612_191200_002", "skill": 5, "domain": 5, "task_form": 4, "overall": 5, "reason": "Pure-NumPy MNIST inference engine: inspect the state dict to infer the architecture, reimplement every op, honour mean=0.1307/std=0.3081 normalization."},
+      {"rank": 3, "task_id": "model-training_20260615_143956_002", "skill": 5, "domain": 4, "task_form": 5, "overall": 4, "reason": "Standalone C predictor invoked as `./xgb_predict model input.csv`, parsing a model dump and writing prediction.txt - same argv, artifact and output-file contract."},
+      {"rank": 4, "task_id": "model-training_20260606_172554_002", "skill": 5, "domain": 4, "task_form": 4, "overall": 4, "reason": "Reverse-engineer a custom binary weight format (magic, uint32/float32 LE) and implement LeakyReLU/softmax inference; same weights-file-to-forward-pass work, harder parsing."},
+      {"rank": 5, "task_id": "model-training_20260604_002443_002", "skill": 4, "domain": 5, "task_form": 4, "overall": 4, "reason": "Load model.pth against model.py and classify PNG test images against pinned labels; same image-in/class-out deployment with per-image ground truth."},
+      {"rank": 6, "task_id": "software-engineering_20260617_210354_010", "skill": 4, "domain": 4, "task_form": 4, "overall": 4, "reason": "Write a PNG decoder in C (chunks, CRC, zlib inflate, unfiltering) compiled with gcc - the hardest sub-problem of reading image.png inside a compiled cli_tool."},
+      {"rank": 7, "task_id": "model-training_20260617_051646_003", "skill": 4, "domain": 5, "task_form": 3, "overall": 4, "reason": "Reimplement a pure-NumPy network wired to loose .npy weight files, some of which are decoys; forces shape-driven identification of which weights belong where."},
+      {"rank": 8, "task_id": "software-engineering_20260617_051646_014", "skill": 4, "domain": 3, "task_form": 4, "overall": 3, "reason": "Decode input.png to BMP with only the Python stdlib; same no-library image decoding, no model component."},
+      {"rank": 9, "task_id": "model-training_20260617_210354_001", "skill": 3, "domain": 5, "task_form": 3, "overall": 3, "reason": "Repair a broken checkpoint (config and weights) until it loads and reproduces expected outputs; checkpoint-to-architecture reconciliation."},
+      {"rank": 10, "task_id": "model-training_20260415_002933_002", "skill": 3, "domain": 5, "task_form": 3, "overall": 3, "reason": "Prune and quantize a PyTorch MNIST model for edge deployment; same MNIST weights and deployment framing, different transformation."}
+    ]
+  },
+  "final_top10": [
+    {"rank": 1, "task_id": "model-training_20260617_051646_002", "source": "CalibForge", "skill": 5, "domain": 5, "task_form": 5, "overall": 5, "reason": "Compile a C binary that loads exported weights, runs a ReLU MLP forward pass and prints the digit 0-9; the same artifact and contract as cli_tool."},
+    {"rank": 2, "task_id": "model-training_20260612_191200_002", "source": "CalibForge", "skill": 5, "domain": 5, "task_form": 4, "overall": 5, "reason": "Infer the MNIST architecture from a state dict and reimplement every op by hand with correct 0.1307/0.3081 normalization - the core of this task."},
+    {"rank": 3, "task_id": "task_000333_7a82aa70", "source": "TMax-15K", "skill": 5, "domain": 4, "task_form": 5, "overall": 5, "reason": "Recover a model from an out-of-band spec, implement inference in Go, compile to an exact executable path with a strict stdout format."},
+    {"rank": 4, "task_id": "model-training_20260615_143956_002", "source": "CalibForge", "skill": 5, "domain": 4, "task_form": 5, "overall": 4, "reason": "Standalone C predictor invoked as `./xgb_predict model input.csv` writing prediction.txt; identical argv-plus-output-file packaging."},
+    {"rank": 5, "task_id": "task_004118_161aa034", "source": "TMax-15K", "skill": 5, "domain": 4, "task_form": 4, "overall": 4, "reason": "Hand-coded C++ MLP forward pass parsing a weights file, compiled with -O3 and driven end to end by a script."},
+    {"rank": 6, "task_id": "model-training_20260606_172554_002", "source": "CalibForge", "skill": 5, "domain": 4, "task_form": 4, "overall": 4, "reason": "Parse a custom little-endian binary weight file and implement LeakyReLU/softmax inference; weight-format reading plus forward pass."},
+    {"rank": 7, "task_id": "model-training_20260604_002443_002", "source": "CalibForge", "skill": 4, "domain": 5, "task_form": 4, "overall": 4, "reason": "Load a PyTorch checkpoint against its model.py and classify PNG images against pinned per-image labels - image-in/class-out with real ground truth."},
+    {"rank": 8, "task_id": "software-engineering_20260617_210354_010", "source": "CalibForge", "skill": 4, "domain": 4, "task_form": 4, "overall": 4, "reason": "PNG decoder in C: chunks, CRC, inflate, unfiltering - the part of reading image.png inside a compiled binary that most solutions get wrong."},
+    {"rank": 9, "task_id": "task_008434_7c53cbf4", "source": "TMax-15K", "skill": 4, "domain": 4, "task_form": 3, "overall": 4, "reason": "Forward pass computed by hand from W1/b1/W2/b2 in weights.json with explicit ReLU equations; the exact arithmetic cli_tool reproduces."},
+    {"rank": 10, "task_id": "model-training_20260617_051646_003", "source": "CalibForge", "skill": 4, "domain": 5, "task_form": 3, "overall": 4, "reason": "Rebuild a pure-NumPy network from loose .npy weight files containing decoys; shape-driven mapping of weights onto layers."}
+  ],
+  "notes": "CalibForge decisively beats the v1 pool here: it contains a near-isomorph (compile a C binary that reads exported weights and prints an MNIST-style class) plus a whole cluster of from-scratch PNG decoders in C, which is the sub-problem the v1 pool had nothing for. TMax contributes real compiled-inference tasks (Go/C++ CLI scorers) and is the only other corpus worth drawing from. Terminal-Lego is shallow here - StackOverflow Keras/TF demo scripts, mostly weak verifiers; its best entries teach forward-pass and PNG-to-array mechanics but at toy depth. TerminalWorld and Recursive-Task-Synthesis could not field 10 defensible candidates: RTS offers only the sds-mnist setup cluster (all `absent`, all env plumbing) and generic compile-a-binary chores, and TerminalWorld's one domain-close entry (tw_588262, YOLOv4 inference) is FREE. SWE-Smith/Rebench lose on task_form as expected; their honest contribution is PyTorch weight-init/shape debugging (fvcore, gpytorch) and Keras save/reload bugs."
+}

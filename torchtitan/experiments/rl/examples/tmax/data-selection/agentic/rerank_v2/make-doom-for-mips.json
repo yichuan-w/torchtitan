@@ -1,0 +1,770 @@
+{
+ "tb21_id": "make-doom-for-mips",
+ "tb21_profile": {
+  "skill": "Cross-compile a real multi-file C codebase for a foreign ISA: obtain/select a MIPS toolchain, repair the Makefile and the target's libc/ABI assumptions, and link an ELF that a third-party emulator will load and run with working stdout and file I/O",
+  "domain": "GCC/musl cross toolchains, GNU Make, MIPS ELF and ABI, doomgeneric's platform shim, a JS MIPS emulator (vm.js)",
+  "task_form": "build/packaging under cross-compilation, verified end to end by running the artifact under the emulator"
+ },
+ "verifier_notes": "No grade I disagreed with. Two notes for the merge: CalibForge's cross-compilation slate is unusually well pinned for a build task (software-engineering_20260604_002443_013 has 9/9 substantive assertions, 20260604_003814_013 has 10/11), which for this genre means the tests run the cross-built artifact rather than just checking it exists. On the other side, TerminalWorld's tw_105217 (a compiled-and-packaged Maven build, a plausible-looking match) is FREE and is excluded. Recursive-Task-Synthesis is entirely absent-graded as expected, but it is the corpus with the most on-topic content after CalibForge, so its lack of verification actually costs something here -- I kept rts_task_24702e8563eef351a1c3cedd in the final ten because no graded task in the pool combines build, file-says-it-is-the-right-machine, and run-under-emulator as directly.",
+ "searches": [
+  "tools.py search all 'cross[- ]compil|mips|aarch64|arm-linux-gnueabi|toolchain|qemu-user|static.*ELF|musl'",
+  "tools.py search all 'doom|emscripten|webassembly|wasm|emulator.*ELF|node .*\\.js.*binary|bare.?metal|freestanding|newlib'",
+  "tools.py search tmax 'Makefile.*(fix|broken|fail)|link(er)? error|undefined reference|compile.*(fails|error)|build the (binary|executable|project)|autoconf|CMake'",
+  "tools.py search smith 'cross.?compil|setup\\.py|build ext|cmake|toolchain|architecture|conan|profile.*build|compiler'",
+  "tools.py search rebench 'cross.?compil|cmake|build fails|compiler|wheel|setup\\.py|meson|architecture'",
+  "tools.py search tw 'build .* from source|compile|cmake|make install|configure'",
+  "(new corpora) 'cross[- ]compil|mips|aarch64|arm-linux-gnueabi|qemu|toolchain|static(ally)? link|emscripten|wasm|ELF'",
+  "(new corpora, Terminal-Lego) 'cross.?compil|arm-none|arm-linux|buildroot|--host=|configure script|\\bmake\\b.*(error|fail)|undefined reference|linker (error|script)'",
+  "(new corpora, CalibForge) '\\b(qemu|QEMU)\\b|cross-compil|cross compil|target architecture|-march=|riscv|emulat'",
+  "(new corpora, CalibForge) 'qemu|cross[- ]compil|aarch64|arm64|riscv|mips|bare.?metal|kernel image|\\bELF\\b|linker script|Makefile'"
+ ],
+ "per_source": {
+  "CalibForge": [
+   {
+    "rank": 1,
+    "task_id": "software-engineering_20260604_002443_013",
+    "skill": 5,
+    "domain": 5,
+    "task_form": 5,
+    "overall": 5,
+    "reason": "A C project that does not build must be cross-compiled for RISC-V64 and run under QEMU user-mode -- the same fix-the-build-for-a-foreign-ISA-then-run-it loop."
+   },
+   {
+    "rank": 2,
+    "task_id": "software-engineering_20260615_143301_013",
+    "skill": 5,
+    "domain": 5,
+    "task_form": 5,
+    "overall": 5,
+    "reason": "Cross-compile a C renderer that deliberately avoids glibc and uses a custom minimal stdlib, via its Makefile; doomgeneric's libc-substitution problem exactly."
+   },
+   {
+    "rank": 3,
+    "task_id": "software-engineering_20260606_172554_013",
+    "skill": 5,
+    "domain": 5,
+    "task_form": 5,
+    "overall": 5,
+    "reason": "Cross-compile a large real C codebase (the SQLite amalgamation) plus a driver for RISC-V64; scale and toolchain-flag work match doomgeneric."
+   },
+   {
+    "rank": 4,
+    "task_id": "software-engineering_20260604_003814_013",
+    "skill": 5,
+    "domain": 5,
+    "task_form": 4,
+    "overall": 4,
+    "reason": "Cross-compiles a multi-file C benchmark for a RISC-V64 embedded target; same multi-object build against a foreign triple."
+   },
+   {
+    "rank": 5,
+    "task_id": "software-engineering_20260606_172606_013",
+    "skill": 5,
+    "domain": 5,
+    "task_form": 5,
+    "overall": 4,
+    "reason": "Set up the arm-linux-gnueabihf cross toolchain and runtime, build with the provided Makefile, and verify the binary actually runs."
+   },
+   {
+    "rank": 6,
+    "task_id": "system-administration_20260604_194036_009",
+    "skill": 4,
+    "domain": 5,
+    "task_form": 4,
+    "overall": 4,
+    "reason": "Cross-compile a vendored source tarball for aarch64 and make it usable under QEMU user-mode emulation; configure-plus-cross-build."
+   },
+   {
+    "rank": 7,
+    "task_id": "software-engineering_20260501_051538_013",
+    "skill": 4,
+    "domain": 5,
+    "task_form": 4,
+    "overall": 4,
+    "reason": "Bare-metal RISC-V with no standard library on a riscv64-unknown-elf toolchain -- startup code, linker script and freestanding ELF layout."
+   },
+   {
+    "rank": 8,
+    "task_id": "software-engineering_20260430_081156_013",
+    "skill": 4,
+    "domain": 5,
+    "task_form": 4,
+    "overall": 4,
+    "reason": "Bare-metal RISC-V in QEMU that must print to the semihosting console; getting stdout out of an emulated foreign binary, as vm.js demands."
+   },
+   {
+    "rank": 9,
+    "task_id": "software-engineering_20260415_094424_014",
+    "skill": 4,
+    "domain": 5,
+    "task_form": 3,
+    "overall": 4,
+    "reason": "Implement a node-run interpreter that loads and executes a foreign-ISA ELF; the other side of vm.js, so it teaches what the ELF must be."
+   },
+   {
+    "rank": 10,
+    "task_id": "system-administration_20260606_172622_007",
+    "skill": 3,
+    "domain": 5,
+    "task_form": 4,
+    "overall": 3,
+    "reason": "Configure and build busybox into a minimal image that actually boots in QEMU; build-then-boot-under-an-emulator with no shortcuts."
+   }
+  ],
+  "Recursive-Task-Synthesis": [
+   {
+    "rank": 1,
+    "task_id": "rts_task_24702e8563eef351a1c3cedd",
+    "skill": 4,
+    "domain": 5,
+    "task_form": 5,
+    "overall": 4,
+    "reason": "Build for aarch64, confirm with file that the ELF really is aarch64, then run it under QEMU and capture output -- TB2.1's full build-verify-run chain."
+   },
+   {
+    "rank": 2,
+    "task_id": "rts_task_e50a96c707a8de4f7c7d0d00",
+    "skill": 4,
+    "domain": 5,
+    "task_form": 4,
+    "overall": 4,
+    "reason": "Install a vendor cross-compilation toolchain from an archive and make the cross gcc work on PATH; the toolchain-acquisition step TB2.1 starts with."
+   },
+   {
+    "rank": 3,
+    "task_id": "rts_task_8aa6db9bc06f71d90094230a",
+    "skill": 4,
+    "domain": 5,
+    "task_form": 5,
+    "overall": 4,
+    "reason": "A Makefile with a clean target whose product must print correctly under qemu-aarch64-static; Makefile plus cross-run verification."
+   },
+   {
+    "rank": 4,
+    "task_id": "rts_task_79362326714daf061fe79722",
+    "skill": 4,
+    "domain": 5,
+    "task_form": 4,
+    "overall": 4,
+    "reason": "Inspect which assemblers and linkers are available, pick the right ones for ARM64 and justify the choice -- exactly the 'figure out the rest' part."
+   },
+   {
+    "rank": 5,
+    "task_id": "rts_task_5dc6d30bea094a078a2adabb",
+    "skill": 4,
+    "domain": 4,
+    "task_form": 4,
+    "overall": 4,
+    "reason": "Cross-compile a real interpreter to WebAssembly with Emscripten and produce a runnable Node.js artifact; build-for-a-JS-runtime, like vm.js."
+   },
+   {
+    "rank": 6,
+    "task_id": "rts_task_438559d2262cf130627c9670",
+    "skill": 4,
+    "domain": 5,
+    "task_form": 4,
+    "overall": 3,
+    "reason": "Install the MT2735 cross toolchain into a specified prefix and extract its sysroot; toolchain plumbing without the build step."
+   },
+   {
+    "rank": 7,
+    "task_id": "rts_task_26b68a94ff578a3e79a12589",
+    "skill": 3,
+    "domain": 5,
+    "task_form": 4,
+    "overall": 3,
+    "reason": "Makefile with a verify target confirming the binary is an ARM aarch64 executable; proving the output ELF has the right machine type."
+   },
+   {
+    "rank": 8,
+    "task_id": "rts_task_81ea1ee1b853aa19e4111cd5",
+    "skill": 4,
+    "domain": 4,
+    "task_form": 4,
+    "overall": 3,
+    "reason": "Emscripten build of a real project into fennel.js/fennel.wasm; cross-target build pipeline with two required artifacts."
+   },
+   {
+    "rank": 9,
+    "task_id": "rts_task_bdc7b03261cf73df2b159f82",
+    "skill": 3,
+    "domain": 5,
+    "task_form": 4,
+    "overall": 3,
+    "reason": "Write a Makefile that drives the provided aarch64 assembler and linker; build-system authoring against a cross toolchain, but for assembly."
+   },
+   {
+    "rank": 10,
+    "task_id": "rts_task_fce5e55bd10c822d16730468",
+    "skill": 3,
+    "domain": 5,
+    "task_form": 4,
+    "overall": 3,
+    "reason": "Another MT2735 toolchain install variant; near-duplicate of rank 2 and 6."
+   }
+  ],
+  "Terminal-Lego-15k": [
+   {
+    "rank": 1,
+    "task_id": "task_00421",
+    "skill": 5,
+    "domain": 5,
+    "task_form": 4,
+    "overall": 4,
+    "reason": "Install and configure the Raspberry Pi cross-compiler toolchain properly -- acquiring and wiring up a cross gcc is TB2.1's first and hardest step."
+   },
+   {
+    "rank": 2,
+    "task_id": "task_00288",
+    "skill": 4,
+    "domain": 5,
+    "task_form": 4,
+    "overall": 4,
+    "reason": "Diagnose 'No such file or directory' for a 32-bit ELF, which is really a missing loader/arch mismatch -- the confusing failure mode cross-built binaries hit."
+   },
+   {
+    "rank": 3,
+    "task_id": "task_00407",
+    "skill": 4,
+    "domain": 4,
+    "task_form": 4,
+    "overall": 3,
+    "reason": "Compile a C program as a 32-bit binary on a 64-bit host via CMake; making a build system target something other than the host."
+   },
+   {
+    "rank": 4,
+    "task_id": "task_00450",
+    "skill": 4,
+    "domain": 4,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Statically link libstdc++ so the binary runs where the runtime is absent; static linking is how you make an ELF an emulator can just load."
+   },
+   {
+    "rank": 5,
+    "task_id": "task_00165",
+    "skill": 3,
+    "domain": 5,
+    "task_form": 2,
+    "overall": 3,
+    "reason": "Documents the concrete differences between arm64 and armhf; ABI/architecture selection knowledge that decides which cross triple is right."
+   },
+   {
+    "rank": 6,
+    "task_id": "task_00492",
+    "skill": 3,
+    "domain": 4,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "ELF sections versus segments; the loader's view of an ELF, which is what vm.js has to consume."
+   },
+   {
+    "rank": 7,
+    "task_id": "task_00460",
+    "skill": 3,
+    "domain": 4,
+    "task_form": 4,
+    "overall": 3,
+    "reason": "Fix pkg-config PATH so an autoconf configure script can find its dependencies; the configure-stage failure cross builds hit constantly."
+   },
+   {
+    "rank": 8,
+    "task_id": "task_00312",
+    "skill": 3,
+    "domain": 4,
+    "task_form": 4,
+    "overall": 3,
+    "reason": "Write a Makefile that compiles and links a multi-directory C/C++ project; the build-system authoring doomgeneric needs."
+   },
+   {
+    "rank": 9,
+    "task_id": "task_00443",
+    "skill": 3,
+    "domain": 4,
+    "task_form": 4,
+    "overall": 3,
+    "reason": "Build and install GLFW 3 from source on Linux; configure-make-install on a real third-party C project."
+   },
+   {
+    "rank": 10,
+    "task_id": "task_00465",
+    "skill": 3,
+    "domain": 4,
+    "task_form": 4,
+    "overall": 3,
+    "reason": "Author a configure script and build system for a C application; how a project detects its target and emits build settings."
+   }
+  ],
+  "TMax-15K": [
+   {
+    "rank": 1,
+    "task_id": "task_002664_87b4e800",
+    "skill": 5,
+    "domain": 4,
+    "task_form": 5,
+    "overall": 4,
+    "reason": "One C source must produce both a native Linux binary and a WebAssembly/WASI module; building the same code for a second, non-native target."
+   },
+   {
+    "rank": 2,
+    "task_id": "task_006190_e6dc0827",
+    "skill": 4,
+    "domain": 4,
+    "task_form": 4,
+    "overall": 4,
+    "reason": "A multi-file project that compiles natively fails for the WebAssembly target; diagnosing target-specific build breakage is TB2.1's core work."
+   },
+   {
+    "rank": 3,
+    "task_id": "task_002174_c0bd0314",
+    "skill": 4,
+    "domain": 4,
+    "task_form": 4,
+    "overall": 3,
+    "reason": "Compile an extracted payload into a minimal freestanding executable and run it; freestanding builds without the usual runtime assumptions."
+   },
+   {
+    "rank": 4,
+    "task_id": "task_000024_d94c710d",
+    "skill": 4,
+    "domain": 3,
+    "task_form": 4,
+    "overall": 3,
+    "reason": "Fix the build error so make all succeeds, explicitly forbidding suppressing it with compiler flags -- the honest-build-fix discipline."
+   },
+   {
+    "rank": 5,
+    "task_id": "task_000063_e9329728",
+    "skill": 4,
+    "domain": 4,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "cargo build fails with an undefined reference to a C symbol; cross-language linking against a static archive, the link stage TB2.1 must get right."
+   },
+   {
+    "rank": 6,
+    "task_id": "task_000051_4c6961a5",
+    "skill": 4,
+    "domain": 4,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "A Makefile-built static C library will not link into the Go binary; same static-archive linking problem in another language pair."
+   },
+   {
+    "rank": 7,
+    "task_id": "task_000019_9b7bd652",
+    "skill": 3,
+    "domain": 3,
+    "task_form": 4,
+    "overall": 3,
+    "reason": "Fix a broken CMake build for a multi-file C project; build-system repair on a real project tree."
+   },
+   {
+    "rank": 8,
+    "task_id": "task_000074_d70e3f4c",
+    "skill": 3,
+    "domain": 3,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "The Makefile is missing linker flags for sqlite3 and libm; adding the right -l flags is the commonest cross-build failure."
+   },
+   {
+    "rank": 9,
+    "task_id": "task_006210_e9532fdc",
+    "skill": 3,
+    "domain": 4,
+    "task_form": 4,
+    "overall": 3,
+    "reason": "Set up a polyglot build system and write an emulator for a custom stack machine; both halves of TB2.1's build-plus-emulator pairing, at toy scale."
+   },
+   {
+    "rank": 10,
+    "task_id": "task_000105_2c3c3a76",
+    "skill": 3,
+    "domain": 3,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "make is failing and the C++ source must be patched to build; generic build repair with no architecture dimension."
+   }
+  ],
+  "TerminalWorld-Seeds-Clean": [
+   {
+    "rank": 1,
+    "task_id": "tw_334878",
+    "skill": 4,
+    "domain": 4,
+    "task_form": 5,
+    "overall": 4,
+    "reason": "Compile a real interpreter with all its sources to WebAssembly via Emscripten and produce a runnable Node.js artifact -- build-for-a-JS-host, like vm.js."
+   },
+   {
+    "rank": 2,
+    "task_id": "tw_249297",
+    "skill": 4,
+    "domain": 5,
+    "task_form": 4,
+    "overall": 4,
+    "reason": "Drive the Lucet WebAssembly toolchain end to end from C source to a native object and execute it; a full non-native compilation pipeline."
+   },
+   {
+    "rank": 3,
+    "task_id": "tw_322195",
+    "skill": 3,
+    "domain": 4,
+    "task_form": 5,
+    "overall": 3,
+    "reason": "Clone and compile Git from source until the build succeeds; large real C project build with dependency discovery."
+   },
+   {
+    "rank": 4,
+    "task_id": "tw_102926",
+    "skill": 3,
+    "domain": 4,
+    "task_form": 5,
+    "overall": 3,
+    "reason": "Compile and install the HackRF tools so the binaries run without extra configuration; build-install-verify on a C project."
+   },
+   {
+    "rank": 5,
+    "task_id": "tw_104501",
+    "skill": 3,
+    "domain": 4,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Compile and run a C++ program under AddressSanitizer and capture its output; toolchain flags plus running the product and collecting stdout."
+   },
+   {
+    "rank": 6,
+    "task_id": "tw_10342",
+    "skill": 3,
+    "domain": 3,
+    "task_form": 4,
+    "overall": 3,
+    "reason": "Configure and build a Go project on a specific branch; build-from-source with environment setup."
+   },
+   {
+    "rank": 7,
+    "task_id": "tw_103420",
+    "skill": 3,
+    "domain": 3,
+    "task_form": 4,
+    "overall": 3,
+    "reason": "Build a specific Ruby version from source with a chosen mirror and select it locally; source build plus toolchain selection."
+   },
+   {
+    "rank": 8,
+    "task_id": "tw_12673",
+    "skill": 1,
+    "domain": 1,
+    "task_form": 2,
+    "overall": 1,
+    "reason": "Transform one CSV into another; no build, no toolchain, included only to fill the quota."
+   },
+   {
+    "rank": 9,
+    "task_id": "tw_584886",
+    "skill": 1,
+    "domain": 2,
+    "task_form": 2,
+    "overall": 1,
+    "reason": "Count records in a VCF and a Parquet file; unrelated, quota filler."
+   },
+   {
+    "rank": 10,
+    "task_id": "tw_277215",
+    "skill": 1,
+    "domain": 2,
+    "task_form": 2,
+    "overall": 1,
+    "reason": "List log files recursively; unrelated, quota filler."
+   }
+  ],
+  "SWE-Smith-Seeds-Clean": [
+   {
+    "rank": 1,
+    "task_id": "conan-io__conan.86f29e13.func_pm_remove_assign__vt2zl5s6",
+    "skill": 4,
+    "domain": 5,
+    "task_form": 2,
+    "overall": 4,
+    "reason": "GNU triplet generation fails for certain architectures -- getting the target triple right is literally what decides whether a MIPS cross build works."
+   },
+   {
+    "rank": 2,
+    "task_id": "conan-io__conan.86f29e13.pr_11678",
+    "skill": 4,
+    "domain": 5,
+    "task_form": 2,
+    "overall": 3,
+    "reason": "AutotoolsToolchain mishandles compiler flags; how a build system assembles CFLAGS/LDFLAGS for a target, the layer TB2.1 must edit."
+   },
+   {
+    "rank": 3,
+    "task_id": "conan-io__conan.86f29e13.lm_rewrite__m0121wmw",
+    "skill": 4,
+    "domain": 5,
+    "task_form": 2,
+    "overall": 3,
+    "reason": "GnuToolchain resolves compiler variables wrongly; CC/CXX/AR selection for a cross toolchain."
+   },
+   {
+    "rank": 4,
+    "task_id": "conan-io__conan.86f29e13.pr_12294",
+    "skill": 3,
+    "domain": 5,
+    "task_form": 2,
+    "overall": 3,
+    "reason": "Architecture handling breaks generation of environment scripts; per-architecture build environment setup."
+   },
+   {
+    "rank": 5,
+    "task_id": "conan-io__conan.86f29e13.combine_module__ox7m3k6h",
+    "skill": 3,
+    "domain": 4,
+    "task_form": 2,
+    "overall": 3,
+    "reason": "C++ standard flags differ wrongly between Clang and GCC; compiler-specific flag mapping in a build toolchain."
+   },
+   {
+    "rank": 6,
+    "task_id": "conan-io__conan.86f29e13.func_pm_remove_cond__c3v70uy4",
+    "skill": 3,
+    "domain": 4,
+    "task_form": 2,
+    "overall": 3,
+    "reason": "Profile subsettings are not invalidated when a parent setting changes; build-profile consistency, the file that names your target."
+   },
+   {
+    "rank": 7,
+    "task_id": "conan-io__conan.86f29e13.lm_rewrite__rb7shtde",
+    "skill": 3,
+    "domain": 4,
+    "task_form": 2,
+    "overall": 3,
+    "reason": "Profile values overwrite instead of accumulating; how build configuration layers compose."
+   },
+   {
+    "rank": 8,
+    "task_id": "conan-io__conan.86f29e13.func_pm_remove_cond__ucg6f79v",
+    "skill": 3,
+    "domain": 4,
+    "task_form": 2,
+    "overall": 3,
+    "reason": "CMakeDeps mishandles transitive dependencies; generating correct link lines for a dependency graph."
+   },
+   {
+    "rank": 9,
+    "task_id": "conan-io__conan.86f29e13.combine_module__0jv2n7d9",
+    "skill": 3,
+    "domain": 4,
+    "task_form": 2,
+    "overall": 3,
+    "reason": "Incorrect C++ standard flags for Clang; narrower variant of the flag-mapping bug above."
+   },
+   {
+    "rank": 10,
+    "task_id": "conan-io__conan.86f29e13.combine_file__y3e83gj5",
+    "skill": 2,
+    "domain": 4,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "BazelDeps component name resolution; build-system codegen, further from compiler/linker invocation."
+   }
+  ],
+  "SWE-Rebench-Tasks-Clean": [
+   {
+    "rank": 1,
+    "task_id": "joerick__cibuildwheel-295",
+    "skill": 3,
+    "domain": 4,
+    "task_form": 2,
+    "overall": 3,
+    "reason": "Building wheels for a package in a subdirectory fails; driving a build for targets other than the developer's own machine."
+   },
+   {
+    "rank": 2,
+    "task_id": "pyccel__pyccel-2186",
+    "skill": 3,
+    "domain": 4,
+    "task_form": 2,
+    "overall": 3,
+    "reason": "Generated Fortran fails to compile with an ALLOCATABLE argument error; reading a compiler error back to the code generator that emitted it."
+   },
+   {
+    "rank": 3,
+    "task_id": "pyccel__pyccel-1810",
+    "skill": 3,
+    "domain": 4,
+    "task_form": 2,
+    "overall": 3,
+    "reason": "Another pyccel codegen defect surfacing as a compile failure; the same compile-error-to-generator debugging."
+   },
+   {
+    "rank": 4,
+    "task_id": "pypa__setuptools-1389",
+    "skill": 2,
+    "domain": 3,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "setup.py develop fails to install correctly; Python build/packaging plumbing, not native compilation."
+   },
+   {
+    "rank": 5,
+    "task_id": "pypa__setuptools-1100",
+    "skill": 2,
+    "domain": 3,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "A setuptools release breaks builds depending on install_requires handling; build-tooling regression."
+   },
+   {
+    "rank": 6,
+    "task_id": "pypa__setuptools-1129",
+    "skill": 2,
+    "domain": 3,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "setup_requires fails when transitive dependency versions conflict; build-time dependency resolution."
+   },
+   {
+    "rank": 7,
+    "task_id": "pypa__setuptools-1150",
+    "skill": 2,
+    "domain": 3,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "setup_requires packages only considered when preinstalled; same build-dependency area."
+   },
+   {
+    "rank": 8,
+    "task_id": "pyg-team__pytorch_geometric-9099",
+    "skill": 2,
+    "domain": 3,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "An environment/toolchain-sensitive failure in a compiled-extension library; build-environment sensitivity only."
+   },
+   {
+    "rank": 9,
+    "task_id": "pycqa__flake8-1648",
+    "skill": 1,
+    "domain": 2,
+    "task_form": 2,
+    "overall": 1,
+    "reason": "CI workflow architecture/python-version setup; only shares the word architecture."
+   },
+   {
+    "rank": 10,
+    "task_id": "pallets__click-2333",
+    "skill": 1,
+    "domain": 2,
+    "task_form": 2,
+    "overall": 1,
+    "reason": "A console-script entry point defined in setup.py misbehaves; packaging trivia, minimal transfer."
+   }
+  ]
+ },
+ "final_top10": [
+  {
+   "rank": 1,
+   "task_id": "software-engineering_20260604_002443_013",
+   "skill": 5,
+   "domain": 5,
+   "task_form": 5,
+   "overall": 5,
+   "reason": "A C project that does not build must be cross-compiled for RISC-V64 and then run under QEMU user-mode -- the same fix-the-build-for-a-foreign-ISA-then-run-it task.",
+   "source": "CalibForge"
+  },
+  {
+   "rank": 2,
+   "task_id": "software-engineering_20260615_143301_013",
+   "skill": 5,
+   "domain": 5,
+   "task_form": 5,
+   "overall": 5,
+   "reason": "Cross-compile a C program that deliberately avoids glibc and links a custom minimal stdlib through its Makefile; doomgeneric's libc-substitution problem exactly.",
+   "source": "CalibForge"
+  },
+  {
+   "rank": 3,
+   "task_id": "software-engineering_20260606_172554_013",
+   "skill": 5,
+   "domain": 5,
+   "task_form": 5,
+   "overall": 5,
+   "reason": "Cross-compile a large real C codebase (SQLite amalgamation plus driver) for RISC-V64; same scale of source and same toolchain-flag work.",
+   "source": "CalibForge"
+  },
+  {
+   "rank": 4,
+   "task_id": "task_00421",
+   "skill": 5,
+   "domain": 5,
+   "task_form": 4,
+   "overall": 4,
+   "reason": "Install and configure a real cross-compiler toolchain correctly -- acquiring and wiring up the cross gcc is TB2.1's first and hardest step.",
+   "source": "Terminal-Lego-15k"
+  },
+  {
+   "rank": 5,
+   "task_id": "rts_task_24702e8563eef351a1c3cedd",
+   "skill": 4,
+   "domain": 5,
+   "task_form": 5,
+   "overall": 4,
+   "reason": "Build for aarch64, confirm with file that the ELF is really aarch64, run it under QEMU and capture output; TB2.1's whole build-verify-run chain.",
+   "source": "Recursive-Task-Synthesis"
+  },
+  {
+   "rank": 6,
+   "task_id": "software-engineering_20260604_003814_013",
+   "skill": 5,
+   "domain": 5,
+   "task_form": 4,
+   "overall": 4,
+   "reason": "Cross-compiles a multi-file C benchmark for a RISC-V64 embedded target; the same multi-object build against a foreign triple.",
+   "source": "CalibForge"
+  },
+  {
+   "rank": 7,
+   "task_id": "software-engineering_20260606_172606_013",
+   "skill": 5,
+   "domain": 5,
+   "task_form": 5,
+   "overall": 4,
+   "reason": "Set up the arm-linux-gnueabihf toolchain and runtime, build via the provided Makefile, and verify the binary actually runs on the emulated target.",
+   "source": "CalibForge"
+  },
+  {
+   "rank": 8,
+   "task_id": "task_002664_87b4e800",
+   "skill": 5,
+   "domain": 4,
+   "task_form": 5,
+   "overall": 4,
+   "reason": "One C source must yield both a native binary and a WebAssembly/WASI module; building the same code for a second, non-native target.",
+   "source": "TMax-15K"
+  },
+  {
+   "rank": 9,
+   "task_id": "software-engineering_20260430_081156_013",
+   "skill": 4,
+   "domain": 5,
+   "task_form": 4,
+   "overall": 4,
+   "reason": "Bare-metal RISC-V in QEMU that must get text out through the semihosting console; producing stdout from an emulated foreign binary, as vm.js requires.",
+   "source": "CalibForge"
+  },
+  {
+   "rank": 10,
+   "task_id": "conan-io__conan.86f29e13.func_pm_remove_assign__vt2zl5s6",
+   "skill": 4,
+   "domain": 5,
+   "task_form": 2,
+   "overall": 4,
+   "reason": "GNU triplet generation fails for certain architectures -- picking the right target triple is precisely what decides whether a MIPS cross build works.",
+   "source": "SWE-Smith-Seeds-Clean"
+  }
+ ],
+ "notes": "CalibForge is far and away the best corpus for this task: it has a dedicated cross-compilation family (RISC-V64 and arm-linux-gnueabihf builds run under QEMU, bare-metal RISC-V with no libc, a glibc-free custom-stdlib build, a node-hosted foreign-ISA interpreter) that the v1 pool has almost nothing comparable to, and it is strongly verified. Recursive-Task-Synthesis is the surprise second place -- despite being the boilerplate-heavy corpus, it contains a real cluster of aarch64 cross-toolchain, qemu-user, Makefile-and-verify and Emscripten tasks; it is all absent-graded, so treat its entries as unverified. Terminal-Lego contributes one strong win (task_00421, installing a cross-compiler toolchain) plus solid ELF/static-linking/build-system background. TMax is decent but only generically: hundreds of fix-the-broken-Makefile tasks, none cross-architecture. TerminalWorld's ranks 8-10 are quota filler scored 1 -- it has three or four usable build tasks and no more. SWE-Smith is genuinely useful here for an unexpected reason: the whole conan family is cross-compilation toolchain logic (GNU triplets, AutotoolsToolchain flags, per-arch environments), so judge it on skill/domain and accept the task_form penalty; I put its best entry in the final ten. No task in the entire 76k pool targets MIPS specifically -- every cross-compilation match is RISC-V, ARM64 or WebAssembly."
+}

@@ -1,0 +1,775 @@
+{
+  "tb21_id": "sanitize-git-repo",
+  "tb21_profile": {
+    "skill": "Recognise credential formats (AWS key id/secret, ghp_, hf_) anywhere in a repository including git history, replace each with a consistent placeholder, and leave every uncontaminated file byte-identical",
+    "domain": "Git internals and secret hygiene: grep/sed over a checkout, git log/history rewriting, credential formats",
+    "task_form": "recover/repair: surgical sanitisation of an existing repo under a strict do-no-collateral-damage constraint"
+  },
+  "verifier_notes": "I disagree with the FREE grade on security_20260510_062946_007 (CalibForge). Read its tests/test_outputs.py: it asserts specific real secret strings are ABSENT from named files, that specific <your-aws-access-key-id>-style placeholders are PRESENT, and that documented example keys and test fixtures are still intact - negative plus positive plus preservation assertions, not a file-exists suite. The heuristic scored it FREE because every assertion is of the form 'substring in content'. It is the single closest candidate to this TB2.1 task and I still kept it out of final_top10 because the hard rule is mechanical; the merge step should consider re-grading it. security_20260419_112101_007, tw_147333 and tw_361500 are also FREE and likewise ranked in per_source only. [fix-team 05, corrected-grader pass] The grader has since been corrected and work/verifier_strength.json now grades security_20260510_062946_007 `strong`, so the mechanical bar is gone and I have promoted it to rank 1, displacing task_000841_29b88124 (was rank 10, overall 3, grade unaffected, still in per_source - a single-file AKIA substitution that 062946_007 subsumes entirely). It goes above security_20260430_081156_007 because it is the only candidate that is this TB2.1 task rather than half of it: same repo-wide sanitisation, the same literal <your-aws-access-key-id> / <your-github-token> / <your-huggingface-token> placeholder wording the TB2.1 prompt uses, and the secrets must also be gone from `git log -p --all`, which 081156_007 (log files, no git) does not touch. One correction to my earlier reading, having gone back through tests/test_outputs.py line by line: I previously wrote that it asserts doc and fixture files are unmodified. It does not. AWS_EXAMPLE_ACCESS_KEY, TEST_FIXTURES and FILES_TO_PRESERVE are defined at the top of the file and then never referenced by any of the 11 tests - dead constants. So the positive half is verified hard (nine named high-entropy secrets must be absent from named files and from all of git history, and eight exact placeholder strings must be present), but the real-vs-fixture triage the instruction makes the point of the task is not checked at all, and a blanket sed over the whole tree passes. That is worth knowing downstream: it is the one axis on which it teaches less than TB2.1 asks, and it is why task_12998 (delete only the secret-bearing rows, leave clean rows byte-identical) keeps its slot at rank 10 despite an overall of 3 - it is the only entry left that verifies the do-no-collateral-damage constraint. security_20260419_112101_007 is also rehabilitated (now `strong`) but stays out on merit at overall 3: purging SSH keys from all branches and tags is already covered by ranks 3, 6 and 7.",
+  "searches": [
+    "tools.py search all \"AWS_ACCESS_KEY|AKIA|secret access key\"",
+    "tools.py search all \"filter-branch|filter-repo|BFG|rewrite (the )?history|git history\"",
+    "tools.py search all \"redact|sanitiz|scrub|mask (the )?secret\"",
+    "tools.py search smith \"dulwich|\\bgit\\b|commit|credential|token|secret|\\.env\"",
+    "tools.py search rebench \"dulwich|GitPython|git filter|commit|credential|secret scanning|keyring|token\"",
+    "tools.py search all \"dulwich|GitPython|pygit2|\\.git/objects|packfile\"",
+    "tools.py search smith \"safety|vulnerab|scan\"",
+    "tools.py search all \"sed -i|search and replace|replace across (all )?files|in-place edit\"",
+    "tools.py search lego \"git.*(history|commit).*(remove|delete|purge)|password|credential|api key|token from\"",
+    "tools.py search tmax \"git (history|filter-branch)|rewrite.*commit|\\.git directory\"",
+    "tools.py search rebench \"dulwich\"",
+    "tools.py search smith \"detect-secrets|keyring|\\.env|environment variable|password\"",
+    "tools.py search smith \"redact|stackprinter\"",
+    "tools.py show security_20260416_172928_007 security_20260430_081156_007 security_20260509_202829_005",
+    "read /data/yichuan_wang/calibforge/contrastive_solver/security_20260510_062946_007/tests/test_outputs.py"
+  ],
+  "per_source": {
+    "TMax-15K": [
+      {
+        "rank": 1,
+        "task_id": "task_001329_30ac46c8",
+        "skill": 5,
+        "domain": 5,
+        "task_form": 4,
+        "overall": 4,
+        "reason": "Replace the values of AWS_ACCESS_KEY_ID/SECRET lines with a fixed placeholder across config files while leaving other content intact - the core edit of the TB task"
+      },
+      {
+        "rank": 2,
+        "task_id": "task_000841_29b88124",
+        "skill": 4,
+        "domain": 5,
+        "task_form": 4,
+        "overall": 4,
+        "reason": "Find every AKIA-prefixed token in a file and substitute an exact placeholder string; pattern recognition plus exact replacement"
+      },
+      {
+        "rank": 3,
+        "task_id": "task_001488_22983657",
+        "skill": 4,
+        "domain": 5,
+        "task_form": 3,
+        "overall": 4,
+        "reason": "Redact AWS Access Key IDs out of JSON logs under an isolation constraint; same detect-then-replace with a pinned output"
+      },
+      {
+        "rank": 4,
+        "task_id": "task_003804_30b4a169",
+        "skill": 4,
+        "domain": 5,
+        "task_form": 3,
+        "overall": 3,
+        "reason": "Credential rotation: extract an old password and redact leaked AWS keys from logs - the same secret lifecycle"
+      },
+      {
+        "rank": 5,
+        "task_id": "task_000581_e97724a9",
+        "skill": 4,
+        "domain": 4,
+        "task_form": 3,
+        "overall": 3,
+        "reason": "Multi-pattern redaction (card numbers, AKIA keys, JWTs) from log text; teaches the several credential regexes the TB task needs"
+      },
+      {
+        "rank": 6,
+        "task_id": "task_000387_5cbd2f2c",
+        "skill": 4,
+        "domain": 5,
+        "task_form": 3,
+        "overall": 3,
+        "reason": "Recover a RECOVERY_PASS that was committed then deleted but survives in git history - proves deleting a file does not remove the secret"
+      },
+      {
+        "rank": 7,
+        "task_id": "task_000522_2f091629",
+        "skill": 4,
+        "domain": 5,
+        "task_form": 3,
+        "overall": 3,
+        "reason": "Key committed and later removed must be dug out of git history; the inverse skill of purging it, same object-store reasoning"
+      },
+      {
+        "rank": 8,
+        "task_id": "task_000671_849773c0",
+        "skill": 4,
+        "domain": 5,
+        "task_form": 3,
+        "overall": 3,
+        "reason": "Recover a SALT a developer removed 'to cover their tracks' from history - exactly why sanitising working-tree files is insufficient"
+      },
+      {
+        "rank": 9,
+        "task_id": "task_002798_b6cfb51b",
+        "skill": 3,
+        "domain": 4,
+        "task_form": 3,
+        "overall": 3,
+        "reason": "Bash-only security audit that includes redacting sensitive data across a tree, with pinned expected outputs"
+      },
+      {
+        "rank": 10,
+        "task_id": "task_009559_a28ee18d",
+        "skill": 3,
+        "domain": 4,
+        "task_form": 3,
+        "overall": 3,
+        "reason": "Identify a token leaking through process argv and write a script that sanitises it out of a log file"
+      }
+    ],
+    "Recursive-Task-Synthesis": [
+      {
+        "rank": 1,
+        "task_id": "rts_task_a1f849c57e17b4f4302493d0",
+        "skill": 4,
+        "domain": 5,
+        "task_form": 4,
+        "overall": 3,
+        "reason": "Remove the commit that introduced secret.key from the branch history so the file is absent from history, not just HEAD"
+      },
+      {
+        "rank": 2,
+        "task_id": "rts_task_5cdda202e85593e5dd1eca35",
+        "skill": 4,
+        "domain": 5,
+        "task_form": 4,
+        "overall": 3,
+        "reason": "Same secret.key history rewrite plus force-push and a before/after inspection report"
+      },
+      {
+        "rank": 3,
+        "task_id": "rts_task_e5ea24a83bc9d744931596a3",
+        "skill": 4,
+        "domain": 5,
+        "task_form": 3,
+        "overall": 3,
+        "reason": "Recover a deleted credentials file containing AKIAIOSFODNN7EXAMPLE from git history - the persistence of secrets in objects"
+      },
+      {
+        "rank": 4,
+        "task_id": "rts_task_64853056ab7d23235561a2e8",
+        "skill": 4,
+        "domain": 5,
+        "task_form": 3,
+        "overall": 3,
+        "reason": "Recover access key/secret/endpoint from the git history of /repo and write them out in key=value form"
+      },
+      {
+        "rank": 5,
+        "task_id": "rts_task_ade8f1eb8d6d543d1b223b92",
+        "skill": 3,
+        "domain": 5,
+        "task_form": 3,
+        "overall": 3,
+        "reason": "Install a Gitleaks pre-commit hook that blocks staged secrets - the preventive half of the same problem"
+      },
+      {
+        "rank": 6,
+        "task_id": "rts_task_a206292e6e20d5fa6f6e0b81",
+        "skill": 3,
+        "domain": 5,
+        "task_form": 3,
+        "overall": 3,
+        "reason": "Mine an old config out of a git repository's history and use the credentials; git-history spelunking"
+      },
+      {
+        "rank": 7,
+        "task_id": "rts_task_9675e79e2a87417799714b98",
+        "skill": 3,
+        "domain": 5,
+        "task_form": 3,
+        "overall": 2,
+        "reason": "Same rclone-credentials-from-history family, slightly more indirection"
+      },
+      {
+        "rank": 8,
+        "task_id": "rts_task_19ed3a72cd4325a9c8563bce",
+        "skill": 3,
+        "domain": 5,
+        "task_form": 3,
+        "overall": 2,
+        "reason": "Discover endpoint and keys by inspecting a local git repository rather than being given them"
+      },
+      {
+        "rank": 9,
+        "task_id": "rts_task_2cf2a64ff5afb7a8ee078d11",
+        "skill": 3,
+        "domain": 2,
+        "task_form": 3,
+        "overall": 2,
+        "reason": "Change one key's value across only the notes that carry it, leaving the rest untouched - the selective-edit constraint"
+      },
+      {
+        "rank": 10,
+        "task_id": "rts_task_556b124619e22fcdec4b9985",
+        "skill": 2,
+        "domain": 3,
+        "task_form": 3,
+        "overall": 2,
+        "reason": "Repair a config's paths and .git/.secret exclusion patterns; only the do-not-touch-what-is-fine discipline transfers"
+      }
+    ],
+    "TerminalWorld-Seeds-Clean": [
+      {
+        "rank": 1,
+        "task_id": "tw_329715",
+        "skill": 4,
+        "domain": 5,
+        "task_form": 4,
+        "overall": 4,
+        "reason": "Undo an already-pushed commit that added secret.key and correct the remote history - graded, and the closest TerminalWorld analogue"
+      },
+      {
+        "rank": 2,
+        "task_id": "tw_594774",
+        "skill": 3,
+        "domain": 5,
+        "task_form": 3,
+        "overall": 3,
+        "reason": "Install a Gitleaks pre-commit hook that scans staged changes for secrets before allowing a commit"
+      },
+      {
+        "rank": 3,
+        "task_id": "tw_41811",
+        "skill": 3,
+        "domain": 5,
+        "task_form": 3,
+        "overall": 3,
+        "reason": "Use git-secret to encrypt a sensitive file inside a repo; teaches what belongs in a repo and what must not"
+      },
+      {
+        "rank": 4,
+        "task_id": "tw_459969",
+        "skill": 4,
+        "domain": 4,
+        "task_form": 3,
+        "overall": 3,
+        "reason": "Extract a secret still present in a Docker image layer despite attempts to delete it - deletion does not erase history"
+      },
+      {
+        "rank": 5,
+        "task_id": "tw_566624",
+        "skill": 3,
+        "domain": 2,
+        "task_form": 4,
+        "overall": 3,
+        "reason": "Find every note where a key has a given value and rewrite only those, leaving other notes untouched - selective bulk edit"
+      },
+      {
+        "rank": 6,
+        "task_id": "tw_569630",
+        "skill": 2,
+        "domain": 4,
+        "task_form": 2,
+        "overall": 2,
+        "reason": "Pull a session token out of a local cookie store; credential handling only"
+      },
+      {
+        "rank": 7,
+        "task_id": "tw_137529",
+        "skill": 2,
+        "domain": 4,
+        "task_form": 3,
+        "overall": 2,
+        "reason": "Drive a CLI with a real password and project settings; credential plumbing, no sanitisation"
+      },
+      {
+        "rank": 8,
+        "task_id": "tw_522043",
+        "skill": 2,
+        "domain": 4,
+        "task_form": 3,
+        "overall": 2,
+        "reason": "Configure an S3 remote with a literal access key and secret; only the credential shapes overlap"
+      },
+      {
+        "rank": 9,
+        "task_id": "tw_147333",
+        "skill": 3,
+        "domain": 2,
+        "task_form": 4,
+        "overall": 2,
+        "reason": "Regex find-and-replace over every matching file in a tree with a literal replacement - right mechanics, FREE verifier so excluded from final"
+      },
+      {
+        "rank": 10,
+        "task_id": "tw_361500",
+        "skill": 3,
+        "domain": 5,
+        "task_form": 3,
+        "overall": 2,
+        "reason": "Reconstruct a full repository from an exposed .git directory, showing what an attacker recovers; FREE verifier so excluded from final"
+      }
+    ],
+    "SWE-Smith-Seeds-Clean": [
+      {
+        "rank": 1,
+        "task_id": "cknd__stackprinter.219fcc52.lm_rewrite__hydje3e0",
+        "skill": 4,
+        "domain": 4,
+        "task_form": 2,
+        "overall": 3,
+        "reason": "Broken suppressed-variable matching means passwords are printed uncensored; fixing it is secret-pattern matching and redaction logic"
+      },
+      {
+        "rank": 2,
+        "task_id": "john-kurkowski__tldextract.3d1bf184.combine_file__zfqj17dm",
+        "skill": 3,
+        "domain": 4,
+        "task_form": 2,
+        "overall": 2,
+        "reason": "A release script swaps the GitHub token and version in its API call - token handling correctness in a real script"
+      },
+      {
+        "rank": 3,
+        "task_id": "Cog-Creators__Red-DiscordBot.33e0eac7.combine_module__mx6c0ndx",
+        "skill": 3,
+        "domain": 4,
+        "task_form": 2,
+        "overall": 2,
+        "reason": "Commit hashes handled incorrectly when tracking cloned repos; git-metadata reasoning"
+      },
+      {
+        "rank": 4,
+        "task_id": "Cog-Creators__Red-DiscordBot.33e0eac7.combine_module__4138xlqs",
+        "skill": 2,
+        "domain": 4,
+        "task_form": 2,
+        "overall": 2,
+        "reason": "Repository objects (url, branch, commit, folder) fail to initialise; git repo bookkeeping"
+      },
+      {
+        "rank": 5,
+        "task_id": "sqlfluff__sqlfluff.50a1c4b6.pr_5101",
+        "skill": 3,
+        "domain": 2,
+        "task_form": 2,
+        "overall": 2,
+        "reason": "Placeholder substitution must fall back correctly when a parameter is missing - placeholder-consistency reasoning"
+      },
+      {
+        "rank": 6,
+        "task_id": "Cog-Creators__Red-DiscordBot.33e0eac7.lm_rewrite__p1g97y43",
+        "skill": 2,
+        "domain": 4,
+        "task_form": 2,
+        "overall": 2,
+        "reason": "Modules in a cloned repository are not detected; walking a checkout correctly"
+      },
+      {
+        "rank": 7,
+        "task_id": "john-kurkowski__tldextract.3d1bf184.lm_rewrite__3fgtc4wo",
+        "skill": 2,
+        "domain": 4,
+        "task_form": 2,
+        "overall": 2,
+        "reason": "GitHub release draft URL and warnings wrong; GitHub API plumbing only"
+      },
+      {
+        "rank": 8,
+        "task_id": "pyupio__safety.7654596b.lm_rewrite__4dskd93y",
+        "skill": 2,
+        "domain": 4,
+        "task_form": 2,
+        "overall": 2,
+        "reason": "Severity checks in a security scanner misfire; scanner-output correctness, not secret detection"
+      },
+      {
+        "rank": 9,
+        "task_id": "pyupio__safety.7654596b.combine_file__ufd9gojl",
+        "skill": 2,
+        "domain": 4,
+        "task_form": 2,
+        "overall": 2,
+        "reason": "Package/requirement model representation in a security tool; same ecosystem, thin transfer"
+      },
+      {
+        "rank": 10,
+        "task_id": "benoitc__gunicorn.bacbf8aa.func_pm_ctrl_invert_if__niwrv91e",
+        "skill": 2,
+        "domain": 3,
+        "task_form": 2,
+        "overall": 2,
+        "reason": "Config loading from an environment variable is broken; env-based configuration handling only"
+      }
+    ],
+    "SWE-Rebench-Tasks-Clean": [
+      {
+        "rank": 1,
+        "task_id": "jelmer__dulwich-1578",
+        "skill": 4,
+        "domain": 5,
+        "task_form": 2,
+        "overall": 3,
+        "reason": "porcelain.add corrupts the branch - debugging it means reasoning about git refs and index state, the machinery a history rewrite touches"
+      },
+      {
+        "rank": 2,
+        "task_id": "jelmer__dulwich-1073",
+        "skill": 3,
+        "domain": 5,
+        "task_form": 2,
+        "overall": 3,
+        "reason": "Index reset semantics in a pure-Python git implementation; low-level git state"
+      },
+      {
+        "rank": 3,
+        "task_id": "jelmer__dulwich-1568",
+        "skill": 3,
+        "domain": 5,
+        "task_form": 2,
+        "overall": 3,
+        "reason": "Git config parsing mishandles trailing backslashes; reading git's own config format correctly"
+      },
+      {
+        "rank": 4,
+        "task_id": "jelmer__dulwich-1020",
+        "skill": 3,
+        "domain": 5,
+        "task_form": 2,
+        "overall": 3,
+        "reason": "Tracking-branch parsing bug; ref and remote bookkeeping"
+      },
+      {
+        "rank": 5,
+        "task_id": "gitpython-developers__gitpython-1832",
+        "skill": 3,
+        "domain": 5,
+        "task_form": 2,
+        "overall": 3,
+        "reason": "Diffing silently fails when diff.external is set - comparing commits, which secret-hunting through history relies on"
+      },
+      {
+        "rank": 6,
+        "task_id": "gitpython-developers__gitpython-744",
+        "skill": 2,
+        "domain": 5,
+        "task_form": 2,
+        "overall": 2,
+        "reason": "Adding a file to a repo at a filesystem root fails; git path handling"
+      },
+      {
+        "rank": 7,
+        "task_id": "gitpython-developers__gitpython-685",
+        "skill": 2,
+        "domain": 5,
+        "task_form": 2,
+        "overall": 2,
+        "reason": "Regression in a git library's path behaviour; same ecosystem, generic debugging"
+      },
+      {
+        "rank": 8,
+        "task_id": "boto__botocore-746",
+        "skill": 3,
+        "domain": 4,
+        "task_form": 2,
+        "overall": 2,
+        "reason": "AWS credentials-file profile resolution fails - understanding where AWS keys legitimately live"
+      },
+      {
+        "rank": 9,
+        "task_id": "jupyter__kernel_gateway-234",
+        "skill": 2,
+        "domain": 3,
+        "task_form": 2,
+        "overall": 2,
+        "reason": "Token auth passed via query parameter; credential transport design only"
+      },
+      {
+        "rank": 10,
+        "task_id": "jazzband__django-axes-1198",
+        "skill": 2,
+        "domain": 3,
+        "task_form": 2,
+        "overall": 2,
+        "reason": "Authentication-hardening library fix; security ecosystem, little skill overlap"
+      }
+    ],
+    "Terminal-Lego-15k": [
+      {
+        "rank": 1,
+        "task_id": "task_11504",
+        "skill": 5,
+        "domain": 5,
+        "task_form": 4,
+        "overall": 4,
+        "reason": "Remove a sensitive file (credentials/api_keys.txt) from the whole git history so the secret is gone from every commit"
+      },
+      {
+        "rank": 2,
+        "task_id": "task_12998",
+        "skill": 4,
+        "domain": 4,
+        "task_form": 4,
+        "overall": 4,
+        "reason": "Delete only the entries containing secrets from an IPython history database while preserving every other entry - the selective-destruction constraint, strongly verified"
+      },
+      {
+        "rank": 3,
+        "task_id": "task_11114",
+        "skill": 3,
+        "domain": 5,
+        "task_form": 3,
+        "overall": 3,
+        "reason": "Clear credentials spread across several AWS CLI config files so nothing is left anywhere - completeness across multiple files"
+      },
+      {
+        "rank": 4,
+        "task_id": "task_00269",
+        "skill": 3,
+        "domain": 2,
+        "task_form": 4,
+        "overall": 3,
+        "reason": "Recursive search and replace across text files in a tree - the mechanical core of sanitising a checkout"
+      },
+      {
+        "rank": 5,
+        "task_id": "task_00104",
+        "skill": 3,
+        "domain": 2,
+        "task_form": 4,
+        "overall": 3,
+        "reason": "Fix a find -exec sed -i pipeline that misses files in subdirectories; the classic incomplete-sanitisation bug"
+      },
+      {
+        "rank": 6,
+        "task_id": "task_00053",
+        "skill": 3,
+        "domain": 2,
+        "task_form": 3,
+        "overall": 3,
+        "reason": "Portable in-place sed replacement; getting in-place edits right without corrupting unrelated files"
+      },
+      {
+        "rank": 7,
+        "task_id": "task_00430",
+        "skill": 3,
+        "domain": 5,
+        "task_form": 3,
+        "overall": 3,
+        "reason": "Remove cached git credentials stored in plaintext by credential.helper store"
+      },
+      {
+        "rank": 8,
+        "task_id": "task_07120",
+        "skill": 3,
+        "domain": 4,
+        "task_form": 3,
+        "overall": 2,
+        "reason": "Migrate API keys out of code into secure storage; the fix-forward version of the same hygiene problem"
+      },
+      {
+        "rank": 9,
+        "task_id": "task_07113",
+        "skill": 2,
+        "domain": 3,
+        "task_form": 3,
+        "overall": 2,
+        "reason": "Move private config values into environment variables in an Express app; secrets-out-of-source practice"
+      },
+      {
+        "rank": 10,
+        "task_id": "task_00294",
+        "skill": 3,
+        "domain": 4,
+        "task_form": 3,
+        "overall": 2,
+        "reason": "Remove a command containing database credentials from shell history - another place a secret hides after deletion"
+      }
+    ],
+    "CalibForge": [
+      {
+        "rank": 1,
+        "task_id": "security_20260430_081156_007",
+        "skill": 5,
+        "domain": 5,
+        "task_form": 4,
+        "overall": 5,
+        "reason": "Detect AWS keys, ghp_ GitHub tokens and hf_ HuggingFace tokens across many files and replace each with its own angle-bracket placeholder - the TB task's exact taxonomy, strongly verified"
+      },
+      {
+        "rank": 2,
+        "task_id": "security_20260416_172928_007",
+        "skill": 5,
+        "domain": 5,
+        "task_form": 4,
+        "overall": 4,
+        "reason": "Remove every credential from the entire git history of /app/repo while keeping all current files intact and the repo functional"
+      },
+      {
+        "rank": 3,
+        "task_id": "security_20260509_202829_005",
+        "skill": 5,
+        "domain": 5,
+        "task_form": 3,
+        "overall": 4,
+        "reason": "Git forensics across branches and unreachable objects to enumerate real secrets while rejecting test/placeholder values - the discrimination the TB task needs"
+      },
+      {
+        "rank": 4,
+        "task_id": "security_20260510_062946_007",
+        "skill": 5,
+        "domain": 5,
+        "task_form": 5,
+        "overall": 4,
+        "reason": "Triage a scanner report, sanitise real secrets in files and history with <your-aws-access-key-id>-style placeholders, preserve fixtures - a near twin, but graded FREE so kept out of final"
+      },
+      {
+        "rank": 5,
+        "task_id": "system-administration_20260603_181444_008",
+        "skill": 4,
+        "domain": 5,
+        "task_form": 4,
+        "overall": 4,
+        "reason": "Recover a damaged repo then rewrite history so a file is absent from all commits - the history-rewrite mechanic, with pinned checks"
+      },
+      {
+        "rank": 6,
+        "task_id": "security_20260601_053159_003",
+        "skill": 4,
+        "domain": 5,
+        "task_form": 3,
+        "overall": 4,
+        "reason": "Write a scanner that finds AKIA*, ghp_*, github_pat_* and high-entropy strings while skipping binaries - the detection half"
+      },
+      {
+        "rank": 7,
+        "task_id": "security_20260508_045740_007",
+        "skill": 4,
+        "domain": 5,
+        "task_form": 4,
+        "overall": 3,
+        "reason": "Replace credentials in configs, source and logs with a fixed <redacted-credential> placeholder and strip unauthorised SSH keys"
+      },
+      {
+        "rank": 8,
+        "task_id": "security_20260603_181444_007",
+        "skill": 4,
+        "domain": 4,
+        "task_form": 4,
+        "overall": 3,
+        "reason": "Replace hardcoded token values with REDACTED while keeping key names and file structure intact - consistent placeholder discipline"
+      },
+      {
+        "rank": 9,
+        "task_id": "security_20260422_235124_003",
+        "skill": 4,
+        "domain": 5,
+        "task_form": 3,
+        "overall": 3,
+        "reason": "Classify AWS access key IDs, 40-char secrets and generic API tokens by format; the regex knowledge the TB task requires"
+      },
+      {
+        "rank": 10,
+        "task_id": "security_20260419_112101_007",
+        "skill": 4,
+        "domain": 5,
+        "task_form": 4,
+        "overall": 3,
+        "reason": "Purge SSH private keys from all branches and tags after a fake cleanup that only deleted the files; FREE verifier so excluded from final"
+      }
+    ]
+  },
+  "final_top10": [
+    {
+      "rank": 1,
+      "task_id": "security_20260510_062946_007",
+      "source": "CalibForge",
+      "skill": 5,
+      "domain": 5,
+      "task_form": 5,
+      "overall": 5,
+      "reason": "Triage a scanner report over a git repo, replace real secrets with the literal <your-aws-access-key-id>-style placeholders, and purge them from git log -p --all."
+    },
+    {
+      "rank": 2,
+      "task_id": "security_20260430_081156_007",
+      "source": "CalibForge",
+      "skill": 5,
+      "domain": 5,
+      "task_form": 4,
+      "overall": 5,
+      "reason": "Same placeholder taxonomy - AWS key, GitHub ghp_, HuggingFace hf_ - detected and replaced consistently across a whole tree, strongly verified"
+    },
+    {
+      "rank": 3,
+      "task_id": "security_20260416_172928_007",
+      "source": "CalibForge",
+      "skill": 5,
+      "domain": 5,
+      "task_form": 4,
+      "overall": 4,
+      "reason": "Strip credentials from the entire git history while all current files stay intact - the requirement that the secret not be present anywhere"
+    },
+    {
+      "rank": 4,
+      "task_id": "task_001329_30ac46c8",
+      "source": "TMax-15K",
+      "skill": 5,
+      "domain": 5,
+      "task_form": 4,
+      "overall": 4,
+      "reason": "Replace AWS key values with a fixed placeholder in exactly the contaminated config files, nothing else; pinned expected content"
+    },
+    {
+      "rank": 5,
+      "task_id": "security_20260509_202829_005",
+      "source": "CalibForge",
+      "skill": 5,
+      "domain": 5,
+      "task_form": 3,
+      "overall": 4,
+      "reason": "Enumerate every real secret in a repo's history while rejecting test and placeholder values - the false-positive discipline the TB task needs"
+    },
+    {
+      "rank": 6,
+      "task_id": "task_11504",
+      "source": "Terminal-Lego-15k",
+      "skill": 5,
+      "domain": 5,
+      "task_form": 4,
+      "overall": 4,
+      "reason": "Remove an api_keys.txt from all of git history rather than just deleting it at HEAD"
+    },
+    {
+      "rank": 7,
+      "task_id": "system-administration_20260603_181444_008",
+      "source": "CalibForge",
+      "skill": 4,
+      "domain": 5,
+      "task_form": 4,
+      "overall": 4,
+      "reason": "Rewrite history so a tracked file never existed, with the repository still usable afterwards"
+    },
+    {
+      "rank": 8,
+      "task_id": "tw_329715",
+      "source": "TerminalWorld-Seeds-Clean",
+      "skill": 4,
+      "domain": 5,
+      "task_form": 4,
+      "overall": 4,
+      "reason": "Undo an already-pushed commit that added secret.key; history rewrite on a published branch"
+    },
+    {
+      "rank": 9,
+      "task_id": "security_20260601_053159_003",
+      "source": "CalibForge",
+      "skill": 4,
+      "domain": 5,
+      "task_form": 3,
+      "overall": 4,
+      "reason": "Build the detector: AKIA, ghp_, github_pat_ and entropy heuristics over a directory, skipping binaries"
+    },
+    {
+      "rank": 10,
+      "task_id": "task_12998",
+      "source": "Terminal-Lego-15k",
+      "skill": 4,
+      "domain": 4,
+      "task_form": 4,
+      "overall": 3,
+      "reason": "Delete only the secret-bearing rows from a history store and leave every clean row untouched - the do-not-damage-clean-files constraint"
+    }
+  ],
+  "notes": "CalibForge is decisively the best pool for this task: it has a whole security/ family that is this task (log and repo sanitisation with angle-bracket placeholders, git-history credential purges, secret scanners, real-vs-fixture triage) and takes 5 of the final 10. Terminal-Lego adds two genuinely good ones (remove a file from git history; selectively delete only secret rows) plus solid recursive sed/in-place-edit mechanics the v1 pool only had incidentally. TMax is strong on both halves separately (AKIA redaction with pinned output; recovering secrets from git history) but never combines them. Recursive-Task-Synthesis actually has real secret.key history-rewrite tasks - unusually good for that corpus - but all `absent`, so I preferred the graded TerminalWorld twin tw_329715 in the final. SWE-Smith and SWE-Rebench have nothing about secrets except stackprinter's censoring logic; their 10 are mostly git-library (dulwich/GitPython) internals scored honestly low on task_form."
+}

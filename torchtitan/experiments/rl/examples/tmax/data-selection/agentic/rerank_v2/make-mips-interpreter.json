@@ -1,0 +1,777 @@
+{
+ "tb21_id": "make-mips-interpreter",
+ "tb21_profile": {
+  "skill": "Implement a CPU emulator from an ISA spec: parse an ELF, decode/execute instructions with exact integer/bit semantics, and emulate the Linux syscall ABI for file I/O well enough to boot a real program.",
+  "domain": "Low-level systems in JavaScript/Node: MIPS ISA, ELF32 loading, syscall ABI, byte-level memory, framebuffer output.",
+  "task_form": "Implement-from-spec, large and multi-step, verified by running a real third-party binary (doomgeneric) and checking the first rendered frame."
+ },
+ "verifier_notes": "Checked nothing against its tests here beyond the grades. Two TerminalWorld picks (tw_134335, tw_362046) are FREE and are ranked only inside per_source; tw_134335 is TerminalWorld's single best skill match (ESIL emulation with a scripted interrupt handler) and it being FREE is the honest reason TerminalWorld contributes nothing to final_top10. All Recursive-Task-Synthesis entries are 'absent' by construction; graded equivalents existed elsewhere so none were promoted.",
+ "searches": [
+  "tools.py search all \"MIPS\"",
+  "tools.py search all \"emulat(e|or|ing) (a |an |the )?(CPU|processor|6502|Z80|CHIP-8|RISC-V|x86|ARM|instruction)\"",
+  "tools.py search all \"(opcode|instruction set|instruction decoder|decode instructions|fetch-decode-execute)\"",
+  "tools.py search tmax \"(bytecode (interpreter|VM|virtual machine)|virtual machine that (executes|interprets)|write an interpreter|implement an interpreter|emulator)\"",
+  "tools.py search lego \"(interpreter|virtual machine|emulator|bytecode|assembl(er|y) language)\"",
+  "tools.py search lego \"(metacircular|meta-circular|Scheme interpreter|Lisp interpreter|self-interpret|write an interpreter|tokeniz.*parser.*eval|eval/apply)\"",
+  "tools.py search lego \"(parse (the )?(ELF|binary)|hex dump|struct\\.unpack|two's complement|bitwise|little-endian)\"",
+  "tools.py search lego \"(Buffer\\.(alloc|from)|readUInt|Node\\.js.*binary|fs\\.readFileSync.*binary|DataView|Uint8Array|ArrayBuffer)\"",
+  "tools.py search lego \"(recursive descent|tokeni[sz]er|abstract syntax tree|expression evaluator|parse.*arithmetic expression|state machine)\"",
+  "tools.py search rts \"(bytecode|virtual machine|interpreter for|emulat|instruction set|opcode|assembler)\"",
+  "tools.py search tw \"(emulat|bytecode|interpreter|instruction|disassembl|ELF|opcode|QEMU|gdb)\"",
+  "tools.py search tw \"(objdump|readelf|assembl|nasm|node\\.js|nodejs|node |binary (format|parser)|reverse engineer)\"",
+  "tools.py search smith \"\\b(bytecode|opcode|disassembl|emulat|interpreter|instruction set|struct\\.unpack|little-endian|binary format|parser)\\b\"",
+  "tools.py search rebench \"\\b(bytecode|opcode|disassembl|emulat|interpreter|instruction|struct\\.unpack|little-endian|binary format|compiler|codegen|AST)\\b\"",
+  "tools.py search smith \"\\b(cantools|pfp|construct|bitstring|pyelftools|capstone|unicorn|struct\\.pack|hex|register|stack machine|virtual machine|dataclass.*binary)\\b\"",
+  "tools.py search rebench \"\\b(pfp|010 editor|uleb128|binary template|struct\\.pack|capstone|numba|llvmlite|cython|codegen|compiler)\\b\"",
+  "tools.py show software-engineering_20260509_065529_014 software-engineering_20260503_030115_014 software-engineering_20260508_045800_014 software-engineering_20260508_153434_014"
+ ],
+ "per_source": {
+  "TMax-15K": [
+   {
+    "rank": 1,
+    "task_id": "task_000258_60a61045",
+    "skill": 4,
+    "domain": 4,
+    "task_form": 4,
+    "overall": 4,
+    "reason": "Serialise assembly into a byte-level bytecode then emulate it; opcode table, little-endian operands, faithful execution."
+   },
+   {
+    "rank": 2,
+    "task_id": "task_000246_a1b7a5cc",
+    "skill": 4,
+    "domain": 4,
+    "task_form": 4,
+    "overall": 4,
+    "reason": "Write a C bytecode interpreter from an opcode spec reading 4-byte LE immediates off stdin; core fetch-decode-execute."
+   },
+   {
+    "rank": 3,
+    "task_id": "task_001481_3bacc41d",
+    "skill": 4,
+    "domain": 4,
+    "task_form": 4,
+    "overall": 4,
+    "reason": "Reverse-engineer a stack-language binary and reimplement its emulator in Python - matches inferring semantics from a real binary."
+   },
+   {
+    "rank": 4,
+    "task_id": "task_001395_746fbd2e",
+    "skill": 4,
+    "domain": 3,
+    "task_form": 4,
+    "overall": 4,
+    "reason": "Implement a minimal C++ VM interpreting a custom assembly language plus its E2E test harness."
+   },
+   {
+    "rank": 5,
+    "task_id": "task_007807_8998d4c1",
+    "skill": 4,
+    "domain": 3,
+    "task_form": 4,
+    "overall": 4,
+    "reason": "Assembly-to-bytecode compiler feeding a C VM; must keep encoding and VM semantics consistent across a port."
+   },
+   {
+    "rank": 6,
+    "task_id": "task_000386_43121cfd",
+    "skill": 3,
+    "domain": 3,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Build a service implementing an assembly instruction set and register file read off a spec image; ISA modelling transfers."
+   },
+   {
+    "rank": 7,
+    "task_id": "task_001127_c4f978a7",
+    "skill": 3,
+    "domain": 3,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Custom bytecode emulator in Python driving an execution order; decode loop, but wrapped in unrelated video work."
+   },
+   {
+    "rank": 8,
+    "task_id": "task_001139_db9764d1",
+    "skill": 3,
+    "domain": 3,
+    "task_form": 4,
+    "overall": 3,
+    "reason": "Bit-exact Python reimplementation of a legacy binary, fuzz-checked against it - same 'match the reference exactly' pressure."
+   },
+   {
+    "rank": 9,
+    "task_id": "task_001161_a1961431",
+    "skill": 3,
+    "domain": 3,
+    "task_form": 2,
+    "overall": 3,
+    "reason": "Fix type/borrow errors in a Rust bytecode emulator's interpreter module; reads interpreter code but does not author one."
+   },
+   {
+    "rank": 10,
+    "task_id": "task_004293_f43e8c92",
+    "skill": 3,
+    "domain": 3,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "C mini-VM bytecode evaluator over a proprietary format; decode plus stack semantics, small scale."
+   }
+  ],
+  "Recursive-Task-Synthesis": [
+   {
+    "rank": 1,
+    "task_id": "rts_task_8ff7e8819dddd6be23d1edc0",
+    "skill": 3,
+    "domain": 3,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Build and drive a C Lisp interpreter from source; must read interpreter internals, though the task is build-and-run."
+   },
+   {
+    "rank": 2,
+    "task_id": "rts_task_cd283a9d0e2102002232087d",
+    "skill": 3,
+    "domain": 4,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "ARM64 assembly using raw Linux syscall numbers from a reference file - the syscall ABI half of an emulator."
+   },
+   {
+    "rank": 3,
+    "task_id": "rts_task_bdc7b03261cf73df2b159f82",
+    "skill": 3,
+    "domain": 4,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "ARM64 assembly substring search with file I/O syscalls; forces register conventions and instruction semantics."
+   },
+   {
+    "rank": 4,
+    "task_id": "rts_task_7456b58e87defe2142377a5a",
+    "skill": 3,
+    "domain": 4,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Freestanding ARM64 program invoking syscalls directly with no C runtime; same ABI knowledge an interpreter must model."
+   },
+   {
+    "rank": 5,
+    "task_id": "rts_task_e22f09d81acdd0f844580eb7",
+    "skill": 3,
+    "domain": 4,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Cross-assemble and run ARM64 binaries under a user-mode emulator in a scripted test loop; emulation as a tool."
+   },
+   {
+    "rank": 6,
+    "task_id": "rts_task_6e6ee39ae3df57ebc44ec32f",
+    "skill": 3,
+    "domain": 4,
+    "task_form": 2,
+    "overall": 3,
+    "reason": "ARM64 GCD in assembly executed under a user-mode emulator; instruction-level reasoning, small scope."
+   },
+   {
+    "rank": 7,
+    "task_id": "rts_task_26554d4397fa439657571527",
+    "skill": 3,
+    "domain": 4,
+    "task_form": 2,
+    "overall": 3,
+    "reason": "ARM64 string-reversal assembly plus Makefile; loops, addressing modes, byte handling."
+   },
+   {
+    "rank": 8,
+    "task_id": "rts_task_6f43273eaa524de7a61a846e",
+    "skill": 3,
+    "domain": 4,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Patch a compiled Go executable in place without touching source; byte-level binary editing of a real ELF."
+   },
+   {
+    "rank": 9,
+    "task_id": "rts_task_d5ac54a0c484b2aa6416d265",
+    "skill": 2,
+    "domain": 4,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "ARM64 assembly reading a config file and subtracting; minimal instruction work."
+   },
+   {
+    "rank": 10,
+    "task_id": "rts_task_59ae2da3d0ccc51f525f042a",
+    "skill": 2,
+    "domain": 2,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Node.js quine; only shares the Node host and exact-output requirement."
+   }
+  ],
+  "TerminalWorld-Seeds-Clean": [
+   {
+    "rank": 1,
+    "task_id": "tw_134335",
+    "skill": 4,
+    "domain": 4,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Emulate a binary with radare2's ESIL engine and a script interrupt handler - emulation plus syscall/interrupt handling, but FREE verifier."
+   },
+   {
+    "rank": 2,
+    "task_id": "tw_12138",
+    "skill": 3,
+    "domain": 4,
+    "task_form": 2,
+    "overall": 3,
+    "reason": "Patch the ELF magic bytes of a real binary at offset 0; direct ELF header byte surgery."
+   },
+   {
+    "rank": 3,
+    "task_id": "tw_690723",
+    "skill": 3,
+    "domain": 4,
+    "task_form": 2,
+    "overall": 3,
+    "reason": "Assemble and link an assembly source into an ELF executable; instruction-level and toolchain familiarity."
+   },
+   {
+    "rank": 4,
+    "task_id": "tw_732042",
+    "skill": 3,
+    "domain": 3,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Instrument a Node.js app's exported function at runtime; Node internals and interception, not emulation."
+   },
+   {
+    "rank": 5,
+    "task_id": "tw_761182",
+    "skill": 3,
+    "domain": 2,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Simulate an Enigma M4 with exact rotor/plugboard config; faithful stepwise machine simulation against a reference."
+   },
+   {
+    "rank": 6,
+    "task_id": "tw_199962",
+    "skill": 3,
+    "domain": 4,
+    "task_form": 2,
+    "overall": 3,
+    "reason": "Use GDB to alter a variable in memory mid-execution; requires a mental model of process memory and registers."
+   },
+   {
+    "rank": 7,
+    "task_id": "tw_334878",
+    "skill": 2,
+    "domain": 3,
+    "task_form": 3,
+    "overall": 2,
+    "reason": "Compile Fennel to WebAssembly with Emscripten; WASM as target, no interpreter written."
+   },
+   {
+    "rank": 8,
+    "task_id": "tw_317290",
+    "skill": 2,
+    "domain": 2,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Node.js quine with byte-exact output; shares only the Node host."
+   },
+   {
+    "rank": 9,
+    "task_id": "tw_204417",
+    "skill": 2,
+    "domain": 3,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Run the same program under a Groovy interpreter, the JVM and a native image; compares runtimes, builds none."
+   },
+   {
+    "rank": 10,
+    "task_id": "tw_362046",
+    "skill": 2,
+    "domain": 3,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Static analysis over a C Brainfuck interpreter; reads an interpreter but writes none, and the verifier is FREE."
+   }
+  ],
+  "SWE-Smith-Seeds-Clean": [
+   {
+    "rank": 1,
+    "task_id": "cantools__cantools.0c6a7871.func_pm_op_change_const__66td47t4",
+    "skill": 3,
+    "domain": 3,
+    "task_form": 2,
+    "overall": 3,
+    "reason": "Bug in packing signals at byte boundaries into CAN frames; bit-offset and width arithmetic, exactly the load/store byte math."
+   },
+   {
+    "rank": 2,
+    "task_id": "pydicom__pydicom.7d361b3d.pr_1938",
+    "skill": 3,
+    "domain": 3,
+    "task_form": 2,
+    "overall": 3,
+    "reason": "DICOM binary element parsing bug; length fields, VR tags, endianness in a real binary reader."
+   },
+   {
+    "rank": 3,
+    "task_id": "cantools__cantools.0c6a7871.combine_module__a5qhxz82",
+    "skill": 3,
+    "domain": 3,
+    "task_form": 2,
+    "overall": 3,
+    "reason": "Inverted logic in AUTOSAR profile CRC check over a byte payload; checksum arithmetic on raw bytes."
+   },
+   {
+    "rank": 4,
+    "task_id": "davidhalter__parso.338a5760.lm_rewrite__2yh78ixn",
+    "skill": 3,
+    "domain": 2,
+    "task_form": 2,
+    "overall": 3,
+    "reason": "Parser wrongly rejects valid Python; debugging a grammar/token engine's state, same class as a mis-decoded opcode."
+   },
+   {
+    "rank": 5,
+    "task_id": "erikrose__parsimonious.0d3f5f93.combine_file__twkln5sg",
+    "skill": 3,
+    "domain": 2,
+    "task_form": 2,
+    "overall": 3,
+    "reason": "Position counter incremented wrongly in a PEG engine - an off-by-one in a cursor over an input stream, the classic PC bug."
+   },
+   {
+    "rank": 6,
+    "task_id": "pdfminer__pdfminer.six.1a8bd2f7.lm_rewrite__0ya3bz6x",
+    "skill": 3,
+    "domain": 3,
+    "task_form": 2,
+    "overall": 3,
+    "reason": "PDF object/stream parsing fix; binary container walking with offsets and lengths."
+   },
+   {
+    "rank": 7,
+    "task_id": "cantools__cantools.0c6a7871.lm_rewrite__2zyq1y1d",
+    "skill": 3,
+    "domain": 3,
+    "task_form": 2,
+    "overall": 3,
+    "reason": "Another cantools encode/decode regression over binary frames; same bit-field reasoning."
+   },
+   {
+    "rank": 8,
+    "task_id": "davidhalter__parso.338a5760.func_pm_ctrl_shuffle__t6e0f270",
+    "skill": 2,
+    "domain": 2,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "UnboundLocalError in parso's diff parser; ordering bug in tree construction, weaker transfer."
+   },
+   {
+    "rank": 9,
+    "task_id": "pyparsing__pyparsing.533adf47.combine_file__3jw3qikd",
+    "skill": 2,
+    "domain": 2,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Parser-combinator regression; grammar machinery, no binary or machine model."
+   },
+   {
+    "rank": 10,
+    "task_id": "chardet__chardet.9630f238.combine_file__z5upmzn7",
+    "skill": 2,
+    "domain": 2,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Byte-level encoding-detection state machine mis-classifies MacRoman; byte statistics over a stream."
+   }
+  ],
+  "SWE-Rebench-Tasks-Clean": [
+   {
+    "rank": 1,
+    "task_id": "d0c-s4vage__pfp-126",
+    "skill": 4,
+    "domain": 4,
+    "task_form": 2,
+    "overall": 4,
+    "reason": "pfp is an interpreter (pfp/interp.py) for 010 templates over a binary stream; fix implicit-array handling while parsing a real PNG."
+   },
+   {
+    "rank": 2,
+    "task_id": "d0c-s4vage__pfp-112",
+    "skill": 4,
+    "domain": 4,
+    "task_form": 2,
+    "overall": 4,
+    "reason": "Implicit-array semantics in the same template interpreter over a DEX file with uleb128 fields; binary decode plus interpreter semantics."
+   },
+   {
+    "rank": 3,
+    "task_id": "d0c-s4vage__pfp-128",
+    "skill": 4,
+    "domain": 3,
+    "task_form": 2,
+    "overall": 4,
+    "reason": "Short-circuit evaluation must lazily resolve variables in pfp's interpreter; getting evaluation order exactly right, like operand ordering in an ISA."
+   },
+   {
+    "rank": 4,
+    "task_id": "d0c-s4vage__pfp-116",
+    "skill": 3,
+    "domain": 3,
+    "task_form": 2,
+    "overall": 3,
+    "reason": "Chained assignment unsupported in the pfp interpreter; extend an AST evaluator to a new statement form."
+   },
+   {
+    "rank": 5,
+    "task_id": "d0c-s4vage__pfp-109",
+    "skill": 3,
+    "domain": 4,
+    "task_form": 2,
+    "overall": 3,
+    "reason": "Missing comparison operator in the pfp interpreter's expression evaluation over binary template data."
+   },
+   {
+    "rank": 6,
+    "task_id": "psd-tools__psd-tools-334",
+    "skill": 3,
+    "domain": 4,
+    "task_form": 2,
+    "overall": 3,
+    "reason": "PSD binary format layer parsing; nested records, lengths and flags in a real file format like ELF headers."
+   },
+   {
+    "rank": 7,
+    "task_id": "jcrist__msgspec-225",
+    "skill": 3,
+    "domain": 3,
+    "task_form": 2,
+    "overall": 3,
+    "reason": "msgpack binary encode/decode edge case; wire-format byte layout correctness."
+   },
+   {
+    "rank": 8,
+    "task_id": "d0c-s4vage__pfp-99",
+    "skill": 3,
+    "domain": 3,
+    "task_form": 2,
+    "overall": 3,
+    "reason": "Struct parameter resolution when constructing types in the pfp interpreter; scoping inside an evaluator."
+   },
+   {
+    "rank": 9,
+    "task_id": "pallets__jinja-1449",
+    "skill": 3,
+    "domain": 2,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Jinja's compiler visits an AST to generate code; codegen traversal, no machine or binary model."
+   },
+   {
+    "rank": 10,
+    "task_id": "d0c-s4vage__pfp-114",
+    "skill": 2,
+    "domain": 3,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "CLI argument plumbing plus a crash in pfp; shallow relative to the interpreter-semantics issues above."
+   }
+  ],
+  "Terminal-Lego-15k": [
+   {
+    "rank": 1,
+    "task_id": "task_09619",
+    "skill": 3,
+    "domain": 3,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Write a self-interpreting language (bootstrapped interpreter): eval loop, environment, parsing - the interpreter skill without the ISA."
+   },
+   {
+    "rank": 2,
+    "task_id": "task_09067",
+    "skill": 3,
+    "domain": 2,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Expression parser with operator precedence in C; parse-then-evaluate discipline shared with a decode-then-execute loop."
+   },
+   {
+    "rank": 3,
+    "task_id": "task_06318",
+    "skill": 3,
+    "domain": 2,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Recursive-descent parser for an arithmetic grammar plus balanced-paren checker; grammar-driven evaluation."
+   },
+   {
+    "rank": 4,
+    "task_id": "task_03855",
+    "skill": 2,
+    "domain": 3,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Write little-endian binary files from Perl; only the byte-order/serialisation primitive transfers."
+   },
+   {
+    "rank": 5,
+    "task_id": "task_09191",
+    "skill": 3,
+    "domain": 2,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Build an AST and apply rewrite rules recursively; tree-walking evaluation, no machine model."
+   },
+   {
+    "rank": 6,
+    "task_id": "task_02708",
+    "skill": 2,
+    "domain": 3,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Endianness and network byte order conversion; relevant to reading MIPS words but a toy exercise."
+   },
+   {
+    "rank": 7,
+    "task_id": "task_12232",
+    "skill": 2,
+    "domain": 2,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Implement a protocol finite state machine with explicit states; state-machine authoring only."
+   },
+   {
+    "rank": 8,
+    "task_id": "task_06786",
+    "skill": 2,
+    "domain": 2,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Bitwise NOT file encryption in C; byte-level manipulation, trivial depth."
+   },
+   {
+    "rank": 9,
+    "task_id": "task_00288",
+    "skill": 2,
+    "domain": 3,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Diagnose a missing ELF program interpreter via file/ldd; touches ELF headers but is a diagnosis chore."
+   },
+   {
+    "rank": 10,
+    "task_id": "task_02726",
+    "skill": 2,
+    "domain": 3,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Byte-order conversion across host/network; duplicate of the endianness theme, low depth."
+   }
+  ],
+  "CalibForge": [
+   {
+    "rank": 1,
+    "task_id": "software-engineering_20260415_094424_014",
+    "skill": 5,
+    "domain": 5,
+    "task_form": 5,
+    "overall": 5,
+    "reason": "Implement rv32i.js interpreting a RISC-V ELF from JS; identical crux: ELF load, decode loop, register file."
+   },
+   {
+    "rank": 2,
+    "task_id": "software-engineering_20260509_065529_014",
+    "skill": 5,
+    "domain": 5,
+    "task_form": 5,
+    "overall": 5,
+    "reason": "ELF32 parse + RV32I decode + openat/read/write/exit syscall ABI in Node JS; the syscall-emulation half of MIPS doom."
+   },
+   {
+    "rank": 3,
+    "task_id": "software-engineering_20260510_062946_014",
+    "skill": 5,
+    "domain": 5,
+    "task_form": 5,
+    "overall": 5,
+    "reason": "RV32IM emulator loading statically-linked ELF with brk/read/write syscalls; same memory-map and ABI reasoning."
+   },
+   {
+    "rank": 4,
+    "task_id": "software-engineering_20260508_045800_014",
+    "skill": 5,
+    "domain": 4,
+    "task_form": 5,
+    "overall": 5,
+    "reason": "Full 47-instruction RV32I emulator over real riscv-tests ELF binaries; strictest correctness bar of the set."
+   },
+   {
+    "rank": 5,
+    "task_id": "software-engineering_20260508_153434_014",
+    "skill": 5,
+    "domain": 4,
+    "task_form": 5,
+    "overall": 5,
+    "reason": "CHIP-8 interpreter in JS that must render a framebuffer to a BMP file - opcode loop plus frame dumping, like doom frames."
+   },
+   {
+    "rank": 6,
+    "task_id": "software-engineering_20260503_030115_014",
+    "skill": 4,
+    "domain": 4,
+    "task_form": 5,
+    "overall": 4,
+    "reason": "wasm.js run by `node wasm.js`: binary section parsing, LEB128, control flow, memory ops - same interpreter architecture."
+   },
+   {
+    "rank": 7,
+    "task_id": "software-engineering_20260510_005520_014",
+    "skill": 4,
+    "domain": 4,
+    "task_form": 5,
+    "overall": 4,
+    "reason": "WASM MVP interpreter as vm.js under node; stack machine decode/execute plus binary format parsing."
+   },
+   {
+    "rank": 8,
+    "task_id": "software-engineering_20260506_213248_014",
+    "skill": 4,
+    "domain": 4,
+    "task_form": 5,
+    "overall": 4,
+    "reason": "WASM interpreter in JS over several binaries; exercises binary parsing plus a correct execution engine."
+   },
+   {
+    "rank": 9,
+    "task_id": "software-engineering_20260414_091921_014",
+    "skill": 4,
+    "domain": 4,
+    "task_form": 4,
+    "overall": 4,
+    "reason": "CHIP-8 interpreter in Python over real ROMs; opcode coverage and emulator edge cases, different host language."
+   },
+   {
+    "rank": 10,
+    "task_id": "software-engineering_20260610_111012_014",
+    "skill": 4,
+    "domain": 4,
+    "task_form": 4,
+    "overall": 4,
+    "reason": "Lua 5.1 luac chunk interpreter: header parsing, 32-bit iABC instruction decode, constant table - same decode discipline."
+   }
+  ]
+ },
+ "final_top10": [
+  {
+   "rank": 1,
+   "task_id": "software-engineering_20260509_065529_014",
+   "skill": 5,
+   "domain": 5,
+   "task_form": 5,
+   "overall": 5,
+   "reason": "ELF parse + RV32I decode + file-I/O syscalls in a JS interpreter run under node; the same three components as vm.js for MIPS.",
+   "source": "CalibForge"
+  },
+  {
+   "rank": 2,
+   "task_id": "software-engineering_20260415_094424_014",
+   "skill": 5,
+   "domain": 5,
+   "task_form": 5,
+   "overall": 5,
+   "reason": "Implement rv32i.js executing a supplied RISC-V ELF with its source alongside; same setup, same deliverable shape.",
+   "source": "CalibForge"
+  },
+  {
+   "rank": 3,
+   "task_id": "software-engineering_20260510_062946_014",
+   "skill": 5,
+   "domain": 5,
+   "task_form": 5,
+   "overall": 5,
+   "reason": "RV32IM emulator over a statically-linked ELF with brk/openat/write; memory-map and ABI work a doom port needs.",
+   "source": "CalibForge"
+  },
+  {
+   "rank": 4,
+   "task_id": "software-engineering_20260508_045800_014",
+   "skill": 5,
+   "domain": 4,
+   "task_form": 5,
+   "overall": 5,
+   "reason": "47-instruction RV32I emulator validated against real riscv-tests ELFs; hardest correctness bar for a decode loop.",
+   "source": "CalibForge"
+  },
+  {
+   "rank": 5,
+   "task_id": "software-engineering_20260508_153434_014",
+   "skill": 5,
+   "domain": 4,
+   "task_form": 5,
+   "overall": 5,
+   "reason": "CHIP-8 interpreter in JS that must dump a rendered framebuffer to a BMP - opcode loop plus frame output, as with doom frames.",
+   "source": "CalibForge"
+  },
+  {
+   "rank": 6,
+   "task_id": "software-engineering_20260503_030115_014",
+   "skill": 4,
+   "domain": 4,
+   "task_form": 5,
+   "overall": 4,
+   "reason": "`node wasm.js` interpreter: magic check, sections, LEB128, control flow, memory - binary-format parsing plus execution.",
+   "source": "CalibForge"
+  },
+  {
+   "rank": 7,
+   "task_id": "software-engineering_20260510_005520_014",
+   "skill": 4,
+   "domain": 4,
+   "task_form": 5,
+   "overall": 4,
+   "reason": "WASM MVP interpreter as vm.js under node; stack machine execution over a parsed binary module.",
+   "source": "CalibForge"
+  },
+  {
+   "rank": 8,
+   "task_id": "software-engineering_20260414_091921_014",
+   "skill": 4,
+   "domain": 4,
+   "task_form": 4,
+   "overall": 4,
+   "reason": "CHIP-8 interpreter in Python over real ROMs; full opcode coverage and documented ambiguity handling.",
+   "source": "CalibForge"
+  },
+  {
+   "rank": 9,
+   "task_id": "task_000258_60a61045",
+   "skill": 4,
+   "domain": 4,
+   "task_form": 4,
+   "overall": 4,
+   "reason": "Encode assembly to bytecode then emulate it to predict the result; opcode table and little-endian operand decoding.",
+   "source": "TMax-15K"
+  },
+  {
+   "rank": 10,
+   "task_id": "task_000246_a1b7a5cc",
+   "skill": 4,
+   "domain": 4,
+   "task_form": 4,
+   "overall": 4,
+   "reason": "Implement a C bytecode interpreter from an opcode spec with 4-byte LE immediates; pure fetch-decode-execute.",
+   "source": "TMax-15K"
+  }
+ ],
+ "notes": "CalibForge is overwhelmingly the best pool here and it is not close: it contains near-duplicates of this TB2.1 task (RISC-V/WASM/CHIP-8 interpreters written in JS, run with `node x.js`, loading an ELF and emulating syscalls), several graded strong. Eight of the final ten are CalibForge; the other two are the only TMax entries that genuinely make the model author a decode-execute loop. Terminal-Lego-15k is the weakest corpus for this task - it has no emulator tasks at all, so ranks 4-10 there are parser/endianness/bitwise filler with overall<=3 and should not be trusted as real transfer. TerminalWorld's best match (tw_134335, ESIL emulation) is FREE and therefore excluded from final_top10 per the hard rule. Recursive-Task-Synthesis's only defensible offering is its ARM64 hand-assembly cluster (syscall ABI, register conventions) - useful ISA knowledge, wrong task genre, and all 'absent'. SWE-Rebench's pfp cluster (an interpreter for 010-editor binary templates) is a surprisingly good skill match for a SWE-issue corpus and is repo-tests graded; merge should not discount it just because task_form is 2."
+}

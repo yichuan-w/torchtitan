@@ -1,0 +1,772 @@
+{
+  "tb21_id": "train-fasttext",
+  "tb21_profile": {
+    "skill": "Drive an ML training tool to satisfy two competing hard constraints at once - a held-out accuracy floor and a byte-size ceiling - which means choosing dim/ngrams/epochs/bucket sensibly and, if needed, quantising or pruning the model rather than just calling train once",
+    "domain": "fastText supervised text classification, Yelp review data, word/subword embeddings, model compression and on-disk model size",
+    "task_form": "optimise-for-a-budget: train to a metric under a resource constraint, verified on a private test set from the same distribution"
+  },
+  "verifier_notes": "I read the tests of model-training_20260416_172928_004 directly (calibforge/multi_solver/.../tests/test_outputs.py) because it is the single closest match to this TB2.1 task and the packet grades it FREE. The packet grade is WRONG: the suite loads the model with fasttext.load_model, asserts os.path.getsize(MODEL_PATH) < 1MB, and asserts accuracy_score over 20 labelled product reviews >= 0.75. That is a pinned size bound and a pinned accuracy bound - the newer work/verifier_strength.json agrees, grading it strong 0.8. The regex heuristic in the packet evidently does not recognise `assert accuracy >= MIN_ACCURACY` as pinning a value. I still kept it OUT of final_top10 to respect the hard rule as the packet states it, and left it at per_source CalibForge rank 1. THE MERGE STEP SHOULD PROMOTE IT: on the merits it is rank 1 for this TB2.1 task. Two other CalibForge/TerminalWorld entries in per_source carry a packet FREE grade that the newer file contradicts (tw_326628 packet FREE / global strong, tw_744060 packet FREE / global strong, tw_126622 packet FREE / global ok); they are in per_source only. More generally: work/verifier_strength.json (written 23:02) disagrees with the verifier field baked into work/packets_v2/ (22:56) for 1,986 of 6,543 shown candidates and is always the more generous of the two - 109 CalibForge, 96 TMax, 139 Terminal-Lego and 208 TerminalWorld ids are FREE in the packet but not in the global file, only 10 go the other way. Across all five of my tasks I applied the conservative union rule: nothing in any final_top10 is FREE under either file. PROMOTE PASS (fix-team 01): model-training_20260416_172928_004 is now graded 'strong' 0.8 in work/verifier_strength.json (the packet's FREE grade was the stale-grader bug the notes above predicted). It is a near-literal twin of this TB2.1 task - train a fasttext classifier under a size ceiling meeting an accuracy floor on review data, verified by fasttext.load_model + os.path.getsize<1MB + accuracy_score>=0.75. Promoted to final_top10 rank 1 on merit (skill5/domain5/task_form5). It displaced the former rank-10 machine-learning_20260604_004411_001 (build fastText from source then train, o4), the most redundant of four near-identical build-from-source finalists. All other ranks shifted down one; every final id remains non-FREE.",
+  "searches": [
+    "tools.py search all 'fasttext|fastText|word2vec|gensim|GloVe|word embedding'",
+    "tools.py search tmax 'text classification|sentiment|accuracy of at least|at least [0-9.]+ accuracy|F1|train a (model|classifier)|scikit-learn'",
+    "tools.py search tmax 'hyperparameter|tune the|logistic regression|TF-IDF|TfidfVectorizer|classifier.*accuracy|model must achieve'",
+    "tools.py search tw 'train|classifier|accuracy|embedding|corpus|NLP|scikit'",
+    "tools.py search rts 'classifier|accuracy|train a model|scikit|sklearn|MNIST|text classification'",
+    "tools.py search smith 'langdetect|nltk|tokeniz|text classif|ngram|n-gram|corpus|stopword|scikit|sklearn'",
+    "tools.py search rebench 'scikit-learn|sklearn|classifier|accuracy|train|deepcell|caikit'",
+    "tools.py search rebench 'evalml|AutoML|pipeline.*model|objective|hyperparameter|text|nlp|tokeniz'",
+    "tools.py search rebench 'deepcell|model size|compress|distill|quantiz'",
+    "grep -rliE 'fasttext|fastText|word2vec|gensim|GloVe|word embedding' --include=instruction.md terminal-lego-15k calibforge",
+    "grep -rliE 'must be under [0-9]+ ?MB|less than [0-9]+ ?MB|model size|quantiz|at least [0-9.]+ accuracy|accuracy of at least' --include=instruction.md calibforge",
+    "grep -rliE 'text classification|TfidfVectorizer|scikit-learn|naive bayes|classifier|accuracy|n-gram' --include=instruction.md terminal-lego-15k"
+  ],
+  "per_source": {
+    "TMax-15K": [
+      {
+        "rank": 1,
+        "task_id": "task_001191_5d4f858c",
+        "skill": 3,
+        "domain": 5,
+        "task_form": 3,
+        "overall": 4,
+        "reason": "A vendored copy of fastText itself fails to build and must be fixed before the text classifier can run; same library, same data path."
+      },
+      {
+        "rank": 2,
+        "task_id": "task_000172_491b60ca",
+        "skill": 4,
+        "domain": 3,
+        "task_form": 4,
+        "overall": 4,
+        "reason": "Bash-orchestrated ETL plus hyperparameter tuning for a text retrieval system; searching a parameter setting that clears a quality bar on text data."
+      },
+      {
+        "rank": 3,
+        "task_id": "task_000489_2d75118e",
+        "skill": 4,
+        "domain": 3,
+        "task_form": 4,
+        "overall": 3,
+        "reason": "Tune a hyperparameter against a held-out validation set and commit to the chosen value; the search-then-hit-the-bar loop this TB2.1 task requires."
+      },
+      {
+        "rank": 4,
+        "task_id": "task_000084_2e6745ad",
+        "skill": 3,
+        "domain": 3,
+        "task_form": 4,
+        "overall": 3,
+        "reason": "Five-fold cross-validation to select alpha from a candidate grid; principled model selection with a pinned answer."
+      },
+      {
+        "rank": 5,
+        "task_id": "task_000204_ae9cbe85",
+        "skill": 3,
+        "domain": 3,
+        "task_form": 4,
+        "overall": 3,
+        "reason": "Grid-search the regularisation strength for a Ridge model over a stated search space; hyperparameter sweeps done correctly."
+      },
+      {
+        "rank": 6,
+        "task_id": "task_000050_e43cb92c",
+        "skill": 3,
+        "domain": 2,
+        "task_form": 4,
+        "overall": 3,
+        "reason": "Output is scored against a hidden ground truth and must reach at least 0.95 accuracy; identical hit-a-threshold-on-unseen-data grading."
+      },
+      {
+        "rank": 7,
+        "task_id": "task_000481_0c4b2e6e",
+        "skill": 3,
+        "domain": 4,
+        "task_form": 3,
+        "overall": 3,
+        "reason": "Build a TF-IDF pipeline over review text with specified vectoriser settings; review-text feature extraction, the non-neural sibling of fastText."
+      },
+      {
+        "rank": 8,
+        "task_id": "task_000558_bf408161",
+        "skill": 2,
+        "domain": 4,
+        "task_form": 3,
+        "overall": 2,
+        "reason": "Validate rows then compute TF-IDF embeddings over a text column; text-to-vector pipeline hygiene, no accuracy target."
+      },
+      {
+        "rank": 9,
+        "task_id": "task_000419_60fa0279",
+        "skill": 3,
+        "domain": 2,
+        "task_form": 4,
+        "overall": 3,
+        "reason": "Predictions checked against true outcomes with a 95% accuracy floor; forces actually building something that works rather than something that runs."
+      },
+      {
+        "rank": 10,
+        "task_id": "task_000209_cecbee3d",
+        "skill": 2,
+        "domain": 4,
+        "task_form": 3,
+        "overall": 2,
+        "reason": "Build a text-classification ML pipeline and prove it is reproducible; right domain, but reproducibility rather than a performance budget."
+      }
+    ],
+    "Recursive-Task-Synthesis": [
+      {
+        "rank": 1,
+        "task_id": "rts_task_6a81762bd5745f498f36b83e",
+        "skill": 3,
+        "domain": 4,
+        "task_form": 3,
+        "overall": 3,
+        "reason": "Train CADE compass and slice word-embedding models over two corpora and measure semantic shift; genuine embedding training on raw text."
+      },
+      {
+        "rank": 2,
+        "task_id": "rts_task_c07d2623a0a99b18876ccb0b",
+        "skill": 3,
+        "domain": 4,
+        "task_form": 3,
+        "overall": 3,
+        "reason": "Same CADE compass-plus-slice embedding training with a measured output; the corpus's only real word-embedding work."
+      },
+      {
+        "rank": 3,
+        "task_id": "rts_task_abd2d2db375ec35a34770513",
+        "skill": 3,
+        "domain": 4,
+        "task_form": 3,
+        "overall": 3,
+        "reason": "Train compass and slice models on two sample texts and report the shift; embedding training end to end from a text corpus."
+      },
+      {
+        "rank": 4,
+        "task_id": "rts_task_0d4c15474074a305ff2be8f2",
+        "skill": 2,
+        "domain": 3,
+        "task_form": 3,
+        "overall": 2,
+        "reason": "Run an xorq/scikit-learn workflow that trains a classifier and produces predictions; training-and-evaluating a classifier, no budget."
+      },
+      {
+        "rank": 5,
+        "task_id": "rts_task_c830a142e0cd42f3caf7f963",
+        "skill": 2,
+        "domain": 3,
+        "task_form": 3,
+        "overall": 2,
+        "reason": "Select features, drop missing rows, split train/test and fit a model; the data-preparation discipline a training task needs."
+      },
+      {
+        "rank": 6,
+        "task_id": "rts_task_daeb82d4d721025947ada274",
+        "skill": 2,
+        "domain": 3,
+        "task_form": 3,
+        "overall": 2,
+        "reason": "Build and execute a classification pipeline on the Penguins dataset; standard train-and-predict flow."
+      },
+      {
+        "rank": 7,
+        "task_id": "rts_task_d50f880e583d83436a7b5796",
+        "skill": 2,
+        "domain": 3,
+        "task_form": 3,
+        "overall": 2,
+        "reason": "Inspect the data, then preprocess, split and train a classifier; variant of the same xorq workflow."
+      },
+      {
+        "rank": 8,
+        "task_id": "rts_task_945e147d1c700438e3be05f6",
+        "skill": 2,
+        "domain": 3,
+        "task_form": 2,
+        "overall": 2,
+        "reason": "Set up the environment and run the sds-mnist classification workflow to a predicted digit; mostly environment work."
+      },
+      {
+        "rank": 9,
+        "task_id": "rts_task_c7feb58984461e735f00e6fd",
+        "skill": 1,
+        "domain": 3,
+        "task_form": 2,
+        "overall": 1,
+        "reason": "Run a similarity-based MNIST classification workflow; classification vocabulary, no model fitting decisions."
+      },
+      {
+        "rank": 10,
+        "task_id": "rts_task_38b12bbdb7b9e929a2768e7c",
+        "skill": 2,
+        "domain": 2,
+        "task_form": 2,
+        "overall": 2,
+        "reason": "Run a three-stage PyPEER workflow that trains SVR models and estimates responses; driving someone else's training scripts."
+      }
+    ],
+    "TerminalWorld-Seeds-Clean": [
+      {
+        "rank": 1,
+        "task_id": "tw_18273",
+        "skill": 3,
+        "domain": 3,
+        "task_form": 4,
+        "overall": 3,
+        "reason": "Train a LIBSVM classifier on a specified train/validation split and report accuracy; train-and-measure with a pinned result, CLI-driven."
+      },
+      {
+        "rank": 2,
+        "task_id": "tw_323887",
+        "skill": 3,
+        "domain": 4,
+        "task_form": 3,
+        "overall": 3,
+        "reason": "Train CADE compass word embeddings over two corpora and measure a shift; embedding training on raw text, the closest domain match here."
+      },
+      {
+        "rank": 3,
+        "task_id": "tw_18271",
+        "skill": 3,
+        "domain": 3,
+        "task_form": 4,
+        "overall": 3,
+        "reason": "Same LIBSVM heart_scale train/validate exercise; driving a C ML tool's CLI to produce a scored model."
+      },
+      {
+        "rank": 4,
+        "task_id": "tw_326628",
+        "skill": 2,
+        "domain": 3,
+        "task_form": 3,
+        "overall": 2,
+        "reason": "Install and run an sds/numpy MNIST classification workflow to a checked prediction; end-to-end classify-something task."
+      },
+      {
+        "rank": 5,
+        "task_id": "tw_191493",
+        "skill": 2,
+        "domain": 3,
+        "task_form": 3,
+        "overall": 2,
+        "reason": "Train SVR models as stage one of the PyPEER pipeline and produce estimates; running a real training stage to completion."
+      },
+      {
+        "rank": 6,
+        "task_id": "tw_744060",
+        "skill": 2,
+        "domain": 3,
+        "task_form": 2,
+        "overall": 2,
+        "reason": "Fix a scikit-learn defect in the library itself; ML-library internals rather than model training, but strongly verified."
+      },
+      {
+        "rank": 7,
+        "task_id": "tw_718060",
+        "skill": 2,
+        "domain": 3,
+        "task_form": 2,
+        "overall": 2,
+        "reason": "Define a network and produce profiling output files; model definition and artifact writing, no metric to hit."
+      },
+      {
+        "rank": 8,
+        "task_id": "tw_126622",
+        "skill": 2,
+        "domain": 3,
+        "task_form": 2,
+        "overall": 2,
+        "reason": "Build an inverted index over a text corpus; corpus tokenisation and term statistics, the front half of a text classifier."
+      },
+      {
+        "rank": 9,
+        "task_id": "tw_17946",
+        "skill": 1,
+        "domain": 3,
+        "task_form": 2,
+        "overall": 1,
+        "reason": "Part-of-speech tag Korean text with KoNLPy; NLP tooling only, no training or budget."
+      },
+      {
+        "rank": 10,
+        "task_id": "tw_125964",
+        "skill": 1,
+        "domain": 2,
+        "task_form": 2,
+        "overall": 1,
+        "reason": "Run Louvain community detection on a network matrix; unsupervised analysis with a checked output, weak transfer."
+      }
+    ],
+    "SWE-Smith-Seeds-Clean": [
+      {
+        "rank": 1,
+        "task_id": "Mimino666__langdetect.a1598f1a.combine_module__cvj728cx",
+        "skill": 3,
+        "domain": 4,
+        "task_form": 2,
+        "overall": 3,
+        "reason": "An n-gram language classifier returns wrong labels for clearly identifiable text; debugging a character-ngram text classifier, fastText's own family."
+      },
+      {
+        "rank": 2,
+        "task_id": "Mimino666__langdetect.a1598f1a.lm_rewrite__4ump9qgc",
+        "skill": 3,
+        "domain": 4,
+        "task_form": 2,
+        "overall": 3,
+        "reason": "Classifier probability output is formatted/computed wrongly (expected en:0.9999); label-with-confidence output, exactly fastText predict."
+      },
+      {
+        "rank": 3,
+        "task_id": "Mimino666__langdetect.a1598f1a.combine_module__yusqvqhs",
+        "skill": 3,
+        "domain": 4,
+        "task_form": 2,
+        "overall": 3,
+        "reason": "Short mixed-script input is misclassified; n-gram feature extraction and normalisation, the part that decides text-classifier accuracy."
+      },
+      {
+        "rank": 4,
+        "task_id": "Mimino666__langdetect.a1598f1a.func_basic__y336mfnv",
+        "skill": 2,
+        "domain": 4,
+        "task_form": 2,
+        "overall": 2,
+        "reason": "Off-by-one comparison inside the detector changes classification results; small numeric bug with a measurable accuracy effect."
+      },
+      {
+        "rank": 5,
+        "task_id": "Mimino666__langdetect.a1598f1a.func_pm_class_rm_funcs__842dr37d",
+        "skill": 2,
+        "domain": 4,
+        "task_form": 2,
+        "overall": 2,
+        "reason": "DetectorFactory is missing its create method; model-loading and factory plumbing in a trained-profile classifier."
+      },
+      {
+        "rank": 6,
+        "task_id": "Mimino666__langdetect.a1598f1a.combine_file__c24mxoqs",
+        "skill": 2,
+        "domain": 4,
+        "task_form": 2,
+        "overall": 2,
+        "reason": "Message/resource table has keys and values swapped; how a trained language profile is loaded from disk."
+      },
+      {
+        "rank": 7,
+        "task_id": "amueller__word_cloud.ec24191c.func_pm_remove_loop__wukig0fw",
+        "skill": 2,
+        "domain": 3,
+        "task_form": 2,
+        "overall": 2,
+        "reason": "Text processing returns empty frequency dictionaries; corpus tokenisation and counting, the input side of training."
+      },
+      {
+        "rank": 8,
+        "task_id": "amueller__word_cloud.ec24191c.combine_file__9bx7cdni",
+        "skill": 2,
+        "domain": 3,
+        "task_form": 2,
+        "overall": 2,
+        "reason": "Off-by-one in min_word_length filtering drops valid words; vocabulary-filtering semantics that also control fastText's minCount."
+      },
+      {
+        "rank": 9,
+        "task_id": "datamade__usaddress.a42a8f0c.lm_rewrite__qrc0sw5h",
+        "skill": 2,
+        "domain": 3,
+        "task_form": 2,
+        "overall": 2,
+        "reason": "Tokenisation breaks on punctuation in a sequence-labelling model; preprocessing bugs that silently degrade a trained model."
+      },
+      {
+        "rank": 10,
+        "task_id": "luozhouyang__python-string-similarity.115acaac.combine_file__jzax0e58",
+        "skill": 1,
+        "domain": 2,
+        "task_form": 2,
+        "overall": 1,
+        "reason": "String-similarity metrics return wrong values; n-gram distance arithmetic, no training or evaluation loop."
+      }
+    ],
+    "SWE-Rebench-Tasks-Clean": [
+      {
+        "rank": 1,
+        "task_id": "alteryx__evalml-1321",
+        "skill": 3,
+        "domain": 3,
+        "task_form": 2,
+        "overall": 2,
+        "reason": "AutoML pipeline ranking/explanation defect; the library's whole job is picking a model that maximises an objective, which is this task's job too."
+      },
+      {
+        "rank": 2,
+        "task_id": "alteryx__evalml-1221",
+        "skill": 3,
+        "domain": 3,
+        "task_form": 2,
+        "overall": 2,
+        "reason": "Add a CV-fold validation score to the AutoML rankings table; held-out scoring and model selection bookkeeping."
+      },
+      {
+        "rank": 3,
+        "task_id": "alteryx__evalml-1318",
+        "skill": 2,
+        "domain": 3,
+        "task_form": 2,
+        "overall": 2,
+        "reason": "Explain-predictions path breaks for a Random Forest binary pipeline; trained-pipeline evaluation in an AutoML stack."
+      },
+      {
+        "rank": 4,
+        "task_id": "alteryx__evalml-1377",
+        "skill": 2,
+        "domain": 3,
+        "task_form": 2,
+        "overall": 2,
+        "reason": "Outlier data check reports the wrong axis; training-data quality checking, upstream of hitting an accuracy bar."
+      },
+      {
+        "rank": 5,
+        "task_id": "vanvalenlab__deepcell-tf-673",
+        "skill": 2,
+        "domain": 3,
+        "task_form": 2,
+        "overall": 2,
+        "reason": "Defect in a deep-learning training library's model/data path; real training-code debugging, wrong modality."
+      },
+      {
+        "rank": 6,
+        "task_id": "keras-team__keras-20602",
+        "skill": 2,
+        "domain": 3,
+        "task_form": 2,
+        "overall": 2,
+        "reason": "train_on_batch fails to track loss; how a framework reports the metric you are trying to optimise."
+      },
+      {
+        "rank": 7,
+        "task_id": "keras-team__keras-19915",
+        "skill": 2,
+        "domain": 3,
+        "task_form": 2,
+        "overall": 2,
+        "reason": "Saving and reloading a subclassed model misbehaves; model serialisation, which this TB2.1 task also grades via model.bin."
+      },
+      {
+        "rank": 8,
+        "task_id": "caikit__caikit-430",
+        "skill": 2,
+        "domain": 2,
+        "task_form": 2,
+        "overall": 2,
+        "reason": "Lazy model loading in a model-serving runtime; artifact size and load behaviour, adjacent to a size budget."
+      },
+      {
+        "rank": 9,
+        "task_id": "stanfordnlp__dspy-1651",
+        "skill": 2,
+        "domain": 3,
+        "task_form": 2,
+        "overall": 2,
+        "reason": "DSPy defect in a framework whose optimisers tune a program against a metric; same optimise-against-a-score framing, no model file."
+      },
+      {
+        "rank": 10,
+        "task_id": "cornellius-gp__gpytorch-223",
+        "skill": 1,
+        "domain": 2,
+        "task_form": 2,
+        "overall": 1,
+        "reason": "Prior predictions are awkward to obtain from an ExactGP; model-API ergonomics, essentially no transfer."
+      }
+    ],
+    "Terminal-Lego-15k": [
+      {
+        "rank": 1,
+        "task_id": "task_13481",
+        "skill": 4,
+        "domain": 5,
+        "task_form": 3,
+        "overall": 4,
+        "reason": "Implement negative sampling for skip-gram word2vec; fastText's actual training objective, built from the definition with pinned checks."
+      },
+      {
+        "rank": 2,
+        "task_id": "task_13227",
+        "skill": 4,
+        "domain": 5,
+        "task_form": 3,
+        "overall": 4,
+        "reason": "Implement and compare CBOW and skip-gram from scratch; the two models fastText's unsupervised mode is built on."
+      },
+      {
+        "rank": 3,
+        "task_id": "task_13507",
+        "skill": 3,
+        "domain": 5,
+        "task_form": 3,
+        "overall": 3,
+        "reason": "Build a word2vec projection layer from scratch; the embedding-table-times-dimension structure that sets fastText's model size."
+      },
+      {
+        "rank": 4,
+        "task_id": "task_03796",
+        "skill": 3,
+        "domain": 3,
+        "task_form": 3,
+        "overall": 3,
+        "reason": "Run GridSearchCV over a Pipeline and persist the resulting model correctly to disk; hyperparameter search plus saving a model artifact."
+      },
+      {
+        "rank": 5,
+        "task_id": "task_03766",
+        "skill": 2,
+        "domain": 3,
+        "task_form": 3,
+        "overall": 2,
+        "reason": "Randomly split a dataset file into train and test portions; the evaluation split any accuracy claim depends on."
+      },
+      {
+        "rank": 6,
+        "task_id": "task_04451",
+        "skill": 2,
+        "domain": 3,
+        "task_form": 3,
+        "overall": 2,
+        "reason": "Split a NumPy array into train and test sets with the right proportions and no leakage."
+      },
+      {
+        "rank": 7,
+        "task_id": "task_04549",
+        "skill": 2,
+        "domain": 3,
+        "task_form": 3,
+        "overall": 2,
+        "reason": "Fix a LogisticRegression unknown-label-type error; label encoding, a common reason a text classifier trains on garbage."
+      },
+      {
+        "rank": 8,
+        "task_id": "task_04487",
+        "skill": 2,
+        "domain": 2,
+        "task_form": 3,
+        "overall": 2,
+        "reason": "Implement PCA from scratch; dimensionality reduction is the generic lever for shrinking a model under a size budget."
+      },
+      {
+        "rank": 9,
+        "task_id": "task_01549",
+        "skill": 2,
+        "domain": 3,
+        "task_form": 2,
+        "overall": 2,
+        "reason": "Split a DataFrame into train and test samples; small, but the held-out-evaluation habit this task grades."
+      },
+      {
+        "rank": 10,
+        "task_id": "task_04489",
+        "skill": 1,
+        "domain": 2,
+        "task_form": 3,
+        "overall": 1,
+        "reason": "Implement mean squared error in NumPy; implementing an evaluation metric from its definition, minimal transfer."
+      }
+    ],
+    "CalibForge": [
+      {
+        "rank": 1,
+        "task_id": "model-training_20260416_172928_004",
+        "skill": 5,
+        "domain": 5,
+        "task_form": 5,
+        "overall": 5,
+        "reason": "Train a fasttext classifier on review data that must stay under 1MB while reaching 0.75 accuracy; the same task with tighter numbers."
+      },
+      {
+        "rank": 2,
+        "task_id": "model-training_20260510_053611_004",
+        "skill": 5,
+        "domain": 5,
+        "task_form": 5,
+        "overall": 5,
+        "reason": "Train gensim Word2Vec on text8 under a 25MB ceiling with an accuracy floor; identical embedding-size-versus-quality trade-off."
+      },
+      {
+        "rank": 3,
+        "task_id": "machine-learning_20260618_093107_001",
+        "skill": 4,
+        "domain": 5,
+        "task_form": 4,
+        "overall": 4,
+        "reason": "Build fastText 0.9.2 from source and train a supervised classifier on cooking.stackexchange; same binary, same supervised workflow."
+      },
+      {
+        "rank": 4,
+        "task_id": "machine-learning_20260615_143301_001",
+        "skill": 4,
+        "domain": 5,
+        "task_form": 4,
+        "overall": 4,
+        "reason": "Build fastText from /app/fasttext and train a classifier on label+text CSVs; includes the data-format conversion fastText demands."
+      },
+      {
+        "rank": 5,
+        "task_id": "machine-learning_20260605_015435_001",
+        "skill": 4,
+        "domain": 5,
+        "task_form": 4,
+        "overall": 4,
+        "reason": "Fix fastText 0.9.2 compilation errors then train an AG News classifier; build-then-train, the practical path for this TB2.1 task."
+      },
+      {
+        "rank": 6,
+        "task_id": "model-training_20260511_150433_004",
+        "skill": 4,
+        "domain": 3,
+        "task_form": 5,
+        "overall": 4,
+        "reason": "Train a Covertype classifier under a strict 15MB ceiling with 88% accuracy on a private test set; exactly the two-constraint optimisation."
+      },
+      {
+        "rank": 7,
+        "task_id": "model-training_20260415_002933_004",
+        "skill": 4,
+        "domain": 4,
+        "task_form": 5,
+        "overall": 4,
+        "reason": "Distil a text-classification teacher into a student under 50MB that still meets an accuracy floor; compression-under-a-budget on text."
+      },
+      {
+        "rank": 8,
+        "task_id": "model-training_20260508_045740_004",
+        "skill": 4,
+        "domain": 3,
+        "task_form": 5,
+        "overall": 4,
+        "reason": "Produce a classifier under 5MB for an edge device from the given training data; same size-ceiling-plus-quality framing."
+      },
+      {
+        "rank": 9,
+        "task_id": "machine-learning_20260604_004411_001",
+        "skill": 4,
+        "domain": 5,
+        "task_form": 4,
+        "overall": 4,
+        "reason": "Build fastText from source dealing with whatever compilation issues arise, then train a supervised classifier on the provided data."
+      },
+      {
+        "rank": 10,
+        "task_id": "model-training_20260504_125558_004",
+        "skill": 3,
+        "domain": 3,
+        "task_form": 5,
+        "overall": 3,
+        "reason": "Fraud model for point-of-sale terminals constrained by storage and latency; multi-constraint model-budget optimisation, tabular."
+      }
+    ]
+  },
+  "final_top10": [
+    {
+      "rank": 1,
+      "task_id": "model-training_20260416_172928_004",
+      "source": "CalibForge",
+      "skill": 5,
+      "domain": 5,
+      "task_form": 5,
+      "overall": 5,
+      "reason": "Train a fasttext classifier on review data under a hard size ceiling while clearing an accuracy floor - the same skill/domain/task_form as this TB2.1 task, tighter numbers."
+    },
+    {
+      "rank": 2,
+      "task_id": "model-training_20260510_053611_004",
+      "source": "CalibForge",
+      "skill": 5,
+      "domain": 5,
+      "task_form": 5,
+      "overall": 5,
+      "reason": "Train Word2Vec on text8 under a 25MB ceiling while clearing an accuracy floor; the embedding-size-versus-quality trade-off this task turns on."
+    },
+    {
+      "rank": 3,
+      "task_id": "machine-learning_20260618_093107_001",
+      "source": "CalibForge",
+      "skill": 4,
+      "domain": 5,
+      "task_form": 4,
+      "overall": 4,
+      "reason": "Build fastText 0.9.2 from source and train a supervised classifier on real review-style text; same binary, same supervised workflow."
+    },
+    {
+      "rank": 4,
+      "task_id": "model-training_20260511_150433_004",
+      "source": "CalibForge",
+      "skill": 4,
+      "domain": 3,
+      "task_form": 5,
+      "overall": 4,
+      "reason": "Reach 88% on a private test set with the saved model under 15MB; the identical two-constraint optimisation, different modality."
+    },
+    {
+      "rank": 5,
+      "task_id": "machine-learning_20260615_143301_001",
+      "source": "CalibForge",
+      "skill": 4,
+      "domain": 5,
+      "task_form": 4,
+      "overall": 4,
+      "reason": "Build fastText and train a classifier from label+text CSVs, including converting the data into fastText's __label__ input format."
+    },
+    {
+      "rank": 6,
+      "task_id": "model-training_20260415_002933_004",
+      "source": "CalibForge",
+      "skill": 4,
+      "domain": 4,
+      "task_form": 5,
+      "overall": 4,
+      "reason": "Distil a text classifier into a student under 50MB that still meets an accuracy floor; compression used deliberately to meet a byte budget."
+    },
+    {
+      "rank": 7,
+      "task_id": "machine-learning_20260605_015435_001",
+      "source": "CalibForge",
+      "skill": 4,
+      "domain": 5,
+      "task_form": 4,
+      "overall": 4,
+      "reason": "Repair fastText's build errors then train on AG News; covers the obstacle most likely to block this TB2.1 task before training starts."
+    },
+    {
+      "rank": 8,
+      "task_id": "model-training_20260508_045740_004",
+      "source": "CalibForge",
+      "skill": 4,
+      "domain": 3,
+      "task_form": 5,
+      "overall": 4,
+      "reason": "Train a classifier that must fit under 5MB for an edge device; teaches trading model capacity for bytes on purpose."
+    },
+    {
+      "rank": 9,
+      "task_id": "task_13481",
+      "source": "Terminal-Lego-15k",
+      "skill": 4,
+      "domain": 5,
+      "task_form": 3,
+      "overall": 4,
+      "reason": "Implement negative sampling for skip-gram; fastText's actual training objective, which is what dim, epoch and lr are really controlling."
+    },
+    {
+      "rank": 10,
+      "task_id": "task_001191_5d4f858c",
+      "source": "TMax-15K",
+      "skill": 3,
+      "domain": 5,
+      "task_form": 3,
+      "overall": 4,
+      "reason": "A vendored fastText that will not build must be fixed before its text classifier can run; same library, same first obstacle."
+    }
+  ],
+  "notes": "Strongest new-corpus win of the five. CalibForge contains a near-duplicate of this TB2.1 task (model-training_20260416_172928_004: train a fasttext classifier under 1MB at 0.75 accuracy) plus a second budget-and-accuracy embedding task (Word2Vec under 25MB), plus FIVE separate build-fastText-from-source-and-train tasks, plus a whole train-under-a-size-ceiling family (5MB / 15MB / 50MB distillation / edge fraud model). A regex for fasttext|word2vec|gensim|GloVe|word embedding over all 56,307 v1 instructions returns four hits, only one of which (task_001191_5d4f858c) is actually about fastText. Eight of my final ten are CalibForge and the honest answer is that nine or ten could have been. NOTE: the closest single candidate, model-training_20260416_172928_004, is excluded from final_top10 ONLY because the packet grades it FREE; I read its tests and that grade is demonstrably wrong (see verifier_notes) - promote it if the merge step can. Terminal-Lego also contributes real value here for the first time: task_13481 / task_13227 / task_13507 implement skip-gram, CBOW and the projection layer from scratch with 24-27 tests each, which is the only place in the pool that teaches what fastText's objective actually is. Recursive-Task-Synthesis is the corpus where I could not find ten defensible candidates: its only relevant material is the CADE word-embedding cluster (three near-duplicates, all `absent`) and then xorq/sds-mnist run-this-workflow chores; ranks 4-10 there are weak and everything is unverified. SWE-Rebench is also thin - alteryx/evalml is the honest best (AutoML optimises a model against an objective) but it is fix-a-bug shaped and tops out at overall 2. One thing the merge step should weigh: this is the TB2.1 task where a FREE verifier would be most damaging, since a stub that writes any file to /app/model.bin looks identical to a trained model; every id in my final_top10 is graded ok or better under BOTH the packet and the newer global verifier file."
+}

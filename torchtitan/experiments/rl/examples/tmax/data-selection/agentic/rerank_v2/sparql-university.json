@@ -1,0 +1,775 @@
+{
+ "tb21_id": "sparql-university",
+ "tb21_profile": {
+  "skill": "Read an unfamiliar ontology out of a Turtle file and express a multi-hop, multi-criteria question as one declarative query: joins across professor-department-university-country, a COUNT DISTINCT threshold, membership in a hand-supplied set, and GROUP_CONCAT aggregation",
+  "domain": "RDF / Turtle / SPARQL knowledge graphs; adjacent territory is analytic SQL over a relational schema",
+  "task_form": "implement-from-spec: the artifact is a single query file with a prescribed SELECT signature"
+ },
+ "verifier_notes": "task_02500 (Terminal-Lego, ONLY_FULL_GROUP_BY) and tw_455191 / tw_191978 (TerminalWorld joins) are FREE and are ranked in per_source only. Nothing else looked mis-graded; note that data-querying_20260617_104707_001, the single closest candidate in the pool, is only graded `ok` (0.25) because most of its assertions check the query's result rows through rdflib rather than pinning literals inline - I read the instruction and it demands an exact result set and ordering, so the grade understates it.",
+ "searches": [
+  "tools.py search all \"SPARQL|RDF|Turtle file|\\.ttl|ontology|OWL|knowledge graph|rdflib|triple store\"",
+  "tools.py search all \"SPARQL|rdflib|Turtle (file|format|syntax)|triple store|owl:|rdfs:\"",
+  "tools.py search all \"knowledge graph|ontolog\"",
+  "tools.py show task_002880_220861be data-querying_20260617_104707_001",
+  "tools.py search calib \"solution\\.sql|GROUP BY|HAVING|window function|recursive CTE|SQL query\"",
+  "tools.py search lego \"SPARQL|rdflib|\\.ttl|RDF graph|triple|SELECT .*WHERE|GROUP BY|HAVING|JOIN \"",
+  "tools.py search tw \"SPARQL|rdflib|\\.ttl|RDF graph|triple|SELECT .*WHERE|GROUP BY|HAVING|JOIN \"",
+  "tools.py search rts \"SPARQL|rdflib|\\.ttl|RDF graph|triple|GROUP BY|JOIN \"",
+  "tools.py search smith \"SPARQL|rdflib|\\.ttl|RDF graph|triple|GROUP BY|JOIN \"",
+  "tools.py search rebench \"SPARQL|rdflib|\\.ttl|RDF graph|triple|GROUP BY|JOIN \"",
+  "tools.py search lego \"SQL query|SELECT .*FROM|GROUP BY|INNER JOIN|LEFT JOIN|sqlite3|aggregate\"",
+  "tools.py search rebench \"networkx|neo4j|cypher|shortest path|graph traversal|sqlalchemy|migration\"",
+  "tools.py search smith \"sqlfluff\"",
+  "tools.py search tw \"sqlite|PostgreSQL|MySQL|query the|SELECT \"",
+  "tools.py search rts \"sqlite|SELECT |SQL query|database query|aggregate\""
+ ],
+ "per_source": {
+  "TMax-15K": [
+   {
+    "rank": 1,
+    "task_id": "task_002880_220861be",
+    "skill": 5,
+    "domain": 5,
+    "task_form": 4,
+    "overall": 4,
+    "reason": "Fix a SPARQL query whose missing join explodes results, then add GROUP BY aggregation over employees and departments - the same join-plus-aggregate reasoning"
+   },
+   {
+    "rank": 2,
+    "task_id": "task_002912_e1cb19ea",
+    "skill": 5,
+    "domain": 5,
+    "task_form": 4,
+    "overall": 4,
+    "reason": "Author a valid SPARQL query matching a graph pattern over subject pairs; pure query-writing against RDF"
+   },
+   {
+    "rank": 3,
+    "task_id": "task_002724_89ace20f",
+    "skill": 4,
+    "domain": 5,
+    "task_form": 4,
+    "overall": 4,
+    "reason": "Read an unfamiliar .ttl schema and then write a query against it - schema discovery from the data file, which this TB task also requires"
+   },
+   {
+    "rank": 4,
+    "task_id": "task_004227_00e8d97f",
+    "skill": 4,
+    "domain": 5,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Load an access graph with rdflib and use SPARQL to reverse-engineer relationships; multi-hop traversal in a query"
+   },
+   {
+    "rank": 5,
+    "task_id": "task_001641_fc8cebd5",
+    "skill": 3,
+    "domain": 5,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Run SPARQL over a Turtle file with Jena's command-line tools - the same query language, different runner"
+   },
+   {
+    "rank": 6,
+    "task_id": "task_003206_534f7904",
+    "skill": 4,
+    "domain": 5,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Load resources.ttl into a graph store and construct a SPARQL query to answer a specific question"
+   },
+   {
+    "rank": 7,
+    "task_id": "task_002446_bf4c3680",
+    "skill": 3,
+    "domain": 5,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Query a Turtle taxonomy of research topics; hierarchical relations in RDF, like department/university nesting"
+   },
+   {
+    "rank": 8,
+    "task_id": "task_002743_b55c2153",
+    "skill": 3,
+    "domain": 5,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Analyse an RDF/Turtle graph of papers, authors and citations - multi-hop relationships between typed entities"
+   },
+   {
+    "rank": 9,
+    "task_id": "task_004081_e4a902f3",
+    "skill": 3,
+    "domain": 5,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Turtle export of org architecture and access control; traverse person-to-resource paths"
+   },
+   {
+    "rank": 10,
+    "task_id": "task_000384_bb093a2a",
+    "skill": 3,
+    "domain": 5,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Turtle dataset plus a constraint that must be expressed as a graph query"
+   }
+  ],
+  "Recursive-Task-Synthesis": [
+   {
+    "rank": 1,
+    "task_id": "rts_task_fad78822bf22052a4c028c0d",
+    "skill": 3,
+    "domain": 3,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Join account, permission and mapping tables to answer a specific entitlement question - multi-table join reasoning"
+   },
+   {
+    "rank": 2,
+    "task_id": "rts_task_7493e4ba507eae6813cf2e77",
+    "skill": 3,
+    "domain": 2,
+    "task_form": 3,
+    "overall": 2,
+    "reason": "Produce one aggregated row per category; GROUP BY-style aggregation with a fixed output shape"
+   },
+   {
+    "rank": 3,
+    "task_id": "rts_task_90ce9e50d921b3cf72020f7d",
+    "skill": 3,
+    "domain": 3,
+    "task_form": 3,
+    "overall": 2,
+    "reason": "Inventory an unfamiliar database and export every table - schema discovery before querying"
+   },
+   {
+    "rank": 4,
+    "task_id": "rts_task_36863e879384891432d4ac9b",
+    "skill": 2,
+    "domain": 3,
+    "task_form": 3,
+    "overall": 2,
+    "reason": "Extract all data from every table of a sample database into JSON; schema walking only"
+   },
+   {
+    "rank": 5,
+    "task_id": "rts_task_952febbe315458fa1b74a837",
+    "skill": 3,
+    "domain": 2,
+    "task_form": 4,
+    "overall": 2,
+    "reason": "Write join queries in a declarative streaming query language and save them to a file - query authoring as the deliverable"
+   },
+   {
+    "rank": 6,
+    "task_id": "rts_task_4f96b56ca30926a893a0da57",
+    "skill": 3,
+    "domain": 2,
+    "task_form": 4,
+    "overall": 2,
+    "reason": "Stream-stream left join between two named streams; join semantics in a SQL-like language"
+   },
+   {
+    "rank": 7,
+    "task_id": "rts_task_e5d6e3aab9231dd169998eb6",
+    "skill": 3,
+    "domain": 2,
+    "task_form": 4,
+    "overall": 2,
+    "reason": "Same KSQL left-join deliverable with a required file preamble"
+   },
+   {
+    "rank": 8,
+    "task_id": "rts_task_447debaaa28c1c348fbf9391",
+    "skill": 3,
+    "domain": 2,
+    "task_form": 4,
+    "overall": 2,
+    "reason": "Same family; the graded artifact is the query text itself"
+   },
+   {
+    "rank": 9,
+    "task_id": "rts_task_d7bd833b551cbe4bd2450a56",
+    "skill": 2,
+    "domain": 3,
+    "task_form": 3,
+    "overall": 2,
+    "reason": "Write a schema.sql for a banking database; modelling rather than querying"
+   },
+   {
+    "rank": 10,
+    "task_id": "rts_task_7c1c36f4386c00ab5bdd2edc",
+    "skill": 2,
+    "domain": 1,
+    "task_form": 3,
+    "overall": 2,
+    "reason": "Join two key-value files on their keys; the join concept with no query language"
+   }
+  ],
+  "TerminalWorld-Seeds-Clean": [
+   {
+    "rank": 1,
+    "task_id": "tw_139449",
+    "skill": 3,
+    "domain": 3,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Turn JSONL records into a SQLite database and query it; modelling entities then querying them"
+   },
+   {
+    "rank": 2,
+    "task_id": "tw_326975",
+    "skill": 3,
+    "domain": 3,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Enumerate every table of an unfamiliar database and extract its contents - schema discovery via queries"
+   },
+   {
+    "rank": 3,
+    "task_id": "tw_19002",
+    "skill": 3,
+    "domain": 3,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Evaluate SQL statements to observe the engine's parsing semantics; query-language pedantry"
+   },
+   {
+    "rank": 4,
+    "task_id": "tw_284665",
+    "skill": 3,
+    "domain": 1,
+    "task_form": 3,
+    "overall": 2,
+    "reason": "Join two pre-sorted key-value files on their keys - the merge-join primitive, no query language"
+   },
+   {
+    "rank": 5,
+    "task_id": "tw_542219",
+    "skill": 2,
+    "domain": 3,
+    "task_form": 3,
+    "overall": 2,
+    "reason": "Create a database and table with typed constraints and grants; schema work"
+   },
+   {
+    "rank": 6,
+    "task_id": "tw_187062",
+    "skill": 2,
+    "domain": 3,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Create a table with a typed auto-increment primary key"
+   },
+   {
+    "rank": 7,
+    "task_id": "tw_220269",
+    "skill": 2,
+    "domain": 3,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Define a two-column table through SQLAlchemy; declarative schema only"
+   },
+   {
+    "rank": 8,
+    "task_id": "tw_220270",
+    "skill": 2,
+    "domain": 3,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Same SQLAlchemy table-creation family"
+   },
+   {
+    "rank": 9,
+    "task_id": "tw_455191",
+    "skill": 4,
+    "domain": 3,
+    "task_form": 3,
+    "overall": 2,
+    "reason": "Join three tables to retrieve premium permission assignments - the best relational multi-join here, but FREE verifier so excluded from final"
+   },
+   {
+    "rank": 10,
+    "task_id": "tw_191978",
+    "skill": 3,
+    "domain": 2,
+    "task_form": 4,
+    "overall": 2,
+    "reason": "Write two stream-stream left-join queries as the deliverable; FREE verifier so excluded from final"
+   }
+  ],
+  "SWE-Smith-Seeds-Clean": [
+   {
+    "rank": 1,
+    "task_id": "pygments__pygments.27649ebb.pr_2581",
+    "skill": 3,
+    "domain": 5,
+    "task_form": 2,
+    "overall": 3,
+    "reason": "Blank node labels in Turtle/RDF are lexed wrongly - the only task in SWE-Smith that touches Turtle syntax itself"
+   },
+   {
+    "rank": 2,
+    "task_id": "sqlfluff__sqlfluff.50a1c4b6.pr_5147",
+    "skill": 3,
+    "domain": 4,
+    "task_form": 2,
+    "overall": 3,
+    "reason": "The Delimited grammar in a SQL parser misbehaves; understanding query syntax structurally"
+   },
+   {
+    "rank": 3,
+    "task_id": "andialbrecht__sqlparse.e57923b3.pr_768",
+    "skill": 3,
+    "domain": 4,
+    "task_form": 2,
+    "overall": 3,
+    "reason": "Identifier grouping across a window-function SELECT list; reading query structure correctly"
+   },
+   {
+    "rank": 4,
+    "task_id": "andialbrecht__sqlparse.e57923b3.pr_746",
+    "skill": 3,
+    "domain": 4,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "ORDER BY identifiers not grouped inside a subquery; nested query structure"
+   },
+   {
+    "rank": 5,
+    "task_id": "sqlfluff__sqlfluff.50a1c4b6.pr_5033",
+    "skill": 3,
+    "domain": 4,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Parsing any valid SQL file fails; core query-parsing correctness"
+   },
+   {
+    "rank": 6,
+    "task_id": "andialbrecht__sqlparse.e57923b3.lm_rewrite__0uc3v1lz",
+    "skill": 3,
+    "domain": 4,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "FROM ... AS keywords misidentified; SQL clause recognition"
+   },
+   {
+    "rank": 7,
+    "task_id": "andialbrecht__sqlparse.e57923b3.pr_749",
+    "skill": 2,
+    "domain": 4,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Function parameter extraction from a parsed statement"
+   },
+   {
+    "rank": 8,
+    "task_id": "andialbrecht__sqlparse.e57923b3.func_pm_class_rm_funcs__7xvn7z7x",
+    "skill": 2,
+    "domain": 4,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Parsed-statement API method removed; tree navigation over a query"
+   },
+   {
+    "rank": 9,
+    "task_id": "sqlfluff__sqlfluff.50a1c4b6.pr_5101",
+    "skill": 2,
+    "domain": 4,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Placeholder substitution in templated SQL when a parameter is missing"
+   },
+   {
+    "rank": 10,
+    "task_id": "sqlfluff__sqlfluff.50a1c4b6.pr_5676",
+    "skill": 2,
+    "domain": 4,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Lint exit code depends on the last file; CLI behaviour around SQL tooling"
+   }
+  ],
+  "SWE-Rebench-Tasks-Clean": [
+   {
+    "rank": 1,
+    "task_id": "djrobstep__sqlakeyset-98",
+    "skill": 3,
+    "domain": 4,
+    "task_form": 2,
+    "overall": 3,
+    "reason": "Keyset pagination emits the wrong type for a column - reasoning about what a generated query actually returns"
+   },
+   {
+    "rank": 2,
+    "task_id": "djrobstep__sqlakeyset-106",
+    "skill": 3,
+    "domain": 4,
+    "task_form": 2,
+    "overall": 3,
+    "reason": "Native UUID handling in the same keyset-query library; query result typing"
+   },
+   {
+    "rank": 3,
+    "task_id": "3yourmind__django-migration-linter-258",
+    "skill": 3,
+    "domain": 4,
+    "task_form": 2,
+    "overall": 3,
+    "reason": "A migration is wrongly flagged for a NOT NULL constraint - analysing the SQL a declarative spec generates"
+   },
+   {
+    "rank": 4,
+    "task_id": "3yourmind__django-migration-linter-186",
+    "skill": 3,
+    "domain": 4,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Index creation on a new table misclassified; SQL semantics of a migration"
+   },
+   {
+    "rank": 5,
+    "task_id": "3yourmind__django-migration-linter-222",
+    "skill": 2,
+    "domain": 4,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Another migration-analysis false positive in the same linter"
+   },
+   {
+    "rank": 6,
+    "task_id": "networkx__networkx-4872",
+    "skill": 3,
+    "domain": 3,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Graph library behaviour on attribute-carrying nodes; querying a graph structure in memory"
+   },
+   {
+    "rank": 7,
+    "task_id": "networkx__networkx-3628",
+    "skill": 3,
+    "domain": 3,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "jit_graph/jit_data are not inverses; round-tripping a graph through a serialisation"
+   },
+   {
+    "rank": 8,
+    "task_id": "networkx__networkx-3101",
+    "skill": 2,
+    "domain": 3,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Adjacency dict structure for a DiGraph's successors and predecessors; graph data model"
+   },
+   {
+    "rank": 9,
+    "task_id": "networkx__networkx-6612",
+    "skill": 2,
+    "domain": 3,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "GEXF export loses attribute fidelity; graph serialisation detail"
+   },
+   {
+    "rank": 10,
+    "task_id": "factoryboy__factory_boy-841",
+    "skill": 2,
+    "domain": 4,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "SQLAlchemy model with a column named session breaks the factory; ORM naming collision"
+   }
+  ],
+  "Terminal-Lego-15k": [
+   {
+    "rank": 1,
+    "task_id": "task_01260",
+    "skill": 3,
+    "domain": 2,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Perform inner/outer joins between two datasets and write each result - join semantics including which rows survive"
+   },
+   {
+    "rank": 2,
+    "task_id": "task_01507",
+    "skill": 3,
+    "domain": 2,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Filter rows whose value is in a given list - membership against a fixed set, exactly the EU-country-code filter"
+   },
+   {
+    "rank": 3,
+    "task_id": "task_01151",
+    "skill": 3,
+    "domain": 2,
+    "task_form": 3,
+    "overall": 2,
+    "reason": "Select rows where a column matches specified values; predicate filtering"
+   },
+   {
+    "rank": 4,
+    "task_id": "task_01030",
+    "skill": 3,
+    "domain": 2,
+    "task_form": 3,
+    "overall": 2,
+    "reason": "Row selection by column value with a pinned expected result"
+   },
+   {
+    "rank": 5,
+    "task_id": "task_01369",
+    "skill": 3,
+    "domain": 2,
+    "task_form": 3,
+    "overall": 2,
+    "reason": "Group records then sort by multiple keys - grouping plus deterministic ordering"
+   },
+   {
+    "rank": 6,
+    "task_id": "task_01098",
+    "skill": 2,
+    "domain": 2,
+    "task_form": 3,
+    "overall": 2,
+    "reason": "Project a specific set of columns; the SELECT list in another guise"
+   },
+   {
+    "rank": 7,
+    "task_id": "task_00895",
+    "skill": 2,
+    "domain": 3,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Embed a multi-line SQL query correctly in a shell function"
+   },
+   {
+    "rank": 8,
+    "task_id": "task_02179",
+    "skill": 2,
+    "domain": 3,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Run MySQL queries on a remote host over SSH; plumbing around a query"
+   },
+   {
+    "rank": 9,
+    "task_id": "task_00125",
+    "skill": 2,
+    "domain": 3,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Find .sql files containing a particular SELECT pattern; reading queries, not writing them"
+   },
+   {
+    "rank": 10,
+    "task_id": "task_02500",
+    "skill": 3,
+    "domain": 4,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "ONLY_FULL_GROUP_BY rejects a query - which columns may appear outside an aggregate is exactly the GROUP BY rule this TB task must respect; FREE verifier so excluded from final"
+   }
+  ],
+  "CalibForge": [
+   {
+    "rank": 1,
+    "task_id": "data-querying_20260617_104707_001",
+    "skill": 5,
+    "domain": 5,
+    "task_form": 5,
+    "overall": 5,
+    "reason": "Turtle ontology of employees/departments/projects, write SPARQL to /app/solution.sparql with at-least-N DISTINCT counts and a manager-skill hop - a structural twin of this task"
+   },
+   {
+    "rank": 2,
+    "task_id": "data-querying_20260604_144210_001",
+    "skill": 4,
+    "domain": 3,
+    "task_form": 5,
+    "overall": 4,
+    "reason": "Cohort analysis query saved to a file, reporting only cohorts with at least 5 customers - threshold-on-a-count exactly like the >10 students criterion"
+   },
+   {
+    "rank": 3,
+    "task_id": "data-querying_20260511_015840_001",
+    "skill": 4,
+    "domain": 4,
+    "task_form": 4,
+    "overall": 4,
+    "reason": "Aggregate budget over managers, salaries and departments - the same employee/department entity model with roll-up"
+   },
+   {
+    "rank": 4,
+    "task_id": "data-querying_20260604_193356_001",
+    "skill": 4,
+    "domain": 3,
+    "task_form": 5,
+    "overall": 4,
+    "reason": "Filter rows by validity window against a fixed reference date and save the query to /app/solution.sql - the 'use this date as today' rule"
+   },
+   {
+    "rank": 5,
+    "task_id": "data-querying_20260510_054909_001",
+    "skill": 4,
+    "domain": 3,
+    "task_form": 4,
+    "overall": 3,
+    "reason": "Recursive parts explosion that must detect and exclude cycles - multi-hop traversal expressed declaratively"
+   },
+   {
+    "rank": 6,
+    "task_id": "data-querying_20260604_003113_001",
+    "skill": 4,
+    "domain": 3,
+    "task_form": 4,
+    "overall": 3,
+    "reason": "Project stock-out risk relative to an explicit reference date; date arithmetic inside a saved query"
+   },
+   {
+    "rank": 7,
+    "task_id": "data-querying_20260605_015435_001",
+    "skill": 4,
+    "domain": 3,
+    "task_form": 4,
+    "overall": 3,
+    "reason": "Hierarchy of uneven depth where leaves are defined by absence of children - the same 'exists at least one child' pattern"
+   },
+   {
+    "rank": 8,
+    "task_id": "data-querying_20260502_090008_001",
+    "skill": 4,
+    "domain": 3,
+    "task_form": 4,
+    "overall": 3,
+    "reason": "Find every node that participates in a cycle and emit sorted ids; graph reachability as a query"
+   },
+   {
+    "rank": 9,
+    "task_id": "data-querying_20260508_045800_001",
+    "skill": 3,
+    "domain": 3,
+    "task_form": 4,
+    "overall": 3,
+    "reason": "Shortest path over a derived bidirectional edge view; traversal plus deduplication in SQL"
+   },
+   {
+    "rank": 10,
+    "task_id": "data-querying_20260603_181444_001",
+    "skill": 3,
+    "domain": 3,
+    "task_form": 4,
+    "overall": 3,
+    "reason": "Customer segmentation query saved to a solution file with a prescribed result shape"
+   }
+  ]
+ },
+ "final_top10": [
+  {
+   "rank": 1,
+   "task_id": "data-querying_20260617_104707_001",
+   "skill": 5,
+   "domain": 5,
+   "task_form": 5,
+   "overall": 5,
+   "reason": "SPARQL over a Turtle ontology of employees and departments, saved to /app/solution.sparql, with DISTINCT counts and a multi-hop criterion - the same task in a different domain",
+   "source": "CalibForge"
+  },
+  {
+   "rank": 2,
+   "task_id": "task_002880_220861be",
+   "skill": 5,
+   "domain": 5,
+   "task_form": 4,
+   "overall": 4,
+   "reason": "Repair a SPARQL query whose missing join explodes results and add GROUP BY aggregation over employees and departments",
+   "source": "TMax-15K"
+  },
+  {
+   "rank": 3,
+   "task_id": "task_002912_e1cb19ea",
+   "skill": 5,
+   "domain": 5,
+   "task_form": 4,
+   "overall": 4,
+   "reason": "Write a valid SPARQL graph-pattern query from scratch; the query text is the deliverable",
+   "source": "TMax-15K"
+  },
+  {
+   "rank": 4,
+   "task_id": "data-querying_20260604_144210_001",
+   "skill": 4,
+   "domain": 3,
+   "task_form": 5,
+   "overall": 4,
+   "reason": "Declarative query saved to a file that keeps only groups above a count threshold - the >10-enrolled-students clause",
+   "source": "CalibForge"
+  },
+  {
+   "rank": 5,
+   "task_id": "task_002724_89ace20f",
+   "skill": 4,
+   "domain": 5,
+   "task_form": 4,
+   "overall": 4,
+   "reason": "Infer an unfamiliar Turtle schema and then query it - this TB task also gives you only the .ttl to learn the ontology from",
+   "source": "TMax-15K"
+  },
+  {
+   "rank": 6,
+   "task_id": "data-querying_20260511_015840_001",
+   "skill": 4,
+   "domain": 4,
+   "task_form": 4,
+   "overall": 4,
+   "reason": "Aggregate over an employee/manager/department model into a single saved query",
+   "source": "CalibForge"
+  },
+  {
+   "rank": 7,
+   "task_id": "data-querying_20260604_193356_001",
+   "skill": 4,
+   "domain": 3,
+   "task_form": 5,
+   "overall": 4,
+   "reason": "Validity filtering against a fixed 'today' date inside a saved solution query",
+   "source": "CalibForge"
+  },
+  {
+   "rank": 8,
+   "task_id": "task_004227_00e8d97f",
+   "skill": 4,
+   "domain": 5,
+   "task_form": 3,
+   "overall": 3,
+   "reason": "rdflib plus SPARQL to trace multi-hop relationships in an access graph",
+   "source": "TMax-15K"
+  },
+  {
+   "rank": 9,
+   "task_id": "data-querying_20260510_054909_001",
+   "skill": 4,
+   "domain": 3,
+   "task_form": 4,
+   "overall": 3,
+   "reason": "Recursive traversal with cycle exclusion expressed declaratively; the hardest join reasoning in the SQL family",
+   "source": "CalibForge"
+  },
+  {
+   "rank": 10,
+   "task_id": "task_001641_fc8cebd5",
+   "skill": 3,
+   "domain": 5,
+   "task_form": 3,
+   "overall": 3,
+   "reason": "Query a Turtle file with Jena's sparql CLI; same language, and the query must be written by hand",
+   "source": "TMax-15K"
+  }
+ ],
+ "notes": "TMax is genuinely strong here - it has a real RDF/SPARQL family (rdflib, Jena, Turtle graphs, fixing a cross-joined SPARQL query) that retrieval had mostly buried; four of the final ten are TMax. CalibForge adds the single closest task in the whole pool (a SPARQL query over a Turtle org ontology written to /app/solution.sparql) plus a large data-querying family whose deliverable is likewise one saved declarative query with threshold, reference-date and recursion clauses, so it takes six slots. Terminal-Lego contributes nothing about RDF and only pandas-level filtering and joining; its ten are honest but weak (mostly 2s). TerminalWorld and Recursive-Task-Synthesis could not field ten defensible candidates either - their query content is schema creation, KSQL join snippets and table dumps, and their two best joins are FREE and absent respectively. SWE-Smith's value is SQL/Turtle parsers (pygments' Turtle lexer is the only RDF-syntax task outside TMax/CalibForge); SWE-Rebench offers only query-adjacent library bugs and scores low on task_form as expected."
+}

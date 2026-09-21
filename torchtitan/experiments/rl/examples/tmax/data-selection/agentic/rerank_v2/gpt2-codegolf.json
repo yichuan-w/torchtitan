@@ -1,0 +1,773 @@
+{
+ "tb21_id": "gpt2-codegolf",
+ "tb21_profile": {
+  "skill": "Write a single dependency-free C file, under a hard byte budget, that parses an undocumented binary weight file plus a BPE merge table and reimplements a published model's forward pass numerically correctly",
+  "domain": "Transformer/LLM internals (attention, layernorm, GELU, argmax decoding), BPE tokenisation, TensorFlow checkpoint binary layout, plain C with only libm",
+  "task_form": "implement-from-spec under a size budget, graded on exact generated output"
+ },
+ "verifier_notes": "No grade overturned. software-engineering_20260601_053159_010 (dependency-free C Huffman codec) belongs to the same CalibForge template family but is graded FREE, so I left it out of per_source rather than rank an unverifiable member of an otherwise strong family.",
+ "searches": [
+  "tools.py search all '(?i)gpt-?2|transformer (model|block|architecture)|self-attention|softmax.{0,30}attention|tokenizer|\\bBPE\\b|byte.pair'",
+  "tools.py search all '(?i)code ?golf|fewest (bytes|characters)|under \\d+ bytes|byte limit|smallest possible (program|binary)'",
+  "tools.py search tmax '(?i)neural network|from scratch (in|using) c|matrix multiplication|inference (engine|in c)|numpy-free|without (numpy|any libraries)|forward pass'",
+  "tools.py search tmax '(?i)\\.ckpt|checkpoint file|model weights|float32 .{0,30}binary|little-endian float'",
+  "tools.py search tw '(?i)llama|ggml|onnx|tensorflow|pytorch|inference|neural|\\bmodel\\b.{0,30}(weights|checkpoint|predict)'",
+  "tools.py search tw '(?i)write a c (program|file)|implement.{0,30}(in c|from scratch)|assembly program|parse.{0,20}(binary|elf|format)|float'",
+  "tools.py search rebench '(?i)transformers|tokenizers|safetensors|huggingface|\\bgpt\\b|attention|embedding layer'",
+  "tools.py search smith '(?i)float(ing)? point|precision|matrix|tensor|struct\\.unpack|binary format|encode.{0,20}bytes'",
+  "tools.py search rts '(?i)write a c (program|file)|implement .{0,30}(algorithm|from scratch)|compile .{0,20}with gcc'",
+  "grep -rlE -i 'neural network|perceptron|backpropagation|matrix multiplication|gradient descent' /data/yichuan_wang/terminal-lego-15k/*/instruction.md",
+  "grep -rlE -i 'implement.{0,30}in C|dependency-free|single.file C|no external librar' /data/yichuan_wang/terminal-lego-15k/*/instruction.md",
+  "grep -rlE -i 'parse.{0,25}binary (file|format)|read.{0,20}(float|struct).{0,20}binary|endian' /data/yichuan_wang/terminal-lego-15k/*/instruction.md",
+  "grep -rlE -i 'transformer|attention|gpt-?2|BPE|checkpoint|safetensors|matmul|inference engine' /data/yichuan_wang/calibforge/*/*/instruction.md"
+ ],
+ "per_source": {
+  "TMax-15K": [
+   {
+    "rank": 1,
+    "task_id": "task_001973_2cb06dfa",
+    "skill": 4,
+    "domain": 4,
+    "task_form": 4,
+    "overall": 4,
+    "reason": "C program that reads model weights off disk and scores cleaned data; a C inference path driven by a weights file, strongly verified."
+   },
+   {
+    "rank": 2,
+    "task_id": "task_000513_d8761e46",
+    "skill": 4,
+    "domain": 5,
+    "task_form": 4,
+    "overall": 4,
+    "reason": "Build the C tokenizer that feeds a custom C LLM inference engine, and benchmark it; tokenisation in C for exactly this pipeline."
+   },
+   {
+    "rank": 3,
+    "task_id": "task_002456_4ccbfc84",
+    "skill": 4,
+    "domain": 4,
+    "task_form": 4,
+    "overall": 4,
+    "reason": "Load a weight matrix and bias vector and implement ReLU(XW+b) by hand; the matmul-plus-nonlinearity core of a forward pass."
+   },
+   {
+    "rank": 4,
+    "task_id": "task_001055_12691339",
+    "skill": 4,
+    "domain": 4,
+    "task_form": 4,
+    "overall": 4,
+    "reason": "Reproduce a lost binary's float32 output exactly, writing the same little-endian layout; byte-exact numerical reimplementation."
+   },
+   {
+    "rank": 5,
+    "task_id": "task_002304_968b2431",
+    "skill": 4,
+    "domain": 3,
+    "task_form": 4,
+    "overall": 4,
+    "reason": "Match an oracle's binary output byte for byte - magic header then packed 32-bit little-endian floats - under fuzz comparison."
+   },
+   {
+    "rank": 6,
+    "task_id": "task_000295_cd672edd",
+    "skill": 4,
+    "domain": 3,
+    "task_form": 4,
+    "overall": 3,
+    "reason": "Implement a Metropolis-Hastings sampler from scratch in C over a CSV; numerically correct algorithm in plain C, strong verifier."
+   },
+   {
+    "rank": 7,
+    "task_id": "task_002348_53e61df1",
+    "skill": 3,
+    "domain": 4,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Read weights from a file and chain matrix multiplications to a scalar score; small but the same weights-to-prediction arithmetic."
+   },
+   {
+    "rank": 8,
+    "task_id": "task_000815_ccae7035",
+    "skill": 3,
+    "domain": 3,
+    "task_form": 4,
+    "overall": 3,
+    "reason": "Implement KNN from scratch in C with cross-validation and a specified tie-break; algorithm-from-description in C."
+   },
+   {
+    "rank": 9,
+    "task_id": "task_003644_d3ffecd2",
+    "skill": 3,
+    "domain": 5,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Train a byte-pair-encoding tokenizer from scratch; BPE merge semantics, which the C program must apply at inference time."
+   },
+   {
+    "rank": 10,
+    "task_id": "task_000617_8d68af4e",
+    "skill": 3,
+    "domain": 4,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Recreate a lost script from recovered .npz weights - infer the architecture from the weight tensors alone, as reading a ckpt requires."
+   }
+  ],
+  "Recursive-Task-Synthesis": [
+   {
+    "rank": 1,
+    "task_id": "rts_task_137409e0e90b4f6f7d2881d7",
+    "skill": 3,
+    "domain": 2,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Write a decoder for 7-bit binary lines with a configurable offset and a CLI; bit-level decoding into text, small but real."
+   },
+   {
+    "rank": 2,
+    "task_id": "rts_task_8e3fbd7137a562fd4f247aa5",
+    "skill": 3,
+    "domain": 3,
+    "task_form": 3,
+    "overall": 2,
+    "reason": "C program using clone(CLONE_NEWPID) and reboot() that must adapt to the running kernel; genuine low-level C, not boilerplate."
+   },
+   {
+    "rank": 3,
+    "task_id": "rts_task_9dcbbd5e2f46b4a4d7019e95",
+    "skill": 2,
+    "domain": 3,
+    "task_form": 3,
+    "overall": 2,
+    "reason": "C program with a precise fork/exec/wait output protocol; exact stdout from hand-written C."
+   },
+   {
+    "rank": 4,
+    "task_id": "rts_task_be70f4026b0254db1d6f9ad8",
+    "skill": 2,
+    "domain": 3,
+    "task_form": 3,
+    "overall": 2,
+    "reason": "C program whose output must match a reference file exactly, with no trailing newline - byte-exact output discipline."
+   },
+   {
+    "rank": 5,
+    "task_id": "rts_task_025527e53aed88f4afb90237",
+    "skill": 2,
+    "domain": 3,
+    "task_form": 3,
+    "overall": 2,
+    "reason": "Second clone/reboot variant; same systems-C skill, slightly different verification story."
+   },
+   {
+    "rank": 6,
+    "task_id": "rts_task_3ccce33b31f0028b9b412ad3",
+    "skill": 2,
+    "domain": 4,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Set up and run an MNIST similarity tool that renders digits; touches model inference but only as a user of the tool."
+   },
+   {
+    "rank": 7,
+    "task_id": "rts_task_945e147d1c700438e3be05f6",
+    "skill": 2,
+    "domain": 4,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Run an image-similarity classifier, fixing the script until it works; ML domain, debugging rather than implementation."
+   },
+   {
+    "rank": 8,
+    "task_id": "rts_task_bfd372c85082abdea9c0f591",
+    "skill": 2,
+    "domain": 2,
+    "task_form": 3,
+    "overall": 2,
+    "reason": "Compile and run a numeric C program and match a reference output exactly; float formatting matters, nothing else does."
+   },
+   {
+    "rank": 9,
+    "task_id": "rts_task_f23e5165af22ca977d521f8f",
+    "skill": 1,
+    "domain": 2,
+    "task_form": 2,
+    "overall": 1,
+    "reason": "C program that must pick up a value at build time; build plumbing, essentially the corpus's num: 599 boilerplate."
+   },
+   {
+    "rank": 10,
+    "task_id": "rts_task_ef260c157b918772826896e9",
+    "skill": 1,
+    "domain": 2,
+    "task_form": 2,
+    "overall": 1,
+    "reason": "Multi-file C program built through a provided build system; included to fill the quota, transfers almost nothing."
+   }
+  ],
+  "TerminalWorld-Seeds-Clean": [
+   {
+    "rank": 1,
+    "task_id": "tw_125169",
+    "skill": 3,
+    "domain": 3,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Demonstrate exact accumulation against IEEE float error on linear systems; the numerical-precision reasoning an argmax forward pass needs. Strong verifier."
+   },
+   {
+    "rank": 2,
+    "task_id": "tw_463661",
+    "skill": 3,
+    "domain": 3,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Perform a series of fixed-point and floating-point conversions with exact expected values; number-representation work."
+   },
+   {
+    "rank": 3,
+    "task_id": "tw_346220",
+    "skill": 3,
+    "domain": 3,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Hand-write an assembly program against a simulator's instruction set to produce a required machine state; low-level exactness."
+   },
+   {
+    "rank": 4,
+    "task_id": "tw_117921",
+    "skill": 3,
+    "domain": 2,
+    "task_form": 3,
+    "overall": 2,
+    "reason": "Feed prefix expressions to an evaluator and capture exact output including the error case; parse-and-evaluate with pinned results."
+   },
+   {
+    "rank": 5,
+    "task_id": "tw_712764",
+    "skill": 2,
+    "domain": 3,
+    "task_form": 3,
+    "overall": 2,
+    "reason": "ARM64 assembly that rewrites a string byte by byte; manual buffer manipulation with an exactly specified output."
+   },
+   {
+    "rank": 6,
+    "task_id": "tw_713358",
+    "skill": 2,
+    "domain": 3,
+    "task_form": 3,
+    "overall": 2,
+    "reason": "ARM64 assembly producing the first ten Fibonacci numbers; loop and output formatting at the instruction level."
+   },
+   {
+    "rank": 7,
+    "task_id": "tw_285548",
+    "skill": 2,
+    "domain": 3,
+    "task_form": 3,
+    "overall": 2,
+    "reason": "Compile and run a C program that prints square roots in a fixed format; libm plus exact output formatting, nothing more."
+   },
+   {
+    "rank": 8,
+    "task_id": "tw_18273",
+    "skill": 2,
+    "domain": 4,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Train a model on a split and emit predictions to a file; model inference domain, driven entirely by an existing tool."
+   },
+   {
+    "rank": 9,
+    "task_id": "tw_323887",
+    "skill": 2,
+    "domain": 4,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Compute cosine similarity between word vectors from two models; embedding arithmetic, but library-driven."
+   },
+   {
+    "rank": 10,
+    "task_id": "tw_177994",
+    "skill": 1,
+    "domain": 2,
+    "task_form": 2,
+    "overall": 1,
+    "reason": "Write and compile a trivial C program printing a fixed integer; quota filler."
+   }
+  ],
+  "SWE-Smith-Seeds-Clean": [
+   {
+    "rank": 1,
+    "task_id": "facebookresearch__fvcore.a491d5b9.func_pm_op_swap__bybhuobu",
+    "skill": 3,
+    "domain": 4,
+    "task_form": 2,
+    "overall": 3,
+    "reason": "A loss formula transcribed with operands swapped returns the wrong number; getting a published formula exactly right is this task's core risk."
+   },
+   {
+    "rank": 2,
+    "task_id": "facebookresearch__fvcore.a491d5b9.combine_module__zkwkfq69",
+    "skill": 3,
+    "domain": 4,
+    "task_form": 2,
+    "overall": 3,
+    "reason": "smooth_l1_loss produces completely wrong values; debugging a numerical kernel against known expected outputs."
+   },
+   {
+    "rank": 3,
+    "task_id": "facebookresearch__fvcore.a491d5b9.func_pm_ctrl_shuffle__kd43vy4l",
+    "skill": 3,
+    "domain": 4,
+    "task_form": 2,
+    "overall": 3,
+    "reason": "FLOP counting for matmul is broken; reasoning about matrix-multiply shapes and cost, the dominant op in a transformer."
+   },
+   {
+    "rank": 4,
+    "task_id": "facebookresearch__fvcore.a491d5b9.lm_rewrite__lo7njclv",
+    "skill": 3,
+    "domain": 4,
+    "task_form": 2,
+    "overall": 3,
+    "reason": "Running mean and variance accumulate incorrectly; the same running-statistics arithmetic layernorm depends on."
+   },
+   {
+    "rank": 5,
+    "task_id": "facebookresearch__fvcore.a491d5b9.combine_module__uxncj1ip",
+    "skill": 2,
+    "domain": 4,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Tensor-to-array conversion mishandles certain shapes; dimension bookkeeping, which flat C arrays make even easier to get wrong."
+   },
+   {
+    "rank": 6,
+    "task_id": "facebookresearch__fvcore.a491d5b9.combine_file__fjezb8sp",
+    "skill": 2,
+    "domain": 4,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "A squeeze-excitation module's forward pass fails on valid input; module-level forward correctness in a neural network."
+   },
+   {
+    "rank": 7,
+    "task_id": "cantools__cantools.0c6a7871.combine_module__a5qhxz82",
+    "skill": 3,
+    "domain": 3,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Bit-packed frame encoding and verification over raw bytes; the bit-and-byte layout discipline reading a checkpoint demands."
+   },
+   {
+    "rank": 8,
+    "task_id": "pdfminer__pdfminer.six.1a8bd2f7.combine_file__9pxesytc",
+    "skill": 3,
+    "domain": 2,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "LZW decoder produces wrong bytes; stateful decoding of a packed binary stream with an exact expected result."
+   },
+   {
+    "rank": 9,
+    "task_id": "hukkin__tomli.443a0c1b.combine_module__42vnkpsp",
+    "skill": 2,
+    "domain": 2,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Floats parsed as ints and vice versa; numeric literal handling, relevant only to careful float parsing."
+   },
+   {
+    "rank": 10,
+    "task_id": "amueller__word_cloud.ec24191c.func_pm_remove_loop__wukig0fw",
+    "skill": 2,
+    "domain": 3,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Token processing returns empty results; tokenisation bookkeeping, far shallower than BPE merges."
+   }
+  ],
+  "SWE-Rebench-Tasks-Clean": [
+   {
+    "rank": 1,
+    "task_id": "pandas-dev__pandas-58970",
+    "skill": 4,
+    "domain": 3,
+    "task_form": 2,
+    "overall": 3,
+    "reason": "Writing a binary file format produces an invalid file when byteorder is big and strings use the long form; endianness and layout correctness."
+   },
+   {
+    "rank": 2,
+    "task_id": "d0c-s4vage__pfp-112",
+    "skill": 4,
+    "domain": 3,
+    "task_form": 2,
+    "overall": 3,
+    "reason": "A binary-template interpreter that parses arbitrary file formats by declared struct layout - the ckpt-reading skill, in Python."
+   },
+   {
+    "rank": 3,
+    "task_id": "huggingface__transformers-36497",
+    "skill": 2,
+    "domain": 5,
+    "task_form": 2,
+    "overall": 3,
+    "reason": "Seeding the language-modeling data collator; same library and model family, but the fix is plumbing rather than architecture."
+   },
+   {
+    "rank": 4,
+    "task_id": "pyccel__pyccel-2158",
+    "skill": 3,
+    "domain": 3,
+    "task_form": 2,
+    "overall": 3,
+    "reason": "Generate correct C for a new return type, including its memory handling; writing C that must compile and behave exactly."
+   },
+   {
+    "rank": 5,
+    "task_id": "borgbackup__borg-8872",
+    "skill": 3,
+    "domain": 2,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Rotation-and-XOR over bit vectors has a provable degeneracy; bit-level maths reasoning of the kind tight C encodings need."
+   },
+   {
+    "rank": 6,
+    "task_id": "jcrist__msgspec-225",
+    "skill": 3,
+    "domain": 3,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Extend a serialiser's handling of a type across its binary and JSON encodings; wire-format design and exactness."
+   },
+   {
+    "rank": 7,
+    "task_id": "huggingface__transformers-36903",
+    "skill": 2,
+    "domain": 5,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Follow-up on collator seeding in the same library; GPT-2-era transformer ecosystem, shallow change."
+   },
+   {
+    "rank": 8,
+    "task_id": "hypothesisworks__hypothesis-3152",
+    "skill": 3,
+    "domain": 2,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Generating subnormal floats correctly; forces precise reasoning about IEEE-754 representation, which C float code needs."
+   },
+   {
+    "rank": 9,
+    "task_id": "pyccel__pyccel-2114",
+    "skill": 2,
+    "domain": 3,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Crash in the C code printer; debugging a tool that emits C, adjacent to writing C by hand."
+   },
+   {
+    "rank": 10,
+    "task_id": "corteva__rioxarray-559",
+    "skill": 2,
+    "domain": 2,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "An exotic raster dtype breaks chunking; typed binary buffers, but the fix is dtype plumbing."
+   }
+  ],
+  "Terminal-Lego-15k": [
+   {
+    "rank": 1,
+    "task_id": "task_12241",
+    "skill": 4,
+    "domain": 4,
+    "task_form": 3,
+    "overall": 4,
+    "reason": "Portable buffer-to-struct interpretation in C: alignment, aliasing and layout when reading records out of a byte buffer - exactly ckpt reading."
+   },
+   {
+    "rank": 2,
+    "task_id": "task_12158",
+    "skill": 4,
+    "domain": 4,
+    "task_form": 3,
+    "overall": 4,
+    "reason": "Serialise and deserialise floats across endiannesses; float32 byte order is the first thing a hand-written ckpt reader gets wrong."
+   },
+   {
+    "rank": 3,
+    "task_id": "task_13481",
+    "skill": 4,
+    "domain": 5,
+    "task_form": 4,
+    "overall": 4,
+    "reason": "Implement word2vec skip-gram with negative sampling from its description; building a published model's maths from the paper, strongly verified."
+   },
+   {
+    "rank": 4,
+    "task_id": "task_09826",
+    "skill": 3,
+    "domain": 4,
+    "task_form": 4,
+    "overall": 3,
+    "reason": "Disk-based B-tree library in C: design an on-disk binary layout and read it back through file I/O with no libraries."
+   },
+   {
+    "rank": 5,
+    "task_id": "task_13510",
+    "skill": 3,
+    "domain": 5,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Implement convolution filters from first principles rather than calling a framework; array-index arithmetic for a neural op."
+   },
+   {
+    "rank": 6,
+    "task_id": "task_11349",
+    "skill": 3,
+    "domain": 5,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Softmax versus softmax-cross-entropy, including the numerical-stability difference; the exact op before argmax sampling."
+   },
+   {
+    "rank": 7,
+    "task_id": "task_15029",
+    "skill": 3,
+    "domain": 3,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Marshal a struct out of a raw byte array; the same reinterpret-these-bytes-as-fields step, in a managed language."
+   },
+   {
+    "rank": 8,
+    "task_id": "task_09746",
+    "skill": 3,
+    "domain": 3,
+    "task_form": 4,
+    "overall": 3,
+    "reason": "Find duplicates in a large dataset under a memory ceiling; designing to a hard resource budget, like the 5000-byte limit."
+   },
+   {
+    "rank": 9,
+    "task_id": "task_15046",
+    "skill": 2,
+    "domain": 3,
+    "task_form": 3,
+    "overall": 2,
+    "reason": "Disk-backed container in C++: keep a data structure on disk and page it in; storage layout thinking, heavier machinery."
+   },
+   {
+    "rank": 10,
+    "task_id": "task_09190",
+    "skill": 2,
+    "domain": 3,
+    "task_form": 3,
+    "overall": 2,
+    "reason": "Binary tree rendering in C with exact expected output; plain-C buffer and formatting work, no numerics."
+   }
+  ],
+  "CalibForge": [
+   {
+    "rank": 1,
+    "task_id": "software-engineering_20260510_125534_010",
+    "skill": 5,
+    "domain": 4,
+    "task_form": 5,
+    "overall": 5,
+    "reason": "Dependency-free C decoder for a real binary format, at /app, compiled gcc -O3 -lm, under 5000 bytes. The identical task template."
+   },
+   {
+    "rank": 2,
+    "task_id": "model-training_20260617_051646_002",
+    "skill": 5,
+    "domain": 5,
+    "task_form": 4,
+    "overall": 5,
+    "reason": "Write a C inference engine for a trained model whose weights come from a saved data file; the ML-in-C half, strongly verified."
+   },
+   {
+    "rank": 3,
+    "task_id": "software-engineering_20260603_181444_010",
+    "skill": 5,
+    "domain": 4,
+    "task_form": 4,
+    "overall": 4,
+    "reason": "Self-contained C that reads the raw SQLite v3 file format with no library; parsing a complex undocumented container by hand, as with a ckpt."
+   },
+   {
+    "rank": 4,
+    "task_id": "software-engineering_20260509_111805_010",
+    "skill": 4,
+    "domain": 3,
+    "task_form": 5,
+    "overall": 4,
+    "reason": "Dependency-free C under 1500 bytes producing a byte-correct archive; the tightest size budget in the pool."
+   },
+   {
+    "rank": 5,
+    "task_id": "software-engineering_20260508_180627_010",
+    "skill": 4,
+    "domain": 3,
+    "task_form": 5,
+    "overall": 4,
+    "reason": "tar extractor in one C file under 3000 bytes supporting USTAR and PAX; format variants plus a byte budget at once."
+   },
+   {
+    "rank": 6,
+    "task_id": "software-engineering_20260506_213248_010",
+    "skill": 4,
+    "domain": 3,
+    "task_form": 4,
+    "overall": 4,
+    "reason": "DEFLATE decompressor in dependency-free C handling all three block types; bit-stream decoding implemented from the specification."
+   },
+   {
+    "rank": 7,
+    "task_id": "software-engineering_20260419_112101_010",
+    "skill": 4,
+    "domain": 3,
+    "task_form": 5,
+    "overall": 4,
+    "reason": "gzip compressor in C under 4000 bytes producing output other tools must accept; same budgeted single-file discipline."
+   },
+   {
+    "rank": 8,
+    "task_id": "software-engineering_20260617_210354_010",
+    "skill": 4,
+    "domain": 3,
+    "task_form": 4,
+    "overall": 4,
+    "reason": "Single-file C PNG decoder emitting exact RGBA bytes; chunk parsing, zlib inflate and filters, all by hand."
+   },
+   {
+    "rank": 9,
+    "task_id": "machine-learning_20260604_002443_002",
+    "skill": 4,
+    "domain": 5,
+    "task_form": 3,
+    "overall": 4,
+    "reason": "A custom transformer encoder with embeddings, positional encoding and attention layers to get right; the architecture this task must reimplement."
+   },
+   {
+    "rank": 10,
+    "task_id": "model-training_20260617_210354_001",
+    "skill": 4,
+    "domain": 5,
+    "task_form": 3,
+    "overall": 4,
+    "reason": "A tiny GPT-2 checkpoint whose config and weights will not load; forces understanding how the weights map onto the architecture."
+   }
+  ]
+ },
+ "final_top10": [
+  {
+   "rank": 1,
+   "task_id": "software-engineering_20260510_125534_010",
+   "source": "CalibForge",
+   "skill": 5,
+   "domain": 4,
+   "task_form": 5,
+   "overall": 5,
+   "reason": "Dependency-free C binary-format decoder at /app, gcc -O3 -lm, under 5000 bytes - the same instruction template, same constraints."
+  },
+  {
+   "rank": 2,
+   "task_id": "model-training_20260617_051646_002",
+   "source": "CalibForge",
+   "skill": 5,
+   "domain": 5,
+   "task_form": 4,
+   "overall": 5,
+   "reason": "Write a C inference engine that loads a trained model's saved weights and reproduces its predictions; the ML-in-C half exactly."
+  },
+  {
+   "rank": 3,
+   "task_id": "software-engineering_20260603_181444_010",
+   "source": "CalibForge",
+   "skill": 5,
+   "domain": 4,
+   "task_form": 4,
+   "overall": 4,
+   "reason": "Parse the raw SQLite v3 file format in self-contained C; reverse-reading a complex on-disk container with no library, like a .ckpt."
+  },
+  {
+   "rank": 4,
+   "task_id": "task_001973_2cb06dfa",
+   "source": "TMax-15K",
+   "skill": 4,
+   "domain": 4,
+   "task_form": 4,
+   "overall": 4,
+   "reason": "C program that reads model weights from a file and runs inference over input data; weights-file-to-prediction in plain C."
+  },
+  {
+   "rank": 5,
+   "task_id": "software-engineering_20260509_111805_010",
+   "source": "CalibForge",
+   "skill": 4,
+   "domain": 3,
+   "task_form": 5,
+   "overall": 4,
+   "reason": "Dependency-free C under 1500 bytes that must still emit a byte-correct format; the strictest code-golf budget available."
+  },
+  {
+   "rank": 6,
+   "task_id": "task_000513_d8761e46",
+   "source": "TMax-15K",
+   "skill": 4,
+   "domain": 5,
+   "task_form": 4,
+   "overall": 4,
+   "reason": "Build the C tokenizer feeding a custom C LLM inference engine - tokenisation in C for precisely this kind of program."
+  },
+  {
+   "rank": 7,
+   "task_id": "task_12241",
+   "source": "Terminal-Lego-15k",
+   "skill": 4,
+   "domain": 4,
+   "task_form": 3,
+   "overall": 4,
+   "reason": "Portable reinterpretation of a byte buffer as structured fields in C: alignment and aliasing, the first hazard in reading a ckpt."
+  },
+  {
+   "rank": 8,
+   "task_id": "software-engineering_20260506_213248_010",
+   "source": "CalibForge",
+   "skill": 4,
+   "domain": 3,
+   "task_form": 4,
+   "overall": 4,
+   "reason": "Implement DEFLATE decoding in C straight from the specification, all block types; spec-to-correct-bit-stream-code in one file."
+  },
+  {
+   "rank": 9,
+   "task_id": "machine-learning_20260604_002443_002",
+   "source": "CalibForge",
+   "skill": 4,
+   "domain": 5,
+   "task_form": 3,
+   "overall": 4,
+   "reason": "Get a transformer encoder's embeddings, positional encoding and attention stack correct; the architecture this task reimplements in C."
+  },
+  {
+   "rank": 10,
+   "task_id": "task_13481",
+   "source": "Terminal-Lego-15k",
+   "skill": 4,
+   "domain": 5,
+   "task_form": 4,
+   "overall": 4,
+   "reason": "Implement skip-gram with negative sampling from its description; building a published model's maths from a written spec."
+  }
+ ],
+ "notes": "CalibForge is decisive here and for an unusual reason: it contains a whole authored family built on the same instruction template as this TB2.1 task - 'write me a dependency-free C file at /app/X.c, I will compile with gcc -O3 -lm, it must be under N bytes' - applied to PNG, gzip, DEFLATE, tar, ar and the SQLite file format, almost all graded strong. Nothing in the v1 pool has that shape. Add its C-inference-engine and transformer-encoder tasks and CalibForge supplies the binary-parsing, size-budget and model-architecture axes separately; no single task in any corpus combines all three the way gpt2-codegolf does. TMax is a real second: its C-inference-from-a-weights-file and C-tokenizer tasks are the only v1 entries that put ML numerics in C. Terminal-Lego is better than its shortlist suggests - retrieval returned nothing useful, but its own search surfaces byte-buffer/endianness C tasks and a from-the-paper word2vec implementation, mostly strongly verified. Recursive-Task-Synthesis genuinely cannot field 10 defensible candidates: its C content is the repeated 'print num: 599' build exercise, so ranks 6-10 there are near-worthless and should not be selected. TerminalWorld is also thin - its best offering is float-precision and hand-written assembly, nothing ML. SWE-Smith and SWE-Rebench are ranked on numerics and binary-format domain only; the fvcore cluster is the most defensible SWE-Smith block because those bugs are wrong formulas and wrong shapes, which is the failure mode of a hand-written forward pass."
+}

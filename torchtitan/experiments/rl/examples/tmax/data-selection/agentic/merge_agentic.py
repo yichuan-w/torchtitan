@@ -18,6 +18,17 @@ from pathlib import Path
 HERE = Path(__file__).resolve().parent
 RERANK = HERE / "rerank"           # the agents' judgements (kept, not regenerable)
 OUT = HERE / "results"             # derived CSVs (regenerable from RERANK)
+VSTRENGTH = HERE / "work" / "verifier_strength.json"
+OVERRIDES = HERE / "verifier_overrides.json"
+CORPORA_V2 = [
+    "TMax-15K",
+    "Terminal-Lego-15k",
+    "CalibForge",
+    "Recursive-Task-Synthesis",
+    "TerminalWorld-Seeds-Clean",
+    "SWE-Smith-Seeds-Clean",
+    "SWE-Rebench-Tasks-Clean",
+]
 # NB: not "out" — the repo root .gitignore has a bare `out` rule that would
 # silently drop these files from every commit.
 DB = HERE / "work" / "pool.sqlite"
@@ -41,7 +52,8 @@ def load_pool() -> dict[str, tuple[str, str]]:
     }
 
 
-def check(rec: dict, pool: dict, tb_ids: set[str]) -> list[str]:
+def check(rec: dict, pool: dict, tb_ids: set[str], corpora: list[str],
+          vgrade: dict[str, str] | None = None) -> list[str]:
     bad: list[str] = []
     tb = rec.get("tb21_id")
     if tb not in tb_ids:
@@ -60,7 +72,7 @@ def check(rec: dict, pool: dict, tb_ids: set[str]) -> list[str]:
             bad.append(f"{tb}/{where}/{tid}: empty reason")
 
     per = rec.get("per_source") or {}
-    for corpus in CORPORA:
+    for corpus in corpora:
         lst = per.get(corpus) or []
         if len(lst) != 10:
             bad.append(f"{tb}/per_source/{corpus}: {len(lst)} entries, want 10")
@@ -86,6 +98,13 @@ def check(rec: dict, pool: dict, tb_ids: set[str]) -> list[str]:
         check_entry(e, "final_top10")
         if e.get("task_id") not in pool_ids:
             bad.append(f"{tb}/final_top10: {e.get('task_id')} not in per_source")
+        # v2 hard rule: a task whose whole suite is satisfiable without solving
+        # it must not reach the training mix, however well it matches.
+        if vgrade and vgrade.get(e.get("task_id")) == "FREE":
+            bad.append(
+                f"{tb}/final_top10: {e.get('task_id')} has a FREE verifier "
+                f"(rank {e.get('rank')}) - not allowed in final_top10"
+            )
     return bad
 
 
@@ -94,8 +113,22 @@ def main() -> int:
     ap.add_argument("--rerank", type=Path, default=RERANK)
     ap.add_argument("--out", type=Path, default=OUT)
     ap.add_argument("--strict", action="store_true")
+    ap.add_argument("--v2", action="store_true",
+                    help="seven-corpus pool; enforce the FREE-verifier rule")
     args = ap.parse_args()
 
+    corpora = CORPORA_V2 if args.v2 else CORPORA
+    vgrade = None
+    if args.v2 and VSTRENGTH.exists():
+        vgrade = {k: v["grade"] for k, v in json.loads(VSTRENGTH.read_text()).items()}
+        if OVERRIDES.exists():
+            ov = {k: v for k, v in json.loads(OVERRIDES.read_text()).items()
+                  if not k.startswith("_")}
+            for tid, rec in ov.items():
+                vgrade[tid] = rec.get("actually", vgrade.get(tid))
+            print(f"[merge] {len(ov)} hand-read verifier override(s) applied")
+        print(f"[merge] v2: {len(corpora)} corpora, FREE rule on "
+              f"({sum(1 for g in vgrade.values() if g == 'FREE')} FREE tasks in pool)")
     pool = load_pool()
     con = sqlite3.connect(f"file:{DB}?mode=ro", uri=True)
     tb_ids = {r[0] for r in con.execute("SELECT task_id FROM doc WHERE source='TB2.1'")}
@@ -111,7 +144,7 @@ def main() -> int:
         except Exception as exc:  # noqa: BLE001
             problems.append(f"{p.name}: unparseable ({exc})")
             continue
-        errs = check(rec, pool, tb_ids)
+        errs = check(rec, pool, tb_ids, corpora, vgrade)
         if errs:
             problems.extend(errs)
         else:
@@ -165,7 +198,7 @@ def main() -> int:
              "task_form", "overall", "reason", "preview"]
         )
         for tb in sorted(recs):
-            for corpus in CORPORA:
+            for corpus in corpora:
                 for e in sorted(recs[tb]["per_source"][corpus], key=lambda x: x["rank"]):
                     w.writerow(
                         [tb, corpus, e["rank"], e["task_id"], e["skill"], e["domain"],

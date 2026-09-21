@@ -1,0 +1,122 @@
+{
+  "tb21_id": "mteb-leaderboard",
+  "tb21_profile": {
+    "skill": "Aggregate a sparse benchmark results table, keep only rows with complete task coverage, compute the mean-over-tasks, argmax it, and emit one exact identifier string",
+    "domain": "ML evaluation / embedding-model leaderboards (MTEB, HuggingFace org/model ids), pandas-style tabular aggregation",
+    "task_form": "data-analysis question-answering: read semi-structured results, filter + aggregate, write a single pinned answer to /app/result.txt"
+  },
+  "verifier_notes": "Checked data-science_20260513_204848_003 (CalibForge, graded 'ok'): tests/test_outputs.py pins audit_report.json structure and the corrected ranking order, so 'ok' is fair, arguably under-graded. Terminal-Lego task_14631 is graded 'weak' only because most of its 18 checks are file/exec checks around a verify.sh; the SQL COALESCE behaviour it targets is genuinely pinned by two value assertions. No FREE candidate was placed in final_top10; FREE ones seen in the shortlist (data-science_20260615_143301_004, tw_733941, tw_240515, tw_101457, task_13208, task_01420) were excluded from per_source as well where a non-FREE equivalent existed.",
+  "searches": [
+    "tools.py search rts \"leaderboard|highest (mean|average) score|best[- ]performing model\"",
+    "tools.py search rts \"aggregate.{0,40}(csv|json).{0,60}(mean|average|highest|max)\"",
+    "tools.py words rts benchmark results aggregate ranking model scores average csv",
+    "tools.py search rts \"which .{0,40}(has|have) the highest|the name of the (best|top|highest)|top-scoring\"",
+    "tools.py search rts \"highest[- ]?(scoring|rated|ranked|value|average|mean)\"",
+    "tools.py search rts \"sentence-transformers|embedding model|MTEB|huggingface\"",
+    "tools.py search tw \"pandas|dataframe|\\.csv\"",
+    "tools.py search smith \"groupby|aggregat|nanmean|mean\\(\\)|missing values|NaN\"",
+    "sqlite: select task_id from doc where source like 'SWE-Smith%' and (task_id like 'pandas-dev%' or task_id like 'iterative__dvc%')",
+    "sqlite: select task_id from doc where source like 'SWE-Rebench%' (filtered to benchopt/evalml/mlxtend/pandas/sklearn projects)",
+    "grep terminal-lego-15k instructions: \"leaderboard|groupby|pivot_table|rank the models|highest average|aggregate.{0,20}csv\"",
+    "grep terminal-lego-15k instructions: \"json files? in (a|the) directory|iterate over .{0,30}subdirector|aggregate .{0,30}results\""
+  ],
+  "per_source": {
+    "TMax-15K": [
+      {"rank": 1, "task_id": "task_008938_9ee68be3", "skill": 4, "domain": 4, "task_form": 4, "overall": 4, "reason": "Parse per-model benchmark JSONL, filter on an accuracy threshold, argmax on efficiency, write one model id: same filter-then-argmax core."},
+      {"rank": 2, "task_id": "task_003685_7502ce0e", "skill": 4, "domain": 4, "task_form": 4, "overall": 4, "reason": "Group experiment runs by config, find the best-scoring configuration and act on it; same group-aggregate-argmax over a results table."},
+      {"rank": 3, "task_id": "task_004300_d95264b2", "skill": 4, "domain": 4, "task_form": 4, "overall": 4, "reason": "Score several models against ground truth, rank them, identify the best performer; identical evaluate-then-rank reasoning over per-model files."},
+      {"rank": 4, "task_id": "task_008279_e6f50253", "skill": 3, "domain": 4, "task_form": 3, "overall": 3, "reason": "Clean messy run metadata then recommend the best configuration; teaches handling dirty/incomplete experiment records before ranking."},
+      {"rank": 5, "task_id": "task_002566_b81d3a5f", "skill": 3, "domain": 4, "task_form": 4, "overall": 3, "reason": "Validate per-model prediction CSVs in a directory and compare them; same per-model-directory traversal and metric computation."},
+      {"rank": 6, "task_id": "task_004606_fe9b1f8e", "skill": 3, "domain": 4, "task_form": 3, "overall": 3, "reason": "Recover missing evaluation metrics for models that lack them, then compare; directly about incomplete leaderboard coverage."},
+      {"rank": 7, "task_id": "task_008677_892d4639", "skill": 3, "domain": 3, "task_form": 3, "overall": 3, "reason": "Aggregate per-model log files into a score and pick the most promising model; same argmax-over-models, shell instead of pandas."},
+      {"rank": 8, "task_id": "task_002877_a3d22d79", "skill": 3, "domain": 3, "task_form": 3, "overall": 3, "reason": "Parse two models' benchmark logs and decide statistically which is faster; comparison methodology over benchmark measurements."},
+      {"rank": 9, "task_id": "task_001972_d9f3061a", "skill": 2, "domain": 4, "task_form": 3, "overall": 2, "reason": "Experiment-metrics table plus similarity search, but the crux is writing Go embedding code, not coverage-aware ranking."},
+      {"rank": 10, "task_id": "task_009829_eeab4f65", "skill": 2, "domain": 4, "task_form": 2, "overall": 2, "reason": "Sentence-transformers embedding pipeline: shares the embedding-model ecosystem only; no aggregation or ranking is required."}
+    ],
+    "Recursive-Task-Synthesis": [
+      {"rank": 1, "task_id": "rts_task_29c20a5002fcdedd47ed041b", "skill": 4, "domain": 2, "task_form": 4, "overall": 3, "reason": "Counts per event_type then aggregate_stats.json with most_frequent/least_frequent: literal argmax/argmin over an aggregated table plus derived means."},
+      {"rank": 2, "task_id": "rts_task_9bdf1d9e76e4e9f89fd97f60", "skill": 3, "domain": 2, "task_form": 4, "overall": 3, "reason": "Schema-validate two CSVs, join, group by type, emit count/total/average report; same validate-then-aggregate discipline."},
+      {"rank": 3, "task_id": "rts_task_2a4654f2ad761517b8da4930", "skill": 3, "domain": 2, "task_form": 4, "overall": 3, "reason": "Must detect and correct schema-violating rows before aggregating; closest RTS analogue to excluding incomplete leaderboard rows."},
+      {"rank": 4, "task_id": "rts_task_17abb498e947da0e8495d8e3", "skill": 3, "domain": 2, "task_form": 3, "overall": 3, "reason": "Inner-join two tables, group by category, compute count/total/average; the mechanical core of the leaderboard computation."},
+      {"rank": 5, "task_id": "rts_task_d8bae9131753ffb9d1474ad2", "skill": 3, "domain": 2, "task_form": 3, "overall": 3, "reason": "Inspect CSVs, report row/column coverage, then aggregate: rewards checking data completeness before reporting numbers."},
+      {"rank": 6, "task_id": "rts_task_7493e4ba507eae6813cf2e77", "skill": 3, "domain": 2, "task_form": 3, "overall": 2, "reason": "Join colonies to planets and compute per-type population statistics via a script; same groupby-aggregate, unrelated subject matter."},
+      {"rank": 7, "task_id": "rts_task_30abe4d5a3a0b99c5e3d6d8e", "skill": 2, "domain": 2, "task_form": 3, "overall": 2, "reason": "Same join-and-aggregate but output is an xlsx workbook; formatting work dominates over the aggregation reasoning."},
+      {"rank": 8, "task_id": "rts_task_d80fd4ec92835a6c522b5231", "skill": 2, "domain": 2, "task_form": 3, "overall": 2, "reason": "Two-CSV join and per-type summary; shorter and more formulaic than the TB2.1 task, little coverage reasoning."},
+      {"rank": 9, "task_id": "rts_task_f46b83054ee4dd45487b73a1", "skill": 2, "domain": 2, "task_form": 3, "overall": 2, "reason": "Summary workbook from the same colonies data plus keeping the generating script; mostly boilerplate report production."},
+      {"rank": 10, "task_id": "rts_task_eab6205971c16154d4c2b493", "skill": 2, "domain": 4, "task_form": 2, "overall": 2, "reason": "CADE embedding-shift measurement: shares the embedding-model domain only; the actual work is git archaeology for a hyperparameter."}
+    ],
+    "TerminalWorld-Seeds-Clean": [
+      {"rank": 1, "task_id": "tw_647708", "skill": 4, "domain": 2, "task_form": 4, "overall": 3, "reason": "Join two CSVs and compute per-area statistics restricted to a qualifying subset; same filter-then-group-aggregate over tabular records."},
+      {"rank": 2, "task_id": "tw_276310", "skill": 3, "domain": 3, "task_form": 4, "overall": 3, "reason": "Compute column-wise means over a ROOT TTree and emit an exact JSON answer; mean-over-many-columns plus pinned single output."},
+      {"rank": 3, "task_id": "tw_487175", "skill": 3, "domain": 3, "task_form": 3, "overall": 3, "reason": "Drop rows containing NaN before analysis; the missing-value handling that decides the MTEB answer, in miniature."},
+      {"rank": 4, "task_id": "tw_500710", "skill": 3, "domain": 3, "task_form": 3, "overall": 3, "reason": "Run a benchmark repeatedly, trim outliers and compute the mean per variant, then compare; benchmark-aggregation methodology."},
+      {"rank": 5, "task_id": "tw_21631", "skill": 3, "domain": 2, "task_form": 3, "overall": 2, "reason": "Pandas filter to selected categories and add a derived column; same library and filtering step, no ranking."},
+      {"rank": 6, "task_id": "tw_139449", "skill": 2, "domain": 2, "task_form": 3, "overall": 2, "reason": "JSON to CSV to SQLite with aggregate queries over the loaded table; strongest-verified TW tabular-aggregation task."},
+      {"rank": 7, "task_id": "tw_718060", "skill": 2, "domain": 3, "task_form": 3, "overall": 2, "reason": "Profile a model and write parameter/computation statistics tables; model-evaluation reporting but no cross-model comparison."},
+      {"rank": 8, "task_id": "tw_323887", "skill": 2, "domain": 4, "task_form": 2, "overall": 2, "reason": "Train CADE embedding models and write a cosine similarity float; embedding domain, but the skill is running a library."},
+      {"rank": 9, "task_id": "tw_12673", "skill": 2, "domain": 2, "task_form": 3, "overall": 2, "reason": "Transform one CSV into another with derived columns; basic tabular manipulation, far shallower than the TB2.1 task."},
+      {"rank": 10, "task_id": "tw_11045", "skill": 2, "domain": 2, "task_form": 2, "overall": 2, "reason": "Parse a three-field CSV into a nested dict; only the record-parsing step transfers, nothing about aggregation or ranking."}
+    ],
+    "SWE-Smith-Seeds-Clean": [
+      {"rank": 1, "task_id": "pandas-dev__pandas.95280573.func_pm_ctrl_shuffle__1mx4n8rs", "skill": 4, "domain": 4, "task_form": 2, "overall": 3, "reason": "Group-index computation returns wrong results with many grouping columns: debugging the exact pandas groupby machinery the leaderboard aggregation relies on."},
+      {"rank": 2, "task_id": "pandas-dev__pandas.95280573.func_pm_ctrl_invert_if__22ebqrfs", "skill": 3, "domain": 4, "task_form": 2, "overall": 3, "reason": "pivot_table failure when unstacking; the model-by-task pivot is exactly the reshape the MTEB answer needs."},
+      {"rank": 3, "task_id": "iterative__dvc.1d6ea681.pr_10034", "skill": 3, "domain": 4, "task_form": 2, "overall": 3, "reason": "Numeric experiment results wrongly coerced to None: missing values corrupting an experiment-results table, the same failure mode."},
+      {"rank": 4, "task_id": "pandas-dev__pandas.95280573.pr_48966", "skill": 3, "domain": 4, "task_form": 2, "overall": 3, "reason": "DataFrame.compare misses differences with nullable Int64; reasoning about NA semantics when comparing result tables."},
+      {"rank": 5, "task_id": "pandas-dev__pandas.95280573.pr_57116", "skill": 3, "domain": 4, "task_form": 2, "overall": 3, "reason": "value_counts with sort=False returns wrongly ordered results; ordering bugs in aggregation output are the leaderboard's failure class."},
+      {"rank": 6, "task_id": "iterative__dvc.1d6ea681.pr_5839", "skill": 2, "domain": 4, "task_form": 2, "overall": 2, "reason": "metrics show --precision ignored; same territory of rendering model-metric tables, but the fix is cosmetic plumbing."},
+      {"rank": 7, "task_id": "pandas-dev__pandas.95280573.combine_file__5n84dyfn", "skill": 3, "domain": 4, "task_form": 2, "overall": 2, "reason": "pd.concat broken by removed assignments; concatenating per-model result frames is the first step of the TB2.1 task."},
+      {"rank": 8, "task_id": "pandas-dev__pandas.95280573.pr_59409", "skill": 2, "domain": 4, "task_form": 2, "overall": 2, "reason": "qcut picks wrong interval bounds; numeric-binning correctness in pandas, adjacent to but not needed by the ranking task."},
+      {"rank": 9, "task_id": "iterative__dvc.1d6ea681.pr_3727", "skill": 2, "domain": 3, "task_form": 2, "overall": 2, "reason": "metrics diff vs diff JSON output inconsistency; ML-experiment tooling domain, mostly CLI output-shape reasoning."},
+      {"rank": 10, "task_id": "facebookresearch__fvcore.a491d5b9.combine_module__zkwkfq69", "skill": 2, "domain": 3, "task_form": 2, "overall": 2, "reason": "Incorrect loss computation and activation counting; debugging a wrong evaluation metric, though unrelated to table aggregation."}
+    ],
+    "SWE-Rebench-Tasks-Clean": [
+      {"rank": 1, "task_id": "alteryx__evalml-1221", "skill": 4, "domain": 5, "task_form": 3, "overall": 4, "reason": "Add a score column to AutoMLSearch.rankings/full_rankings: building a model leaderboard from per-fold scores, the TB2.1 task's own domain."},
+      {"rank": 2, "task_id": "pandas-dev__pandas-61364", "skill": 4, "domain": 4, "task_form": 2, "overall": 3, "reason": "DataFrameGroupBy.groups breaks with NaN categories and dropna=False; missing entries silently distorting group aggregation."},
+      {"rank": 3, "task_id": "pandas-dev__pandas-59999", "skill": 4, "domain": 4, "task_form": 2, "overall": 3, "reason": "groupby().value_counts broken on an all-NaN column; same all-missing-coverage edge case that decides the MTEB answer."},
+      {"rank": 4, "task_id": "benchopt__benchopt-723", "skill": 3, "domain": 4, "task_form": 2, "overall": 3, "reason": "Benchmark runner crashes on a zero objective value; correctness of an ML benchmark harness's result collection."},
+      {"rank": 5, "task_id": "pandas-dev__pandas-50440", "skill": 3, "domain": 4, "task_form": 2, "overall": 3, "reason": "Inconsistent return type from groupby-resample-count; shape/typing of aggregation results, which the leaderboard code must get right."},
+      {"rank": 6, "task_id": "benchopt__benchopt-644", "skill": 3, "domain": 4, "task_form": 2, "overall": 3, "reason": "Warm-up compilation time leaking into recorded benchmark results: making measured benchmark numbers comparable across solvers."},
+      {"rank": 7, "task_id": "rasbt__mlxtend-744", "skill": 3, "domain": 4, "task_form": 2, "overall": 3, "reason": "Swapped off-diagonal entries in McNemar's contingency table; statistical comparison of two models, subtly wrong numbers."},
+      {"rank": 8, "task_id": "alteryx__evalml-1377", "skill": 3, "domain": 4, "task_form": 2, "overall": 2, "reason": "Outlier data check reports rows instead of columns; auditing a results table along the correct axis, like per-task vs per-model coverage."},
+      {"rank": 9, "task_id": "benchopt__benchopt-381", "skill": 2, "domain": 4, "task_form": 2, "overall": 2, "reason": "Dataset name with a dot breaks every benchmark; benchmark-suite plumbing rather than result aggregation."},
+      {"rank": 10, "task_id": "alteryx__evalml-1321", "skill": 2, "domain": 4, "task_form": 2, "overall": 2, "reason": "random_state not propagated into generated pipelines; AutoML ecosystem, but reproducibility plumbing not leaderboard maths."}
+    ],
+    "Terminal-Lego-15k": [
+      {"rank": 1, "task_id": "task_08294", "skill": 4, "domain": 2, "task_form": 3, "overall": 3, "reason": "COUNT per person including people with zero appointments: the inner-join-drops-incomplete-rows trap that the MTEB coverage filter is about."},
+      {"rank": 2, "task_id": "task_13365", "skill": 3, "domain": 4, "task_form": 3, "overall": 3, "reason": "Evaluate several classifiers under several scoring metrics in one cross-validation pass; multi-model multi-metric evaluation tables."},
+      {"rank": 3, "task_id": "task_01624", "skill": 3, "domain": 2, "task_form": 3, "overall": 3, "reason": "Return all rows attaining the per-group maximum, ties included; argmax-within-group done carefully, strongly verified."},
+      {"rank": 4, "task_id": "task_03973", "skill": 3, "domain": 2, "task_form": 3, "overall": 3, "reason": "Apply multiple aggregation functions across multiple groupby columns including cross-column ones; the aggregation layer of the task."},
+      {"rank": 5, "task_id": "task_04009", "skill": 3, "domain": 2, "task_form": 3, "overall": 3, "reason": "Group, sort within groups, take top N: ranking inside an aggregated frame, the operation the leaderboard needs."},
+      {"rank": 6, "task_id": "task_14631", "skill": 3, "domain": 2, "task_form": 3, "overall": 2, "reason": "COALESCE(AVG(price),0) so empty groups score 0 instead of NULL; treating absent measurements as zero rather than skipping them."},
+      {"rank": 7, "task_id": "task_04017", "skill": 3, "domain": 2, "task_form": 2, "overall": 2, "reason": "Filter out NaN and sentinel 'N/A' string values correctly; the incomplete-record handling the MTEB task hinges on, at micro scale."},
+      {"rank": 8, "task_id": "task_04114", "skill": 2, "domain": 2, "task_form": 2, "overall": 2, "reason": "Pick the most common value per group key; simple argmax-per-group, strongly verified but very shallow."},
+      {"rank": 9, "task_id": "task_04019", "skill": 2, "domain": 2, "task_form": 2, "overall": 2, "reason": "Compute each office's percentage of its state total; normalising values against a group total before comparison."},
+      {"rank": 10, "task_id": "task_04096", "skill": 2, "domain": 2, "task_form": 2, "overall": 2, "reason": "Name aggregate output columns and flatten MultiIndex results; only the plumbing of a pandas aggregation transfers."}
+    ],
+    "CalibForge": [
+      {"rank": 1, "task_id": "data-science_20260513_204848_003", "skill": 5, "domain": 5, "task_form": 5, "overall": 5, "reason": "Embedding-model leaderboard whose ranking is wrong because models miss tasks; audit coverage, recompute, emit org/model names. Near-identical."},
+      {"rank": 2, "task_id": "data-science_20260606_153537_003", "skill": 5, "domain": 4, "task_form": 5, "overall": 5, "reason": "Highest mean accuracy under dataset filters, counting only models evaluated on at least five of them: explicit coverage-gated argmax."},
+      {"rank": 3, "task_id": "data-science_20260604_003113_003", "skill": 4, "domain": 4, "task_form": 5, "overall": 4, "reason": "Best model overall by ROC AUC across ten datasets, name written to /app/result.txt; identical aggregate-and-answer shape."},
+      {"rank": 4, "task_id": "data-science_20260615_143956_003", "skill": 4, "domain": 4, "task_form": 5, "overall": 4, "reason": "Pick the best AutoML framework accounting for dataset difficulty; forces a defensible aggregation methodology, not naive averaging."},
+      {"rank": 5, "task_id": "data-science_20260614_141608_003", "skill": 4, "domain": 4, "task_form": 5, "overall": 4, "reason": "14 classifiers x 34 datasets with a decoy results file; rank-based aggregation and choosing the right input, as MTEB requires."},
+      {"rank": 6, "task_id": "data-science_20260613_152233_003", "skill": 4, "domain": 4, "task_form": 3, "overall": 4, "reason": "Fix a script that picks the wrong best algorithm family from a benchmark DB; must derive the correct aggregation to spot the bug."},
+      {"rank": 7, "task_id": "model-training_20260603_181444_001", "skill": 3, "domain": 4, "task_form": 3, "overall": 3, "reason": "Checkpoint ranking by mean IoU is inflated by a metrics bug; distrusting a leaderboard and finding why the ordering is wrong."},
+      {"rank": 8, "task_id": "data-science_20260612_191200_003", "skill": 3, "domain": 3, "task_form": 3, "overall": 3, "reason": "Pipeline writes the wrong best category to result.txt; same find-the-best-over-grouped-CSVs answer, delivered as debugging."},
+      {"rank": 9, "task_id": "data-science_20260604_003814_003", "skill": 3, "domain": 3, "task_form": 3, "overall": 3, "reason": "Unify four heterogeneous regional exports with differing schemas before analysis; normalising inconsistent result sources."},
+      {"rank": 10, "task_id": "data-science_20260603_181444_004", "skill": 2, "domain": 3, "task_form": 3, "overall": 2, "reason": "Fix analyze.py so a Theil-Sen fit writes the right result.txt; same answer-file discipline, different statistical content."}
+    ]
+  },
+  "final_top10": [
+    {"rank": 1, "task_id": "data-science_20260513_204848_003", "source": "CalibForge", "skill": 5, "domain": 5, "task_form": 5, "overall": 5, "reason": "Embedding-model leaderboard mis-ranked because some models lack results for some tasks; audit coverage and recompute in org/model form."},
+    {"rank": 2, "task_id": "data-science_20260606_153537_003", "source": "CalibForge", "skill": 5, "domain": 4, "task_form": 5, "overall": 5, "reason": "Highest mean score with an explicit minimum-coverage filter on models; the same only-complete-models rule the MTEB question imposes."},
+    {"rank": 3, "task_id": "data-science_20260604_003113_003", "source": "CalibForge", "skill": 4, "domain": 4, "task_form": 5, "overall": 4, "reason": "Best model overall across ten datasets by a mean metric, name written to /app/result.txt; identical aggregate-then-answer form."},
+    {"rank": 4, "task_id": "data-science_20260615_143956_003", "source": "CalibForge", "skill": 4, "domain": 4, "task_form": 5, "overall": 4, "reason": "Choose the best framework with a methodology that survives uneven dataset difficulty; punishes naive mean-of-means as MTEB does."},
+    {"rank": 5, "task_id": "data-science_20260614_141608_003", "source": "CalibForge", "skill": 4, "domain": 4, "task_form": 5, "overall": 4, "reason": "Rank 14 classifiers over 34 datasets, ignore a decoy metrics file, report the winner; same read-the-right-table-and-rank discipline."},
+    {"rank": 6, "task_id": "task_008938_9ee68be3", "source": "TMax-15K", "skill": 4, "domain": 4, "task_form": 4, "overall": 4, "reason": "Filter model configs on an accuracy threshold then argmax on efficiency from a JSONL results log; filter-then-argmax over model results."},
+    {"rank": 7, "task_id": "data-science_20260613_152233_003", "source": "CalibForge", "skill": 4, "domain": 4, "task_form": 3, "overall": 4, "reason": "Fix a buggy script that reports the wrong best algorithm family from a benchmark database; requires deriving the correct aggregation."},
+    {"rank": 8, "task_id": "alteryx__evalml-1221", "source": "SWE-Rebench-Tasks-Clean", "skill": 4, "domain": 5, "task_form": 3, "overall": 4, "reason": "Extend AutoML rankings/full_rankings with a per-fold validation score; real leaderboard-construction code in the same ecosystem."},
+    {"rank": 9, "task_id": "task_003685_7502ce0e", "source": "TMax-15K", "skill": 4, "domain": 4, "task_form": 4, "overall": 4, "reason": "Group experiment runs by hyperparameter config and identify the best-scoring one; group-aggregate-argmax over an experiments CSV."},
+    {"rank": 10, "task_id": "task_004300_d95264b2", "source": "TMax-15K", "skill": 4, "domain": 4, "task_form": 4, "overall": 4, "reason": "Score several models' prediction files against ground truth and identify the best performer; per-model directory traversal plus ranking."}
+  ],
+  "notes": "CalibForge dominates this task outright: five of its shortlist entries are coverage-filtered model-ranking problems, and data-science_20260513_204848_003 is an embedding-leaderboard coverage audit in org/model format, i.e. effectively the same problem. Terminal-Lego contributed one genuinely useful angle retrieval missed (task_08294, task_14631: SQL aggregates where missing rows must count as zero rather than be dropped) but is otherwise pandas micro-demos and does not reach the final ten. Recursive-Task-Synthesis has no ML-benchmark content at all; its best offering is the colonies/planets join-and-aggregate family plus one argmax-over-counts task, all 'absent'-graded, so none is in final_top10 and none deserves to be. TerminalWorld is thin here and several of its highest-RRF hits (tw_733941, tw_240515, tw_101457) are FREE; I kept only non-FREE entries in per_source, so its tail is padded with generic CSV chores. SWE-Smith/SWE-Rebench are judged on skill+domain as instructed: the pandas groupby/NaN family is the honest transfer, and evalml-1221 is the single SWE-side entry strong enough for the final ten."
+}

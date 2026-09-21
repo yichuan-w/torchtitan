@@ -1,0 +1,132 @@
+{
+  "tb21_id": "regex-chess",
+  "tb21_profile": {
+    "skill": "Compile an exhaustively correct rule system (full chess move generation with castling, en passant, promotion and check legality) into a restricted computational substrate - an ordered list of re.sub rewrite rules - which means both knowing the rules and reasoning about what a one-pass regex rewrite chain can encode",
+    "domain": "Python `re` semantics (alternation order, backreferences, capture-group replacements, single-pass substitution), chess rules and FEN encoding, program generation",
+    "task_form": "implement-from-spec, at the deep end: emit a data artefact (JSON of regex/replacement pairs) that is itself a program, under size budgets, verified against held-out positions"
+  },
+  "verifier_notes": "The packet's `verifier` field and work/verifier_strength.json disagree on some ids (the JSON file is newer, 23:01 vs the 22:56 packets). Where they differ I used verifier_strength.json. tw_262649 is FREE in the packet but strong/0.8 in verifier_strength.json; because the disagreement is unresolved I kept it out of final_top10 and only ranked it inside per_source. tw_316425 is FREE in both and stays out of final_top10. No candidate in final_top10 is FREE under either source. software-engineering_20260612_191200_021 is a CalibForge filler task whose text literally says 'This task evaluates reliable inspection and diagnostic engineering for the regex-chess domain' while actually being a generic directory-hashing inspector - a false positive that would score high lexically; I excluded it and flag the pattern.",
+  "searches": [
+    "tools.py search tmax \"chess|FEN |Stockfish|checkmate\"",
+    "tools.py search tw \"chess|FEN |Stockfish|checkmate\"",
+    "tools.py search rts \"chess|FEN |Stockfish|checkmate\"",
+    "tools.py search tmax \"re\\.sub|regex engine|regular expression engine|backreference\"",
+    "tools.py search tw \"re\\.sub|regex engine|regular expression engine|backreference\"",
+    "tools.py search rts \"re\\.sub|regex engine|regular expression engine|backreference\"",
+    "tools.py search tmax \"regular expression|regex\"",
+    "tools.py search tmax \"interpreter|transpil|code generat\"",
+    "tools.py search tmax \"interpreter\"",
+    "tools.py search tmax \"legal move|board game|game engine|Sudoku|Game of Life|tic-tac-toe|Connect Four|Othello\"",
+    "tools.py search tw \"regex|regular expression|\\bsed\\b\"",
+    "tools.py search tw \"interpreter|emulat|solver|game|puzzle\"",
+    "tools.py search rts \"interpreter|esoteric|brainfuck|state machine\"",
+    "tools.py search smith \"regex|regular expression|re\\.compile\"",
+    "tools.py search rebench \"regex|regular expression|chess|parser combinator|grammar\"",
+    "tools.py search rebench \"chess|python-chess|sunfish\"",
+    "grep -rli \"regular expression|regex\" /data/yichuan_wang/calibforge/*/*/instruction.md",
+    "grep -rli \"rewrit|turing|brainfuck|cellular automat|state machine\" /data/yichuan_wang/calibforge/*/*/instruction.md",
+    "grep -rl \"regex, replacement\" /data/yichuan_wang/calibforge/*/*/instruction.md",
+    "grep -rli \"chess|FEN\" /data/yichuan_wang/calibforge/*/*/instruction.md",
+    "grep -rli \"chess\" /data/yichuan_wang/terminal-lego-15k/*/instruction.md",
+    "grep -rl \"re\\.sub\" /data/yichuan_wang/terminal-lego-15k/*/instruction.md"
+  ],
+  "per_source": {
+    "TMax-15K": [
+      {"rank": 1, "task_id": "task_001513_43707bfe", "skill": 4, "domain": 3, "task_form": 4, "overall": 4, "reason": "Decode a DSL, then implement its state machine and expression evaluator exactly: the same build-a-rule-engine-from-a-written-spec work as chess move generation."},
+      {"rank": 2, "task_id": "task_000029_21fde3c1", "skill": 4, "domain": 4, "task_form": 3, "overall": 4, "reason": "Explicitly 'regex alone is insufficient': implement a character-by-character state machine and survive an adversarial corpus. Directly about regex expressive limits."},
+      {"rank": 3, "task_id": "task_001481_3bacc41d", "skill": 4, "domain": 3, "task_form": 4, "overall": 3, "reason": "Reverse-engineer a stack language and write an exact interpreter for it; same must-be-exhaustively-correct semantics reproduction."},
+      {"rank": 4, "task_id": "task_000386_43121cfd", "skill": 4, "domain": 3, "task_form": 4, "overall": 3, "reason": "Implement an emulator for a custom instruction set recovered from a spec image; every opcode must be right or the tests fail."},
+      {"rank": 5, "task_id": "task_001888_1bb7782a", "skill": 3, "domain": 3, "task_form": 4, "overall": 3, "reason": "Parse a build DSL and interpret it, tracking variables and evaluating expressions; small-language semantics implemented from prose."},
+      {"rank": 6, "task_id": "task_000462_5b0f16f7", "skill": 3, "domain": 3, "task_form": 4, "overall": 3, "reason": "Write a Bash interpreter for a build-configuration DSL - implementing a language in a substrate that is a bad fit for it, like regex here."},
+      {"rank": 7, "task_id": "task_000991_0c5c2226", "skill": 3, "domain": 3, "task_form": 4, "overall": 3, "reason": "Reimplement a C math interpreter safely in Rust with identical behaviour; exact-semantics reimplementation under a new substrate."},
+      {"rank": 8, "task_id": "task_000564_70af3520", "skill": 3, "domain": 4, "task_form": 3, "overall": 3, "reason": "Strict grammar validator in C for arithmetic expressions; enforces a formal language precisely, the sub-skill regex-chess needs for FEN fields."},
+      {"rank": 9, "task_id": "task_000216_b6246864", "skill": 3, "domain": 3, "task_form": 3, "overall": 3, "reason": "Character-by-character state-machine parser in C, explicitly forbidden from using heavy regex; teaches when a scanner beats a pattern."},
+      {"rank": 10, "task_id": "task_006111_f9cc96c1", "skill": 2, "domain": 3, "task_form": 3, "overall": 2, "reason": "Port a state-machine parser from Python 2 to 3 and finish an unimplemented function; only state-machine familiarity transfers."}
+    ],
+    "Recursive-Task-Synthesis": [
+      {"rank": 1, "task_id": "rts_task_e310969f514289c50fccce04", "skill": 3, "domain": 4, "task_form": 3, "overall": 3, "reason": "Author one regex using a backreference to force a consistent separator and emit the captures as JSON; real regex construction, at toy scale."},
+      {"rank": 2, "task_id": "rts_task_c07fa2980dc69528e95337b0", "skill": 3, "domain": 4, "task_form": 3, "overall": 3, "reason": "Use rgxg to generate several regular expressions and validate a log with them; generating regexes programmatically is the core regex-chess move."},
+      {"rank": 3, "task_id": "rts_task_0c04495420f2e48d677c1a79", "skill": 3, "domain": 4, "task_form": 3, "overall": 2, "reason": "Export a single backreference-bearing regex as a module; regex-authoring practice, no state encoding."},
+      {"rank": 4, "task_id": "rts_task_3b5b346aff717426ef550d27", "skill": 2, "domain": 4, "task_form": 3, "overall": 2, "reason": "Same phone-number backreference regex family, with the spec hidden in the filesystem; regex correctness under a discovered contract."},
+      {"rank": 5, "task_id": "rts_task_527213b6bed4f9562ec6d7ad", "skill": 2, "domain": 4, "task_form": 3, "overall": 2, "reason": "Duplicate-family backreference regex validation task; only single-pattern authoring transfers."},
+      {"rank": 6, "task_id": "rts_task_95a03fc14b5b16da150d9c57", "skill": 2, "domain": 4, "task_form": 3, "overall": 2, "reason": "Another phone-regex variant in the same family; listed because RTS offers nothing deeper on regex."},
+      {"rank": 7, "task_id": "rts_task_63d750c3da07c01af15d1edb", "skill": 3, "domain": 2, "task_form": 3, "overall": 2, "reason": "Static-analysis workflow over a Brainfuck interpreter; forces reading an interpreter loop, adjacent to compiling into a restricted substrate."},
+      {"rank": 8, "task_id": "rts_task_ab99eb52d5b57e7a4eba1fc8", "skill": 2, "domain": 2, "task_form": 3, "overall": 2, "reason": "Drive a custom Lisp interpreter to solve for an unknown value; exercises reading a small-language evaluator, not writing one."},
+      {"rank": 9, "task_id": "rts_task_f5a1809ed4bd05a820771905", "skill": 2, "domain": 2, "task_form": 3, "overall": 2, "reason": "Write an EQL query script against a dataset; authoring a program in a restricted declarative language, but no rewriting semantics."},
+      {"rank": 10, "task_id": "rts_task_e34707faf01e2a0574bfb038", "skill": 2, "domain": 2, "task_form": 3, "overall": 1, "reason": "Use a supplied Lisp interpreter on a data file to compute a value; near-zero transfer beyond running an interpreter."}
+    ],
+    "TerminalWorld-Seeds-Clean": [
+      {"rank": 1, "task_id": "tw_262649", "skill": 3, "domain": 4, "task_form": 3, "overall": 3, "reason": "Generate several regular expressions with rgxg and reproduce their exact output; regex construction rather than regex use. Packet says FREE, verifier_strength.json says strong - unresolved, so per_source only."},
+      {"rank": 2, "task_id": "tw_316426", "skill": 3, "domain": 4, "task_form": 3, "overall": 2, "reason": "Write one regular expression that classifies four email strings correctly; pattern-correctness-under-test, trivially small."},
+      {"rank": 3, "task_id": "tw_362046", "skill": 3, "domain": 2, "task_form": 3, "overall": 2, "reason": "Static analysis of a C Brainfuck interpreter; requires understanding an instruction dispatch loop, adjacent to encoding computation in a minimal substrate."},
+      {"rank": 4, "task_id": "tw_42850", "skill": 3, "domain": 2, "task_form": 3, "overall": 2, "reason": "Emulate keygen logic with radare2 ESIL: run a computation in a substrate not designed for it, which is the regex-chess trick in miniature."},
+      {"rank": 5, "task_id": "tw_372371", "skill": 3, "domain": 3, "task_form": 3, "overall": 2, "reason": "Implement N-Queens: exhaustive legal-placement generation with board-attack geometry, the same combinatorial-completeness demand."},
+      {"rank": 6, "task_id": "tw_320307", "skill": 3, "domain": 2, "task_form": 3, "overall": 2, "reason": "Solve a constraint puzzle in Prolog; expressing a rule system declaratively instead of imperatively."},
+      {"rank": 7, "task_id": "tw_144971", "skill": 2, "domain": 3, "task_form": 3, "overall": 2, "reason": "Step a Sudoku solver under a debugger; board-state reasoning, no rule implementation of your own."},
+      {"rank": 8, "task_id": "tw_9913", "skill": 2, "domain": 4, "task_form": 3, "overall": 2, "reason": "Extract a field with a regular expression; only pattern authoring, one line of it."},
+      {"rank": 9, "task_id": "tw_10593", "skill": 2, "domain": 4, "task_form": 3, "overall": 2, "reason": "Regex extraction of Hangul character runs versus individual characters; teaches character-class precision, nothing structural."},
+      {"rank": 10, "task_id": "tw_479594", "skill": 2, "domain": 2, "task_form": 3, "overall": 2, "reason": "Write a minimal command interpreter shell in C; a tiny language loop, weakly related. TerminalWorld has nothing on chess or regex-as-computation."}
+    ],
+    "SWE-Smith-Seeds-Clean": [
+      {"rank": 1, "task_id": "pygments__pygments.27649ebb.pr_2367", "skill": 4, "domain": 5, "task_form": 2, "overall": 4, "reason": "The bug is operator ordering inside a lexer regex alternation - exactly the ordered-alternatives hazard that decides whether a regex rewrite chain is correct."},
+      {"rank": 2, "task_id": "pygments__pygments.27649ebb.pr_2350", "skill": 3, "domain": 5, "task_form": 2, "overall": 3, "reason": "Another Pygments lexer regex fix; lexer rule sets are ordered pattern lists, the same structure as re.json."},
+      {"rank": 3, "task_id": "erikrose__parsimonious.0d3f5f93.func_basic__kasxymrx", "skill": 3, "domain": 4, "task_form": 2, "overall": 3, "reason": "PEG parser internals in parsimonious; grammar-rule ordering and matching semantics are the parent skill of regex rule chains."},
+      {"rank": 4, "task_id": "google__textfsm.c31b6007.func_basic__ajsqn8d7", "skill": 3, "domain": 5, "task_form": 2, "overall": 3, "reason": "TextFSM is literally a state machine driven by an ordered list of regex rules - the closest architectural analogue in SWE-Smith."},
+      {"rank": 5, "task_id": "google__textfsm.c31b6007.func_pm_class_rm_funcs__ryghe69p", "skill": 3, "domain": 5, "task_form": 2, "overall": 3, "reason": "Same regex-driven state-machine engine; fixing it means reasoning about rule order and state transitions."},
+      {"rank": 6, "task_id": "erikrose__parsimonious.0d3f5f93.combine_file__40y5imtu", "skill": 3, "domain": 4, "task_form": 2, "overall": 3, "reason": "Grammar-expression evaluation bug in a PEG library; transfers reasoning about how a rule set consumes input."},
+      {"rank": 7, "task_id": "pyparsing__pyparsing.533adf47.pr_571", "skill": 3, "domain": 4, "task_form": 2, "overall": 3, "reason": "Parser-combinator semantics in pyparsing; same family of ordered-alternative matching pitfalls."},
+      {"rank": 8, "task_id": "davidhalter__parso.338a5760.lm_rewrite__aptqriuc", "skill": 3, "domain": 3, "task_form": 2, "overall": 2, "reason": "Tokenizer/parser internals for Python source; grammar-level correctness, distant from chess rules."},
+      {"rank": 9, "task_id": "lepture__mistune.bf54ef67.pr_384", "skill": 3, "domain": 4, "task_form": 2, "overall": 2, "reason": "Markdown parsing driven by regex rule tables; inline-rule ordering bugs resemble substitution-order bugs."},
+      {"rank": 10, "task_id": "stanfordnlp__string2string.c4a72f59.func_pm_op_break_chains__9bve09wo", "skill": 2, "domain": 3, "task_form": 2, "overall": 2, "reason": "Boyer-Moore string-search index bug; exact string-matching algorithm correctness, no rewriting or rule generation."}
+    ],
+    "SWE-Rebench-Tasks-Clean": [
+      {"rank": 1, "task_id": "lark-parser__lark-1003", "skill": 3, "domain": 4, "task_form": 2, "overall": 3, "reason": "Lark grammar/parser caching bug; requires understanding how a compiled grammar is serialised and replayed, the parser-generation mindset."},
+      {"rank": 2, "task_id": "pallets__werkzeug-2596", "skill": 3, "domain": 4, "task_form": 2, "overall": 3, "reason": "URL routing rule matching in Werkzeug - an ordered rule set converted to regexes, with precedence bugs of the same shape."},
+      {"rank": 3, "task_id": "pallets__werkzeug-2583", "skill": 3, "domain": 4, "task_form": 2, "overall": 2, "reason": "Another Werkzeug routing/converter issue; regex-backed rule compilation and matching order."},
+      {"rank": 4, "task_id": "hypothesisworks__hypothesis-2983", "skill": 3, "domain": 4, "task_form": 2, "overall": 2, "reason": "Hypothesis's from_regex strategy: generating strings that satisfy a regex forces reasoning about what a pattern actually accepts."},
+      {"rank": 5, "task_id": "hypothesisworks__hypothesis-3824", "skill": 3, "domain": 3, "task_form": 2, "overall": 2, "reason": "Property-based-testing internals; exhaustive-case thinking is what regex-chess needs for held-out positions."},
+      {"rank": 6, "task_id": "warpnet__salt-lint-274", "skill": 2, "domain": 4, "task_form": 2, "overall": 2, "reason": "Linter rules expressed as regexes over YAML/Jinja; rule-set maintenance, shallow."},
+      {"rank": 7, "task_id": "roskakori__pygount-55", "skill": 2, "domain": 3, "task_form": 2, "overall": 2, "reason": "Source-classification via lexing rules; pattern-driven categorisation, no state rewriting."},
+      {"rank": 8, "task_id": "ambv__black-339", "skill": 2, "domain": 3, "task_form": 2, "overall": 2, "reason": "Black's source transformation; a rewriting system over syntax trees rather than strings, weak but real analogy."},
+      {"rank": 9, "task_id": "pypa__packaging-650", "skill": 2, "domain": 3, "task_form": 2, "overall": 2, "reason": "Version-specifier grammar and regex parsing in packaging; precise pattern semantics over a small formal language."},
+      {"rank": 10, "task_id": "qiskit__qiskit-terra-9494", "skill": 2, "domain": 2, "task_form": 2, "overall": 1, "reason": "Qiskit transpiler pass ordering; rule pipelines whose order changes the result, otherwise unrelated."}
+    ],
+    "Terminal-Lego-15k": [
+      {"rank": 1, "task_id": "task_14927", "skill": 4, "domain": 5, "task_form": 4, "overall": 4, "reason": "Minimum-bit chess game encoder: to index a move you must enumerate the legal moves in each position, so full move generation is the crux."},
+      {"rank": 2, "task_id": "task_06208", "skill": 4, "domain": 5, "task_form": 3, "overall": 4, "reason": "Capture groups and build replacement strings with re.sub backreferences - the exact API the re.json pairs are written in."},
+      {"rank": 3, "task_id": "task_13538", "skill": 3, "domain": 5, "task_form": 3, "overall": 3, "reason": "Chess engine with move generation, evaluation and search; chess-rule domain, though it leans on python-chess rather than implementing the rules."},
+      {"rank": 4, "task_id": "task_06272", "skill": 4, "domain": 4, "task_form": 2, "overall": 3, "reason": "Explains why /.*/g replaces twice: zero-length-match advancement, precisely the semantics that makes a substitution chain misbehave."},
+      {"rank": 5, "task_id": "task_06277", "skill": 3, "domain": 5, "task_form": 3, "overall": 3, "reason": "Fixes broken backreference syntax in an re.sub replacement string; the single most common failure mode when hand-writing rewrite pairs."},
+      {"rank": 6, "task_id": "task_01596", "skill": 3, "domain": 5, "task_form": 3, "overall": 3, "reason": "Replace a family of numbered tags with one pattern instead of enumerating variants; the generalise-don't-enumerate pressure the 100k-pair budget imposes."},
+      {"rank": 7, "task_id": "task_06279", "skill": 3, "domain": 4, "task_form": 3, "overall": 3, "reason": "Split at positions preceding uppercase runs, which needs zero-width lookaround; positional-assertion practice."},
+      {"rank": 8, "task_id": "task_06107", "skill": 3, "domain": 4, "task_form": 3, "overall": 3, "reason": "Keep separators when splitting by regex, i.e. control exactly what a pattern consumes versus preserves - the same accounting a rewrite rule needs."},
+      {"rank": 9, "task_id": "task_13819", "skill": 2, "domain": 4, "task_form": 3, "overall": 2, "reason": "Return match positions as well as matched text in JavaScript; teaches match-object mechanics, shallow."},
+      {"rank": 10, "task_id": "task_09236", "skill": 2, "domain": 3, "task_form": 3, "overall": 2, "reason": "N-Queens optimisation on an NxN chessboard: board-attack geometry and exhaustive search, but the task is performance tuning."}
+    ],
+    "CalibForge": [
+      {"rank": 1, "task_id": "software-engineering_20260420_020307_021", "skill": 5, "domain": 5, "task_form": 5, "overall": 5, "reason": "The same artefact: a JSON list of [regex, replacement] pairs applied in a loop that must evaluate postfix Boolean expressions, under a pattern-count and size budget."},
+      {"rank": 2, "task_id": "software-engineering_20260604_002443_024", "skill": 4, "domain": 5, "task_form": 4, "overall": 4, "reason": "Implement a regex engine with Regex/Match classes; forces exact knowledge of what alternation, groups and anchoring do."},
+      {"rank": 3, "task_id": "software-engineering_20260616_094815_022", "skill": 4, "domain": 5, "task_form": 4, "overall": 4, "reason": "Write regex.c from a header's syntax contract, validated by a hidden suite; pattern-semantics mastery plus held-out testing, like re.json's unseen positions."},
+      {"rank": 4, "task_id": "software-engineering_20260604_193356_010", "skill": 4, "domain": 5, "task_form": 4, "overall": 4, "reason": "Implement match_pattern in C supporting ., *, +, character classes; backtracking-matcher semantics learned from the inside."},
+      {"rank": 5, "task_id": "software-engineering_20260610_111012_004", "skill": 4, "domain": 3, "task_form": 4, "overall": 4, "reason": "Brainfuck-to-C transpiler: compile a program from one computational substrate into another, emitting code rather than running it."},
+      {"rank": 6, "task_id": "games_20260606_172554_001", "skill": 3, "domain": 5, "task_form": 4, "overall": 4, "reason": "Walk a PGN game tree from a given FEN and aggregate every move played from that position; FEN handling plus per-position move enumeration."},
+      {"rank": 7, "task_id": "games_20260511_150433_001", "skill": 4, "domain": 3, "task_form": 4, "overall": 4, "reason": "Rush Hour solver over a 36-character board string: generate all legal piece moves from a packed string state and search - move generation on a string encoding."},
+      {"rank": 8, "task_id": "games_20260606_172622_001", "skill": 3, "domain": 5, "task_form": 3, "overall": 3, "reason": "Fix a script that reads FENs and emits best moves via Stockfish; FEN parsing and chess tooling, but the fix is plumbing."},
+      {"rank": 9, "task_id": "games_20260604_144210_001", "skill": 3, "domain": 3, "task_form": 4, "overall": 3, "reason": "Simulate Game of Life patterns from RLE files and classify them; deterministic rule application over a grid, exhaustively checked."},
+      {"rank": 10, "task_id": "games_20260604_003814_001", "skill": 3, "domain": 4, "task_form": 3, "overall": 3, "reason": "Debug a Connect Four engine that misjudges wins, draws and invalid moves; game-rule correctness with every case pinned."}
+    ]
+  },
+  "final_top10": [
+    {"rank": 1, "task_id": "software-engineering_20260420_020307_021", "source": "CalibForge", "skill": 5, "domain": 5, "task_form": 5, "overall": 5, "reason": "Same artefact and same loop: a JSON list of [regex, replacement] pairs that must evaluate postfix Boolean expressions under a pattern-count and byte budget."},
+    {"rank": 2, "task_id": "task_14927", "source": "Terminal-Lego-15k", "skill": 4, "domain": 5, "task_form": 4, "overall": 4, "reason": "Minimum-bit chess encoder: indexing a move requires enumerating the legal moves in each position, so correct move generation is the crux."},
+    {"rank": 3, "task_id": "software-engineering_20260616_094815_022", "source": "CalibForge", "skill": 4, "domain": 5, "task_form": 4, "overall": 4, "reason": "Implement regex.c from a syntax contract and pass a hidden suite; pattern semantics from the inside, judged on held-out cases."},
+    {"rank": 4, "task_id": "software-engineering_20260604_002443_024", "source": "CalibForge", "skill": 4, "domain": 5, "task_form": 4, "overall": 4, "reason": "Build a regex engine with Regex/Match classes, which forces exact knowledge of alternation order, grouping and anchoring."},
+    {"rank": 5, "task_id": "task_06208", "source": "Terminal-Lego-15k", "skill": 4, "domain": 5, "task_form": 3, "overall": 4, "reason": "Capture groups and construct replacement strings with re.sub backreferences - the precise API every entry of re.json is written in."},
+    {"rank": 6, "task_id": "software-engineering_20260610_111012_004", "source": "CalibForge", "skill": 4, "domain": 3, "task_form": 4, "overall": 4, "reason": "Brainfuck-to-C transpiler: emit a program in a second substrate rather than execute one, the same compile-into-a-restricted-target move."},
+    {"rank": 7, "task_id": "pygments__pygments.27649ebb.pr_2367", "source": "SWE-Smith-Seeds-Clean", "skill": 4, "domain": 5, "task_form": 2, "overall": 4, "reason": "Operator ordering inside a lexer regex alternation - exactly the ordered-alternative hazard that decides whether a rewrite chain is correct."},
+    {"rank": 8, "task_id": "games_20260511_150433_001", "source": "CalibForge", "skill": 4, "domain": 3, "task_form": 4, "overall": 4, "reason": "Rush Hour solver over a packed 36-character board string: enumerate all legal moves from a string-encoded position and search."},
+    {"rank": 9, "task_id": "task_001513_43707bfe", "source": "TMax-15K", "skill": 4, "domain": 3, "task_form": 4, "overall": 4, "reason": "Decode a DSL and implement its state machine and expression evaluator exactly; build-a-rule-engine-from-written-spec with no partial credit."},
+    {"rank": 10, "task_id": "task_000029_21fde3c1", "source": "TMax-15K", "skill": 4, "domain": 4, "task_form": 3, "overall": 4, "reason": "The task states regex alone is insufficient and demands a hand-rolled state machine that survives an adversarial corpus; teaches where patterns stop."}
+  ],
+  "notes": "CalibForge is decisive here: it contains a direct sibling of the TB2.1 task (software-engineering_20260420_020307_021, the same [regex, replacement] JSON program template, strong verifier) plus three regex-engine implementations. Nothing in the v1 pool came close on the regex-as-computation axis. Terminal-Lego also genuinely beats the v1 corpora: it is the only corpus with real chess tasks (task_14927, task_13538) and a cluster of substantive re.sub/backreference tasks; its weakness is depth, not relevance. TMax has no chess and no regex-as-computation - `search tmax \"chess|FEN\"` returns zero and its 328 regex hits are all log-parsing boilerplate - so its entries are interpreter/state-machine analogues. TerminalWorld and Recursive-Task-Synthesis cannot field 10 defensible candidates; RTS's only regex content is one duplicated phone-number-backreference family, and TerminalWorld's is two one-line validation tasks. Watch out for two false-positive classes in the merge: (1) CalibForge filler tasks whose text names the TB2.1 task's domain while doing something unrelated - software-engineering_20260612_191200_021 says it 'evaluates ... for the regex-chess domain' but is a directory-hashing inspector; (2) the enormous 'write to /app/result.txt' overlap that put GCD and set-operation chores at the top of the RTS and TerminalWorld shortlists."
+}

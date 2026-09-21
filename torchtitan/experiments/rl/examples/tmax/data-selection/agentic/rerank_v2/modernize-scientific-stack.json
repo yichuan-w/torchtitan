@@ -1,0 +1,769 @@
+{
+ "tb21_id": "modernize-scientific-stack",
+ "tb21_profile": {
+  "skill": "Read a Python 2 script you may not modify and rewrite it as idiomatic Python 3: replace removed syntax and APIs, handle text encoding explicitly, use pathlib and configparser, do the CSV work with pandas, hit an exact stdout format, and declare version-constrained dependencies in requirements.txt or pyproject.toml.",
+  "domain": "Python 2-to-3 migration, the pandas/numpy scientific stack, Python packaging metadata and stdlib modernisation (pathlib, configparser).",
+  "task_form": "Port/modernise an existing codebase into a new file, plus a small build/packaging artefact; graded on exact printed output and on the dependency declaration."
+ },
+ "verifier_notes": "No grade overturned. Two TerminalWorld picks (tw_137513 pyproject scaffolding, tw_126385 requirements.txt environment) are FREE; both are genuinely on topic for the dependency-file half, so they are ranked 9 and 10 inside per_source with the FREE status stated, and neither appears in final_top10. Terminal-Lego's two most on-the-nose Python-2 items, task_00376 (fix a Python 2.7 threading script for Python 3) and task_01110 (SimpleHTTPServer to http.server), are both FREE and were dropped entirely.",
+ "searches": [
+  "tools.py search all \"\\b(Python 2(\\.7)?|python2|2to3|iteritems|has_key|print statement|urllib2|ConfigParser|StringIO|Python 3 migration|modernize)\\b\"",
+  "tools.py search calib \"\\b(legacy|port(ed|ing)? (it |this )?to|migrat|deprecated|requirements\\.txt|pyproject\\.toml|pathlib|configparser|setup\\.py|pip install -r)\\b\"",
+  "tools.py search calib \"(Python 2|python2|2to3|iteritems|has_key|urllib2|print \\\"|ConfigParser|StringIO)\"",
+  "tools.py search calib \"\\b(pyproject\\.toml|requirements\\.txt|setup\\.py|entry.?point|version constraint|pip install)\\b\"",
+  "tools.py search lego \"\\b(Python 2|python2|2to3|print statement|urllib2|requirements\\.txt|pyproject\\.toml|setup\\.py|deprecated|DeprecationWarning|configparser|pathlib)\\b\"",
+  "tools.py search tw \"\\b(Python 2|python2|2to3|requirements\\.txt|setup\\.py|pyproject|deprecated|legacy|port to|migrat)\\b\"",
+  "tools.py search rebench \"\\b(Python 2|python2|2to3|deprecat|DeprecationWarning|np\\.int|np\\.float|removed in|no longer supported)\\b\"",
+  "tools.py search smith \"\\b(Python 2|python2|encoding|configparser|\\.ini|setup\\.py|pyproject|requirements|deprecat|read_csv|pandas)\\b\"",
+  "tools.py search rts \"\\b(Rscript|R script|statistic|posterior|Bayesian|distribution|scipy|numpy|regression|sampling|random seed)\\b\""
+ ],
+ "per_source": {
+  "TMax-15K": [
+   {
+    "rank": 1,
+    "task_id": "task_001372_52718284",
+    "skill": 5,
+    "domain": 4,
+    "task_form": 4,
+    "overall": 4,
+    "reason": "Migrate a legacy Python 2 script to Python 3 where the script processes data and must keep producing the same analysis output."
+   },
+   {
+    "rank": 2,
+    "task_id": "task_000058_5b337278",
+    "skill": 4,
+    "domain": 5,
+    "task_form": 4,
+    "overall": 4,
+    "reason": "Modernise a monolithic Python 2 timeseries script that parses structured data and computes rolling averages; same legacy-analysis-script starting point."
+   },
+   {
+    "rank": 3,
+    "task_id": "task_004874_9305c3fd",
+    "skill": 4,
+    "domain": 4,
+    "task_form": 4,
+    "overall": 4,
+    "reason": "Port a legacy Python 2 numeric backend to Python 3 and get the whole stack running again; a real migration with behavioural checks."
+   },
+   {
+    "rank": 4,
+    "task_id": "task_001192_a47265df",
+    "skill": 4,
+    "domain": 5,
+    "task_form": 3,
+    "overall": 4,
+    "reason": "Verify that historical serialized data still reads under Python 3, handling the str-versus-bytes split; the single biggest 2-to-3 hazard."
+   },
+   {
+    "rank": 5,
+    "task_id": "task_000953_1d76c7c3",
+    "skill": 4,
+    "domain": 4,
+    "task_form": 4,
+    "overall": 4,
+    "reason": "Fix the errors left over from a Python 2 to 3 migration of an API backend and get it running; debugging a half-done port."
+   },
+   {
+    "rank": 6,
+    "task_id": "task_000240_d10bbd1a",
+    "skill": 4,
+    "domain": 4,
+    "task_form": 4,
+    "overall": 4,
+    "reason": "Migrate and upgrade an old Python 2 analysis service to Python 3, replacing outdated protocols along the way."
+   },
+   {
+    "rank": 7,
+    "task_id": "task_001084_ff5f81ed",
+    "skill": 3,
+    "domain": 4,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Legacy Python 2 project migration with dependency integrity checking; touches the declared-dependencies side of the task."
+   },
+   {
+    "rank": 8,
+    "task_id": "task_000595_d0be5c02",
+    "skill": 3,
+    "domain": 4,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Use modern Python 3 stdlib - configparser, datetime, zoneinfo, tarfile - to annotate manifests; the modern-API half without the port."
+   },
+   {
+    "rank": 9,
+    "task_id": "task_000213_02e842d1",
+    "skill": 3,
+    "domain": 5,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Write a linter that finds the Python 2 patterns automated migration tools cannot handle; requires knowing exactly which constructs break."
+   },
+   {
+    "rank": 10,
+    "task_id": "task_000204_7f3ff91b",
+    "skill": 3,
+    "domain": 5,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Automate the migration of a legacy Python 2 service to Python 3; scripted port rather than a hand-written rewrite."
+   }
+  ],
+  "Recursive-Task-Synthesis": [
+   {
+    "rank": 1,
+    "task_id": "rts_task_e774e4e713634cb12506484f",
+    "skill": 3,
+    "domain": 4,
+    "task_form": 4,
+    "overall": 3,
+    "reason": "Lint, test, then build a wheel and an sdist and confirm the console script lands on PATH; packaging metadata that must work."
+   },
+   {
+    "rank": 2,
+    "task_id": "rts_task_634e80a627f837bf3aa0b8e7",
+    "skill": 3,
+    "domain": 4,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Install a numerical package at the version a spec file pins and validate it; version-constrained dependency declaration, the second deliverable here."
+   },
+   {
+    "rank": 3,
+    "task_id": "rts_task_7a441f666c3478c92cba8f16",
+    "skill": 3,
+    "domain": 4,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "The project must run under exactly Python 3.10; align the interpreter and environment before anything else works."
+   },
+   {
+    "rank": 4,
+    "task_id": "rts_task_c05d90a7f6cd201ce6ee6a2f",
+    "skill": 3,
+    "domain": 4,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Read the required Python version out of project metadata and verify the active interpreter matches; version constraints as data."
+   },
+   {
+    "rank": 5,
+    "task_id": "rts_task_80b8cb34a1bac14ea77e6701",
+    "skill": 3,
+    "domain": 3,
+    "task_form": 4,
+    "overall": 3,
+    "reason": "Set up the environment, capture the traceback the workflow throws, then fix it and rerun - the debug-a-broken-legacy-run loop."
+   },
+   {
+    "rank": 6,
+    "task_id": "rts_task_b03e51290519516337fed40c",
+    "skill": 3,
+    "domain": 3,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Virtualenv, install numpy-era dependencies, run the workflow and repair failures until it completes."
+   },
+   {
+    "rank": 7,
+    "task_id": "rts_task_029efbf46acf5bd4b1e2890c",
+    "skill": 2,
+    "domain": 4,
+    "task_form": 3,
+    "overall": 2,
+    "reason": "Build a source distribution and validate its contents against a manifest; packaging correctness only."
+   },
+   {
+    "rank": 8,
+    "task_id": "rts_task_f60bb1206c5e937c48ce045f",
+    "skill": 2,
+    "domain": 3,
+    "task_form": 3,
+    "overall": 2,
+    "reason": "Install dependencies into a venv, run a numeric workflow and turn its stdout into a JSON report."
+   },
+   {
+    "rank": 9,
+    "task_id": "rts_task_c90301417d64b9b0931419b2",
+    "skill": 2,
+    "domain": 4,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Archive the VERSION file with the built wheel and sdist under a dist/ prefix; build artefacts only."
+   },
+   {
+    "rank": 10,
+    "task_id": "rts_task_b0259cede190f1ef494456f5",
+    "skill": 2,
+    "domain": 3,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Load a numpy array into pandas, drop NaN rows and write a CSV; the pandas step, at toy scale."
+   }
+  ],
+  "TerminalWorld-Seeds-Clean": [
+   {
+    "rank": 1,
+    "task_id": "tw_203087",
+    "skill": 3,
+    "domain": 4,
+    "task_form": 4,
+    "overall": 3,
+    "reason": "Create a virtualenv and record every installed dependency in requirements.txt as its own commit; producing an accurate dependency file."
+   },
+   {
+    "rank": 2,
+    "task_id": "tw_6740",
+    "skill": 4,
+    "domain": 5,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Make an HTTP request with Python 2's urllib2 - the module that no longer exists in Python 3 and is a standard migration casualty."
+   },
+   {
+    "rank": 3,
+    "task_id": "tw_473991",
+    "skill": 3,
+    "domain": 4,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Build a virtualenv from a project's requirements.txt and make it usable; consuming the file this task must produce."
+   },
+   {
+    "rank": 4,
+    "task_id": "tw_738124",
+    "skill": 3,
+    "domain": 4,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Clone a project, create a venv and install everything its requirements.txt lists; dependency-file plumbing end to end."
+   },
+   {
+    "rank": 5,
+    "task_id": "tw_14593",
+    "skill": 3,
+    "domain": 4,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Write and run a Python 2 script using random and itertools; exercises Python 2 idioms directly."
+   },
+   {
+    "rank": 6,
+    "task_id": "tw_14342",
+    "skill": 3,
+    "domain": 4,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Write a Python 2 script with raw_input prompts and exact prompt strings; Python 2 I/O conventions plus exact output format."
+   },
+   {
+    "rank": 7,
+    "task_id": "tw_528959",
+    "skill": 2,
+    "domain": 3,
+    "task_form": 3,
+    "overall": 2,
+    "reason": "Compile Python 3.9.1 from source to a working interpreter; the runtime, not the code being ported."
+   },
+   {
+    "rank": 8,
+    "task_id": "tw_90531",
+    "skill": 2,
+    "domain": 3,
+    "task_form": 3,
+    "overall": 2,
+    "reason": "A build that needs both Node and Python 2 present; legacy toolchain wrangling, no code modernisation."
+   },
+   {
+    "rank": 9,
+    "task_id": "tw_137513",
+    "skill": 3,
+    "domain": 4,
+    "task_form": 3,
+    "overall": 2,
+    "reason": "Scaffold a package with a pyproject.toml carrying given metadata - directly on topic for the dependency file, but the verifier is FREE, so unverified."
+   },
+   {
+    "rank": 10,
+    "task_id": "tw_126385",
+    "skill": 3,
+    "domain": 4,
+    "task_form": 3,
+    "overall": 2,
+    "reason": "Stand up a Python 2.7 environment from requirements.txt and run the suite; on topic, also FREE and therefore unverified."
+   }
+  ],
+  "SWE-Smith-Seeds-Clean": [
+   {
+    "rank": 1,
+    "task_id": "andialbrecht__sqlparse.e57923b3.func_pm_ctrl_invert_if__7iwgl0ru",
+    "skill": 4,
+    "domain": 4,
+    "task_form": 2,
+    "overall": 3,
+    "reason": "Bytes input with an encoding argument raises TypeError instead of decoding - the str/bytes split that breaks every Python 2 port."
+   },
+   {
+    "rank": 2,
+    "task_id": "jawah__charset_normalizer.1fdd6463.pr_329",
+    "skill": 3,
+    "domain": 4,
+    "task_form": 2,
+    "overall": 3,
+    "reason": "Encoding detection returns the wrong codec for various text files; reading text correctly is the UTF-8 requirement here."
+   },
+   {
+    "rank": 3,
+    "task_id": "agronholm__typeguard.b6a7e438.lm_rewrite__49nqqhsl",
+    "skill": 3,
+    "domain": 5,
+    "task_form": 2,
+    "overall": 3,
+    "reason": "pyproject.toml config read as a list but processed as a string; parsing modern packaging configuration correctly."
+   },
+   {
+    "rank": 4,
+    "task_id": "PyCQA__flake8.cf1542ce.lm_rewrite__tdi0h139",
+    "skill": 3,
+    "domain": 5,
+    "task_form": 2,
+    "overall": 3,
+    "reason": "An ini config section is not honoured; ini-file parsing semantics, the configparser side of this task."
+   },
+   {
+    "rank": 5,
+    "task_id": "chardet__chardet.9630f238.func_pm_ctrl_invert_if__jfcxc4j9",
+    "skill": 3,
+    "domain": 4,
+    "task_form": 2,
+    "overall": 3,
+    "reason": "UTF-16BE misdetected when surrogate pairs appear; codec edge cases in text decoding."
+   },
+   {
+    "rank": 6,
+    "task_id": "conan-io__conan.86f29e13.lm_rewrite__hv01aovz",
+    "skill": 3,
+    "domain": 4,
+    "task_form": 2,
+    "overall": 3,
+    "reason": "Lockfile.add mishandles a list of requirements; manipulating declared dependency requirements."
+   },
+   {
+    "rank": 7,
+    "task_id": "cantools__cantools.0c6a7871.combine_file__2yrjny26",
+    "skill": 3,
+    "domain": 3,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "A loader given encoding='iso-8859-1' produces an off-by-one offset; non-UTF-8 input handling."
+   },
+   {
+    "rank": 8,
+    "task_id": "dask__dask.5f61e423.lm_rewrite__7vxryfwk",
+    "skill": 3,
+    "domain": 4,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "read_csv blocksize computation crashes when psutil returns None; a defaulting bug on the CSV-reading path."
+   },
+   {
+    "rank": 9,
+    "task_id": "theskumar__python-dotenv.2b8635b7.pr_456",
+    "skill": 2,
+    "domain": 4,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Parsing a key-value configuration file; adjacent to configparser, shallow."
+   },
+   {
+    "rank": 10,
+    "task_id": "conan-io__conan.86f29e13.lm_rewrite__1eyqewe7",
+    "skill": 2,
+    "domain": 4,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Version migration logic fails partway; migration as a concept, not a Python 2 port."
+   }
+  ],
+  "SWE-Rebench-Tasks-Clean": [
+   {
+    "rank": 1,
+    "task_id": "datadog__datadogpy-555",
+    "skill": 4,
+    "domain": 5,
+    "task_form": 2,
+    "overall": 4,
+    "reason": "Code calls .decode() on a str, a method removed in Python 3 - the canonical leftover from a Python 2 codebase."
+   },
+   {
+    "rank": 2,
+    "task_id": "cloudpipe__cloudpickle-314",
+    "skill": 4,
+    "domain": 5,
+    "task_form": 2,
+    "overall": 3,
+    "reason": "Behaviour that worked under Python 2 now raises AttributeError; diagnosing a genuine 2-to-3 semantic divergence."
+   },
+   {
+    "rank": 3,
+    "task_id": "cloudpipe__cloudpickle-154",
+    "skill": 4,
+    "domain": 5,
+    "task_form": 2,
+    "overall": 3,
+    "reason": "A Python-2-only failure on unhashable builtin methods; understanding where the two versions' object models differ."
+   },
+   {
+    "rank": 4,
+    "task_id": "axelrod-python__axelrod-761",
+    "skill": 4,
+    "domain": 5,
+    "task_form": 2,
+    "overall": 3,
+    "reason": "random.choice is not consistent between Python 2.7 and 3.4, so write a version-stable replacement; reproducibility across a port."
+   },
+   {
+    "rank": 5,
+    "task_id": "openmdao__openmdao-2738",
+    "skill": 4,
+    "domain": 5,
+    "task_form": 2,
+    "overall": 3,
+    "reason": "np.int and np.float were removed; update the code to the modern numpy API - deprecated-API modernisation in the scientific stack."
+   },
+   {
+    "rank": 6,
+    "task_id": "aio-libs__aiohttp-7368",
+    "skill": 3,
+    "domain": 4,
+    "task_form": 2,
+    "overall": 3,
+    "reason": "A deprecated keyword must be replaced by its modern equivalent; the routine half of modernising a call site."
+   },
+   {
+    "rank": 7,
+    "task_id": "aio-libs__aiohttp-8098",
+    "skill": 3,
+    "domain": 4,
+    "task_form": 2,
+    "overall": 3,
+    "reason": "Deprecated and modern SSL parameters conflict; handling a deprecation window without breaking callers."
+   },
+   {
+    "rank": 8,
+    "task_id": "jazzband__pip-tools-737",
+    "skill": 3,
+    "domain": 5,
+    "task_form": 2,
+    "overall": 3,
+    "reason": "pip-compile misbehaves across mixed Python versions; generating pinned requirements, this task's second deliverable."
+   },
+   {
+    "rank": 9,
+    "task_id": "jazzband__django-axes-1055",
+    "skill": 2,
+    "domain": 4,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Rename a method and deprecate the old one properly; API-evolution hygiene, not a port."
+   },
+   {
+    "rank": 10,
+    "task_id": "ambv__black-724",
+    "skill": 2,
+    "domain": 4,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Whether to keep a removed target-version option for backward compatibility; policy around Python version targets."
+   }
+  ],
+  "Terminal-Lego-15k": [
+   {
+    "rank": 1,
+    "task_id": "task_01025",
+    "skill": 4,
+    "domain": 5,
+    "task_form": 3,
+    "overall": 4,
+    "reason": "`except Exception, e:` is Python 2 syntax that fails on 3; fixing it is exactly the class of edit this modernisation needs."
+   },
+   {
+    "rank": 2,
+    "task_id": "task_01150",
+    "skill": 4,
+    "domain": 5,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Replace the Python 2 `print >>f` form with modern file writing and correct line endings; a deprecated-syntax rewrite."
+   },
+   {
+    "rank": 3,
+    "task_id": "task_01156",
+    "skill": 3,
+    "domain": 5,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "dict.keys() returns a view in Python 3 rather than a list; a silent semantic change that breaks ported code."
+   },
+   {
+    "rank": 4,
+    "task_id": "task_01122",
+    "skill": 4,
+    "domain": 5,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Fix unicode encode/decode handling so text survives under Python 3; the UTF-8 requirement here has the same root cause."
+   },
+   {
+    "rank": 5,
+    "task_id": "task_01085",
+    "skill": 3,
+    "domain": 5,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Exception.message was deprecated by PEP-352; write custom exceptions the modern way - a deprecated-API replacement."
+   },
+   {
+    "rank": 6,
+    "task_id": "task_01200",
+    "skill": 3,
+    "domain": 4,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "reload() moved to importlib in Python 3; locating the module a legacy call now lives in."
+   },
+   {
+    "rank": 7,
+    "task_id": "task_01106",
+    "skill": 3,
+    "domain": 4,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Explain and demonstrate old-style versus new-style classes across Python 2 and 3; knowledge, not a port."
+   },
+   {
+    "rank": 8,
+    "task_id": "task_01219",
+    "skill": 3,
+    "domain": 4,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Directory creation that is one call in Python 3 but needs OSError handling in 2; choosing the modern idiom."
+   },
+   {
+    "rank": 9,
+    "task_id": "task_01152",
+    "skill": 2,
+    "domain": 4,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Normalise paths with pathlib or os.path across separators; the pathlib requirement here, in isolation."
+   },
+   {
+    "rank": 10,
+    "task_id": "task_01046",
+    "skill": 2,
+    "domain": 4,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Resolve the script's own directory with pathlib or os.path; smallest possible slice of the pathlib requirement."
+   }
+  ],
+  "CalibForge": [
+   {
+    "rank": 1,
+    "task_id": "software-engineering_20260418_190236_005",
+    "skill": 5,
+    "domain": 5,
+    "task_form": 4,
+    "overall": 5,
+    "reason": "A tool ported from Python 2 to 3 crashes on configparser interpolation of percent values - the py2-to-py3 port and the configparser trap together."
+   },
+   {
+    "rank": 2,
+    "task_id": "software-engineering_20260425_072438_007",
+    "skill": 4,
+    "domain": 5,
+    "task_form": 4,
+    "overall": 4,
+    "reason": "Modernise packaging from setup.py to pyproject.toml and make the declared entry point actually work; the dependency-file half, with a real failure."
+   },
+   {
+    "rank": 3,
+    "task_id": "software-engineering_20260510_054909_009",
+    "skill": 4,
+    "domain": 5,
+    "task_form": 4,
+    "overall": 4,
+    "reason": "Same setup.py to pyproject.toml migration with a broken console-script declaration; writing correct modern packaging metadata."
+   },
+   {
+    "rank": 4,
+    "task_id": "data-science_20260606_172606_006",
+    "skill": 4,
+    "domain": 5,
+    "task_form": 4,
+    "overall": 4,
+    "reason": "pandas CSV pipeline with UTF-8 output and dedupe, delivered with a pyproject.toml so uv sync installs it on Python 3.10+."
+   },
+   {
+    "rank": 5,
+    "task_id": "data-science_20260610_111012_006",
+    "skill": 4,
+    "domain": 5,
+    "task_form": 4,
+    "overall": 4,
+    "reason": "Multi-source CSV pipeline that must ship a pyproject.toml so uv sync && uv run works; script plus dependency declaration, exactly this deliverable pair."
+   },
+   {
+    "rank": 6,
+    "task_id": "software-engineering_20260413_173854_005",
+    "skill": 4,
+    "domain": 5,
+    "task_form": 4,
+    "overall": 4,
+    "reason": "Convert Java .properties files into .ini that Python's configparser can actually read; configparser semantics are the fiddly part here too."
+   },
+   {
+    "rank": 7,
+    "task_id": "data-science_20260604_003814_006",
+    "skill": 4,
+    "domain": 5,
+    "task_form": 4,
+    "overall": 4,
+    "reason": "Normalise and merge messy CSVs under a uv pyproject.toml, and the scripts must keep working on data you have not seen."
+   },
+   {
+    "rank": 8,
+    "task_id": "data-science_20260606_172622_006",
+    "skill": 4,
+    "domain": 5,
+    "task_form": 4,
+    "overall": 4,
+    "reason": "Another CSV processing script that must come with a pyproject.toml declaring its dependencies; same two-artefact deliverable."
+   },
+   {
+    "rank": 9,
+    "task_id": "data-processing_20260514_134238_001",
+    "skill": 3,
+    "domain": 4,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Merge CSVs written in UTF-8, Latin-1 and Windows-1252 with differing schemas; the text-encoding hazard a Python 2 script hides."
+   },
+   {
+    "rank": 10,
+    "task_id": "software-engineering_20260416_031414_021",
+    "skill": 3,
+    "domain": 4,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "A source transformer that must recognise Python-2-only constructs such as lambda tuple unpacking and leave them alone; reading legacy syntax precisely."
+   }
+  ]
+ },
+ "final_top10": [
+  {
+   "rank": 1,
+   "task_id": "software-engineering_20260418_190236_005",
+   "skill": 5,
+   "domain": 5,
+   "task_form": 4,
+   "overall": 5,
+   "reason": "A tool ported from Python 2 to 3 crashes on configparser interpolation of percent values - the port and the configparser trap in one task.",
+   "source": "CalibForge"
+  },
+  {
+   "rank": 2,
+   "task_id": "task_001372_52718284",
+   "skill": 5,
+   "domain": 4,
+   "task_form": 4,
+   "overall": 4,
+   "reason": "Migrate a legacy Python 2 data-processing script to Python 3 and keep its analysis output correct; same starting artefact and same goal.",
+   "source": "TMax-15K"
+  },
+  {
+   "rank": 3,
+   "task_id": "task_000058_5b337278",
+   "skill": 4,
+   "domain": 5,
+   "task_form": 4,
+   "overall": 4,
+   "reason": "Modernise a monolithic Python 2 script that parses structured timeseries data and computes rolling averages - the legacy analysis script, modernised.",
+   "source": "TMax-15K"
+  },
+  {
+   "rank": 4,
+   "task_id": "software-engineering_20260425_072438_007",
+   "skill": 4,
+   "domain": 5,
+   "task_form": 4,
+   "overall": 4,
+   "reason": "Modernise packaging to pyproject.toml and make the declared metadata actually work; the dependency-file deliverable with a real failure mode.",
+   "source": "CalibForge"
+  },
+  {
+   "rank": 5,
+   "task_id": "data-science_20260610_111012_006",
+   "skill": 4,
+   "domain": 5,
+   "task_form": 4,
+   "overall": 4,
+   "reason": "Write a pandas CSV pipeline and ship a pyproject.toml so uv sync installs it - exactly the script-plus-dependency-file pair required here.",
+   "source": "CalibForge"
+  },
+  {
+   "rank": 6,
+   "task_id": "task_004874_9305c3fd",
+   "skill": 4,
+   "domain": 4,
+   "task_form": 4,
+   "overall": 4,
+   "reason": "Port a legacy Python 2 numeric backend to Python 3 and get the stack running again; a real migration with behavioural checks.",
+   "source": "TMax-15K"
+  },
+  {
+   "rank": 7,
+   "task_id": "task_001192_a47265df",
+   "skill": 4,
+   "domain": 5,
+   "task_form": 3,
+   "overall": 4,
+   "reason": "Confirm historical serialized data still reads under Python 3, handling the str-versus-bytes split - the biggest 2-to-3 hazard.",
+   "source": "TMax-15K"
+  },
+  {
+   "rank": 8,
+   "task_id": "software-engineering_20260510_054909_009",
+   "skill": 4,
+   "domain": 5,
+   "task_form": 4,
+   "overall": 4,
+   "reason": "setup.py to pyproject.toml migration where the console-script entry point was declared wrongly; correct modern packaging metadata.",
+   "source": "CalibForge"
+  },
+  {
+   "rank": 9,
+   "task_id": "data-science_20260606_172606_006",
+   "skill": 4,
+   "domain": 5,
+   "task_form": 4,
+   "overall": 4,
+   "reason": "pandas CSV work with UTF-8 output delivered with a pyproject.toml on Python 3.10+; both halves of this task's deliverables.",
+   "source": "CalibForge"
+  },
+  {
+   "rank": 10,
+   "task_id": "task_01025",
+   "skill": 4,
+   "domain": 5,
+   "task_form": 3,
+   "overall": 4,
+   "reason": "`except Exception, e:` is Python 2 syntax that fails on 3; fixing that class of construct is the core edit this modernisation needs.",
+   "source": "Terminal-Lego-15k"
+  }
+ ],
+ "notes": "This is the one task of my five where the old pool holds its own. TMax-15K has a very large Python-2-to-3 migration cluster - dozens of tasks that start from a legacy Python 2 script and demand a working Python 3 replacement - and it supplies three of the final ten; most of those entries are heavier than this TB2.1 task (C extensions, gRPC, polyglot stacks), which is why they score 4 rather than 5 on task_form. CalibForge still leads, but for a different reason: it is the only corpus with the packaging half (setup.py to pyproject.toml migrations whose entry points genuinely break) and it has a large cluster of pandas CSV pipelines that must ship a working pyproject.toml, which is precisely this task's two-artefact deliverable. Its single best entry pairs both halves: a tool ported from Python 2 that then breaks on configparser percent interpolation. Terminal-Lego-15k is genuinely useful here for the first time in my set - it has a real cluster of small Python-2-idiom fixes (except-comma syntax, print-chevron, dict.keys() views, unicode handling, PEP-352 exceptions) that is exactly the edit vocabulary this task needs, though each item is tiny; two of its closest matches are FREE and were dropped. SWE-Rebench contributes cloudpickle/datadogpy/axelrod Python-2-divergence bugs and numpy deprecated-alias removal, which is real transfer. Recursive-Task-Synthesis offers only environment and packaging plumbing and nothing about porting code."
+}

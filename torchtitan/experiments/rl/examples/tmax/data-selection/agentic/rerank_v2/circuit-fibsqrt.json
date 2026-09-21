@@ -1,0 +1,769 @@
+{
+  "tb21_id": "circuit-fibsqrt",
+  "tb21_profile": {
+    "skill": "Compile an algorithm (integer sqrt then Fibonacci, mod 2^32) down to a flat list of single-gate assignments \u2014 build 32-bit adders, comparators and muxes from AND/OR/XOR/NOT, unroll the iteration under the simulator's step semantics, and generate the netlist programmatically within a line budget",
+    "domain": "Digital logic / netlist construction, bit-level 32-bit arithmetic, restricted-instruction-set programming for a provided simulator",
+    "task_form": "implement-from-spec plus optimise-for-a-budget: author the program the supplied machine will run, exact numeric outputs, under 32,000 lines"
+  },
+  "verifier_notes": "No grade I checked looked wrong. Two calibration notes: CalibForge's VM-program family is unusually well verified (software-engineering_20260508_045740_004, _20260510_142854_004, _20260617_051646_005 and _20260614_141608_004 are all 1.0 strength with every test pinning a value), so its high ranks are not just surface similarity. On the other side, all ten Recursive-Task-Synthesis entries are `absent` \u2014 that is the whole corpus, not a judgement \u2014 and its ARM64 assembly cluster is the only thing it has here; I could not find a graded equivalent inside RTS.",
+  "searches": [
+    "tools.py search tmax 'bytecode|virtual machine|emulator|opcode|assembly|instruction set|logic gate|circuit|bitwise|truth table|state machine' -n 30",
+    "tools.py show task_000405_db54ffe9 task_000258_60a61045",
+    "tools.py search tw 'bytecode|virtual machine|emulator|assembl|opcode|logic gate|circuit|bitwise|verilog|fibonacci|brainfuck|interpreter|compiler' -n 30",
+    "tools.py search rts 'bytecode|virtual machine|emulator|assembly|opcode|logic gate|circuit|bitwise|fibonacci|brainfuck|interpreter|square root|binary representation' -n 30",
+    "tools.py search smith 'bit|binary|encode|decode|integer|arithmetic|overflow|shift|parser|grammar|compile' -n 30",
+    "tools.py search smith 'cantools|signal|byte order|multiplex|encode.*message|bit position|two.s complement|qrcode|pyparsing|grammar' -n 22",
+    "tools.py search rebench 'circuit|gate|qubit|transpile|bitwise|modular arithmetic|integer overflow|bytecode|interpreter|compiler|assembler' -n 28",
+    "grep -ril -E 'logic gate|full adder|truth table|verilog|vhdl|assembly language|bitwise|two.s complement|brainfuck|virtual machine|opcode|emulator' --include=instruction.md /data/yichuan_wang/terminal-lego-15k",
+    "grep -ril -E 'logic gate|circuit|verilog|adder|truth table|netlist|bitwise|XOR|assembly|instruction set|brainfuck|interpreter for|emulat' --include=instruction.md /data/yichuan_wang/calibforge"
+  ],
+  "per_source": {
+    "CalibForge": [
+      {
+        "rank": 1,
+        "task_id": "software-engineering_20260601_053159_004",
+        "skill": 5,
+        "domain": 5,
+        "task_form": 5,
+        "overall": 5,
+        "reason": "Author /app/prog.txt for a provided /app/sim, discovering the instruction format yourself, under a 10,000-line cap. Same task with a different function."
+      },
+      {
+        "rank": 2,
+        "task_id": "software-engineering_20260606_153537_004",
+        "skill": 5,
+        "domain": 5,
+        "task_form": 5,
+        "overall": 5,
+        "reason": "Write a program for a documented machine computing a number-theoretic function within 200 lines and 500,000 steps. Line and step budget, exactly like here."
+      },
+      {
+        "rank": 3,
+        "task_id": "software-engineering_20260511_015840_004",
+        "skill": 5,
+        "domain": 5,
+        "task_form": 5,
+        "overall": 5,
+        "reason": "Write assembly for a supplied VM that computes the Nth Fibonacci number; same algorithm, same author-a-program-for-a-toy-machine shape."
+      },
+      {
+        "rank": 4,
+        "task_id": "software-engineering_20260508_045740_004",
+        "skill": 5,
+        "domain": 5,
+        "task_form": 5,
+        "overall": 5,
+        "reason": "Emit a program line by line for a stack VM from its documented instruction list, with memory, jumps and labels. Every test pins a value."
+      },
+      {
+        "rank": 5,
+        "task_id": "software-engineering_20260603_181444_018",
+        "skill": 5,
+        "domain": 5,
+        "task_form": 4,
+        "overall": 5,
+        "reason": "Implement add, subtract, multiply and divide with only & | ^ ~ << >>; exactly the ripple-carry and shift-subtract arithmetic a gate netlist needs."
+      },
+      {
+        "rank": 6,
+        "task_id": "software-engineering_20260604_194036_025",
+        "skill": 4,
+        "domain": 5,
+        "task_form": 4,
+        "overall": 4,
+        "reason": "Reverse-engineer an undocumented opcode encoding from sample programs, then author a bytecode program that computes a value. Both directions of the skill."
+      },
+      {
+        "rank": 7,
+        "task_id": "software-engineering_20260610_111012_004",
+        "skill": 4,
+        "domain": 4,
+        "task_form": 4,
+        "overall": 4,
+        "reason": "Transpile a minimal-instruction language to C with pattern-level optimisations; compiling loops down to primitive operations, as the netlist generator must."
+      },
+      {
+        "rank": 8,
+        "task_id": "software-engineering_20260601_053159_014",
+        "skill": 4,
+        "domain": 4,
+        "task_form": 4,
+        "overall": 4,
+        "reason": "Optimising brainfuck-to-C compiler whose tests time out unless idioms are recognised; generating efficient low-level code under a performance budget."
+      },
+      {
+        "rank": 9,
+        "task_id": "software-engineering_20260613_152233_022",
+        "skill": 4,
+        "domain": 5,
+        "task_form": 4,
+        "overall": 4,
+        "reason": "Write a linker that merges VM object files, resolving labels and relocating addresses; the address bookkeeping netlist generation also requires."
+      },
+      {
+        "rank": 10,
+        "task_id": "software-engineering_20260617_051646_005",
+        "skill": 3,
+        "domain": 5,
+        "task_form": 3,
+        "overall": 4,
+        "reason": "Repair a bytecode VM until twenty pinned behavioural tests pass; forces exact understanding of a machine's execution semantics."
+      }
+    ],
+    "Terminal-Lego-15k": [
+      {
+        "rank": 1,
+        "task_id": "task_09170",
+        "skill": 5,
+        "domain": 4,
+        "task_form": 3,
+        "overall": 4,
+        "reason": "Implement integer square root yourself without library calls \u2014 literally the isqrt half, and the bit-by-bit method ports straight to gates."
+      },
+      {
+        "rank": 2,
+        "task_id": "task_09187",
+        "skill": 4,
+        "domain": 4,
+        "task_form": 3,
+        "overall": 4,
+        "reason": "Compute the nth Fibonacci number faster than O(n); the fib half, with the iteration structure that has to be unrolled into the circuit."
+      },
+      {
+        "rank": 3,
+        "task_id": "task_09194",
+        "skill": 4,
+        "domain": 4,
+        "task_form": 3,
+        "overall": 4,
+        "reason": "Decide Fibonacci membership via the perfect-square test \u2014 combines integer square root and Fibonacci exactly as this task does, strongly verified."
+      },
+      {
+        "rank": 4,
+        "task_id": "task_09078",
+        "skill": 4,
+        "domain": 5,
+        "task_form": 3,
+        "overall": 4,
+        "reason": "Implement modulus using bit operations rather than the % operator; building arithmetic out of shifts and masks."
+      },
+      {
+        "rank": 5,
+        "task_id": "task_09204",
+        "skill": 4,
+        "domain": 5,
+        "task_form": 3,
+        "overall": 4,
+        "reason": "Generate bit masks algorithmically; the mask-and-select reasoning behind every multiplexer in a 32-bit datapath."
+      },
+      {
+        "rank": 6,
+        "task_id": "task_08916",
+        "skill": 4,
+        "domain": 5,
+        "task_form": 3,
+        "overall": 3,
+        "reason": "Count set bits in a 32-bit word; forces exact reasoning about 32-bit word layout and per-bit operations."
+      },
+      {
+        "rank": 7,
+        "task_id": "task_01228",
+        "skill": 3,
+        "domain": 5,
+        "task_form": 3,
+        "overall": 3,
+        "reason": "Implement logical XOR from first principles; the semantics of the one gate that distinguishes this instruction set, 16 pinned tests."
+      },
+      {
+        "rank": 8,
+        "task_id": "task_09093",
+        "skill": 3,
+        "domain": 5,
+        "task_form": 3,
+        "overall": 3,
+        "reason": "Constant-time popcount with bit tricks; parallel-prefix style bit manipulation, the same style as a carry-lookahead adder."
+      },
+      {
+        "rank": 9,
+        "task_id": "task_09211",
+        "skill": 3,
+        "domain": 4,
+        "task_form": 3,
+        "overall": 3,
+        "reason": "Invert the Fibonacci function to recover its index; Fibonacci arithmetic plus a square-root step, both needed here."
+      },
+      {
+        "rank": 10,
+        "task_id": "task_11151",
+        "skill": 3,
+        "domain": 4,
+        "task_form": 3,
+        "overall": 3,
+        "reason": "Disassemble raw 16-bit machine code by hand; reading a flat instruction stream against an encoding, the inverse of emitting one."
+      }
+    ],
+    "TMax-15K": [
+      {
+        "rank": 1,
+        "task_id": "task_000405_db54ffe9",
+        "skill": 5,
+        "domain": 5,
+        "task_form": 4,
+        "overall": 4,
+        "reason": "Recover a logic circuit's dependency graph from its textual rules and build an evaluator that computes it exactly; circuit construction and evaluation."
+      },
+      {
+        "rank": 2,
+        "task_id": "task_000258_60a61045",
+        "skill": 4,
+        "domain": 5,
+        "task_form": 4,
+        "overall": 4,
+        "reason": "Translate a pseudo-instruction list into exact bytes for a stack machine and emulate it; authoring a program in a strict encoding, both tests pinned."
+      },
+      {
+        "rank": 3,
+        "task_id": "task_006029_c732f1f4",
+        "skill": 4,
+        "domain": 4,
+        "task_form": 3,
+        "overall": 4,
+        "reason": "Fibonacci by fast matrix exponentiation modulo M in C; the fib-mod-2^32 arithmetic this circuit must reproduce."
+      },
+      {
+        "rank": 4,
+        "task_id": "task_000246_a1b7a5cc",
+        "skill": 4,
+        "domain": 5,
+        "task_form": 4,
+        "overall": 4,
+        "reason": "Build a C virtual machine that evaluates expressions encoded as custom bytecode from a written spec; machine semantics from a specification."
+      },
+      {
+        "rank": 5,
+        "task_id": "task_000297_dd740392",
+        "skill": 3,
+        "domain": 5,
+        "task_form": 3,
+        "overall": 3,
+        "reason": "Repair a broken stack-based VM project until it executes programs correctly; the same execution-model reasoning from the interpreter side."
+      },
+      {
+        "rank": 6,
+        "task_id": "task_000132_72484cb9",
+        "skill": 3,
+        "domain": 4,
+        "task_form": 3,
+        "overall": 3,
+        "reason": "Verify and fix a modulo routine written in x86-64 inline assembly; low-level integer arithmetic where every bit matters."
+      },
+      {
+        "rank": 7,
+        "task_id": "task_000444_a1f0ce4d",
+        "skill": 3,
+        "domain": 4,
+        "task_form": 3,
+        "overall": 3,
+        "reason": "Rate limiter whose hot path is a hand-written x86-64 assembly routine; implementing arithmetic at instruction level with exact results."
+      },
+      {
+        "rank": 8,
+        "task_id": "task_000330_15b96164",
+        "skill": 3,
+        "domain": 4,
+        "task_form": 3,
+        "overall": 3,
+        "reason": "Finish an unfinished string-processing virtual machine so its programs run; completing a machine's instruction handling."
+      },
+      {
+        "rank": 9,
+        "task_id": "task_000495_b296afa7",
+        "skill": 3,
+        "domain": 4,
+        "task_form": 3,
+        "overall": 3,
+        "reason": "Evaluate custom bytecode in a rule engine; small interpreter semantics, no program authoring."
+      },
+      {
+        "rank": 10,
+        "task_id": "task_000386_43121cfd",
+        "skill": 3,
+        "domain": 4,
+        "task_form": 3,
+        "overall": 3,
+        "reason": "Implement an API against a retro-computing emulator from a written specification; machine-level spec compliance with a pinned result."
+      }
+    ],
+    "TerminalWorld-Seeds-Clean": [
+      {
+        "rank": 1,
+        "task_id": "tw_346220",
+        "skill": 4,
+        "domain": 5,
+        "task_form": 4,
+        "overall": 4,
+        "reason": "Write an assembly program for a provided simulator that leaves specific register values; author-a-program-for-the-given-machine, same shape."
+      },
+      {
+        "rank": 2,
+        "task_id": "tw_360189",
+        "skill": 4,
+        "domain": 5,
+        "task_form": 4,
+        "overall": 4,
+        "reason": "Assemble and run EVM assembly that computes a value; hand-writing code for a stack machine with exact expected output."
+      },
+      {
+        "rank": 3,
+        "task_id": "tw_134335",
+        "skill": 3,
+        "domain": 5,
+        "task_form": 3,
+        "overall": 3,
+        "reason": "Drive an instruction-level emulator (radare2 ESIL) to trace control flow through code; reasoning step by step about machine state."
+      },
+      {
+        "rank": 4,
+        "task_id": "tw_249297",
+        "skill": 3,
+        "domain": 4,
+        "task_form": 3,
+        "overall": 3,
+        "reason": "Compile C through a WebAssembly toolchain to a native object and run it; lowering a program to a restricted target instruction set."
+      },
+      {
+        "rank": 5,
+        "task_id": "tw_130138",
+        "skill": 3,
+        "domain": 4,
+        "task_form": 3,
+        "overall": 3,
+        "reason": "Extract a full disassembly and reason about gadgets; instruction-encoding literacy with pinned expected output."
+      },
+      {
+        "rank": 6,
+        "task_id": "tw_334878",
+        "skill": 3,
+        "domain": 4,
+        "task_form": 3,
+        "overall": 3,
+        "reason": "Compile a language runtime down to a WebAssembly module that then runs; another lowering-to-a-simple-machine exercise."
+      },
+      {
+        "rank": 7,
+        "task_id": "tw_241070",
+        "skill": 3,
+        "domain": 4,
+        "task_form": 3,
+        "overall": 3,
+        "reason": "Write source in a toy language and compile it with its own compiler to produce an exact value; small but the right genre."
+      },
+      {
+        "rank": 8,
+        "task_id": "tw_102792",
+        "skill": 2,
+        "domain": 4,
+        "task_form": 3,
+        "overall": 2,
+        "reason": "Feed expressions to a custom interpreter and capture results; only exercises the tool's evaluation semantics."
+      },
+      {
+        "rank": 9,
+        "task_id": "tw_362046",
+        "skill": 2,
+        "domain": 4,
+        "task_form": 2,
+        "overall": 2,
+        "reason": "Run static analysis over a Brainfuck interpreter's C sources; same subject matter, the work is tooling."
+      },
+      {
+        "rank": 10,
+        "task_id": "tw_215405",
+        "skill": 2,
+        "domain": 2,
+        "task_form": 3,
+        "overall": 2,
+        "reason": "Write and run a small program that computes an exact integer and writes it to a file; only the exact-answer contract transfers."
+      }
+    ],
+    "Recursive-Task-Synthesis": [
+      {
+        "rank": 1,
+        "task_id": "rts_task_e22f09d81acdd0f844580eb7",
+        "skill": 4,
+        "domain": 5,
+        "task_form": 4,
+        "overall": 4,
+        "reason": "Implement GCD in ARM64 assembly; an iterative arithmetic algorithm expressed with registers and branches only, closest RTS analogue."
+      },
+      {
+        "rank": 2,
+        "task_id": "rts_task_b6b02584385fd4ad601f40ce",
+        "skill": 4,
+        "domain": 5,
+        "task_form": 4,
+        "overall": 4,
+        "reason": "Compute the least common multiple of two unsigned integers in AArch64 assembly; multiply and divide loops built by hand."
+      },
+      {
+        "rank": 3,
+        "task_id": "rts_task_2607dd8e8b0d78f50ece4d7f",
+        "skill": 4,
+        "domain": 5,
+        "task_form": 4,
+        "overall": 3,
+        "reason": "Primality test in ARM64 assembly: a bounded loop with comparison and modulo, exactly the control structure to unroll into gates."
+      },
+      {
+        "rank": 4,
+        "task_id": "rts_task_303f2e5fdf7b562f7afedb68",
+        "skill": 4,
+        "domain": 5,
+        "task_form": 4,
+        "overall": 3,
+        "reason": "Read an integer and print both its decimal and binary representation in assembly; explicit bit extraction from a word."
+      },
+      {
+        "rank": 5,
+        "task_id": "rts_task_0b9b2bac6586b91383a541a9",
+        "skill": 3,
+        "domain": 5,
+        "task_form": 4,
+        "overall": 3,
+        "reason": "ARM64 using only raw syscalls, looping to a limit read from a file; no library at all, everything built from primitives."
+      },
+      {
+        "rank": 6,
+        "task_id": "rts_task_818c8049c58399477676d052",
+        "skill": 3,
+        "domain": 5,
+        "task_form": 3,
+        "overall": 3,
+        "reason": "Compare two Brainfuck interpreter implementations against a reference program; minimal-instruction machine semantics."
+      },
+      {
+        "rank": 7,
+        "task_id": "rts_task_6788e1acde34b028d2d8628f",
+        "skill": 3,
+        "domain": 3,
+        "task_form": 3,
+        "overall": 3,
+        "reason": "Compute square roots for a range of integers in an exactly specified output format; the sqrt half with a strict output contract."
+      },
+      {
+        "rank": 8,
+        "task_id": "rts_task_d5ac54a0c484b2aa6416d265",
+        "skill": 3,
+        "domain": 5,
+        "task_form": 3,
+        "overall": 3,
+        "reason": "ARM64 program that reads two numbers from a config file and subtracts them; register-level arithmetic, very small."
+      },
+      {
+        "rank": 9,
+        "task_id": "rts_task_328e189c621404304506dbcc",
+        "skill": 3,
+        "domain": 5,
+        "task_form": 3,
+        "overall": 3,
+        "reason": "Debug an ARM64 program that computes the wrong difference; tracing register state instruction by instruction."
+      },
+      {
+        "rank": 10,
+        "task_id": "rts_task_14076f60cb25f0478e3cc31b",
+        "skill": 2,
+        "domain": 5,
+        "task_form": 3,
+        "overall": 2,
+        "reason": "Reverse a string in ARM64 assembly; assembly practice with no arithmetic depth."
+      }
+    ],
+    "SWE-Smith-Seeds-Clean": [
+      {
+        "rank": 1,
+        "task_id": "cantools__cantools.0c6a7871.func_pm_op_change_const__66td47t4",
+        "skill": 4,
+        "domain": 5,
+        "task_form": 2,
+        "overall": 3,
+        "reason": "Message length computed wrongly for signals crossing byte boundaries; bit-offset and width arithmetic over a packed word."
+      },
+      {
+        "rank": 2,
+        "task_id": "Mimino666__langdetect.a1598f1a.func_pm_ctrl_invert_if__zrbixrik",
+        "skill": 4,
+        "domain": 3,
+        "task_form": 2,
+        "overall": 3,
+        "reason": "Broken binary search over ranges; the bisection loop an integer square root is normally built from, including its boundary conditions."
+      },
+      {
+        "rank": 3,
+        "task_id": "cantools__cantools.0c6a7871.combine_file__2yrjny26",
+        "skill": 3,
+        "domain": 5,
+        "task_form": 2,
+        "overall": 3,
+        "reason": "Decoded value is off by one; requires tracing raw bits through scaling and offset to the reported integer."
+      },
+      {
+        "rank": 4,
+        "task_id": "cantools__cantools.0c6a7871.func_pm_remove_assign__e0sp70d9",
+        "skill": 3,
+        "domain": 5,
+        "task_form": 2,
+        "overall": 3,
+        "reason": "Multiplexed signals not loaded correctly; selecting among bit layouts by a selector field, a multiplexer in software."
+      },
+      {
+        "rank": 5,
+        "task_id": "lincolnloop__python-qrcode.456b01d4.func_pm_remove_loop__lvhgphel",
+        "skill": 3,
+        "domain": 4,
+        "task_form": 2,
+        "overall": 3,
+        "reason": "QR bit-matrix construction loop removed; building a deterministic grid of bits from an algorithm."
+      },
+      {
+        "rank": 6,
+        "task_id": "cantools__cantools.0c6a7871.pr_602",
+        "skill": 3,
+        "domain": 4,
+        "task_form": 2,
+        "overall": 3,
+        "reason": "Code generator emits a makefile to the wrong path; generating build artefacts programmatically, as the netlist generator does."
+      },
+      {
+        "rank": 7,
+        "task_id": "cantools__cantools.0c6a7871.func_pm_ctrl_shuffle__i1abfdcm",
+        "skill": 3,
+        "domain": 4,
+        "task_form": 2,
+        "overall": 2,
+        "reason": "Integer-detection helper misclassifies values; small but squarely about integer representation rules."
+      },
+      {
+        "rank": 8,
+        "task_id": "davidhalter__parso.338a5760.combine_file__mpyblou8",
+        "skill": 3,
+        "domain": 3,
+        "task_form": 2,
+        "overall": 2,
+        "reason": "Tokenizer mishandles octal and long-integer literal forms; parsing numeric encodings exactly."
+      },
+      {
+        "rank": 9,
+        "task_id": "pyparsing__pyparsing.533adf47.combine_file__3jw3qikd",
+        "skill": 3,
+        "domain": 3,
+        "task_form": 2,
+        "overall": 2,
+        "reason": "Grammar-combinator engine defect; composing small primitives into a larger machine, one level up from gates."
+      },
+      {
+        "rank": 10,
+        "task_id": "andialbrecht__sqlparse.e57923b3.lm_rewrite__jby5rkxx",
+        "skill": 2,
+        "domain": 3,
+        "task_form": 2,
+        "overall": 2,
+        "reason": "Parser blows the recursion limit instead of erroring cleanly; depth handling in a recursive translator, thin transfer."
+      }
+    ],
+    "SWE-Rebench-Tasks-Clean": [
+      {
+        "rank": 1,
+        "task_id": "qiskit__qiskit-12527",
+        "skill": 4,
+        "domain": 5,
+        "task_form": 2,
+        "overall": 3,
+        "reason": "Circuit construction and transpilation defect; composing a computation out of primitive gates and rewriting it legally."
+      },
+      {
+        "rank": 2,
+        "task_id": "pennylaneai__pennylane-3024",
+        "skill": 4,
+        "domain": 5,
+        "task_form": 2,
+        "overall": 3,
+        "reason": "Fusing consecutive rotation gates yields wrong angles; simplifying a gate sequence while preserving semantics, as netlist optimisation does."
+      },
+      {
+        "rank": 3,
+        "task_id": "d0c-s4vage__pfp-128",
+        "skill": 3,
+        "domain": 4,
+        "task_form": 2,
+        "overall": 3,
+        "reason": "Boolean logic evaluated incorrectly in a binary-template interpreter; the exact semantics of and/or/not inside a small machine."
+      },
+      {
+        "rank": 4,
+        "task_id": "borgbackup__borg-8872",
+        "skill": 3,
+        "domain": 4,
+        "task_form": 2,
+        "overall": 3,
+        "reason": "Rolling-hash seed cancels out for even window sizes; a genuine bit-arithmetic bug where the algebra over words is the whole problem."
+      },
+      {
+        "rank": 5,
+        "task_id": "pennylaneai__pennylane-5395",
+        "skill": 3,
+        "domain": 5,
+        "task_form": 2,
+        "overall": 3,
+        "reason": "Circuit transform misbehaves; manipulating a gate-level representation programmatically."
+      },
+      {
+        "rank": 6,
+        "task_id": "d0c-s4vage__pfp-112",
+        "skill": 3,
+        "domain": 4,
+        "task_form": 2,
+        "overall": 2,
+        "reason": "Array semantics in a binary-template language; precise low-level data layout reasoning inside an interpreter."
+      },
+      {
+        "rank": 7,
+        "task_id": "warner__python-ecdsa-191",
+        "skill": 3,
+        "domain": 3,
+        "task_form": 2,
+        "overall": 2,
+        "reason": "Modular arithmetic in a crypto library; fixed-width integer maths where off-by-one in the modulus is fatal."
+      },
+      {
+        "rank": 8,
+        "task_id": "d0c-s4vage__pfp-126",
+        "skill": 3,
+        "domain": 4,
+        "task_form": 2,
+        "overall": 2,
+        "reason": "Struct fields unreachable through scope in the template engine; interpreter scoping rules, same machine-semantics family."
+      },
+      {
+        "rank": 9,
+        "task_id": "pennylaneai__pennylane-1320",
+        "skill": 2,
+        "domain": 5,
+        "task_form": 2,
+        "overall": 2,
+        "reason": "Gate/circuit library defect; same circuit vocabulary, but the fix is framework plumbing."
+      },
+      {
+        "rank": 10,
+        "task_id": "pennylaneai__pennylane-1329",
+        "skill": 2,
+        "domain": 5,
+        "task_form": 2,
+        "overall": 2,
+        "reason": "Another circuit-library defect; included to complete the ten, transfer is mostly domain vocabulary."
+      }
+    ]
+  },
+  "final_top10": [
+    {
+      "rank": 1,
+      "task_id": "software-engineering_20260601_053159_004",
+      "source": "CalibForge",
+      "skill": 5,
+      "domain": 5,
+      "task_form": 5,
+      "overall": 5,
+      "reason": "Author /app/prog.txt for a provided /app/sim, discovering its instruction format, under a 10,000-line cap. The same task, different function."
+    },
+    {
+      "rank": 2,
+      "task_id": "software-engineering_20260606_153537_004",
+      "source": "CalibForge",
+      "skill": 5,
+      "domain": 5,
+      "task_form": 5,
+      "overall": 5,
+      "reason": "Program a documented toy machine to compute a number-theoretic function inside a 200-line and 500,000-step budget. Same budgeted-codegen problem."
+    },
+    {
+      "rank": 3,
+      "task_id": "software-engineering_20260511_015840_004",
+      "source": "CalibForge",
+      "skill": 5,
+      "domain": 5,
+      "task_form": 5,
+      "overall": 5,
+      "reason": "Hand-write VM assembly that computes the Nth Fibonacci number for a supplied simulator; same algorithm, same substrate."
+    },
+    {
+      "rank": 4,
+      "task_id": "software-engineering_20260603_181444_018",
+      "source": "CalibForge",
+      "skill": 5,
+      "domain": 5,
+      "task_form": 4,
+      "overall": 5,
+      "reason": "Build add, subtract, multiply and divide from only & | ^ ~ << >> \u2014 the ripple-carry and shift-subtract constructions a 32-bit netlist needs."
+    },
+    {
+      "rank": 5,
+      "task_id": "software-engineering_20260508_045740_004",
+      "source": "CalibForge",
+      "skill": 5,
+      "domain": 5,
+      "task_form": 5,
+      "overall": 5,
+      "reason": "Emit a stack-VM program line by line from its instruction list, using memory, labels and jumps; every test pins an expected value."
+    },
+    {
+      "rank": 6,
+      "task_id": "task_000405_db54ffe9",
+      "source": "TMax-15K",
+      "skill": 5,
+      "domain": 5,
+      "task_form": 4,
+      "overall": 4,
+      "reason": "Reconstruct a logic circuit's dependency graph from its rules and evaluate it exactly for any inputs; circuit building and evaluation."
+    },
+    {
+      "rank": 7,
+      "task_id": "task_09170",
+      "source": "Terminal-Lego-15k",
+      "skill": 5,
+      "domain": 4,
+      "task_form": 3,
+      "overall": 4,
+      "reason": "Implement integer square root from scratch; the isqrt half of this task, and its bit-by-bit method maps directly onto gates."
+    },
+    {
+      "rank": 8,
+      "task_id": "software-engineering_20260604_194036_025",
+      "source": "CalibForge",
+      "skill": 4,
+      "domain": 5,
+      "task_form": 4,
+      "overall": 4,
+      "reason": "Deduce an undocumented opcode encoding from example programs, then author a bytecode program of your own that computes a value."
+    },
+    {
+      "rank": 9,
+      "task_id": "task_000258_60a61045",
+      "source": "TMax-15K",
+      "skill": 4,
+      "domain": 5,
+      "task_form": 4,
+      "overall": 4,
+      "reason": "Translate an instruction list into exact bytes for a stack machine and emulate it to predict the result; both tests pin values."
+    },
+    {
+      "rank": 10,
+      "task_id": "software-engineering_20260610_111012_004",
+      "source": "CalibForge",
+      "skill": 4,
+      "domain": 4,
+      "task_form": 4,
+      "overall": 4,
+      "reason": "Compile a minimal-instruction language to C, recognising loop idioms and lowering them to primitives; program generation under a time budget."
+    }
+  ],
+  "notes": "CalibForge again leads, but this is the one task of my five where the other pools contribute real signal. CalibForge supplies a whole family of 'write the program that this supplied simulator will run, within a line/step budget' tasks \u2014 one of them (software-engineering_20260601_053159_004) even uses /app/sim and a line cap \u2014 plus the bitwise-only arithmetic task, which is the gate-construction skill in pure form. TMax contributes two genuinely good items its retrieval had buried (task_000405_db54ffe9, a dataflow-circuit evaluator, and task_000258_60a61045, hand-assembling bytecode); neither was in the top of the shortlist, both came from my own searches. Terminal-Lego is the only corpus with the two mathematical halves as standalone tasks \u2014 isqrt (task_09170), Fibonacci (task_09187, task_09194) \u2014 and those are strongly verified, so it beats the v1 pool here on content the old pool simply lacked. Recursive-Task-Synthesis's ARM64 assembly cluster is a fair analogue (algorithms with registers and branches only) but is entirely `absent`-graded; I could not find a graded RTS equivalent. SWE-Smith reduces to cantools bit-field arithmetic and SWE-Rebench to quantum-circuit libraries \u2014 the latter is a surprisingly apt domain match for gate composition, but as issue-shaped bug fixes they lose on task_form and should stay out of the top 10."
+}

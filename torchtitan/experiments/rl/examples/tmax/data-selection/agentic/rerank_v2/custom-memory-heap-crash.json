@@ -1,0 +1,114 @@
+{
+  "tb21_id": "custom-memory-heap-crash",
+  "tb21_profile": {
+    "skill": "Diagnose C++ undefined behaviour / heap corruption that manifests only under -O2 (masked by -O0), pinpoint the offending code in user.cpp, fix it, and get a clean Valgrind run",
+    "domain": "C/C++ systems programming, g++/libstdc++ and optimization, memory debugging (Valgrind/ASan), optimization-dependent UB",
+    "task_form": "fix-a-crashing-program: find-and-patch a memory bug in one source file so it builds, runs and passes memory checks"
+  },
+  "verifier_notes": "Grades read from work/verifier_strength.json (canonical) differ from the packet's inline 'verifier' field in a few cases; I used the canonical file. debugging_20260507_170244_002 is behavioral (not strong as the packet showed) but still valid for final. tw_7829 (segfault + identify the uninitialized struct member) and tw_104501 (ASan stack overflow) are ideal skill matches but FREE, so both are ranked in TerminalWorld per_source only, not final_top10.",
+  "searches": [
+    "tools.py packet review (all seven corpora)",
+    "grade lookups via work/verifier_strength.json for ~45 candidates",
+    "new-corpora scan: CalibForge debugging_* and software-engineering_* (O0-vs-O2 / release-crash / pool-allocator / valgrind)",
+    "new-corpora scan: Terminal-Lego task_07249/07194/00486 (optimization-crash, valgrind, new[]/delete UB)"
+  ],
+  "per_source": {
+    "TMax-15K": [
+      {"rank": 1, "task_id": "task_000312_c54963ff", "skill": 4, "domain": 4, "task_form": 4, "overall": 4, "reason": "Fix a severe memory leak in a performance-critical C extension plus its release build; leak-elimination-under-release, verified by a pinned check."},
+      {"rank": 2, "task_id": "task_005123_5f117bdb", "skill": 4, "domain": 4, "task_form": 4, "overall": 4, "reason": "A C++ port segfaults on some files, computes wrong checksums and over-uses memory; classic find-the-memory-bug-in-C++ debugging."},
+      {"rank": 3, "task_id": "task_009821_3f039f12", "skill": 4, "domain": 4, "task_form": 4, "overall": 4, "reason": "Fix use-after-free and memory leaks in a C++ interpreter; the exact UAF/leak class the release build would expose."},
+      {"rank": 4, "task_id": "task_002407_11a9ee76", "skill": 4, "domain": 4, "task_form": 3, "overall": 3, "reason": "Decodes binary Point structs and computes over them; buffer/struct-layout UB in C++, close to the heap-access bug here."},
+      {"rank": 5, "task_id": "task_001525_184a0563", "skill": 3, "domain": 4, "task_form": 4, "overall": 3, "reason": "Fix a memory leak in a C config parser and reach 0 leaks; same 'no leaks' bar as the Valgrind requirement, C not C++."},
+      {"rank": 6, "task_id": "task_000416_754609f9", "skill": 3, "domain": 4, "task_form": 3, "overall": 3, "reason": "Repair memory leaks and undefined behaviour in a C++ expression evaluator; UB-and-leak cleanup, behavioral verifier."},
+      {"rank": 7, "task_id": "task_005092_2b3b68f9", "skill": 3, "domain": 4, "task_form": 3, "overall": 3, "reason": "Isolate and quantify a memory leak in a C++ service via an MRE; teaches leak localisation, though it links a closed-source .so."},
+      {"rank": 8, "task_id": "task_001203_ae3adfdd", "skill": 3, "domain": 3, "task_form": 3, "overall": 3, "reason": "Track down a memory leak crashing a C++ log processor; memory-fault debugging, but embedded in a multi-service setup."},
+      {"rank": 9, "task_id": "task_003067_faf898b0", "skill": 2, "domain": 4, "task_form": 3, "overall": 2, "reason": "Harden a C++ parser that crashes/OOMs on malicious input; robustness rather than fixing an optimization-triggered heap bug."},
+      {"rank": 10, "task_id": "task_006252_501ae20e", "skill": 2, "domain": 4, "task_form": 3, "overall": 2, "reason": "Fix a linker error and pass a C++ router test suite; build-and-test in C++, little memory-corruption content."}
+    ],
+    "Recursive-Task-Synthesis": [
+      {"rank": 1, "task_id": "rts_task_2a02992f7b6dffcd73f6dfd1", "skill": 3, "domain": 4, "task_form": 4, "overall": 3, "reason": "Build a crashing program with debug symbols and capture the crash point under GDB with a backtrace; crash-diagnosis workflow, no fix required."},
+      {"rank": 2, "task_id": "rts_task_ef260c157b918772826896e9", "skill": 2, "domain": 4, "task_form": 3, "overall": 2, "reason": "Diagnose a broken build under a /build system and write a diagnosis report; shares the /build layout and diagnose-then-fix shape."},
+      {"rank": 3, "task_id": "rts_task_f83201d2a3fa03ff16b28b1a", "skill": 2, "domain": 4, "task_form": 3, "overall": 2, "reason": "Inspect a /build system, set up the toolchain and compile a multi-file C program; compiler/build reasoning only."},
+      {"rank": 4, "task_id": "rts_task_e60317cf65b268362e64e35d", "skill": 2, "domain": 3, "task_form": 3, "overall": 2, "reason": "Compile a multi-file C program via a build system and emit a checksum manifest; build mechanics, no memory bug."},
+      {"rank": 5, "task_id": "rts_task_6bfb00b6d99291f11731de93", "skill": 2, "domain": 4, "task_form": 3, "overall": 2, "reason": "Choose the correct g++ -std flag from the compiler version and compile; toolchain/flag reasoning adjacent to the dual-libstdc++ setup."},
+      {"rank": 6, "task_id": "rts_task_5d20bd08b50dc7d0b85a4e94", "skill": 2, "domain": 3, "task_form": 3, "overall": 2, "reason": "Diagnose and fix an ARM64 asm program producing wrong output; low-level fix-the-bug, different language."},
+      {"rank": 7, "task_id": "rts_task_0671c14dff57b9cade9ba19e", "skill": 2, "domain": 3, "task_form": 3, "overall": 2, "reason": "Rebuild a multi-file C program with all warnings enabled and zero warnings; compiler-warning hygiene, no crash."},
+      {"rank": 8, "task_id": "rts_task_bc421c213673485d42395b42", "skill": 1, "domain": 3, "task_form": 2, "overall": 2, "reason": "Compile a C program that reads a value from a system config header; trivial build task, faint domain overlap."},
+      {"rank": 9, "task_id": "rts_task_b0c6d6d30a4342a27f303e0d", "skill": 1, "domain": 3, "task_form": 2, "overall": 2, "reason": "Another g++-version/-std-selection compile-and-package chore; compiler flags only."},
+      {"rank": 10, "task_id": "rts_task_599b3711b356aa5b8b2da62d", "skill": 1, "domain": 3, "task_form": 2, "overall": 1, "reason": "Same sqrt.cc build-with-correct-std family; formulaic, no memory or crash content."}
+    ],
+    "TerminalWorld-Seeds-Clean": [
+      {"rank": 1, "task_id": "tw_7829", "skill": 4, "domain": 5, "task_form": 4, "overall": 4, "reason": "A C++ program segfaults; use GDB to find the uninitialised struct member causing the invalid access. Exactly the diagnosis skill (strong verifier)."},
+      {"rank": 2, "task_id": "tw_104501", "skill": 3, "domain": 5, "task_form": 3, "overall": 3, "reason": "Compile a C++ program under AddressSanitizer to trigger a stack out-of-bounds read; the OOB-UB-under-sanitizer mechanism, but FREE verifier."},
+      {"rank": 3, "task_id": "tw_338947", "skill": 2, "domain": 4, "task_form": 3, "overall": 2, "reason": "Compile a C/C++ benchmark, building a custom static queue library and linking; C++ build-and-link, no memory bug."},
+      {"rank": 4, "task_id": "tw_672607", "skill": 2, "domain": 4, "task_form": 3, "overall": 2, "reason": "Exercise a C++ project's full Makefile lifecycle including a rebuild on touched sources; build mechanics only."},
+      {"rank": 5, "task_id": "tw_132320", "skill": 1, "domain": 3, "task_form": 2, "overall": 2, "reason": "Install a CLI tool system-wide; touches the toolchain environment, no C++ debugging."},
+      {"rank": 6, "task_id": "tw_177994", "skill": 1, "domain": 3, "task_form": 2, "overall": 2, "reason": "Compile a trivial C program with gcc; only the compile step overlaps."},
+      {"rank": 7, "task_id": "tw_120186", "skill": 1, "domain": 3, "task_form": 2, "overall": 2, "reason": "Build a hello program with a custom compiler and capture output; custom-compiler flavour, nothing memory-related."},
+      {"rank": 8, "task_id": "tw_248132", "skill": 1, "domain": 4, "task_form": 2, "overall": 2, "reason": "Clone and build a C++ codebase (FluffOS) via CMake until the driver binary runs; C++ build-from-source, no memory debugging."},
+      {"rank": 9, "task_id": "tw_764682", "skill": 1, "domain": 4, "task_form": 2, "overall": 1, "reason": "Compile then strip symbols for GDB practice; GDB/toolchain adjacency, FREE verifier, no bug to fix."},
+      {"rank": 10, "task_id": "tw_316893", "skill": 1, "domain": 2, "task_form": 2, "overall": 1, "reason": "Install Docker/Compose; unrelated systems chore, filler."}
+    ],
+    "SWE-Smith-Seeds-Clean": [
+      {"rank": 1, "task_id": "conan-io__conan.86f29e13.combine_module__ox7m3k6h", "skill": 2, "domain": 4, "task_form": 1, "overall": 2, "reason": "Fixes C++ -std flag generation per GCC/Clang version; toolchain/compiler-flag domain overlaps the dual-libstdc++ compile setup, as a Python fix."},
+      {"rank": 2, "task_id": "conan-io__conan.86f29e13.combine_module__0jv2n7d9", "skill": 2, "domain": 4, "task_form": 1, "overall": 2, "reason": "Same C++ standard-flag mapping bug for Clang; compiler-configuration knowledge, wrong genre."},
+      {"rank": 3, "task_id": "conan-io__conan.86f29e13.pr_11678", "skill": 2, "domain": 4, "task_form": 1, "overall": 2, "reason": "Correct compiler-flag handling in AutotoolsToolchain; build-flag reasoning adjacent to release/debug flag differences."},
+      {"rank": 4, "task_id": "conan-io__conan.86f29e13.pr_14378", "skill": 1, "domain": 3, "task_form": 1, "overall": 1, "reason": "Dependency graph over openssl/libzip/etc.; C/C++ ecosystem only, no debugging of code behaviour."},
+      {"rank": 5, "task_id": "dask__dask.5f61e423.pr_10042", "skill": 2, "domain": 2, "task_form": 1, "overall": 1, "reason": "Backend fails to filter NoneType; find-and-patch-a-bug shape, but pure Python data-frame logic."},
+      {"rank": 6, "task_id": "cantools__cantools.0c6a7871.func_pm_remove_assign__vbi7sxdd", "skill": 2, "domain": 2, "task_form": 1, "overall": 1, "reason": "Binary/format parsing regression; bit-level parsing bug, Python not C++, no memory model."},
+      {"rank": 7, "task_id": "pdfminer__pdfminer.six.1a8bd2f7.func_pm_ctrl_shuffle__p83c0pkl", "skill": 1, "domain": 2, "task_form": 1, "overall": 1, "reason": "PDF binary-parsing fix; only binary-format handling is faintly related."},
+      {"rank": 8, "task_id": "pyparsing__pyparsing.533adf47.combine_file__3jw3qikd", "skill": 1, "domain": 1, "task_form": 1, "overall": 1, "reason": "Parser-library bug fix; shares only the debug-a-failing-test shell."},
+      {"rank": 9, "task_id": "life4__textdistance.c3aca916.func_pm_ctrl_shuffle__a0dxas6w", "skill": 1, "domain": 1, "task_form": 1, "overall": 1, "reason": "Algorithm reordering bug; unrelated to memory or C++."},
+      {"rank": 10, "task_id": "getmoto__moto.694ce1f4.pr_7934", "skill": 1, "domain": 1, "task_form": 1, "overall": 1, "reason": "AWS mock fix; no transfer beyond generic bug-fixing."}
+    ],
+    "SWE-Rebench-Tasks-Clean": [
+      {"rank": 1, "task_id": "bloomberg__memray-552", "skill": 2, "domain": 4, "task_form": 1, "overall": 2, "reason": "Fix in a native memory profiler; the memory-tracking/allocator domain overlaps, but it is a library bug not a heap-corruption hunt."},
+      {"rank": 2, "task_id": "pypa__setuptools-4676", "skill": 2, "domain": 3, "task_form": 1, "overall": 2, "reason": "Wheel ABI tag wrong under a debug build of Python; reasons about debug-vs-release build differences, packaging domain."},
+      {"rank": 3, "task_id": "jelmer__dulwich-1578", "skill": 2, "domain": 2, "task_form": 1, "overall": 1, "reason": "porcelain.add corrupts a branch; a corruption bug, but VCS-level and pure Python."},
+      {"rank": 4, "task_id": "nipy__nibabel-750", "skill": 2, "domain": 2, "task_form": 1, "overall": 1, "reason": "Cannot set values in a data array loaded from file; data-structure bug, no memory model."},
+      {"rank": 5, "task_id": "tornadoweb__tornado-3521", "skill": 1, "domain": 1, "task_form": 1, "overall": 1, "reason": "500 on non-RFC Host header; unrelated web-server fix."},
+      {"rank": 6, "task_id": "rpi-distro__python-gpiozero-455", "skill": 1, "domain": 2, "task_form": 1, "overall": 1, "reason": "Event-handler rejection too broad; find-and-patch shape only."},
+      {"rank": 7, "task_id": "google__jax-23502", "skill": 1, "domain": 2, "task_form": 1, "overall": 1, "reason": "jax.debug.print formatting bug; unrelated numerical-library fix."},
+      {"rank": 8, "task_id": "datadog__datadogpy-555", "skill": 1, "domain": 1, "task_form": 1, "overall": 1, "reason": "String decode AttributeError; generic Python bug fix."},
+      {"rank": 9, "task_id": "pypa__pipx-1284", "skill": 1, "domain": 1, "task_form": 1, "overall": 1, "reason": "Unhandled exception on repeated --quiet; CLI arg-handling fix, no transfer."},
+      {"rank": 10, "task_id": "gitpython-developers__gitpython-744", "skill": 1, "domain": 1, "task_form": 1, "overall": 1, "reason": "Path validation bug for root repos; unrelated."}
+    ],
+    "Terminal-Lego-15k": [
+      {"rank": 1, "task_id": "task_07249", "skill": 5, "domain": 5, "task_form": 5, "overall": 5, "reason": "Debug a C++ program that only crashes with optimizations, caused by out-of-bounds UB masked by -O0 — the TB scenario stated almost verbatim."},
+      {"rank": 2, "task_id": "task_07194", "skill": 4, "domain": 5, "task_form": 4, "overall": 4, "reason": "Analyse a buggy C program with Valgrind and fix all memory errors; directly trains the 'no Valgrind errors' requirement."},
+      {"rank": 3, "task_id": "task_00486", "skill": 4, "domain": 5, "task_form": 4, "overall": 4, "reason": "Fix a new[]/delete mismatch causing UB and leaks; a concrete heap-management bug of the class release builds expose."},
+      {"rank": 4, "task_id": "task_09617", "skill": 3, "domain": 4, "task_form": 3, "overall": 3, "reason": "Investigate compiler-dependent behaviour of recursive static-member init; teaches reasoning about compiler-specific behaviour differences."},
+      {"rank": 5, "task_id": "task_14120", "skill": 2, "domain": 4, "task_form": 3, "overall": 3, "reason": "Demonstrate _DEBUG vs NDEBUG semantics; explains the exact macro (NDEBUG) that toggles the TB program's release path."},
+      {"rank": 6, "task_id": "task_07685", "skill": 3, "domain": 4, "task_form": 3, "overall": 3, "reason": "Implement exception-safe RAII with the three exception-safety guarantees; C++ resource/memory correctness, no crash to chase."},
+      {"rank": 7, "task_id": "task_10106", "skill": 2, "domain": 4, "task_form": 3, "overall": 2, "reason": "Fix compiler/linker options so a std::thread C++ program runs; g++ link-flag debugging, adjacent to the TB compile lines."},
+      {"rank": 8, "task_id": "task_09231", "skill": 2, "domain": 4, "task_form": 3, "overall": 2, "reason": "Resolve a std::transform/toupper overload compile error; C++ diagnostic reading, but compile-time not runtime memory."},
+      {"rank": 9, "task_id": "task_07208", "skill": 2, "domain": 3, "task_form": 2, "overall": 2, "reason": "Conditional compilation for debug/release in Rust; the debug-vs-release concept in a different language."},
+      {"rank": 10, "task_id": "task_02513", "skill": 1, "domain": 3, "task_form": 2, "overall": 2, "reason": "Fix a missing cc1plus so g++ works; toolchain-repair only, no code bug."}
+    ],
+    "CalibForge": [
+      {"rank": 1, "task_id": "software-engineering_20260416_172928_016", "skill": 5, "domain": 5, "task_form": 5, "overall": 5, "reason": "A memory-pool allocator library passes in debug but crashes in release builds on production servers; near-identical debug-ok/release-crash memory bug (strong verifier)."},
+      {"rank": 2, "task_id": "debugging_20260415_182321_002", "skill": 5, "domain": 5, "task_form": 5, "overall": 5, "reason": "A C++ binary parser gives correct results at -O0 but different ones at -O2, with the same g++ -std=c++17 debug/release compile lines; the TB structure exactly, strong verifier."},
+      {"rank": 3, "task_id": "software-engineering_20260418_044216_016", "skill": 5, "domain": 5, "task_form": 5, "overall": 5, "reason": "Fix C code that differs between -O0 and -O2 so it is correct at both and passes Valgrind; the optimization-UB-plus-Valgrind combination, C not C++."},
+      {"rank": 4, "task_id": "debugging_20260421_155939_002", "skill": 5, "domain": 5, "task_form": 5, "overall": 5, "reason": "A C++ observer-pattern app compiled at -O2 segfaults after a reconfiguration; find the release-mode heap/lifetime bug, verifier ok."},
+      {"rank": 5, "task_id": "debugging_20260612_191200_002", "skill": 4, "domain": 5, "task_form": 4, "overall": 4, "reason": "Fix a C dynamic-array program so it passes all checks with no memory errors; memory-fault fixing with a memory-clean bar, strong verifier."},
+      {"rank": 6, "task_id": "debugging_20260507_170244_002", "skill": 4, "domain": 5, "task_form": 4, "overall": 4, "reason": "A custom pool allocator corrupts memory after repeated free/realloc; the subtle allocator bug the TB heap crash resembles."},
+      {"rank": 7, "task_id": "debugging_20260610_111012_002", "skill": 4, "domain": 4, "task_form": 4, "overall": 4, "reason": "A Python C extension segfaults on some inputs; find and fix the native memory bugs so all functions run without crashing, strong verifier."},
+      {"rank": 8, "task_id": "debugging_20260416_031414_002", "skill": 4, "domain": 5, "task_form": 4, "overall": 4, "reason": "A C checksum verifier gives wrong results across -O0/-O2/-O3; the same optimization-dependent-bug hunt, though weak verifier."},
+      {"rank": 9, "task_id": "software-engineering_20260617_051646_002", "skill": 3, "domain": 4, "task_form": 4, "overall": 3, "reason": "Build GNU indent from source, fixing genuine source bugs rather than flags; fix-the-code-to-build discipline, no memory model."},
+      {"rank": 10, "task_id": "software-engineering_20260502_090008_002", "skill": 2, "domain": 4, "task_form": 4, "overall": 3, "reason": "Fix C89-vs-modern-GCC compatibility to build a library; source-level compile fixing, adjacent toolchain domain."}
+    ]
+  },
+  "final_top10": [
+    {"rank": 1, "task_id": "software-engineering_20260416_172928_016", "source": "CalibForge", "skill": 5, "domain": 5, "task_form": 5, "overall": 5, "reason": "Memory-pool library passes in debug but crashes in release builds; the debug-ok/release-crash memory bug is the TB task's exact premise, strongly verified."},
+    {"rank": 2, "task_id": "debugging_20260415_182321_002", "source": "CalibForge", "skill": 5, "domain": 5, "task_form": 5, "overall": 5, "reason": "C++ parser: correct at -O0, wrong at -O2, with the same g++ -std=c++17 debug/release compile invocations; structurally identical, strong verifier."},
+    {"rank": 3, "task_id": "task_07249", "source": "Terminal-Lego-15k", "skill": 5, "domain": 5, "task_form": 5, "overall": 5, "reason": "Debug a C++ program that only crashes with optimizations due to out-of-bounds UB masked by -O0 — the TB scenario stated almost verbatim."},
+    {"rank": 4, "task_id": "software-engineering_20260418_044216_016", "source": "CalibForge", "skill": 5, "domain": 5, "task_form": 5, "overall": 5, "reason": "Fix code that differs between -O0 and -O2 so it is correct at both AND passes Valgrind; the optimization-UB + Valgrind combination the TB task requires."},
+    {"rank": 5, "task_id": "debugging_20260421_155939_002", "source": "CalibForge", "skill": 5, "domain": 5, "task_form": 5, "overall": 5, "reason": "A -O2 C++ app segfaults after a reconfiguration; locate the release-mode heap/lifetime bug in the observer code, verifier ok."},
+    {"rank": 6, "task_id": "debugging_20260507_170244_002", "source": "CalibForge", "skill": 4, "domain": 5, "task_form": 4, "overall": 4, "reason": "Custom pool allocator corrupts memory after repeated free/realloc; the subtle allocator corruption a custom-heap crash resembles."},
+    {"rank": 7, "task_id": "debugging_20260612_191200_002", "source": "CalibForge", "skill": 4, "domain": 5, "task_form": 4, "overall": 4, "reason": "Fix a C dynamic-array program to pass all checks with no memory errors; memory-fault fixing against a memory-clean bar, strongly verified."},
+    {"rank": 8, "task_id": "task_07194", "source": "Terminal-Lego-15k", "skill": 4, "domain": 5, "task_form": 4, "overall": 4, "reason": "Analyse a buggy C program with Valgrind and fix every memory error; directly trains the 'no Valgrind leaks' requirement."},
+    {"rank": 9, "task_id": "debugging_20260610_111012_002", "source": "CalibForge", "skill": 4, "domain": 4, "task_form": 4, "overall": 4, "reason": "A native C extension segfaults on some inputs; find and fix the memory bugs so all functions run without crashing, strong verifier."},
+    {"rank": 10, "task_id": "task_000312_c54963ff", "source": "TMax-15K", "skill": 4, "domain": 4, "task_form": 4, "overall": 4, "reason": "Eliminate a severe memory leak in a performance-critical release build; the release-build memory-cleanliness goal, strongly verified."}
+  ],
+  "notes": "This is the task where the new corpora most clearly beat the old pool. CalibForge is decisively the best source: it has multiple tasks that reproduce the TB premise almost exactly (debug passes / release crashes, O0-vs-O2 divergence, custom pool-allocator corruption, plus an explicit 'pass Valgrind' task), and they are well verified (strong/ok). Terminal-Lego contributes the single best-worded match, task_07249 ('C++ program that only crashes with optimizations'), plus a real Valgrind task. TMax has a deep bench of C/C++ memory-leak and segfault-fix tasks but none tie the crash to optimization level, so it sits just below. SWE-Smith and SWE-Rebench have essentially no C++ heap-corruption content; their best entries are conan compiler-flag fixes (domain-adjacent) and a memray fix, all overall 1-2 and should be treated as filler. Recursive-Task-Synthesis only offers build/compile chores (some share the /build layout) and one GDB-crash-capture task; all absent-verifier and low transfer. No FREE candidate is in final_top10 (tw_7829 and tw_104501, both strong skill matches, are FREE and kept in TerminalWorld per_source only)."
+}

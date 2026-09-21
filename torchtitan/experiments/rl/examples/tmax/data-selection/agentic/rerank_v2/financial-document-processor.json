@@ -1,0 +1,783 @@
+{
+ "tb21_id": "financial-document-processor",
+ "tb21_profile": {
+  "skill": "Get text out of both scanned JPGs and PDFs (OCR plus PDF text layer), decide from the content whether a document is an invoice, then pull labelled money fields out with disambiguation rules and aggregate them",
+  "domain": "Document processing / OCR: tesseract, pdftotext or pdfplumber, Python, CSV; small-scale financial data",
+  "task_form": "Implement-a-pipeline-from-spec: classify, move files so the source directory ends empty, and emit a CSV with exact columns plus a computed totals row"
+ },
+ "verifier_notes": "task_003095_da0071dc is the single closest TMax task (OCR a scanned receipt, extract amounts, compute totals) but the packet grades it FREE while work/verifier_strength.json grades it ok - I treated the disagreement conservatively, ranked it first in TMax per_source and kept it out of final_top10. tw_288787 (identify real PDFs regardless of extension) and task_00122 (pdftotext extraction) are likewise the best of their corpora and both FREE, so they sit at per_source ranks 1 and 3 only. More generally, the packet's verifier field and work/verifier_strength.json disagree on about a quarter of shown candidates; every id in final_top10 here is non-FREE under both.",
+ "searches": [
+  "grep over Terminal-Lego/CalibForge instructions: invoice",
+  "OCR|tesseract",
+  "\\bPDF\\b",
+  "pdfplumber|pypdf|PyPDF2|pdftotext|fitz|pdfminer",
+  "tesseract|\\bOCR\\b (CalibForge)",
+  "PDF (CalibForge)",
+  "classif (CalibForge)",
+  "move .{0,30}(files|documents) (to|into) (CalibForge)",
+  "file (type|command).{0,40}(magic|content)|magic bytes|libmagic (Lego)",
+  "move .{0,25}files (Lego)",
+  "sum (of )?(the )?(a )?column|awk.{0,30}sum|total row|grand total (Lego)",
+  "extract .{0,30}(amount|price|number) from (Lego)",
+  "tools.py search tmax \"tesseract\"",
+  "tools.py search tmax \"scanned (receipt|invoice|document|image)\"",
+  "tools.py search tmax \"invoice\"",
+  "tools.py search tmax \"receipt\"",
+  "tools.py search tmax \"summary\\.csv|final row|grand total|TOTAL row\"",
+  "tools.py search tmax \"classify each (file|document|image)|sort .{0,20}files into|move (each|all|the) .{0,30}(into|to) \"",
+  "tools.py search tw \"tesseract|pdftotext|pdfgrep|invoice|receipt|\\bOCR\\b\"",
+  "tools.py search rts \"tesseract|pdftotext|pdfgrep|invoice|receipt|\\bOCR\\b\"",
+  "tools.py search tw \"CSV|csv|aggregate|sum \"",
+  "tools.py search smith \"pdfminer|pdfplumber|tablib|csv|dataset\"",
+  "tools.py search rebench \"pdfminer|pdfplumber|tablib|read_csv|to_csv|camelot|ocr\""
+ ],
+ "per_source": {
+  "TMax-15K": [
+   {
+    "rank": 1,
+    "task_id": "task_003095_da0071dc",
+    "skill": 5,
+    "domain": 5,
+    "task_form": 4,
+    "overall": 4,
+    "reason": "OCR a scanned receipt, pull the money fields out and aggregate merchant totals for a tax region; packet grades it FREE so it is kept out of final_top10"
+   },
+   {
+    "rank": 2,
+    "task_id": "task_000298_bd10fc23",
+    "skill": 4,
+    "domain": 3,
+    "task_form": 5,
+    "overall": 4,
+    "reason": "Classify files by actual content rather than extension (fake .png, unlabelled PNGs) and move only the genuine ones into a destination directory"
+   },
+   {
+    "rank": 3,
+    "task_id": "task_002749_ce9fc4b8",
+    "skill": 4,
+    "domain": 5,
+    "task_form": 3,
+    "overall": 4,
+    "reason": "OCR an invoice summary image to recover numeric policy limits and drive the rest of the workflow off them"
+   },
+   {
+    "rank": 4,
+    "task_id": "task_001973_920dc987",
+    "skill": 4,
+    "domain": 4,
+    "task_form": 4,
+    "overall": 4,
+    "reason": "ETL that digitises legacy records: read the schema and business rules off a scanned document, then transform the data accordingly"
+   },
+   {
+    "rank": 5,
+    "task_id": "task_000226_06e3f1db",
+    "skill": 4,
+    "domain": 3,
+    "task_form": 4,
+    "overall": 3,
+    "reason": "Read numeric thresholds off a scanned spec sheet and validate a CSV of readings against them; OCR feeding a tabular pipeline"
+   },
+   {
+    "rank": 6,
+    "task_id": "task_002968_6927e723",
+    "skill": 4,
+    "domain": 5,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Stand up an OCR service that reads a receipt PNG and returns its extracted text; the image-to-text half in Rust"
+   },
+   {
+    "rank": 7,
+    "task_id": "task_000287_e6531ea7",
+    "skill": 3,
+    "domain": 2,
+    "task_form": 5,
+    "overall": 3,
+    "reason": "Identify ELF files strictly by magic bytes and move them into an organised directory; content-based sorting of a mixed directory"
+   },
+   {
+    "rank": 8,
+    "task_id": "task_001517_347c5463",
+    "skill": 3,
+    "domain": 3,
+    "task_form": 4,
+    "overall": 3,
+    "reason": "Extract cleaning rules from a scanned guidelines image and apply them to a CSV with missing values and outliers"
+   },
+   {
+    "rank": 9,
+    "task_id": "task_001239_0618df17",
+    "skill": 3,
+    "domain": 3,
+    "task_form": 4,
+    "overall": 3,
+    "reason": "Clean a price column (strip $, coerce to float, handle missing) and aggregate; the money-parsing and totalling part"
+   },
+   {
+    "rank": 10,
+    "task_id": "task_002632_6341561d",
+    "skill": 2,
+    "domain": 4,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Join two financial CSVs and emit a report; ordinary tabular ETL with no document understanding"
+   }
+  ],
+  "Recursive-Task-Synthesis": [
+   {
+    "rank": 1,
+    "task_id": "rts_task_457efe5a9374a363f231a7ca",
+    "skill": 3,
+    "domain": 4,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Add a --receipt flag to a shopping-cart CLI with configurable pricing profiles; itemised lines plus computed totals; verifier absent"
+   },
+   {
+    "rank": 2,
+    "task_id": "rts_task_59add8c24d54b322221afb21",
+    "skill": 3,
+    "domain": 4,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Diagnose a broken receipt generator and its data files, then produce a corrected receipt"
+   },
+   {
+    "rank": 3,
+    "task_id": "rts_task_42dbe1500f876578d41c1cac",
+    "skill": 3,
+    "domain": 4,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Build a PDF then extract its text with pdftotext and check the content; the PDF-to-text half of this pipeline"
+   },
+   {
+    "rank": 4,
+    "task_id": "rts_task_eeb84d36ce33bde72b316a30",
+    "skill": 3,
+    "domain": 4,
+    "task_form": 3,
+    "overall": 2,
+    "reason": "Generate a PDF, extract its text with pdftotext and checksum it; PDF tooling, no extraction logic"
+   },
+   {
+    "rank": 5,
+    "task_id": "rts_task_ff4e90a8f62762d452691579",
+    "skill": 2,
+    "domain": 3,
+    "task_form": 3,
+    "overall": 2,
+    "reason": "Assemble an archive per a specification that includes a transaction receipt; deliverable-shape matching only"
+   },
+   {
+    "rank": 6,
+    "task_id": "rts_task_d32b26332856832772aa42ca",
+    "skill": 2,
+    "domain": 3,
+    "task_form": 3,
+    "overall": 2,
+    "reason": "Fix a crash so the final receipt is written; debugging rather than extraction"
+   },
+   {
+    "rank": 7,
+    "task_id": "rts_task_15e7c609331c6ff91e3e1dbe",
+    "skill": 2,
+    "domain": 2,
+    "task_form": 3,
+    "overall": 2,
+    "reason": "Extract numeric statistics from captured tool output and verify the counts; parse-numbers-and-check"
+   },
+   {
+    "rank": 8,
+    "task_id": "rts_task_1d1ea83da33a090978511606",
+    "skill": 2,
+    "domain": 2,
+    "task_form": 3,
+    "overall": 2,
+    "reason": "Prove an output flag was used and emit a checkout receipt; file-shuffling chore"
+   },
+   {
+    "rank": 9,
+    "task_id": "rts_task_ab3dc279f35575deca7234e5",
+    "skill": 2,
+    "domain": 3,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Check which required sections an HTML CV contains and produce a PDF; document-content checking"
+   },
+   {
+    "rank": 10,
+    "task_id": "rts_task_7e059fc32eaa6a28960453be",
+    "skill": 2,
+    "domain": 2,
+    "task_form": 3,
+    "overall": 1,
+    "reason": "Near-duplicate of the packet-statistics extraction task above"
+   }
+  ],
+  "TerminalWorld-Seeds-Clean": [
+   {
+    "rank": 1,
+    "task_id": "tw_288787",
+    "skill": 4,
+    "domain": 4,
+    "task_form": 4,
+    "overall": 3,
+    "reason": "Identify which files in a directory are really PDFs regardless of filename or extension and list them; content-based classification, but FREE verifier"
+   },
+   {
+    "rank": 2,
+    "task_id": "tw_647708",
+    "skill": 3,
+    "domain": 3,
+    "task_form": 4,
+    "overall": 3,
+    "reason": "Join two CSVs, compute aggregate area statistics and write the result CSV; aggregation into an exact output schema"
+   },
+   {
+    "rank": 3,
+    "task_id": "tw_603225",
+    "skill": 3,
+    "domain": 4,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Parse tab-separated daily sales amounts and write the computed total in an exact format; the totals-row arithmetic"
+   },
+   {
+    "rank": 4,
+    "task_id": "tw_30769",
+    "skill": 3,
+    "domain": 2,
+    "task_form": 4,
+    "overall": 3,
+    "reason": "Process two datasets into two summary reports; multi-source summarisation with fixed outputs"
+   },
+   {
+    "rank": 5,
+    "task_id": "tw_100135",
+    "skill": 3,
+    "domain": 2,
+    "task_form": 4,
+    "overall": 3,
+    "reason": "Turn unstructured text data into a clean CSV; extract fields out of a free-form document"
+   },
+   {
+    "rank": 6,
+    "task_id": "tw_12673",
+    "skill": 2,
+    "domain": 2,
+    "task_form": 3,
+    "overall": 2,
+    "reason": "Transform one CSV into another with derived columns; pure tabular reshaping"
+   },
+   {
+    "rank": 7,
+    "task_id": "tw_11045",
+    "skill": 2,
+    "domain": 2,
+    "task_form": 3,
+    "overall": 2,
+    "reason": "Parse a three-field CSV into a nested structure in Python"
+   },
+   {
+    "rank": 8,
+    "task_id": "tw_6185",
+    "skill": 2,
+    "domain": 2,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Read a CSV header with an unusual delimiter and clean the column names"
+   },
+   {
+    "rank": 9,
+    "task_id": "tw_21631",
+    "skill": 2,
+    "domain": 2,
+    "task_form": 3,
+    "overall": 2,
+    "reason": "Filter rows and add a derived column with pandas, writing result.csv"
+   },
+   {
+    "rank": 10,
+    "task_id": "tw_139449",
+    "skill": 2,
+    "domain": 2,
+    "task_form": 3,
+    "overall": 2,
+    "reason": "Convert NDJSON to SQLite via an intermediate CSV; format conversion only"
+   }
+  ],
+  "SWE-Smith-Seeds-Clean": [
+   {
+    "rank": 1,
+    "task_id": "jsvine__pdfplumber.02ff4313.func_pm_ctrl_invert_if__aoaoo8m3",
+    "skill": 4,
+    "domain": 5,
+    "task_form": 3,
+    "overall": 4,
+    "reason": "pdfplumber.open(repair=True) mishandles path vs file-like input; pdfplumber is the library this TB2.1 task is solved with"
+   },
+   {
+    "rank": 2,
+    "task_id": "jsvine__pdfplumber.02ff4313.lm_rewrite__2y1t82st",
+    "skill": 4,
+    "domain": 5,
+    "task_form": 3,
+    "overall": 4,
+    "reason": "pdfplumber CLI page-range and JSON output defect; driving PDF text extraction from the command line"
+   },
+   {
+    "rank": 3,
+    "task_id": "pdfminer__pdfminer.six.1a8bd2f7.combine_file__9pxesytc",
+    "skill": 4,
+    "domain": 5,
+    "task_form": 3,
+    "overall": 4,
+    "reason": "LZW decoder defect in pdfminer.six; the decoding layer under every PDF text extraction"
+   },
+   {
+    "rank": 4,
+    "task_id": "pdfminer__pdfminer.six.1a8bd2f7.combine_file__cyuuf905",
+    "skill": 3,
+    "domain": 5,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Another pdfminer.six defect in PDF content parsing; same extraction stack"
+   },
+   {
+    "rank": 5,
+    "task_id": "jsvine__pdfplumber.02ff4313.lm_rewrite__677zl144",
+    "skill": 3,
+    "domain": 5,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "pdfplumber object extraction defect; how words and rows are recovered from page objects"
+   },
+   {
+    "rank": 6,
+    "task_id": "jsvine__pdfplumber.02ff4313.func_pm_class_rm_funcs__f4lzsnq5",
+    "skill": 3,
+    "domain": 5,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Missing pdfplumber page/table methods; table recovery is exactly what invoice parsing needs"
+   },
+   {
+    "rank": 7,
+    "task_id": "jsvine__pdfplumber.02ff4313.func_pm_ctrl_shuffle__1fr82mg6",
+    "skill": 3,
+    "domain": 5,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "pdfplumber control-flow defect in page handling"
+   },
+   {
+    "rank": 8,
+    "task_id": "pdfminer__pdfminer.six.1a8bd2f7.func_pm_class_rm_funcs__3n178krv",
+    "skill": 3,
+    "domain": 5,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "pdfminer.six class with removed methods; PDF object model handling"
+   },
+   {
+    "rank": 9,
+    "task_id": "jsvine__pdfplumber.02ff4313.lm_rewrite__fkldf5pb",
+    "skill": 3,
+    "domain": 5,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Further pdfplumber extraction defect; same library, same extraction surface"
+   },
+   {
+    "rank": 10,
+    "task_id": "jsvine__pdfplumber.02ff4313.func_pm_ctrl_invert_if__fdr1j54u",
+    "skill": 3,
+    "domain": 5,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Inverted condition in pdfplumber page filtering; PDF-extraction domain"
+   }
+  ],
+  "SWE-Rebench-Tasks-Clean": [
+   {
+    "rank": 1,
+    "task_id": "jazzband__tablib-510",
+    "skill": 3,
+    "domain": 3,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "tablib Dataset export defect; building a tabular dataset and serialising it to CSV correctly"
+   },
+   {
+    "rank": 2,
+    "task_id": "jazzband__tablib-490",
+    "skill": 3,
+    "domain": 3,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Second tablib defect in dataset handling and export formats"
+   },
+   {
+    "rank": 3,
+    "task_id": "jazzband__tablib-547",
+    "skill": 3,
+    "domain": 3,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "tablib import/export round-trip defect; CSV fidelity"
+   },
+   {
+    "rank": 4,
+    "task_id": "jazzband__tablib-456",
+    "skill": 3,
+    "domain": 3,
+    "task_form": 3,
+    "overall": 2,
+    "reason": "tablib dataset behaviour defect; same tabular-export area"
+   },
+   {
+    "rank": 5,
+    "task_id": "jazzband__tablib-563",
+    "skill": 3,
+    "domain": 3,
+    "task_form": 3,
+    "overall": 2,
+    "reason": "Another tablib export defect"
+   },
+   {
+    "rank": 6,
+    "task_id": "pandas-dev__pandas-55115",
+    "skill": 3,
+    "domain": 3,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "pandas CSV/IO behaviour defect; the aggregation and CSV-writing stack"
+   },
+   {
+    "rank": 7,
+    "task_id": "pandas-dev__pandas-56585",
+    "skill": 3,
+    "domain": 3,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "pandas IO defect; reading and writing tabular data"
+   },
+   {
+    "rank": 8,
+    "task_id": "pandas-dev__pandas-59080",
+    "skill": 3,
+    "domain": 3,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "pandas defect touching CSV handling"
+   },
+   {
+    "rank": 9,
+    "task_id": "kozea__weasyprint-2404",
+    "skill": 2,
+    "domain": 4,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "WeasyPrint document rendering; PDF domain but generation, not extraction"
+   },
+   {
+    "rank": 10,
+    "task_id": "drivendataorg__cloudpathlib-432",
+    "skill": 1,
+    "domain": 2,
+    "task_form": 2,
+    "overall": 1,
+    "reason": "Cloud path credential timing; file-handling ecosystem only"
+   }
+  ],
+  "Terminal-Lego-15k": [
+   {
+    "rank": 1,
+    "task_id": "task_04291",
+    "skill": 4,
+    "domain": 3,
+    "task_form": 4,
+    "overall": 4,
+    "reason": "Add a 'total' row to a table while keeping the other columns' types intact; the summary.csv final row requirement almost verbatim"
+   },
+   {
+    "rank": 2,
+    "task_id": "task_04082",
+    "skill": 4,
+    "domain": 3,
+    "task_form": 4,
+    "overall": 3,
+    "reason": "Compute a column sum and append it as a total row; the aggregation step of the CSV deliverable"
+   },
+   {
+    "rank": 3,
+    "task_id": "task_00122",
+    "skill": 3,
+    "domain": 5,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Extract text from PDFs with pdftotext/pdfgrep to search them; the PDF-to-text step, but FREE verifier so barred from final_top10"
+   },
+   {
+    "rank": 4,
+    "task_id": "task_03789",
+    "skill": 3,
+    "domain": 3,
+    "task_form": 4,
+    "overall": 3,
+    "reason": "Validate image files by their magic-byte signatures rather than extension; classifying a mixed JPG/PDF directory by content"
+   },
+   {
+    "rank": 5,
+    "task_id": "task_00385",
+    "skill": 3,
+    "domain": 4,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "CLI that takes an image and an output text path and performs an OCR conversion; the image-to-text interface"
+   },
+   {
+    "rank": 6,
+    "task_id": "task_00524",
+    "skill": 2,
+    "domain": 4,
+    "task_form": 3,
+    "overall": 2,
+    "reason": "Convert a PDF to JPG on the command line; the two formats in play, no extraction"
+   },
+   {
+    "rank": 7,
+    "task_id": "task_00227",
+    "skill": 2,
+    "domain": 2,
+    "task_form": 4,
+    "overall": 2,
+    "reason": "Move every file out of a source directory except one; the leave-documents-empty half"
+   },
+   {
+    "rank": 8,
+    "task_id": "task_03903",
+    "skill": 2,
+    "domain": 3,
+    "task_form": 3,
+    "overall": 2,
+    "reason": "Distinguish gzip/zip/zlib by their header bytes; format identification from content"
+   },
+   {
+    "rank": 9,
+    "task_id": "task_00167",
+    "skill": 2,
+    "domain": 2,
+    "task_form": 3,
+    "overall": 2,
+    "reason": "Deduplicate CSV rows on a key column; tabular hygiene only"
+   },
+   {
+    "rank": 10,
+    "task_id": "task_00061",
+    "skill": 1,
+    "domain": 2,
+    "task_form": 2,
+    "overall": 1,
+    "reason": "Pretty-print a CSV in the terminal; CSV surface only"
+   }
+  ],
+  "CalibForge": [
+   {
+    "rank": 1,
+    "task_id": "personal-assistant_20260617_210354_001",
+    "skill": 5,
+    "domain": 5,
+    "task_form": 5,
+    "overall": 5,
+    "reason": "Reconcile OCR'd receipts, bank rows and manual entries, extract and validate amounts and categories, emit a CSV with exactly specified columns"
+   },
+   {
+    "rank": 2,
+    "task_id": "file-operations_20260614_141608_003",
+    "skill": 5,
+    "domain": 5,
+    "task_form": 4,
+    "overall": 5,
+    "reason": "OCR a scanned PDF whose text lives in images, pull out every record and amount, and aggregate revenue totals"
+   },
+   {
+    "rank": 3,
+    "task_id": "file-operations_20260416_172928_003",
+    "skill": 4,
+    "domain": 4,
+    "task_form": 5,
+    "overall": 4,
+    "reason": "Find the real PDFs by magic bytes not extension, copy them to a directory and write the listing; the classify-and-move half exactly"
+   },
+   {
+    "rank": 4,
+    "task_id": "data-processing_20260417_145736_002",
+    "skill": 4,
+    "domain": 4,
+    "task_form": 4,
+    "overall": 4,
+    "reason": "Reconcile bank statements with OCR transcription errors (O/0, l/1) and duplicate uploads; tolerant numeric matching"
+   },
+   {
+    "rank": 5,
+    "task_id": "personal-assistant_20260414_211453_001",
+    "skill": 4,
+    "domain": 5,
+    "task_form": 4,
+    "overall": 4,
+    "reason": "Consolidate messy time logs and billing rules into client invoices; money arithmetic under written rules"
+   },
+   {
+    "rank": 6,
+    "task_id": "file-operations_20260424_090344_004",
+    "skill": 4,
+    "domain": 5,
+    "task_form": 3,
+    "overall": 4,
+    "reason": "Recover text that survived a botched PDF redaction; getting at a PDF's real text layer"
+   },
+   {
+    "rank": 7,
+    "task_id": "data-processing_20260508_045740_002",
+    "skill": 3,
+    "domain": 5,
+    "task_form": 4,
+    "overall": 3,
+    "reason": "Group partial payments against invoice IDs and report totals versus expected counts"
+   },
+   {
+    "rank": 8,
+    "task_id": "data-processing_20260418_044216_002",
+    "skill": 3,
+    "domain": 5,
+    "task_form": 4,
+    "overall": 3,
+    "reason": "Match bank deposits to ledger invoices with fees and refunds; amount reconciliation rules"
+   },
+   {
+    "rank": 9,
+    "task_id": "file-operations_20260514_011856_002",
+    "skill": 3,
+    "domain": 3,
+    "task_form": 4,
+    "overall": 3,
+    "reason": "Carve PNG/JPEG/ZIP/PDF out of a disk image by signature; identifying document types from raw bytes"
+   },
+   {
+    "rank": 10,
+    "task_id": "data-processing_20260508_045557_003",
+    "skill": 3,
+    "domain": 4,
+    "task_form": 4,
+    "overall": 3,
+    "reason": "One deposit covering several invoices, partial payments and vendor-name variants; many-to-one financial matching"
+   }
+  ]
+ },
+ "final_top10": [
+  {
+   "rank": 1,
+   "task_id": "personal-assistant_20260617_210354_001",
+   "source": "CalibForge",
+   "skill": 5,
+   "domain": 5,
+   "task_form": 5,
+   "overall": 5,
+   "reason": "OCR'd receipts plus statements reconciled into a CSV with exactly-named columns; extract amounts, classify categories, apply written rules"
+  },
+  {
+   "rank": 2,
+   "task_id": "file-operations_20260614_141608_003",
+   "source": "CalibForge",
+   "skill": 5,
+   "domain": 5,
+   "task_form": 4,
+   "overall": 5,
+   "reason": "Scanned PDF with text only in images: OCR every record, map ids to categories, aggregate revenue totals to an exact schema"
+  },
+  {
+   "rank": 3,
+   "task_id": "file-operations_20260416_172928_003",
+   "source": "CalibForge",
+   "skill": 4,
+   "domain": 4,
+   "task_form": 5,
+   "overall": 4,
+   "reason": "Detect real PDFs by content not extension, place them in a directory and list them; the classify-and-move half of the TB2.1 task"
+  },
+  {
+   "rank": 4,
+   "task_id": "task_000298_bd10fc23",
+   "source": "TMax-15K",
+   "skill": 4,
+   "domain": 3,
+   "task_form": 5,
+   "overall": 4,
+   "reason": "Files lie about their type; classify by content and move only the genuine ones into the destination directory"
+  },
+  {
+   "rank": 5,
+   "task_id": "task_002749_ce9fc4b8",
+   "source": "TMax-15K",
+   "skill": 4,
+   "domain": 5,
+   "task_form": 3,
+   "overall": 4,
+   "reason": "OCR an invoice summary image for its numeric limits and drive the downstream workflow off them; strong verifier"
+  },
+  {
+   "rank": 6,
+   "task_id": "jsvine__pdfplumber.02ff4313.func_pm_ctrl_invert_if__aoaoo8m3",
+   "source": "SWE-Smith-Seeds-Clean",
+   "skill": 4,
+   "domain": 5,
+   "task_form": 3,
+   "overall": 4,
+   "reason": "Debug pdfplumber's own open/repair path handling: the library a solver reaches for to read these PDFs"
+  },
+  {
+   "rank": 7,
+   "task_id": "task_001973_920dc987",
+   "source": "TMax-15K",
+   "skill": 4,
+   "domain": 4,
+   "task_form": 4,
+   "overall": 4,
+   "reason": "Digitising ETL that must read its schema and business rules off a scanned document before transforming the records"
+  },
+  {
+   "rank": 8,
+   "task_id": "data-processing_20260417_145736_002",
+   "source": "CalibForge",
+   "skill": 4,
+   "domain": 4,
+   "task_form": 4,
+   "overall": 4,
+   "reason": "Dedupe bank statements where near-duplicates come from OCR confusions; tolerating imperfect OCR of amounts is the crux"
+  },
+  {
+   "rank": 9,
+   "task_id": "task_04291",
+   "source": "Terminal-Lego-15k",
+   "skill": 4,
+   "domain": 3,
+   "task_form": 4,
+   "overall": 4,
+   "reason": "Append a 'total' row to a table without breaking the other columns' types, which is literally summary.csv's last row"
+  },
+  {
+   "rank": 10,
+   "task_id": "file-operations_20260424_090344_004",
+   "source": "CalibForge",
+   "skill": 4,
+   "domain": 5,
+   "task_form": 3,
+   "overall": 4,
+   "reason": "Recover the real text layer of a badly redacted PDF; forces actual PDF text extraction rather than guesswork"
+  }
+ ],
+ "notes": "CalibForge is again the strongest single source and supplies half of final_top10; nothing in the v1 pool matches personal-assistant_20260617_210354_001 (OCR receipts reconciled into an exactly-specified CSV) or file-operations_20260614_141608_003 (OCR a scanned PDF and aggregate). Terminal-Lego contributes one genuinely useful item (task_04291, the total-row requirement) and otherwise thin coverage - ranks 6-10 there are filler. SWE-Smith is unusually valuable here because pdfplumber and pdfminer.six are exactly the extraction libraries involved; I deliberately filled its ten from those two repos rather than chasing task_form. TMax has a deep bench of OCR-a-scanned-image tasks, but its retrieval shortlist surfaced financial CSV ETL instead, so most of my TMax picks came from my own tesseract/receipt/scanned searches. Recursive-Task-Synthesis and TerminalWorld could not field ten defensible candidates; below rank 3 both are generic CSV chores."
+}

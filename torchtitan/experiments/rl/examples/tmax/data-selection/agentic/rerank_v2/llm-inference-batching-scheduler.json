@@ -1,0 +1,773 @@
+{
+ "tb21_id": "llm-inference-batching-scheduler",
+ "tb21_profile": {
+  "skill": "Design a packing/quantisation heuristic -- cluster prompt lengths into at most 8 aligned shapes, then group requests into batches -- so a supplied analytical cost model falls under four hard numeric thresholds",
+  "domain": "LLM inference serving on fixed-shape accelerators: seq/heads/hidden alignment, padding waste, per-shape compilation cost, P95 latency; JSONL request/plan I/O",
+  "task_form": "optimise-for-a-budget against a provided cost model, plus implement-from-spec under hard structural constraints (every request exactly once, MAX_SHAPES=8, uniform shape per batch)"
+ },
+ "verifier_notes": "No grade I checked looked wrong for this task. Terminal-Lego's two best entries here (task_14903 rectangle packing, task_12096 P99 latency) are graded weak but both have many substantive assertions (2/15 and 8/37 pinned) rather than being file-exists suites, so weak understates them; neither is FREE so both are eligible. TerminalWorld's closest-by-retrieval entry tw_127063 (performance benchmarking pipeline) is FREE and excluded.",
+ "searches": [
+  "tools.py search tmax 'bin.?pack|knapsack|schedul.*batch|minimi[sz]e the total|cost model|batch.*capacity|scheduling.*constraint|threshold.*must be below'",
+  "tools.py search rts 'bin packing|knapsack|schedul.*batch|minimi[sz]e the total cost|optimal.*assign|jsonl'",
+  "tools.py search rts 'optimal|maximi[sz]e|capacity|allocation|shortest path|greedy'",
+  "tools.py search rebench 'batch|padding|schedul|throughput|inference|vllm|token'",
+  "tools.py search rebench 'pad_token|padding|max_length|generate\\(|dynamic batch|group_by_length|sequence length'",
+  "tools.py search rebench 'too slow|performance regression|memory fragmentation|allocat|chunk size|O\\(n'",
+  "tools.py search smith 'schedul|batch|queue|priority|allocat'",
+  "(new corpora, CalibForge) 'bin[- ]packing|knapsack|scheduling|scheduler|minimi[sz]e.*cost|maximi[sz]e.*throughput|batch size|padding'",
+  "(new corpora) 'bucket|sequence length|pad(ding)? (waste|ratio)|continuous batching|throughput|p95|latency'",
+  "(new corpora, Terminal-Lego) 'dynamic programming|greedy algorithm|schedul|bin pack|group.*into.*batch|cluster'",
+  "(new corpora, Terminal-Lego) 'packing|knapsack|round up to|power of two|align(ment|ed) to|optimal.*subset|minimi[sz]e the (total|number)'",
+  "(new corpora, Terminal-Lego) 'optimal|minimum number of|maximi[sz]e|allocat|memory usage|batch'",
+  "(new corpora) listed every CalibForge id whose category prefix is optimization_"
+ ],
+ "per_source": {
+  "CalibForge": [
+   {
+    "rank": 1,
+    "task_id": "machine-learning_20260604_002443_003",
+    "skill": 4,
+    "domain": 5,
+    "task_form": 4,
+    "overall": 5,
+    "reason": "Paged KV-cache manager: block-granular allocation and internal fragmentation in LLM inference -- the same padding-waste-vs-block-size tradeoff."
+   },
+   {
+    "rank": 2,
+    "task_id": "optimization_20260413_173854_001",
+    "skill": 5,
+    "domain": 3,
+    "task_form": 4,
+    "overall": 4,
+    "reason": "Constraint-satisfaction scheduler assigning tasks to slots under durations, windows and exclusive resources; same feasibility-plus-quality assignment."
+   },
+   {
+    "rank": 3,
+    "task_id": "machine-learning_20260610_111702_003",
+    "skill": 4,
+    "domain": 4,
+    "task_form": 3,
+    "overall": 4,
+    "reason": "Pick exactly 200 of 10000 vectors maximising coverage -- cardinality-constrained clustering, which is the MAX_SHAPES=8 subproblem."
+   },
+   {
+    "rank": 4,
+    "task_id": "optimization_20260511_150433_001",
+    "skill": 4,
+    "domain": 4,
+    "task_form": 4,
+    "overall": 4,
+    "reason": "A correct task scheduler that is too slow must be reimplemented to scale; scheduling plus a hard practicality budget."
+   },
+   {
+    "rank": 5,
+    "task_id": "optimization_20260417_145736_001",
+    "skill": 4,
+    "domain": 3,
+    "task_form": 4,
+    "overall": 4,
+    "reason": "Min-cost max-flow baseline too slow for production data; must produce the same optimum far faster, like beating the baseline packer."
+   },
+   {
+    "rank": 6,
+    "task_id": "optimization_20260415_123352_001",
+    "skill": 4,
+    "domain": 3,
+    "task_form": 4,
+    "overall": 4,
+    "reason": "Optimizer reports OPTIMAL while violating semantic constraints -- exactly TB2.1's trap of hitting metrics while breaking MAX_SHAPES or coverage."
+   },
+   {
+    "rank": 7,
+    "task_id": "optimization_20260606_172554_001",
+    "skill": 4,
+    "domain": 3,
+    "task_form": 4,
+    "overall": 4,
+    "reason": "Knapsack whose DP is a non-starter at large capacity; branch-and-bound packing under a capacity constraint."
+   },
+   {
+    "rank": 8,
+    "task_id": "optimization_20260617_210354_001",
+    "skill": 4,
+    "domain": 3,
+    "task_form": 4,
+    "overall": 4,
+    "reason": "TSP nearest-neighbour plus 2-opt local search sped up; heuristic construction then improvement is the natural plan-packing strategy."
+   },
+   {
+    "rank": 9,
+    "task_id": "model-training_20260419_112101_001",
+    "skill": 3,
+    "domain": 5,
+    "task_form": 3,
+    "overall": 4,
+    "reason": "Tokenise, batch at size 16 with a padding strategy, and compute throughput -- reasoning about padded-token waste per batch."
+   },
+   {
+    "rank": 10,
+    "task_id": "optimization_20260606_172622_001",
+    "skill": 3,
+    "domain": 3,
+    "task_form": 4,
+    "overall": 3,
+    "reason": "Hungarian assignment: replace a correct-but-naive combinatorial solver with a fast one at identical optimality."
+   }
+  ],
+  "TMax-15K": [
+   {
+    "rank": 1,
+    "task_id": "task_000726_e9bf29eb",
+    "skill": 5,
+    "domain": 3,
+    "task_form": 5,
+    "overall": 4,
+    "reason": "Schedules API calls into sequential execution batches so no batch exceeds a cost bound, honouring dependencies. Same batch-formation-under-a-cap problem."
+   },
+   {
+    "rank": 2,
+    "task_id": "task_006249_c8ad4f48",
+    "skill": 5,
+    "domain": 2,
+    "task_form": 4,
+    "overall": 4,
+    "reason": "Explicitly a constraint-satisfaction bin packer over source files with conditional build output; packing under hard constraints."
+   },
+   {
+    "rank": 3,
+    "task_id": "task_004292_eaf2abf5",
+    "skill": 4,
+    "domain": 3,
+    "task_form": 4,
+    "overall": 4,
+    "reason": "Uses a predictive cost model to estimate per-module compile time and drive build decisions -- planning against a supplied analytic model."
+   },
+   {
+    "rank": 4,
+    "task_id": "task_003201_eb12b9d8",
+    "skill": 4,
+    "domain": 2,
+    "task_form": 3,
+    "overall": 4,
+    "reason": "Fix a broken 0/1 knapsack that must pick the optimal subset of test modules within a time capacity; packing correctness is pinned by tests."
+   },
+   {
+    "rank": 5,
+    "task_id": "task_007247_9c2dbfde",
+    "skill": 4,
+    "domain": 2,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Greedy bin-packing with conflict constraints in Rust; the packing heuristic must stay correct while the code is repaired."
+   },
+   {
+    "rank": 6,
+    "task_id": "task_006849_b67fb485",
+    "skill": 4,
+    "domain": 2,
+    "task_form": 4,
+    "overall": 3,
+    "reason": "Design a heuristic index to bin-pack artifacts into storage tiers and benchmark it -- heuristic design judged by a metric."
+   },
+   {
+    "rank": 7,
+    "task_id": "task_005176_040cf82b",
+    "skill": 4,
+    "domain": 2,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Find a globally valid dependency resolution minimising total cost under conflicting constraints; constrained cost minimisation."
+   },
+   {
+    "rank": 8,
+    "task_id": "task_004474_a209f471",
+    "skill": 3,
+    "domain": 2,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Expose a 0/1 knapsack constraint solver through a service boundary; the packing algorithm is the payload."
+   },
+   {
+    "rank": 9,
+    "task_id": "task_003232_8eda3668",
+    "skill": 3,
+    "domain": 2,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Build a cost estimator for query execution plans from a documented operation cost table -- reading a cost model and applying it."
+   },
+   {
+    "rank": 10,
+    "task_id": "task_002877_a3d22d79",
+    "skill": 2,
+    "domain": 5,
+    "task_form": 2,
+    "overall": 3,
+    "reason": "Analyses LLM inference benchmark logs for two models and tests whether one is faster; same serving-latency domain, no optimisation."
+   }
+  ],
+  "Terminal-Lego-15k": [
+   {
+    "rank": 1,
+    "task_id": "task_14903",
+    "skill": 5,
+    "domain": 3,
+    "task_form": 4,
+    "overall": 4,
+    "reason": "Packs rectangles into the smallest power-of-two container -- literally shape-aware packing with alignment rounding, the TB2.1 core."
+   },
+   {
+    "rank": 2,
+    "task_id": "task_13552",
+    "skill": 4,
+    "domain": 5,
+    "task_form": 3,
+    "overall": 4,
+    "reason": "Computes the largest batch size that fits GPU memory without OOM; batch sizing against a hard resource bound in the DL-serving domain."
+   },
+   {
+    "rank": 3,
+    "task_id": "task_00346",
+    "skill": 3,
+    "domain": 3,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Empirically determines the optimal dd block size -- choosing a transfer granularity by measurement, like choosing seq_align."
+   },
+   {
+    "rank": 4,
+    "task_id": "task_12096",
+    "skill": 3,
+    "domain": 4,
+    "task_form": 2,
+    "overall": 3,
+    "reason": "Implements a P99 latency calculator from raw samples; TB2.1 is scored on a P95 latency threshold computed the same way."
+   },
+   {
+    "rank": 5,
+    "task_id": "task_14897",
+    "skill": 3,
+    "domain": 3,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Cycle detection over a job-dependency graph that must stay efficient; graph/scheduling algorithm work."
+   },
+   {
+    "rank": 6,
+    "task_id": "task_00248",
+    "skill": 3,
+    "domain": 3,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Parallel command processing with bounded concurrency -- dispatching work in waves under a capacity limit."
+   },
+   {
+    "rank": 7,
+    "task_id": "task_13299",
+    "skill": 2,
+    "domain": 4,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Implements next_batch over arbitrary arrays including wraparound; batch iteration mechanics only."
+   },
+   {
+    "rank": 8,
+    "task_id": "task_12432",
+    "skill": 2,
+    "domain": 3,
+    "task_form": 3,
+    "overall": 2,
+    "reason": "Benchmarks latency and throughput of two protocols; measurement discipline, no packing decisions."
+   },
+   {
+    "rank": 9,
+    "task_id": "task_13616",
+    "skill": 2,
+    "domain": 4,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Contrasts predict vs predict_on_batch in behaviour and speed; batching overhead awareness in an ML runtime."
+   },
+   {
+    "rank": 10,
+    "task_id": "task_13512",
+    "skill": 1,
+    "domain": 3,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Progress reporting during batchwise Keras training; shares only the word batch."
+   }
+  ],
+  "SWE-Smith-Seeds-Clean": [
+   {
+    "rank": 1,
+    "task_id": "facebookresearch__fvcore.a491d5b9.combine_module__zkwkfq69",
+    "skill": 3,
+    "domain": 4,
+    "task_form": 2,
+    "overall": 3,
+    "reason": "Activation/FLOP counting for networks is broken -- building a correct analytic cost model over tensor shapes."
+   },
+   {
+    "rank": 2,
+    "task_id": "dask__dask.5f61e423.pr_8860",
+    "skill": 3,
+    "domain": 3,
+    "task_form": 2,
+    "overall": 3,
+    "reason": "Auto-chunking must reason about per-element size to pick chunk shapes; same choose-a-block-size-from-a-cost-estimate reasoning."
+   },
+   {
+    "rank": 3,
+    "task_id": "dask__dask.5f61e423.pr_7191",
+    "skill": 3,
+    "domain": 3,
+    "task_form": 2,
+    "overall": 3,
+    "reason": "HighLevelGraph leaking into scheduler optimization routines; task-graph scheduling internals."
+   },
+   {
+    "rank": 4,
+    "task_id": "facebookresearch__fvcore.a491d5b9.lm_rewrite__lo7njclv",
+    "skill": 2,
+    "domain": 4,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Batch-norm statistics wrong across batches; batch-wise accumulation correctness in a DL library."
+   },
+   {
+    "rank": 5,
+    "task_id": "facebookresearch__fvcore.a491d5b9.func_pm_class_rm_base__8vxbgclf",
+    "skill": 2,
+    "domain": 3,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "CompositeParamScheduler lost its base class; scheduler-object plumbing, not scheduling algorithms."
+   },
+   {
+    "rank": 6,
+    "task_id": "facebookresearch__fvcore.a491d5b9.lm_rewrite__ygjigdm3",
+    "skill": 2,
+    "domain": 3,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "MultiStepParamScheduler default-milestone behaviour changed; piecewise schedule semantics."
+   },
+   {
+    "rank": 7,
+    "task_id": "facebookresearch__fvcore.a491d5b9.lm_rewrite__1df9kxnf",
+    "skill": 2,
+    "domain": 3,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "ConstantParamScheduler stopped validating its input range; parameter-validation bug in a scheduler class."
+   },
+   {
+    "rank": 8,
+    "task_id": "facebookresearch__fvcore.a491d5b9.lm_rewrite__o8e26lfs",
+    "skill": 2,
+    "domain": 3,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "giou_loss fails on empty tensors, i.e. batches with no valid entries; empty-batch edge case."
+   },
+   {
+    "rank": 9,
+    "task_id": "dbader__schedule.82a43db1.func_pm_remove_cond__9tbtqjem",
+    "skill": 2,
+    "domain": 2,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Jobs scheduled with .at() lose hour/minute; time-scheduling library bug, no resource packing."
+   },
+   {
+    "rank": 10,
+    "task_id": "dbader__schedule.82a43db1.lm_rewrite__k7n9jq91",
+    "skill": 1,
+    "domain": 2,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Job __repr__ formatting in a cron-like scheduler; only the word scheduler is shared."
+   }
+  ],
+  "SWE-Rebench-Tasks-Clean": [
+   {
+    "rank": 1,
+    "task_id": "automl__smac3-1069",
+    "skill": 4,
+    "domain": 3,
+    "task_form": 2,
+    "overall": 3,
+    "reason": "Racing fails to reject configurations worse than the incumbent -- budget-aware search where a bad candidate must be pruned against a threshold."
+   },
+   {
+    "rank": 2,
+    "task_id": "cornellius-gp__gpytorch-782",
+    "skill": 3,
+    "domain": 4,
+    "task_form": 2,
+    "overall": 3,
+    "reason": "Batch-mode shape handling (b x n x d) breaks lazy covariance indexing; batched-tensor shape contracts."
+   },
+   {
+    "rank": 3,
+    "task_id": "huggingface__transformers-36497",
+    "skill": 2,
+    "domain": 5,
+    "task_form": 2,
+    "overall": 3,
+    "reason": "DataCollatorForLanguageModeling needs a seed; the collator is exactly the batching/padding layer of LLM pipelines."
+   },
+   {
+    "rank": 4,
+    "task_id": "keras-team__keras-20609",
+    "skill": 3,
+    "domain": 4,
+    "task_form": 2,
+    "overall": 3,
+    "reason": "Changing the number of replicas changes evaluate/fit results -- batch sharding across devices computed wrongly."
+   },
+   {
+    "rank": 5,
+    "task_id": "cornellius-gp__gpytorch-973",
+    "skill": 3,
+    "domain": 4,
+    "task_form": 2,
+    "overall": 3,
+    "reason": "Adds batched SKI kernel approximations; making an algorithm work over a batch dimension."
+   },
+   {
+    "rank": 6,
+    "task_id": "alteryx__evalml-1321",
+    "skill": 2,
+    "domain": 3,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "IterativeAlgorithm.next_batch does not initialise pipeline instances; batch-generation bug in an AutoML loop."
+   },
+   {
+    "rank": 7,
+    "task_id": "keras-team__keras-20602",
+    "skill": 2,
+    "domain": 4,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "train_on_batch loses its loss tracker after recompilation; per-batch training-loop state."
+   },
+   {
+    "rank": 8,
+    "task_id": "celery__celery-9331",
+    "skill": 2,
+    "domain": 3,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Corrupted scheduler database in a distributed task queue; scheduler durability, not scheduling policy."
+   },
+   {
+    "rank": 9,
+    "task_id": "celery__celery-9669",
+    "skill": 2,
+    "domain": 2,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "crontab schedule fires an hour late after a DST change; time arithmetic in a scheduler."
+   },
+   {
+    "rank": 10,
+    "task_id": "cornellius-gp__gpytorch-656",
+    "skill": 2,
+    "domain": 3,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "NonLazyTensor rejects a tensor that should be a batch of matrices; shape-contract debugging."
+   }
+  ],
+  "TerminalWorld-Seeds-Clean": [
+   {
+    "rank": 1,
+    "task_id": "tw_550958",
+    "skill": 3,
+    "domain": 2,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Given a byte offset, block size and pointer size, work out the indirection level -- block-granularity and rounding arithmetic, TB2.1's seq_align math."
+   },
+   {
+    "rank": 2,
+    "task_id": "tw_372371",
+    "skill": 3,
+    "domain": 2,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "N-Queens for board sizes up to 11 with per-size output files; combinatorial search that must stay tractable as n grows."
+   },
+   {
+    "rank": 3,
+    "task_id": "tw_419029",
+    "skill": 2,
+    "domain": 3,
+    "task_form": 3,
+    "overall": 2,
+    "reason": "Runs one workload at 1..12 threads and records wall-clock per run; sweeping a configuration knob and measuring the result."
+   },
+   {
+    "rank": 4,
+    "task_id": "tw_718060",
+    "skill": 2,
+    "domain": 4,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Profiles a PyTorch model's parameters and computation with torchmeter; producing a cost/shape report for a model."
+   },
+   {
+    "rank": 5,
+    "task_id": "tw_732042",
+    "skill": 2,
+    "domain": 2,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Monkey-patch instrumentation to intercept and time function calls without editing the target; measurement plumbing only."
+   },
+   {
+    "rank": 6,
+    "task_id": "tw_647708",
+    "skill": 1,
+    "domain": 2,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Group-and-aggregate two CSVs into per-area statistics; grouping records, but no constraints or cost."
+   },
+   {
+    "rank": 7,
+    "task_id": "tw_125169",
+    "skill": 1,
+    "domain": 2,
+    "task_form": 2,
+    "overall": 1,
+    "reason": "Posit vs IEEE float accuracy in Julia; numerics, nothing about batching or packing."
+   },
+   {
+    "rank": 8,
+    "task_id": "tw_694721",
+    "skill": 1,
+    "domain": 1,
+    "task_form": 2,
+    "overall": 1,
+    "reason": "GCD over integer pairs with a fixed output format; only the strict-output-format shell is shared."
+   },
+   {
+    "rank": 9,
+    "task_id": "tw_154310",
+    "skill": 1,
+    "domain": 1,
+    "task_form": 2,
+    "overall": 1,
+    "reason": "Use a module's custom len on two lists and write results; trivial, no transfer."
+   },
+   {
+    "rank": 10,
+    "task_id": "tw_14342",
+    "skill": 1,
+    "domain": 1,
+    "task_form": 2,
+    "overall": 1,
+    "reason": "MD5 brute force over alphabetic strings; exhaustive search but no constraints or cost model."
+   }
+  ],
+  "Recursive-Task-Synthesis": [
+   {
+    "rank": 1,
+    "task_id": "rts_task_8bf6c6ebc9d9827285ccd774",
+    "skill": 3,
+    "domain": 2,
+    "task_form": 4,
+    "overall": 3,
+    "reason": "Fix scripts, benchmark them, then judge the measurements against supplied performance bounds -- the meet-a-numeric-threshold loop."
+   },
+   {
+    "rank": 2,
+    "task_id": "rts_task_3866c0040450d6503be12fe7",
+    "skill": 2,
+    "domain": 2,
+    "task_form": 3,
+    "overall": 2,
+    "reason": "Repaired script must measure its own runtime and emit a JSONL progress log; timing plus JSONL record emission."
+   },
+   {
+    "rank": 3,
+    "task_id": "rts_task_42df9bc32ce8f455fe875c59",
+    "skill": 2,
+    "domain": 1,
+    "task_form": 3,
+    "overall": 2,
+    "reason": "Times a script and writes a structured benchmark report; benchmarking discipline only."
+   },
+   {
+    "rank": 4,
+    "task_id": "rts_task_2b53b8124b48aac11ac4c3f0",
+    "skill": 2,
+    "domain": 2,
+    "task_form": 3,
+    "overall": 2,
+    "reason": "Resolve operation parameters against defaults and emit one JSONL record per operation; same output-contract shape as the plan files."
+   },
+   {
+    "rank": 5,
+    "task_id": "rts_task_56ebfc70d4e424e3d0b2750e",
+    "skill": 1,
+    "domain": 2,
+    "task_form": 3,
+    "overall": 2,
+    "reason": "Produce a JSONL export log conforming to a supplied JSON schema; schema-conformant JSONL emission."
+   },
+   {
+    "rank": 6,
+    "task_id": "rts_task_4489150d8fa50619445d2838",
+    "skill": 2,
+    "domain": 2,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Verify cluster capacity before writing a Pod manifest that requests resources; a capacity check, but no packing decision."
+   },
+   {
+    "rank": 7,
+    "task_id": "rts_task_e2718d901264cb358c71bd08",
+    "skill": 2,
+    "domain": 2,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Validate an array's shape against a declared shape spec; shape-contract checking only."
+   },
+   {
+    "rank": 8,
+    "task_id": "rts_task_71fabc311d6c6d3e6ff1a07f",
+    "skill": 2,
+    "domain": 1,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Solve for the value needed to hit a target average; a one-equation budget calculation."
+   },
+   {
+    "rank": 9,
+    "task_id": "rts_task_02a5e664e57bcad7e9d70e1c",
+    "skill": 1,
+    "domain": 2,
+    "task_form": 3,
+    "overall": 1,
+    "reason": "Aggregate a JSONL transaction log into totals; JSONL processing and nothing else."
+   },
+   {
+    "rank": 10,
+    "task_id": "rts_task_a6cb7d9fce9c2fa03a17bedf",
+    "skill": 1,
+    "domain": 3,
+    "task_form": 2,
+    "overall": 1,
+    "reason": "Write a Pod manifest with GPU resource requests and limits; accelerator vocabulary, no scheduling work."
+   }
+  ]
+ },
+ "final_top10": [
+  {
+   "rank": 1,
+   "task_id": "machine-learning_20260604_002443_003",
+   "skill": 4,
+   "domain": 5,
+   "task_form": 4,
+   "overall": 5,
+   "reason": "Paged KV-cache manager: block-granular allocation and internal fragmentation in LLM inference; the same padding-waste-vs-granularity tradeoff TB2.1 optimises.",
+   "source": "CalibForge"
+  },
+  {
+   "rank": 2,
+   "task_id": "task_000726_e9bf29eb",
+   "skill": 5,
+   "domain": 3,
+   "task_form": 5,
+   "overall": 4,
+   "reason": "Schedules requests into sequential batches so no batch exceeds a cost bound -- the batch-formation-under-a-cap problem, same shape and depth.",
+   "source": "TMax-15K"
+  },
+  {
+   "rank": 3,
+   "task_id": "optimization_20260413_173854_001",
+   "skill": 5,
+   "domain": 3,
+   "task_form": 4,
+   "overall": 4,
+   "reason": "Constraint-satisfaction scheduler under durations, windows and exclusive resources; feasibility plus quality, as MAX_SHAPES plus thresholds demand.",
+   "source": "CalibForge"
+  },
+  {
+   "rank": 4,
+   "task_id": "task_14903",
+   "skill": 5,
+   "domain": 3,
+   "task_form": 4,
+   "overall": 4,
+   "reason": "Packs rectangles into the smallest power-of-two container: shape-aware packing with alignment rounding, TB2.1's core subproblem.",
+   "source": "Terminal-Lego-15k"
+  },
+  {
+   "rank": 5,
+   "task_id": "machine-learning_20260610_111702_003",
+   "skill": 4,
+   "domain": 4,
+   "task_form": 3,
+   "overall": 4,
+   "reason": "Choose exactly 200 of 10000 vectors maximising coverage -- the cardinality-constrained clustering that picking 8 seq_align values is.",
+   "source": "CalibForge"
+  },
+  {
+   "rank": 6,
+   "task_id": "task_006249_c8ad4f48",
+   "skill": 5,
+   "domain": 2,
+   "task_form": 4,
+   "overall": 4,
+   "reason": "An explicit constraint-satisfaction bin packer that must also emit a derived build plan; packing under hard structural constraints.",
+   "source": "TMax-15K"
+  },
+  {
+   "rank": 7,
+   "task_id": "task_13552",
+   "skill": 4,
+   "domain": 5,
+   "task_form": 3,
+   "overall": 4,
+   "reason": "Largest batch size that fits GPU memory without OOM; batch sizing against a hard resource bound in the same serving domain.",
+   "source": "Terminal-Lego-15k"
+  },
+  {
+   "rank": 8,
+   "task_id": "optimization_20260511_150433_001",
+   "skill": 4,
+   "domain": 4,
+   "task_form": 4,
+   "overall": 4,
+   "reason": "A correct task scheduler too slow to use must be reimplemented to scale; scheduling plus a hard practicality budget.",
+   "source": "CalibForge"
+  },
+  {
+   "rank": 9,
+   "task_id": "optimization_20260417_145736_001",
+   "skill": 4,
+   "domain": 3,
+   "task_form": 4,
+   "overall": 4,
+   "reason": "Min-cost max-flow baseline too slow for production; same optimum, far faster -- directly analogous to beating baseline_packer.py.",
+   "source": "CalibForge"
+  },
+  {
+   "rank": 10,
+   "task_id": "task_004292_eaf2abf5",
+   "skill": 4,
+   "domain": 3,
+   "task_form": 4,
+   "overall": 4,
+   "reason": "Plans a build using a predictive cost model of per-module compile time; planning against a supplied analytic cost model, like cost_model.py.",
+   "source": "TMax-15K"
+  }
+ ],
+ "notes": "Both new corpora earn their place here. CalibForge's optimization_* family (I enumerated all 59 of them) is a dense supply of beat-a-slow-baseline combinatorial-optimisation tasks that the v1 pool has only sparsely, and its paged-KV-cache task is the single closest domain match in the whole pool. Terminal-Lego contributes two genuine wins the v1 pool does not have: rectangle packing into power-of-two containers (task_14903) and an optimal-GPU-batch-size calculator (task_13552). TMax is the strongest v1 pool here -- it has real bin-packing and cost-model tasks. Recursive-Task-Synthesis has nothing: repeated searches for packing, knapsack, allocation and optimisation returned only Kubernetes/liara deployment-summary boilerplate, so ranks 4-10 there are filler at overall 1-2 and the merge step should discount that corpus entirely for this task. SWE-Smith likewise: only ranks 1-3 are defensible and even those are a stretch. SWE-Rebench's batching content is DL-library shape bugs, useful on domain, poor on task_form as expected."
+}

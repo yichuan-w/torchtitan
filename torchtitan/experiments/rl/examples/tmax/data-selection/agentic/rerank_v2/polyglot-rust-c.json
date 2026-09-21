@@ -1,0 +1,131 @@
+{
+  "tb21_id": "polyglot-rust-c",
+  "tb21_profile": {
+    "skill": "Craft one source file that two different compilers' lexers/parsers each accept, by exploiting comment, preprocessor and token-level divergences, while both produce the same numeric output",
+    "domain": "Rust (rustc 1.75) and C++ (g++ 13) toolchains; language grammar/preprocessor corners, systems compilation",
+    "task_form": "implement-from-spec / adversarial puzzle: one small artifact, two exact build+run invocations, exact stdout"
+  },
+  "verifier_notes": "task_00979 (Terminal-Lego, graded 'weak') checked with its tests/test_outputs.py: it really does run `bash polyglot.cmd` and assert exit 0 plus a platform-string match, but the Windows-batch half is only substring-checked ('@echo off', 'goto', '::'), so half the polyglot is unverified. Not FREE, but half-gameable. CalibForge polyglot grades ('strong') verified by construction: they diff stdout of both interpreters against pinned numeric answers.",
+  "searches": [
+    "tools.py sources",
+    "tools.py search all \"valid (as )?(both|a)? ?(C|Python|bash|shell)\"",
+    "tools.py search all \"simultaneously valid\"",
+    "tools.py search all \"polyglot.{0,40}(both|two|valid)\"",
+    "tools.py search all \"rustc .*main\\.rs\"",
+    "tools.py search all \"single file.{0,60}(both|two languages)\"",
+    "tools.py search all \"same file.{0,50}(compil|interpret)\"",
+    "tools.py search all \"quine\"",
+    "tools.py search all \"preprocessor (trick|abuse|macro)\"",
+    "tools.py search rts \"polyglot\"",
+    "tools.py search rts \"rustc\"",
+    "tools.py search rts \"g\\+\\+\"",
+    "tools.py words rts polyglot rustc g++ compile fibonacci stdout argument",
+    "tools.py words tw polyglot rust c++ compile \"single file\" gcc",
+    "tools.py search smith \"rust|C extension|compiler|parser\"",
+    "tools.py show task_007595_74188ed1 / tw_174152 tw_317290 / task_001151_0a23b768 task_001949_bb47c40c task_002019_5ea2ac51 task_002422_ccc838ee task_003303_84a9b15f task_006183_5a64ec52 / rts_task_f7b83ec251add0cc63f58fe2 rts_task_d6a0048a7d73c571d6da9430 rts_task_2f23574288ffee904e518ae7 rts_task_b1b8d57f98e0f02b0137112d rts_task_24d5882d2aa2bd0d6e922616 / robotpy__cxxheaderparser-50 pyccel__pyccel-1780 joerick__cibuildwheel-295",
+    "grep -ril 'polyglot' /data/yichuan_wang/terminal-lego-15k/*/instruction.md",
+    "grep -ril -E 'both a valid|valid (C|Python|bash|shell) (program|script) and|quine|self-compil|dual.language' /data/yichuan_wang/terminal-lego-15k",
+    "grep -ril 'polyglot' /data/yichuan_wang/calibforge",
+    "grep -ril -E 'rustc|cargo|\\.rs\\b' /data/yichuan_wang/calibforge",
+    "grep -ril -E 'g\\+\\+ |self-compil|-x c\\+\\+|gcc -x' /data/yichuan_wang/calibforge"
+  ],
+  "per_source": {
+    "CalibForge": [
+      {"rank": 1, "task_id": "software-engineering_20260617_210354_017", "skill": 5, "domain": 5, "task_form": 5, "overall": 5, "reason": "Three-way polyglot (python3/bash/gcc) in one file printing Nth Fibonacci from argv - same trick, same output spec, strictly harder."},
+      {"rank": 2, "task_id": "software-engineering_20260612_191200_018", "skill": 5, "domain": 4, "task_form": 5, "overall": 5, "reason": "Single /app/polyglot/main.c valid as Python and C, both taking N and printing the same result; identical framing and file layout."},
+      {"rank": 3, "task_id": "software-engineering_20260415_123352_017", "skill": 5, "domain": 4, "task_form": 5, "overall": 5, "reason": "compute.py.c polyglot, Nth prime via python3 and gcc; same comment/quoting-overlap reasoning, pinned numeric stdout both ways."},
+      {"rank": 4, "task_id": "software-engineering_20260612_191200_017", "skill": 5, "domain": 4, "task_form": 5, "overall": 4, "reason": "bash+C polyglot prime.sh.c; must make #include lines inert to bash and shell lines inert to cpp - the same dual-lexer problem."},
+      {"rank": 5, "task_id": "software-engineering_20260611_210349_018", "skill": 5, "domain": 4, "task_form": 4, "overall": 4, "reason": "C/shell polyglot base64 codec; same single-file two-interpreter constraint plus a real algorithm implemented twice-compatibly."},
+      {"rank": 6, "task_id": "software-engineering_20260604_004411_018", "skill": 4, "domain": 4, "task_form": 4, "overall": 4, "reason": "Self-compiling POSIX-sh/C file: shell prologue must be a comment to cc and the C body unreachable to sh. Same escape-hatch skill."},
+      {"rank": 7, "task_id": "software-engineering_20260604_003113_018", "skill": 3, "domain": 4, "task_form": 3, "overall": 3, "reason": "Emit a valid ELF byte-for-byte from C with no assembler; same 'know the format's exact bytes, no tool to lean on' discipline."},
+      {"rank": 8, "task_id": "debugging_20260415_182321_002", "skill": 2, "domain": 5, "task_form": 2, "overall": 3, "reason": "g++ -O0 vs -O2 divergence in C++ hash code; teaches what the C++ front/back end actually does with your source, useful for the g++ half."},
+      {"rank": 9, "task_id": "software-engineering_20260604_004411_026", "skill": 3, "domain": 3, "task_form": 3, "overall": 3, "reason": "Write a compiler to a documented bytecode ISA; token-level precision against a fixed consumer, like satisfying two grammars at once."},
+      {"rank": 10, "task_id": "software-engineering_20260606_172622_003", "skill": 2, "domain": 4, "task_form": 3, "overall": 2, "reason": "C project with make -j4 race and wrong output; C toolchain debugging, but nothing about dual-language source validity."}
+    ],
+    "TMax-15K": [
+      {"rank": 1, "task_id": "task_006315_7ba72aba", "skill": 2, "domain": 5, "task_form": 3, "overall": 3, "reason": "C and Rust in one project: fix out-of-bounds UB in worker.c and get both toolchains building; shares the rustc+cc pairing, not the single-file trick."},
+      {"rank": 2, "task_id": "task_003295_3d9b4c4b", "skill": 2, "domain": 4, "task_form": 3, "overall": 3, "reason": "Repair a broken C shared-library build meant for cross-language FFI; exercises knowing exactly what the C compiler/linker needs. Verifier strong."},
+      {"rank": 3, "task_id": "task_005942_dfc48f98", "skill": 2, "domain": 5, "task_form": 3, "overall": 3, "reason": "Rust cdylib computing Fibonacci consumed across a language boundary; same Rust+C ABI territory and same numeric target."},
+      {"rank": 4, "task_id": "task_001352_cd83bca2", "skill": 2, "domain": 4, "task_form": 3, "overall": 3, "reason": "Debug a Rust CLI and get a polyglot build green; real rustc error-reading, which the Rust half of the polyglot needs. Verifier strong."},
+      {"rank": 5, "task_id": "task_001605_c7336731", "skill": 2, "domain": 3, "task_form": 3, "overall": 2, "reason": "Build C+Go+Python pipeline from scratch with no build files; compiler-invocation fluency but no language-grammar reasoning."},
+      {"rank": 6, "task_id": "task_001320_249b9329", "skill": 2, "domain": 4, "task_form": 3, "overall": 2, "reason": "C prime library, Rust factorizer and a Go DSL interpreter wired together; three toolchains at once, orchestration rather than one-file duality."},
+      {"rank": 7, "task_id": "task_003197_d026cba4", "skill": 2, "domain": 4, "task_form": 2, "overall": 2, "reason": "Rust Fibonacci backend behind a Python proxy port; Rust build plus numeric target, but the work is a Python 2to3 migration."},
+      {"rank": 8, "task_id": "task_005022_e09d04ab", "skill": 2, "domain": 3, "task_form": 3, "overall": 2, "reason": "Implement a numeric algorithm in a Rust core from a spec image and wire a Python wrapper; implement-from-spec in Rust, unrelated mechanism."},
+      {"rank": 9, "task_id": "task_001416_910a6032", "skill": 2, "domain": 3, "task_form": 3, "overall": 2, "reason": "Polyglot build plus strict UTF-8 byte validation; byte-level care is transferable, the multi-language build is orchestration only."},
+      {"rank": 10, "task_id": "task_003284_d3a84ada", "skill": 1, "domain": 3, "task_form": 2, "overall": 2, "reason": "Fix a vendored C library and a dependency-sorting tool; shares only the C build surface, nothing about grammar overlap."}
+    ],
+    "Terminal-Lego-15k": [
+      {"rank": 1, "task_id": "task_00979", "skill": 4, "domain": 2, "task_form": 4, "overall": 4, "reason": "The only true polyglot in this corpus: one file executing as both Windows batch and bash by exploiting interpreter quirks. Batch half only substring-checked."},
+      {"rank": 2, "task_id": "task_09187", "skill": 2, "domain": 2, "task_form": 3, "overall": 2, "reason": "Sublinear nth-Fibonacci (fast doubling/matrix power); same numeric target the polyglot must print, verified strong, but no language-duality work."},
+      {"rank": 3, "task_id": "task_09211", "skill": 2, "domain": 2, "task_form": 3, "overall": 2, "reason": "Inverse Fibonacci with closed-form/rounding care; exercises getting Fibonacci indexing exactly right, which the TB2.1 off-by-one convention needs."},
+      {"rank": 4, "task_id": "task_15011", "skill": 2, "domain": 3, "task_form": 2, "overall": 2, "reason": "Rust iteration-vs-recursion including no-TCO/stack behaviour; real rustc semantics for the Rust half, but a tutorial-shaped exercise."},
+      {"rank": 5, "task_id": "task_09520", "skill": 2, "domain": 3, "task_form": 2, "overall": 2, "reason": "Tail recursion in C++ compiled and compared; touches g++ behaviour on the same Fibonacci-style recurrence."},
+      {"rank": 6, "task_id": "task_09194", "skill": 2, "domain": 2, "task_form": 3, "overall": 2, "reason": "Fibonacci membership via 5n^2+-4 perfect-square test; exact integer reasoning with pinned values, unrelated mechanism."},
+      {"rank": 7, "task_id": "task_12342", "skill": 1, "domain": 3, "task_form": 2, "overall": 2, "reason": "Rust TCP echo server; genuine rustc code that must compile and run, no cross-language constraint."},
+      {"rank": 8, "task_id": "task_14976", "skill": 1, "domain": 3, "task_form": 2, "overall": 1, "reason": "Idiomatic Rust Vec sorting; only the Rust toolchain is shared."},
+      {"rank": 9, "task_id": "task_15175", "skill": 1, "domain": 3, "task_form": 2, "overall": 1, "reason": "Rust string concatenation across &str/String; Rust-typing practice only."},
+      {"rank": 10, "task_id": "task_09186", "skill": 1, "domain": 2, "task_form": 2, "overall": 1, "reason": "Project Euler 2 even-Fibonacci sum; shares only the sequence."}
+    ],
+    "TerminalWorld-Seeds-Clean": [
+      {"rank": 1, "task_id": "tw_730164", "skill": 3, "domain": 4, "task_form": 3, "overall": 3, "reason": "Make cpp read source from /dev/stdin via #include; exactly the 'abuse how the compiler ingests text' reflex the polyglot needs."},
+      {"rank": 2, "task_id": "tw_317290", "skill": 3, "domain": 2, "task_form": 3, "overall": 3, "reason": "JavaScript quine: a file whose bytes must satisfy a self-referential constraint under the language's own parser. Same puzzle genre."},
+      {"rank": 3, "task_id": "tw_713358", "skill": 2, "domain": 3, "task_form": 3, "overall": 2, "reason": "ARM64 assembly Fibonacci assembled and linked, exact stdout; low-level write-source-build-run loop with pinned numbers."},
+      {"rank": 4, "task_id": "tw_285548", "skill": 2, "domain": 4, "task_form": 3, "overall": 2, "reason": "Write /app/sqrt.cc from scratch, compile with g++, match an exact per-line output format - the C++ half's build-and-print contract."},
+      {"rank": 5, "task_id": "tw_346538", "skill": 2, "domain": 2, "task_form": 2, "overall": 2, "reason": "MetaCall polyglot calling Python from Node; the word polyglot means cross-runtime interop here, not one-file duality."},
+      {"rank": 6, "task_id": "tw_319907", "skill": 1, "domain": 3, "task_form": 2, "overall": 2, "reason": "Rust guessing game against cargo; rustc build fluency only."},
+      {"rank": 7, "task_id": "tw_713369", "skill": 2, "domain": 3, "task_form": 3, "overall": 2, "reason": "ARM64 primality in assembly with exact stdout; same write-low-level-source, exact-output shape as tw_713358."},
+      {"rank": 8, "task_id": "tw_177994", "skill": 1, "domain": 3, "task_form": 3, "overall": 2, "reason": "Write and compile a tiny C program printing an exact 'num: %d' line; minimal version of the C half's contract."},
+      {"rank": 9, "task_id": "tw_739272", "skill": 1, "domain": 3, "task_form": 2, "overall": 1, "reason": "Hello World in many installed languages into one file; multi-toolchain surface, zero grammar reasoning."},
+      {"rank": 10, "task_id": "tw_174152", "skill": 2, "domain": 1, "task_form": 2, "overall": 1, "reason": "MongoDB aggregation quine; self-referential-artifact genre but a totally foreign stack."}
+    ],
+    "Recursive-Task-Synthesis": [
+      {"rank": 1, "task_id": "rts_task_24d5882d2aa2bd0d6e922616", "skill": 2, "domain": 4, "task_form": 3, "overall": 2, "reason": "Write sqrt.cc, check the installed g++ satisfies a pinned minimum, compile and match an exact format - the g++ side's version-sensitivity."},
+      {"rank": 2, "task_id": "rts_task_786df7d851d067aa4fde47b5", "skill": 2, "domain": 4, "task_form": 3, "overall": 2, "reason": "Same g++-version-gated C++ implement-and-run task with specified error handling for bad arguments; argv handling like the polyglot's N."},
+      {"rank": 3, "task_id": "rts_task_e5d7b86e9ad201b0850d333f", "skill": 2, "domain": 4, "task_form": 3, "overall": 2, "reason": "Verify g++ version AND that it supports the declared C++ standard before building; toolchain-capability reasoning the g++ half needs."},
+      {"rank": 4, "task_id": "rts_task_9f653da290f311e7dadffe58", "skill": 2, "domain": 3, "task_form": 3, "overall": 2, "reason": "ARM64 assembly reading argv and printing a verdict; assemble-link-run with an exact answer, closest low-level implement-from-spec here."},
+      {"rank": 5, "task_id": "rts_task_20fec7cc2f6bfcb36164a5ab", "skill": 2, "domain": 3, "task_form": 3, "overall": 2, "reason": "Same ARM64 palindrome plus a Makefile and captured build log; adds build-invocation precision."},
+      {"rank": 6, "task_id": "rts_task_13cb995e506d32241a8da0a1", "skill": 1, "domain": 3, "task_form": 2, "overall": 2, "reason": "Rust guessing game that must first locate and check the required rustc version; rustc-version awareness matches the pinned 1.75.0."},
+      {"rank": 7, "task_id": "rts_task_2a390749e128b09c26529da1", "skill": 1, "domain": 3, "task_form": 2, "overall": 2, "reason": "Rust build with toolchain verification and Makefile packaging; rustc fluency only."},
+      {"rank": 8, "task_id": "rts_task_6e1bf19cf97e9327fb0fa560", "skill": 1, "domain": 3, "task_form": 2, "overall": 1, "reason": "Rust release build plus strip/packaging; touches rustc but the work is tarball hygiene."},
+      {"rank": 9, "task_id": "rts_task_f7b83ec251add0cc63f58fe2", "skill": 1, "domain": 2, "task_form": 2, "overall": 1, "reason": "MetaCall 'polyglot' pipeline calling Python from Node; lexical polyglot match only, different meaning of the word."},
+      {"rank": 10, "task_id": "rts_task_2cc98d44500e234a4001be39", "skill": 2, "domain": 3, "task_form": 3, "overall": 1, "reason": "Third ARM64 palindrome variant; near-duplicate of ranks 4-5, listed to fill the quota honestly."}
+    ],
+    "SWE-Smith-Seeds-Clean": [
+      {"rank": 1, "task_id": "conan-io__conan.86f29e13.combine_module__0jv2n7d9", "skill": 2, "domain": 4, "task_form": 2, "overall": 3, "reason": "Fix wrong C++ standard flags emitted for Clang across versions; reasoning about which flags a specific compiler version accepts."},
+      {"rank": 2, "task_id": "pygments__pygments.27649ebb.pr_2631", "skill": 3, "domain": 2, "task_form": 2, "overall": 2, "reason": "Lexer bug fix: must reason about how a tokenizer segments source text, which is the polyglot's core mental model."},
+      {"rank": 3, "task_id": "pyparsing__pyparsing.533adf47.combine_file__3jw3qikd", "skill": 3, "domain": 2, "task_form": 2, "overall": 2, "reason": "Grammar/parser-combinator bugs; forces precise thinking about what a grammar does and does not accept."},
+      {"rank": 4, "task_id": "pylint-dev__astroid.b114f6b5.pr_1962", "skill": 2, "domain": 2, "task_form": 2, "overall": 2, "reason": "AST inference fix; source-structure reasoning, Python ecosystem rather than C/Rust."},
+      {"rank": 5, "task_id": "conan-io__conan.86f29e13.pr_12380", "skill": 2, "domain": 3, "task_form": 2, "overall": 2, "reason": "Dependency-graph package-type handling in a C/C++ package manager; native-build ecosystem, no language-grammar work."},
+      {"rank": 6, "task_id": "cantools__cantools.0c6a7871.lm_rewrite__qg7kmhwu", "skill": 2, "domain": 2, "task_form": 2, "overall": 2, "reason": "CDD binary/structured-format parsing bug; byte-and-field precision, wrong stack."},
+      {"rank": 7, "task_id": "hukkin__tomli.443a0c1b.combine_module__42vnkpsp", "skill": 2, "domain": 1, "task_form": 2, "overall": 2, "reason": "TOML parser correctness against a written spec; spec-to-parser fidelity transfers weakly."},
+      {"rank": 8, "task_id": "jawah__charset_normalizer.1fdd6463.func_pm_remove_assign__56zdyzvy", "skill": 2, "domain": 2, "task_form": 2, "overall": 1, "reason": "Encoding detection on raw bytes; byte-level reasoning only."},
+      {"rank": 9, "task_id": "facelessuser__soupsieve.a8080d97.combine_file__9qf258xz", "skill": 2, "domain": 1, "task_form": 2, "overall": 1, "reason": "CSS selector matching engine; another grammar-semantics fix, unrelated domain."},
+      {"rank": 10, "task_id": "python-jsonschema__jsonschema.93e0caa5.combine_file__x38b7j6x", "skill": 1, "domain": 1, "task_form": 2, "overall": 1, "reason": "CLI stdout formatter TypeError; only the 'program must print correctly' surface is shared."}
+    ],
+    "SWE-Rebench-Tasks-Clean": [
+      {"rank": 1, "task_id": "robotpy__cxxheaderparser-50", "skill": 3, "domain": 4, "task_form": 1, "overall": 3, "reason": "Anonymous struct/union parsing; the thread turns on exactly what is valid in C mode versus C++ mode - the polyglot's central question."},
+      {"rank": 2, "task_id": "pyccel__pyccel-1780", "skill": 3, "domain": 3, "task_form": 1, "overall": 2, "reason": "Python-to-C/Fortran transpiler semantic stage bug; requires holding two languages' type rules in mind at once."},
+      {"rank": 3, "task_id": "pyccel__pyccel-2038", "skill": 3, "domain": 3, "task_form": 1, "overall": 2, "reason": "Same transpiler: list-aliasing semantics must survive translation to C; cross-language semantic-equivalence reasoning."},
+      {"rank": 4, "task_id": "joerick__cibuildwheel-295", "skill": 2, "domain": 3, "task_form": 2, "overall": 2, "reason": "Native wheel builds from a subdirectory; compiler-driver and build-invocation plumbing for C extensions."},
+      {"rank": 5, "task_id": "qiskit__qiskit-12813", "skill": 2, "domain": 1, "task_form": 1, "overall": 2, "reason": "Gate synthesis against exact numeric targets; disciplined 'must match a pinned value' debugging, alien domain."},
+      {"rank": 6, "task_id": "pycqa__flake8-1631", "skill": 2, "domain": 2, "task_form": 2, "overall": 2, "reason": "Import-time breakage after a version bump; version-sensitivity reasoning like rustc 1.75 / g++ 13 pinning."},
+      {"rank": 7, "task_id": "academysoftwarefoundation__rez-1863", "skill": 1, "domain": 3, "task_form": 2, "overall": 1, "reason": "Build/package resolution in a native-oriented environment manager; toolchain plumbing only."},
+      {"rank": 8, "task_id": "cekit__cekit-937", "skill": 1, "domain": 2, "task_form": 2, "overall": 1, "reason": "Container image build tooling; build-configuration genre, nothing about source-level language rules."},
+      {"rank": 9, "task_id": "mpmath__mpmath-904", "skill": 2, "domain": 2, "task_form": 1, "overall": 1, "reason": "Arbitrary-precision numerics; relevant only to getting large Fibonacci values exactly right."},
+      {"rank": 10, "task_id": "jelmer__dulwich-1578", "skill": 1, "domain": 1, "task_form": 1, "overall": 1, "reason": "Git object handling in pure Python; filler - this corpus has almost nothing in Rust/C++ language-grammar territory."}
+    ]
+  },
+  "final_top10": [
+    {"rank": 1, "task_id": "software-engineering_20260617_210354_017", "source": "CalibForge", "skill": 5, "domain": 5, "task_form": 5, "overall": 5, "reason": "One file valid as python3, bash and gcc C, printing Nth Fibonacci from argv - the TB2.1 task with a third language added."},
+    {"rank": 2, "task_id": "software-engineering_20260612_191200_018", "source": "CalibForge", "skill": 5, "domain": 4, "task_form": 5, "overall": 5, "reason": "Python/C polyglot at the same /app/polyglot path taking N and printing a computed number both ways; identical constraint, different second language."},
+    {"rank": 3, "task_id": "software-engineering_20260415_123352_017", "source": "CalibForge", "skill": 5, "domain": 4, "task_form": 5, "overall": 5, "reason": "compute.py.c polyglot printing the Nth prime under python3 and gcc; same comment/quoting-overlap construction, strong pinned-value tests."},
+    {"rank": 4, "task_id": "software-engineering_20260612_191200_017", "source": "CalibForge", "skill": 5, "domain": 4, "task_form": 5, "overall": 4, "reason": "bash/C polyglot: #include must be inert to bash and shell lines inert to the preprocessor. Same dual-lexer escape-hatch problem."},
+    {"rank": 5, "task_id": "software-engineering_20260611_210349_018", "source": "CalibForge", "skill": 5, "domain": 4, "task_form": 4, "overall": 4, "reason": "C/shell polyglot implementing base64 both ways; adds a real algorithm on top of the one-file two-interpreter constraint."},
+    {"rank": 6, "task_id": "software-engineering_20260604_004411_018", "source": "CalibForge", "skill": 4, "domain": 4, "task_form": 4, "overall": 4, "reason": "Self-compiling sh/C file: shell prologue hidden from cc, C body unreachable to sh. Same trick family, sieve output pinned."},
+    {"rank": 7, "task_id": "task_00979", "source": "Terminal-Lego-15k", "skill": 4, "domain": 2, "task_form": 4, "overall": 4, "reason": "Single script running as both Windows batch and bash by exploiting interpreter quirks; same skill, but only the bash half is actually executed by tests."},
+    {"rank": 8, "task_id": "robotpy__cxxheaderparser-50", "source": "SWE-Rebench-Tasks-Clean", "skill": 3, "domain": 4, "task_form": 1, "overall": 3, "reason": "Anonymous struct/union handling; the issue thread hinges on constructs valid in C but not C++, the exact divergence a polyglot must exploit."},
+    {"rank": 9, "task_id": "tw_730164", "source": "TerminalWorld-Seeds-Clean", "skill": 3, "domain": 4, "task_form": 3, "overall": 3, "reason": "Feed source to the C preprocessor through #include </dev/stdin>; trains the 'abuse how the compiler ingests text' reflex the polyglot needs."},
+    {"rank": 10, "task_id": "task_006315_7ba72aba", "source": "TMax-15K", "skill": 2, "domain": 5, "task_form": 3, "overall": 3, "reason": "C and Rust side by side: fix out-of-bounds UB in worker.c and get both toolchains green; same rustc+cc pairing, no single-file duality."}
+  ],
+  "notes": "CalibForge is decisively the best pool here and by a wide margin - it contains six genuine single-file polyglot tasks, all graded strong, one of which (20260617_210354_017) is essentially this TB2.1 task with bash added. Nothing in the v1 pool has a single-file polyglot at all; TMax's 77 'polyglot' hits are all multi-language build-orchestration projects, a lexical false positive on the word. Terminal-Lego contributed exactly one real polyglot (task_00979, bash/batch) and otherwise only Fibonacci/Rust-tutorial filler; both new corpora beat the old ones here. Recursive-Task-Synthesis has nothing defensible: its top hits are ~15 near-identical Rust guessing games, and I fell back to g++-version-gated C++ and ARM64 assembly implement-and-build tasks, all scoring 1-2 and all 'absent' verifier. SWE-Smith and SWE-Rebench likewise have no real candidate above overall 3; ranks 7-10 in both are honest filler. FREE candidates excluded from final_top10 and from per_source where I had better options: TMax task_009068_ceebc4fa, task_006408_a7697452, task_000113_5f736d5a, task_005057_1c2c3881 and TerminalWorld tw_143212, tw_362046, tw_138882 were all dropped for being FREE despite decent retrieval rank."
+}

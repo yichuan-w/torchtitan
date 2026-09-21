@@ -1,0 +1,124 @@
+{
+  "tb21_id": "count-dataset-tokens",
+  "tb21_profile": {
+    "skill": "Load a HuggingFace dataset, read its README to resolve which column/subset 'deepseek' and 'science domain' mean, tokenize with a named HF tokenizer, emit one exact integer",
+    "domain": "HuggingFace datasets/transformers, LLM data curation and tokenizer accounting, Python data analysis",
+    "task_form": "compute-an-exact-answer: measurement/aggregation over a remote dataset, single integer written to a file"
+  },
+  "verifier_notes": "Terminal-Lego task_13146 (HuggingFace TOKENIZERS_PARALLELISM) is graded FREE and its 12 tests really are file-exists/substring checks; kept in per_source only as the corpus's sole HF-transformers item. tw_259453 and tw_97603 also genuinely FREE (output-shape checks on a summary file), so both stay out of final_top10. CalibForge model-training_* tokenizer-count tasks graded 'ok' pin the integer answer in at least one test, which is the test that matters here; grade understates them.",
+  "searches": [
+    "tools.py search all 'AutoTokenizer|transformers.*tokenizer|Qwen|tiktoken|GPT-2 tokenizer'",
+    "tools.py search all 'load_dataset|huggingface|Hugging Face'",
+    "tools.py words tmax tokenizer tokens dataset count integer answer.txt README",
+    "tools.py words tw dataset tokens count README filter subset integer",
+    "tools.py search rebench 'transformers|tokenizer|datasets|nltk'",
+    "tools.py words rts tokenize tokens word count corpus text dataset frequency",
+    "tools.py search rts 'count.*(words|tokens)|word frequency|word count'",
+    "tools.py words tw csv column compute count total write result.txt exact",
+    "tools.py show tw_584886",
+    "new-corpora regex: CalibForge 'Qwen2\\.5-1\\.5B|Qwen/Qwen2'",
+    "new-corpora regex: CalibForge 'load_dataset|datasets\\.load|huggingface\\.co/datasets|HuggingFace dataset'",
+    "new-corpora regex: CalibForge 'tokeniz'",
+    "new-corpora regex: Terminal-Lego 'AutoTokenizer|Qwen2|token count|count.*tokens'",
+    "new-corpora words: Terminal-Lego tokenizer 'hugging face' transformers 'word count' corpus vocabulary 'count the'"
+  ],
+  "per_source": {
+    "TMax-15K": [
+      {"rank": 1, "task_id": "task_007987_c3a86327", "skill": 4, "domain": 4, "task_form": 4, "overall": 4, "reason": "Installs tiktoken in a venv, tokenizes every text field of a JSONL dataset and reports exact token totals — same accounting task."},
+      {"rank": 2, "task_id": "task_002347_599a129f", "skill": 4, "domain": 4, "task_form": 4, "overall": 4, "reason": "Tokenizes a named CSV column with cl100k_base and aggregates per-row token counts; same tokenizer-as-measuring-instrument discipline."},
+      {"rank": 3, "task_id": "task_003943_df1a875b", "skill": 4, "domain": 4, "task_form": 3, "overall": 4, "reason": "Compares two tokenization strategies on a text dataset and reports resulting sequence-length statistics; teaches tokenizer-choice-changes-the-count."},
+      {"rank": 4, "task_id": "task_004701_979f0bf8", "skill": 3, "domain": 4, "task_form": 3, "overall": 3, "reason": "Uses HuggingFace bert-base-uncased tokenizer and chunks output into exact 15-token blocks, discarding the remainder; exact HF token bookkeeping."},
+      {"rank": 5, "task_id": "task_003644_d3ffecd2", "skill": 3, "domain": 4, "task_form": 3, "overall": 3, "reason": "HuggingFace tokenizers library end-to-end on a JSONL corpus; same library surface, but trains rather than counts."},
+      {"rank": 6, "task_id": "task_001411_8665764b", "skill": 3, "domain": 4, "task_form": 3, "overall": 3, "reason": "Cleans text then tokenizes with tiktoken cl100k_base to compute a per-row derived cost; tokenizer-driven numeric aggregation."},
+      {"rank": 7, "task_id": "task_008358_9397763a", "skill": 3, "domain": 3, "task_form": 4, "overall": 3, "reason": "OOV rate over train/test splits with a strict vocabulary rule; exact counting where the definition of the count is the hard part."},
+      {"rank": 8, "task_id": "task_002581_11ed779a", "skill": 3, "domain": 3, "task_form": 4, "overall": 3, "reason": "Counts whitespace tokens across a directory of dataset files and reports one number; same shape, far cruder tokenizer."},
+      {"rank": 9, "task_id": "task_007141_26892089", "skill": 3, "domain": 3, "task_form": 2, "overall": 3, "reason": "Fixes a broken tabular-dataset tokenization pipeline; debugging a token pipeline transfers, but genre is repair not measure."},
+      {"rank": 10, "task_id": "task_002000_24c5329b", "skill": 2, "domain": 3, "task_form": 3, "overall": 2, "reason": "Bash tokenization pipeline over a reviews CSV; shares text-corpus counting only at the shell-tools level."}
+    ],
+    "Recursive-Task-Synthesis": [
+      {"rank": 1, "task_id": "rts_task_dcd496614fe0d973018880e9", "skill": 3, "domain": 3, "task_form": 4, "overall": 3, "reason": "Downloads a remote text corpus and produces an exact frequency-ranked word count; same fetch-corpus-then-count-exactly loop, no tokenizer."},
+      {"rank": 2, "task_id": "rts_task_9982167b59e5e30ec955b819", "skill": 3, "domain": 3, "task_form": 4, "overall": 3, "reason": "Same Gutenberg word-frequency measurement with an exact ranked output file; counting definition must match the checker exactly."},
+      {"rank": 3, "task_id": "rts_task_e43a08786f70d733c2c73917", "skill": 3, "domain": 3, "task_form": 4, "overall": 3, "reason": "Fetch remote corpus, compute exact word-frequency table plus derived metadata; transfers corpus-download-and-count, not tokenizer semantics."},
+      {"rank": 4, "task_id": "rts_task_94682afb4bb55eea423bfda5", "skill": 3, "domain": 3, "task_form": 3, "overall": 3, "reason": "Scripted end-to-end download and word-frequency analysis of a named remote text; same reproducible-count genre."},
+      {"rank": 5, "task_id": "rts_task_3b8bcf1e59c3fc1b55b4e91e", "skill": 3, "domain": 2, "task_form": 3, "overall": 3, "reason": "Corpus word-frequency counting plus binary inspection of the generated artifact; counting half transfers."},
+      {"rank": 6, "task_id": "rts_task_6289ba1ea01db4bcb05c45d4", "skill": 3, "domain": 2, "task_form": 3, "overall": 3, "reason": "Validates a checksum before downloading, then word-frequency counts the corpus; adds dataset-provenance checking to the counting."},
+      {"rank": 7, "task_id": "rts_task_956708b933e2da77d9c065bb", "skill": 3, "domain": 2, "task_form": 3, "overall": 3, "reason": "Downloads corpus, writes a metadata sidecar (size, declared encoding) then analyses frequencies; reading dataset metadata before counting."},
+      {"rank": 8, "task_id": "rts_task_f5a1809ed4bd05a820771905", "skill": 3, "domain": 3, "task_form": 3, "overall": 3, "reason": "Locate a compressed dataset on disk and write a query that counts records by field; dataset-aggregation with an exact answer."},
+      {"rank": 9, "task_id": "rts_task_88ead5219c45387a5f3a013c", "skill": 2, "domain": 2, "task_form": 3, "overall": 2, "reason": "Derives an integer word-count summary whose keys must match a reference result file; exact-integer reporting only."},
+      {"rank": 10, "task_id": "rts_task_08115806b37ab2cd93e0b0b3", "skill": 2, "domain": 2, "task_form": 3, "overall": 2, "reason": "Reports index entry count and total word count across source files; same one-number-per-line reporting, trivial counting."}
+    ],
+    "TerminalWorld-Seeds-Clean": [
+      {"rank": 1, "task_id": "tw_584886", "skill": 4, "domain": 3, "task_form": 4, "overall": 4, "reason": "Counts records in a gzipped VCF and a Parquet file and reports exact integers; same count-the-rows-of-a-dataset measurement."},
+      {"rank": 2, "task_id": "tw_686647", "skill": 3, "domain": 3, "task_form": 4, "overall": 3, "reason": "Installs a pinned package with its datasets extra, runs a named dataset through several estimators, reports exact numbers."},
+      {"rank": 3, "task_id": "tw_21631", "skill": 3, "domain": 3, "task_form": 3, "overall": 3, "reason": "Filters a dataset to a named subset and derives a column with pandas; same subset-then-aggregate step the TB task needs."},
+      {"rank": 4, "task_id": "tw_647708", "skill": 3, "domain": 3, "task_form": 3, "overall": 3, "reason": "Joins two CSV datasets on a key and computes combined area statistics; multi-source aggregation to exact values."},
+      {"rank": 5, "task_id": "tw_569867", "skill": 3, "domain": 3, "task_form": 3, "overall": 3, "reason": "Drives an unfamiliar dataset/task library API to pull first record, split indices and a sample into an exact JSON shape."},
+      {"rank": 6, "task_id": "tw_603225", "skill": 2, "domain": 2, "task_form": 3, "overall": 2, "reason": "Sums a numeric column of a TSV to an exact total in a fixed output format; counting only, no dataset reasoning."},
+      {"rank": 7, "task_id": "tw_500724", "skill": 2, "domain": 2, "task_form": 3, "overall": 2, "reason": "Trimmed-mean aggregation with a precisely specified truncation rule; teaches follow-the-stated-aggregation-rule exactly."},
+      {"rank": 8, "task_id": "tw_419029", "skill": 2, "domain": 2, "task_form": 2, "overall": 2, "reason": "Runs an app over a CSV dataset at varying thread counts and tabulates results; data-over-dataset runs, unrelated subject."},
+      {"rank": 9, "task_id": "tw_259453", "skill": 3, "domain": 3, "task_form": 3, "overall": 2, "reason": "Counts event_type occurrences in a compressed dataset via EQL — good shape, but FREE verifier so excluded from final_top10."},
+      {"rank": 10, "task_id": "tw_97603", "skill": 2, "domain": 3, "task_form": 3, "overall": 2, "reason": "Parses a gzipped NDJSON dataset into a per-IP summary; FREE verifier only checks the file looks right."}
+    ],
+    "SWE-Smith-Seeds-Clean": [
+      {"rank": 1, "task_id": "stanfordnlp__string2string.c4a72f59.func_pm_remove_assign__os17lckf", "skill": 3, "domain": 3, "task_form": 1, "overall": 3, "reason": "ROUGE object loses its tokenizer; fixing it requires knowing how a text metric tokenizes before it counts. Closest tokenizer-semantics bug here."},
+      {"rank": 2, "task_id": "davidhalter__parso.338a5760.func_pm_op_break_chains__pt0nzxrt", "skill": 3, "domain": 3, "task_form": 1, "overall": 2, "reason": "Tokenizer mishandles unicode identifiers and strings; same class of 'the token boundary is wrong' reasoning, different stack."},
+      {"rank": 3, "task_id": "jawah__charset_normalizer.1fdd6463.func_pm_remove_cond__uzg0sqf7", "skill": 3, "domain": 3, "task_form": 1, "overall": 2, "reason": "Charset detection returns nothing; encoding decisions silently change how text is counted, which is the TB task's trap."},
+      {"rank": 4, "task_id": "tobymao__sqlglot.036601ba.func_pm_ctrl_invert_if__5h5hz0q0", "skill": 2, "domain": 2, "task_form": 1, "overall": 2, "reason": "Tokenizer regression on format strings and comments; tokenizer debugging, but SQL rather than NLP."},
+      {"rank": 5, "task_id": "pygments__pygments.27649ebb.combine_module__4f18zaiv", "skill": 2, "domain": 3, "task_form": 1, "overall": 2, "reason": "Lexers emit malformed token sequences; reasoning about expected token streams transfers weakly."},
+      {"rank": 6, "task_id": "dask__dask.5f61e423.lm_rewrite__5elhetca", "skill": 2, "domain": 3, "task_form": 1, "overall": 2, "reason": "Dataframe aggregation bug; same 'aggregate over a large dataset and get the number right' territory, as a library fix."},
+      {"rank": 7, "task_id": "tobymao__sqlglot.036601ba.lm_rewrite__aa3aanw3", "skill": 2, "domain": 2, "task_form": 1, "overall": 2, "reason": "Second sqlglot tokenizer regression around comments; only tokenizer-boundary reasoning transfers."},
+      {"rank": 8, "task_id": "andialbrecht__sqlparse.e57923b3.func_basic__63ry9978", "skill": 2, "domain": 2, "task_form": 1, "overall": 2, "reason": "Parser splits array indexing into too many tokens; token-count-off-by-one debugging, wrong domain."},
+      {"rank": 9, "task_id": "life4__textdistance.c3aca916.func_pm_ctrl_shuffle__a0dxas6w", "skill": 2, "domain": 2, "task_form": 1, "overall": 2, "reason": "Text-similarity library fix; string/token-level numeric computation, no dataset or tokenizer work."},
+      {"rank": 10, "task_id": "luozhouyang__python-string-similarity.115acaac.func_pm_class_rm_funcs__c79l98k5", "skill": 1, "domain": 2, "task_form": 1, "overall": 1, "reason": "Missing methods on a string-similarity class; shares only the text-processing label, nothing the TB task needs."}
+    ],
+    "SWE-Rebench-Tasks-Clean": [
+      {"rank": 1, "task_id": "huggingface__transformers-36497", "skill": 3, "domain": 5, "task_form": 1, "overall": 3, "reason": "Inside huggingface/transformers, touching DataCollatorForLanguageModeling and tokenized batch construction; exactly the library the TB task must drive correctly."},
+      {"rank": 2, "task_id": "huggingface__transformers-36903", "skill": 3, "domain": 5, "task_form": 1, "overall": 3, "reason": "Same transformers data-collator area, extended to more collators; builds familiarity with tokenizer/collator internals and their configs."},
+      {"rank": 3, "task_id": "tensorflow__datasets-240", "skill": 2, "domain": 4, "task_form": 1, "overall": 2, "reason": "Dataset-library internals (splits, loading); same 'how does a dataset library expose subsets' question, different framework."},
+      {"rank": 4, "task_id": "opennmt__opennmt-tf-525", "skill": 2, "domain": 4, "task_form": 1, "overall": 2, "reason": "NMT toolkit fix touching vocabulary/data handling; adjacent NLP-training ecosystem knowledge."},
+      {"rank": 5, "task_id": "mila-udem__fuel-186", "skill": 2, "domain": 3, "task_form": 1, "overall": 2, "reason": "Dataset abstraction breaks under pickling; teaches how dataset objects are structured, not how to count tokens."},
+      {"rank": 6, "task_id": "pandas-dev__pandas-59284", "skill": 2, "domain": 3, "task_form": 1, "overall": 2, "reason": "Pandas bug fix; the TB task's filtering and summing runs on pandas-shaped data, so ecosystem transfer only."},
+      {"rank": 7, "task_id": "dask__dask-10797", "skill": 2, "domain": 3, "task_form": 1, "overall": 2, "reason": "Large-dataframe aggregation library fix; same aggregation-correctness concern at library level."},
+      {"rank": 8, "task_id": "rasbt__mlxtend-1087", "skill": 2, "domain": 3, "task_form": 1, "overall": 2, "reason": "ML utility library fix; shares the numerical-data-science stack and nothing more specific."},
+      {"rank": 9, "task_id": "jazzband__tablib-456", "skill": 1, "domain": 2, "task_form": 1, "overall": 1, "reason": "Tabular dataset serialization fix; only the word 'dataset' connects it to the TB task."},
+      {"rank": 10, "task_id": "cogent3__cogent3-1622", "skill": 1, "domain": 2, "task_form": 1, "overall": 1, "reason": "Bioinformatics sequence-library fix; sequence/alphabet handling is the faintest possible analogue of tokenization."}
+    ],
+    "Terminal-Lego-15k": [
+      {"rank": 1, "task_id": "task_13434", "skill": 3, "domain": 4, "task_form": 3, "overall": 3, "reason": "Computes total word frequency over a corpus with CountVectorizer; same vocabulary-then-sum accounting, sklearn instead of a HF tokenizer."},
+      {"rank": 2, "task_id": "task_13394", "skill": 3, "domain": 4, "task_form": 3, "overall": 3, "reason": "Fits a vectorizer on one corpus then counts tokens in new documents; teaches fitted-vocabulary-vs-new-text, the same trap as picking the right split."},
+      {"rank": 3, "task_id": "task_13620", "skill": 3, "domain": 4, "task_form": 2, "overall": 3, "reason": "Separates Keras Tokenizer fit_on_texts from texts_to_sequences; tokenizer-lifecycle semantics that determine what a token count means."},
+      {"rank": 4, "task_id": "task_13374", "skill": 3, "domain": 4, "task_form": 3, "overall": 3, "reason": "Streams a large document corpus to compute TF-IDF without loading it all; corpus-scale counting under memory pressure."},
+      {"rank": 5, "task_id": "task_13359", "skill": 2, "domain": 4, "task_form": 3, "overall": 2, "reason": "Fits TF-IDF over a corpus and extracts exact top-N terms per document; corpus statistics with a pinned answer."},
+      {"rank": 6, "task_id": "task_13395", "skill": 2, "domain": 4, "task_form": 2, "overall": 2, "reason": "Demonstrates ngram_range effects on extracted features; how a tokenization parameter changes the resulting counts."},
+      {"rank": 7, "task_id": "task_13253", "skill": 2, "domain": 3, "task_form": 2, "overall": 2, "reason": "Splits a tfrecord-backed dataset 70/30 without a built-in split; dataset-subset mechanics in a different framework."},
+      {"rank": 8, "task_id": "task_00856", "skill": 2, "domain": 2, "task_form": 3, "overall": 2, "reason": "Counts unique lines with occurrence counts in a multi-million-line capture; exact aggregation at scale, no NLP."},
+      {"rank": 9, "task_id": "task_13481", "skill": 2, "domain": 3, "task_form": 2, "overall": 2, "reason": "Implements word2vec negative sampling including the vocabulary frequency distribution; corpus token statistics used for sampling."},
+      {"rank": 10, "task_id": "task_13146", "skill": 2, "domain": 4, "task_form": 1, "overall": 1, "reason": "Only HuggingFace-transformers item in this corpus, but it is a one-env-var fix and its verifier is FREE; excluded from final_top10."}
+    ],
+    "CalibForge": [
+      {"rank": 1, "task_id": "model-training_20260501_172213_001", "skill": 5, "domain": 5, "task_form": 5, "overall": 5, "reason": "Same task: read a HF dataset README, filter to a domain/difficulty subset, count Qwen2.5-1.5B-Instruct tokens per domain, write the answer."},
+      {"rank": 2, "task_id": "model-training_20260503_030115_001", "skill": 5, "domain": 5, "task_form": 5, "overall": 5, "reason": "Counts trainable tokens in a HF dataset split with Qwen2.5-1.5B-Instruct and chat-template masking; identical tokenizer, identical integer-to-file output."},
+      {"rank": 3, "task_id": "model-training_20260418_190236_001", "skill": 5, "domain": 5, "task_form": 5, "overall": 5, "reason": "Per-conversation max assistant-message token count over a HF dataset with the same Qwen tokenizer, summed to one integer in /app/answer.txt."},
+      {"rank": 4, "task_id": "model-training_20260510_142854_001", "skill": 4, "domain": 5, "task_form": 4, "overall": 4, "reason": "Audits a Qwen2.5-1.5B-Instruct token-counting script that silently miscounts chat-template turns; teaches exactly what makes these counts wrong."},
+      {"rank": 5, "task_id": "model-training_20260509_020109_001", "skill": 4, "domain": 5, "task_form": 4, "overall": 4, "reason": "Two teams get different token totals for one JSONL dataset; resolve the tokenizer-configuration discrepancy to a defensible number."},
+      {"rank": 6, "task_id": "model-training_20260618_093107_001", "skill": 4, "domain": 4, "task_form": 5, "overall": 4, "reason": "Exact-count question over a HF dataset (test/train overlap) with fiddly normalisation rules and a single integer to /app/answer.txt."},
+      {"rank": 7, "task_id": "model-training_20260510_125534_001", "skill": 4, "domain": 5, "task_form": 3, "overall": 4, "reason": "Applies a Qwen chat template over a conversation dataset and builds masked labels; same chat-template token accounting, prep rather than count."},
+      {"rank": 8, "task_id": "model-training_20260419_112101_001", "skill": 3, "domain": 4, "task_form": 4, "overall": 3, "reason": "Tokenizes a JSONL dataset with a named HF tokenizer and reports exact derived metrics; padding rules decide the numbers."},
+      {"rank": 9, "task_id": "model-training_20260414_091921_001", "skill": 3, "domain": 4, "task_form": 5, "overall": 3, "reason": "Derives an exact integer (training FLOPs) from a HF model config with a precise counting convention; same no-approximations output discipline."},
+      {"rank": 10, "task_id": "model-training_20260610_111702_001", "skill": 3, "domain": 5, "task_form": 3, "overall": 3, "reason": "Compares two tokenizers on a gzipped JSONL corpus with ambiguous text fields; requires deciding which field holds the text, like the README step."}
+    ]
+  },
+  "final_top10": [
+    {"rank": 1, "task_id": "model-training_20260501_172213_001", "source": "CalibForge", "skill": 5, "domain": 5, "task_form": 5, "overall": 5, "reason": "Read HF dataset README, filter to a domain subset, count Qwen2.5-1.5B-Instruct tokens, write integer. Near-identical to the TB task."},
+    {"rank": 2, "task_id": "model-training_20260503_030115_001", "source": "CalibForge", "skill": 5, "domain": 5, "task_form": 5, "overall": 5, "reason": "Same tokenizer, same HF-dataset-split token accounting, same plain-integer answer file; adds chat-template masking rigour."},
+    {"rank": 3, "task_id": "model-training_20260418_190236_001", "source": "CalibForge", "skill": 5, "domain": 5, "task_form": 5, "overall": 5, "reason": "Qwen2.5-1.5B-Instruct token counts aggregated per conversation over a HF dataset into one integer in /app/answer.txt."},
+    {"rank": 4, "task_id": "model-training_20260510_142854_001", "source": "CalibForge", "skill": 4, "domain": 5, "task_form": 4, "overall": 4, "reason": "Debugging a wrong Qwen token count teaches the failure modes (chat template, special tokens) that make the TB answer off-by-thousands."},
+    {"rank": 5, "task_id": "model-training_20260509_020109_001", "source": "CalibForge", "skill": 4, "domain": 5, "task_form": 4, "overall": 4, "reason": "Reconciling two disagreeing token totals for one dataset forces reasoning about tokenizer configuration rather than trusting a script."},
+    {"rank": 6, "task_id": "model-training_20260618_093107_001", "source": "CalibForge", "skill": 4, "domain": 4, "task_form": 5, "overall": 4, "reason": "Exact integer over a HF dataset with normalisation rules that decide the answer; same one-number-must-be-right verification."},
+    {"rank": 7, "task_id": "model-training_20260510_125534_001", "source": "CalibForge", "skill": 4, "domain": 5, "task_form": 3, "overall": 4, "reason": "Qwen chat-template application and per-token label accounting over a conversation dataset; the tokenization half matches directly."},
+    {"rank": 8, "task_id": "task_007987_c3a86327", "source": "TMax-15K", "skill": 4, "domain": 4, "task_form": 4, "overall": 4, "reason": "Sets up a tokenizer environment and reports exact token totals for every record of a JSONL dataset; same measurement pipeline."},
+    {"rank": 9, "task_id": "task_002347_599a129f", "source": "TMax-15K", "skill": 4, "domain": 4, "task_form": 4, "overall": 4, "reason": "Tokenizes a named dataset column with a real tokenizer and aggregates counts; the TB task minus the HF hub and README step."},
+    {"rank": 10, "task_id": "tw_584886", "source": "TerminalWorld-Seeds-Clean", "skill": 4, "domain": 3, "task_form": 4, "overall": 4, "reason": "Counts records exactly across two compressed dataset formats and reports integers; strong verifier, same count-the-dataset genre."}
+  ],
+  "notes": "CalibForge is overwhelmingly the best pool here - it contains what are effectively siblings of this exact TB2.1 task (HF dataset + Qwen2.5-1.5B-Instruct tokenizer + integer to /app/answer.txt), which no v1 corpus has. The v1 pool's closest offerings (TMax tiktoken/HF-tokenizer pipelines) are a clear step down, and TerminalWorld/RTS/SWE-* only contribute generic dataset-counting or tokenizer-library debugging. Terminal-Lego is weak for this task: its NLP content is sklearn/Keras 'demonstrate the API' exercises with no exact-answer discipline, and its single HuggingFace item (task_13146) is FREE. Recursive-Task-Synthesis has no real defensible top-10; its Zipf word-frequency family is the honest best and several entries there are near-duplicates of each other, so the merge step should expect low diversity from that block. No FREE candidate is in final_top10."
+}

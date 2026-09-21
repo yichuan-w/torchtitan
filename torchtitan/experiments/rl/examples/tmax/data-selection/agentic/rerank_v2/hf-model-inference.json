@@ -1,0 +1,766 @@
+{
+ "tb21_id": "hf-model-inference",
+ "tb21_profile": {
+  "skill": "Download and run a named HuggingFace transformer locally, then wrap it in an HTTP service that honours an exact JSON request/response contract (including a 400 error body) and stays alive in the background.",
+  "domain": "Python ML serving: HuggingFace transformers/torch on CPU, Flask/WSGI, local model caching, host/port binding.",
+  "task_form": "Configure-a-service / implement-from-spec: install deps, build the service, run it detached, verified by live HTTP calls against the schema."
+ },
+ "verifier_notes": "machine-learning_20260415_094424_003 (DistilBERT CPU deployment) and task_13544 (train a Spark MLlib model and serve it as a REST API) are the two closest structural matches in their corpora but the packet grades both FREE, so they stay in per_source only. machine-learning_20260509_111805_003 (ONNX quantization of a sentiment classifier) is FREE in the packet too and was left out entirely. No grade looked wrong on inspection for this task; the strong grades on software-engineering_20260612_191200_020 and debugging_20260416_184513_003 are earned - those suites issue real HTTP requests and compare bodies. NOTE ON GRADES: work/verifier_strength.json was regenerated after work/packets_v2 was built and the two disagree on ~27% of shown candidates (844 of them flip into or out of FREE). Where they disagree I treated a candidate as FREE if EITHER source calls it FREE, so nothing in final_top10 is FREE under either file.",
+ "searches": [
+  "tools.py search all 'hugging ?face|transformers library|from_pretrained|AutoModel|AutoTokenizer|distilbert|\\bBERT\\b'",
+  "(new corpora, local grep) search all 'hugging ?face|transformers library|from_pretrained|AutoModel|AutoTokenizer|distilbert|\\bBERT\\b'",
+  "(new corpora, local grep) search CalibForge 'inference (server|service|api|endpoint)|serve the model|model server|/predict|prediction endpoint|sentiment'",
+  "(new corpora, local grep) search Terminal-Lego-15k 'sentiment|inference (server|service|api)|serve.{0,15}model|/predict|scikit-learn model|pickle.*model'",
+  "tools.py show caikit__caikit-430 huggingface__transformers-36497 huggingface__transformers-36903",
+  "tools.py show bentoml__bentoml-5084 apiflask__apiflask-659 apiflask__apiflask-632 pylons__waitress-124 neoteroi__blacksheep-366 berriai__litellm-9828 onnx__sklearn-onnx-1169"
+ ],
+ "per_source": {
+  "TMax-15K": [
+   {
+    "rank": 1,
+    "task_id": "task_003986_4e4c690f",
+    "skill": 5,
+    "domain": 5,
+    "task_form": 5,
+    "overall": 5,
+    "reason": "Install deps, load openai/whisper-tiny from HuggingFace, run inference, expose results over a web API. Same composite as the TB task."
+   },
+   {
+    "rank": 2,
+    "task_id": "task_003205_4267f918",
+    "skill": 4,
+    "domain": 5,
+    "task_form": 4,
+    "overall": 4,
+    "reason": "Transcribes audio with a HF whisper model, embeds it, and serves it behind an authenticated REST API - HF inference plus service contract."
+   },
+   {
+    "rank": 3,
+    "task_id": "task_000680_ff6ac094",
+    "skill": 4,
+    "domain": 5,
+    "task_form": 3,
+    "overall": 4,
+    "reason": "Build a pipeline that must use the openai/whisper-tiny HF model; teaches model download, local caching and inference on CPU."
+   },
+   {
+    "rank": 4,
+    "task_id": "task_004201_f72247f2",
+    "skill": 4,
+    "domain": 4,
+    "task_form": 5,
+    "overall": 4,
+    "reason": "Fix a broken vendored embedding server and get it serving; same 'make a local model API actually come up and answer' work."
+   },
+   {
+    "rank": 5,
+    "task_id": "task_000916_8de820a7",
+    "skill": 4,
+    "domain": 4,
+    "task_form": 4,
+    "overall": 4,
+    "reason": "Train a model then deploy it as an inference API endpoint; covers the serving half including request/response contract."
+   },
+   {
+    "rank": 6,
+    "task_id": "task_000660_1a27985b",
+    "skill": 3,
+    "domain": 4,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Benchmark two locally hosted embedding models over their API and use the faster one; model-service interaction, no HF download."
+   },
+   {
+    "rank": 7,
+    "task_id": "task_003264_31ca06ba",
+    "skill": 3,
+    "domain": 4,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Embedding-based dedup plus training and inference-speed benchmarking; ML pipeline in Python, no HTTP service."
+   },
+   {
+    "rank": 8,
+    "task_id": "task_003644_d3ffecd2",
+    "skill": 3,
+    "domain": 5,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Trains a BPE tokenizer with the HuggingFace tokenizers library - same ecosystem and install path, different objective."
+   },
+   {
+    "rank": 9,
+    "task_id": "task_004701_979f0bf8",
+    "skill": 2,
+    "domain": 4,
+    "task_form": 3,
+    "overall": 2,
+    "reason": "Tokenize and validate text with a HuggingFace tokenizer; touches the library only at its surface."
+   },
+   {
+    "rank": 10,
+    "task_id": "task_003752_cd279310",
+    "skill": 3,
+    "domain": 3,
+    "task_form": 4,
+    "overall": 3,
+    "reason": "Bring up a multi-process stack (nginx plus a Python backend) and keep it serving; service deployment skill, no ML."
+   }
+  ],
+  "Recursive-Task-Synthesis": [
+   {
+    "rank": 1,
+    "task_id": "rts_task_e9600a610871c3261ed7fe67",
+    "skill": 3,
+    "domain": 3,
+    "task_form": 4,
+    "overall": 3,
+    "reason": "Build and run a Flask service in a container, then hit its endpoint and capture the exact response body; deploy-and-verify loop."
+   },
+   {
+    "rank": 2,
+    "task_id": "rts_task_168fe0bf2a08a2c5314c6ec3",
+    "skill": 3,
+    "domain": 3,
+    "task_form": 4,
+    "overall": 3,
+    "reason": "Modify the Flask fortune service to read config, rebuild, redeploy and confirm the served response; edit-then-serve cycle."
+   },
+   {
+    "rank": 3,
+    "task_id": "rts_task_0abefec03b1193c4b3e49a7f",
+    "skill": 3,
+    "domain": 3,
+    "task_form": 4,
+    "overall": 3,
+    "reason": "Pin an exact Flask version in the image, run it detached and fetch the response; dependency install plus background service."
+   },
+   {
+    "rank": 4,
+    "task_id": "rts_task_5fa817ee9666c7f98793bfa7",
+    "skill": 3,
+    "domain": 2,
+    "task_form": 4,
+    "overall": 3,
+    "reason": "Stand up an HTTP API returning a fixed JSON body, keep it running and capture PID/port; the 'service must be live' requirement."
+   },
+   {
+    "rank": 5,
+    "task_id": "rts_task_f0507026a16d422ce590432c",
+    "skill": 3,
+    "domain": 2,
+    "task_form": 4,
+    "overall": 3,
+    "reason": "Run an API server to a spec found in /app/config and capture its JSON response; adds reading the contract from the repo."
+   },
+   {
+    "rank": 6,
+    "task_id": "rts_task_23d35e0f8187e65b585d4de9",
+    "skill": 3,
+    "domain": 3,
+    "task_form": 4,
+    "overall": 3,
+    "reason": "Config-driven port mapping plus rebuild and serve; port/host binding is exactly where the TB task fails if done wrong."
+   },
+   {
+    "rank": 7,
+    "task_id": "rts_task_08cfcefd3f66e3a48a31c94d",
+    "skill": 2,
+    "domain": 3,
+    "task_form": 4,
+    "overall": 2,
+    "reason": "Same fortune-cookie build-and-serve with an exact-body check; near-duplicate of the family."
+   },
+   {
+    "rank": 8,
+    "task_id": "rts_task_115981738ced93a15a7c8670",
+    "skill": 2,
+    "domain": 2,
+    "task_form": 4,
+    "overall": 2,
+    "reason": "Venv install, run an HTTP server plus a proxy and record responses; environment and process management only."
+   },
+   {
+    "rank": 9,
+    "task_id": "rts_task_68cc90a32975bd95ac1c801f",
+    "skill": 2,
+    "domain": 2,
+    "task_form": 4,
+    "overall": 2,
+    "reason": "Node API server returning fixed JSON, capture body and status code; shallow, and the pool has many near-copies."
+   },
+   {
+    "rank": 10,
+    "task_id": "rts_task_fd77b05d74344b30d23721e5",
+    "skill": 2,
+    "domain": 2,
+    "task_form": 3,
+    "overall": 2,
+    "reason": "Start a mock server, probe its health endpoint and post-process a HAR; client-side HTTP work mostly."
+   }
+  ],
+  "TerminalWorld-Seeds-Clean": [
+   {
+    "rank": 1,
+    "task_id": "tw_475630",
+    "skill": 3,
+    "domain": 3,
+    "task_form": 4,
+    "overall": 3,
+    "reason": "Implement an HTTP server whose handler branches on method and returns specified bodies; endpoint-contract implementation, Java."
+   },
+   {
+    "rank": 2,
+    "task_id": "tw_196793",
+    "skill": 3,
+    "domain": 2,
+    "task_form": 4,
+    "overall": 3,
+    "reason": "Bring up an API server returning an exact JSON body and keep it running for the checker; same 'service must answer' requirement."
+   },
+   {
+    "rank": 3,
+    "task_id": "tw_102785",
+    "skill": 3,
+    "domain": 3,
+    "task_form": 4,
+    "overall": 3,
+    "reason": "Ensure a systemd-managed service is actually running before querying its endpoint - the background-service half of the TB task."
+   },
+   {
+    "rank": 4,
+    "task_id": "tw_146854",
+    "skill": 2,
+    "domain": 3,
+    "task_form": 3,
+    "overall": 2,
+    "reason": "POST JSON payloads to a running REST API and save responses; client side of an API contract, no implementation."
+   },
+   {
+    "rank": 5,
+    "task_id": "tw_588949",
+    "skill": 2,
+    "domain": 3,
+    "task_form": 3,
+    "overall": 2,
+    "reason": "Stand up k3d, deploy an image, expose a service and HTTP it; deployment plumbing in a different stack. Strong verifier."
+   },
+   {
+    "rank": 6,
+    "task_id": "tw_105743",
+    "skill": 2,
+    "domain": 2,
+    "task_form": 3,
+    "overall": 2,
+    "reason": "Send an authenticated PUT with a JSON body to a running API; pure client call."
+   },
+   {
+    "rank": 7,
+    "task_id": "tw_462454",
+    "skill": 2,
+    "domain": 2,
+    "task_form": 3,
+    "overall": 2,
+    "reason": "Deploy nginx to Kubernetes from Julia and GET the NodePort; service exposure, unrelated stack."
+   },
+   {
+    "rank": 8,
+    "task_id": "tw_588961",
+    "skill": 2,
+    "domain": 3,
+    "task_form": 3,
+    "overall": 2,
+    "reason": "kind cluster, deploy and expose an app on port 8080, then HTTP it; deployment only."
+   },
+   {
+    "rank": 9,
+    "task_id": "tw_133456",
+    "skill": 1,
+    "domain": 2,
+    "task_form": 2,
+    "overall": 1,
+    "reason": "POST to an already-running ledger service with the right content type; no implementation at all."
+   },
+   {
+    "rank": 10,
+    "task_id": "tw_124511",
+    "skill": 2,
+    "domain": 2,
+    "task_form": 3,
+    "overall": 1,
+    "reason": "PHP HTTP endpoint that runs shell commands from POST params; some endpoint implementation, but FREE verifier and wrong domain."
+   }
+  ],
+  "SWE-Smith-Seeds-Clean": [
+   {
+    "rank": 1,
+    "task_id": "marshmallow-code__webargs.dbde72fe.combine_file__hc42s8lo",
+    "skill": 3,
+    "domain": 4,
+    "task_form": 2,
+    "overall": 3,
+    "reason": "FlaskParser mishandles JSON request bodies and headers - the exact parse-the-POSTed-JSON layer the TB endpoint depends on."
+   },
+   {
+    "rank": 2,
+    "task_id": "marshmallow-code__webargs.dbde72fe.pr_974",
+    "skill": 3,
+    "domain": 4,
+    "task_form": 2,
+    "overall": 3,
+    "reason": "Parser crashes on invalid JSON instead of returning a clean error; that is the TB task's 400-on-bad-input branch."
+   },
+   {
+    "rank": 3,
+    "task_id": "marshmallow-code__webargs.dbde72fe.lm_rewrite__3wxzav1f",
+    "skill": 3,
+    "domain": 4,
+    "task_form": 2,
+    "overall": 3,
+    "reason": "use_args must return 422 on validation failure; request validation to status-code mapping in a Flask-family stack."
+   },
+   {
+    "rank": 4,
+    "task_id": "marshmallow-code__webargs.dbde72fe.lm_rewrite__4niyfvx2",
+    "skill": 2,
+    "domain": 3,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Validation error messages lost on the way to HTTPError; error-body fidelity, Tornado parser."
+   },
+   {
+    "rank": 5,
+    "task_id": "oauthlib__oauthlib.1fd52536.combine_file__fgifu2ez",
+    "skill": 2,
+    "domain": 3,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Endpoint returns 201 instead of 200 with corrupted body; status-code and response-shape correctness."
+   },
+   {
+    "rank": 6,
+    "task_id": "django__daphne.32ac73e1.func_basic__2cpoddzp",
+    "skill": 2,
+    "domain": 3,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "ASGI server will not start on default bindings; host/port defaults are exactly what breaks a 0.0.0.0:5000 requirement."
+   },
+   {
+    "rank": 7,
+    "task_id": "encode__starlette.db5063c2.pr_2194",
+    "skill": 2,
+    "domain": 3,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Middleware fails to consume a streaming request body; request-body handling in an ASGI server."
+   },
+   {
+    "rank": 8,
+    "task_id": "encode__starlette.db5063c2.pr_2688",
+    "skill": 2,
+    "domain": 3,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Background tasks skipped for streaming responses; response lifecycle in a Python web framework."
+   },
+   {
+    "rank": 9,
+    "task_id": "marshmallow-code__webargs.dbde72fe.lm_rewrite__fvm2qd9t",
+    "skill": 2,
+    "domain": 3,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "BottleParser JSON parsing regression; same JSON-in-request skill, third framework."
+   },
+   {
+    "rank": 10,
+    "task_id": "alanjds__drf-nested-routers.6144169d.combine_file__mjd2071n",
+    "skill": 1,
+    "domain": 2,
+    "task_form": 2,
+    "overall": 1,
+    "reason": "Nested viewset mixin drops parent context on POST; Django REST specifics, little transfer."
+   }
+  ],
+  "SWE-Rebench-Tasks-Clean": [
+   {
+    "rank": 1,
+    "task_id": "materials-consortia__optimade-python-tools-813",
+    "skill": 3,
+    "domain": 3,
+    "task_form": 2,
+    "overall": 3,
+    "reason": "Parser errors surface as 500 instead of a 4xx; mapping a bad client payload to the right status is the TB error contract."
+   },
+   {
+    "rank": 2,
+    "task_id": "bentoml__bentoml-5084",
+    "skill": 3,
+    "domain": 4,
+    "task_form": 2,
+    "overall": 3,
+    "reason": "Model-serving framework: a Service dependency is closed wrongly under TestClient; inference-server lifecycle in Python."
+   },
+   {
+    "rank": 3,
+    "task_id": "caikit__caikit-430",
+    "skill": 3,
+    "domain": 4,
+    "task_form": 2,
+    "overall": 3,
+    "reason": "Add lazy loading of ephemeral models in a model-serving runtime; model load-on-demand is the TB task's model_cache concern."
+   },
+   {
+    "rank": 4,
+    "task_id": "apiflask__apiflask-659",
+    "skill": 2,
+    "domain": 4,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Flask/APIFlask URL-rule registration breaks for subclassed views; Flask routing internals."
+   },
+   {
+    "rank": 5,
+    "task_id": "huggingface__transformers-36497",
+    "skill": 2,
+    "domain": 5,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Inside the transformers repo: add seed control to DataCollatorForLanguageModeling. Same library, training-side code."
+   },
+   {
+    "rank": 6,
+    "task_id": "huggingface__transformers-36903",
+    "skill": 2,
+    "domain": 5,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Also transformers: seed plumbing across data collators. Ecosystem match, no inference or serving."
+   },
+   {
+    "rank": 7,
+    "task_id": "tornadoweb__tornado-3521",
+    "skill": 2,
+    "domain": 3,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Malformed Host header yields a 500 rather than a 4xx; robust request handling in an HTTP server."
+   },
+   {
+    "rank": 8,
+    "task_id": "onnx__sklearn-onnx-1169",
+    "skill": 2,
+    "domain": 3,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Model-export converter crashes on string labels; model packaging for deployment, adjacent to serving."
+   },
+   {
+    "rank": 9,
+    "task_id": "pallets__werkzeug-2472",
+    "skill": 1,
+    "domain": 3,
+    "task_form": 2,
+    "overall": 1,
+    "reason": "URL map behaviour for %2F path segments; Flask's WSGI layer but nothing about model serving."
+   },
+   {
+    "rank": 10,
+    "task_id": "apiflask__apiflask-632",
+    "skill": 1,
+    "domain": 3,
+    "task_form": 2,
+    "overall": 1,
+    "reason": "OpenAPI header object spec generation; documentation output, not request handling."
+   }
+  ],
+  "Terminal-Lego-15k": [
+   {
+    "rank": 1,
+    "task_id": "task_11337",
+    "skill": 4,
+    "domain": 4,
+    "task_form": 4,
+    "overall": 4,
+    "reason": "Flask app that must parse a POSTed JSON body correctly and return JSON; the exact request-handling bug class the TB endpoint must avoid."
+   },
+   {
+    "rank": 2,
+    "task_id": "task_12501",
+    "skill": 3,
+    "domain": 4,
+    "task_form": 5,
+    "overall": 4,
+    "reason": "REST API POST endpoint with a mandated status code per outcome; strong verifier checks bodies and codes, like the 400 error contract here."
+   },
+   {
+    "rank": 3,
+    "task_id": "task_13544",
+    "skill": 4,
+    "domain": 4,
+    "task_form": 5,
+    "overall": 3,
+    "reason": "Train a model, save it, then serve it as a REST API returning predictions - structurally the same task; the packet grades it FREE (regenerated file: weak), so it is excluded from final_top10."
+   },
+   {
+    "rank": 4,
+    "task_id": "task_12438",
+    "skill": 3,
+    "domain": 4,
+    "task_form": 4,
+    "overall": 3,
+    "reason": "HTTP API that must return real error status codes instead of 200-with-an-error-body; directly teaches the 400 branch."
+   },
+   {
+    "rank": 5,
+    "task_id": "task_02777",
+    "skill": 3,
+    "domain": 4,
+    "task_form": 4,
+    "overall": 3,
+    "reason": "Server must answer malformed input with the correct 4xx and a meaningful error body - the TB error-response requirement in isolation."
+   },
+   {
+    "rank": 6,
+    "task_id": "task_13493",
+    "skill": 3,
+    "domain": 4,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Build a Python sentiment classifier that labels short texts positive/negative/neutral; same subject matter, no serving layer."
+   },
+   {
+    "rank": 7,
+    "task_id": "task_10622",
+    "skill": 3,
+    "domain": 4,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Set up an environment where `from transformers import AutoTokenizer` works; the HF install/caching half of the TB task."
+   },
+   {
+    "rank": 8,
+    "task_id": "task_09253",
+    "skill": 2,
+    "domain": 3,
+    "task_form": 3,
+    "overall": 2,
+    "reason": "Implement a sentiment scorer from scratch; shares the domain word but exercises string heuristics, not model inference."
+   },
+   {
+    "rank": 9,
+    "task_id": "task_10868",
+    "skill": 2,
+    "domain": 3,
+    "task_form": 3,
+    "overall": 2,
+    "reason": "Make a service bound to 127.0.0.1:5000 reachable from other hosts via a proxy; the 0.0.0.0 binding lesson, no model."
+   },
+   {
+    "rank": 10,
+    "task_id": "task_13245",
+    "skill": 2,
+    "domain": 3,
+    "task_form": 3,
+    "overall": 2,
+    "reason": "Load a saved model, run it on dummy input and write predictions to a file; inference without a service or contract."
+   }
+  ],
+  "CalibForge": [
+   {
+    "rank": 1,
+    "task_id": "software-engineering_20260612_191200_020",
+    "skill": 4,
+    "domain": 4,
+    "task_form": 5,
+    "overall": 4,
+    "reason": "Flask REST API on port 5000 with an exact JSON contract per route and 404 on miss; strong verifier hits the endpoints live."
+   },
+   {
+    "rank": 2,
+    "task_id": "model-training_20260420_020307_001",
+    "skill": 4,
+    "domain": 5,
+    "task_form": 4,
+    "overall": 4,
+    "reason": "A sentiment model gives wrong predictions after checkpoint conversion; must read model.py and inference.py and restore correct outputs."
+   },
+   {
+    "rank": 3,
+    "task_id": "system-administration_20260614_141608_008",
+    "skill": 4,
+    "domain": 4,
+    "task_form": 4,
+    "overall": 4,
+    "reason": "Get a Flask app actually serving through gunicorn behind nginx after it returns nothing; the 'run it in the background and make curl work' skill."
+   },
+   {
+    "rank": 4,
+    "task_id": "debugging_20260416_184513_003",
+    "skill": 3,
+    "domain": 4,
+    "task_form": 4,
+    "overall": 4,
+    "reason": "Flask POST /process service hangs under load; diagnose and fix so the service answers reliably. Strong verifier drives real requests."
+   },
+   {
+    "rank": 5,
+    "task_id": "machine-learning_20260511_150433_001",
+    "skill": 4,
+    "domain": 5,
+    "task_form": 3,
+    "overall": 4,
+    "reason": "Take a PyTorch sentiment model and produce an optimised deployable artifact; same model-to-deployment path, ONNX instead of Flask."
+   },
+   {
+    "rank": 6,
+    "task_id": "system-administration_20260419_023954_002",
+    "skill": 3,
+    "domain": 4,
+    "task_form": 4,
+    "overall": 3,
+    "reason": "Debug a 502 across nginx -> Flask:5000 -> Redis; port binding, host binding and process supervision, which the TB task also needs."
+   },
+   {
+    "rank": 7,
+    "task_id": "software-engineering_20260514_012509_012",
+    "skill": 3,
+    "domain": 4,
+    "task_form": 4,
+    "overall": 3,
+    "reason": "FastAPI middleware reading the JSON body deadlocks every POST; JSON request handling plus a live HTTP contract."
+   },
+   {
+    "rank": 8,
+    "task_id": "model-training_20260617_104707_001",
+    "skill": 3,
+    "domain": 5,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Tokenizes with a bert-base-uncased HF tokenizer and trains a tagger; HF model loading in the same ecosystem, training genre."
+   },
+   {
+    "rank": 9,
+    "task_id": "software-engineering_20260507_172207_012",
+    "skill": 3,
+    "domain": 3,
+    "task_form": 5,
+    "overall": 3,
+    "reason": "Implement a JSON-RPC server to an exact spec with error objects and status codes; same 'serve a precise JSON contract' discipline."
+   },
+   {
+    "rank": 10,
+    "task_id": "machine-learning_20260415_094424_003",
+    "skill": 4,
+    "domain": 5,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Optimise a fine-tuned DistilBERT for CPU deployment under an accuracy floor - closest DistilBERT match; the packet grades it FREE so it is excluded from final_top10, though the regenerated grade file calls it strong."
+   }
+  ]
+ },
+ "final_top10": [
+  {
+   "rank": 1,
+   "task_id": "task_003986_4e4c690f",
+   "source": "TMax-15K",
+   "skill": 5,
+   "domain": 5,
+   "task_form": 5,
+   "overall": 5,
+   "reason": "Install deps, load a HuggingFace model (whisper-tiny), run inference and expose the results through a web API - same three-part task."
+  },
+  {
+   "rank": 2,
+   "task_id": "task_003205_4267f918",
+   "source": "TMax-15K",
+   "skill": 4,
+   "domain": 5,
+   "task_form": 4,
+   "overall": 4,
+   "reason": "HF model inference on real input, then served behind a REST API with an enforced request/response shape."
+  },
+  {
+   "rank": 3,
+   "task_id": "software-engineering_20260612_191200_020",
+   "source": "CalibForge",
+   "skill": 4,
+   "domain": 4,
+   "task_form": 5,
+   "overall": 4,
+   "reason": "Flask API on port 5000 with per-route JSON contract and 404 handling; strong verifier calls the live endpoints."
+  },
+  {
+   "rank": 4,
+   "task_id": "model-training_20260420_020307_001",
+   "source": "CalibForge",
+   "skill": 4,
+   "domain": 5,
+   "task_form": 4,
+   "overall": 4,
+   "reason": "Sentiment model predicting wrongly after checkpoint conversion; forces correct model loading and inference code. Strong verifier."
+  },
+  {
+   "rank": 5,
+   "task_id": "task_11337",
+   "source": "Terminal-Lego-15k",
+   "skill": 4,
+   "domain": 4,
+   "task_form": 4,
+   "overall": 4,
+   "reason": "Flask endpoint that must actually parse the POSTed JSON body and echo JSON back - the TB endpoint's core mechanic."
+  },
+  {
+   "rank": 6,
+   "task_id": "task_000680_ff6ac094",
+   "source": "TMax-15K",
+   "skill": 4,
+   "domain": 5,
+   "task_form": 3,
+   "overall": 4,
+   "reason": "Requires downloading and running a named HuggingFace model locally; the model-cache and offline-inference half."
+  },
+  {
+   "rank": 7,
+   "task_id": "task_004201_f72247f2",
+   "source": "TMax-15K",
+   "skill": 4,
+   "domain": 4,
+   "task_form": 5,
+   "overall": 4,
+   "reason": "Repair a broken vendored embedding server and get it serving requests; 'make the local model API come up' end to end."
+  },
+  {
+   "rank": 8,
+   "task_id": "system-administration_20260614_141608_008",
+   "source": "CalibForge",
+   "skill": 4,
+   "domain": 4,
+   "task_form": 4,
+   "overall": 4,
+   "reason": "Flask app returns nothing through gunicorn/nginx; fix binding and process startup so curl gets a response."
+  },
+  {
+   "rank": 9,
+   "task_id": "task_12501",
+   "source": "Terminal-Lego-15k",
+   "skill": 3,
+   "domain": 4,
+   "task_form": 5,
+   "overall": 4,
+   "reason": "POST endpoint with a mandated status code and body per outcome; strong verifier, directly trains the 400-error branch."
+  },
+  {
+   "rank": 10,
+   "task_id": "machine-learning_20260511_150433_001",
+   "source": "CalibForge",
+   "skill": 4,
+   "domain": 5,
+   "task_form": 3,
+   "overall": 4,
+   "reason": "Convert a PyTorch sentiment model into an optimised deployable artifact and keep its accuracy - model-to-deployment path."
+  }
+ ],
+ "notes": "TMax is unusually strong here: it holds the only tasks in the whole pool that combine a real HuggingFace model download with serving it over HTTP (the whisper-tiny family). CalibForge contributes the best-verified Flask/service-contract tasks and the only genuine sentiment-model deployment work. Terminal-Lego contributes clean, well-graded HTTP status-code and JSON-body tasks. SWE-Rebench is weak: transformers itself appears only as training-side feature requests; bentoml/caikit are the only serving-runtime entries. TerminalWorld is mostly client-side curl-the-running-API tasks and adds little."
+}

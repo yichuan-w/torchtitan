@@ -1,0 +1,9 @@
+{
+  "_why": "Tasks a reranking agent read by hand and judged mis-graded. The grader is a regex heuristic and errs in both directions; an entry here records a human-legible reason for overriding it, and merge_agentic.py --v2 honours the override instead of failing the task.",
+  "system-administration_20260615_143301_008": {
+    "grader_says": "FREE",
+    "actually": "strong",
+    "read_by": "v2 team14, confirmed independently by fix-team 04",
+    "why": "Its two tests are live-network, not file checks. One pipes through `socat - TCP4:127.0.0.1:6666` and asserts `login:` came back over the socket; the other drives an expect script (telnet, login:, consoleuser, Password:, consolepass, shell prompt, `echo LOGIN_SUCCESS`) and requires the echo. The task writes no files at all, so there is no file-exists path to game. The grader scored `\"login:\" in combined` as a substring check without seeing that `combined` is socket output."
+  }
+}

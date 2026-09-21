@@ -1,5 +1,10 @@
 # TB 2.1 → 10 nearest training tasks, agent-reranked
 
+> **v2 is the current answer** — `results_v2/`, seven corpora, 76,786 tasks.
+> `results/` is v1 (five corpora, 56,307) and is kept for comparison. The two
+> share only 14.8% of their picks. Everything below describes the method; the
+> v2 section near the end covers what changed.
+
 For each of the 89 Terminal-Bench 2.1 tasks, the 10 training tasks that would
 actually help a model solve it — drawn from all five HF pools mixed, ranked by
 required **skill**, **domain** and **task form**.
@@ -217,3 +222,112 @@ documented in `../README.md`; `bootstrap_cache.py` reads them through
 `../compute_tb21_tfidf.py`'s loaders so the corpus text is composed identically
 to the TF-IDF run, and falls back to downloading from HF when a local parquet is
 absent. `cache_manifest.json` pins what was actually read.
+
+
+---
+
+# v2 — the enlarged pool
+
+Two datasets were added: **Terminal-Lego-15k** (15,048 tasks built from
+StackOverflow questions) and **CalibForge** (5,431 tasks calibrated by solver
+disagreement). The pool went from 56,307 to **76,786** across seven corpora,
+and every candidate now carries a **verifier grade**.
+
+| | v1 | v2 |
+|---|---|---|
+| mean skill / domain / task_form | 4.10 / 4.28 / 3.63 | **4.37 / 4.55 / 4.18** |
+| mean overall | 3.99 | **4.25** |
+| candidates scored 5 | 172 | **268** |
+| candidates scored ≤3 | 175 | **42** |
+| tasks whose top-10 is one corpus | 5 | **0** |
+
+`task_form` rising by 0.55 is the informative one: the new corpora contain
+tasks of the same *shape*, not merely the same subject.
+
+Final slots by source: CalibForge 500, TMax 217, Terminal-Lego 97,
+TerminalWorld 25, Rebench 18, RTS 17, Smith 16. CalibForge takes 71 of the 89
+rank-1 slots. Eighteen teams reported the same reason independently — it
+contains whole task *families* built on the same templates as TB 2.1 tasks.
+
+## The verifier grade
+
+A task whose tests can be passed without solving it is bad training data
+however well it matches. One real Terminal-Lego task passed its entire suite
+with a three-line shell script that did not do the task. So every pooled task
+is graded (`verifier_strength.py`, from the original sources, never from the
+lossy composed cache) and the grade travels in the packet:
+
+| grade | meaning | pool |
+|---|---|---|
+| `strong` | ≥half and ≥3 assertions pin a value, or ≥8 do | 17,100 |
+| `ok` | ≥quarter, or ≥4 | 17,900 |
+| `weak` | at least one | 1,500 |
+| `behavioral` | nothing pinned, but a test runs the artifact and asserts on its exit status | 600 |
+| `FREE` | nothing but file-exists / non-empty / substring-in-own-source | 602 |
+| `repo-tests` | runs the upstream project's suite (SWE-Smith, SWE-Rebench) | 2,869 |
+| `absent` | no verifier ships with our copy (all of RTS) | 37,484 |
+
+**No `FREE` candidate may enter `final_top10`**, enforced in
+`merge_agentic.py --v2`, not left to the agents.
+
+### This grader is a heuristic and errs in both directions
+
+It was wrong six times during this run, each time found by an agent reading the
+tests. Do not treat a grade as a verdict.
+
+Errors toward *under*-grading (careful verification called vacuous): counting
+TMax's `test_initial_state` — whose job is to check preconditions — as a reward
+test; missing comparison against a loaded oracle or a fuzzed reference binary;
+missing `== f"..."` because the f-string prefix was absent from the pattern;
+missing thresholds against a variable (`mse <= threshold`) and regexes pinning
+a computed value; and reading `assert "login:" in combined` as a substring
+check when `combined` is socket output.
+
+The structural fix was to stop enumerating what counts as *good* verification —
+an open-ended list, so anything unusual fell through — and enumerate the
+**vacuous** forms instead, a short closed list, crediting everything else.
+
+Errors toward *over*-grading survive: `tw_248132` grades `strong` but every
+assertion is against files the agent writes itself (its shipped oracle is a
+`touch` script), and `tw_28581` grades `strong` on regexes over script source
+that is never executed.
+
+`verifier_overrides.json` records grades a human-read agent overrode, with the
+reason. It currently holds one.
+
+## Contamination screen — do this before training
+
+`work/tb21_near_duplicates.tsv` lists **38 (TB2.1, training task) pairs at dense
+cosine ≥ 0.85**, covering 16 of the 89 TB 2.1 tasks. The closest is
+`polyglot-c-py` ↔ CalibForge `software-engineering_20260617_210354_017` at
+**0.944** — teams independently described that task as "one file that is valid
+Python and valid C, both printing the same Fibonacci number", which is the
+TB 2.1 task. Training on these is training on the eval set.
+
+By corpus: CalibForge 20, TMax 15, TerminalWorld 2, RTS 1. **TMax contributes
+15 pairs of its own**, so this is not a defect of the new data; the enlarged
+pool just makes an existing problem easier to see.
+
+CalibForge also ships **98 auto-generated filler tasks** whose text pastes a
+TB 2.1 task name in as a domain label ("…for the `path-tracing` domain") while
+the body is a generic directory-hashing utility. They match by name, grade
+`ok`, and teach nothing — the worst possible combination. They are listed in
+`work/calibforge_inspector_filler.txt` and `make_packets.py` now drops them.
+None reached any result: the agents rejected every one unprompted.
+
+## Running v2
+
+```bash
+python add_corpora_v2.py                                  # the two new corpora -> work/cache
+python verifier_strength.py                               # grade all 76,786
+python build_candidates.py --out work/candidates_v2       # seven-corpus retrieval
+python make_packets.py --src work/candidates_v2 --dst work/packets_v2 --show 16 --snippet 460
+python dispatch.py prompts                                # 18 team prompts (point them at AGENT_SPEC_V2.md)
+python promote_pass.py --dispatch                         # after the run: who was barred by a stale grade
+python merge_agentic.py --v2 --strict --rerank rerank_v2 --out results_v2
+```
+
+`promote_pass.py` exists because the grader was corrected mid-run: it finds
+tasks whose `final_top10` lost a slot to a grade that has since been fixed. It
+flagged 22 of 89; five correction agents re-read them and changed 13, declining
+the rest on merit — including one that corrected an earlier agent's reading.

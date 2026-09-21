@@ -1,0 +1,120 @@
+{
+  "tb21_id": "constraints-scheduling",
+  "tb21_profile": {
+    "skill": "Parse ICS/VEVENT calendars into busy intervals, encode hard availability rules plus buffers as constraints over a minute-granularity time grid, search for the earliest feasible 1-hour slot with preference tie-breakers, and emit a valid ICS file",
+    "domain": "iCalendar (RFC 5545) parsing and generation, date/time and timezone arithmetic, interval overlap and constraint satisfaction over a business-hours calendar",
+    "task_form": "implement-from-spec: a solver plus a strictly formatted output artifact, graded on the exact slot chosen and on ICS validity"
+  },
+  "verifier_notes": "No misgrades found. Worth flagging that the packet and work/verifier_strength.json disagree for several candidates I used: personal-assistant_20260419_182351_001 and personal-assistant_20260417_112147_001 read `weak` in the packet but `strong` in the file (12/14 and 13/14 substantive assertions respectively), which is the more believable reading given the test counts. Nothing I placed is FREE under either grading. tw_356591 (install versions satisfying a constraint set) would have been a reasonable TerminalWorld pick but is FREE in the file, so it is excluded entirely.",
+  "searches": [
+    "tools.py search all \"\\.ics\\b|iCalendar|VEVENT|VCALENDAR|RFC 5545|icalendar\"",
+    "tools.py search all \"constraint satisfaction|CSP solver|OR-Tools|job.?shop|timetabl|scheduling problem|shift schedul|feasible schedule\"",
+    "tools.py search tw \"schedul|cron|calendar|timezone|constraint|solver|optimi\"",
+    "tools.py search rts \"schedul|calendar|\\.ics|constraint satisfaction|solver|knapsack|optimal .{0,20}(assignment|schedule)\"",
+    "tools.py search rts \"N-Queens|sudoku|knapsack|puzzle|satisfiab|SAT solver|linear program|optimal (subset|assignment|allocation)|z3\"",
+    "tools.py search rts \"Prolog|N-Queens|clpfd|scheduling|allocate .{0,25}(resources|slots)|non-overlapping|interval\"",
+    "tools.py search rebench \"timezone|DST|recurrence|rrule|datetime|dateutil|icalendar|pytz|zoneinfo\"",
+    "sqlite over work/pool.sqlite: SWE-Smith task_id LIKE '%arrow%' / '%isodate%' / '%schedule%'; SWE-Rebench LIKE 'collective__icalendar%' / 'celery%'",
+    "nt.py search all \"\\.ics|iCalendar|VEVENT|VCALENDAR|RFC 5545|constraint satisfaction|OR-Tools|job.?shop|timetabl|scheduling|meeting slot|availability\"",
+    "nt.py search all \"\\.ics|iCalendar|VEVENT|VCALENDAR|icalendar|meeting|calendar file|time slot|overlapping intervals|shift schedul|nurse schedul|timetable|room assignment\""
+  ],
+  "per_source": {
+    "TMax-15K": [
+      {"rank": 1, "task_id": "task_000413_de5af0d1", "skill": 4, "domain": 4, "task_form": 4, "overall": 4, "reason": "A job scheduling service picks wrong times for users in different timezones; scheduling arithmetic where the timezone handling is the bug"},
+      {"rank": 2, "task_id": "task_001493_5c3c4c9f", "skill": 4, "domain": 4, "task_form": 4, "overall": 4, "reason": "A service computes deployment schedules with a constraint satisfaction algorithm; produce a feasible schedule under stated rules"},
+      {"rank": 3, "task_id": "task_006008_42113d56", "skill": 4, "domain": 4, "task_form": 4, "overall": 4, "reason": "Restrict long-running tunnels to permitted time windows; enforcing hour-of-day windows is the same predicate Alice's and Bob's rules define"},
+      {"rank": 4, "task_id": "task_001028_f24e9bb1", "skill": 4, "domain": 3, "task_form": 4, "overall": 4, "reason": "A C solver must find the optimal launch window under constraints; search over a time axis for the admissible point"},
+      {"rank": 5, "task_id": "task_001017_5b410ead", "skill": 4, "domain": 3, "task_form": 4, "overall": 3, "reason": "Fill an exact duration from a set of creatives - subset sum; exact-fit search over durations with a uniqueness requirement"},
+      {"rank": 6, "task_id": "task_009508_122c219c", "skill": 4, "domain": 3, "task_form": 3, "overall": 3, "reason": "Stand up testing around a C program that counts solutions of a constraint satisfaction problem; correctness of the enumeration is pinned"},
+      {"rank": 7, "task_id": "task_001330_31f79b9a", "skill": 3, "domain": 3, "task_form": 4, "overall": 3, "reason": "Assign ports to services under strict non-collision rules; discrete assignment under hard constraints"},
+      {"rank": 8, "task_id": "task_003124_4f0e91e0", "skill": 3, "domain": 3, "task_form": 3, "overall": 3, "reason": "Orchestrator solves constraint satisfaction to assign build steps to eligible agents; resource assignment under eligibility rules"},
+      {"rank": 9, "task_id": "task_002086_c329710c", "skill": 3, "domain": 3, "task_form": 3, "overall": 3, "reason": "Rewrite a CSP solver in Go to find the optimal admissible set; search plus tie-breaking, no calendar involved"},
+      {"rank": 10, "task_id": "task_001674_2e80e8f9", "skill": 3, "domain": 3, "task_form": 3, "overall": 3, "reason": "Parse REQUIRE and CONFLICT constraints and filter targets that cannot satisfy them; hard-constraint filtering from a declarative source"}
+    ],
+    "Recursive-Task-Synthesis": [
+      {"rank": 1, "task_id": "rts_task_2629efb30267270e1cd69b57", "skill": 4, "domain": 3, "task_form": 4, "overall": 3, "reason": "Implement an N-Queens solver CLI; backtracking search over a constrained discrete space, the textbook version of this problem"},
+      {"rank": 2, "task_id": "rts_task_a92cbfb13bbcf3b4e3f3da9a", "skill": 3, "domain": 3, "task_form": 3, "overall": 3, "reason": "Solve a constraint puzzle in Prolog with the totals read from a configuration file; declarative constraint solving"},
+      {"rank": 3, "task_id": "rts_task_81dfa7c6bebb7887b6e90b59", "skill": 3, "domain": 3, "task_form": 3, "overall": 3, "reason": "A Prolog constraint program gives the wrong answer; find and fix the faulty constraint, then produce the correct solution"},
+      {"rank": 4, "task_id": "rts_task_f22231cbc101fefef9d3c774", "skill": 3, "domain": 3, "task_form": 3, "overall": 3, "reason": "Same constraint puzzle parameterised by config.txt; solve for the unique assignment satisfying two simultaneous constraints"},
+      {"rank": 5, "task_id": "rts_task_15b4ff7d0251a76d539b1c4a", "skill": 3, "domain": 2, "task_form": 3, "overall": 2, "reason": "Verify every reported metric falls inside the budget the spec file declares; checking a result against a set of hard bounds"},
+      {"rank": 6, "task_id": "rts_task_1478a9a38bb5999b2fce0459", "skill": 2, "domain": 2, "task_form": 3, "overall": 2, "reason": "Apply thresholds and exclusions from a config file and report minima and maxima; rule-driven filtering to an exact answer"},
+      {"rank": 7, "task_id": "rts_task_247ce3f8e340a7e0f6402d58", "skill": 2, "domain": 3, "task_form": 3, "overall": 2, "reason": "Configure Prometheus scrape intervals against a target list; interval scheduling as configuration rather than search"},
+      {"rank": 8, "task_id": "rts_task_da8ab6e58c9d734b6a0b6e81", "skill": 2, "domain": 2, "task_form": 3, "overall": 2, "reason": "Discover SLEEP_INTERVAL and OUTPUT_PATH from a config file and run on that cadence; timing driven by discovered parameters"},
+      {"rank": 9, "task_id": "rts_task_7f08d158d3e902c55510d089", "skill": 2, "domain": 2, "task_form": 2, "overall": 2, "reason": "Watchdog probes on an interval and appends timestamped status lines; timestamp formatting and periodicity only"},
+      {"rank": 10, "task_id": "rts_task_0bef7104da26636de2fd18a6", "skill": 1, "domain": 3, "task_form": 2, "overall": 1, "reason": "Print the current date/time and the month's calendar; shares the calendar vocabulary and nothing else"}
+    ],
+    "TerminalWorld-Seeds-Clean": [
+      {"rank": 1, "task_id": "tw_47866", "skill": 3, "domain": 4, "task_form": 3, "overall": 3, "reason": "Schedule two `at` jobs at specific future times and then manage the queue; committing work to explicit time slots"},
+      {"rank": 2, "task_id": "tw_152964", "skill": 3, "domain": 3, "task_form": 3, "overall": 3, "reason": "Get a pod scheduled onto a particular node despite scheduling constraints; placement under admission rules"},
+      {"rank": 3, "task_id": "tw_125882", "skill": 3, "domain": 3, "task_form": 3, "overall": 3, "reason": "Solve path constraints from a symbolic execution run to reach a target; constraint solving as the core work"},
+      {"rank": 4, "task_id": "tw_125169", "skill": 3, "domain": 3, "task_form": 3, "overall": 3, "reason": "Solve a linear system three ways including a built-in solver and compare against the known exact solution"},
+      {"rank": 5, "task_id": "tw_417619", "skill": 2, "domain": 3, "task_form": 3, "overall": 2, "reason": "Configure round-robin scheduling for a virtual service; scheduling as a configuration knob, not a search"},
+      {"rank": 6, "task_id": "tw_28790", "skill": 2, "domain": 3, "task_form": 3, "overall": 2, "reason": "Set the right version constraint in a gemspec; satisfying a declared constraint, different domain"},
+      {"rank": 7, "task_id": "tw_306537", "skill": 2, "domain": 3, "task_form": 2, "overall": 2, "reason": "Derive the next calendar-versioning tag from the date; date arithmetic feeding an exactly formatted string"},
+      {"rank": 8, "task_id": "tw_294601", "skill": 2, "domain": 4, "task_form": 2, "overall": 2, "reason": "Set the system timezone during bootstrap; the timezone half of the problem, as configuration"},
+      {"rank": 9, "task_id": "tw_527904", "skill": 1, "domain": 3, "task_form": 2, "overall": 2, "reason": "Print the date, time and the month's calendar in a fixed order; date formatting only"},
+      {"rank": 10, "task_id": "tw_144971", "skill": 2, "domain": 2, "task_form": 2, "overall": 2, "reason": "Step a puzzle solver forward under gdb to observe it converge; debugging a solver rather than writing one"}
+    ],
+    "SWE-Smith-Seeds-Clean": [
+      {"rank": 1, "task_id": "dbader__schedule.82a43db1.lm_rewrite__k7n9jq91", "skill": 4, "domain": 4, "task_form": 2, "overall": 3, "reason": "Next-run computation in a job scheduling library is wrong; deciding when a job is allowed to run is this task's core predicate"},
+      {"rank": 2, "task_id": "dbader__schedule.82a43db1.func_pm_remove_cond__9tbtqjem", "skill": 4, "domain": 4, "task_form": 2, "overall": 3, "reason": "A dropped condition breaks scheduling eligibility; the same kind of off-by-one in a time-window test"},
+      {"rank": 3, "task_id": "dbader__schedule.82a43db1.func_pm_remove_cond__t9rkf3hs", "skill": 3, "domain": 4, "task_form": 2, "overall": 3, "reason": "Another missing guard in the scheduler's run decision; hard-constraint evaluation over clock time"},
+      {"rank": 4, "task_id": "dbader__schedule.82a43db1.func_pm_remove_assign__p3fap6yd", "skill": 3, "domain": 4, "task_form": 2, "overall": 3, "reason": "Scheduler state is not updated, so the next fire time is wrong; time bookkeeping in a scheduler"},
+      {"rank": 5, "task_id": "gweis__isodate.17cb25eb.combine_module__cenvquqa", "skill": 3, "domain": 4, "task_form": 2, "overall": 3, "reason": "Fractional-second ISO 8601 parsing is broken; parsing timestamps to the precision a slot search needs"},
+      {"rank": 6, "task_id": "gweis__isodate.17cb25eb.combine_file__mm49anzw", "skill": 3, "domain": 4, "task_form": 2, "overall": 2, "reason": "Time components come back in the wrong order from the parser; ICS DTSTART parsing has the same failure mode"},
+      {"rank": 7, "task_id": "arrow-py__arrow.1d70d009.lm_rewrite__tco3uerq", "skill": 3, "domain": 4, "task_form": 2, "overall": 2, "reason": "Datetime library arithmetic bug; shifting and comparing instants is what the interval search does constantly"},
+      {"rank": 8, "task_id": "arrow-py__arrow.1d70d009.func_pm_op_swap__7t83cc2n", "skill": 3, "domain": 4, "task_form": 2, "overall": 2, "reason": "Subsecond formatting token produces the wrong digits; exact timestamp rendering, which the ICS output demands"},
+      {"rank": 9, "task_id": "arrow-py__arrow.1d70d009.combine_file__8pbefy25", "skill": 2, "domain": 4, "task_form": 2, "overall": 2, "reason": "Datetime construction and conversion bug in arrow; same ecosystem, narrower symptom"},
+      {"rank": 10, "task_id": "arrow-py__arrow.1d70d009.func_pm_class_rm_funcs__3ewpmr5u", "skill": 2, "domain": 4, "task_form": 2, "overall": 2, "reason": "Removed methods break datetime range handling; time-range APIs of the sort a slot search leans on"}
+    ],
+    "SWE-Rebench-Tasks-Clean": [
+      {"rank": 1, "task_id": "collective__icalendar-878", "skill": 4, "domain": 5, "task_form": 2, "overall": 4, "reason": "A bug in the icalendar library itself; the only task in the whole pool about RFC 5545 parsing and emission"},
+      {"rank": 2, "task_id": "celery__celery-9669", "skill": 4, "domain": 4, "task_form": 2, "overall": 3, "reason": "crontab() fires an hour late after DST starts; wall-clock scheduling rules colliding with timezone offsets"},
+      {"rank": 3, "task_id": "celery__celery-9331", "skill": 3, "domain": 4, "task_form": 2, "overall": 3, "reason": "The beat scheduler's persisted schedule gets corrupted; scheduler state and next-run bookkeeping"},
+      {"rank": 4, "task_id": "boto__botocore-626", "skill": 3, "domain": 4, "task_form": 2, "overall": 3, "reason": "Timestamp header serialised wrongly when the local timezone is not UTC; exactly the UTC-vs-local trap this task sets"},
+      {"rank": 5, "task_id": "delgan__loguru-960", "skill": 3, "domain": 4, "task_form": 2, "overall": 2, "reason": "Rotation misbehaves with localized aware datetimes; time-boundary decisions driven by tz-aware comparisons"},
+      {"rank": 6, "task_id": "boto__botocore-746", "skill": 2, "domain": 4, "task_form": 2, "overall": 2, "reason": "Datetime handling breaks credential expiry comparison; aware/naive datetime mixing"},
+      {"rank": 7, "task_id": "pypa__packaging-674", "skill": 3, "domain": 2, "task_form": 2, "overall": 2, "reason": "Specifier containment changes behaviour with epochs; evaluating whether a candidate satisfies a set of hard constraints"},
+      {"rank": 8, "task_id": "pypa__packaging-650", "skill": 3, "domain": 2, "task_form": 2, "overall": 2, "reason": "Marker.evaluate fails for an unset variable; constraint evaluation where a missing input must not silently pass"},
+      {"rank": 9, "task_id": "cs-si__eodag-1717", "skill": 2, "domain": 3, "task_form": 2, "overall": 2, "reason": "Search queries built over start and end datetime ranges; interval query construction, loosely related"},
+      {"rank": 10, "task_id": "hypothesisworks__hypothesis-2435", "skill": 2, "domain": 2, "task_form": 2, "overall": 2, "reason": "Generating values that satisfy a schema's constraints; constraint-directed search in a very different setting"}
+    ],
+    "Terminal-Lego-15k": [
+      {"rank": 1, "task_id": "task_09097", "skill": 5, "domain": 4, "task_form": 5, "overall": 5, "reason": "Generate a weekly school timetable as an explicit constraint satisfaction problem with hard rules and preferences; 14 pinned assertions"},
+      {"rank": 2, "task_id": "task_08960", "skill": 4, "domain": 5, "task_form": 4, "overall": 4, "reason": "Implement recurring calendar events including single-occurrence modifications; RRULE expansion with exceptions, as ICS calendars carry"},
+      {"rank": 3, "task_id": "task_09803", "skill": 4, "domain": 5, "task_form": 4, "overall": 4, "reason": "Design a store for Outlook-style recurring events with exception handling; the data model behind a real calendar file"},
+      {"rank": 4, "task_id": "task_01665", "skill": 4, "domain": 4, "task_form": 4, "overall": 4, "reason": "Implement a cron-like scheduler that evaluates time expressions and decides when to fire; time-predicate evaluation from scratch"},
+      {"rank": 5, "task_id": "task_09184", "skill": 4, "domain": 4, "task_form": 3, "overall": 3, "reason": "Find every interval that overlaps another; the busy-interval intersection primitive the slot search is built on"},
+      {"rank": 6, "task_id": "task_06191", "skill": 3, "domain": 5, "task_form": 3, "overall": 3, "reason": "Extract specific fields out of iCalendar file content; the ICS parsing half, done with regex at small scale"},
+      {"rank": 7, "task_id": "task_02659", "skill": 3, "domain": 4, "task_form": 3, "overall": 3, "reason": "Run every 15 minutes but exclude one hour slot; expressing an exclusion window exactly, like Alice's no-meetings-after-2pm rule"},
+      {"rank": 8, "task_id": "task_08347", "skill": 3, "domain": 4, "task_form": 3, "overall": 3, "reason": "Select events by day of week from their dates; Carol's no-Mondays preference is the same predicate"},
+      {"rank": 9, "task_id": "task_09064", "skill": 3, "domain": 3, "task_form": 3, "overall": 3, "reason": "Schedule jobs so every deadline is met, framed as subset sum; feasibility search over a time budget"},
+      {"rank": 10, "task_id": "task_09015", "skill": 3, "domain": 4, "task_form": 3, "overall": 3, "reason": "Simulate a time-slot reservation system with capacity per slot; allocating bookings to discrete time windows"}
+    ],
+    "CalibForge": [
+      {"rank": 1, "task_id": "personal-assistant_20260419_182351_001", "skill": 5, "domain": 5, "task_form": 5, "overall": 5, "reason": "Three ICS calendar files must be combined into correct availability windows and the current code gets them wrong; the exact sub-problem here"},
+      {"rank": 2, "task_id": "personal-assistant_20260514_134238_001", "skill": 5, "domain": 5, "task_form": 5, "overall": 5, "reason": "Detect every calendar conflict across a directory of per-member ICS files for a queried date range; per-attendee busy-interval intersection"},
+      {"rank": 3, "task_id": "personal-assistant_20260415_182321_001", "skill": 5, "domain": 5, "task_form": 5, "overall": 5, "reason": "Schedule a recurring team meeting inside a Mon-Fri window across three timezones; same find-a-slot-under-rules search plus UTC handling"},
+      {"rank": 4, "task_id": "personal-assistant_20260417_112147_001", "skill": 5, "domain": 5, "task_form": 4, "overall": 4, "reason": "Place focus blocks around existing meetings respecting task dependencies; scheduling into the gaps a calendar leaves, 13/14 pinned"},
+      {"rank": 5, "task_id": "personal-assistant_20260419_023954_001", "skill": 4, "domain": 5, "task_form": 4, "overall": 4, "reason": "Expand recurring ICS events for a month, honouring cancelled instances; correct VEVENT/RRULE interpretation"},
+      {"rank": 6, "task_id": "personal-assistant_20260510_125534_001", "skill": 4, "domain": 5, "task_form": 4, "overall": 4, "reason": "Produce a valid ICS calendar file from parsed sources; the write-a-conforming-ICS half of this task"},
+      {"rank": 7, "task_id": "personal-assistant_20260513_204848_001", "skill": 4, "domain": 5, "task_form": 4, "overall": 4, "reason": "An ICS expansion script produces wrong occurrences; debug the parser against the real calendar file"},
+      {"rank": 8, "task_id": "personal-assistant_20260508_045557_001", "skill": 4, "domain": 4, "task_form": 4, "overall": 4, "reason": "Build a scheduler over tasks with dependencies, estimates, priorities and deadlines; feasible-schedule search with tie-breaking"},
+      {"rank": 9, "task_id": "personal-assistant_20260422_235124_001", "skill": 4, "domain": 4, "task_form": 4, "overall": 4, "reason": "Several scheduling scenarios each with dependencies and deadlines must be solved; repeated constrained scheduling, 12/16 pinned"},
+      {"rank": 10, "task_id": "personal-assistant_20260514_012509_001", "skill": 4, "domain": 3, "task_form": 4, "overall": 4, "reason": "Build a 3-day itinerary maximising score subject to opening hours and travel constraints; constrained optimisation over time slots"}
+    ]
+  },
+  "final_top10": [
+    {"rank": 1, "task_id": "personal-assistant_20260419_182351_001", "source": "CalibForge", "skill": 5, "domain": 5, "task_form": 5, "overall": 5, "reason": "Compute correct availability windows from three ICS calendar files; the exact parse-then-intersect step this task needs"},
+    {"rank": 2, "task_id": "personal-assistant_20260415_182321_001", "source": "CalibForge", "skill": 5, "domain": 5, "task_form": 5, "overall": 5, "reason": "Find a meeting slot for a distributed team inside a Mon-Fri window across three timezones; same search, same UTC pitfalls"},
+    {"rank": 3, "task_id": "personal-assistant_20260514_134238_001", "source": "CalibForge", "skill": 5, "domain": 5, "task_form": 5, "overall": 5, "reason": "Detect all conflicts across per-member ICS calendars for a queried range; the busy-interval intersection over attendees"},
+    {"rank": 4, "task_id": "task_09097", "source": "Terminal-Lego-15k", "skill": 5, "domain": 4, "task_form": 5, "overall": 5, "reason": "Generate a school timetable as a constraint satisfaction problem with hard rules and preferences; the solver half, strongly verified"},
+    {"rank": 5, "task_id": "personal-assistant_20260417_112147_001", "source": "CalibForge", "skill": 5, "domain": 5, "task_form": 4, "overall": 4, "reason": "Fit focus blocks into the gaps between existing meetings under dependency constraints"},
+    {"rank": 6, "task_id": "personal-assistant_20260419_023954_001", "source": "CalibForge", "skill": 4, "domain": 5, "task_form": 4, "overall": 4, "reason": "Expand recurring ICS events for a month including cancelled instances; correct VEVENT and RRULE semantics"},
+    {"rank": 7, "task_id": "personal-assistant_20260510_125534_001", "source": "CalibForge", "skill": 4, "domain": 5, "task_form": 4, "overall": 4, "reason": "Generate a valid ICS calendar file from extracted events; teaches the output format this task is graded on"},
+    {"rank": 8, "task_id": "collective__icalendar-878", "source": "SWE-Rebench-Tasks-Clean", "skill": 4, "domain": 5, "task_form": 2, "overall": 4, "reason": "A real bug in the icalendar library; the only RFC 5545 implementation work anywhere in the pool, repo-tests verified"},
+    {"rank": 9, "task_id": "task_08960", "source": "Terminal-Lego-15k", "skill": 4, "domain": 5, "task_form": 4, "overall": 4, "reason": "Implement recurring events with per-occurrence modifications; the recurrence model underneath a real calendar file"},
+    {"rank": 10, "task_id": "task_000413_de5af0d1", "source": "TMax-15K", "skill": 4, "domain": 4, "task_form": 4, "overall": 4, "reason": "A job scheduler picks the wrong times for users in other timezones; scheduling logic whose bug is timezone handling"}
+  ],
+  "notes": "CalibForge is overwhelmingly the best pool here and it is not close: its personal-assistant_* family is a purpose-built set of ICS-calendar and constrained-scheduling tasks, every one of them graded `strong` in verifier_strength.json, and eleven of them are defensible candidates for this single TB2.1 task. Six of my final ten come from there. Terminal-Lego is the surprise second: task_09097 is an explicit timetable CSP with 14 pinned assertions, and task_08960/task_09803 cover recurrence models, which nothing in the v1 pool did. The v1 pool has essentially no iCalendar content - `tools.py search all` for .ics|VEVENT|iCalendar returns exactly one hit across all 56,307 v1 rows (collective__icalendar-878). TMax has a large 'constraint satisfaction' family but most of those phrases are one bullet inside a sprawling multi-part DevOps task, so I down-weighted them and only took the ones where the constrained search is the actual deliverable. TerminalWorld and Recursive-Task-Synthesis have nothing in this area: TerminalWorld's ten are scheduling-adjacent configuration and solver-driving tasks that top out at overall 3, and RTS offers an N-Queens script and four copies of a chickens-and-cows Prolog puzzle. Both lists are filled to ten as instructed, and their low scores are the honest signal. See verifier_notes for two candidates the packet grades lower than verifier_strength.json does."
+}

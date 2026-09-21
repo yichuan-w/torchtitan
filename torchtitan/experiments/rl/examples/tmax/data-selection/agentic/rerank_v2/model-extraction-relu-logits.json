@@ -1,0 +1,773 @@
+{
+ "tb21_id": "model-extraction-relu-logits",
+ "tb21_profile": {
+  "skill": "Cryptanalytic parameter recovery from a black box: design queries to a scalar-valued piecewise-linear function, use finite differences to find where each hidden ReLU switches, infer the unknown hidden width, and reconstruct the first-layer weight matrix up to neuron permutation and per-row scaling.",
+  "domain": "NumPy numerical linear algebra and floating-point probing; neural networks; black-box / model-extraction attacks.",
+  "task_form": "Reverse-engineer-a-black-box plus implement-an-algorithm-from-its-description, delivering a script that re-derives the answer dynamically and is graded up to an equivalence class."
+ },
+ "verifier_notes": "No grade overturned. Nothing FREE made any list for this task - the CalibForge mathematics cluster is uniformly ok/strong, so the hard rule never bound here. Worth flagging that mathematics_20260604_003814_004 is only graded 'ok' while being the single closest candidate in the whole pool; its test compares reconstructed function values within 1e-4 on fresh inputs, which is a real check, so the grade understates it.",
+ "searches": [
+  "tools.py search all \"\\b(ReLU|model extraction|steal.*(model|weights)|extract.*weights|hidden layer|neural network|finite difference|numerical (derivative|differentiation)|Jacobian|piecewise linear)\\b\"",
+  "tools.py search all \"\\b(padding oracle|oracle attack|side[- ]channel|differential cryptanalysis|recover the (key|secret|parameters)|chosen[- ](plaintext|input)|timing attack|black[- ]box)\\b\"",
+  "tools.py search calib \"\\b(black[- ]box|query (the |it )?(function|oracle)|forward\\(|recover the (parameters|matrix|coefficients|structure)|up to (permutation|scaling|sign))\\b\"",
+  "tools.py search tmax \"\\b(ReLU|neural network|MLP|weight matrix|numerical (derivative|differentiation)|finite difference|least squares|SVD|eigen|linear algebra)\\b\"",
+  "tools.py search lego \"\\b(np\\.linalg|SVD|eigenvalue|matrix multiplication|least squares|ReLU|neural network|gradient|derivative|numerical)\\b\"",
+  "tools.py search lego \"\\b(implement.*(algorithm|from scratch)|linear system|solve for|polynomial|interpolat|regression|inverse of|determinant|Gaussian elimination|dot product)\\b\"",
+  "tools.py search tw \"\\b(numpy|linear algebra|matrix|neural|torch|SVD|eigen|gradient|solver|optimi[sz])\\b\"",
+  "tools.py search tw \"\\b(reverse engineer|crackme|recover the|magic constant|brute[- ]force|find the (key|password|secret))\\b\"",
+  "tools.py search rts \"\\b(numpy|matrix|linear algebra|neural|torch|gradient|solve|optimi[sz]|polynomial)\\b\"",
+  "tools.py search smith \"\\b(np\\.linalg|lstsq|matrix|gradient|derivative|interpolat|eigen|dot product|vector|precision|rounding)\\b\"",
+  "tools.py search rebench \"\\b(numpy\\.linalg|scipy\\.linalg|eigen|lstsq|matrix|gradient|autodiff|jax\\.grad|torch\\.autograd|optimiz)\\b\"",
+  "tools.py show mathematics_20260604_003814_004 mathematics_20260508_153434_004 mathematics_20260606_172622_004 mathematics_20260617_210354_004",
+  "tools.py show mathematics_20260606_153537_004"
+ ],
+ "per_source": {
+  "TMax-15K": [
+   {
+    "rank": 1,
+    "task_id": "task_000005_162ed362",
+    "skill": 4,
+    "domain": 2,
+    "task_form": 4,
+    "overall": 4,
+    "reason": "Probe an oracle binary to deduce its transformation and reimplement it so hidden inputs match; the probe-infer-reimplement loop, without the linear algebra."
+   },
+   {
+    "rank": 2,
+    "task_id": "task_001675_54393f59",
+    "skill": 4,
+    "domain": 2,
+    "task_form": 4,
+    "overall": 4,
+    "reason": "Reverse-engineer an oracle by probing it and produce a standalone script whose stdout matches exactly on unseen inputs."
+   },
+   {
+    "rank": 3,
+    "task_id": "task_002244_33013a20",
+    "skill": 4,
+    "domain": 2,
+    "task_form": 4,
+    "overall": 3,
+    "reason": "Deduce a black box's extraction rules and output schema from sample runs; systematic querying to pin down unknown behaviour."
+   },
+   {
+    "rank": 4,
+    "task_id": "task_000267_c8209c91",
+    "skill": 4,
+    "domain": 4,
+    "task_form": 4,
+    "overall": 4,
+    "reason": "Query a service on a designed input mesh, build a matrix from the responses and denoise by SVD; query design plus linear algebra."
+   },
+   {
+    "rank": 5,
+    "task_id": "task_000257_3aa7e8dc",
+    "skill": 4,
+    "domain": 4,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Use SVD/QR to find the matrix minimising a Frobenius-norm residual; recovering a latent matrix factor from observations."
+   },
+   {
+    "rank": 6,
+    "task_id": "task_002253_dc30221f",
+    "skill": 4,
+    "domain": 2,
+    "task_form": 4,
+    "overall": 3,
+    "reason": "Black-box a graph oracle and write a program that matches it exactly on unseen inputs."
+   },
+   {
+    "rank": 7,
+    "task_id": "task_000113_8a2ee560",
+    "skill": 4,
+    "domain": 3,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Compute numerical derivatives by finite differences from sampled positions - the primitive used to locate a ReLU's kink."
+   },
+   {
+    "rank": 8,
+    "task_id": "task_000020_bdaab293",
+    "skill": 3,
+    "domain": 4,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Build a feature matrix, run SVD and project onto principal components, then optimise; standard numerical-linear-algebra recovery pipeline."
+   },
+   {
+    "rank": 9,
+    "task_id": "task_001837_61d1109a",
+    "skill": 3,
+    "domain": 2,
+    "task_form": 4,
+    "overall": 3,
+    "reason": "Treat a scoring binary as a black box and reproduce its score for any input; induction from queries, no numerics."
+   },
+   {
+    "rank": 10,
+    "task_id": "task_000055_b82209d2",
+    "skill": 3,
+    "domain": 4,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Stabilise a factorisation of a near-singular matrix; conditioning judgement, which recovering weight directions from noisy differences needs."
+   }
+  ],
+  "Recursive-Task-Synthesis": [
+   {
+    "rank": 1,
+    "task_id": "rts_task_e98f0a4095e1266cada6cf1d",
+    "skill": 3,
+    "domain": 2,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Reverse-engineer crackme binaries to determine the inputs they accept; inferring hidden behaviour from a program you can only run."
+   },
+   {
+    "rank": 2,
+    "task_id": "rts_task_09ae9a494b67fc5452e1edfe",
+    "skill": 3,
+    "domain": 2,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Recover a Flask signing secret and then forge a valid token; recovering a hidden parameter and proving it by reproducing the behaviour."
+   },
+   {
+    "rank": 3,
+    "task_id": "rts_task_055acb9316f3195a445c2a3f",
+    "skill": 3,
+    "domain": 2,
+    "task_form": 3,
+    "overall": 2,
+    "reason": "Derive a key through a multi-stage forensic pipeline; extraction of a hidden value, unrelated mathematics."
+   },
+   {
+    "rank": 4,
+    "task_id": "rts_task_a92cbfb13bbcf3b4e3f3da9a",
+    "skill": 2,
+    "domain": 2,
+    "task_form": 3,
+    "overall": 2,
+    "reason": "Solve a two-variable linear constraint system in Prolog from a config file; the smallest possible parameter-recovery problem."
+   },
+   {
+    "rank": 5,
+    "task_id": "rts_task_81dfa7c6bebb7887b6e90b59",
+    "skill": 2,
+    "domain": 2,
+    "task_form": 3,
+    "overall": 2,
+    "reason": "Repair an incorrect Prolog constraint solver so it yields the right counts; debugging a solver rather than designing one."
+   },
+   {
+    "rank": 6,
+    "task_id": "rts_task_f22231cbc101fefef9d3c774",
+    "skill": 2,
+    "domain": 2,
+    "task_form": 3,
+    "overall": 2,
+    "reason": "Same chickens-and-cows linear system read from config; near-duplicate of the above."
+   },
+   {
+    "rank": 7,
+    "task_id": "rts_task_d75eae16410fe9d9abadaee9",
+    "skill": 2,
+    "domain": 3,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Julia session covering error propagation with Measurements.jl and numpy interop; numerical uncertainty, no recovery."
+   },
+   {
+    "rank": 8,
+    "task_id": "rts_task_f60bb1206c5e937c48ce045f",
+    "skill": 2,
+    "domain": 3,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Set up a numpy workflow and extract numbers from its output into a JSON report; environment plumbing."
+   },
+   {
+    "rank": 9,
+    "task_id": "rts_task_6f43273eaa524de7a61a846e",
+    "skill": 2,
+    "domain": 2,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Patch a compiled binary in place without touching source; black-box modification rather than parameter recovery."
+   },
+   {
+    "rank": 10,
+    "task_id": "rts_task_b0259cede190f1ef494456f5",
+    "skill": 1,
+    "domain": 3,
+    "task_form": 2,
+    "overall": 1,
+    "reason": "Drop NaN rows from a small numpy array via pandas; shares only numpy, listed to fill the quota."
+   }
+  ],
+  "TerminalWorld-Seeds-Clean": [
+   {
+    "rank": 1,
+    "task_id": "tw_126628",
+    "skill": 4,
+    "domain": 2,
+    "task_form": 4,
+    "overall": 3,
+    "reason": "Recover a server password by timing side channel - an adaptive query attack that extracts a hidden secret one measurement at a time."
+   },
+   {
+    "rank": 2,
+    "task_id": "tw_125882",
+    "skill": 3,
+    "domain": 3,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Find a binary's magic constant by solving path constraints with dynamic symbolic execution; recovering a hidden value from observed behaviour."
+   },
+   {
+    "rank": 3,
+    "task_id": "tw_152765",
+    "skill": 3,
+    "domain": 2,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Invert a custom cipher with symbolic execution to recover the plaintext; solving for unknowns behind a function you can only run forwards."
+   },
+   {
+    "rank": 4,
+    "task_id": "tw_383451",
+    "skill": 3,
+    "domain": 2,
+    "task_form": 3,
+    "overall": 2,
+    "reason": "Reverse-engineer a crackme's expected password from its logic; black-box-to-white-box analysis of a program."
+   },
+   {
+    "rank": 5,
+    "task_id": "tw_289006",
+    "skill": 3,
+    "domain": 2,
+    "task_form": 3,
+    "overall": 2,
+    "reason": "Three crackmes whose passwords must be recovered by analysis rather than guessing; same class as above."
+   },
+   {
+    "rank": 6,
+    "task_id": "tw_125169",
+    "skill": 3,
+    "domain": 4,
+    "task_form": 3,
+    "overall": 2,
+    "reason": "Solve a 100x100 linear system three ways in exact Posit arithmetic and compare against the known solution; conditioning and numerical accuracy."
+   },
+   {
+    "rank": 7,
+    "task_id": "tw_125964",
+    "skill": 2,
+    "domain": 3,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Run Louvain clustering on a matrix at two resolutions; matrix data, no recovery of hidden parameters."
+   },
+   {
+    "rank": 8,
+    "task_id": "tw_125967",
+    "skill": 2,
+    "domain": 3,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Sweep 1000 resolution scales of the same matrix clustering; parameter sweep rather than inference."
+   },
+   {
+    "rank": 9,
+    "task_id": "tw_14342",
+    "skill": 2,
+    "domain": 1,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Brute-force an MD5 preimage over an alphabet; exhaustive search, not structured inference."
+   },
+   {
+    "rank": 10,
+    "task_id": "tw_718060",
+    "skill": 1,
+    "domain": 3,
+    "task_form": 2,
+    "overall": 1,
+    "reason": "Profile a small PyTorch network; shares only the word neural network."
+   }
+  ],
+  "SWE-Smith-Seeds-Clean": [
+   {
+    "rank": 1,
+    "task_id": "dask__dask.5f61e423.pr_6749",
+    "skill": 4,
+    "domain": 4,
+    "task_form": 2,
+    "overall": 3,
+    "reason": "Least-squares residuals missing the 2D case; lstsq is the exact solver a weight-recovery script leans on, and the bug is in matching numpy's semantics."
+   },
+   {
+    "rank": 2,
+    "task_id": "facebookresearch__fvcore.a491d5b9.func_pm_ctrl_shuffle__kd43vy4l",
+    "skill": 3,
+    "domain": 4,
+    "task_form": 2,
+    "overall": 3,
+    "reason": "Flop counting for matmul is broken; reasoning about matrix-multiplication shapes inside a neural-network tooling library."
+   },
+   {
+    "rank": 3,
+    "task_id": "pydata__patsy.a5d16484.lm_rewrite__8x02bchk",
+    "skill": 3,
+    "domain": 4,
+    "task_form": 2,
+    "overall": 3,
+    "reason": "Design-matrix construction silently succeeds where it must fail; building the linear system that fits parameters."
+   },
+   {
+    "rank": 4,
+    "task_id": "facebookresearch__fvcore.a491d5b9.lm_rewrite__lo7njclv",
+    "skill": 3,
+    "domain": 4,
+    "task_form": 2,
+    "overall": 3,
+    "reason": "Running mean and variance stop updating; accumulating statistics over many forward passes, as a query-based estimator does."
+   },
+   {
+    "rank": 5,
+    "task_id": "stanfordnlp__string2string.c4a72f59.func_pm_op_change__mzechkjl",
+    "skill": 3,
+    "domain": 2,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Distance-matrix initialisation and loop bounds wrong; classic off-by-one inside a dynamic-programming matrix."
+   },
+   {
+    "rank": 6,
+    "task_id": "luozhouyang__python-string-similarity.115acaac.combine_file__cu1lt1by",
+    "skill": 3,
+    "domain": 2,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Matrix dimensions, indexing and the distance formula all wrong together; careful index bookkeeping over a matrix."
+   },
+   {
+    "rank": 7,
+    "task_id": "life4__textdistance.c3aca916.combine_file__bbyj98tv",
+    "skill": 2,
+    "domain": 2,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Similarity matrix inverts match and mismatch costs; a sign/orientation error in a matrix-driven score."
+   },
+   {
+    "rank": 8,
+    "task_id": "dask__dask.5f61e423.lm_rewrite__ffikl1dk",
+    "skill": 2,
+    "domain": 3,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Float indices rounded wrongly in fractional slicing; floating-point handling, thin transfer."
+   },
+   {
+    "rank": 9,
+    "task_id": "life4__textdistance.c3aca916.lm_rewrite__1bwnbljz",
+    "skill": 2,
+    "domain": 2,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Custom similarity matrix returns wrong values for identical single characters; edge case in a matrix lookup."
+   },
+   {
+    "rank": 10,
+    "task_id": "dask__dask.5f61e423.pr_8685",
+    "skill": 2,
+    "domain": 3,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "eye with dtype=None diverges from numpy; matching a reference numeric API, listed to fill the quota."
+   }
+  ],
+  "SWE-Rebench-Tasks-Clean": [
+   {
+    "rank": 1,
+    "task_id": "pennylaneai__pennylane-2057",
+    "skill": 4,
+    "domain": 4,
+    "task_form": 2,
+    "overall": 4,
+    "reason": "Second derivative is wrong exactly at input 0 - a differentiation bug at the kink, which is precisely where a ReLU network's structure lives."
+   },
+   {
+    "rank": 2,
+    "task_id": "pennylaneai__pennylane-2834",
+    "skill": 4,
+    "domain": 4,
+    "task_form": 2,
+    "overall": 3,
+    "reason": "Parameter-shift gradient breaks when a recipe has an unshifted term; estimating derivatives from a fixed set of function evaluations."
+   },
+   {
+    "rank": 3,
+    "task_id": "jax-ml__jax-25787",
+    "skill": 4,
+    "domain": 4,
+    "task_form": 2,
+    "overall": 3,
+    "reason": "Gradient through a tridiagonal solve fails; differentiating a linear-algebra primitive, the pairing this task lives on."
+   },
+   {
+    "rank": 4,
+    "task_id": "pennylaneai__pennylane-3744",
+    "skill": 3,
+    "domain": 4,
+    "task_form": 2,
+    "overall": 3,
+    "reason": "Avoid re-evaluating at unshifted parameters in param_shift; minimising queries to an expensive function, the query-budget concern here."
+   },
+   {
+    "rank": 5,
+    "task_id": "mpmath__mpmath-713",
+    "skill": 3,
+    "domain": 4,
+    "task_form": 2,
+    "overall": 3,
+    "reason": "eig returns inconsistent shapes for a 1x1 matrix; eigendecomposition edge cases when the effective dimension collapses."
+   },
+   {
+    "rank": 6,
+    "task_id": "borgbackup__borg-8872",
+    "skill": 3,
+    "domain": 3,
+    "task_form": 2,
+    "overall": 3,
+    "reason": "Rank deficiency of a sum of permutation-matrix powers; reasoning about when a linear system is solvable, as an extraction attack must."
+   },
+   {
+    "rank": 7,
+    "task_id": "cornellius-gp__gpytorch-782",
+    "skill": 3,
+    "domain": 4,
+    "task_form": 2,
+    "overall": 3,
+    "reason": "Batch-indexing a lazy covariance matrix gives the wrong shape; latent matrix structure and dimension bookkeeping."
+   },
+   {
+    "rank": 8,
+    "task_id": "cornellius-gp__gpytorch-656",
+    "skill": 3,
+    "domain": 4,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "A kernel yields a vector where a matrix is required; shape discipline across a linear-algebra abstraction."
+   },
+   {
+    "rank": 9,
+    "task_id": "pennylaneai__pennylane-1929",
+    "skill": 2,
+    "domain": 4,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Adagrad's gradient step skips an index; an optimiser update bug, adjacent but not about recovery."
+   },
+   {
+    "rank": 10,
+    "task_id": "pennylaneai__pennylane-2238",
+    "skill": 2,
+    "domain": 4,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Gradient silently returns zero for a controlled operation; a silent-wrong-derivative failure mode, thin transfer."
+   }
+  ],
+  "Terminal-Lego-15k": [
+   {
+    "rank": 1,
+    "task_id": "task_04584",
+    "skill": 4,
+    "domain": 3,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Reimplement numpy.gradient from scratch and match it; finite-difference stencils are the probing primitive for locating ReLU kinks."
+   },
+   {
+    "rank": 2,
+    "task_id": "task_04375",
+    "skill": 3,
+    "domain": 3,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Barycentric Lagrange interpolation that must handle the division-by-zero exactly at the nodes; recovering a function from samples with a singularity at the interesting points."
+   },
+   {
+    "rank": 3,
+    "task_id": "task_04376",
+    "skill": 3,
+    "domain": 3,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Fit exponential and logarithmic models and compare fits; recovering parameters of a known functional form from samples."
+   },
+   {
+    "rank": 4,
+    "task_id": "task_04487",
+    "skill": 3,
+    "domain": 3,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Implement PCA for dimensionality reduction; eigen/SVD structure recovery, the tool for finding weight directions."
+   },
+   {
+    "rank": 5,
+    "task_id": "task_04447",
+    "skill": 3,
+    "domain": 3,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Compute R-squared correctly for polynomial regression of any degree; fit quality assessment only."
+   },
+   {
+    "rank": 6,
+    "task_id": "task_04013",
+    "skill": 2,
+    "domain": 3,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Run OLS per DataFrame column and keep the residuals; regression plumbing."
+   },
+   {
+    "rank": 7,
+    "task_id": "task_04577",
+    "skill": 2,
+    "domain": 3,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Compute a matrix inverse correctly with ndarray rather than the matrix type; numpy linear-algebra hygiene."
+   },
+   {
+    "rank": 8,
+    "task_id": "task_04623",
+    "skill": 2,
+    "domain": 3,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Vectorised row-wise dot products without loops; the numpy idiom a query batch would use."
+   },
+   {
+    "rank": 9,
+    "task_id": "task_01286",
+    "skill": 2,
+    "domain": 1,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Implement permutation generation yourself; permutations appear, but as combinatorics rather than as an equivalence class."
+   },
+   {
+    "rank": 10,
+    "task_id": "task_04414",
+    "skill": 2,
+    "domain": 3,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Distinguish elementwise product from the matrix product; elementary, listed to fill the quota."
+   }
+  ],
+  "CalibForge": [
+   {
+    "rank": 1,
+    "task_id": "mathematics_20260604_003814_004",
+    "skill": 5,
+    "domain": 5,
+    "task_form": 5,
+    "overall": 5,
+    "reason": "Same interface and deliverable: query forward(x) on 10-d inputs, write /app/steal.py, recover the hidden a_j of a piecewise-linear sum of |a_j.x+b_j| with unknown k."
+   },
+   {
+    "rank": 2,
+    "task_id": "mathematics_20260606_153537_004",
+    "skill": 5,
+    "domain": 5,
+    "task_form": 5,
+    "overall": 5,
+    "reason": "Recover a hidden matrix A up to row permutation by querying an oracle that destroys row identity; the exact permutation-equivalence contract used here."
+   },
+   {
+    "rank": 3,
+    "task_id": "mathematics_20260508_153434_004",
+    "skill": 5,
+    "domain": 5,
+    "task_form": 5,
+    "overall": 5,
+    "reason": "Recover an unknown-rank matrix from apply/apply_transpose queries within a query budget; deducing the hidden dimension is the same first subproblem."
+   },
+   {
+    "rank": 4,
+    "task_id": "mathematics_20260606_172622_004",
+    "skill": 5,
+    "domain": 5,
+    "task_form": 5,
+    "overall": 5,
+    "reason": "Recover a hidden linear operator when the internal dimension is unknown and padded away, re-run against a fresh random instance."
+   },
+   {
+    "rank": 5,
+    "task_id": "mathematics_20260617_210354_004",
+    "skill": 4,
+    "domain": 4,
+    "task_form": 5,
+    "overall": 4,
+    "reason": "Recover amplitudes and rates of a sum of exponentials with unknown k from queries; model-order selection plus parameter fitting, saved as .npy."
+   },
+   {
+    "rank": 6,
+    "task_id": "mathematics_20260510_130518_004",
+    "skill": 4,
+    "domain": 4,
+    "task_form": 5,
+    "overall": 4,
+    "reason": "Interpolate a sparse multivariate polynomial from black-box evaluations; choosing informative query points to pin unknown structure."
+   },
+   {
+    "rank": 7,
+    "task_id": "mathematics_20260415_182321_004",
+    "skill": 4,
+    "domain": 4,
+    "task_form": 5,
+    "overall": 4,
+    "reason": "Same sparse-polynomial recovery from an evaluate() oracle with the variable list discovered at runtime."
+   },
+   {
+    "rank": 8,
+    "task_id": "mathematics_20260606_172554_004",
+    "skill": 4,
+    "domain": 5,
+    "task_form": 4,
+    "overall": 4,
+    "reason": "Recover a 5-component Gaussian mixture in 6-d from log_prob queries; fitting a latent-component model from function values alone."
+   },
+   {
+    "rank": 9,
+    "task_id": "mathematics_20260508_045557_004",
+    "skill": 4,
+    "domain": 4,
+    "task_form": 4,
+    "overall": 4,
+    "reason": "Sparse polynomial recovery under stated constraints via an evaluate() interface; query design under a structural prior."
+   },
+   {
+    "rank": 10,
+    "task_id": "mathematics_20260429_103257_004",
+    "skill": 4,
+    "domain": 4,
+    "task_form": 4,
+    "overall": 4,
+    "reason": "Derive elliptic-curve parameters p, a, b purely from an add_point oracle; algebraic inference from black-box outputs."
+   }
+  ]
+ },
+ "final_top10": [
+  {
+   "rank": 1,
+   "task_id": "mathematics_20260604_003814_004",
+   "skill": 5,
+   "domain": 5,
+   "task_form": 5,
+   "overall": 5,
+   "reason": "Same interface and deliverable: query forward(x) on 10-d inputs, write /app/steal.py, recover hidden a_j of a piecewise-linear sum with unknown term count.",
+   "source": "CalibForge"
+  },
+  {
+   "rank": 2,
+   "task_id": "mathematics_20260606_153537_004",
+   "skill": 5,
+   "domain": 5,
+   "task_form": 5,
+   "overall": 5,
+   "reason": "Recover a hidden matrix up to row permutation from an oracle that destroys row identity - the exact up-to-permutation equivalence this task grades on.",
+   "source": "CalibForge"
+  },
+  {
+   "rank": 3,
+   "task_id": "mathematics_20260606_172622_004",
+   "skill": 5,
+   "domain": 5,
+   "task_form": 5,
+   "overall": 5,
+   "reason": "Recover a hidden linear operator when the internal dimension is unknown and padded away, re-run against a fresh random instance.",
+   "source": "CalibForge"
+  },
+  {
+   "rank": 4,
+   "task_id": "mathematics_20260508_153434_004",
+   "skill": 5,
+   "domain": 5,
+   "task_form": 5,
+   "overall": 5,
+   "reason": "Recover an unknown-rank matrix from apply/apply_transpose queries inside a query budget; determining the hidden rank is the same first subproblem.",
+   "source": "CalibForge"
+  },
+  {
+   "rank": 5,
+   "task_id": "mathematics_20260617_210354_004",
+   "skill": 4,
+   "domain": 4,
+   "task_form": 5,
+   "overall": 4,
+   "reason": "Recover the number of terms and the parameters of a sum of exponentials from function queries; model-order selection plus fitting, saved as .npy.",
+   "source": "CalibForge"
+  },
+  {
+   "rank": 6,
+   "task_id": "mathematics_20260510_130518_004",
+   "skill": 4,
+   "domain": 4,
+   "task_form": 5,
+   "overall": 4,
+   "reason": "Interpolate a sparse multivariate polynomial from black-box evaluations; designing query points that pin down unknown structure.",
+   "source": "CalibForge"
+  },
+  {
+   "rank": 7,
+   "task_id": "mathematics_20260606_172554_004",
+   "skill": 4,
+   "domain": 5,
+   "task_form": 4,
+   "overall": 4,
+   "reason": "Recover Gaussian mixture components in 6-d from log_prob queries; fitting a latent-component model from function values alone.",
+   "source": "CalibForge"
+  },
+  {
+   "rank": 8,
+   "task_id": "task_000005_162ed362",
+   "skill": 4,
+   "domain": 2,
+   "task_form": 4,
+   "overall": 4,
+   "reason": "Probe an oracle to deduce its transformation and reimplement it so hidden inputs match - the probe-infer-reimplement loop without the linear algebra.",
+   "source": "TMax-15K"
+  },
+  {
+   "rank": 9,
+   "task_id": "task_000267_c8209c91",
+   "skill": 4,
+   "domain": 4,
+   "task_form": 4,
+   "overall": 4,
+   "reason": "Query a service on a designed input mesh, build a matrix from the responses and denoise by SVD; query design plus linear algebra.",
+   "source": "TMax-15K"
+  },
+  {
+   "rank": 10,
+   "task_id": "pennylaneai__pennylane-2057",
+   "skill": 4,
+   "domain": 4,
+   "task_form": 2,
+   "overall": 4,
+   "reason": "Second derivative is wrong exactly at input 0 - a differentiation bug at the kink, which is where a ReLU network's hidden structure is visible.",
+   "source": "SWE-Rebench-Tasks-Clean"
+  }
+ ],
+ "notes": "CalibForge is not merely the best pool here, it contains what is effectively the same task: mathematics_20260604_003814_004 imports forward.py, takes a 10-dimensional numpy input, returns one float, asks for a script literally named /app/steal.py, and wants the hidden a_j vectors of a sum of |a_j.x + b_j| with an unknown number of terms. Around it sits a whole family of black-box parameter-recovery tasks (matrix up to row permutation, unknown-rank matrix under a query budget, unknown internal dimension, sum of exponentials with unknown k, sparse polynomial interpolation, GMM from log_prob) that between them cover every subproblem this task has. Seven of the final ten come from that one cluster and none of it was in the retrieved shortlist for this task - the whole cluster was found with a regex for black-box and recover the parameters. TMax contributes its oracle-probing tasks, which teach the same probe-infer-reimplement-exactly discipline in a shell/CLI setting rather than a numerical one. Terminal-Lego, Recursive-Task-Synthesis and TerminalWorld are all weak: Lego has scattered numpy exercises (implementing numpy.gradient from scratch is its best), TerminalWorld's only real match is a timing side-channel password recovery, and Recursive-Task-Synthesis has essentially nothing - its bottom half is quota filler at overall 1-2. SWE-Rebench is better than its task_form suggests, with pennylane-2057 (second derivative wrong exactly at zero) sitting right on this task's central numerical hazard."
+}

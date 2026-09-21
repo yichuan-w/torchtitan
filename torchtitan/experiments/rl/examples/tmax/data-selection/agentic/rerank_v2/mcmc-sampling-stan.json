@@ -1,0 +1,773 @@
+{
+ "tb21_id": "mcmc-sampling-stan",
+ "tb21_profile": {
+  "skill": "Provision an awkward statistical toolchain (RStan at a pinned version, needing a C++ compiler from R), then translate a stated hierarchical Bayesian model - binomial likelihood, Beta group priors, an improper (alpha+beta)^(-5/2) hyperprior - into correct Stan code and read posterior means back within tolerance.",
+  "domain": "R / Stan / rstan, Bayesian hierarchical modelling and MCMC; CRAN and system build dependencies.",
+  "task_form": "Configure-a-toolchain plus implement-from-spec, graded on numeric posterior means written to plain-text files."
+ },
+ "verifier_notes": "No grade looked wrong enough to re-read tests. Nothing in any pool actually authors a Stan file with an improper hyperprior, so the ranking splits the task: CalibForge covers the modelling and Stan-reading half, Terminal-Lego's R-package-build cluster covers the install half. No FREE candidate appears anywhere in per_source for this task except none at all - scientific-computing_20260503_030115_002 and data-science_20260617_051646_007 are both FREE and were deliberately dropped despite being on-topic hierarchical-Bayes tasks.",
+ "searches": [
+  "tools.py search all \"\\b(Stan|rstan|cmdstan|pystan|PyMC|JAGS|brms|NUTS|Hamiltonian Monte Carlo|Metropolis[- ]Hastings|Gibbs sampl|MCMC)\\b\"",
+  "tools.py search all \"\\b(install\\.packages|CRAN|Rscript|R package|renv|littler|r-base)\\b\"",
+  "tools.py search all \"(Beta\\(alpha, ?beta\\)|beta-binomial|Binomial\\(n_i|hierarchical Bayesian|posterior mean|hyperprior|partial pooling)\"",
+  "tools.py search calib \"\\b(R package|Rscript|CRAN|Rcpp|TMB|brms|rstan|\\.stan\\b|R script)\\b\"",
+  "tools.py search rebench \"\\b(pymc|numpyro|pyro|arviz|posterior|Bayesian|sampler|MCMC|NUTS|stan)\\b\"",
+  "tools.py search rts \"\\b(Rscript|R script|statistic|posterior|Bayesian|distribution|scipy|numpy|regression|sampling|random seed)\\b\"",
+  "tools.py search tw \"\\b(Rscript|CRAN|install\\.packages|r-base|RStudio|bayes|posterior|regression|statistical|distribution fit|MCMC)\\b\"",
+  "tools.py search lego \"\\b(Bayesian|posterior|MCMC|beta distribution|binomial|scipy\\.stats|maximum likelihood|curve_fit)\\b\"",
+  "tools.py search smith \"\\b(scipy|statsmodels|sklearn|scikit-learn|numpy|probability|distribution|estimator|random_state|seed|variance|likelihood)\\b\"",
+  "tools.py search rebench \"\\b(arch|statsmodels|scipy\\.stats|distribution|likelihood|variance|estimator|random seed|reproducib)\\b\"",
+  "tools.py show data-science_20260615_143956_007 data-science_20260604_002443_007 data-science_20260610_111012_007",
+  "tools.py show data-science_20260615_143301_002 data-science_20260604_002443_002 scientific-computing_20260611_210349_002",
+  "tools.py show task_001914_fae6f727 task_000371_d0ff3ecb task_002972_179be9cc"
+ ],
+ "per_source": {
+  "TMax-15K": [
+   {
+    "rank": 1,
+    "task_id": "task_001914_fae6f727",
+    "skill": 5,
+    "domain": 4,
+    "task_form": 4,
+    "overall": 4,
+    "reason": "Beta-Binomial conjugate update over a successes/trials CSV, writing posterior alpha, beta and mean - the same model family and data columns as y/n here."
+   },
+   {
+    "rank": 2,
+    "task_id": "task_000371_d0ff3ecb",
+    "skill": 5,
+    "domain": 4,
+    "task_form": 4,
+    "overall": 4,
+    "reason": "Metropolis-Hastings sampler for a Beta-prior binomial posterior, validated against the analytical mean within tolerance; same correctness bar."
+   },
+   {
+    "rank": 3,
+    "task_id": "task_008944_ba409078",
+    "skill": 4,
+    "domain": 4,
+    "task_form": 4,
+    "overall": 4,
+    "reason": "Validate a custom MCMC sampler against a closed-form solution; teaches checking that chains actually converged to the right posterior."
+   },
+   {
+    "rank": 4,
+    "task_id": "task_000069_2eca5e51",
+    "skill": 4,
+    "domain": 4,
+    "task_form": 3,
+    "overall": 4,
+    "reason": "Beta-Binomial conjugate posterior mean and variance from prior plus counts; the analytic check a solver needs to sanity-test Stan output."
+   },
+   {
+    "rank": 5,
+    "task_id": "task_000032_5b0167e2",
+    "skill": 4,
+    "domain": 4,
+    "task_form": 4,
+    "overall": 4,
+    "reason": "Metropolis-Hastings on count data with several parallel chains plus a KDE MAP estimate; multi-chain posterior summarisation."
+   },
+   {
+    "rank": 6,
+    "task_id": "task_002972_179be9cc",
+    "skill": 3,
+    "domain": 5,
+    "task_form": 4,
+    "overall": 4,
+    "reason": "Cross-checks a numerical result computed in both Python and R, installing R packages to a user library and driving Rscript - the R-toolchain half."
+   },
+   {
+    "rank": 7,
+    "task_id": "task_009085_092b7aa8",
+    "skill": 4,
+    "domain": 4,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Fit a Bayesian linear regression and report posterior summaries from a CSV; posterior estimation, simpler model."
+   },
+   {
+    "rank": 8,
+    "task_id": "task_000235_d861beea",
+    "skill": 4,
+    "domain": 3,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Implement a random-walk Metropolis sampler in C for regression coefficients with a Gaussian likelihood; sampler mechanics from scratch."
+   },
+   {
+    "rank": 9,
+    "task_id": "task_000640_34df4518",
+    "skill": 3,
+    "domain": 4,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Drive Rscript from a shell pipeline to compute a bootstrap CI and compare against a baseline; R invocation and numeric tolerance."
+   },
+   {
+    "rank": 10,
+    "task_id": "task_000683_e82aa245",
+    "skill": 3,
+    "domain": 4,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Bayesian A/B comparison of two campaigns from daily counts; binomial-style comparison, shallower than a hierarchical fit."
+   }
+  ],
+  "Recursive-Task-Synthesis": [
+   {
+    "rank": 1,
+    "task_id": "rts_task_634e80a627f837bf3aa0b8e7",
+    "skill": 3,
+    "domain": 3,
+    "task_form": 4,
+    "overall": 3,
+    "reason": "Create environments and install a numerical package at a version pinned by a spec file, then validate; the pinned-version install discipline RStan 2.32.7 needs."
+   },
+   {
+    "rank": 2,
+    "task_id": "rts_task_ca5f8d828f3d44a9dc0a1678",
+    "skill": 3,
+    "domain": 3,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Install scipy twice under different solvers and record the outcome in SQLite plus a CSV; dependency-resolver behaviour and evidence of the install."
+   },
+   {
+    "rank": 3,
+    "task_id": "rts_task_23c39782c8328be958397acf",
+    "skill": 3,
+    "domain": 3,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Two conda environments installing scipy with classic vs libmamba solvers; package-manager mechanics for a scientific stack."
+   },
+   {
+    "rank": 4,
+    "task_id": "rts_task_15ec2b913401dc02ff1afa3b",
+    "skill": 3,
+    "domain": 3,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Same scipy solver-comparison setup with environment teardown and cache cleaning; repeatable numerical-stack provisioning."
+   },
+   {
+    "rank": 5,
+    "task_id": "rts_task_80b8cb34a1bac14ea77e6701",
+    "skill": 3,
+    "domain": 3,
+    "task_form": 4,
+    "overall": 3,
+    "reason": "Set up a venv, install numeric deps, hit a runtime error, capture it and fix it before rerunning - the realistic install-and-debug loop."
+   },
+   {
+    "rank": 6,
+    "task_id": "rts_task_f60bb1206c5e937c48ce045f",
+    "skill": 3,
+    "domain": 3,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Virtualenv plus numpy deps, run a numerical workflow, and derive a JSON report from its stdout; install-then-extract-a-number."
+   },
+   {
+    "rank": 7,
+    "task_id": "rts_task_e6c55ffb24ccfd0fb185d825",
+    "skill": 3,
+    "domain": 3,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Open a ROOT TTree and compute per-column means into a result file; scientific data format plus a numeric deliverable."
+   },
+   {
+    "rank": 8,
+    "task_id": "rts_task_daeb82d4d721025947ada274",
+    "skill": 3,
+    "domain": 3,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "ML pipeline that must inject a fetched random seed into the split and the model; reproducibility-by-seed, as seed=1 demands here."
+   },
+   {
+    "rank": 9,
+    "task_id": "rts_task_b03e51290519516337fed40c",
+    "skill": 2,
+    "domain": 3,
+    "task_form": 3,
+    "overall": 2,
+    "reason": "Virtualenv, install deps, fetch MNIST and run an example, fixing failures; generic environment plumbing."
+   },
+   {
+    "rank": 10,
+    "task_id": "rts_task_7c319183d7a71d1936af7e8c",
+    "skill": 2,
+    "domain": 3,
+    "task_form": 3,
+    "overall": 2,
+    "reason": "Another conda scipy solver-comparison variant; near-duplicate of the entries above, listed to fill the quota."
+   }
+  ],
+  "TerminalWorld-Seeds-Clean": [
+   {
+    "rank": 1,
+    "task_id": "tw_686647",
+    "skill": 4,
+    "domain": 3,
+    "task_form": 4,
+    "overall": 4,
+    "reason": "Install a scientific package at an exact version with an extra, then run its analysis and produce results - pinned-version install plus a numeric deliverable."
+   },
+   {
+    "rank": 2,
+    "task_id": "tw_204493",
+    "skill": 4,
+    "domain": 3,
+    "task_form": 4,
+    "overall": 3,
+    "reason": "Install a tool from source on a system missing the Python runtime and build dependencies; the same bootstrap pain as an RStan build."
+   },
+   {
+    "rank": 3,
+    "task_id": "tw_528959",
+    "skill": 3,
+    "domain": 3,
+    "task_form": 4,
+    "overall": 3,
+    "reason": "Compile Python 3.9.1 from source into a working interpreter; source builds with unmet dependencies, close to compiling Stan."
+   },
+   {
+    "rank": 4,
+    "task_id": "tw_276310",
+    "skill": 3,
+    "domain": 3,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Compute column means from a ROOT TTree; scientific file format and an exact numeric answer."
+   },
+   {
+    "rank": 5,
+    "task_id": "tw_18271",
+    "skill": 3,
+    "domain": 3,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Train an SVM on libsvm's heart_scale with a specified split and report accuracy; fit-a-model-and-report-a-number."
+   },
+   {
+    "rank": 6,
+    "task_id": "tw_191493",
+    "skill": 3,
+    "domain": 3,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Run a statistical neuroimaging pipeline twice with precisely specified options; configuration fidelity determines the numbers."
+   },
+   {
+    "rank": 7,
+    "task_id": "tw_718060",
+    "skill": 2,
+    "domain": 3,
+    "task_form": 3,
+    "overall": 2,
+    "reason": "Profile a PyTorch model to two output files; tool-driven numeric reporting, no modelling."
+   },
+   {
+    "rank": 8,
+    "task_id": "tw_125169",
+    "skill": 3,
+    "domain": 2,
+    "task_form": 3,
+    "overall": 2,
+    "reason": "Compare 32-bit Posit and float accuracy in Julia; numerical-accuracy reasoning in an unrelated stack."
+   },
+   {
+    "rank": 9,
+    "task_id": "tw_139449",
+    "skill": 2,
+    "domain": 2,
+    "task_form": 3,
+    "overall": 2,
+    "reason": "Compute statistics over newline-delimited JSON; only data-summarisation transfers."
+   },
+   {
+    "rank": 10,
+    "task_id": "tw_647708",
+    "skill": 2,
+    "domain": 2,
+    "task_form": 3,
+    "overall": 2,
+    "reason": "Combine two CSVs and compute area statistics; elementary data work."
+   }
+  ],
+  "SWE-Smith-Seeds-Clean": [
+   {
+    "rank": 1,
+    "task_id": "facebookresearch__fvcore.a491d5b9.lm_rewrite__lo7njclv",
+    "skill": 3,
+    "domain": 3,
+    "task_form": 2,
+    "overall": 3,
+    "reason": "Running mean and variance stop accumulating correctly; getting a streaming statistic right is the same trap as a mis-accumulated chain mean."
+   },
+   {
+    "rank": 2,
+    "task_id": "dask__dask.5f61e423.pr_6749",
+    "skill": 3,
+    "domain": 3,
+    "task_form": 2,
+    "overall": 3,
+    "reason": "Missing 2D residuals case in lstsq; least-squares numerics matched against NumPy's reference semantics."
+   },
+   {
+    "rank": 3,
+    "task_id": "chardet__chardet.9630f238.func_pm_remove_cond__vjza6vvb",
+    "skill": 3,
+    "domain": 2,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "A distribution analyser is never fed, so probabilistic detection degrades; broken statistical accumulation with a plausible-looking output."
+   },
+   {
+    "rank": 4,
+    "task_id": "kayak__pypika.1c9646f0.combine_file__1zjm16oa",
+    "skill": 2,
+    "domain": 3,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Sample standard deviation and variance emit the wrong SQL function; statistical-estimator naming, shallow."
+   },
+   {
+    "rank": 5,
+    "task_id": "pandas-dev__pandas.95280573.func_pm_ctrl_shuffle__1mx4n8rs",
+    "skill": 2,
+    "domain": 3,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Groupby regression over a large randomly generated frame; dataframe numerics on the same stack the data loading uses."
+   },
+   {
+    "rank": 6,
+    "task_id": "dask__dask.5f61e423.pr_8685",
+    "skill": 2,
+    "domain": 3,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "eye with dtype=None diverges from NumPy; matching a reference implementation's numeric defaults."
+   },
+   {
+    "rank": 7,
+    "task_id": "facebookresearch__fvcore.a491d5b9.lm_rewrite__pcccevul",
+    "skill": 2,
+    "domain": 2,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "parameter_count returns wrong per-module totals; an aggregation bug, unrelated domain."
+   },
+   {
+    "rank": 8,
+    "task_id": "Mimino666__langdetect.a1598f1a.func_basic__y336mfnv",
+    "skill": 2,
+    "domain": 2,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Probability comparison ordering bug; probability appears but no inference."
+   },
+   {
+    "rank": 9,
+    "task_id": "joke2k__faker.8b401a7d.lm_rewrite__amekpddc",
+    "skill": 2,
+    "domain": 2,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Seeded sample directive parsed only on its first line; seeds appear, nothing statistical."
+   },
+   {
+    "rank": 10,
+    "task_id": "pandas-dev__pandas.95280573.combine_module__461hdeml",
+    "skill": 2,
+    "domain": 2,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "ODS writer drops rows; tabular I/O only, listed to fill the quota."
+   }
+  ],
+  "SWE-Rebench-Tasks-Clean": [
+   {
+    "rank": 1,
+    "task_id": "pymc-devs__pymc-7637",
+    "skill": 4,
+    "domain": 5,
+    "task_form": 2,
+    "overall": 4,
+    "reason": "pm.sample stops being deterministic under a seeded generator; reproducible MCMC from a fixed seed is exactly what seed=1 buys here."
+   },
+   {
+    "rank": 2,
+    "task_id": "google__jax-22744",
+    "skill": 4,
+    "domain": 5,
+    "task_form": 2,
+    "overall": 4,
+    "reason": "Beta-binomial logpmf returns NaN at k=n=0; the same likelihood this task models, debugged at the numerical-edge-case level."
+   },
+   {
+    "rank": 3,
+    "task_id": "pyro-ppl__numpyro-1914",
+    "skill": 4,
+    "domain": 5,
+    "task_form": 2,
+    "overall": 4,
+    "reason": "MCMC returns no samples when the model has only deterministic sites; understanding what the sampler actually traces."
+   },
+   {
+    "rank": 4,
+    "task_id": "pyro-ppl__numpyro-1918",
+    "skill": 3,
+    "domain": 5,
+    "task_form": 2,
+    "overall": 3,
+    "reason": "MCMC.run fails after a separate warmup phase with an ensemble sampler; warmup/sampling lifecycle, as with Stan's warmup."
+   },
+   {
+    "rank": 5,
+    "task_id": "pymc-devs__pymc-7809",
+    "skill": 3,
+    "domain": 5,
+    "task_form": 2,
+    "overall": 3,
+    "reason": "Nested model coordinate handling in PyMC; hierarchical model construction and dimension bookkeeping."
+   },
+   {
+    "rank": 6,
+    "task_id": "gpflow__gpflow-2096",
+    "skill": 3,
+    "domain": 4,
+    "task_form": 2,
+    "overall": 3,
+    "reason": "Priors on kernel and likelihood parameters in a GPMC MCMC model; specifying priors correctly so sampling works."
+   },
+   {
+    "rank": 7,
+    "task_id": "cornellius-gp__gpytorch-223",
+    "skill": 3,
+    "domain": 4,
+    "task_form": 2,
+    "overall": 3,
+    "reason": "Predictive posterior from the prior with no training data; reasoning about what a posterior means before conditioning."
+   },
+   {
+    "rank": 8,
+    "task_id": "bashtage__arch-752",
+    "skill": 3,
+    "domain": 4,
+    "task_form": 2,
+    "overall": 3,
+    "reason": "ARX forecast residual variance disagrees with expectation; checking a fitted model's parameter estimates against theory."
+   },
+   {
+    "rank": 9,
+    "task_id": "bashtage__arch-741",
+    "skill": 2,
+    "domain": 4,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "arch_model fit fails on a non-contiguous array; statistical library plumbing, not inference."
+   },
+   {
+    "rank": 10,
+    "task_id": "alteryx__evalml-1321",
+    "skill": 2,
+    "domain": 3,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "random_state reuse artificially reduces variance across searches; a reproducibility pitfall, weakly related."
+   }
+  ],
+  "Terminal-Lego-15k": [
+   {
+    "rank": 1,
+    "task_id": "task_11942",
+    "skill": 4,
+    "domain": 5,
+    "task_form": 4,
+    "overall": 4,
+    "reason": "R package fails to build from source because a system dev library is missing - precisely how installing RStan 2.32.7 fails in a bare container."
+   },
+   {
+    "rank": 2,
+    "task_id": "task_02424",
+    "skill": 4,
+    "domain": 5,
+    "task_form": 4,
+    "overall": 4,
+    "reason": "R XML package install dies because xml2-config is absent; same diagnose-the-native-dependency loop as an RStan build."
+   },
+   {
+    "rank": 3,
+    "task_id": "task_13918",
+    "skill": 4,
+    "domain": 5,
+    "task_form": 4,
+    "overall": 4,
+    "reason": "Install the system -dev packages so R's XML and RCurl compile from source; the prerequisite step RStan also needs."
+   },
+   {
+    "rank": 4,
+    "task_id": "task_11929",
+    "skill": 3,
+    "domain": 5,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Add the CRAN apt repository and signing key and install current R; getting a usable R at the right version."
+   },
+   {
+    "rank": 5,
+    "task_id": "task_13004",
+    "skill": 3,
+    "domain": 4,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Install an R package and register its kernel end to end; install-then-verify-it-loads, the RStan acceptance test."
+   },
+   {
+    "rank": 6,
+    "task_id": "task_10439",
+    "skill": 3,
+    "domain": 4,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "rJava builds but fails to load because libjvm.so is not on the linker path; runtime-link failure after a successful R install."
+   },
+   {
+    "rank": 7,
+    "task_id": "task_11999",
+    "skill": 3,
+    "domain": 4,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Missing JDK headers block install.packages(\"rJava\"); resolve a compile-time header dependency for an R package."
+   },
+   {
+    "rank": 8,
+    "task_id": "task_13528",
+    "skill": 3,
+    "domain": 3,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Fit several scipy.stats distributions to data and pick the best; distribution fitting and parameter reporting, no Bayesian machinery."
+   },
+   {
+    "rank": 9,
+    "task_id": "task_05808",
+    "skill": 2,
+    "domain": 4,
+    "task_form": 3,
+    "overall": 2,
+    "reason": "Write an Rscript that produces an exactly-shaped CSV; R scripting mechanics only."
+   },
+   {
+    "rank": 10,
+    "task_id": "task_12981",
+    "skill": 2,
+    "domain": 4,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Install R and Jupyter and wire them together; environment setup with no statistics."
+   }
+  ],
+  "CalibForge": [
+   {
+    "rank": 1,
+    "task_id": "data-science_20260604_002443_002",
+    "skill": 5,
+    "domain": 5,
+    "task_form": 5,
+    "overall": 5,
+    "reason": "Install a pinned CRAN package needing a C++ toolchain, write its model template, write /app/analysis.R, save single-number MLEs - the whole task shape."
+   },
+   {
+    "rank": 2,
+    "task_id": "data-science_20260604_002443_007",
+    "skill": 5,
+    "domain": 5,
+    "task_form": 4,
+    "overall": 5,
+    "reason": "Read a .stan hierarchical model and reproduce its priors, likelihood and parameterisation exactly, then write posterior means; Stan semantics are the crux."
+   },
+   {
+    "rank": 3,
+    "task_id": "data-science_20260610_111012_007",
+    "skill": 5,
+    "domain": 5,
+    "task_form": 4,
+    "overall": 4,
+    "reason": "Translate a Stan random-effects model to NumPyro and emit posterior means per parameter; same read-Stan-and-match-the-posterior skill."
+   },
+   {
+    "rank": 4,
+    "task_id": "data-science_20260606_172606_007",
+    "skill": 4,
+    "domain": 5,
+    "task_form": 4,
+    "overall": 4,
+    "reason": "Reproduce an R/brms Bayesian meta-regression in PyMC including tau and study-level effects; cross-framework Bayesian fidelity."
+   },
+   {
+    "rank": 5,
+    "task_id": "data-science_20260615_143301_002",
+    "skill": 4,
+    "domain": 5,
+    "task_form": 4,
+    "overall": 4,
+    "reason": "Fit hierarchical mixed-effects models in R, diagnose singular fits, deliver /app/analysis.R plus numeric CSVs - the R-side half of the task."
+   },
+   {
+    "rank": 6,
+    "task_id": "data-science_20260613_152233_007",
+    "skill": 4,
+    "domain": 4,
+    "task_form": 4,
+    "overall": 4,
+    "reason": "Port a BUGS/JAGS changepoint model to NumPyro, run NUTS with 4 chains and a fixed seed, save posterior means; same sampler configuration discipline."
+   },
+   {
+    "rank": 7,
+    "task_id": "data-science_20260604_144210_007",
+    "skill": 4,
+    "domain": 4,
+    "task_form": 3,
+    "overall": 4,
+    "reason": "Debug a Metropolis-Hastings posterior that is clearly wrong, get R-hat under 1.1 and emit posterior means/quantiles; convergence judgement transfers."
+   },
+   {
+    "rank": 8,
+    "task_id": "data-science_20260417_112147_007",
+    "skill": 4,
+    "domain": 4,
+    "task_form": 3,
+    "overall": 4,
+    "reason": "Migrate a hierarchical PyMC3 model to PyMC v5 and eliminate divergences; hierarchical-model pathology is exactly what a beta-binomial hyperprior invites."
+   },
+   {
+    "rank": 9,
+    "task_id": "data-science_20260510_130518_007",
+    "skill": 4,
+    "domain": 4,
+    "task_form": 3,
+    "overall": 4,
+    "reason": "Fix a divergent hierarchical multi-site model and report posterior means and SDs; partial pooling across groups as in theta_i ~ Beta(alpha,beta)."
+   },
+   {
+    "rank": 10,
+    "task_id": "scientific-computing_20260611_210349_002",
+    "skill": 3,
+    "domain": 5,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "R geostatistics with sp/gstat and further CRAN installs, fitting a model and writing parameter CSVs; R-stack fluency, non-Bayesian."
+   }
+  ]
+ },
+ "final_top10": [
+  {
+   "rank": 1,
+   "task_id": "data-science_20260604_002443_002",
+   "skill": 5,
+   "domain": 5,
+   "task_form": 5,
+   "overall": 5,
+   "reason": "Install a version-pinned CRAN package that needs a C++ toolchain, write its model template plus /app/analysis.R, save single-number estimates to txt files.",
+   "source": "CalibForge"
+  },
+  {
+   "rank": 2,
+   "task_id": "data-science_20260604_002443_007",
+   "skill": 5,
+   "domain": 5,
+   "task_form": 4,
+   "overall": 5,
+   "reason": "Read a .stan hierarchical model and reproduce its priors, likelihood and parameterisation exactly, then write posterior means; Stan semantics are the crux.",
+   "source": "CalibForge"
+  },
+  {
+   "rank": 3,
+   "task_id": "data-science_20260610_111012_007",
+   "skill": 5,
+   "domain": 5,
+   "task_form": 4,
+   "overall": 4,
+   "reason": "Translate a Stan random-effects model to another PPL and emit posterior means; same read-Stan-and-match-the-posterior skill.",
+   "source": "CalibForge"
+  },
+  {
+   "rank": 4,
+   "task_id": "task_001914_fae6f727",
+   "skill": 5,
+   "domain": 4,
+   "task_form": 4,
+   "overall": 4,
+   "reason": "Beta-Binomial conjugate update over a successes/trials CSV, writing posterior alpha, beta and mean - same model family and data columns as y and n.",
+   "source": "TMax-15K"
+  },
+  {
+   "rank": 5,
+   "task_id": "data-science_20260606_172606_007",
+   "skill": 4,
+   "domain": 5,
+   "task_form": 4,
+   "overall": 4,
+   "reason": "Reproduce an R/brms Bayesian meta-regression including between-study heterogeneity; cross-framework Bayesian fidelity against an R reference.",
+   "source": "CalibForge"
+  },
+  {
+   "rank": 6,
+   "task_id": "task_000371_d0ff3ecb",
+   "skill": 5,
+   "domain": 4,
+   "task_form": 4,
+   "overall": 4,
+   "reason": "Metropolis-Hastings sampler for a Beta-prior binomial posterior validated against the analytical mean; teaches checking the number, not just the run.",
+   "source": "TMax-15K"
+  },
+  {
+   "rank": 7,
+   "task_id": "data-science_20260615_143301_002",
+   "skill": 4,
+   "domain": 5,
+   "task_form": 4,
+   "overall": 4,
+   "reason": "Fit hierarchical mixed-effects models in R, diagnose singular fits, deliver /app/analysis.R plus numeric outputs - the R half of this task.",
+   "source": "CalibForge"
+  },
+  {
+   "rank": 8,
+   "task_id": "data-science_20260613_152233_007",
+   "skill": 4,
+   "domain": 4,
+   "task_form": 4,
+   "overall": 4,
+   "reason": "Port a BUGS/JAGS model to a PPL and run NUTS with 4 chains and a fixed seed, saving posterior means; same sampler-configuration discipline.",
+   "source": "CalibForge"
+  },
+  {
+   "rank": 9,
+   "task_id": "data-science_20260604_144210_007",
+   "skill": 4,
+   "domain": 4,
+   "task_form": 3,
+   "overall": 4,
+   "reason": "Debug a wrong Metropolis-Hastings posterior, drive R-hat under 1.1 and emit posterior means; strong verifier, convergence judgement transfers.",
+   "source": "CalibForge"
+  },
+  {
+   "rank": 10,
+   "task_id": "task_11942",
+   "skill": 4,
+   "domain": 5,
+   "task_form": 4,
+   "overall": 4,
+   "reason": "R package build from source fails on a missing system dev library - exactly how installing RStan 2.32.7 fails in a bare container.",
+   "source": "Terminal-Lego-15k"
+  }
+ ],
+ "notes": "No corpus contains a task that writes a Stan model, so the honest answer splits the TB2.1 task in two. CalibForge owns the Bayesian-modelling half and is far ahead: it has tasks that read a .stan file and must reproduce its priors and likelihood exactly, an R/TMB task whose shape (pinned CRAN install needing a C++ toolchain, model template, /app/analysis.R, single-number txt outputs) matches this task almost line for line, and several hierarchical-divergence repairs. Terminal-Lego-15k turned out unexpectedly useful - not through anything retrieval surfaced (its shortlist was generic sklearn/pandas filler) but through its cluster of 'R package fails to build because a system library is missing' tasks, which is the actual failure mode of installing RStan 2.32.7; that cluster is the only reason a Lego entry reaches final_top10. TMax contributes two genuine Beta-Binomial conjugate tasks, one of which uses the same successes/trials column shape. Recursive-Task-Synthesis has nothing Bayesian at all; its best offering is pinned-version environment provisioning and all of it is 'absent'. SWE-Smith is the weakest corpus here - no Bayesian or R content, so its bottom half is quota filler at overall 2. SWE-Rebench does better than expected via pymc, numpyro and a jax beta-binomial logpmf bug."
+}

@@ -1,0 +1,779 @@
+{
+ "tb21_id": "largest-eigenval",
+ "tb21_profile": {
+  "skill": "Implement a correct dominant-eigenpair solver for small (<=10x10) real non-symmetric matrices and make it beat numpy's own eig on median wall-clock",
+  "domain": "NumPy/SciPy/LAPACK dense numerical linear algebra plus Python-level micro-optimisation (C extension, numba, direct LAPACK calls)",
+  "task_form": "implement-from-spec against a hard performance budget (optimise-for-a-budget), with an accuracy predicate"
+ },
+ "verifier_notes": "scientific-computing_20260601_053159_001 is graded ok (weak in the packet snapshot) but its test_bound_energies_accuracy pins concrete reference energies [-48.14,-42.59,-33.49,-21.17,-6.60] and checks bound-state count bounds; the grade undercounts it, I treat it as ok/strong. CalibForge's closest lexical matches mathematics_20260617_051646_003 (compute_expm_action) and mathematics_20260615_143301_003 (logm) are near-verbatim clones of the TB2.1 wording but graded FREE, so they are excluded everywhere. Same for TMax task_003207_4cab79ae (OpenMP power-iteration leading eigenvalue, excellent skill match, FREE) and task_000042_6e4922c3 / task_000554_8f57ba55 (both explicit power-iteration dominant-eigenvector tasks, both FREE) -- the single best skill matches in TMax are all unverifiable, which is why TMax places lower than it otherwise would.",
+ "searches": [
+  "tools.py sources",
+  "tools.py search all 'eigenvalue|eigenvector|power iteration|eigendecomposition'",
+  "tools.py search tmax 'consistently runs faster|faster than the reference|median time per call|beat the baseline'",
+  "tools.py search rts 'eigen|matrix|numpy|linear algebra|numerical'",
+  "tools.py search rts 'speedup|faster than|optimize the|performance benchmark|profil'",
+  "tools.py search rts 'C extension|shared library|gcc -O|SIMD|vectoriz|algorithm.*implement|floating[- ]point'",
+  "tools.py search rts 'fastsum|Cython|pybind11|cffi|numba|BLAS|LAPACK|scipy'",
+  "tools.py search rts 'C extension|gcc.*-shared|compute the|algorithm'",
+  "tools.py search smith 'eig|linalg|matrix|svd|decomposition|numerical'",
+  "tools.py search smith 'performance|slow|optimiz|numerical precision|float'",
+  "tools.py search smith 'np\\.|numpy|array|dtype'",
+  "tools.py search rebench 'eigen|linalg|svd|matrix exponential|sparse solver|lstsq'",
+  "tools.py search tw 'matrix|eigen|numpy|linear algebra|optimi[sz]|performance|faster'",
+  "(new corpora, local regex over instruction.md) 'eigen(value|vector)|power iteration|dominant eigen'",
+  "(new corpora) 'eigen'",
+  "(new corpora, CalibForge) 'consistently (runs )?faster than the reference|median time per call|/app/eval\\.py'",
+  "(new corpora, Terminal-Lego) '(numba|cython|ctypes)'",
+  "(new corpora, Terminal-Lego) 'linalg|matrix multiplication|np\\.dot|determinant|inverse of a matrix'",
+  "(new corpora, Terminal-Lego) 'numba|cython|ctypes|speed ?up|faster than|benchmark'"
+ ],
+ "per_source": {
+  "CalibForge": [
+   {
+    "rank": 1,
+    "task_id": "mathematics_20260606_172554_003",
+    "skill": 5,
+    "domain": 5,
+    "task_form": 5,
+    "overall": 5,
+    "reason": "Golub-Welsch eigh is the bottleneck; must beat reference median time per call keeping identical output. Same eig-speed tradeoff."
+   },
+   {
+    "rank": 2,
+    "task_id": "scientific-computing_20260601_053159_001",
+    "skill": 5,
+    "domain": 5,
+    "task_form": 3,
+    "overall": 5,
+    "reason": "Requires power_method(A) returning dominant eigenvalue+eigenvector from scratch, plus inverse-power and Lanczos. Exact algorithm TB2.1 needs."
+   },
+   {
+    "rank": 3,
+    "task_id": "scientific-computing_20260607_104421_001",
+    "skill": 5,
+    "domain": 5,
+    "task_form": 4,
+    "overall": 5,
+    "reason": "Forbids np.linalg.eig; must hand-implement Jacobi symmetric eigendecomposition with orthonormal eigenvectors. Core eigensolver skill."
+   },
+   {
+    "rank": 4,
+    "task_id": "mathematics_20260508_204815_003",
+    "skill": 4,
+    "domain": 5,
+    "task_form": 5,
+    "overall": 4,
+    "reason": "Matrix function on small dense matrices, must beat scipy reference in /app/eval.py. Identical optimise-a-numpy-primitive genre."
+   },
+   {
+    "rank": 5,
+    "task_id": "mathematics_20260615_143956_003",
+    "skill": 4,
+    "domain": 5,
+    "task_form": 4,
+    "overall": 4,
+    "reason": "Fix a wrong structured-matrix determinant and beat np.linalg.det; exploiting matrix structure for speed is the same lever."
+   },
+   {
+    "rank": 6,
+    "task_id": "mathematics_20260602_105139_003",
+    "skill": 4,
+    "domain": 4,
+    "task_form": 5,
+    "overall": 4,
+    "reason": "Must be consistently faster than np.convolve with identical results; teaches algorithmic replacement of a numpy primitive under a timing budget."
+   },
+   {
+    "rank": 7,
+    "task_id": "mathematics_20260416_172928_003",
+    "skill": 4,
+    "domain": 5,
+    "task_form": 3,
+    "overall": 4,
+    "reason": "matrix_sign is defined by eigenvalue signs; needs Newton/Schur reasoning about eigenvalues of non-symmetric real matrices."
+   },
+   {
+    "rank": 8,
+    "task_id": "mathematics_20260604_193056_003",
+    "skill": 4,
+    "domain": 5,
+    "task_form": 4,
+    "overall": 4,
+    "reason": "Quadrature nodes with eigenvalue decomposition explicitly banned, forcing a Newton/recurrence alternative to eig."
+   },
+   {
+    "rank": 9,
+    "task_id": "mathematics_20260610_111012_003",
+    "skill": 3,
+    "domain": 4,
+    "task_form": 5,
+    "overall": 4,
+    "reason": "Replace an exponential-time matrix function with Ryser/Glynn so n=18 finishes; same algorithm-swap-for-speed skill."
+   },
+   {
+    "rank": 10,
+    "task_id": "mathematics_20260505_093950_003",
+    "skill": 4,
+    "domain": 4,
+    "task_form": 4,
+    "overall": 4,
+    "reason": "Robust polynomial root finding is companion-matrix eigenvalue work in disguise; same accuracy-vs-speed balance on small dense problems."
+   }
+  ],
+  "TMax-15K": [
+   {
+    "rank": 1,
+    "task_id": "task_004244_018a965b",
+    "skill": 5,
+    "domain": 4,
+    "task_form": 4,
+    "overall": 4,
+    "reason": "Builds and profiles a C++ power-iteration pipeline for the principal eigenvalue; same algorithm plus native-code speed path."
+   },
+   {
+    "rank": 2,
+    "task_id": "task_001331_787cad37",
+    "skill": 4,
+    "domain": 4,
+    "task_form": 3,
+    "overall": 4,
+    "reason": "Server must answer EIGEN queries by power iteration for the dominant eigenvalue and do QR on the same matrices."
+   },
+   {
+    "rank": 3,
+    "task_id": "task_008399_38ddeb46",
+    "skill": 4,
+    "domain": 4,
+    "task_form": 4,
+    "overall": 4,
+    "reason": "Compile a C kernel and wrap it from Python to replace a slow pure-Python numeric loop -- the exact escape hatch TB2.1 allows."
+   },
+   {
+    "rank": 4,
+    "task_id": "task_004857_2c3d045e",
+    "skill": 4,
+    "domain": 4,
+    "task_form": 4,
+    "overall": 4,
+    "reason": "Reimplement a slow stripped spectral-frequency binary as a fast, float-deterministic replacement; speed plus numerical stability."
+   },
+   {
+    "rank": 5,
+    "task_id": "task_004322_dc7e237c",
+    "skill": 4,
+    "domain": 4,
+    "task_form": 3,
+    "overall": 4,
+    "reason": "Randomized power iteration for largest/smallest eigenvalues with OpenMP; same iterative eigen-estimation under a perf constraint."
+   },
+   {
+    "rank": 6,
+    "task_id": "task_003855_b9f3fc10",
+    "skill": 4,
+    "domain": 4,
+    "task_form": 2,
+    "overall": 3,
+    "reason": "Computes the eigenvector for the largest eigenvalue and fixes its sign -- the same dominant-eigenpair extraction and sign convention."
+   },
+   {
+    "rank": 7,
+    "task_id": "task_000667_baedb321",
+    "skill": 3,
+    "domain": 4,
+    "task_form": 2,
+    "overall": 3,
+    "reason": "Iterates a matrix to convergence then takes the dominant eigenvalue/trace and validates against an analytic baseline."
+   },
+   {
+    "rank": 8,
+    "task_id": "task_004522_01ba1112",
+    "skill": 3,
+    "domain": 5,
+    "task_form": 2,
+    "overall": 3,
+    "reason": "Reverse-engineer how a legacy binary handles near-zero eigenvalues/singular values and reproduce it exactly in Python."
+   },
+   {
+    "rank": 9,
+    "task_id": "task_003580_c1871d66",
+    "skill": 3,
+    "domain": 3,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Times a compiled numeric kernel across input sizes and fits the complexity model; the same median-timing methodology."
+   },
+   {
+    "rank": 10,
+    "task_id": "task_002553_11af0cab",
+    "skill": 3,
+    "domain": 3,
+    "task_form": 2,
+    "overall": 3,
+    "reason": "Power iteration vs exact linear-solve for PageRank, with convergence checkpoints -- iterative-vs-direct tradeoff transfers."
+   }
+  ],
+  "Terminal-Lego-15k": [
+   {
+    "rank": 1,
+    "task_id": "task_04456",
+    "skill": 3,
+    "domain": 5,
+    "task_form": 2,
+    "overall": 3,
+    "reason": "Sorting np.linalg.eig output and keeping each eigenvector paired with its eigenvalue -- the same output-contract trap TB2.1 has."
+   },
+   {
+    "rank": 2,
+    "task_id": "task_09447",
+    "skill": 3,
+    "domain": 4,
+    "task_form": 4,
+    "overall": 3,
+    "reason": "Replace a full argsort with a partial-selection algorithm for the largest N; same 'avoid the general routine' speed reasoning."
+   },
+   {
+    "rank": 3,
+    "task_id": "task_04671",
+    "skill": 4,
+    "domain": 4,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Passes numpy arrays into a C function for input and output -- the concrete mechanism for beating numpy from Python."
+   },
+   {
+    "rank": 4,
+    "task_id": "task_09138",
+    "skill": 4,
+    "domain": 3,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Closed-form 4x4 matrix inversion in C++ instead of a general solver: exactly the small-fixed-size specialisation TB2.1 rewards."
+   },
+   {
+    "rank": 5,
+    "task_id": "task_04482",
+    "skill": 3,
+    "domain": 4,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Benchmarks matrix multiply across Python, C++/BLAS and numpy; teaches where numpy's overhead actually is."
+   },
+   {
+    "rank": 6,
+    "task_id": "task_04487",
+    "skill": 3,
+    "domain": 4,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Implements PCA from the covariance eigendecomposition by hand rather than calling a library PCA."
+   },
+   {
+    "rank": 7,
+    "task_id": "task_09162",
+    "skill": 3,
+    "domain": 4,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Explains anomalous naive-matmul timings; same measure-then-explain discipline needed to beat a reference median time."
+   },
+   {
+    "rank": 8,
+    "task_id": "task_04642",
+    "skill": 3,
+    "domain": 4,
+    "task_form": 2,
+    "overall": 3,
+    "reason": "Limiting numpy/BLAS thread count -- for 10x10 inputs thread spin-up is the dominant cost, so this is a real lever."
+   },
+   {
+    "rank": 9,
+    "task_id": "task_04523",
+    "skill": 3,
+    "domain": 4,
+    "task_form": 2,
+    "overall": 3,
+    "reason": "Positive-definiteness via eigenvalues vs Cholesky: picking the cheaper equivalent test is the same judgement."
+   },
+   {
+    "rank": 10,
+    "task_id": "task_05507",
+    "skill": 2,
+    "domain": 4,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "OpenBLAS threading configuration under resource limits; touches the same overhead source but no algorithm work."
+   }
+  ],
+  "SWE-Rebench-Tasks-Clean": [
+   {
+    "rank": 1,
+    "task_id": "pymor__pymor-577",
+    "skill": 4,
+    "domain": 5,
+    "task_form": 2,
+    "overall": 4,
+    "reason": "Rational Krylov for Lyapunov equations and SVD of a vectorarray -- iterative Krylov eigen/subspace methods, the heart of TB2.1."
+   },
+   {
+    "rank": 2,
+    "task_id": "qutip__qutip-2596",
+    "skill": 3,
+    "domain": 4,
+    "task_form": 2,
+    "overall": 3,
+    "reason": "Qobj.eigenstates() breaks on restricted spaces; debugging an eigensolver's shape/dimension contract."
+   },
+   {
+    "rank": 3,
+    "task_id": "pennylaneai__pennylane-5448",
+    "skill": 3,
+    "domain": 4,
+    "task_form": 2,
+    "overall": 3,
+    "reason": "expm implemented via np.linalg.eigh; fixing it needs correct eigendecomposition-based matrix-function reasoning."
+   },
+   {
+    "rank": 4,
+    "task_id": "pennylaneai__pennylane-3057",
+    "skill": 3,
+    "domain": 4,
+    "task_form": 2,
+    "overall": 3,
+    "reason": "qml.exp must use wire_order for diagonalizing and eigenvalue matrices -- eigenvalue/eigenvector bookkeeping bug."
+   },
+   {
+    "rank": 5,
+    "task_id": "jax-ml__jax-25787",
+    "skill": 3,
+    "domain": 4,
+    "task_form": 2,
+    "overall": 3,
+    "reason": "Differentiation rule for tridiagonal_solve (Thomas algorithm); same structured-matrix linear algebra territory."
+   },
+   {
+    "rank": 6,
+    "task_id": "pymc-devs__pytensor-1394",
+    "skill": 3,
+    "domain": 4,
+    "task_form": 2,
+    "overall": 3,
+    "reason": "Batched lu_factor/lu_solve inputs; LAPACK-level factorisation semantics that a fast eigensolver also depends on."
+   },
+   {
+    "rank": 7,
+    "task_id": "pymc-devs__pytensor-1231",
+    "skill": 3,
+    "domain": 4,
+    "task_form": 2,
+    "overall": 3,
+    "reason": "Adds a transposed flag to linalg.solve to avoid an explicit transpose -- avoiding redundant work in a LAPACK wrapper."
+   },
+   {
+    "rank": 8,
+    "task_id": "pyg-team__pytorch_geometric-8143",
+    "skill": 3,
+    "domain": 4,
+    "task_form": 2,
+    "overall": 3,
+    "reason": "Eigenvector permutation-invariance test fails on AMD CPUs; eigenvector sign/ordering non-uniqueness, which TB2.1 must also handle."
+   },
+   {
+    "rank": 9,
+    "task_id": "tdameritrade__stumpy-806",
+    "skill": 2,
+    "domain": 3,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Numeric edge case in matrix-profile computation; numpy-heavy numerical debugging, but no eigen content."
+   },
+   {
+    "rank": 10,
+    "task_id": "simpeg__simpeg-1621",
+    "skill": 2,
+    "domain": 3,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Cached derivative attribute changes value after dpred; state bug in a numerical simulation, weak transfer."
+   }
+  ],
+  "SWE-Smith-Seeds-Clean": [
+   {
+    "rank": 1,
+    "task_id": "dask__dask.5f61e423.pr_6749",
+    "skill": 3,
+    "domain": 4,
+    "task_form": 2,
+    "overall": 3,
+    "reason": "Missing 2D residual case in linalg.lstsq -- matching numpy's linear-algebra output contract exactly, which TB2.1 also must do."
+   },
+   {
+    "rank": 2,
+    "task_id": "facebookresearch__fvcore.a491d5b9.func_pm_ctrl_shuffle__kd43vy4l",
+    "skill": 3,
+    "domain": 3,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Broken matmul FLOP-counting handler; requires reasoning about arithmetic cost of matrix ops."
+   },
+   {
+    "rank": 3,
+    "task_id": "dask__dask.5f61e423.pr_11337",
+    "skill": 2,
+    "domain": 4,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Rechunk fails for some dimensions; array-shape reasoning in a numpy-compatible array library."
+   },
+   {
+    "rank": 4,
+    "task_id": "dask__dask.5f61e423.pr_8685",
+    "skill": 2,
+    "domain": 4,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "eye with dtype=None must match numpy's default-float behaviour; strict numpy API parity."
+   },
+   {
+    "rank": 5,
+    "task_id": "dask__dask.5f61e423.pr_8954",
+    "skill": 2,
+    "domain": 4,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "full with dtype=None diverges from numpy; same dtype-contract class of bug as above."
+   },
+   {
+    "rank": 6,
+    "task_id": "dask__dask.5f61e423.pr_8484",
+    "skill": 2,
+    "domain": 4,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "nanmin on a numpy scalar raises TypeError; scalar-vs-array dtype handling at the numpy boundary."
+   },
+   {
+    "rank": 7,
+    "task_id": "facebookresearch__fvcore.a491d5b9.lm_rewrite__mynbot4f",
+    "skill": 2,
+    "domain": 3,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "to_numpy mishandles tensor-to-array conversion; array conversion correctness only, no numerical algorithm."
+   },
+   {
+    "rank": 8,
+    "task_id": "facebookresearch__fvcore.a491d5b9.combine_module__uxncj1ip",
+    "skill": 2,
+    "domain": 3,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Same to_numpy helper, shape handling variant; shallow numpy-adjacent debugging."
+   },
+   {
+    "rank": 9,
+    "task_id": "dask__dask.5f61e423.pr_8860",
+    "skill": 2,
+    "domain": 3,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Auto-chunking must reason about dtype itemsize; memory-layout reasoning, minimal transfer."
+   },
+   {
+    "rank": 10,
+    "task_id": "dask__dask.5f61e423.pr_9240",
+    "skill": 2,
+    "domain": 3,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "__reduce__ drops the meta attribute; array-object plumbing, essentially no numerical transfer."
+   }
+  ],
+  "TerminalWorld-Seeds-Clean": [
+   {
+    "rank": 1,
+    "task_id": "tw_125169",
+    "skill": 4,
+    "domain": 4,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Posit arithmetic beating float on catastrophic cancellation, then a 100x100 exact matrix computation -- numerical accuracy vs representation."
+   },
+   {
+    "rank": 2,
+    "task_id": "tw_290643",
+    "skill": 2,
+    "domain": 3,
+    "task_form": 4,
+    "overall": 3,
+    "reason": "Profiles and explains an instantiation-time difference; same measure-a-median-then-explain loop TB2.1 needs to beat the reference."
+   },
+   {
+    "rank": 3,
+    "task_id": "tw_248066",
+    "skill": 3,
+    "domain": 3,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Julia type stability and its performance implications, with introspection -- reasoning about why code is slow at the dispatch level."
+   },
+   {
+    "rank": 4,
+    "task_id": "tw_125964",
+    "skill": 3,
+    "domain": 3,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Louvain community detection on a flight-network matrix; matrix-based iterative algorithm, but library-driven."
+   },
+   {
+    "rank": 5,
+    "task_id": "tw_125967",
+    "skill": 3,
+    "domain": 3,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Sweeps 1000 resolution scales of the same matrix clustering -- repeated numerical runs, some cost awareness."
+   },
+   {
+    "rank": 6,
+    "task_id": "tw_372371",
+    "skill": 2,
+    "domain": 2,
+    "task_form": 3,
+    "overall": 2,
+    "reason": "N-Queens for n up to 11 with output files; algorithmic implementation where naive search is too slow."
+   },
+   {
+    "rank": 7,
+    "task_id": "tw_276570",
+    "skill": 2,
+    "domain": 3,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Gets a numpy view over a C++ std::vector via ROOT -- the zero-copy C/Python boundary TB2.1 could exploit."
+   },
+   {
+    "rank": 8,
+    "task_id": "tw_152765",
+    "skill": 2,
+    "domain": 2,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Reverse a cipher, optionally with symbolic execution; algorithmic problem solving in Python, unrelated domain."
+   },
+   {
+    "rank": 9,
+    "task_id": "tw_5263",
+    "skill": 1,
+    "domain": 2,
+    "task_form": 2,
+    "overall": 1,
+    "reason": "pytest conftest discovery; only shares the Python-project shell."
+   },
+   {
+    "rank": 10,
+    "task_id": "tw_487175",
+    "skill": 1,
+    "domain": 3,
+    "task_form": 2,
+    "overall": 1,
+    "reason": "pandas dropna to CSV; numpy mentioned but nothing TB2.1 needs is exercised."
+   }
+  ],
+  "Recursive-Task-Synthesis": [
+   {
+    "rank": 1,
+    "task_id": "rts_task_e1c8c5fa243d311f29c1d6b6",
+    "skill": 3,
+    "domain": 3,
+    "task_form": 2,
+    "overall": 3,
+    "reason": "Builds and installs a custom Python C extension (fastsum) into a venv -- the concrete route to beating numpy from Python."
+   },
+   {
+    "rank": 2,
+    "task_id": "rts_task_956ea2e372fe004edbe0d44d",
+    "skill": 2,
+    "domain": 3,
+    "task_form": 3,
+    "overall": 2,
+    "reason": "Profiles a PyTorch model's parameters and computation with torchmeter; profiling-driven numeric work, no algorithm design."
+   },
+   {
+    "rank": 3,
+    "task_id": "rts_task_6b0f79ef14015f6da0f667cb",
+    "skill": 2,
+    "domain": 2,
+    "task_form": 3,
+    "overall": 2,
+    "reason": "Measures and explains an instantiation-time gap between two Python class kinds; timing methodology only."
+   },
+   {
+    "rank": 4,
+    "task_id": "rts_task_489a88086bfb9009b18fad2e",
+    "skill": 2,
+    "domain": 2,
+    "task_form": 3,
+    "overall": 2,
+    "reason": "Computes trimmed averages of thread/process creation times -- robust timing statistics, which the median-time rule also needs."
+   },
+   {
+    "rank": 5,
+    "task_id": "rts_task_42df9bc32ce8f455fe875c59",
+    "skill": 2,
+    "domain": 2,
+    "task_form": 3,
+    "overall": 2,
+    "reason": "Times a script and writes a benchmark report; benchmark discipline, nothing numerical."
+   },
+   {
+    "rank": 6,
+    "task_id": "rts_task_23307db59118d5bd97d5bf0b",
+    "skill": 2,
+    "domain": 2,
+    "task_form": 3,
+    "overall": 2,
+    "reason": "Fix a failing unit test then benchmark scripts against a seconds threshold; fix-then-meet-a-budget shape matches loosely."
+   },
+   {
+    "rank": 7,
+    "task_id": "rts_task_8b65e2135c0081112bd4fe1d",
+    "skill": 2,
+    "domain": 2,
+    "task_form": 3,
+    "overall": 2,
+    "reason": "Writes a Python script computing GCDs over discovered input; numeric-but-trivial file chore."
+   },
+   {
+    "rank": 8,
+    "task_id": "rts_task_4632276179bbb84ace4137a3",
+    "skill": 2,
+    "domain": 2,
+    "task_form": 3,
+    "overall": 2,
+    "reason": "Same GCD chore under an explicit input/output contract; contract-following, no performance or linear algebra."
+   },
+   {
+    "rank": 9,
+    "task_id": "rts_task_b0259cede190f1ef494456f5",
+    "skill": 1,
+    "domain": 3,
+    "task_form": 2,
+    "overall": 1,
+    "reason": "numpy/pandas NaN row dropping to CSV; shares the numpy import and nothing else."
+   },
+   {
+    "rank": 10,
+    "task_id": "rts_task_f15e77c2cab24640fa32cce3",
+    "skill": 1,
+    "domain": 1,
+    "task_form": 3,
+    "overall": 1,
+    "reason": "Fix a starter JS script to use a library's comparator/key sorting; only the fix-the-stub shape is shared."
+   }
+  ]
+ },
+ "final_top10": [
+  {
+   "rank": 1,
+   "task_id": "mathematics_20260606_172554_003",
+   "skill": 5,
+   "domain": 5,
+   "task_form": 5,
+   "overall": 5,
+   "reason": "Golub-Welsch eigh too slow; beat the reference median time per call with identical output. Same task down to the eval harness.",
+   "source": "CalibForge"
+  },
+  {
+   "rank": 2,
+   "task_id": "scientific-computing_20260601_053159_001",
+   "skill": 5,
+   "domain": 5,
+   "task_form": 3,
+   "overall": 5,
+   "reason": "Implements power_method returning the dominant eigenvalue and eigenvector from scratch; exactly TB2.1's core algorithm.",
+   "source": "CalibForge"
+  },
+  {
+   "rank": 3,
+   "task_id": "scientific-computing_20260607_104421_001",
+   "skill": 5,
+   "domain": 5,
+   "task_form": 4,
+   "overall": 5,
+   "reason": "Hand-implemented Jacobi eigendecomposition with pre-built eigensolvers banned; teaches the eigen algorithm itself.",
+   "source": "CalibForge"
+  },
+  {
+   "rank": 4,
+   "task_id": "mathematics_20260508_204815_003",
+   "skill": 4,
+   "domain": 5,
+   "task_form": 5,
+   "overall": 4,
+   "reason": "Small-matrix matrix-function kernel that must beat the scipy reference in /app/eval.py; identical optimisation genre.",
+   "source": "CalibForge"
+  },
+  {
+   "rank": 5,
+   "task_id": "mathematics_20260615_143956_003",
+   "skill": 4,
+   "domain": 5,
+   "task_form": 4,
+   "overall": 4,
+   "reason": "Fix a structured-matrix determinant and beat np.linalg.det by exploiting structure -- the same speed-through-structure lever.",
+   "source": "CalibForge"
+  },
+  {
+   "rank": 6,
+   "task_id": "task_004244_018a965b",
+   "skill": 5,
+   "domain": 4,
+   "task_form": 4,
+   "overall": 4,
+   "reason": "C++ power-iteration pipeline for the principal eigenvalue, profiled; same algorithm plus the native-code speed path TB2.1 allows.",
+   "source": "TMax-15K"
+  },
+  {
+   "rank": 7,
+   "task_id": "mathematics_20260602_105139_003",
+   "skill": 4,
+   "domain": 4,
+   "task_form": 5,
+   "overall": 4,
+   "reason": "Must be consistently faster than np.convolve with identical results; algorithmic replacement of a numpy primitive under timing.",
+   "source": "CalibForge"
+  },
+  {
+   "rank": 8,
+   "task_id": "task_001331_787cad37",
+   "skill": 4,
+   "domain": 4,
+   "task_form": 3,
+   "overall": 4,
+   "reason": "Answers EIGEN queries via power iteration for the dominant eigenvalue, plus QR on the same small matrices.",
+   "source": "TMax-15K"
+  },
+  {
+   "rank": 9,
+   "task_id": "mathematics_20260416_172928_003",
+   "skill": 4,
+   "domain": 5,
+   "task_form": 3,
+   "overall": 4,
+   "reason": "matrix_sign for real non-symmetric matrices is eigenvalue-sign reasoning with Newton/Schur alternatives to eig.",
+   "source": "CalibForge"
+  },
+  {
+   "rank": 10,
+   "task_id": "task_008399_38ddeb46",
+   "skill": 4,
+   "domain": 4,
+   "task_form": 4,
+   "overall": 4,
+   "reason": "Compile a C kernel and wrap it in Python to replace a slow pure-Python numeric loop -- TB2.1's explicit escape hatch.",
+   "source": "TMax-15K"
+  }
+ ],
+ "notes": "CalibForge is overwhelmingly the best pool for this task and takes 7 of the final 10: its mathematics_* family is literally the same generator family as the TB2.1 task ('Complete the implementation of X in /app/y.py ... consistently faster than the reference in /app/eval.py'), and its verification is the strongest here. Terminal-Lego-15k does NOT beat the old pool for this task -- its numpy tasks are StackOverflow one-liners (ReLU, vector magnitude, zero padding) with no performance budget; its best offering (task_04456, eigenvalue/eigenvector sorting) is only a 3. Recursive-Task-Synthesis has essentially nothing: exhaustive searching turned up no dense linear algebra and no beat-the-reference task at all, so ranks 4-10 there are filler scored 1-2 and should not be merged in. SWE-Smith is also filler below rank 1 (dask numpy-parity bugs). SWE-Rebench is genuinely usable on skill/domain (pymor Krylov/Lyapunov, qutip eigenstates, pennylane expm) but loses task_form as expected."
+}

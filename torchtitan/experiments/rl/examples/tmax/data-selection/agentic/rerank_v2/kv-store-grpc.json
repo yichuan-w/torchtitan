@@ -1,0 +1,765 @@
+{
+ "tb21_id": "kv-store-grpc",
+ "tb21_profile": {
+  "skill": "Author a .proto service definition, run grpcio-tools/protoc to generate _pb2 and _pb2_grpc stubs, implement the servicer class against them, and serve it on a fixed port as a background process.",
+  "domain": "gRPC and Protocol Buffers in Python (grpcio 1.73.0, grpcio-tools), RPC service contracts, code generation, socket servers.",
+  "task_form": "Implement-from-spec plus configure-a-service: pinned dependency install, schema authoring, codegen, server implementation, and the server must still be listening when checked."
+ },
+ "verifier_notes": "I did not find a grade I disagreed with on inspection for this task. NOTE ON GRADES: work/verifier_strength.json was regenerated after work/packets_v2 was built and the two disagree on ~27% of shown candidates (844 flip into or out of FREE). For example task_12106 is 'weak' in the packet and 'ok' in the regenerated file, task_12432 is 'weak' vs 'strong', task_05632 'weak' vs 'strong'. Where they disagree I treated a candidate as FREE if EITHER file calls it FREE, so nothing in final_top10 is FREE under either. No candidate I ranked for this task is FREE in either file.",
+ "searches": [
+  "tools.py search all 'grpc|protobuf|\\.proto\\b|protoc\\b'",
+  "(new corpora, local grep) search all 'grpc|protobuf|\\.proto\\b|protoc\\b'",
+  "tools.py search smith 'protobuf|grpc|code ?gen|schema.*generate|serializ'",
+  "tools.py search rebench 'protobuf|grpc|\\bproto\\b|code generation|stub'",
+  "(new corpora, local grep) show CalibForge software-engineering_20260610_111702_024"
+ ],
+ "per_source": {
+  "TMax-15K": [
+   {
+    "rank": 1,
+    "task_id": "task_000382_d6f23c02",
+    "skill": 5,
+    "domain": 5,
+    "task_form": 5,
+    "overall": 5,
+    "reason": "Build a Python gRPC microservice from scratch: write the proto, generate stubs, implement the servicer over existing logic. Same pipeline."
+   },
+   {
+    "rank": 2,
+    "task_id": "task_006476_9773661e",
+    "skill": 5,
+    "domain": 5,
+    "task_form": 4,
+    "overall": 5,
+    "reason": "Fix protobuf compilation errors in a gRPC service and make it run; the protoc/_pb2 generation step is the crux, as it is here."
+   },
+   {
+    "rank": 3,
+    "task_id": "task_004313_ce1cd767",
+    "skill": 4,
+    "domain": 5,
+    "task_form": 5,
+    "overall": 4,
+    "reason": "Implement a core engine as a Python gRPC service plus a setup script that installs the toolchain; proto-to-running-server end to end."
+   },
+   {
+    "rank": 4,
+    "task_id": "task_002471_35f54046",
+    "skill": 4,
+    "domain": 5,
+    "task_form": 4,
+    "overall": 4,
+    "reason": "Python gRPC service fronting a C++ library; requires defining the service, generating stubs and serving it correctly."
+   },
+   {
+    "rank": 5,
+    "task_id": "task_006149_70ade387",
+    "skill": 4,
+    "domain": 5,
+    "task_form": 4,
+    "overall": 4,
+    "reason": "Stand up an emulator exposed over gRPC for automated testing; service definition plus a long-running server."
+   },
+   {
+    "rank": 6,
+    "task_id": "task_001783_c60637e1",
+    "skill": 4,
+    "domain": 5,
+    "task_form": 4,
+    "overall": 4,
+    "reason": "Review and fix a gRPC backend with an HTTP gateway; must get the proto, stubs and server wiring consistent. Strong verifier."
+   },
+   {
+    "rank": 7,
+    "task_id": "task_009269_ad343bf0",
+    "skill": 4,
+    "domain": 5,
+    "task_form": 4,
+    "overall": 4,
+    "reason": "A Python gRPC server exposing a Rust library is broken end to end; repair the stub generation and serving path."
+   },
+   {
+    "rank": 8,
+    "task_id": "task_000275_80030679",
+    "skill": 4,
+    "domain": 4,
+    "task_form": 4,
+    "overall": 4,
+    "reason": "Implement a gRPC patching service; defines the RPC contract and implements the handler, same shape as GetVal/SetVal."
+   },
+   {
+    "rank": 9,
+    "task_id": "task_008075_e14f765b",
+    "skill": 3,
+    "domain": 5,
+    "task_form": 4,
+    "overall": 3,
+    "reason": "Organise a messy project and implement a Python gRPC microservice over a C library; gRPC work diluted by cleanup chores."
+   },
+   {
+    "rank": 10,
+    "task_id": "task_001294_ce7957c6",
+    "skill": 3,
+    "domain": 5,
+    "task_form": 4,
+    "overall": 3,
+    "reason": "Bridge gRPC status streams to WebSockets; requires reading generated stubs and calling RPCs, client side rather than server."
+   }
+  ],
+  "Recursive-Task-Synthesis": [
+   {
+    "rank": 1,
+    "task_id": "rts_task_ad91b8d961a8d683e16076ad",
+    "skill": 3,
+    "domain": 5,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Build and start a gRPC server, confirm from its log that it is listening, then run a gRPC client against it; same run-and-verify loop."
+   },
+   {
+    "rank": 2,
+    "task_id": "rts_task_d56e4a6aa0195c16f7b0c60d",
+    "skill": 3,
+    "domain": 5,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Build the gRPC server, record its PID, exercise the Python client, then stop it; explicit background-process lifecycle."
+   },
+   {
+    "rank": 3,
+    "task_id": "rts_task_163736eebd47892feb0aea91",
+    "skill": 3,
+    "domain": 5,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Build and start the gRPC server and drive it with the provided Python client; gRPC domain, but the proto and server are given."
+   },
+   {
+    "rank": 4,
+    "task_id": "rts_task_12ebe146a94473783e80f714",
+    "skill": 3,
+    "domain": 5,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Same build-run-client flow for the Go gRPC server; the transferable part is getting a gRPC server listening."
+   },
+   {
+    "rank": 5,
+    "task_id": "rts_task_2d2cf67f72f1cb544c13b742",
+    "skill": 2,
+    "domain": 5,
+    "task_form": 3,
+    "overall": 2,
+    "reason": "Build the Go gRPC server and run the Python client; near-duplicate of the family, nothing new."
+   },
+   {
+    "rank": 6,
+    "task_id": "rts_task_2be5b4f249c5b08669d09ff0",
+    "skill": 2,
+    "domain": 5,
+    "task_form": 3,
+    "overall": 2,
+    "reason": "Build and start the gRPC server, save client output, produce an inventory manifest; the gRPC part is scripted."
+   },
+   {
+    "rank": 7,
+    "task_id": "rts_task_cfbac9f637babe624170c698",
+    "skill": 2,
+    "domain": 5,
+    "task_form": 3,
+    "overall": 2,
+    "reason": "Capture the gRPC server's stdout to a log while the client runs; duplicate of the family with a logging twist."
+   },
+   {
+    "rank": 8,
+    "task_id": "rts_task_f24d543cf1e64f45f66f204d",
+    "skill": 2,
+    "domain": 5,
+    "task_form": 3,
+    "overall": 2,
+    "reason": "Build and start the gRPC server, then use its Python client; another near-copy."
+   },
+   {
+    "rank": 9,
+    "task_id": "rts_task_5b56f1afd0ff1a503f44ac8d",
+    "skill": 2,
+    "domain": 2,
+    "task_form": 4,
+    "overall": 2,
+    "reason": "Start a local server on a port and query its endpoints for key-value files; keeps a server running, but plain HTTP and data munging."
+   },
+   {
+    "rank": 10,
+    "task_id": "rts_task_03b54bddb31a04eb9efc366e",
+    "skill": 2,
+    "domain": 2,
+    "task_form": 4,
+    "overall": 2,
+    "reason": "Start a server, diagnose a startup failure from its log, then use it; the 'make the server actually start' half."
+   }
+  ],
+  "TerminalWorld-Seeds-Clean": [
+   {
+    "rank": 1,
+    "task_id": "tw_285202",
+    "skill": 3,
+    "domain": 5,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Query a running gRPC server via its Python client; gRPC domain and the stub-calling path, but no proto authoring or serving."
+   },
+   {
+    "rank": 2,
+    "task_id": "tw_102785",
+    "skill": 2,
+    "domain": 2,
+    "task_form": 4,
+    "overall": 2,
+    "reason": "Ensure a service is running before querying it and capture its response; the keep-it-running requirement."
+   },
+   {
+    "rank": 3,
+    "task_id": "tw_196793",
+    "skill": 2,
+    "domain": 2,
+    "task_form": 4,
+    "overall": 2,
+    "reason": "Bring up an API server that must be live and answering when checked; service-liveness discipline, HTTP not RPC."
+   },
+   {
+    "rank": 4,
+    "task_id": "tw_346538",
+    "skill": 2,
+    "domain": 3,
+    "task_form": 3,
+    "overall": 2,
+    "reason": "Polyglot call from Node into a Python function via MetaCall; cross-language invocation, but no wire protocol or codegen."
+   },
+   {
+    "rank": 5,
+    "task_id": "tw_324541",
+    "skill": 2,
+    "domain": 2,
+    "task_form": 4,
+    "overall": 2,
+    "reason": "Start a single-node CockroachDB with generated certificates and prove it serves; configure-and-run-a-server genre."
+   },
+   {
+    "rank": 6,
+    "task_id": "tw_224221",
+    "skill": 2,
+    "domain": 2,
+    "task_form": 4,
+    "overall": 2,
+    "reason": "Clone, build and run a web server so it serves; build-then-serve, no schema work."
+   },
+   {
+    "rank": 7,
+    "task_id": "tw_475630",
+    "skill": 2,
+    "domain": 2,
+    "task_form": 4,
+    "overall": 2,
+    "reason": "Implement an HTTP server whose handler branches on request properties; endpoint-contract implementation in Java."
+   },
+   {
+    "rank": 8,
+    "task_id": "tw_378659",
+    "skill": 2,
+    "domain": 2,
+    "task_form": 3,
+    "overall": 2,
+    "reason": "Configure a standalone kubelet running a static pod; long-running-service configuration, unrelated stack."
+   },
+   {
+    "rank": 9,
+    "task_id": "tw_204493",
+    "skill": 1,
+    "domain": 2,
+    "task_form": 3,
+    "overall": 1,
+    "reason": "Install asciinema from source on CentOS 7; only the 'install the dependency first' step is shared."
+   },
+   {
+    "rank": 10,
+    "task_id": "tw_152916",
+    "skill": 1,
+    "domain": 2,
+    "task_form": 3,
+    "overall": 1,
+    "reason": "Install PHP 7 after fixing repositories; package installation only."
+   }
+  ],
+  "SWE-Smith-Seeds-Clean": [
+   {
+    "rank": 1,
+    "task_id": "python-hyper__h11.bed0dd4a.func_pm_remove_cond__h7z75jl4",
+    "skill": 3,
+    "domain": 4,
+    "task_form": 2,
+    "overall": 3,
+    "reason": "Protocol state machine wrongly accepts an unproposed protocol switch; strict wire-protocol state reasoning, the same rigour a proto contract needs."
+   },
+   {
+    "rank": 2,
+    "task_id": "django__daphne.32ac73e1.func_basic__2cpoddzp",
+    "skill": 2,
+    "domain": 3,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Server refuses to start without explicit bindings; host/port startup defaults for a long-running server."
+   },
+   {
+    "rank": 3,
+    "task_id": "django__daphne.32ac73e1.func_pm_remove_assign__1yb1m76z",
+    "skill": 2,
+    "domain": 3,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Server crashes when a protocol disconnects; connection lifecycle handling in a listening server."
+   },
+   {
+    "rank": 4,
+    "task_id": "encode__starlette.db5063c2.pr_2688",
+    "skill": 2,
+    "domain": 2,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Background tasks skipped on streaming responses; request/response lifecycle in a Python server."
+   },
+   {
+    "rank": 5,
+    "task_id": "Instagram__MonkeyType.70c3acf6.pr_17",
+    "skill": 2,
+    "domain": 3,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Serialization of generic types is wrong; schema-to-wire mapping, in a type-tracing tool rather than protobuf."
+   },
+   {
+    "rank": 6,
+    "task_id": "conan-io__conan.86f29e13.combine_file__i0i0pdfw",
+    "skill": 2,
+    "domain": 2,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Profile dump does not serialise settings correctly; serialization correctness, unrelated ecosystem."
+   },
+   {
+    "rank": 7,
+    "task_id": "encode__starlette.db5063c2.pr_2583",
+    "skill": 1,
+    "domain": 2,
+    "task_form": 2,
+    "overall": 1,
+    "reason": "StaticFiles mishandles overlong filenames; web-server edge case with no RPC content."
+   },
+   {
+    "rank": 8,
+    "task_id": "graphql-python__graphene.82903263.func_pm_ctrl_shuffle__g1cuiprd",
+    "skill": 2,
+    "domain": 2,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "DataLoader.prime does not populate the cache; a key-value cache bug, which is the only link."
+   },
+   {
+    "rank": 9,
+    "task_id": "gruns__furl.da386f68.func_basic__d8jvbpx9",
+    "skill": 1,
+    "domain": 1,
+    "task_form": 2,
+    "overall": 1,
+    "reason": "set() swaps key and value arguments in an ordered multidict; key/value vocabulary only."
+   },
+   {
+    "rank": 10,
+    "task_id": "oauthlib__oauthlib.1fd52536.pr_891",
+    "skill": 1,
+    "domain": 2,
+    "task_form": 2,
+    "overall": 1,
+    "reason": "Missing import breaks a pre-configured grant; trivial fix, no transfer."
+   }
+  ],
+  "SWE-Rebench-Tasks-Clean": [
+   {
+    "rank": 1,
+    "task_id": "aio-libs__aiohttp-8823",
+    "skill": 3,
+    "domain": 3,
+    "task_form": 2,
+    "overall": 3,
+    "reason": "Two HTTP parsers disagree on transfer encoding; forces careful reading of a wire-protocol spec against an implementation."
+   },
+   {
+    "rank": 2,
+    "task_id": "dpkp__kafka-python-2608",
+    "skill": 2,
+    "domain": 3,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Bootstrap endpoint parsing/casting error in a binary-protocol client; endpoint and protocol handling in a networked client."
+   },
+   {
+    "rank": 3,
+    "task_id": "neoteroi__blacksheep-366",
+    "skill": 2,
+    "domain": 2,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "CORS header assembled wrongly for multiple origins; response-contract correctness in a server framework."
+   },
+   {
+    "rank": 4,
+    "task_id": "sanic-org__sanic-2837",
+    "skill": 2,
+    "domain": 2,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "A bare cookie breaks parsing entirely; robust parsing of a protocol header, same discipline, different protocol."
+   },
+   {
+    "rank": 5,
+    "task_id": "jcrist__msgspec-538",
+    "skill": 2,
+    "domain": 3,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Serialization library must honour attrs field validators; schema-driven encode/decode, the msgspec analogue of protobuf messages."
+   },
+   {
+    "rank": 6,
+    "task_id": "yukinarit__pyserde-430",
+    "skill": 2,
+    "domain": 3,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Serde library behaviour around typed serialization; schema-to-representation mapping."
+   },
+   {
+    "rank": 7,
+    "task_id": "pallets__werkzeug-2596",
+    "skill": 1,
+    "domain": 2,
+    "task_form": 2,
+    "overall": 1,
+    "reason": "Route parameters mixed up with multiple regex converters; request routing, not RPC dispatch."
+   },
+   {
+    "rank": 8,
+    "task_id": "qiskit__qiskit-11652",
+    "skill": 1,
+    "domain": 1,
+    "task_form": 2,
+    "overall": 1,
+    "reason": "Equal parameters hashing differently; unrelated capability, included to fill the ten."
+   },
+   {
+    "rank": 9,
+    "task_id": "timothycrosley__isort-891",
+    "skill": 1,
+    "domain": 1,
+    "task_form": 2,
+    "overall": 1,
+    "reason": "isort ignores skip settings; unrelated."
+   },
+   {
+    "rank": 10,
+    "task_id": "devpi__devpi-1074",
+    "skill": 1,
+    "domain": 1,
+    "task_form": 2,
+    "overall": 1,
+    "reason": "Client stops storing basic auth; unrelated."
+   }
+  ],
+  "Terminal-Lego-15k": [
+   {
+    "rank": 1,
+    "task_id": "task_12106",
+    "skill": 5,
+    "domain": 5,
+    "task_form": 4,
+    "overall": 5,
+    "reason": "Implements both raw protobuf serialization and a gRPC service on top of it - writes the .proto, generates stubs, runs the service. Closest match in the corpus."
+   },
+   {
+    "rank": 2,
+    "task_id": "task_12432",
+    "skill": 4,
+    "domain": 5,
+    "task_form": 4,
+    "overall": 4,
+    "reason": "Builds a working gRPC service (and a REST twin) to benchmark them; requires proto definition, codegen and a running server. Strong verifier."
+   },
+   {
+    "rank": 3,
+    "task_id": "task_05632",
+    "skill": 3,
+    "domain": 5,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Write a .proto schema and use the generated classes to serialize and deserialize records; the proto-authoring and protoc step."
+   },
+   {
+    "rank": 4,
+    "task_id": "task_05347",
+    "skill": 3,
+    "domain": 4,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Get grpcio installed when wheels are unavailable for the architecture; the TB task's first step, which often derails solvers."
+   },
+   {
+    "rank": 5,
+    "task_id": "task_12255",
+    "skill": 3,
+    "domain": 3,
+    "task_form": 4,
+    "overall": 3,
+    "reason": "Build a daemon/client IPC system with local and network transports; server lifecycle plus a request/response contract."
+   },
+   {
+    "rank": 6,
+    "task_id": "task_12165",
+    "skill": 3,
+    "domain": 3,
+    "task_form": 4,
+    "overall": 3,
+    "reason": "Fix a socket server so a client can exchange multiple messages without the connection dropping; request/response loop correctness."
+   },
+   {
+    "rank": 7,
+    "task_id": "task_02700",
+    "skill": 2,
+    "domain": 3,
+    "task_form": 4,
+    "overall": 2,
+    "reason": "Bind TCP and UDP listeners on the same port and prove it; port-binding mechanics only."
+   },
+   {
+    "rank": 8,
+    "task_id": "task_10981",
+    "skill": 2,
+    "domain": 3,
+    "task_form": 4,
+    "overall": 2,
+    "reason": "Build a matching HTTP server and client to demonstrate the protocol; server-plus-client pairing, no schema or codegen."
+   },
+   {
+    "rank": 9,
+    "task_id": "task_05369",
+    "skill": 2,
+    "domain": 4,
+    "task_form": 3,
+    "overall": 2,
+    "reason": "Build protobuf from source rather than using wheels; installation of the protobuf toolchain, nothing about services."
+   },
+   {
+    "rank": 10,
+    "task_id": "task_13217",
+    "skill": 2,
+    "domain": 4,
+    "task_form": 3,
+    "overall": 2,
+    "reason": "Interpret a TensorFlow .pb file as a Protocol Buffer graph definition; protobuf reading in an unrelated context."
+   }
+  ],
+  "CalibForge": [
+   {
+    "rank": 1,
+    "task_id": "software-engineering_20260610_111702_024",
+    "skill": 4,
+    "domain": 5,
+    "task_form": 4,
+    "overall": 4,
+    "reason": "Implement the protobuf wire format (varints, zigzag, tags, length-delimited fields) from scratch; the serialization layer under gRPC. Strong verifier."
+   },
+   {
+    "rank": 2,
+    "task_id": "software-engineering_20260618_093107_012",
+    "skill": 4,
+    "domain": 4,
+    "task_form": 5,
+    "overall": 4,
+    "reason": "Read a protocol spec and implement a server that speaks it on a port; same 'define the contract, serve it, keep it up' work with a strong verifier."
+   },
+   {
+    "rank": 3,
+    "task_id": "software-engineering_20260418_044216_012",
+    "skill": 4,
+    "domain": 4,
+    "task_form": 5,
+    "overall": 4,
+    "reason": "Build a TCP key-value store server on a fixed port handling concurrent clients - the KV-server half of this task, minus gRPC."
+   },
+   {
+    "rank": 4,
+    "task_id": "software-engineering_20260507_172207_012",
+    "skill": 4,
+    "domain": 4,
+    "task_form": 5,
+    "overall": 4,
+    "reason": "Implement a JSON-RPC 2.0 server with named methods and typed params/returns; RPC method dispatch to a spec, strong verifier."
+   },
+   {
+    "rank": 5,
+    "task_id": "software-engineering_20260528_174918_024",
+    "skill": 4,
+    "domain": 4,
+    "task_form": 5,
+    "overall": 4,
+    "reason": "Implement a RESP2-speaking server in /app/server.py with GET/SET semantics; protocol parsing plus a long-running listener."
+   },
+   {
+    "rank": 6,
+    "task_id": "software-engineering_20260604_002443_026",
+    "skill": 4,
+    "domain": 4,
+    "task_form": 4,
+    "overall": 4,
+    "reason": "Drive a KV server that speaks a binary protocol over a Unix socket: start it, then speak its wire format correctly."
+   },
+   {
+    "rank": 7,
+    "task_id": "file-operations_20260604_003113_002",
+    "skill": 4,
+    "domain": 5,
+    "task_form": 3,
+    "overall": 4,
+    "reason": "Recover a .proto schema from protobuf-encoded payloads; forces real understanding of field numbers, wire types and message layout."
+   },
+   {
+    "rank": 8,
+    "task_id": "software-engineering_20260613_152233_012",
+    "skill": 3,
+    "domain": 4,
+    "task_form": 5,
+    "overall": 3,
+    "reason": "Implement a NATS-protocol pub/sub server over TCP; another serve-a-wire-protocol-on-a-port task with a strong verifier."
+   },
+   {
+    "rank": 9,
+    "task_id": "debugging_20260610_112157_005",
+    "skill": 3,
+    "domain": 5,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Repair a corrupted protobuf binary given its .proto schema; reading a schema against encoded bytes, no service layer."
+   },
+   {
+    "rank": 10,
+    "task_id": "software-engineering_20260416_031414_012",
+    "skill": 3,
+    "domain": 3,
+    "task_form": 5,
+    "overall": 3,
+    "reason": "Wrap provided logic in an HTTP API server on a fixed port; the 'expose existing logic as a service' skeleton."
+   }
+  ]
+ },
+ "final_top10": [
+  {
+   "rank": 1,
+   "task_id": "task_000382_d6f23c02",
+   "source": "TMax-15K",
+   "skill": 5,
+   "domain": 5,
+   "task_form": 5,
+   "overall": 5,
+   "reason": "Write the proto, generate the Python stubs and implement a gRPC servicer over existing logic - the same four steps this task asks for."
+  },
+  {
+   "rank": 2,
+   "task_id": "task_12106",
+   "source": "Terminal-Lego-15k",
+   "skill": 5,
+   "domain": 5,
+   "task_form": 4,
+   "overall": 5,
+   "reason": "Builds raw protobuf serialization and a gRPC service on top: .proto authoring, protoc codegen, then a running service."
+  },
+  {
+   "rank": 3,
+   "task_id": "task_006476_9773661e",
+   "source": "TMax-15K",
+   "skill": 5,
+   "domain": 5,
+   "task_form": 4,
+   "overall": 5,
+   "reason": "The protobuf compilation step is broken and must be fixed before the gRPC service runs; that codegen step is where this task trips solvers."
+  },
+  {
+   "rank": 4,
+   "task_id": "task_004313_ce1cd767",
+   "source": "TMax-15K",
+   "skill": 4,
+   "domain": 5,
+   "task_form": 5,
+   "overall": 4,
+   "reason": "Implement a Python gRPC service plus the setup script that installs its toolchain; proto to running server, end to end."
+  },
+  {
+   "rank": 5,
+   "task_id": "task_12432",
+   "source": "Terminal-Lego-15k",
+   "skill": 4,
+   "domain": 5,
+   "task_form": 4,
+   "overall": 4,
+   "reason": "Defines and serves a real gRPC service (against a REST twin) and measures it; codegen plus a live server. Strong verifier."
+  },
+  {
+   "rank": 6,
+   "task_id": "task_001783_c60637e1",
+   "source": "TMax-15K",
+   "skill": 4,
+   "domain": 5,
+   "task_form": 4,
+   "overall": 4,
+   "reason": "Make a gRPC backend and its gateway consistent: proto, generated stubs and server wiring must all agree. Strong verifier."
+  },
+  {
+   "rank": 7,
+   "task_id": "software-engineering_20260610_111702_024",
+   "source": "CalibForge",
+   "skill": 4,
+   "domain": 5,
+   "task_form": 4,
+   "overall": 4,
+   "reason": "Implement the protobuf wire format from scratch - varints, zigzag, tags, length-delimited fields. The layer gRPC sits on. Strong verifier."
+  },
+  {
+   "rank": 8,
+   "task_id": "task_002471_35f54046",
+   "source": "TMax-15K",
+   "skill": 4,
+   "domain": 5,
+   "task_form": 4,
+   "overall": 4,
+   "reason": "Define and serve a Python gRPC service fronting a C++ library; same define-generate-implement-serve sequence."
+  },
+  {
+   "rank": 9,
+   "task_id": "software-engineering_20260418_044216_012",
+   "source": "CalibForge",
+   "skill": 4,
+   "domain": 4,
+   "task_form": 5,
+   "overall": 4,
+   "reason": "A TCP key-value store server on a fixed port with concurrent clients; the KV-server half of the task, strongly verified."
+  },
+  {
+   "rank": 10,
+   "task_id": "software-engineering_20260618_093107_012",
+   "source": "CalibForge",
+   "skill": 4,
+   "domain": 4,
+   "task_form": 5,
+   "overall": 4,
+   "reason": "Read a protocol spec and implement a conforming server on a port; the discipline of serving an exact contract."
+  }
+ ],
+ "notes": "TMax owns this task: it has a dozen genuine 'implement a Python gRPC microservice' tasks where writing the proto and running protoc is the actual work, which is exactly the TB2.1 skill. Terminal-Lego contributes two real gRPC implementation tasks (task_12106, task_12432) that are as close as anything in TMax and better verified - a place where a new corpus genuinely beats the old pool. CalibForge has no gRPC task, but its protobuf wire-format and protocol-server tasks (RESP2, NATS, JSON-RPC, TCP KV store) are the best-verified 'serve an exact contract on a port' material in the pool. RTS's grpc-server family is 20+ near-duplicates of 'build the Go server, run the client' - the server and proto are given, so transfer is limited and I ranked only a handful. TerminalWorld has one gRPC entry (tw_285202, client side only); SWE-Smith and SWE-Rebench have nothing gRPC at all and their entries are filler."
+}

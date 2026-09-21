@@ -1,0 +1,778 @@
+{
+ "tb21_id": "portfolio-optimization",
+ "tb21_profile": {
+  "skill": "Write a CPython C extension that reimplements a numeric kernel (quadratic form x^T S x and dot product) bit-close to a Python reference, marshalling numpy float64 buffers correctly, and hit a wall-clock speedup budget",
+  "domain": "CPython C-API / setup.py build_ext extensions over numpy float64 arrays; dense numerical linear algebra, portfolio risk/return",
+  "task_form": "implement-from-spec into skeleton TODOs, judged by exact-match tolerance (1e-10) plus an optimise-for-a-budget speed threshold (1.2x at 5000-8000 assets)"
+ },
+ "verifier_notes": "CalibForge optimization_20260604_194036_001 (CG solver C extension) is graded FREE despite being an almost exact structural twin of this task - its 6 tests only check files exist and the module imports. Kept it out of final_top10 and out of per_source in favour of graded siblings. Same for optimization_20260416_172928_001 and optimization_20260427_204204_001 (FREE). TMax task_006012_d65bec9f (Cython setup.py build failure) is also FREE despite high retrieval rank. Terminal-Lego task_05499 (force GCC for a Cython build) is FREE - it is the single most lexically similar Terminal-Lego item and is excluded everywhere. Also checked TMax task_004272_43e6cead with tools.py full: work/free_verifier_tasks.tsv flags it, but that flag comes from its test_initial_state.py (exists/substring guards on the starting fixtures). Its test_final_state.py recomputes the ground-truth RMS from data.wav and events.db in Python and asserts MSE < 0.001 against /app/output.json, so it is genuinely pinned - consistent with the packet's 'ok' grade, and I kept it in final_top10.",
+ "searches": [
+  "tools.py words tmax speedup faster baseline benchmark \"C extension\" numpy matrix tolerance",
+  "tools.py search tmax \"at least [0-9.]+ ?(x|times) faster\"",
+  "tools.py search tmax \"Cython\"",
+  "tools.py words rts \"C extension\" setup.py build_ext benchmark faster numpy matrix covariance portfolio",
+  "tools.py search rts \"Cython|build_ext|C extension\"",
+  "tools.py search rts \"shared library|ctypes|\\.so\\b\"",
+  "tools.py search tw \"build_ext|C extension|Cython|ctypes\"",
+  "tools.py search tw \"numpy|NumPy\"",
+  "tools.py search tw \"faster|speedup|optimiz\"",
+  "tools.py search rebench \"Cython|C extension|build_ext|numpy|BLAS|float64\"",
+  "tools.py search smith \"Cython|C extension|build_ext|numpy|BLAS|float64\"",
+  "tools.py show task_001186_8a4a7f0d task_001708_9ae518dd task_002237_ca73e6cd task_003017_75a6a25d task_003539_0d33a352 task_003647_1d9aa8cd task_004243_9302740c task_004857_2c3d045e task_005377_18a163bb",
+  "tools.py show rts_task_e1c8c5fa243d311f29c1d6b6 rts_task_b659aad556d32df9ee66b254 rts_task_60accd3bd2214870dd1436f9 rts_task_553e97d0849febb32776d17b",
+  "tools.py show tw_211906 tw_276570 tw_326628 tw_487175 tw_196141 tw_316273 tw_325403 tw_561688 tw_248066",
+  "tools.py show bashtage__arch-741 gpflow__gpflow-2096 h5py__h5py-2433 e2niee__pandapower-2017 tdameritrade__stumpy-806 pypa__setuptools-4676",
+  "grep -rl -iE 'portfolio|covariance matrix|markowitz' /data/yichuan_wang/calibforge",
+  "grep -rl -E 'build_ext|Python C extension|ctypes|Cython' /data/yichuan_wang/terminal-lego-15k",
+  "read work/verifier_strength.json for grades of all rest_ids considered"
+ ],
+ "per_source": {
+  "CalibForge": [
+   {
+    "rank": 1,
+    "task_id": "optimization_20260503_182123_001",
+    "skill": 5,
+    "domain": 5,
+    "task_form": 5,
+    "overall": 5,
+    "reason": "Identical template: Python baseline, quad_optimized.c/.py skeletons, tolerance plus 2x speed floor - and the objective is a bound-constrained quadratic form, the same x^T Q x kernel."
+   },
+   {
+    "rank": 2,
+    "task_id": "optimization_20260607_104421_001",
+    "skill": 5,
+    "domain": 5,
+    "task_form": 5,
+    "overall": 5,
+    "reason": "Finish matmul_core.c and its wrapper to beat triple-nested-loop Python by 50x at max abs diff <= 1e-10; x^T S x is exactly this kernel. Verifier strong 1.0."
+   },
+   {
+    "rank": 3,
+    "task_id": "optimization_20260416_031414_001",
+    "skill": 5,
+    "domain": 5,
+    "task_form": 5,
+    "overall": 5,
+    "reason": "C extension for regularized least squares via normal equations A^T A + lambda I - Gram/covariance matrix accumulation with the same skeleton-and-tolerance contract."
+   },
+   {
+    "rank": 4,
+    "task_id": "optimization_20260612_191200_001",
+    "skill": 5,
+    "domain": 4,
+    "task_form": 5,
+    "overall": 4,
+    "reason": "Must beat an already-BLAS-backed NumPy baseline by only 1.4x by fusing passes - the closest analogue of this task's unusually tight 1.2x budget."
+   },
+   {
+    "rank": 5,
+    "task_id": "optimization_20260618_093107_001",
+    "skill": 4,
+    "domain": 5,
+    "task_form": 4,
+    "overall": 4,
+    "reason": "Implement CG in C as a Python extension: per-iteration matvec plus inner products, exactly the primitives x^T S x decomposes into."
+   },
+   {
+    "rank": 6,
+    "task_id": "optimization_20260604_193056_001",
+    "skill": 4,
+    "domain": 4,
+    "task_form": 5,
+    "overall": 4,
+    "reason": "C extension for k-NN distances that must match the Python baseline within 1e-10 and run 5x faster; same exactness-plus-budget pair over float64 arrays."
+   },
+   {
+    "rank": 7,
+    "task_id": "optimization_20260604_002443_001",
+    "skill": 4,
+    "domain": 5,
+    "task_form": 5,
+    "overall": 4,
+    "reason": "matmul_optimized.c/.py skeletons, setup.py build_ext --inplace, benchmark.py, 8x on 500x500 - same build-and-verify loop, same kernel family."
+   },
+   {
+    "rank": 8,
+    "task_id": "optimization_20260615_143301_001",
+    "skill": 4,
+    "domain": 4,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Debug a C extension for Lasso coordinate descent computing X_j^T r; finding numeric bugs in C that break agreement with a reference is half of this task."
+   },
+   {
+    "rank": 9,
+    "task_id": "optimization_20260604_003113_001",
+    "skill": 4,
+    "domain": 3,
+    "task_form": 4,
+    "overall": 3,
+    "reason": "dbscan_fast.c compiles but mismatches the baseline and is too slow; must fix both correctness and a 20x speed floor. Strong verifier."
+   },
+   {
+    "rank": 10,
+    "task_id": "optimization_20260604_004411_001",
+    "skill": 2,
+    "domain": 5,
+    "task_form": 2,
+    "overall": 3,
+    "reason": "Minimum-variance portfolio with a target-return constraint under scipy.optimize - same subject matter and covariance math, but the work is fixing a formulation, not writing C."
+   }
+  ],
+  "TMax-15K": [
+   {
+    "rank": 1,
+    "task_id": "task_004272_43e6cead",
+    "skill": 4,
+    "domain": 4,
+    "task_form": 3,
+    "overall": 4,
+    "reason": "Pipeline whose custom C extension computes RMS over float arrays and returns wrong numbers; fix the C so results match. Same C-extension numeric-correctness debugging."
+   },
+   {
+    "rank": 2,
+    "task_id": "task_001542_b8cc0717",
+    "skill": 3,
+    "domain": 5,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Fix the compile/link of a C extension used for fast risk calculations, then get correct output - the portfolio-risk domain plus build_ext failure modes."
+   },
+   {
+    "rank": 3,
+    "task_id": "task_003748_4923e269",
+    "skill": 3,
+    "domain": 4,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Fix a broken C-extension build for math_accel and then benchmark the result; same setup.py build_ext plus measurement loop."
+   },
+   {
+    "rank": 4,
+    "task_id": "task_004857_2c3d045e",
+    "skill": 3,
+    "domain": 3,
+    "task_form": 4,
+    "overall": 3,
+    "reason": "Replace a slow stripped binary oracle with a faster implementation whose floating-point output must match despite the oracle's non-determinism; match-a-reference-and-be-faster genre."
+   },
+   {
+    "rank": 5,
+    "task_id": "task_004109_d264b8fc",
+    "skill": 3,
+    "domain": 5,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Port a vendored Python C extension (cspsolver) into a working containerized build; exercises the CPython extension build path end to end."
+   },
+   {
+    "rank": 6,
+    "task_id": "task_002187_97f5c113",
+    "skill": 3,
+    "domain": 4,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Repair the build config of a C-extension package and make its evaluation correct; same failure class as a broken setup.py Extension() spec."
+   },
+   {
+    "rank": 7,
+    "task_id": "task_005535_0e75af7d",
+    "skill": 3,
+    "domain": 3,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Reverse a legacy .so, fix wrong math and a parallel-processing data loss; C-level numeric correctness against a reference."
+   },
+   {
+    "rank": 8,
+    "task_id": "task_003647_1d9aa8cd",
+    "skill": 3,
+    "domain": 2,
+    "task_form": 4,
+    "overall": 3,
+    "reason": "Reverse-engineer a slow oracle binary and reimplement it in optimized Python that must scale; the optimise-to-a-budget half without the C-API half."
+   },
+   {
+    "rank": 9,
+    "task_id": "task_000409_f31e0262",
+    "skill": 2,
+    "domain": 5,
+    "task_form": 3,
+    "overall": 2,
+    "reason": "Measure whether OpenMP/OpenBLAS thread counts actually speed up heavy matrix operations; teaches honest benchmarking of dense linear algebra."
+   },
+   {
+    "rank": 10,
+    "task_id": "task_004522_6ef0f9da",
+    "skill": 2,
+    "domain": 4,
+    "task_form": 3,
+    "overall": 2,
+    "reason": "C-extension build failure plus a correctness bug in fast binary parsing; the build half transfers, the parsing half does not."
+   }
+  ],
+  "Terminal-Lego-15k": [
+   {
+    "rank": 1,
+    "task_id": "task_04671",
+    "skill": 4,
+    "domain": 5,
+    "task_form": 3,
+    "overall": 4,
+    "reason": "Pass numpy arrays into a C function for both input and output via ctypes - precisely the buffer-marshalling the portfolio extension must get right. Verifier weak (1/12 substantive)."
+   },
+   {
+    "rank": 2,
+    "task_id": "task_01500",
+    "skill": 4,
+    "domain": 5,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Build a C/C++ library and expose it to Python; the binding-and-build half of the task, though the numeric kernel is trivial."
+   },
+   {
+    "rank": 3,
+    "task_id": "task_04482",
+    "skill": 3,
+    "domain": 5,
+    "task_form": 4,
+    "overall": 3,
+    "reason": "Benchmark matrix multiplication across pure Python, C++/BLAS and NumPy; same kernel and the same 'is the C version actually faster' measurement discipline."
+   },
+   {
+    "rank": 4,
+    "task_id": "task_04520",
+    "skill": 3,
+    "domain": 4,
+    "task_form": 4,
+    "overall": 3,
+    "reason": "Speed up a slow nested-loop nearest-index search over 2D numpy arrays while keeping results identical; the optimise-with-correctness-preserved genre."
+   },
+   {
+    "rank": 5,
+    "task_id": "task_02625",
+    "skill": 2,
+    "domain": 5,
+    "task_form": 2,
+    "overall": 3,
+    "reason": "Resolve Python.h-not-found when compiling a C extension; the single most common way build_ext --inplace fails here. Verifier ok."
+   },
+   {
+    "rank": 6,
+    "task_id": "task_06585",
+    "skill": 3,
+    "domain": 2,
+    "task_form": 4,
+    "overall": 3,
+    "reason": "Replace a baseline expat parser with a significantly faster one on large input; beat-the-baseline task form, wrong domain."
+   },
+   {
+    "rank": 7,
+    "task_id": "task_12895",
+    "skill": 2,
+    "domain": 4,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Multivariate normal PDF: the Mahalanobis term is x^T Sigma^-1 x, the same quadratic form with the same covariance matrix, but in NumPy not C."
+   },
+   {
+    "rank": 8,
+    "task_id": "task_04453",
+    "skill": 2,
+    "domain": 4,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "In-place int32-to-float32 conversion of a numpy array; forces reasoning about buffer dtype and memory layout. Verifier strong."
+   },
+   {
+    "rank": 9,
+    "task_id": "task_04660",
+    "skill": 2,
+    "domain": 3,
+    "task_form": 3,
+    "overall": 2,
+    "reason": "Benchmark several ways to count zeros in numpy and pick the fastest; measurement hygiene on hot inner loops."
+   },
+   {
+    "rank": 10,
+    "task_id": "task_08942",
+    "skill": 2,
+    "domain": 3,
+    "task_form": 3,
+    "overall": 2,
+    "reason": "Implement and time several pi algorithms in C and pick the fastest; C-side timing but no Python interop or reference-matching."
+   }
+  ],
+  "TerminalWorld-Seeds-Clean": [
+   {
+    "rank": 1,
+    "task_id": "tw_276570",
+    "skill": 3,
+    "domain": 4,
+    "task_form": 2,
+    "overall": 3,
+    "reason": "Obtain a live (zero-copy) numpy view over a C++ std::vector and prove writes are visible; the buffer-aliasing question a C extension must answer."
+   },
+   {
+    "rank": 2,
+    "task_id": "tw_528959",
+    "skill": 2,
+    "domain": 4,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Compile CPython 3.9.1 from source on Debian; familiarity with the interpreter's own build, headers and libs that build_ext depends on."
+   },
+   {
+    "rank": 3,
+    "task_id": "tw_248066",
+    "skill": 2,
+    "domain": 3,
+    "task_form": 3,
+    "overall": 2,
+    "reason": "Julia type stability, kernel methods and @code_warntype; reasoning about why a numeric loop is slow, different ecosystem."
+   },
+   {
+    "rank": 4,
+    "task_id": "tw_285548",
+    "skill": 2,
+    "domain": 3,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Write and compile a C++ numeric program whose printed values must match an exact format; the compile-and-match-numbers half only."
+   },
+   {
+    "rank": 5,
+    "task_id": "tw_177994",
+    "skill": 1,
+    "domain": 3,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Write, compile and run a tiny C program with exact stdout; minimal C-toolchain exercise."
+   },
+   {
+    "rank": 6,
+    "task_id": "tw_18325",
+    "skill": 2,
+    "domain": 3,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "multiprocessing Pool mapping a numeric function over a range; parallel speedup thinking, no C and no reference tolerance."
+   },
+   {
+    "rank": 7,
+    "task_id": "tw_487175",
+    "skill": 1,
+    "domain": 3,
+    "task_form": 2,
+    "overall": 1,
+    "reason": "Drop NaN rows from a numpy-backed DataFrame; only the numpy surface is shared."
+   },
+   {
+    "rank": 8,
+    "task_id": "tw_355118",
+    "skill": 1,
+    "domain": 3,
+    "task_form": 2,
+    "overall": 1,
+    "reason": "Provision a Python 3.7 toolchain with pip and pipenv; environment setup that a build_ext run would sit on top of. Verifier strong."
+   },
+   {
+    "rank": 9,
+    "task_id": "tw_273601",
+    "skill": 1,
+    "domain": 2,
+    "task_form": 2,
+    "overall": 1,
+    "reason": "Make a syntactically invalid Python script run by supplying a library; unrelated skill, listed to fill the quota."
+   },
+   {
+    "rank": 10,
+    "task_id": "tw_327279",
+    "skill": 1,
+    "domain": 1,
+    "task_form": 2,
+    "overall": 1,
+    "reason": "BLAST database construction and tabular searches; filler - this corpus has no C-extension performance task at all."
+   }
+  ],
+  "Recursive-Task-Synthesis": [
+   {
+    "rank": 1,
+    "task_id": "rts_task_e1c8c5fa243d311f29c1d6b6",
+    "skill": 3,
+    "domain": 5,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Build and install a custom Python C extension (fastsum) from a written BUILD_SPEC and call it from Python; the build-and-import half of this task."
+   },
+   {
+    "rank": 2,
+    "task_id": "rts_task_553e97d0849febb32776d17b",
+    "skill": 2,
+    "domain": 3,
+    "task_form": 4,
+    "overall": 2,
+    "reason": "Time six implementations of the same program and report PASS/FAIL against declared per-program performance limits; the speed-budget verification genre."
+   },
+   {
+    "rank": 3,
+    "task_id": "rts_task_60accd3bd2214870dd1436f9",
+    "skill": 2,
+    "domain": 4,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Install a package with a compiled native extension and audit the resulting .so by path and checksum; C-extension packaging awareness."
+   },
+   {
+    "rank": 4,
+    "task_id": "rts_task_63dba082202c21873a668a57",
+    "skill": 2,
+    "domain": 2,
+    "task_form": 3,
+    "overall": 2,
+    "reason": "Fix a broken benchmark.py, run it repeatedly and report min/max/mean elapsed time; benchmarking discipline, no C and no reference values."
+   },
+   {
+    "rank": 5,
+    "task_id": "rts_task_7c488f5ad2f76e717996cf73",
+    "skill": 2,
+    "domain": 2,
+    "task_form": 3,
+    "overall": 2,
+    "reason": "Same benchmark-repair-and-time workflow with before/after validator logs; slightly more structured than rank 4."
+   },
+   {
+    "rank": 6,
+    "task_id": "rts_task_6b0f79ef14015f6da0f667cb",
+    "skill": 2,
+    "domain": 2,
+    "task_form": 3,
+    "overall": 2,
+    "reason": "Profile instantiation cost of a plain class versus typing.Generic; measuring a small performance delta reliably, which the 1.2x threshold also demands."
+   },
+   {
+    "rank": 7,
+    "task_id": "rts_task_a8f87ef20a11f1bafb9c07c3",
+    "skill": 2,
+    "domain": 2,
+    "task_form": 3,
+    "overall": 2,
+    "reason": "Run a benchmark five times, compute statistics and write a performance note; timing-methodology practice only."
+   },
+   {
+    "rank": 8,
+    "task_id": "rts_task_42df9bc32ce8f455fe875c59",
+    "skill": 1,
+    "domain": 2,
+    "task_form": 3,
+    "overall": 1,
+    "reason": "Time a script and write a benchmark report; near-duplicate of the ranks above, weakest of the family."
+   },
+   {
+    "rank": 9,
+    "task_id": "rts_task_443af443857694b1c5909828",
+    "skill": 1,
+    "domain": 3,
+    "task_form": 2,
+    "overall": 1,
+    "reason": "Build an investment portfolio with the pfm CLI and reconcile prices; shares the word portfolio and nothing else."
+   },
+   {
+    "rank": 10,
+    "task_id": "rts_task_a5ef9bdc00db3e3a9ee2cade",
+    "skill": 1,
+    "domain": 3,
+    "task_form": 2,
+    "overall": 1,
+    "reason": "Same pfm portfolio CLI task with placeholder resolution; domain-word match only, no numerics and no C."
+   }
+  ],
+  "SWE-Smith-Seeds-Clean": [
+   {
+    "rank": 1,
+    "task_id": "pandas-dev__pandas.95280573.func_pm_ctrl_shuffle__1mx4n8rs",
+    "skill": 3,
+    "domain": 4,
+    "task_form": 2,
+    "overall": 3,
+    "reason": "Group-index computation returns wrong results only on large high-cardinality inputs; the size-dependent numeric-kernel bug class this task's 8000-asset limit invites."
+   },
+   {
+    "rank": 2,
+    "task_id": "life4__textdistance.c3aca916.lm_rewrite__1bwnbljz",
+    "skill": 3,
+    "domain": 3,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Matrix similarity returns wrong values for custom matrices; debugging a scoring kernel back to exact expected numbers."
+   },
+   {
+    "rank": 3,
+    "task_id": "conan-io__conan.86f29e13.pr_15422",
+    "skill": 2,
+    "domain": 4,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Add a jobs parameter so generated CMake presets build in parallel; native build configuration for speed."
+   },
+   {
+    "rank": 4,
+    "task_id": "cantools__cantools.0c6a7871.pr_602",
+    "skill": 2,
+    "domain": 4,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "generate_c_source writes the fuzzer makefile to the wrong path; emitting and building C from Python tooling."
+   },
+   {
+    "rank": 5,
+    "task_id": "dask__dask.5f61e423.pr_10042",
+    "skill": 2,
+    "domain": 3,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Backend filtering breaks on NoneType after a dependency bump; array/dataframe numeric-stack debugging."
+   },
+   {
+    "rank": 6,
+    "task_id": "facebookresearch__fvcore.a491d5b9.func_basic__9v6fbo43",
+    "skill": 2,
+    "domain": 3,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "HFlipTransform flips the wrong coordinate axis; an axis/index transposition bug, the same slip that corrupts x^T S x."
+   },
+   {
+    "rank": 7,
+    "task_id": "pandas-dev__pandas.95280573.pr_48995",
+    "skill": 2,
+    "domain": 3,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "to_excel merge_cells handling of index versus columns; row/column asymmetry bugs in tabular numeric code."
+   },
+   {
+    "rank": 8,
+    "task_id": "dask__dask.5f61e423.lm_rewrite__mkzy35wr",
+    "skill": 2,
+    "domain": 3,
+    "task_form": 2,
+    "overall": 1,
+    "reason": "Time-based rolling windows raise TypeError; dataframe-kernel plumbing in the scientific Python stack."
+   },
+   {
+    "rank": 9,
+    "task_id": "pandas-dev__pandas.95280573.pr_48966",
+    "skill": 2,
+    "domain": 3,
+    "task_form": 2,
+    "overall": 1,
+    "reason": "compare() misses differences with nullable Int64; dtype-sensitive comparison logic, adjacent to float-tolerance reasoning."
+   },
+   {
+    "rank": 10,
+    "task_id": "dask__dask.5f61e423.pr_10751",
+    "skill": 1,
+    "domain": 3,
+    "task_form": 2,
+    "overall": 1,
+    "reason": "Argument-order regression in value_counts aggregation; filler - no performance or C-extension content in this corpus."
+   }
+  ],
+  "SWE-Rebench-Tasks-Clean": [
+   {
+    "rank": 1,
+    "task_id": "bashtage__arch-741",
+    "skill": 3,
+    "domain": 5,
+    "task_form": 2,
+    "overall": 3,
+    "reason": "arch_model fails with a contiguous-array error; the caller must produce C-contiguous float64 for a compiled kernel, exactly the buffer contract this extension has."
+   },
+   {
+    "rank": 2,
+    "task_id": "pypa__setuptools-4676",
+    "skill": 3,
+    "domain": 5,
+    "task_form": 2,
+    "overall": 3,
+    "reason": "Wrong wheel ABI tag under a debug CPython build; deep in the build_ext/extension-packaging machinery this task depends on."
+   },
+   {
+    "rank": 3,
+    "task_id": "tdameritrade__stumpy-806",
+    "skill": 3,
+    "domain": 4,
+    "task_form": 2,
+    "overall": 3,
+    "reason": "Matrix-profile computation must account for constant subsequences; correcting a compiled numeric kernel so it matches the reference definition."
+   },
+   {
+    "rank": 4,
+    "task_id": "fatiando__harmonica-479",
+    "skill": 3,
+    "domain": 3,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Inverted sign in an upward-derivative filter; a single sign error found by comparing against an analytic reference, like a 1e-10 mismatch hunt."
+   },
+   {
+    "rank": 5,
+    "task_id": "e2niee__pandapower-2017",
+    "skill": 3,
+    "domain": 3,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "DC powerflow gives wrong results when run after AC; stale numeric solver state corrupting a matrix solve."
+   },
+   {
+    "rank": 6,
+    "task_id": "gpflow__gpflow-2096",
+    "skill": 2,
+    "domain": 4,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Priors over a Gaussian-process mean function; same covariance-matrix / mean-vector formalism as portfolio risk and return."
+   },
+   {
+    "rank": 7,
+    "task_id": "vanvalenlab__deepcell-tf-673",
+    "skill": 2,
+    "domain": 4,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Slicing with [0:-0] silently yields a zero-size array; the off-by-one indexing class that also breaks hand-written C loops."
+   },
+   {
+    "rank": 8,
+    "task_id": "h5py__h5py-2433",
+    "skill": 2,
+    "domain": 4,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Cython/C-extension-backed HDF5 bindings mishandle file-locking flags across links; debugging behaviour that lives in compiled code."
+   },
+   {
+    "rank": 9,
+    "task_id": "jax-ml__jax-24823",
+    "skill": 2,
+    "domain": 4,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Numerical kernel semantics in a JIT-compiled array library; float-exactness expectations against a reference implementation."
+   },
+   {
+    "rank": 10,
+    "task_id": "mpmath__mpmath-904",
+    "skill": 2,
+    "domain": 3,
+    "task_form": 1,
+    "overall": 1,
+    "reason": "Arbitrary-precision arithmetic correctness; relevant only to the 1e-10 agreement requirement, wrong genre and language."
+   }
+  ]
+ },
+ "final_top10": [
+  {
+   "rank": 1,
+   "task_id": "optimization_20260503_182123_001",
+   "source": "CalibForge",
+   "skill": 5,
+   "domain": 5,
+   "task_form": 5,
+   "overall": 5,
+   "reason": "Same instruction template and same quadratic-form kernel: Python baseline, .c/.py skeletons, tolerance plus a speed floor on large instances."
+  },
+  {
+   "rank": 2,
+   "task_id": "optimization_20260607_104421_001",
+   "source": "CalibForge",
+   "skill": 5,
+   "domain": 5,
+   "task_form": 5,
+   "overall": 5,
+   "reason": "Finish matmul_core.c to beat nested-loop Python within 1e-10; x^T S x is this exact kernel and the verifier is strong (5/5 pinned)."
+  },
+  {
+   "rank": 3,
+   "task_id": "optimization_20260416_031414_001",
+   "source": "CalibForge",
+   "skill": 5,
+   "domain": 5,
+   "task_form": 5,
+   "overall": 5,
+   "reason": "C extension forming A^T A + lambda I and solving it; Gram-matrix accumulation is the same inner-loop work as x^T S x."
+  },
+  {
+   "rank": 4,
+   "task_id": "optimization_20260612_191200_001",
+   "source": "CalibForge",
+   "skill": 5,
+   "domain": 4,
+   "task_form": 5,
+   "overall": 4,
+   "reason": "Only a 1.4x margin over a BLAS-backed NumPy baseline, achieved by fusing passes - the nearest match to this task's tight 1.2x budget."
+  },
+  {
+   "rank": 5,
+   "task_id": "optimization_20260618_093107_001",
+   "source": "CalibForge",
+   "skill": 4,
+   "domain": 5,
+   "task_form": 4,
+   "overall": 4,
+   "reason": "CG in C as a Python extension: matvec plus inner products per iteration, the primitives the portfolio risk and return formulas decompose into."
+  },
+  {
+   "rank": 6,
+   "task_id": "optimization_20260604_002443_001",
+   "source": "CalibForge",
+   "skill": 4,
+   "domain": 5,
+   "task_form": 5,
+   "overall": 4,
+   "reason": "matmul_optimized.c/.py skeletons built with setup.py build_ext --inplace and checked by benchmark.py; same toolchain loop, same kernel."
+  },
+  {
+   "rank": 7,
+   "task_id": "optimization_20260604_193056_001",
+   "source": "CalibForge",
+   "skill": 4,
+   "domain": 4,
+   "task_form": 5,
+   "overall": 4,
+   "reason": "C extension whose distances must match the baseline within 1e-10 and run 5x faster; identical exactness-plus-budget contract over float64 buffers."
+  },
+  {
+   "rank": 8,
+   "task_id": "task_004272_43e6cead",
+   "source": "TMax-15K",
+   "skill": 4,
+   "domain": 4,
+   "task_form": 3,
+   "overall": 4,
+   "reason": "Custom C extension computes RMS over float arrays and returns wrong values; same debug-the-C-numerics-until-it-matches work, different pipeline."
+  },
+  {
+   "rank": 9,
+   "task_id": "task_04671",
+   "source": "Terminal-Lego-15k",
+   "skill": 4,
+   "domain": 5,
+   "task_form": 3,
+   "overall": 4,
+   "reason": "Pass numpy arrays into a C function for input and output via ctypes; the buffer-marshalling the portfolio extension must get right, verified only weakly."
+  },
+  {
+   "rank": 10,
+   "task_id": "optimization_20260615_143301_001",
+   "source": "CalibForge",
+   "skill": 4,
+   "domain": 4,
+   "task_form": 3,
+   "overall": 3,
+   "reason": "Find the numeric bugs in a compiling-but-wrong Lasso C extension computing X_j^T r; hunting float mismatches inside C is half of this task."
+  }
+ ],
+ "notes": "CalibForge wins this one outright and I let it take 8 of 10 slots. It contains a whole family of tasks (60 ids matching optimization_*_001) built from what is clearly the same generator as this TB2.1 task - same sentences ('You have a Python baseline in X', 'Complete the provided skeleton files', 'within 1e-10 tolerance', 'python3 setup.py build_ext --inplace', 'benchmark.py'), with different kernels. Nothing in the v1 pool comes close: TMax has ~15 'C extension build is broken' tasks, which teach setup.py debugging but never the write-a-fast-correct-kernel-to-a-budget skill; TerminalWorld has literally zero C-extension performance tasks and its list here is honest filler below rank 3. Terminal-Lego contributed one real find the retrievers missed (task_04671, numpy->C via ctypes) plus task_04482 and task_01500. Both new corpora beat the old ones here. Caution for the merge: because the CalibForge optimization_*_001 family is so homogeneous, taking many of them risks training on one template; if diversity matters, ranks 1-3 plus one of 4/5 cover distinct kernels (quadratic form, matmul, normal equations, fused kernel/CG). FREE exclusions are listed in verifier_notes; the most notable is optimization_20260604_194036_001, a structural twin of this task that is entirely unverified."
+}

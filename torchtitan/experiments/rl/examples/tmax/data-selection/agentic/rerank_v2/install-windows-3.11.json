@@ -1,0 +1,768 @@
+{
+ "tb21_id": "install-windows-3.11",
+ "tb21_profile": {
+  "skill": "Compose a correct qemu-system invocation for a legacy guest image (snapshot mode, VNC display :1 on 5901, monitor socket) and keep it running in the background, then front it with nginx and prove the guest reached its desktop.",
+  "domain": "QEMU/KVM system emulation, VNC displays and port mapping, QEMU monitor over a UNIX socket, nginx, legacy x86 guest.",
+  "task_form": "Configure-a-service: bring up a long-running background process with an exact set of flags and listening endpoints, verified by probing ports, the socket and the guest's screen state."
+ },
+ "verifier_notes": "No grade looked misassigned here. Worth flagging for the merge: the two TerminalWorld tasks that match the snapshot/base-image idea best (tw_132013, a qcow2 copy-on-write overlay over a backing file, and tw_132009, booting a cloud image with a NoCloud seed) are both FREE in the packet, as are tw_502937 and task_11950 (XFCE plus tightvncserver over VNC). They are ranked in per_source but kept out of final_top10. TMax's task_001082_5357146e and task_001658_f89501cf are also QEMU-shaped and packet-FREE; I dropped them from per_source entirely because TMax had ten better-verified QEMU tasks. NOTE ON GRADES: work/verifier_strength.json was regenerated after work/packets_v2 was built and the two disagree on ~27% of shown candidates (844 of them flip into or out of FREE). Where they disagree I treated a candidate as FREE if EITHER source calls it FREE, so nothing in final_top10 is FREE under either file.",
+ "searches": [
+  "tools.py search all 'qemu|\\bVNC\\b|libvirt|kvm|virtual machine'",
+  "tools.py search all '\\bqemu'",
+  "(new corpora, local grep) search all 'qemu|\\bVNC\\b|libvirt|\\bKVM\\b|virtual machine'",
+  "(new corpora, local grep) search all '\\bqemu'",
+  "(new corpora, local grep) search Terminal-Lego-15k 'noVNC|websockify|remote desktop|x11vnc|tigervnc|vncserver'",
+  "tools.py search rebench 'qemu|\\bvnc\\b|libvirt|virtual machine|boot|image'",
+  "tools.py search smith 'unix socket|socket file|vnc|qemu|monitor mode'",
+  "tools.py show systemd__mkosi-3216"
+ ],
+ "per_source": {
+  "TMax-15K": [
+   {
+    "rank": 1,
+    "task_id": "task_003133_85965df1",
+    "skill": 5,
+    "domain": 5,
+    "task_form": 5,
+    "overall": 5,
+    "reason": "Builds a mini VM operator around QEMU: disk provisioning, launching VMs, connectivity diagnostics. Same qemu-invocation-and-keep-it-running skill. Strong verifier."
+   },
+   {
+    "rank": 2,
+    "task_id": "task_003288_e131a9f5",
+    "skill": 5,
+    "domain": 5,
+    "task_form": 4,
+    "overall": 5,
+    "reason": "Automates a QEMU monitor exposed over a UNIX domain socket - exactly the /tmp/qemu-monitor.sock programmatic-control requirement."
+   },
+   {
+    "rank": 3,
+    "task_id": "task_003951_3539778b",
+    "skill": 4,
+    "domain": 5,
+    "task_form": 5,
+    "overall": 5,
+    "reason": "Start a QEMU instance, monitor its process, and expose status over HTTPS; QEMU launch plus an HTTP front end, as here. Strong verifier."
+   },
+   {
+    "rank": 4,
+    "task_id": "task_005135_29890231",
+    "skill": 4,
+    "domain": 5,
+    "task_form": 4,
+    "overall": 4,
+    "reason": "Automation script that provisions QEMU application VMs and connects to them over VNC; the qemu+VNC display pairing."
+   },
+   {
+    "rank": 5,
+    "task_id": "task_008098_92d1e2a9",
+    "skill": 4,
+    "domain": 5,
+    "task_form": 4,
+    "overall": 4,
+    "reason": "Launches a VM exposing a VNC interface over a Unix socket then runs a health check against it; socket-plus-VNC wiring."
+   },
+   {
+    "rank": 6,
+    "task_id": "task_002241_459c6324",
+    "skill": 4,
+    "domain": 4,
+    "task_form": 4,
+    "overall": 4,
+    "reason": "A headless QEMU VM serving VNC on 5900 must be monitored idempotently; teaches checking that the display is actually up."
+   },
+   {
+    "rank": 7,
+    "task_id": "task_003890_44be0a93",
+    "skill": 4,
+    "domain": 4,
+    "task_form": 4,
+    "overall": 4,
+    "reason": "Debug a stack of nginx reverse proxy plus a QEMU VM until traffic flows; the nginx-in-front-of-a-VM half of this task."
+   },
+   {
+    "rank": 8,
+    "task_id": "task_009023_a09cc4a6",
+    "skill": 3,
+    "domain": 5,
+    "task_form": 4,
+    "overall": 4,
+    "reason": "Parses a VM config, builds a QEMU metrics payload and serves it over TLS; QEMU domain knowledge, provisioning genre."
+   },
+   {
+    "rank": 9,
+    "task_id": "task_007301_ebf01c80",
+    "skill": 3,
+    "domain": 4,
+    "task_form": 4,
+    "overall": 3,
+    "reason": "Write a checker for a QEMU VM's VNC port and wire it into the shell profile; port-liveness checking for a VNC display."
+   },
+   {
+    "rank": 10,
+    "task_id": "task_002300_f7cbc374",
+    "skill": 3,
+    "domain": 4,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "A tool that connects to a local QEMU VNC instance must work under a stripped systemd-like environment; background-service correctness."
+   }
+  ],
+  "Recursive-Task-Synthesis": [
+   {
+    "rank": 1,
+    "task_id": "rts_task_fad5f8cb1801e8eda61752d4",
+    "skill": 3,
+    "domain": 4,
+    "task_form": 4,
+    "overall": 3,
+    "reason": "Declares a NixOS VM to be run under QEMU, reading virtualisation options from config files; QEMU guest configuration, declarative."
+   },
+   {
+    "rank": 2,
+    "task_id": "rts_task_a836e20f5baef50e53eea605",
+    "skill": 3,
+    "domain": 4,
+    "task_form": 4,
+    "overall": 3,
+    "reason": "Import an OVA into a KVM store and configure the resulting VM from a spec; VM provisioning end to end."
+   },
+   {
+    "rank": 3,
+    "task_id": "rts_task_ef2c706fa739612837594354",
+    "skill": 3,
+    "domain": 4,
+    "task_form": 4,
+    "overall": 3,
+    "reason": "NixOS QEMU VM flake with a user, autologin and display settings; guest-side configuration of a QEMU VM."
+   },
+   {
+    "rank": 4,
+    "task_id": "rts_task_3653d74deb95d206c56f3172",
+    "skill": 3,
+    "domain": 4,
+    "task_form": 4,
+    "overall": 3,
+    "reason": "Import a cloud VM into local KVM with a named tool; hypervisor-level provisioning, verified by the VM existing and running."
+   },
+   {
+    "rank": 5,
+    "task_id": "rts_task_47080a24d8be164d03e82f49",
+    "skill": 2,
+    "domain": 4,
+    "task_form": 4,
+    "overall": 2,
+    "reason": "Another QEMU-based NixOS VM flake pinned to a nixpkgs revision; near-duplicate of the flake family."
+   },
+   {
+    "rank": 6,
+    "task_id": "rts_task_b0332a386491a81e01089664",
+    "skill": 2,
+    "domain": 4,
+    "task_form": 4,
+    "overall": 2,
+    "reason": "aarch64-darwin QEMU NixOS VM flake; same family again, low marginal value."
+   },
+   {
+    "rank": 7,
+    "task_id": "rts_task_320523b1d794e753ca4c0438",
+    "skill": 2,
+    "domain": 3,
+    "task_form": 4,
+    "overall": 2,
+    "reason": "Start nginx and sshd, verify they listen on their ports and curl the page; the 'service must be up and answering' discipline."
+   },
+   {
+    "rank": 8,
+    "task_id": "rts_task_bce7a0f220c63168ec1db414",
+    "skill": 2,
+    "domain": 3,
+    "task_form": 4,
+    "overall": 2,
+    "reason": "Diagnose why httpd will not start and get it serving on port 80; service repair, no virtualisation."
+   },
+   {
+    "rank": 9,
+    "task_id": "rts_task_06bf9d91b9d3ad6f22328368",
+    "skill": 2,
+    "domain": 4,
+    "task_form": 3,
+    "overall": 2,
+    "reason": "Upgrade an oVirt hosted engine on a KVM host through maintenance mode; virtualisation admin, very different mechanics."
+   },
+   {
+    "rank": 10,
+    "task_id": "rts_task_48a71e5e610cfed767cf745a",
+    "skill": 2,
+    "domain": 3,
+    "task_form": 3,
+    "overall": 2,
+    "reason": "Script a full system configuration under /mnt from a spec file; system provisioning, not VM launching."
+   }
+  ],
+  "TerminalWorld-Seeds-Clean": [
+   {
+    "rank": 1,
+    "task_id": "tw_436604",
+    "skill": 4,
+    "domain": 5,
+    "task_form": 4,
+    "overall": 4,
+    "reason": "Provision and boot a Debian cloud VM under libvirt/KVM with a resized qcow2 and cloud-init; real hypervisor bring-up. Strong verifier."
+   },
+   {
+    "rank": 2,
+    "task_id": "tw_133769",
+    "skill": 4,
+    "domain": 4,
+    "task_form": 4,
+    "overall": 4,
+    "reason": "Import an image and write a VM definition with explicit CPU/memory/NIC settings, then start it; VM spec-to-running-guest."
+   },
+   {
+    "rank": 3,
+    "task_id": "tw_132013",
+    "skill": 4,
+    "domain": 4,
+    "task_form": 4,
+    "overall": 3,
+    "reason": "Create a qcow2 copy-on-write overlay over a backing image - the same idea as QEMU snapshot mode keeping the base immutable. Packet grades it FREE; the regenerated grade file says strong."
+   },
+   {
+    "rank": 4,
+    "task_id": "tw_132009",
+    "skill": 4,
+    "domain": 4,
+    "task_form": 4,
+    "overall": 3,
+    "reason": "Boot a cloud image locally with a NoCloud seed image; disk images plus boot-time configuration. Packet grades it FREE; regenerated file says ok."
+   },
+   {
+    "rank": 5,
+    "task_id": "tw_502937",
+    "skill": 3,
+    "domain": 4,
+    "task_form": 4,
+    "overall": 2,
+    "reason": "NixOS VM for QEMU with getty autologin and no graphics; QEMU guest configuration; packet grades it FREE, regenerated file says strong."
+   },
+   {
+    "rank": 6,
+    "task_id": "tw_11428",
+    "skill": 2,
+    "domain": 3,
+    "task_form": 4,
+    "overall": 2,
+    "reason": "Vagrant machine via the Docker provider; provisioning wrapper, not a hypervisor. FREE in the packet."
+   },
+   {
+    "rank": 7,
+    "task_id": "tw_323016",
+    "skill": 2,
+    "domain": 3,
+    "task_form": 4,
+    "overall": 2,
+    "reason": "Permanently open the ports two running services listen on; the reachability half of exposing VNC and nginx."
+   },
+   {
+    "rank": 8,
+    "task_id": "tw_321921",
+    "skill": 2,
+    "domain": 3,
+    "task_form": 4,
+    "overall": 2,
+    "reason": "Free a blocked port and get httpd listening on it; port-conflict plus firewall, relevant to 5901/80."
+   },
+   {
+    "rank": 9,
+    "task_id": "tw_304629",
+    "skill": 2,
+    "domain": 2,
+    "task_form": 4,
+    "overall": 2,
+    "reason": "Troubleshoot a dead httpd until it serves over the network; generic service repair."
+   },
+   {
+    "rank": 10,
+    "task_id": "tw_378659",
+    "skill": 2,
+    "domain": 3,
+    "task_form": 4,
+    "overall": 2,
+    "reason": "Run a standalone kubelet serving a static pod with host port mapping; long-running-service configuration, different stack."
+   }
+  ],
+  "SWE-Smith-Seeds-Clean": [
+   {
+    "rank": 1,
+    "task_id": "benoitc__gunicorn.bacbf8aa.lm_rewrite__4twhroug",
+    "skill": 3,
+    "domain": 3,
+    "task_form": 2,
+    "overall": 3,
+    "reason": "Unix socket files left behind on shutdown; socket lifecycle matters here because the QEMU monitor socket must exist and be usable."
+   },
+   {
+    "rank": 2,
+    "task_id": "benoitc__gunicorn.bacbf8aa.func_pm_remove_cond__71ka0l9v",
+    "skill": 2,
+    "domain": 3,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "parse_address accepts a bad host:port instead of raising; bind-address parsing, the same class of config error."
+   },
+   {
+    "rank": 3,
+    "task_id": "django__daphne.32ac73e1.func_basic__2cpoddzp",
+    "skill": 2,
+    "domain": 3,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Server refuses to start on default bindings; default host/port handling for a listening daemon."
+   },
+   {
+    "rank": 4,
+    "task_id": "cantools__cantools.0c6a7871.combine_file__ln44bqjd",
+    "skill": 2,
+    "domain": 2,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Terminal monitor UI panes swapped; a live monitor interface, but the fix is layout code."
+   },
+   {
+    "rank": 5,
+    "task_id": "cantools__cantools.0c6a7871.pr_697",
+    "skill": 1,
+    "domain": 2,
+    "task_form": 2,
+    "overall": 1,
+    "reason": "Case-insensitive filter regression in monitor mode; only the word 'monitor' is shared."
+   },
+   {
+    "rank": 6,
+    "task_id": "pyupio__safety.7654596b.pr_508",
+    "skill": 2,
+    "domain": 2,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Add a --headless auth path to a CLI; 'headless' here means no browser, not no display."
+   },
+   {
+    "rank": 7,
+    "task_id": "iterative__dvc.1d6ea681.combine_module__ixxgp1s2",
+    "skill": 1,
+    "domain": 2,
+    "task_form": 2,
+    "overall": 1,
+    "reason": "Remote URL resolution and filesystem config broken; configuration plumbing in an unrelated tool."
+   },
+   {
+    "rank": 8,
+    "task_id": "benoitc__gunicorn.bacbf8aa.lm_rewrite__9luu6wil",
+    "skill": 1,
+    "domain": 2,
+    "task_form": 2,
+    "overall": 1,
+    "reason": "Logger class ignores StatsD settings; server configuration precedence, little transfer."
+   },
+   {
+    "rank": 9,
+    "task_id": "getmoto__moto.694ce1f4.pr_5854",
+    "skill": 1,
+    "domain": 2,
+    "task_form": 2,
+    "overall": 1,
+    "reason": "NameError in mocked EBS snapshot operations; 'snapshot' is a coincidence of vocabulary."
+   },
+   {
+    "rank": 10,
+    "task_id": "encode__starlette.db5063c2.pr_2688",
+    "skill": 1,
+    "domain": 2,
+    "task_form": 2,
+    "overall": 1,
+    "reason": "Background tasks skipped for streaming responses; unrelated to VM or service bring-up."
+   }
+  ],
+  "SWE-Rebench-Tasks-Clean": [
+   {
+    "rank": 1,
+    "task_id": "systemd__mkosi-3216",
+    "skill": 3,
+    "domain": 4,
+    "task_form": 2,
+    "overall": 3,
+    "reason": "mkosi builds OS images and boots them under QEMU; working in it means reasoning about image build plus boot configuration."
+   },
+   {
+    "rank": 2,
+    "task_id": "azure__walinuxagent-1425",
+    "skill": 2,
+    "domain": 3,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Guest agent instance-id comparison bug; VM guest-side tooling, different layer from launching QEMU."
+   },
+   {
+    "rank": 3,
+    "task_id": "kubernetes-client__python-2050",
+    "skill": 2,
+    "domain": 2,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Crash when no console is attached; headless-environment assumptions, a recurring failure mode for background services."
+   },
+   {
+    "rank": 4,
+    "task_id": "caikit__caikit-681",
+    "skill": 2,
+    "domain": 2,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Support several remote servers configured at boot; service configuration and startup ordering."
+   },
+   {
+    "rank": 5,
+    "task_id": "delgan__loguru-960",
+    "skill": 1,
+    "domain": 2,
+    "task_form": 2,
+    "overall": 1,
+    "reason": "Log rotation produces odd files; background-process file handling only."
+   },
+   {
+    "rank": 6,
+    "task_id": "aws-quickstart__taskcat-667",
+    "skill": 1,
+    "domain": 2,
+    "task_form": 2,
+    "overall": 1,
+    "reason": "Stack status property error in an infrastructure test tool; cloud provisioning vocabulary, no VM mechanics."
+   },
+   {
+    "rank": 7,
+    "task_id": "caikit__caikit-430",
+    "skill": 1,
+    "domain": 2,
+    "task_form": 2,
+    "overall": 1,
+    "reason": "Lazy loading of ephemeral models in a serving runtime; unrelated capability."
+   },
+   {
+    "rank": 8,
+    "task_id": "neoteroi__blacksheep-366",
+    "skill": 1,
+    "domain": 2,
+    "task_form": 2,
+    "overall": 1,
+    "reason": "CORS header value wrong with multiple origins; web framework detail."
+   },
+   {
+    "rank": 9,
+    "task_id": "devpi__devpi-1074",
+    "skill": 1,
+    "domain": 2,
+    "task_form": 2,
+    "overall": 1,
+    "reason": "Client stops storing basic auth; credential handling regression, no overlap."
+   },
+   {
+    "rank": 10,
+    "task_id": "jupyter__jupyter_client-274",
+    "skill": 1,
+    "domain": 2,
+    "task_form": 2,
+    "overall": 1,
+    "reason": "Kernel spec metadata support; configuration schema work, unrelated."
+   }
+  ],
+  "Terminal-Lego-15k": [
+   {
+    "rank": 1,
+    "task_id": "task_10686",
+    "skill": 4,
+    "domain": 5,
+    "task_form": 3,
+    "overall": 4,
+    "reason": "Rewrite a QEMU command line from the removed -redir option to modern -netdev/hostfwd syntax; exactly the flag-level QEMU knowledge this task needs."
+   },
+   {
+    "rank": 2,
+    "task_id": "task_02419",
+    "skill": 3,
+    "domain": 4,
+    "task_form": 4,
+    "overall": 3,
+    "reason": "Install a desktop environment and a VNC server so a headless box is reachable remotely; the VNC-display half of the requirement."
+   },
+   {
+    "rank": 3,
+    "task_id": "task_11950",
+    "skill": 3,
+    "domain": 4,
+    "task_form": 4,
+    "overall": 2,
+    "reason": "Container with XFCE plus tightvncserver and Xvfb for VNC access; same headless-GUI-over-VNC setup; packet grades it FREE, regenerated file says strong."
+   },
+   {
+    "rank": 4,
+    "task_id": "task_12187",
+    "skill": 3,
+    "domain": 3,
+    "task_form": 4,
+    "overall": 3,
+    "reason": "Front two backends behind one port 80 reverse proxy; the nginx-on-80 requirement in isolation."
+   },
+   {
+    "rank": 5,
+    "task_id": "task_02202",
+    "skill": 3,
+    "domain": 3,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Build a WebSocket-to-TCP bridge, explicitly modelled on how noVNC works; the web-interface-over-VNC pattern."
+   },
+   {
+    "rank": 6,
+    "task_id": "task_00370",
+    "skill": 2,
+    "domain": 4,
+    "task_form": 3,
+    "overall": 2,
+    "reason": "Edit a vncservers sysconfig file to control VNC display assignment; touches display numbering (:1 vs 5901) only."
+   },
+   {
+    "rank": 7,
+    "task_id": "task_02156",
+    "skill": 2,
+    "domain": 3,
+    "task_form": 3,
+    "overall": 2,
+    "reason": "Make a forwarded port listen on 0.0.0.0 rather than 127.0.0.1; the bind-address lesson that governs VNC reachability."
+   },
+   {
+    "rank": 8,
+    "task_id": "task_00278",
+    "skill": 2,
+    "domain": 3,
+    "task_form": 3,
+    "overall": 1,
+    "reason": "Switch VNC geometry per client; VNC configuration but trivial, and FREE in both grade files."
+   },
+   {
+    "rank": 9,
+    "task_id": "task_12097",
+    "skill": 2,
+    "domain": 2,
+    "task_form": 3,
+    "overall": 2,
+    "reason": "Get a Flask app onto port 80 when something else may hold it; port-conflict handling for a service."
+   },
+   {
+    "rank": 10,
+    "task_id": "task_12228",
+    "skill": 1,
+    "domain": 3,
+    "task_form": 3,
+    "overall": 1,
+    "reason": "Vagrantfile with several NICs; declarative VM config, no QEMU invocation or runtime verification."
+   }
+  ],
+  "CalibForge": [
+   {
+    "rank": 1,
+    "task_id": "system-administration_20260606_172622_007",
+    "skill": 5,
+    "domain": 5,
+    "task_form": 4,
+    "overall": 5,
+    "reason": "Assemble kernel plus initramfs and get it to actually boot in QEMU; the same 'choose the right qemu flags until the guest comes up' loop."
+   },
+   {
+    "rank": 2,
+    "task_id": "system-administration_20260509_065529_001",
+    "skill": 4,
+    "domain": 5,
+    "task_form": 4,
+    "overall": 4,
+    "reason": "Build qemu-system-aarch64 from source and prove it boots a kernel; deep QEMU familiarity, build genre. Strong verifier."
+   },
+   {
+    "rank": 3,
+    "task_id": "system-administration_20260501_051538_004",
+    "skill": 3,
+    "domain": 4,
+    "task_form": 5,
+    "overall": 4,
+    "reason": "Repair a whole broken service stack (nginx, supervisord, gunicorn) until localhost answers; multi-daemon bring-up, like nginx+QEMU here."
+   },
+   {
+    "rank": 4,
+    "task_id": "system-administration_20260614_141608_008",
+    "skill": 3,
+    "domain": 4,
+    "task_form": 4,
+    "overall": 3,
+    "reason": "nginx on port 80 proxying to a backend returns nothing; port/binding/proxy debugging, the web-interface half of this task."
+   },
+   {
+    "rank": 5,
+    "task_id": "software-engineering_20260501_051538_013",
+    "skill": 3,
+    "domain": 5,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Bare-metal code targeted at QEMU's virt machine; requires knowing QEMU machine/CPU flags and how it loads an image."
+   },
+   {
+    "rank": 6,
+    "task_id": "system-administration_20260617_104707_004",
+    "skill": 3,
+    "domain": 3,
+    "task_form": 5,
+    "overall": 3,
+    "reason": "Compile cgit and serve it at a required port alongside other services; build-then-configure-a-service with a live check."
+   },
+   {
+    "rank": 7,
+    "task_id": "system-administration_20260610_112157_004",
+    "skill": 3,
+    "domain": 3,
+    "task_form": 5,
+    "overall": 3,
+    "reason": "Expose the same repos over two protocols on two ports (nginx and git-daemon) concurrently; multi-listener service configuration."
+   },
+   {
+    "rank": 8,
+    "task_id": "system-administration_20260606_153537_008",
+    "skill": 3,
+    "domain": 4,
+    "task_form": 4,
+    "overall": 3,
+    "reason": "Start a Unix-socket server in the background and bridge it to TCP with socat; Unix-socket plus background-process handling."
+   },
+   {
+    "rank": 9,
+    "task_id": "software-engineering_20260510_062946_014",
+    "skill": 3,
+    "domain": 4,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Reproduce under emulation what a program does when run under QEMU, syscall by syscall; emulator-behaviour reasoning."
+   },
+   {
+    "rank": 10,
+    "task_id": "software-engineering_20260604_002443_013",
+    "skill": 2,
+    "domain": 4,
+    "task_form": 3,
+    "overall": 2,
+    "reason": "Cross-build a C project so it runs under qemu-riscv64 user mode; QEMU as a runner, not a system emulator."
+   }
+  ]
+ },
+ "final_top10": [
+  {
+   "rank": 1,
+   "task_id": "task_003133_85965df1",
+   "source": "TMax-15K",
+   "skill": 5,
+   "domain": 5,
+   "task_form": 5,
+   "overall": 5,
+   "reason": "QEMU VM operator: provision disks, launch VMs, diagnose connectivity. Same 'compose the right qemu command and keep the guest up' work. Strong verifier."
+  },
+  {
+   "rank": 2,
+   "task_id": "task_003288_e131a9f5",
+   "source": "TMax-15K",
+   "skill": 5,
+   "domain": 5,
+   "task_form": 4,
+   "overall": 5,
+   "reason": "Drives the QEMU monitor over a UNIX domain socket - the /tmp/qemu-monitor.sock programmatic-control requirement, verbatim."
+  },
+  {
+   "rank": 3,
+   "task_id": "system-administration_20260606_172622_007",
+   "source": "CalibForge",
+   "skill": 5,
+   "domain": 5,
+   "task_form": 4,
+   "overall": 5,
+   "reason": "Get a kernel plus initramfs to actually boot under QEMU; the iterate-on-qemu-flags-until-the-guest-comes-up loop."
+  },
+  {
+   "rank": 4,
+   "task_id": "task_003951_3539778b",
+   "source": "TMax-15K",
+   "skill": 4,
+   "domain": 5,
+   "task_form": 5,
+   "overall": 5,
+   "reason": "Start a QEMU instance and expose its status over an HTTP server; QEMU launch plus a web front end, as required here. Strong verifier."
+  },
+  {
+   "rank": 5,
+   "task_id": "task_005135_29890231",
+   "source": "TMax-15K",
+   "skill": 4,
+   "domain": 5,
+   "task_form": 4,
+   "overall": 4,
+   "reason": "Provisions QEMU application VMs and connects to them over VNC; the qemu-plus-VNC-display pairing this task centres on."
+  },
+  {
+   "rank": 6,
+   "task_id": "task_008098_92d1e2a9",
+   "source": "TMax-15K",
+   "skill": 4,
+   "domain": 5,
+   "task_form": 4,
+   "overall": 4,
+   "reason": "Brings up a VM exposing VNC over a Unix socket and then health-checks it; socket and display wiring together."
+  },
+  {
+   "rank": 7,
+   "task_id": "tw_436604",
+   "source": "TerminalWorld-Seeds-Clean",
+   "skill": 4,
+   "domain": 5,
+   "task_form": 4,
+   "overall": 4,
+   "reason": "Boot a real cloud VM under libvirt/KVM with a resized qcow2 and cloud-init; genuine hypervisor bring-up. Strong verifier."
+  },
+  {
+   "rank": 8,
+   "task_id": "task_10686",
+   "source": "Terminal-Lego-15k",
+   "skill": 4,
+   "domain": 5,
+   "task_form": 3,
+   "overall": 4,
+   "reason": "Translate a QEMU command line from -redir to -netdev/hostfwd; precise QEMU flag knowledge, which is where this task fails."
+  },
+  {
+   "rank": 9,
+   "task_id": "system-administration_20260509_065529_001",
+   "source": "CalibForge",
+   "skill": 4,
+   "domain": 5,
+   "task_form": 4,
+   "overall": 4,
+   "reason": "Build qemu-system-aarch64 from source and show it boots a kernel; deepest QEMU-internals exposure in the pool. Strong verifier."
+  },
+  {
+   "rank": 10,
+   "task_id": "task_003890_44be0a93",
+   "source": "TMax-15K",
+   "skill": 4,
+   "domain": 4,
+   "task_form": 4,
+   "overall": 4,
+   "reason": "Fix an nginx reverse proxy sitting in front of a QEMU VM until traffic flows; the nginx-on-80 half of the requirement."
+  }
+ ],
+ "notes": "TMax dominates this task and it is not a lexical artifact: it contains a whole cluster of genuine QEMU-plus-VNC-plus-monitor-socket infrastructure tasks (ten of them, mostly ok/strong graded), which is more QEMU system-emulation content than the rest of the pool combined. CalibForge contributes the only boot-a-guest-in-QEMU and build-QEMU-from-source tasks; its other QEMU entries are user-mode cross-compilation and score lower. Terminal-Lego's single real contribution is task_10686 (QEMU netdev syntax) - the rest of its VNC material is remote-desktop configuration with weak or FREE verifiers. SWE-Smith and SWE-Rebench have essentially nothing here; their entries are filler and their low overalls say so."
+}

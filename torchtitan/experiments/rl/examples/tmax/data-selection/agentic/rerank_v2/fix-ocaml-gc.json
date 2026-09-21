@@ -1,0 +1,770 @@
+{
+ "tb21_id": "fix-ocaml-gc",
+ "tb21_profile": {
+  "skill": "Debug a memory-corruption regression in a C runtime's heap/free-list bookkeeping inside a large self-hosting codebase, then rebuild and run its own test suite",
+  "domain": "OCaml runtime internals in C: major-heap sweeping, free lists, compiler bootstrap, make-based build",
+  "task_form": "find-and-patch-a-regression in a large native project, verified by the project's own build+testsuite"
+ },
+ "verifier_notes": "Nothing overturned. Checked grades for the CalibForge picks: se_20260604_003814_004 is graded weak but its suite drives an allocator through stress patterns, so it is not vacuous; se_20260604_003113_014 (Lisp GC) is graded ok and is the single closest task in the whole pool. TerminalWorld's two best-matching entries (tw_245032 openal-soft segfault, tw_226228 OCaml/ocamlbuild) are both FREE, so they are ranked in per_source but excluded from final_top10.",
+ "searches": [
+  "tools.py search all '(?i)\\bocaml|ocamlopt|opam\\b'",
+  "tools.py search all '(?i)garbage collect'",
+  "tools.py search all '(?i)bootstrap(ping)? (the |a )?(compiler|itself)'",
+  "tools.py search tmax '(?i)free list|free-list|heap corruption|allocator'",
+  "tools.py search rebench '(?i)segfault|segmentation fault|refcount|use-after-free|memory leak|core dump'",
+  "tools.py search smith '(?i)segfault|segmentation fault|refcount|memory leak|recursion|stack overflow'",
+  "tools.py search rebench '(?i)\\bcython|C extension|compile to C|codegen|transpil'",
+  "tools.py search rts '(?i)(build|compile) .{0,40}from source.{0,80}(test ?suite|make)'",
+  "tools.py show tw_17818 tw_479594",
+  "grep -rl -iE 'garbage collect|segfault|segmentation fault|valgrind|memory leak|free list|malloc' /data/yichuan_wang/terminal-lego-15k/*/instruction.md"
+ ],
+ "per_source": {
+  "TMax-15K": [
+   {
+    "rank": 1,
+    "task_id": "task_001917_a27a0211",
+    "skill": 4,
+    "domain": 4,
+    "task_form": 4,
+    "overall": 4,
+    "reason": "Repair a broken Makefile, then find the memory bug that crashes the C binary on a malformed payload - same build-then-debug-crash loop."
+   },
+   {
+    "rank": 2,
+    "task_id": "task_002274_41ca317a",
+    "skill": 4,
+    "domain": 3,
+    "task_form": 5,
+    "overall": 4,
+    "reason": "Bisect a git history to find the regression that makes a C++ daemon core-dump, then patch it; identical genre to the broken-GC-commit hunt."
+   },
+   {
+    "rank": 3,
+    "task_id": "task_000583_85cb2773",
+    "skill": 4,
+    "domain": 4,
+    "task_form": 4,
+    "overall": 4,
+    "reason": "C server segfaults only under -O3: forces reasoning about undefined behaviour and memory layout rather than reading an error message."
+   },
+   {
+    "rank": 4,
+    "task_id": "task_004973_7f875d59",
+    "skill": 4,
+    "domain": 4,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Fix a buffer-size miscalculation in urldecode.c that corrupts the heap - same pointer-arithmetic-on-a-heap-block reasoning."
+   },
+   {
+    "rank": 5,
+    "task_id": "task_001177_a2bf521c",
+    "skill": 4,
+    "domain": 4,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Off-by-one allocation causing heap corruption in a C server; off-by-one in block accounting is exactly the OCaml free-list failure mode."
+   },
+   {
+    "rank": 6,
+    "task_id": "task_009821_3f039f12",
+    "skill": 4,
+    "domain": 4,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Use-after-free in a C++ interpreter for a build DSL: object lifetime bugs in an interpreter, plus getting the build working."
+   },
+   {
+    "rank": 7,
+    "task_id": "task_003280_ccd04de0",
+    "skill": 3,
+    "domain": 4,
+    "task_form": 4,
+    "overall": 3,
+    "reason": "Diagnose a C++ crash from the one input that triggers it, using the crash artefacts - the same evidence-to-root-cause path."
+   },
+   {
+    "rank": 8,
+    "task_id": "task_001528_b5a85fb7",
+    "skill": 3,
+    "domain": 4,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Track a leak in a C service triggered only by one malformed record class; teaches allocation/free accounting, not GC internals."
+   },
+   {
+    "rank": 9,
+    "task_id": "task_002357_bd3f0c1e",
+    "skill": 3,
+    "domain": 3,
+    "task_form": 4,
+    "overall": 3,
+    "reason": "main is broken twice over: build config fails, and once built the engine misbehaves - mirrors fix-the-build-then-fix-the-bug."
+   },
+   {
+    "rank": 10,
+    "task_id": "task_001250_55a32d92",
+    "skill": 3,
+    "domain": 2,
+    "task_form": 4,
+    "overall": 3,
+    "reason": "Repair build/env so the project compiles, then profile and fix a linear memory leak; Go rather than C runtime."
+   }
+  ],
+  "Recursive-Task-Synthesis": [
+   {
+    "rank": 1,
+    "task_id": "rts_task_9af49a42deb8ac82e0032800",
+    "skill": 2,
+    "domain": 4,
+    "task_form": 2,
+    "overall": 3,
+    "reason": "Only real OCaml in this corpus: writes .ml source and an ocamlbuild Makefile, so it teaches the OCaml toolchain but no debugging."
+   },
+   {
+    "rank": 2,
+    "task_id": "rts_task_16b28a27268db6bace108e51",
+    "skill": 2,
+    "domain": 4,
+    "task_form": 2,
+    "overall": 3,
+    "reason": "OCaml QCheck build driven by a README-described profile; same toolchain exposure, slightly more configuration reading."
+   },
+   {
+    "rank": 3,
+    "task_id": "rts_task_afd54a2004d95e1fefed6657",
+    "skill": 2,
+    "domain": 4,
+    "task_form": 2,
+    "overall": 3,
+    "reason": "OCaml/ocamlbuild again, with templates to locate and a placeholder to complete; closest RTS gets to the OCaml build system."
+   },
+   {
+    "rank": 4,
+    "task_id": "rts_task_5a398c256ac5fa91ca4016cf",
+    "skill": 3,
+    "domain": 3,
+    "task_form": 2,
+    "overall": 3,
+    "reason": "Build a crash-prone C binary from its Makefile and drive GDB against the crashing input - build plus native crash analysis."
+   },
+   {
+    "rank": 5,
+    "task_id": "rts_task_9d0a4edc08f422bb75e4a69f",
+    "skill": 3,
+    "domain": 3,
+    "task_form": 2,
+    "overall": 3,
+    "reason": "Same buggy-png family: compile from source, pick a GDB profile, capture the crash - transfers the native-debugger habit only."
+   },
+   {
+    "rank": 6,
+    "task_id": "rts_task_89647425ffb7f86a212f4556",
+    "skill": 3,
+    "domain": 3,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Third buggy-png variant; adds crafted-input selection but still reports a crash rather than fixing the code."
+   },
+   {
+    "rank": 7,
+    "task_id": "rts_task_08759089d11417f3cea70d07",
+    "skill": 2,
+    "domain": 3,
+    "task_form": 3,
+    "overall": 2,
+    "reason": "Fix wrong ARM64 assembly output and author the missing Makefile: low-level correctness plus build authoring, tiny scale."
+   },
+   {
+    "rank": 8,
+    "task_id": "rts_task_ef260c157b918772826896e9",
+    "skill": 2,
+    "domain": 3,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Multi-file C program driven through an existing build system; exercises make/linking only, no debugging."
+   },
+   {
+    "rank": 9,
+    "task_id": "rts_task_35f7b78c268a84f9f15d3b89",
+    "skill": 2,
+    "domain": 2,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Two-stage Makefile build plus make clean; build-system literacy, nothing about memory or crashes."
+   },
+   {
+    "rank": 10,
+    "task_id": "rts_task_bfd372c85082abdea9c0f591",
+    "skill": 1,
+    "domain": 2,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Compile a C program and match reference output; mostly the /app report boilerplate this corpus repeats."
+   }
+  ],
+  "TerminalWorld-Seeds-Clean": [
+   {
+    "rank": 1,
+    "task_id": "tw_245032",
+    "skill": 4,
+    "domain": 4,
+    "task_form": 4,
+    "overall": 4,
+    "reason": "Fix a real segfault in openal-soft's C init loop over a static backend list; closest here, but FREE-graded so barred from top10."
+   },
+   {
+    "rank": 2,
+    "task_id": "tw_226228",
+    "skill": 2,
+    "domain": 5,
+    "task_form": 2,
+    "overall": 3,
+    "reason": "The only OCaml/ocamlbuild task in this corpus; domain match only, and its suite is FREE."
+   },
+   {
+    "rank": 3,
+    "task_id": "tw_322195",
+    "skill": 2,
+    "domain": 3,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Build Git from source on a remote host: driving a large C project's configure/make, which fix-ocaml-gc also demands."
+   },
+   {
+    "rank": 4,
+    "task_id": "tw_17818",
+    "skill": 2,
+    "domain": 3,
+    "task_form": 3,
+    "overall": 2,
+    "reason": "Clone and build the Tcl interpreter from its unix/ tree with a prefix; language-runtime build practice, no debugging."
+   },
+   {
+    "rank": 5,
+    "task_id": "tw_473702",
+    "skill": 2,
+    "domain": 2,
+    "task_form": 3,
+    "overall": 2,
+    "reason": "Compile the SCTK C toolkit from a repo and install it; build-from-source only."
+   },
+   {
+    "rank": 6,
+    "task_id": "tw_204493",
+    "skill": 2,
+    "domain": 2,
+    "task_form": 3,
+    "overall": 2,
+    "reason": "Resolve missing build dependencies on CentOS then build from source - the environment-repair half of the TB task."
+   },
+   {
+    "rank": 7,
+    "task_id": "tw_479594",
+    "skill": 2,
+    "domain": 3,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Write a fork/execvp shell in C; systems C practice but nothing about heaps or regressions."
+   },
+   {
+    "rank": 8,
+    "task_id": "tw_234227",
+    "skill": 2,
+    "domain": 3,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Run a crashing binary under GDB and capture the backtrace and maps; observation only, and FREE-graded."
+   },
+   {
+    "rank": 9,
+    "task_id": "tw_730164",
+    "skill": 1,
+    "domain": 3,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Demonstrates a C preprocessor trick; same toolchain vocabulary, no bug to find."
+   },
+   {
+    "rank": 10,
+    "task_id": "tw_574774",
+    "skill": 1,
+    "domain": 2,
+    "task_form": 2,
+    "overall": 1,
+    "reason": "Clone, cmake build, make test, run binary - pure build boilerplate and FREE-graded."
+   }
+  ],
+  "SWE-Smith-Seeds-Clean": [
+   {
+    "rank": 1,
+    "task_id": "conan-io__conan.86f29e13.combine_module__ox7m3k6h",
+    "skill": 3,
+    "domain": 3,
+    "task_form": 2,
+    "overall": 3,
+    "reason": "Wrong C++ standard flags emitted for gcc/clang; reasoning about compiler invocation is the ecosystem fix-ocaml-gc lives in."
+   },
+   {
+    "rank": 2,
+    "task_id": "conan-io__conan.86f29e13.lm_rewrite__m0121wmw",
+    "skill": 3,
+    "domain": 3,
+    "task_form": 2,
+    "overall": 3,
+    "reason": "Compiler-variable resolution broken when cross-building; toolchain/build-config debugging after a rewrite."
+   },
+   {
+    "rank": 3,
+    "task_id": "conan-io__conan.86f29e13.pr_11678",
+    "skill": 3,
+    "domain": 3,
+    "task_form": 2,
+    "overall": 3,
+    "reason": "AutotoolsToolchain mishandles compiler flags - same autotools/make world the OCaml bootstrap is built with."
+   },
+   {
+    "rank": 4,
+    "task_id": "python-trio__trio.cfbbe2c1.pr_3112",
+    "skill": 3,
+    "domain": 3,
+    "task_form": 2,
+    "overall": 3,
+    "reason": "Async-generator finalization during collection: reasoning about when a runtime reclaims an object, the GC-semantics half of the task."
+   },
+   {
+    "rank": 5,
+    "task_id": "pdfminer__pdfminer.six.1a8bd2f7.func_pm_remove_assign__fttd0cma",
+    "skill": 3,
+    "domain": 2,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Broken run-length decoder; the TB bug is in run-length-compressed free space, so RLE length/offset accounting transfers a little."
+   },
+   {
+    "rank": 6,
+    "task_id": "andialbrecht__sqlparse.e57923b3.lm_rewrite__jby5rkxx",
+    "skill": 2,
+    "domain": 2,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Deeply nested input blows the stack after a rewrite; teaches recursion-depth failure analysis, not heap accounting."
+   },
+   {
+    "rank": 7,
+    "task_id": "conan-io__conan.86f29e13.pr_15422",
+    "skill": 2,
+    "domain": 3,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Emit a jobs parameter so cmake builds in parallel; build-system configuration, no debugging depth."
+   },
+   {
+    "rank": 8,
+    "task_id": "conan-io__conan.86f29e13.func_pm_remove_cond__c3v70uy4",
+    "skill": 2,
+    "domain": 3,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Stale subsettings after a compiler setting changes: invalidation bookkeeping bug, mildly analogous to stale free-list state."
+   },
+   {
+    "rank": 9,
+    "task_id": "paramiko__paramiko.23f92003.func_pm_class_rm_funcs__sgig7wez",
+    "skill": 2,
+    "domain": 2,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Removed serialization helpers break every SFTP op; trace a wide failure back to one missing primitive."
+   },
+   {
+    "rank": 10,
+    "task_id": "mahmoud__boltons.3bfcfdd0.combine_file__ol79yd75",
+    "skill": 2,
+    "domain": 2,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Reverse line iteration with buffer/offset arithmetic gone wrong; offset bookkeeping, but in Python on a file, not a heap."
+   }
+  ],
+  "SWE-Rebench-Tasks-Clean": [
+   {
+    "rank": 1,
+    "task_id": "eventlet__eventlet-866",
+    "skill": 4,
+    "domain": 3,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Interpreter segfaults inside garbage collection; issue is worked from gdb backtraces, the same evidence the OCaml crash gives."
+   },
+   {
+    "rank": 2,
+    "task_id": "pyccel__pyccel-2158",
+    "skill": 3,
+    "domain": 3,
+    "task_form": 2,
+    "overall": 3,
+    "reason": "Extend a Python-to-C compiler's backend to return dicts: code generation plus C memory ownership decisions."
+   },
+   {
+    "rank": 3,
+    "task_id": "pyccel__pyccel-2114",
+    "skill": 3,
+    "domain": 3,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Crash inside the codegen printer; debugging a compiler pipeline from a traceback into the printer stage."
+   },
+   {
+    "rank": 4,
+    "task_id": "pyccel__pyccel-2186",
+    "skill": 3,
+    "domain": 3,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Pyccel fails while invoking the C compiler on a generated module - build-tool integration failure inside a compiler."
+   },
+   {
+    "rank": 5,
+    "task_id": "pyccel__pyccel-1780",
+    "skill": 2,
+    "domain": 3,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Template handling bug in the same Python-to-C compiler; compiler-internals domain, ordinary logic fix."
+   },
+   {
+    "rank": 6,
+    "task_id": "bloomberg__memray-552",
+    "skill": 2,
+    "domain": 3,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Memory-profiler CLI clobbers argv; memory-tooling ecosystem, but the fix touches no allocator logic."
+   },
+   {
+    "rank": 7,
+    "task_id": "aio-libs__aiohttp-11054",
+    "skill": 3,
+    "domain": 2,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Unbounded growth in CookieJar: find the structure that is never pruned, the same question as free space never reclaimed."
+   },
+   {
+    "rank": 8,
+    "task_id": "aio-libs__aiohttp-11069",
+    "skill": 3,
+    "domain": 2,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Second fix for the same CookieJar leak; duplicate skill, kept for the reclamation-bookkeeping pattern."
+   },
+   {
+    "rank": 9,
+    "task_id": "aio-libs__aiohttp-8823",
+    "skill": 2,
+    "domain": 3,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Cython wrapper over a C http-parser behaving wrongly; crossing the Python/C boundary to locate blame."
+   },
+   {
+    "rank": 10,
+    "task_id": "h5py__h5py-2433",
+    "skill": 2,
+    "domain": 3,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Cython binding to the HDF5 C library misbehaves with file locking off; native-library binding debugging."
+   }
+  ],
+  "Terminal-Lego-15k": [
+   {
+    "rank": 1,
+    "task_id": "task_07249",
+    "skill": 5,
+    "domain": 4,
+    "task_form": 4,
+    "overall": 4,
+    "reason": "C++ program correct at -O0 and broken at -O2 from an out-of-bounds write; exactly the class of latent memory bug a hand-edited GC produces."
+   },
+   {
+    "rank": 2,
+    "task_id": "task_14121",
+    "skill": 4,
+    "domain": 4,
+    "task_form": 4,
+    "overall": 4,
+    "reason": "Three buggy C programs to diagnose and fix from the command line; pinned tests and real find-the-bug work."
+   },
+   {
+    "rank": 3,
+    "task_id": "task_07194",
+    "skill": 4,
+    "domain": 4,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Use valgrind to locate and fix leaks and invalid accesses in C - the tooling you would reach for on a broken sweeper."
+   },
+   {
+    "rank": 4,
+    "task_id": "task_10420",
+    "skill": 3,
+    "domain": 4,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Segfault from executing code copied into heap memory; forces reasoning about heap page permissions and layout."
+   },
+   {
+    "rank": 5,
+    "task_id": "task_07233",
+    "skill": 3,
+    "domain": 4,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Compile a buggy C program and drive GDB (breakpoints, watchpoints) to the fault; verifier is weak across 36 tests."
+   },
+   {
+    "rank": 6,
+    "task_id": "task_03840",
+    "skill": 3,
+    "domain": 3,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Fix the buffer-filling file reader inside a BF interpreter; interpreter plus buffer-sizing bug, small scale."
+   },
+   {
+    "rank": 7,
+    "task_id": "task_09619",
+    "skill": 2,
+    "domain": 4,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Write a self-interpreting language and stage it; teaches what bootstrapping means, which the TB task's build depends on."
+   },
+   {
+    "rank": 8,
+    "task_id": "task_14988",
+    "skill": 1,
+    "domain": 4,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "OCaml let rec versus let shadowing; only real OCaml-language exposure here, but nothing about the runtime."
+   },
+   {
+    "rank": 9,
+    "task_id": "task_02513",
+    "skill": 2,
+    "domain": 3,
+    "task_form": 3,
+    "overall": 2,
+    "reason": "Diagnose cc1plus missing and repair the toolchain so builds work; the environment-repair skill before any compiler bootstrap."
+   },
+   {
+    "rank": 10,
+    "task_id": "task_09672",
+    "skill": 2,
+    "domain": 3,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Implement a C ring buffer with head/tail index arithmetic; index bookkeeping, but implement-from-spec rather than repair."
+   }
+  ],
+  "CalibForge": [
+   {
+    "rank": 1,
+    "task_id": "software-engineering_20260604_003113_014",
+    "skill": 5,
+    "domain": 5,
+    "task_form": 5,
+    "overall": 5,
+    "reason": "Mark-and-sweep GC in a C Lisp interpreter segfaults only on memory-heavy programs - the same bug class, language and runtime role as the OCaml sweeper."
+   },
+   {
+    "rank": 2,
+    "task_id": "software-engineering_20260607_104421_008",
+    "skill": 5,
+    "domain": 5,
+    "task_form": 5,
+    "overall": 5,
+    "reason": "Author refactored Lua's memory management and the suite now fails inconsistently; identical premise, including the flaky-failure diagnosis."
+   },
+   {
+    "rank": 3,
+    "task_id": "software-engineering_20260604_002443_008",
+    "skill": 4,
+    "domain": 5,
+    "task_form": 5,
+    "overall": 5,
+    "reason": "Self-inflicted regression in the Lua 5.4.7 interpreter: build with make, run the test suite, find the crash - same loop, strong verifier."
+   },
+   {
+    "rank": 4,
+    "task_id": "software-engineering_20260510_142854_026",
+    "skill": 5,
+    "domain": 4,
+    "task_form": 4,
+    "overall": 4,
+    "reason": "Implicit free list with boundary tags mis-splitting blocks; free-list block accounting is precisely what the OCaml change broke."
+   },
+   {
+    "rank": 5,
+    "task_id": "software-engineering_20260414_091921_008",
+    "skill": 5,
+    "domain": 4,
+    "task_form": 4,
+    "overall": 4,
+    "reason": "Pool allocator with block coalescing crashes under allocation stress - coalescing adjacent free runs is the OCaml sweeper's job."
+   },
+   {
+    "rank": 6,
+    "task_id": "software-engineering_20260618_093107_008",
+    "skill": 4,
+    "domain": 5,
+    "task_form": 5,
+    "overall": 4,
+    "reason": "Refactor to the 9cc C compiler's liveness analysis segfaults make test; broke-my-own-compiler, fix it, same verification route."
+   },
+   {
+    "rank": 7,
+    "task_id": "software-engineering_20260606_153537_008",
+    "skill": 4,
+    "domain": 5,
+    "task_form": 5,
+    "overall": 4,
+    "reason": "Lua code-generator regression that only bites specific expressions; narrow reproduction inside a language implementation."
+   },
+   {
+    "rank": 8,
+    "task_id": "software-engineering_20260604_003814_004",
+    "skill": 5,
+    "domain": 4,
+    "task_form": 4,
+    "overall": 4,
+    "reason": "Explicit free list with boundary-tag coalescing over a static heap - the nearest thing in the pool to compressing free space in a major heap."
+   },
+   {
+    "rank": 9,
+    "task_id": "debugging_20260507_170244_002",
+    "skill": 4,
+    "domain": 4,
+    "task_form": 4,
+    "overall": 4,
+    "reason": "Pool allocator silently corrupts messages and crashes after long use; latent corruption that only shows downstream, like a bad sweep."
+   },
+   {
+    "rank": 10,
+    "task_id": "software-engineering_20260606_172622_024",
+    "skill": 4,
+    "domain": 5,
+    "task_form": 3,
+    "overall": 4,
+    "reason": "Implement mark-and-sweep GC in C against a fixed API; teaches the algorithm itself, but as implement-from-spec not repair."
+   }
+  ]
+ },
+ "final_top10": [
+  {
+   "rank": 1,
+   "task_id": "software-engineering_20260604_003113_014",
+   "source": "CalibForge",
+   "skill": 5,
+   "domain": 5,
+   "task_form": 5,
+   "overall": 5,
+   "reason": "Mark-and-sweep GC in a C interpreter crashes only under memory pressure; same runtime, same bug class, same debug loop."
+  },
+  {
+   "rank": 2,
+   "task_id": "software-engineering_20260607_104421_008",
+   "source": "CalibForge",
+   "skill": 5,
+   "domain": 5,
+   "task_form": 5,
+   "overall": 5,
+   "reason": "I refactored the interpreter's memory management and the test suite broke - the TB2.1 premise almost verbatim, in Lua."
+  },
+  {
+   "rank": 3,
+   "task_id": "software-engineering_20260604_002443_008",
+   "source": "CalibForge",
+   "skill": 4,
+   "domain": 5,
+   "task_form": 5,
+   "overall": 5,
+   "reason": "Self-introduced Lua interpreter regression; build with make, run the suite, isolate the crashing construct. Strong verifier."
+  },
+  {
+   "rank": 4,
+   "task_id": "software-engineering_20260510_142854_026",
+   "source": "CalibForge",
+   "skill": 5,
+   "domain": 4,
+   "task_form": 4,
+   "overall": 4,
+   "reason": "Boundary-tag implicit free list mis-splits blocks; free-list bookkeeping is exactly what the OCaml sweeping change corrupted."
+  },
+  {
+   "rank": 5,
+   "task_id": "software-engineering_20260414_091921_008",
+   "source": "CalibForge",
+   "skill": 5,
+   "domain": 4,
+   "task_form": 4,
+   "overall": 4,
+   "reason": "Coalescing pool allocator crashes intermittently under stress - run-merging free blocks, reproduced only at scale."
+  },
+  {
+   "rank": 6,
+   "task_id": "software-engineering_20260618_093107_008",
+   "source": "CalibForge",
+   "skill": 4,
+   "domain": 5,
+   "task_form": 5,
+   "overall": 4,
+   "reason": "My compiler refactor segfaults make test: fix a self-inflicted regression in a C compiler and get its suite green."
+  },
+  {
+   "rank": 7,
+   "task_id": "task_07249",
+   "source": "Terminal-Lego-15k",
+   "skill": 5,
+   "domain": 4,
+   "task_form": 4,
+   "overall": 4,
+   "reason": "Out-of-bounds write that only manifests at -O2; the optimisation-sensitive memory bug a hand-edited GC produces. Strong tests."
+  },
+  {
+   "rank": 8,
+   "task_id": "software-engineering_20260604_003814_004",
+   "source": "CalibForge",
+   "skill": 5,
+   "domain": 4,
+   "task_form": 4,
+   "overall": 4,
+   "reason": "Explicit free list with boundary-tag coalescing over a fixed heap - nearest analogue to compressing free space in the major heap."
+  },
+  {
+   "rank": 9,
+   "task_id": "software-engineering_20260606_153537_008",
+   "source": "CalibForge",
+   "skill": 4,
+   "domain": 5,
+   "task_form": 5,
+   "overall": 4,
+   "reason": "Lua codegen regression reproducible only on specific expressions; narrow the failing construct inside a language implementation."
+  },
+  {
+   "rank": 10,
+   "task_id": "task_001917_a27a0211",
+   "source": "TMax-15K",
+   "skill": 4,
+   "domain": 4,
+   "task_form": 4,
+   "overall": 4,
+   "reason": "Fix the broken Makefile, then find the memory bug that crashes the C binary on a malformed input - the build-then-debug sequence."
+  }
+ ],
+ "notes": "CalibForge dominates this task outright: it holds C-interpreter GC bugs, Lua regressions and four separate free-list/coalescing allocator tasks, all graded ok or better. The v1 pool has essentially no OCaml (search found four OCaml tasks total, all QCheck build exercises) and no GC-internals task at all, so Terminal-Lego and CalibForge both beat the old corpora here. TerminalWorld could not field 10 defensible candidates - its two best matches (tw_245032, tw_226228) are FREE and ranks 8-10 are build boilerplate. Recursive-Task-Synthesis is all absent-verifier and its only OCaml entries are ocamlbuild hello-world builds. SWE-Smith and SWE-Rebench have no C-runtime content; their entries are ranked on toolchain/compiler domain and reclamation-bookkeeping skill only, and should not be expected to carry weight in a merge."
+}

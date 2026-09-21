@@ -1,0 +1,770 @@
+{
+ "tb21_id": "log-summary-date-ranges",
+ "tb21_profile": {
+  "skill": "Extract the date from each filename, build four inclusive windows (today, trailing 7, trailing 30, month-to-date) against a fixed reference date, tally three severity tokens per window, and emit an exactly-ordered CSV including zero rows",
+  "domain": "Shell/Python log processing: date parsing and calendar arithmetic, severity-level counting, strict CSV output contract",
+  "task_form": "implement-from-spec: a single-pass aggregation report whose whole difficulty is boundary conditions and output-schema fidelity"
+ },
+ "verifier_notes": "No grade I disagreed with. Worth flagging that the two closest Terminal-Lego matches split: task_11217 is strong (12 tests, 6 pinned) while task_11201, essentially the same task, is only weak (1 pinned of 10); I ranked task_11217 first partly for that reason. The entire Recursive-Task-Synthesis slate is absent, as expected for that corpus -- rts_task_dbfe7fd6f98ef686d4971762 is a genuine skill match but ships no verifier in our copy, and I could not find a graded equivalent that counts INFO/WARNING/ERROR across a log directory as directly.",
+ "searches": [
+  "tools.py search all 'last 7 days|last 30 days|past 7 days|rolling (7|30)|month.to.date|inclusive.*date range|reference date|as of date'",
+  "tools.py search all 'ERROR.*WARNING.*INFO|severity.*count|count.*(ERROR|WARN).*per'",
+  "tools.py search smith 'date|datetime|timezone|timedelta|strftime'",
+  "tools.py search smith 'arrow|humanize|shift\\(|timezone|logging|log level|csv'",
+  "tools.py search rebench 'datetime|timezone|timedelta|date parsing|strftime|log level'",
+  "tools.py search tw 'date|log file|csv|count|aggregate'",
+  "(new corpora) 'last 7 days|last 30 days|date range|month.to.date|relative date|inclusive.*(date|day)|days ago|reference date'",
+  "(new corpora, Terminal-Lego) 'log file.*(count|summar)|ERROR|WARNING|severity|awk.*count|write.*\\.csv'",
+  "(new corpora, CalibForge) 'summary\\.csv|per-day|daily (count|summary)|group.*by (date|day)|time window|bucket.*by (hour|day)|tumbling|sessioni'",
+  "(new corpora, CalibForge) 'timezone|DST|day boundar|recurring|streak|due date|calendar|week'"
+ ],
+ "per_source": {
+  "CalibForge": [
+   {
+    "rank": 1,
+    "task_id": "data-processing_20260415_002933_002",
+    "skill": 4,
+    "domain": 5,
+    "task_form": 5,
+    "overall": 5,
+    "reason": "Daily files named YYYY-MM-DD_positions.csv must be scanned and turned into a CSV report: same filename-as-date parsing and same CSV deliverable."
+   },
+   {
+    "rank": 2,
+    "task_id": "personal-assistant_20260502_090008_001",
+    "skill": 5,
+    "domain": 4,
+    "task_form": 4,
+    "overall": 4,
+    "reason": "Streak engine over consecutive days with timezone-aware day boundaries and DST -- the inclusive day-window arithmetic that makes last_7_days easy to get wrong."
+   },
+   {
+    "rank": 3,
+    "task_id": "data-processing_20260508_161717_004",
+    "skill": 4,
+    "domain": 5,
+    "task_form": 4,
+    "overall": 4,
+    "reason": "Two log files over one time window, each line a timestamp plus a level; requires level-aware parsing and per-window aggregation."
+   },
+   {
+    "rank": 4,
+    "task_id": "data-processing_20260503_182123_003",
+    "skill": 4,
+    "domain": 4,
+    "task_form": 4,
+    "overall": 4,
+    "reason": "A daily aggregation pipeline produces wrong daily summaries; the bug is in how records are assigned to days, TB2.1's central hazard."
+   },
+   {
+    "rank": 5,
+    "task_id": "data-processing_20260614_141608_002",
+    "skill": 3,
+    "domain": 4,
+    "task_form": 5,
+    "overall": 4,
+    "reason": "Parses multi-day log files and writes /app/summary.csv with a fixed header -- identical output contract and multi-day input shape."
+   },
+   {
+    "rank": 6,
+    "task_id": "data-processing_20260420_020307_002",
+    "skill": 4,
+    "domain": 4,
+    "task_form": 4,
+    "overall": 4,
+    "reason": "Hourly aggregates from sensors configured with different time conventions; bucketing timestamps into fixed windows and summing per bucket."
+   },
+   {
+    "rank": 7,
+    "task_id": "data-processing_20260503_182123_004",
+    "skill": 4,
+    "domain": 4,
+    "task_form": 3,
+    "overall": 4,
+    "reason": "Sessionization counts are wrong because the gap/window boundary is mishandled; boundary-condition debugging on time windows."
+   },
+   {
+    "rank": 8,
+    "task_id": "data-processing_20260507_093408_001",
+    "skill": 4,
+    "domain": 4,
+    "task_form": 3,
+    "overall": 4,
+    "reason": "Sessions logged in three local timezones must be reconciled before counting -- getting the day a record belongs to right."
+   },
+   {
+    "rank": 9,
+    "task_id": "personal-assistant_20260507_093408_001",
+    "skill": 4,
+    "domain": 3,
+    "task_form": 3,
+    "overall": 4,
+    "reason": "Resolves relative expressions like 'in 3 days' and 'end of month' to ISO dates; exactly the relative-window vocabulary TB2.1 formalises."
+   },
+   {
+    "rank": 10,
+    "task_id": "data-processing_20260509_205636_001",
+    "skill": 3,
+    "domain": 5,
+    "task_form": 4,
+    "overall": 3,
+    "reason": "Aggregates a week of multi-source server logs into one analysis; same log-fan-in shape, weaker on date-window arithmetic."
+   }
+  ],
+  "Terminal-Lego-15k": [
+   {
+    "rank": 1,
+    "task_id": "task_11217",
+    "skill": 5,
+    "domain": 4,
+    "task_form": 4,
+    "overall": 5,
+    "reason": "Deletes files older than 10 days using the date embedded in the filename, not mtime -- the exact filename-date-versus-cutoff skill TB2.1 needs."
+   },
+   {
+    "rank": 2,
+    "task_id": "task_11201",
+    "skill": 5,
+    "domain": 4,
+    "task_form": 4,
+    "overall": 4,
+    "reason": "Directories named YYYY-MM-DD must be compared against a cutoff N days before today; same parse-name-then-window comparison."
+   },
+   {
+    "rank": 3,
+    "task_id": "task_03982",
+    "skill": 4,
+    "domain": 4,
+    "task_form": 3,
+    "overall": 4,
+    "reason": "Selects rows strictly between two dates from a CSV; inclusive-versus-exclusive boundary handling is what the test pins."
+   },
+   {
+    "rank": 4,
+    "task_id": "task_04320",
+    "skill": 4,
+    "domain": 4,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Generates a month-start date range -- the first-of-current-month boundary TB2.1's month_to_date period requires."
+   },
+   {
+    "rank": 5,
+    "task_id": "task_04068",
+    "skill": 3,
+    "domain": 4,
+    "task_form": 4,
+    "overall": 3,
+    "reason": "Reindexes a per-date count series so absent dates appear with zero; TB2.1 likewise must emit a row per period/severity even at zero."
+   },
+   {
+    "rank": 6,
+    "task_id": "task_01565",
+    "skill": 3,
+    "domain": 4,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Compares the current date against a list of stored dates to decide if it is past the latest; reference-date comparison logic."
+   },
+   {
+    "rank": 7,
+    "task_id": "task_07910",
+    "skill": 3,
+    "domain": 4,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Dates stored as strings must be converted before a range query can work -- the string-to-date conversion TB2.1 does on filenames."
+   },
+   {
+    "rank": 8,
+    "task_id": "task_01540",
+    "skill": 3,
+    "domain": 3,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Iterates a range of dates cleanly in Python; day-by-day enumeration used to build the 7- and 30-day windows."
+   },
+   {
+    "rank": 9,
+    "task_id": "task_07590",
+    "skill": 2,
+    "domain": 5,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "A logging framework with severity levels and filtering plus a CLI viewer; severity-level modelling, but no date arithmetic."
+   },
+   {
+    "rank": 10,
+    "task_id": "task_00982",
+    "skill": 2,
+    "domain": 3,
+    "task_form": 3,
+    "overall": 2,
+    "reason": "Loops through a date range in bash calling a command per date; shell date arithmetic only."
+   }
+  ],
+  "TMax-15K": [
+   {
+    "rank": 1,
+    "task_id": "task_009669_9a52ca42",
+    "skill": 5,
+    "domain": 3,
+    "task_form": 4,
+    "overall": 4,
+    "reason": "The bug is that transactions on the end date of the range are dropped; the fix plus a regression test is inclusive-range correctness itself."
+   },
+   {
+    "rank": 2,
+    "task_id": "task_007570_17a2ea78",
+    "skill": 4,
+    "domain": 4,
+    "task_form": 4,
+    "overall": 4,
+    "reason": "Normalises multi-source configuration backups by audit day and gap-fills missing days -- per-day bucketing where absent days must still appear."
+   },
+   {
+    "rank": 3,
+    "task_id": "task_002963_68ec2466",
+    "skill": 4,
+    "domain": 3,
+    "task_form": 3,
+    "overall": 4,
+    "reason": "Maximum rolling 7-day sum with the window's membership rule spelled out; same last-7-days inclusive window semantics."
+   },
+   {
+    "rank": 4,
+    "task_id": "task_000453_43b24b26",
+    "skill": 4,
+    "domain": 4,
+    "task_form": 4,
+    "overall": 4,
+    "reason": "Filters to one UTC day inclusive of 23:59:59 then counts errors per server per category and reshapes -- window filter plus categorical counts."
+   },
+   {
+    "rank": 5,
+    "task_id": "task_001432_117ac74d",
+    "skill": 3,
+    "domain": 5,
+    "task_form": 4,
+    "overall": 3,
+    "reason": "Parses two differently formatted log files with timestamps and levels, dedupes and aggregates; the log-normalisation half of TB2.1."
+   },
+   {
+    "rank": 6,
+    "task_id": "task_004944_4c067b35",
+    "skill": 3,
+    "domain": 5,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Normalises the level field to uppercase, filters to ERROR and aggregates per service -- severity normalisation and counting."
+   },
+   {
+    "rank": 7,
+    "task_id": "task_008675_ee044ae2",
+    "skill": 3,
+    "domain": 4,
+    "task_form": 4,
+    "overall": 3,
+    "reason": "Bash/coreutils ETL that aligns timestamps between two log files using date; pure shell date arithmetic on log records."
+   },
+   {
+    "rank": 8,
+    "task_id": "task_000994_ee6cf222",
+    "skill": 4,
+    "domain": 2,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Computes days between each record and a fixed reference date of 2023-12-31 -- the fixed-'today' arithmetic TB2.1 mandates."
+   },
+   {
+    "rank": 9,
+    "task_id": "task_009224_a4c20612",
+    "skill": 3,
+    "domain": 4,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Extracts unique error signatures per hour across many node logs; time-bucketed aggregation over a log directory."
+   },
+   {
+    "rank": 10,
+    "task_id": "task_009684_f8de4f34",
+    "skill": 3,
+    "domain": 3,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Reshapes wide per-type error counts into long form and sums them per key; the same long-format count table TB2.1 must emit."
+   }
+  ],
+  "Recursive-Task-Synthesis": [
+   {
+    "rank": 1,
+    "task_id": "rts_task_dbfe7fd6f98ef686d4971762",
+    "skill": 4,
+    "domain": 5,
+    "task_form": 4,
+    "overall": 4,
+    "reason": "Builds a severity index counting INFO/WARNING/ERROR across a log directory, with filename rules -- the counting half of TB2.1 almost exactly."
+   },
+   {
+    "rank": 2,
+    "task_id": "rts_task_1ada0bf7d45c19966cd83741",
+    "skill": 4,
+    "domain": 2,
+    "task_form": 4,
+    "overall": 4,
+    "reason": "Defines a 30-day window ending at the latest commit and counts activity per day inside it; explicit relative-window construction."
+   },
+   {
+    "rank": 3,
+    "task_id": "rts_task_07af9c58fe0722f4444dce63",
+    "skill": 4,
+    "domain": 4,
+    "task_form": 4,
+    "overall": 3,
+    "reason": "Produces a severity summary counting each severity from a mapping file; severity tallying into a text report."
+   },
+   {
+    "rank": 4,
+    "task_id": "rts_task_05876b5368d9aec7cc7d0740",
+    "skill": 3,
+    "domain": 2,
+    "task_form": 4,
+    "overall": 3,
+    "reason": "Last 30 days relative to the latest commit plus a daily count series; same anchored-window plus per-day counting."
+   },
+   {
+    "rank": 5,
+    "task_id": "rts_task_7ca4ad6ecc0b487c9f1f9293",
+    "skill": 3,
+    "domain": 2,
+    "task_form": 4,
+    "overall": 3,
+    "reason": "Past 30 days relative to the most recent commit; a variant of the same anchored-window computation."
+   },
+   {
+    "rank": 6,
+    "task_id": "rts_task_48f675fb51d6516019e0ee8d",
+    "skill": 3,
+    "domain": 2,
+    "task_form": 4,
+    "overall": 3,
+    "reason": "Most-committed file in the last 30 days with a daily count sparkline; per-day bucketing over a bounded window."
+   },
+   {
+    "rank": 7,
+    "task_id": "rts_task_7a2e00b6cb2843d7f8a3066e",
+    "skill": 3,
+    "domain": 3,
+    "task_form": 4,
+    "overall": 3,
+    "reason": "Converts daily sales records to TSV and writes a derived summary report; per-day records into a fixed-format summary."
+   },
+   {
+    "rank": 8,
+    "task_id": "rts_task_9fc576bfba789ec7cbb43fbb",
+    "skill": 3,
+    "domain": 3,
+    "task_form": 3,
+    "overall": 2,
+    "reason": "Counts occurrences of each event_type and writes them to a JSON file; categorical counting without any date logic."
+   },
+   {
+    "rank": 9,
+    "task_id": "rts_task_e2d729fe554600d17fad7ce6",
+    "skill": 2,
+    "domain": 4,
+    "task_form": 3,
+    "overall": 2,
+    "reason": "Produces a trusted listing of log files against a stale manifest; log-directory enumeration only."
+   },
+   {
+    "rank": 10,
+    "task_id": "rts_task_a45fff91226d1b02c4a69c6b",
+    "skill": 2,
+    "domain": 3,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Finds a stored birth date and converts it to ISO 8601; date parsing and reformatting, nothing windowed."
+   }
+  ],
+  "SWE-Smith-Seeds-Clean": [
+   {
+    "rank": 1,
+    "task_id": "arrow-py__arrow.1d70d009.combine_file__0jlnyumj",
+    "skill": 4,
+    "domain": 5,
+    "task_form": 2,
+    "overall": 4,
+    "reason": "Arrow's _get_datetime and __radd__ are broken -- date arithmetic (adding offsets to a datetime) is exactly what the 7/30-day windows need."
+   },
+   {
+    "rank": 2,
+    "task_id": "arrow-py__arrow.1d70d009.func_basic__p9zbp6c3",
+    "skill": 4,
+    "domain": 5,
+    "task_form": 2,
+    "overall": 4,
+    "reason": "utcnow() returns local time instead of UTC; getting the reference 'now' wrong is precisely TB2.1's failure mode."
+   },
+   {
+    "rank": 3,
+    "task_id": "arrow-py__arrow.1d70d009.func_pm_op_break_chains__198tzvtl",
+    "skill": 4,
+    "domain": 5,
+    "task_form": 2,
+    "overall": 3,
+    "reason": "humanize returns wrong values per granularity; computing how far a timestamp is from a reference across units."
+   },
+   {
+    "rank": 4,
+    "task_id": "arrow-py__arrow.1d70d009.combine_file__8pbefy25",
+    "skill": 3,
+    "domain": 5,
+    "task_form": 2,
+    "overall": 3,
+    "reason": "Timestamp normalization and ordinal validation are wrong; low-level date-number handling in a date library."
+   },
+   {
+    "rank": 5,
+    "task_id": "arrow-py__arrow.1d70d009.func_pm_remove_assign__bptbc05w",
+    "skill": 3,
+    "domain": 5,
+    "task_form": 2,
+    "overall": 3,
+    "reason": "ISO 8601 parsing breaks on several formats; parsing YYYY-MM-DD strings into dates is TB2.1's first step."
+   },
+   {
+    "rank": 6,
+    "task_id": "arrow-py__arrow.1d70d009.func_pm_ctrl_shuffle__vk4xpu8x",
+    "skill": 3,
+    "domain": 5,
+    "task_form": 2,
+    "overall": 3,
+    "reason": "A missing attribute breaks all date parsing in the library; same parse-a-date-string territory."
+   },
+   {
+    "rank": 7,
+    "task_id": "arrow-py__arrow.1d70d009.combine_file__g5h3d3ro",
+    "skill": 3,
+    "domain": 5,
+    "task_form": 2,
+    "overall": 3,
+    "reason": "now() and factory() misbehave with an explicit timezone; constructing the current date correctly under a tz."
+   },
+   {
+    "rank": 8,
+    "task_id": "arrow-py__arrow.1d70d009.lm_rewrite__47m8sbrj",
+    "skill": 3,
+    "domain": 4,
+    "task_form": 2,
+    "overall": 3,
+    "reason": "Parsing fails on month names and abbreviations; date-token parsing, further from ISO filenames."
+   },
+   {
+    "rank": 9,
+    "task_id": "Suor__funcy.207a7810.lm_rewrite__2vgfqsf8",
+    "skill": 3,
+    "domain": 3,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "A throttle decorator ignores its timedelta period and lets every call through; time-window membership logic."
+   },
+   {
+    "rank": 10,
+    "task_id": "arrow-py__arrow.1d70d009.func_pm_op_change_const__uid6bkba",
+    "skill": 2,
+    "domain": 4,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "hh/h format tokens render as 00 and 0; date formatting only, no window reasoning."
+   }
+  ],
+  "SWE-Rebench-Tasks-Clean": [
+   {
+    "rank": 1,
+    "task_id": "boto__botocore-626",
+    "skill": 4,
+    "domain": 4,
+    "task_form": 2,
+    "overall": 3,
+    "reason": "A timestamp converts incorrectly when the local timezone is not UTC; the reference-frame bug that silently shifts which day a record lands in."
+   },
+   {
+    "rank": 2,
+    "task_id": "celery__celery-9669",
+    "skill": 4,
+    "domain": 3,
+    "task_form": 2,
+    "overall": 3,
+    "reason": "A crontab schedule fires an hour late after a DST change; day/hour boundary arithmetic under a timezone shift."
+   },
+   {
+    "rank": 3,
+    "task_id": "jazzband__django-axes-950",
+    "skill": 3,
+    "domain": 3,
+    "task_form": 2,
+    "overall": 3,
+    "reason": "A cooloff period expressed as a timedelta is not applied correctly; sliding-window membership over recent events."
+   },
+   {
+    "rank": 4,
+    "task_id": "hikari-py__hikari-1812",
+    "skill": 3,
+    "domain": 4,
+    "task_form": 2,
+    "overall": 3,
+    "reason": "iso8601 datetime string parsing raises on valid input; parsing a date string into a datetime, TB2.1's first step."
+   },
+   {
+    "rank": 5,
+    "task_id": "jcrist__msgspec-225",
+    "skill": 3,
+    "domain": 4,
+    "task_form": 2,
+    "overall": 3,
+    "reason": "Naive versus timezone-aware datetime support in a serializer; the aware/naive distinction that breaks day comparisons."
+   },
+   {
+    "rank": 6,
+    "task_id": "collective__icalendar-878",
+    "skill": 3,
+    "domain": 4,
+    "task_form": 2,
+    "overall": 3,
+    "reason": "Missing timezones are injected into calendar output; calendar/date-component correctness."
+   },
+   {
+    "rank": 7,
+    "task_id": "dirty-cat__dirty_cat-421",
+    "skill": 2,
+    "domain": 3,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "DatetimeEncoder feature extraction needs updating; derives date parts, but for ML features not windowed counting."
+   },
+   {
+    "rank": 8,
+    "task_id": "gitpython-developers__gitpython-746",
+    "skill": 2,
+    "domain": 3,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "authored_datetime raises ValueError on some commits; datetime construction from raw metadata."
+   },
+   {
+    "rank": 9,
+    "task_id": "delgan__loguru-960",
+    "skill": 2,
+    "domain": 4,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Log file rotation misbehaves with localized aware datetimes; log-file naming and rotation by time."
+   },
+   {
+    "rank": 10,
+    "task_id": "bashtage__arch-741",
+    "skill": 1,
+    "domain": 2,
+    "task_form": 2,
+    "overall": 1,
+    "reason": "A volatility model receives a Series with a datetime index; shares only the datetime index, nothing about ranges."
+   }
+  ],
+  "TerminalWorld-Seeds-Clean": [
+   {
+    "rank": 1,
+    "task_id": "tw_314564",
+    "skill": 4,
+    "domain": 2,
+    "task_form": 4,
+    "overall": 4,
+    "reason": "Counts commits per day over the past 30 days, from 30 days ago through today -- the same inclusive trailing-30-day window plus per-day tally."
+   },
+   {
+    "rank": 2,
+    "task_id": "tw_647708",
+    "skill": 3,
+    "domain": 3,
+    "task_form": 4,
+    "overall": 3,
+    "reason": "Per-area statistics restricted to records from the year 2024 only; filtering records by a date predicate then aggregating."
+   },
+   {
+    "rank": 3,
+    "task_id": "tw_11045",
+    "skill": 2,
+    "domain": 3,
+    "task_form": 3,
+    "overall": 2,
+    "reason": "Parses a CSV into a nested dictionary of counts by two keys; the two-level (period, severity) count structure, without dates."
+   },
+   {
+    "rank": 4,
+    "task_id": "tw_12673",
+    "skill": 2,
+    "domain": 3,
+    "task_form": 4,
+    "overall": 2,
+    "reason": "Transforms one CSV into another with an exactly specified row layout; strict output-contract discipline."
+   },
+   {
+    "rank": 5,
+    "task_id": "tw_277215",
+    "skill": 2,
+    "domain": 4,
+    "task_form": 3,
+    "overall": 2,
+    "reason": "Recursively enumerates log files and writes sorted absolute paths; the scan-a-log-directory half only."
+   },
+   {
+    "rank": 6,
+    "task_id": "tw_6185",
+    "skill": 2,
+    "domain": 3,
+    "task_form": 3,
+    "overall": 2,
+    "reason": "Parses a CSV header with a non-standard delimiter and writes an exact string; brittle-format parsing."
+   },
+   {
+    "rank": 7,
+    "task_id": "tw_584886",
+    "skill": 2,
+    "domain": 3,
+    "task_form": 3,
+    "overall": 2,
+    "reason": "Counts data lines in a VCF and rows in a Parquet file; counting records under a format-specific rule."
+   },
+   {
+    "rank": 8,
+    "task_id": "tw_104869",
+    "skill": 2,
+    "domain": 2,
+    "task_form": 3,
+    "overall": 2,
+    "reason": "Recursive directory search plus a count of matching filenames; filename-pattern matching over a tree."
+   },
+   {
+    "rank": 9,
+    "task_id": "tw_100135",
+    "skill": 2,
+    "domain": 3,
+    "task_form": 4,
+    "overall": 2,
+    "reason": "Converts unstructured temperature data into clean CSV; parse-then-emit-CSV, no date windows."
+   },
+   {
+    "rank": 10,
+    "task_id": "tw_127866",
+    "skill": 1,
+    "domain": 2,
+    "task_form": 3,
+    "overall": 1,
+    "reason": "Counts lines, words and bytes of one file into result.txt; only the write-an-exact-output shell is shared."
+   }
+  ]
+ },
+ "final_top10": [
+  {
+   "rank": 1,
+   "task_id": "task_11217",
+   "skill": 5,
+   "domain": 4,
+   "task_form": 4,
+   "overall": 5,
+   "reason": "Decides which files are old from the date embedded in the filename against a relative cutoff -- TB2.1's exact parse-name-then-window skill.",
+   "source": "Terminal-Lego-15k"
+  },
+  {
+   "rank": 2,
+   "task_id": "data-processing_20260415_002933_002",
+   "skill": 4,
+   "domain": 5,
+   "task_form": 5,
+   "overall": 5,
+   "reason": "Daily files named YYYY-MM-DD_*.csv scanned into a CSV report; same filename-as-date input and same CSV deliverable, strongly verified.",
+   "source": "CalibForge"
+  },
+  {
+   "rank": 3,
+   "task_id": "task_009669_9a52ca42",
+   "skill": 5,
+   "domain": 3,
+   "task_form": 4,
+   "overall": 4,
+   "reason": "The bug is records on the range's end date being dropped; fixing it plus a regression test is inclusive-window correctness itself.",
+   "source": "TMax-15K"
+  },
+  {
+   "rank": 4,
+   "task_id": "personal-assistant_20260502_090008_001",
+   "skill": 5,
+   "domain": 4,
+   "task_form": 4,
+   "overall": 4,
+   "reason": "Consecutive-day streaks with timezone-aware day boundaries and DST -- the day-boundary arithmetic that makes last_7_days easy to get wrong.",
+   "source": "CalibForge"
+  },
+  {
+   "rank": 5,
+   "task_id": "task_11201",
+   "skill": 5,
+   "domain": 4,
+   "task_form": 4,
+   "overall": 4,
+   "reason": "Directories named YYYY-MM-DD compared against a cutoff N days before today; the same relative-window comparison in shell.",
+   "source": "Terminal-Lego-15k"
+  },
+  {
+   "rank": 6,
+   "task_id": "rts_task_dbfe7fd6f98ef686d4971762",
+   "skill": 4,
+   "domain": 5,
+   "task_form": 4,
+   "overall": 4,
+   "reason": "Counts INFO/WARNING/ERROR across a log directory into a severity index -- the severity-tallying half of TB2.1 almost exactly.",
+   "source": "Recursive-Task-Synthesis"
+  },
+  {
+   "rank": 7,
+   "task_id": "data-processing_20260508_161717_004",
+   "skill": 4,
+   "domain": 5,
+   "task_form": 4,
+   "overall": 4,
+   "reason": "Two log files over one window, each line a timestamp plus level; level-aware parsing and per-window aggregation.",
+   "source": "CalibForge"
+  },
+  {
+   "rank": 8,
+   "task_id": "tw_314564",
+   "skill": 4,
+   "domain": 2,
+   "task_form": 4,
+   "overall": 4,
+   "reason": "Commits per day over the past 30 days, from 30 days ago through today; the same inclusive trailing-30-day window and per-day tally.",
+   "source": "TerminalWorld-Seeds-Clean"
+  },
+  {
+   "rank": 9,
+   "task_id": "task_007570_17a2ea78",
+   "skill": 4,
+   "domain": 4,
+   "task_form": 4,
+   "overall": 4,
+   "reason": "Buckets multi-source records by audit day and gap-fills missing days, so absent days still appear -- TB2.1 must emit zero rows too.",
+   "source": "TMax-15K"
+  },
+  {
+   "rank": 10,
+   "task_id": "data-processing_20260503_182123_003",
+   "skill": 4,
+   "domain": 4,
+   "task_form": 4,
+   "overall": 4,
+   "reason": "A daily aggregation pipeline yields wrong daily summaries; the defect is in assigning records to days, TB2.1's central hazard.",
+   "source": "CalibForge"
+  }
+ ],
+ "notes": "This is the task where boilerplate overlap is worst: every corpus has hundreds of 'parse logs, write a CSV' tasks and the retrieval order is dominated by them. I filtered on the one thing that is actually hard here -- inclusive relative-date-window arithmetic anchored to a fixed 'today' -- and the winners change completely. Terminal-Lego-15k genuinely beats the old pool: task_11217 and task_11201 (decide file age from the date in the filename versus a relative cutoff) are the closest matches in the entire 76k pool and the v1 corpora have no equivalent. CalibForge also beats the old pool, with a YYYY-MM-DD-named-daily-files task and a DST-aware streak engine, both strongly verified. SWE-Smith is unexpectedly useful because the arrow date library is in it -- ten date-arithmetic bugs with repo-tests verification -- so judge it on skill/domain and ignore the task_form penalty. Recursive-Task-Synthesis has one real match (the severity index) and a cluster of six near-duplicate 'last 30 days of git history' tasks; I kept four of them, and the merge step should treat them as one item, not four."
+}

@@ -1,0 +1,774 @@
+{
+ "tb21_id": "merge-diff-arc-agi-task",
+ "tb21_profile": {
+  "skill": "Two capabilities in one task: drive git plumbing - fetch two bundles whose HEAD ref may be ambiguous into named local branches and merge them, resolving conflicts into a coherent tree - and then induce a general grid-to-grid mapping from input/output examples that must hold on hidden tests.",
+  "domain": "Git (bundles, refs, fetch, merge conflicts) plus ARC-AGI-style program induction over 2D integer arrays in Python.",
+  "task_form": "Repair/assemble-a-repository followed by implement-from-examples with no specification, graded on hidden inputs."
+ },
+ "verifier_notes": "Did not overturn any grade. tw_590773 (cherry-pick upstream into a vendored fork) is a decent skill match but graded FREE, so it sits at per_source rank 9 for TerminalWorld and is excluded from final_top10; task_11543 in Terminal-Lego is also FREE and was dropped despite being a branch-management-after-merge task. All Recursive-Task-Synthesis entries are 'absent'; graded equivalents for the bundle work exist in CalibForge, so none were promoted.",
+ "searches": [
+  "tools.py search all \"\\b(git bundle|\\.bundle|merge conflict|resolve.*conflict|git merge|cherry-pick|git rebase|packfile|reflog|FETCH_HEAD)\\b\"",
+  "tools.py search tmax \"\\b(git merge|merge conflict|git bundle|git rebase|cherry-pick|detached HEAD|git fetch|remote branch|git reflog|git checkout -b)\\b\"",
+  "tools.py search lego \"\\b(git merge|merge conflict|git bundle|git rebase|cherry-pick|detached HEAD|git fetch|remote branch|git reflog|git checkout -b)\\b\"",
+  "tools.py search calib \"\\b(git merge|merge conflict|git bundle|git rebase|cherry-pick|detached HEAD|git fetch|remote branch|git reflog|git checkout -b)\\b\"",
+  "tools.py search tw \"\\b(git merge|merge conflict|git bundle|git rebase|cherry-pick|detached HEAD|git fetch|remote branch|git reflog|git checkout -b)\\b\"",
+  "tools.py search calib \"\\bgit\\b\"",
+  "tools.py search calib \"\\b(bundle|merge (the )?(feature|branch)|resolve (any |all )?conflicts)\\b\"",
+  "tools.py search all \"\\b(ARC-AGI|ARC AGI|grid transformation|infer the (rule|mapping|pattern)|two-dimensional array of integers|examples\\.json|input/output examples|puzzle)\\b\"",
+  "tools.py search calib \"(deduce|infer|reverse[- ]engineer) the (rule|mapping|algorithm|transformation|pattern|logic|format)\"",
+  "tools.py search tmax \"(deduce|infer|reverse[- ]engineer) the (rule|mapping|algorithm|transformation|pattern|logic|format)\"",
+  "tools.py search lego \"(deduce|infer|reverse[- ]engineer) the (rule|mapping|algorithm|transformation|pattern|logic|format)\"",
+  "tools.py search all \"\\b(grid of (colors|integers|cells)|rotate the (grid|matrix)|cellular automaton|Game of Life|2D grid|hidden test (inputs|cases))\\b\"",
+  "tools.py show debugging_20260614_141608_003 software-engineering_20260604_004411_014",
+  "tools.py show software-engineering_20260604_193056_025"
+ ],
+ "per_source": {
+  "TMax-15K": [
+   {
+    "rank": 1,
+    "task_id": "task_003045_a0576d1c",
+    "skill": 5,
+    "domain": 4,
+    "task_form": 4,
+    "overall": 4,
+    "reason": "Resolve a merge conflict by hand so the result keeps the base field and the new field - exactly the 'consistent merged tree' judgement here."
+   },
+   {
+    "rank": 2,
+    "task_id": "task_004452_0a1fc499",
+    "skill": 4,
+    "domain": 4,
+    "task_form": 4,
+    "overall": 4,
+    "reason": "Resolve a patch conflict keeping the original init checks but the new logic; picking hunks per side rather than accepting either wholesale."
+   },
+   {
+    "rank": 3,
+    "task_id": "task_002244_33013a20",
+    "skill": 5,
+    "domain": 2,
+    "task_form": 4,
+    "overall": 4,
+    "reason": "Reverse-engineer a black box from sample data: deduce extraction rules, constraints and the exact output schema, verified on hidden data."
+   },
+   {
+    "rank": 4,
+    "task_id": "task_000005_162ed362",
+    "skill": 5,
+    "domain": 2,
+    "task_form": 4,
+    "overall": 4,
+    "reason": "Deduce a transformation by probing an oracle binary and reimplement it so hidden inputs match; the induce-then-generalise loop of the map function."
+   },
+   {
+    "rank": 5,
+    "task_id": "task_002010_9e4f08e9",
+    "skill": 4,
+    "domain": 2,
+    "task_form": 4,
+    "overall": 4,
+    "reason": "Deduce a classifier's rules from sample logs and replicate them exactly in C; rule induction with an exact-match bar."
+   },
+   {
+    "rank": 6,
+    "task_id": "task_001675_54393f59",
+    "skill": 4,
+    "domain": 2,
+    "task_form": 4,
+    "overall": 4,
+    "reason": "Probe an oracle you cannot run in production and produce byte-identical stdout from a standalone reimplementation."
+   },
+   {
+    "rank": 7,
+    "task_id": "task_002041_404c58ee",
+    "skill": 4,
+    "domain": 2,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Deduce a linear-inequality labelling rule from data, then apply it to filter rows; small-scale rule induction."
+   },
+   {
+    "rank": 8,
+    "task_id": "task_002253_dc30221f",
+    "skill": 4,
+    "domain": 2,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Reverse-engineer a graph oracle and write a Rust program that behaves exactly like it on unseen inputs."
+   },
+   {
+    "rank": 9,
+    "task_id": "task_001837_61d1109a",
+    "skill": 4,
+    "domain": 2,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Treat a scoring binary as a black box and reproduce its Influence Score for any input; same induce-and-generalise skill."
+   },
+   {
+    "rank": 10,
+    "task_id": "task_006419_edace463",
+    "skill": 3,
+    "domain": 4,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Find and fix what a sloppy git merge broke in a build script, then report it; reading a bad merge's aftermath."
+   }
+  ],
+  "Recursive-Task-Synthesis": [
+   {
+    "rank": 1,
+    "task_id": "rts_task_0e80e89c4dcb4386ccb28bb9",
+    "skill": 4,
+    "domain": 5,
+    "task_form": 4,
+    "overall": 4,
+    "reason": "Produce a git bundle of a branch, then rebase and fast-forward to a linear history - bundles plus history surgery in one task."
+   },
+   {
+    "rank": 2,
+    "task_id": "rts_task_dd4af3c005b32137d8065c01",
+    "skill": 4,
+    "domain": 5,
+    "task_form": 3,
+    "overall": 4,
+    "reason": "Create a bundle with all references and then prove it is usable by fetching from it; the bundle-consumption side of this task."
+   },
+   {
+    "rank": 3,
+    "task_id": "rts_task_562a786b5dc9d59386e2180b",
+    "skill": 3,
+    "domain": 5,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Create a bundle mirroring a bare repository after pushing a branch; bundle refspec coverage."
+   },
+   {
+    "rank": 4,
+    "task_id": "rts_task_f6a216f819cbb24ab5a679a3",
+    "skill": 3,
+    "domain": 5,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Bundle all repository references and derive a changed-file diff; bundle creation plus diff reading."
+   },
+   {
+    "rank": 5,
+    "task_id": "rts_task_32bee9e537c524d45f94d048",
+    "skill": 3,
+    "domain": 5,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Push a branch and bundle all references; the simplest full-refs bundle task in the pool."
+   },
+   {
+    "rank": 6,
+    "task_id": "rts_task_29b6c25f271c1083403de735",
+    "skill": 3,
+    "domain": 5,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Repair a tag that points at the wrong commit using history alone, then emit a valid unified diff; ref repair under a constraint."
+   },
+   {
+    "rank": 7,
+    "task_id": "rts_task_aff716d5d0206c0c449c0868",
+    "skill": 3,
+    "domain": 5,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Rebase to a linear history with no merge commits and audit the result against the pre-rebase baseline."
+   },
+   {
+    "rank": 8,
+    "task_id": "rts_task_409f0bfc2d21112b81ef04fc",
+    "skill": 3,
+    "domain": 5,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Identify the pre-rebase ancestor from the reflog alone and diff against it; reading git's own record of ref movement."
+   },
+   {
+    "rank": 9,
+    "task_id": "rts_task_d35d647825db9db40f37a95c",
+    "skill": 3,
+    "domain": 5,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Recover a commit removed by a reset using the reflog and assemble evidence; object reachability after history rewriting."
+   },
+   {
+    "rank": 10,
+    "task_id": "rts_task_81dfa7c6bebb7887b6e90b59",
+    "skill": 2,
+    "domain": 1,
+    "task_form": 3,
+    "overall": 2,
+    "reason": "Fix a Prolog solver for a constraint puzzle; the closest this corpus comes to inferring a rule, and it is given the rule."
+   }
+  ],
+  "TerminalWorld-Seeds-Clean": [
+   {
+    "rank": 1,
+    "task_id": "tw_123496",
+    "skill": 4,
+    "domain": 5,
+    "task_form": 4,
+    "overall": 4,
+    "reason": "Resolve a real cherry-pick merge conflict in CPython using cherry_picker; hand-resolving a conflict in a genuine repository."
+   },
+   {
+    "rank": 2,
+    "task_id": "tw_517445",
+    "skill": 4,
+    "domain": 5,
+    "task_form": 4,
+    "overall": 4,
+    "reason": "Run a git-flow feature branch through create and finish, which merges it back; branch creation plus a completed merge."
+   },
+   {
+    "rank": 3,
+    "task_id": "tw_241831",
+    "skill": 3,
+    "domain": 5,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Extract everything a branch introduced since it diverged; the diff-since-merge-base reasoning a merge depends on."
+   },
+   {
+    "rank": 4,
+    "task_id": "tw_230022",
+    "skill": 3,
+    "domain": 5,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Write a nuclear-reset escape hatch for a git repository; requires knowing which refs and state a reset touches."
+   },
+   {
+    "rank": 5,
+    "task_id": "tw_107566",
+    "skill": 3,
+    "domain": 4,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Work with a linked worktree checked out on another branch; branch/worktree separation."
+   },
+   {
+    "rank": 6,
+    "task_id": "tw_455236",
+    "skill": 2,
+    "domain": 4,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Force-stage a file matched by an ignore rule; a single git flag, shallow."
+   },
+   {
+    "rank": 7,
+    "task_id": "tw_135325",
+    "skill": 2,
+    "domain": 4,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Set up a local copy of a course repository; clone-and-configure only."
+   },
+   {
+    "rank": 8,
+    "task_id": "tw_299505",
+    "skill": 2,
+    "domain": 4,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Install interactive branch-management aliases in the global git config; configuration, not history work."
+   },
+   {
+    "rank": 9,
+    "task_id": "tw_590773",
+    "skill": 3,
+    "domain": 4,
+    "task_form": 3,
+    "overall": 2,
+    "reason": "Cherry-pick an upstream commit into a vendored fork and verify it still builds - relevant, but the verifier is FREE so treat it as unverified."
+   },
+   {
+    "rank": 10,
+    "task_id": "tw_262983",
+    "skill": 1,
+    "domain": 1,
+    "task_form": 2,
+    "overall": 1,
+    "reason": "Write a Babashka script defining two functions; listed only to fill the quota, nothing transfers."
+   }
+  ],
+  "SWE-Smith-Seeds-Clean": [
+   {
+    "rank": 1,
+    "task_id": "seperman__deepdiff.ed252022.func_pm_ctrl_shuffle__2tolih9a",
+    "skill": 3,
+    "domain": 3,
+    "task_form": 2,
+    "overall": 3,
+    "reason": "Structural diffing of nested objects goes wrong; computing and reporting differences is the engine underneath a three-way merge."
+   },
+   {
+    "rank": 2,
+    "task_id": "life4__textdistance.c3aca916.lm_rewrite__9v6u6jmp",
+    "skill": 3,
+    "domain": 2,
+    "task_form": 2,
+    "overall": 3,
+    "reason": "Sequence-similarity algorithm bug; edit-distance style alignment is what git's merge driver runs on hunks."
+   },
+   {
+    "rank": 3,
+    "task_id": "cookiecutter__cookiecutter.b4451231.func_pm_remove_wrapper__89cymcf0",
+    "skill": 3,
+    "domain": 4,
+    "task_form": 2,
+    "overall": 3,
+    "reason": "Repository cloning is broken; driving git through a VCS abstraction and getting refs right."
+   },
+   {
+    "rank": 4,
+    "task_id": "iterative__dvc.1d6ea681.pr_9934",
+    "skill": 3,
+    "domain": 4,
+    "task_form": 2,
+    "overall": 3,
+    "reason": "DVCFileSystem fails when the repo has no SCM; handling a repository whose git state is not what the code assumed."
+   },
+   {
+    "rank": 5,
+    "task_id": "Cog-Creators__Red-DiscordBot.33e0eac7.combine_module__4138xlqs",
+    "skill": 3,
+    "domain": 4,
+    "task_form": 2,
+    "overall": 3,
+    "reason": "A cog that initialises and manages git repositories fails to set them up; repo lifecycle handling."
+   },
+   {
+    "rank": 6,
+    "task_id": "Cog-Creators__Red-DiscordBot.33e0eac7.lm_rewrite__o993dgfr",
+    "skill": 3,
+    "domain": 4,
+    "task_form": 2,
+    "overall": 3,
+    "reason": "GitHub URL parsing mishandles tree/branch components; ref naming and disambiguation, as with an ambiguous bundle HEAD."
+   },
+   {
+    "rank": 7,
+    "task_id": "seperman__deepdiff.ed252022.combine_file__24qpwc9c",
+    "skill": 3,
+    "domain": 3,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Another deepdiff regression in difference reporting; same diff-semantics territory, smaller."
+   },
+   {
+    "rank": 8,
+    "task_id": "cookiecutter__cookiecutter.b4451231.lm_rewrite__gsks0ek9",
+    "skill": 2,
+    "domain": 4,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Repository abbreviation expansion broken; URL/ref resolution only."
+   },
+   {
+    "rank": 9,
+    "task_id": "Cog-Creators__Red-DiscordBot.33e0eac7.combine_module__bjf0rr5u",
+    "skill": 2,
+    "domain": 4,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Repo loading fails when metadata is missing; error handling around repository state."
+   },
+   {
+    "rank": 10,
+    "task_id": "life4__textdistance.c3aca916.combine_file__3izxykz4",
+    "skill": 2,
+    "domain": 2,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Further textdistance algorithm regressions; sequence comparison, thin transfer."
+   }
+  ],
+  "SWE-Rebench-Tasks-Clean": [
+   {
+    "rank": 1,
+    "task_id": "jelmer__dulwich-1073",
+    "skill": 4,
+    "domain": 5,
+    "task_form": 2,
+    "overall": 4,
+    "reason": "Repo.reset_index is broken in dulwich, a pure-Python git; fixing it means reasoning about index, tree and HEAD exactly as a merge does."
+   },
+   {
+    "rank": 2,
+    "task_id": "jelmer__dulwich-1578",
+    "skill": 4,
+    "domain": 5,
+    "task_form": 2,
+    "overall": 4,
+    "reason": "porcelain.add corrupts a branch in dulwich; branch refs and status computed from the object store."
+   },
+   {
+    "rank": 3,
+    "task_id": "jelmer__dulwich-1160",
+    "skill": 4,
+    "domain": 5,
+    "task_form": 2,
+    "overall": 3,
+    "reason": "MemoryObjectStore lacks add_pack_data; packfile ingestion, which is exactly how a bundle's objects get into a repo."
+   },
+   {
+    "rank": 4,
+    "task_id": "jelmer__dulwich-1167",
+    "skill": 4,
+    "domain": 5,
+    "task_form": 2,
+    "overall": 3,
+    "reason": "iterobjects_subset fails to walk from a ref; object reachability from HEAD, the traversal a bundle fetch performs."
+   },
+   {
+    "rank": 5,
+    "task_id": "gitpython-developers__gitpython-1832",
+    "skill": 4,
+    "domain": 5,
+    "task_form": 2,
+    "overall": 3,
+    "reason": "index.diff silently returns nothing when diff.external is configured; diff plumbing behaving differently from the porcelain."
+   },
+   {
+    "rank": 6,
+    "task_id": "virtuslab__git-machete-525",
+    "skill": 3,
+    "domain": 5,
+    "task_form": 2,
+    "overall": 3,
+    "reason": "Branch-name parsing confuses short names with refs/heads/ forms; the same ambiguity as 'fetch from HEAD, or find the real ref'."
+   },
+   {
+    "rank": 7,
+    "task_id": "jelmer__dulwich-1568",
+    "skill": 3,
+    "domain": 5,
+    "task_form": 2,
+    "overall": 3,
+    "reason": "Git config parsing rejects a valid escape while cloning a local repo; config and path handling inside a git implementation."
+   },
+   {
+    "rank": 8,
+    "task_id": "gitpython-developers__gitpython-744",
+    "skill": 3,
+    "domain": 5,
+    "task_form": 2,
+    "overall": 3,
+    "reason": "Adding a file fails when the repo is at a filesystem root; path resolution relative to the repository root."
+   },
+   {
+    "rank": 9,
+    "task_id": "relekang__python-semantic-release-319",
+    "skill": 2,
+    "domain": 4,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Release automation fails in CI; touches tags and commits but the bug is packaging, not git semantics."
+   },
+   {
+    "rank": 10,
+    "task_id": "pypa__pip-10288",
+    "skill": 2,
+    "domain": 3,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "pip flag addition; only VCS-adjacent, listed to complete the ten."
+   }
+  ],
+  "Terminal-Lego-15k": [
+   {
+    "rank": 1,
+    "task_id": "task_01942",
+    "skill": 4,
+    "domain": 5,
+    "task_form": 4,
+    "overall": 4,
+    "reason": "Merge a remote branch into the local one and complete the merge; the core branch-merge operation this task performs twice over."
+   },
+   {
+    "rank": 2,
+    "task_id": "task_11371",
+    "skill": 4,
+    "domain": 5,
+    "task_form": 4,
+    "overall": 4,
+    "reason": "Create a local branch tracking a remote ref and check it out - the same get-that-ref-into-a-named-branch step the bundles need."
+   },
+   {
+    "rank": 3,
+    "task_id": "task_11443",
+    "skill": 4,
+    "domain": 5,
+    "task_form": 4,
+    "overall": 4,
+    "reason": "Merge a development branch into master in a real repo; straightforward but the exact operation required here."
+   },
+   {
+    "rank": 4,
+    "task_id": "task_01790",
+    "skill": 3,
+    "domain": 5,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Use merge-base to find the common ancestor and reset softly, listing changed files; understanding what a merge is relative to."
+   },
+   {
+    "rank": 5,
+    "task_id": "task_01766",
+    "skill": 3,
+    "domain": 5,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Recover a repository stuck mid-rebase and squash correctly; repairing a half-finished history operation."
+   },
+   {
+    "rank": 6,
+    "task_id": "task_01772",
+    "skill": 3,
+    "domain": 5,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Replace a local branch wholesale with its remote counterpart; branch-vs-ref reasoning."
+   },
+   {
+    "rank": 7,
+    "task_id": "task_11484",
+    "skill": 3,
+    "domain": 4,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Move uncommitted work onto a different branch without losing it; index and worktree state across branches."
+   },
+   {
+    "rank": 8,
+    "task_id": "task_09829",
+    "skill": 3,
+    "domain": 1,
+    "task_form": 3,
+    "overall": 2,
+    "reason": "Implement a 2D integer grid whose cells update from their neighbours; the data structure an ARC-style map function manipulates."
+   },
+   {
+    "rank": 9,
+    "task_id": "task_09569",
+    "skill": 3,
+    "domain": 1,
+    "task_form": 3,
+    "overall": 2,
+    "reason": "Generate an outward spiral over a 2D integer grid; grid-coordinate reasoning, no induction from examples."
+   },
+   {
+    "rank": 10,
+    "task_id": "task_01930",
+    "skill": 2,
+    "domain": 4,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Initialise a repo with a custom default branch name; only the git init step overlaps."
+   }
+  ],
+  "CalibForge": [
+   {
+    "rank": 1,
+    "task_id": "debugging_20260614_141608_003",
+    "skill": 5,
+    "domain": 5,
+    "task_form": 5,
+    "overall": 5,
+    "reason": "Init a repo, fetch two git bundles into two branches, merge and resolve conflicts by a stated rule. Near-identical to this task."
+   },
+   {
+    "rank": 2,
+    "task_id": "software-engineering_20260604_193056_025",
+    "skill": 5,
+    "domain": 5,
+    "task_form": 4,
+    "overall": 5,
+    "reason": "Restore a broken repo from a git bundle until fsck is clean and the tip checks out; bundle fetching plus ref repair."
+   },
+   {
+    "rank": 3,
+    "task_id": "software-engineering_20260604_004411_014",
+    "skill": 5,
+    "domain": 3,
+    "task_form": 5,
+    "overall": 4,
+    "reason": "Infer an undocumented format from example/reference pairs alone and generalise to an unseen file - the induction half, same hidden-test contract."
+   },
+   {
+    "rank": 4,
+    "task_id": "software-engineering_20260417_112147_007",
+    "skill": 4,
+    "domain": 5,
+    "task_form": 4,
+    "overall": 4,
+    "reason": "Rebase a branch past a squash-merge through a pile of spurious conflicts; conflict resolution where the right answer is semantic, not textual."
+   },
+   {
+    "rank": 5,
+    "task_id": "file-operations_20260425_072438_002",
+    "skill": 4,
+    "domain": 5,
+    "task_form": 4,
+    "overall": 4,
+    "reason": "Parse a git packfile and resolve delta objects by hand; the object model a bundle is a container for."
+   },
+   {
+    "rank": 6,
+    "task_id": "debugging_20260604_193356_002",
+    "skill": 4,
+    "domain": 5,
+    "task_form": 3,
+    "overall": 4,
+    "reason": "Recover work on both main and feature branches from a corrupt object; branch refs and object reachability."
+   },
+   {
+    "rank": 7,
+    "task_id": "file-operations_20260605_015435_005",
+    "skill": 4,
+    "domain": 5,
+    "task_form": 3,
+    "overall": 4,
+    "reason": "Diagnose and repair an inconsistent repo until fsck is clean and the tree is sane; deep git-state reasoning."
+   },
+   {
+    "rank": 8,
+    "task_id": "software-engineering_20260415_182321_007",
+    "skill": 3,
+    "domain": 5,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Recover commits stranded by a detached-HEAD checkout into a proper branch; ref and HEAD mechanics, as fetching a bundle's HEAD needs."
+   },
+   {
+    "rank": 9,
+    "task_id": "games_20260604_144210_001",
+    "skill": 4,
+    "domain": 2,
+    "task_form": 4,
+    "overall": 3,
+    "reason": "Simulate grid patterns under a cell rule and classify their behaviour; exact 2D-grid state evolution, the ARC side without induction."
+   },
+   {
+    "rank": 10,
+    "task_id": "file-operations_20260611_112034_004",
+    "skill": 4,
+    "domain": 2,
+    "task_form": 4,
+    "overall": 3,
+    "reason": "Reverse-engineer an undocumented record format where the key is derived from the entry id; inductive decoding from examples."
+   }
+  ]
+ },
+ "final_top10": [
+  {
+   "rank": 1,
+   "task_id": "debugging_20260614_141608_003",
+   "skill": 5,
+   "domain": 5,
+   "task_form": 5,
+   "overall": 5,
+   "reason": "Init a repo, fetch two git bundles into two branches, merge and resolve conflicts by a stated rule. Near-identical to this task.",
+   "source": "CalibForge"
+  },
+  {
+   "rank": 2,
+   "task_id": "software-engineering_20260604_193056_025",
+   "skill": 5,
+   "domain": 5,
+   "task_form": 4,
+   "overall": 5,
+   "reason": "Restore a repository from a git bundle until fsck is clean and the tip checks out; bundle fetching plus ref reconstruction.",
+   "source": "CalibForge"
+  },
+  {
+   "rank": 3,
+   "task_id": "software-engineering_20260604_004411_014",
+   "skill": 5,
+   "domain": 3,
+   "task_form": 5,
+   "overall": 4,
+   "reason": "Infer an undocumented format from example/reference pairs alone and generalise to an unseen file - the same hidden-test induction contract as examples.json.",
+   "source": "CalibForge"
+  },
+  {
+   "rank": 4,
+   "task_id": "task_003045_a0576d1c",
+   "skill": 5,
+   "domain": 4,
+   "task_form": 4,
+   "overall": 4,
+   "reason": "Resolve a merge conflict by hand so the result keeps both the base field and the new one; semantic conflict resolution, not ours-or-theirs.",
+   "source": "TMax-15K"
+  },
+  {
+   "rank": 5,
+   "task_id": "task_002244_33013a20",
+   "skill": 5,
+   "domain": 2,
+   "task_form": 4,
+   "overall": 4,
+   "reason": "Reverse-engineer a black box from samples - rules, constraints and exact output schema - checked against data you never saw.",
+   "source": "TMax-15K"
+  },
+  {
+   "rank": 6,
+   "task_id": "software-engineering_20260417_112147_007",
+   "skill": 4,
+   "domain": 5,
+   "task_form": 4,
+   "overall": 4,
+   "reason": "Rebase past a squash-merge through a pile of spurious conflicts; deciding which side is semantically right.",
+   "source": "CalibForge"
+  },
+  {
+   "rank": 7,
+   "task_id": "task_000005_162ed362",
+   "skill": 5,
+   "domain": 2,
+   "task_form": 4,
+   "overall": 4,
+   "reason": "Deduce a transformation by probing an oracle and reimplement it so hidden inputs match exactly; the induce-then-generalise loop of the map function.",
+   "source": "TMax-15K"
+  },
+  {
+   "rank": 8,
+   "task_id": "task_01942",
+   "skill": 4,
+   "domain": 5,
+   "task_form": 4,
+   "overall": 4,
+   "reason": "Merge a remote branch into the local branch and complete the merge - the plain branch-merge operation this task performs.",
+   "source": "Terminal-Lego-15k"
+  },
+  {
+   "rank": 9,
+   "task_id": "file-operations_20260425_072438_002",
+   "skill": 4,
+   "domain": 5,
+   "task_form": 4,
+   "overall": 4,
+   "reason": "Parse a git packfile and resolve delta objects by hand; a bundle is a packfile with a ref header, so this is its internals.",
+   "source": "CalibForge"
+  },
+  {
+   "rank": 10,
+   "task_id": "task_004452_0a1fc499",
+   "skill": 4,
+   "domain": 4,
+   "task_form": 4,
+   "overall": 4,
+   "reason": "Resolve a patch conflict keeping the original initialisation but the new logic; per-hunk choices across two versions of a file.",
+   "source": "TMax-15K"
+  }
+ ],
+ "notes": "This TB2.1 task is two tasks stapled together and the pools split cleanly along that seam. CalibForge wins the git half outright with debugging_20260614_141608_003, which is a near-verbatim twin (init /app/repo, fetch two bundles, one branch each, merge, resolve conflicts) and is graded strong - retrieval did not surface it in the shortlist, a regex for 'git bundle' did. CalibForge also uniquely covers the induction half with software-engineering_20260604_004411_014, where the only specification is example/reference pairs and an unseen file is the real test. TMax owns the rest of the induction half through its large reverse-engineer-a-black-box-oracle cluster: probe a binary, deduce the rule, reimplement so hidden inputs match exactly - that is structurally what inferring the map from examples.json is, even though none of it involves grids. Recursive-Task-Synthesis is strong on the git half specifically (dozens of bundle-creation and rebase-audit tasks) but everything is 'absent' and all of it is bundle *creation* rather than bundle *consumption* plus merging. SWE-Rebench's dulwich and gitpython clusters are the best git-internals material in any SWE corpus - index/tree/HEAD, packfile ingestion, ref-name ambiguity - and deserve more weight than their task_form=2 suggests. Terminal-Lego has a genuine git branch/merge cluster (strong verifiers) but nothing inductive; its grid entries are filler. No corpus anywhere contains an actual ARC-AGI grid-puzzle task."
+}

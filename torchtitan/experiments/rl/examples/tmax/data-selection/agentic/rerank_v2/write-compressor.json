@@ -1,0 +1,770 @@
+{
+ "tb21_id": "write-compressor",
+ "tb21_profile": {
+  "skill": "Read a decompressor's source to reverse-engineer its input format, then hand-craft a valid compressed byte stream that decodes to a target file while staying under a strict size budget",
+  "domain": "Compression algorithms and custom binary formats in C; byte-level encoding, headers/framing, stdin/stdout pipelines",
+  "task_form": "reverse-engineer-a-format then implement-an-encoder under an optimise-for-a-budget size constraint"
+ },
+ "verifier_notes": "CalibForge software-engineering_*_026 is a whole family of the exact TB2.1 template ('I have a decoder at /app/X reading stdin; write me a file <=N bytes that decodes to target'); all sampled are graded ok/strong, none FREE, except the TBKV one software-engineering_20260612_191200_026 (FREE) which I excluded. No packet-vs-verifier_strength grade conflicts among my final_top10. All Recursive-Task-Synthesis entries are 'absent' (no verifier ships) and none is close enough to enter final_top10 given the graded CalibForge/TMax equivalents. TerminalWorld's two best skill matches here, tw_11733 (decompress embedded SWF) and tw_116487 (create compressed archive), are FREE-graded and kept in per_source only.",
+ "searches": [
+  "tools.py search tmax 'write (a )?compress|implement.*compress|LZ(77|78|SS|W)|run-?length|huffman|produce.*(that|which).*(decompress|extract|unpack)|extractable by|(that|which).*(decomp|unpacker) (can|accepts|reads)|reverse.*(the )?(decompress|format)'",
+  "tools.py show task_000185_d6f0bac7",
+  "packet CalibForge shown (decoder/deserializer/decoder.c/deser.c produce-matching-input tasks)",
+  "ls+head calibforge software-engineering_*_026 instruction.md (confirmed TB2.1-identical template)",
+  "grep -rli 'compress|decompress|gzip|zlib|deflate|huffman|rle|lz4|lzw|encode|binary format|serializ|struct.pack|base64' terminal-lego-15k",
+  "grep -rli 'implement.*(huffman|deflate|lz|compress|encoder|decoder)|from scratch|struct.pack|struct.unpack|varint|write.*binary file|parse.*binary|bit.(pack|field|stream)' terminal-lego-15k",
+  "tools.py search rts 'compress|decompress|gzip|zlib|huffman|run.length|rle|encode.*binary|custom (binary|archive) format|deserializ|serializ|struct.pack|reverse.?engineer.*(format|binary)|extractable'",
+  "tools.py search rts 'magic bytes|custom binary|binary protocol|(produce|generate|create).*(that|which).*(tool|binary|validator|parser|decoder|unpacker) (accepts|reads|expects|can)|reverse.?engineer.*format|write.*(encoder|serializer|compressor)'",
+  "tools.py search smith 'compress|decompress|gzip|zlib|deflate|brotli|lz4|zstd|tarfile|zipfile|msgpack|encode|decode|serializ|struct.(un)?pack|binary format|base64'",
+  "tools.py search rebench 'compress|decompress|gzip|zlib|deflate|brotli|lz4|zstd|tarfile|zipfile|msgpack|encode|decode|serializ|struct.(un)?pack|binary format'"
+ ],
+ "per_source": {
+  "TMax-15K": [
+   {
+    "rank": 1,
+    "task_id": "task_000185_d6f0bac7",
+    "skill": 5,
+    "domain": 5,
+    "task_form": 5,
+    "overall": 5,
+    "reason": "Analyze a stripped unpacker binary to deduce its custom archive+compression format, then produce a backup.bin it accepts under a strict size budget; the TB2.1 task almost exactly."
+   },
+   {
+    "rank": 2,
+    "task_id": "task_002100_1c549b41",
+    "skill": 4,
+    "domain": 5,
+    "task_form": 4,
+    "overall": 4,
+    "reason": "Reverse the .parc binary format and its custom compression from the unpacker binary using xxd/strings/ltrace; understand-a-format-from-its-tool."
+   },
+   {
+    "rank": 3,
+    "task_id": "task_006543_2d8a0ec1",
+    "skill": 4,
+    "domain": 5,
+    "task_form": 4,
+    "overall": 4,
+    "reason": "Work with a proprietary .cba custom backup archive format after a version change; reverse and manipulate a bespoke compressed container. Strong verifier."
+   },
+   {
+    "rank": 4,
+    "task_id": "task_000098_315c6951",
+    "skill": 4,
+    "domain": 5,
+    "task_form": 3,
+    "overall": 4,
+    "reason": "Parse a container whose payload is custom RLE ([count][byte]) then transform it; hand-decode a concrete compression format. Strong verifier."
+   },
+   {
+    "rank": 5,
+    "task_id": "task_003608_08259ba0",
+    "skill": 3,
+    "domain": 5,
+    "task_form": 4,
+    "overall": 4,
+    "reason": "Recover compressed metadata snapshots from a legacy spool format; reverse and read a bespoke compressed dump. Strong verifier."
+   },
+   {
+    "rank": 6,
+    "task_id": "task_009766_5ae4ba35",
+    "skill": 3,
+    "domain": 5,
+    "task_form": 4,
+    "overall": 3,
+    "reason": "Decompress and catalog scattered legacy dataset files in a custom format; identify and invert compression schemes. Strong verifier."
+   },
+   {
+    "rank": 7,
+    "task_id": "task_000033_899176aa",
+    "skill": 4,
+    "domain": 5,
+    "task_form": 3,
+    "overall": 4,
+    "reason": "Write a decompressor+decoder from a dictated spec that reads custom compressed bytes on stdin and emits the original ELF; stdin/stdout format inversion."
+   },
+   {
+    "rank": 8,
+    "task_id": "task_004971_c19ec3c8",
+    "skill": 4,
+    "domain": 4,
+    "task_form": 4,
+    "overall": 4,
+    "reason": "Reconstruct a lost decompressor for a custom binary backup repository; reverse the format and reimplement its decode path."
+   },
+   {
+    "rank": 9,
+    "task_id": "task_001791_72da84ea",
+    "skill": 4,
+    "domain": 5,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Implement a custom high-speed RLE compressor from recovered parameters; write an encoder for a bespoke compression format. Behavioral verifier."
+   },
+   {
+    "rank": 10,
+    "task_id": "task_000201_b4ef19d4",
+    "skill": 4,
+    "domain": 4,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Reverse a stripped legacy decoder for a custom RLE-hex format and reimplement it; infer a compression format from a binary."
+   }
+  ],
+  "Recursive-Task-Synthesis": [
+   {
+    "rank": 1,
+    "task_id": "rts_task_13f6564a6028b32fed750354",
+    "skill": 3,
+    "domain": 3,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Produce a ciphertext whose sidecar metadata (magic bytes, size, checksum) it must match, then decrypt back; build and validate a well-formed binary artifact. Absent verifier."
+   },
+   {
+    "rank": 2,
+    "task_id": "rts_task_c958936e7b3093029cdb424d",
+    "skill": 3,
+    "domain": 3,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Same encrypt/validate-magic-bytes/decrypt roundtrip family; craft a binary file that satisfies a format+integrity spec. Absent verifier."
+   },
+   {
+    "rank": 3,
+    "task_id": "rts_task_5d6a0a000cb4fb920b833a82",
+    "skill": 3,
+    "domain": 3,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Reverse-engineer a crackme binary's logic with objdump/gdb/strings to find its expected input; the reverse-the-decompressor skill in a different guise. Absent."
+   },
+   {
+    "rank": 4,
+    "task_id": "rts_task_6e8029aca9566b2126985d35",
+    "skill": 3,
+    "domain": 3,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Reverse a crackme and capture a syscall trace to confirm; infer a binary's expected input format. Absent verifier."
+   },
+   {
+    "rank": 5,
+    "task_id": "rts_task_d23e032c74f5183b273f0824",
+    "skill": 3,
+    "domain": 3,
+    "task_form": 2,
+    "overall": 3,
+    "reason": "Extract and validate ELF header fields including magic bytes into JSON; parse a structured binary format. Absent verifier."
+   },
+   {
+    "rank": 6,
+    "task_id": "rts_task_fda4f67369d88e90c4d3914a",
+    "skill": 3,
+    "domain": 3,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Decode a base64 blob to its exact raw bytes and checksum it; produce exact binary output from an encoded form. Absent verifier."
+   },
+   {
+    "rank": 7,
+    "task_id": "rts_task_d8dbf8758bbe5fe915a2f97d",
+    "skill": 2,
+    "domain": 4,
+    "task_form": 3,
+    "overall": 2,
+    "reason": "Extract an xz-compressed root filesystem and locate files per a partition-layout spec; decompress and navigate a bespoke image. Absent verifier."
+   },
+   {
+    "rank": 8,
+    "task_id": "rts_task_6597a4a164b9687626a88e00",
+    "skill": 2,
+    "domain": 3,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Extract ELF metadata (class, arch, headers) via file/readelf into JSON; binary-format field extraction. Absent verifier."
+   },
+   {
+    "rank": 9,
+    "task_id": "rts_task_37b88e6da28c826455b7fa5d",
+    "skill": 2,
+    "domain": 3,
+    "task_form": 3,
+    "overall": 2,
+    "reason": "Recover a flag through a chain, verifying file type and magic bytes at each step; multi-stage binary-format handling. Absent verifier."
+   },
+   {
+    "rank": 10,
+    "task_id": "rts_task_c5b848b65dbb6474ed45e0c7",
+    "skill": 2,
+    "domain": 3,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Compress a CSV in place and validate archive integrity plus decompressed line count; compression handling with verification. Absent verifier."
+   }
+  ],
+  "TerminalWorld-Seeds-Clean": [
+   {
+    "rank": 1,
+    "task_id": "tw_119147",
+    "skill": 3,
+    "domain": 4,
+    "task_form": 4,
+    "overall": 3,
+    "reason": "Shrink a Singularity image (a shell-script header prepended to an ext filesystem) to the minimum size while keeping it executable; understand a binary container format and optimise for size, like the 2500-byte budget. Strong verifier."
+   },
+   {
+    "rank": 2,
+    "task_id": "tw_383451",
+    "skill": 3,
+    "domain": 3,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Reverse-engineer a crackme binary to determine the exact input it expects; the reverse-the-decompressor's-format skill in a different guise. Strong verifier."
+   },
+   {
+    "rank": 3,
+    "task_id": "tw_134335",
+    "skill": 3,
+    "domain": 4,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Reverse-engineer and emulate a dan32 binary under radare2's ESIL VM, reconstructing its control flow; low-level format/ISA understanding."
+   },
+   {
+    "rank": 4,
+    "task_id": "tw_130138",
+    "skill": 2,
+    "domain": 3,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Disassemble a rop_remote binary and dump all sections; read machine code, a piece of reversing an opaque encoder."
+   },
+   {
+    "rank": 5,
+    "task_id": "tw_117526",
+    "skill": 2,
+    "domain": 3,
+    "task_form": 3,
+    "overall": 2,
+    "reason": "Recover and extract a compressed archive embedded inside an ext4 disk image; locate and invert a bespoke binary container."
+   },
+   {
+    "rank": 6,
+    "task_id": "tw_11733",
+    "skill": 3,
+    "domain": 3,
+    "task_form": 3,
+    "overall": 2,
+    "reason": "Extract a PDF stream and decompress an embedded SWF object; decompress a stream nested in a container format. FREE verifier - per_source only."
+   },
+   {
+    "rank": 7,
+    "task_id": "tw_104869",
+    "skill": 1,
+    "domain": 3,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Extract a tar.gz archive and convert its WAV files; compressed-archive handling, high-level tooling. Strong verifier."
+   },
+   {
+    "rank": 8,
+    "task_id": "tw_105601",
+    "skill": 1,
+    "domain": 3,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Extract a RAR archive fully into a directory; consuming a compressed container with standard tools."
+   },
+   {
+    "rank": 9,
+    "task_id": "tw_116487",
+    "skill": 2,
+    "domain": 3,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Create a compressed archive of a Go package with GoPack; producing a compressed artifact. FREE verifier - per_source only."
+   },
+   {
+    "rank": 10,
+    "task_id": "tw_116479",
+    "skill": 1,
+    "domain": 2,
+    "task_form": 2,
+    "overall": 1,
+    "reason": "Build a Go package from a remote source archive with gopack-build; archive fetch-and-build, minimal transfer."
+   }
+  ],
+  "SWE-Smith-Seeds-Clean": [
+   {
+    "rank": 1,
+    "task_id": "cantools__cantools.0c6a7871.func_pm_op_change_const__66td47t4",
+    "skill": 3,
+    "domain": 3,
+    "task_form": 2,
+    "overall": 3,
+    "reason": "Fix encode_message so signals at byte boundaries pack correctly; encoding data into a bit-level binary format, the core encode skill."
+   },
+   {
+    "rank": 2,
+    "task_id": "cantools__cantools.0c6a7871.combine_module__a5qhxz82",
+    "skill": 3,
+    "domain": 3,
+    "task_form": 2,
+    "overall": 3,
+    "reason": "Fix SecOC CRC/authenticator computation over binary payloads; bit-level encode plus integrity check."
+   },
+   {
+    "rank": 3,
+    "task_id": "cantools__cantools.0c6a7871.func_pm_remove_assign__e0sp70d9",
+    "skill": 2,
+    "domain": 3,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Fix multiplexed-signal bit-position decoding; extracting fields from a packed binary format."
+   },
+   {
+    "rank": 4,
+    "task_id": "Instagram__MonkeyType.70c3acf6.pr_17",
+    "skill": 2,
+    "domain": 2,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Fix a type serialization/deserialization round-trip for generic types; encode-then-decode fidelity."
+   },
+   {
+    "rank": 5,
+    "task_id": "chardet__chardet.9630f238.func_pm_ctrl_invert_if__jfcxc4j9",
+    "skill": 2,
+    "domain": 3,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Fix detection of a byte-stream's encoding; inferring how raw bytes decode to text."
+   },
+   {
+    "rank": 6,
+    "task_id": "cloudpipe__cloudpickle.6220b0ce.lm_rewrite__89r7c7sh",
+    "skill": 2,
+    "domain": 2,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Fix serialize/deserialize round-trip for ABC-registered classes; encoding an object graph to bytes and back."
+   },
+   {
+    "rank": 7,
+    "task_id": "chardet__chardet.9630f238.combine_file__z5upmzn7",
+    "skill": 2,
+    "domain": 3,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Fix MacRoman-vs-Windows-1252 misdetection; distinguishing byte encodings, decode reasoning."
+   },
+   {
+    "rank": 8,
+    "task_id": "andialbrecht__sqlparse.e57923b3.func_pm_ctrl_invert_if__7iwgl0ru",
+    "skill": 2,
+    "domain": 2,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Fix bytes-input decoding with a specified encoding; bytes-to-text handling, ecosystem only."
+   },
+   {
+    "rank": 9,
+    "task_id": "cantools__cantools.0c6a7871.lm_rewrite__swakazsi",
+    "skill": 2,
+    "domain": 3,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Fix SYM-file signal loading for certain data types; another binary-format parse fix."
+   },
+   {
+    "rank": 10,
+    "task_id": "Cog-Creators__Red-DiscordBot.33e0eac7.combine_file__ib9j050b",
+    "skill": 1,
+    "domain": 2,
+    "task_form": 2,
+    "overall": 1,
+    "reason": "Fix a to_json serialization that swaps and truncates fields; serialization correctness, minimal transfer."
+   }
+  ],
+  "SWE-Rebench-Tasks-Clean": [
+   {
+    "rank": 1,
+    "task_id": "aio-libs__aiohttp-7865",
+    "skill": 3,
+    "domain": 4,
+    "task_form": 2,
+    "overall": 3,
+    "reason": "Fix a ZLibCompressor bug producing invalid WebSocket frames; correctness of a real DEFLATE/zlib compression codec."
+   },
+   {
+    "rank": 2,
+    "task_id": "borgbackup__borg-8872",
+    "skill": 3,
+    "domain": 4,
+    "task_form": 2,
+    "overall": 3,
+    "reason": "Analyze a rolling-hash chunker weakness in a dedup/compression backend; low-level reasoning about a compression scheme."
+   },
+   {
+    "rank": 3,
+    "task_id": "aio-libs__aiohttp-7889",
+    "skill": 3,
+    "domain": 4,
+    "task_form": 2,
+    "overall": 3,
+    "reason": "Another ZLibCompressor/WebSocket compression fix; zlib framing correctness in a streaming codec."
+   },
+   {
+    "rank": 4,
+    "task_id": "aio-libs__aiohttp-7890",
+    "skill": 3,
+    "domain": 4,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Same ZLibCompressor compression-frame-header issue; compression-codec edge cases."
+   },
+   {
+    "rank": 5,
+    "task_id": "aio-libs__aiohttp-8823",
+    "skill": 2,
+    "domain": 3,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Fix parsing of Transfer-Encoding values like 'gzip, chunked'; interpreting a compressed/chunked wire encoding."
+   },
+   {
+    "rank": 6,
+    "task_id": "azure__walinuxagent-1120",
+    "skill": 2,
+    "domain": 3,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Fix decode_config choking on already-decoded bytes; bytes-vs-str decode handling in a wire protocol."
+   },
+   {
+    "rank": 7,
+    "task_id": "aio-libs__aiohttp-7869",
+    "skill": 2,
+    "domain": 3,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Handle Accept-Encoding gzip/deflate/br correctly; negotiating compressed transfer encodings."
+   },
+   {
+    "rank": 8,
+    "task_id": "biocore__biom-format-929",
+    "skill": 2,
+    "domain": 3,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Fix compression detection on a pathlib path; dispatching on a file's compression format."
+   },
+   {
+    "rank": 9,
+    "task_id": "bids-standard__pybids-1123",
+    "skill": 1,
+    "domain": 2,
+    "task_form": 2,
+    "overall": 1,
+    "reason": "Fix a UnicodeDecodeError on a bad byte; only byte-decoding overlaps."
+   },
+   {
+    "rank": 10,
+    "task_id": "boto__botocore-626",
+    "skill": 1,
+    "domain": 2,
+    "task_form": 2,
+    "overall": 1,
+    "reason": "Fix header-value serialization for timestamps; serialization correctness, minimal transfer."
+   }
+  ],
+  "Terminal-Lego-15k": [
+   {
+    "rank": 1,
+    "task_id": "task_03847",
+    "skill": 3,
+    "domain": 4,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Write a list of floats to a binary file in a specific layout; hand-construct a precise binary encoding, the byte-level skill the task needs. Strong verifier."
+   },
+   {
+    "rank": 2,
+    "task_id": "task_03378",
+    "skill": 3,
+    "domain": 4,
+    "task_form": 2,
+    "overall": 3,
+    "reason": "Parse a DER-encoded X.509 certificate; decode a real structured binary (TLV) format by its spec. Strong verifier."
+   },
+   {
+    "rank": 3,
+    "task_id": "task_02980",
+    "skill": 2,
+    "domain": 4,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Implement compressed HTTP POST data handling; produce/consume a compressed payload correctly."
+   },
+   {
+    "rank": 4,
+    "task_id": "task_03879",
+    "skill": 2,
+    "domain": 3,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Load compressed data from a NumPy .npz file; work with a compressed binary container. Strong verifier."
+   },
+   {
+    "rank": 5,
+    "task_id": "task_02984",
+    "skill": 2,
+    "domain": 4,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Analyze gzip vs deflate compression differences; understand compression-format framing."
+   },
+   {
+    "rank": 6,
+    "task_id": "task_03396",
+    "skill": 2,
+    "domain": 3,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Convert binary key data to base64 for storage; byte-to-text encoding."
+   },
+   {
+    "rank": 7,
+    "task_id": "task_03909",
+    "skill": 2,
+    "domain": 3,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Read lines from compressed text files without full extraction; streaming decompression."
+   },
+   {
+    "rank": 8,
+    "task_id": "task_00330",
+    "skill": 2,
+    "domain": 3,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Compress files while reading from stdin; a stdin-fed compression pipeline, shallow."
+   },
+   {
+    "rank": 9,
+    "task_id": "task_00183",
+    "skill": 1,
+    "domain": 3,
+    "task_form": 2,
+    "overall": 1,
+    "reason": "Gzip an entire directory tree into one archive; uses standard tools, minimal transfer."
+   },
+   {
+    "rank": 10,
+    "task_id": "task_03934",
+    "skill": 1,
+    "domain": 3,
+    "task_form": 2,
+    "overall": 1,
+    "reason": "Create a compressed tar archive in Python; high-level library use only."
+   }
+  ],
+  "CalibForge": [
+   {
+    "rank": 1,
+    "task_id": "software-engineering_20260604_144210_026",
+    "skill": 5,
+    "domain": 5,
+    "task_form": 5,
+    "overall": 5,
+    "reason": "Given a deserializer that reads a binary format from stdin, write data.bin <=340 bytes that decodes to target.txt; the TB2.1 task verbatim, tighter budget."
+   },
+   {
+    "rank": 2,
+    "task_id": "software-engineering_20260602_105139_026",
+    "skill": 5,
+    "domain": 5,
+    "task_form": 5,
+    "overall": 5,
+    "reason": "Given a BIS-format decoder reading stdin, craft data.bis <=5200 bytes that decodes to a list of integers; same reverse-the-format-and-encode-to-budget task."
+   },
+   {
+    "rank": 3,
+    "task_id": "software-engineering_20260508_045800_026",
+    "skill": 5,
+    "domain": 5,
+    "task_form": 5,
+    "overall": 5,
+    "reason": "Given decoder.c reading binary records from stdin, produce data.enc <=800 bytes decoding to data.txt; identical shape, source provided to reverse."
+   },
+   {
+    "rank": 4,
+    "task_id": "software-engineering_20260419_112101_026",
+    "skill": 5,
+    "domain": 5,
+    "task_form": 5,
+    "overall": 5,
+    "reason": "Given deser.c for a custom key-value binary format, produce data.bin <=80 bytes decoding to data.txt; extremely tight budget forces true format understanding."
+   },
+   {
+    "rank": 5,
+    "task_id": "software-engineering_20260604_194036_026",
+    "skill": 5,
+    "domain": 5,
+    "task_form": 4,
+    "overall": 5,
+    "reason": "Write a serializer that is the exact inverse of a compiled deserializer whose source and spec are lost, using the most compact encoding; reverse a format from a binary and an example."
+   },
+   {
+    "rank": 6,
+    "task_id": "software-engineering_20260610_112157_026",
+    "skill": 4,
+    "domain": 5,
+    "task_form": 4,
+    "overall": 4,
+    "reason": "Reverse an integer encoder's delta+varint scheme from its output and write a matching decoder; understand a compact binary encoding by inference."
+   },
+   {
+    "rank": 7,
+    "task_id": "software-engineering_20260610_111012_016",
+    "skill": 4,
+    "domain": 5,
+    "task_form": 4,
+    "overall": 4,
+    "reason": "Fix a custom-format decompressor so it produces the right output; reason precisely about a compression format's encoding. Strong verifier."
+   },
+   {
+    "rank": 8,
+    "task_id": "software-engineering_20260604_004411_023",
+    "skill": 4,
+    "domain": 5,
+    "task_form": 3,
+    "overall": 4,
+    "reason": "Implement a correct LZ4 block decompressor in C; master the exact bit/byte semantics of a real compression format. Strong verifier."
+   },
+   {
+    "rank": 9,
+    "task_id": "software-engineering_20260613_152233_015",
+    "skill": 4,
+    "domain": 5,
+    "task_form": 4,
+    "overall": 4,
+    "reason": "Recover original data from a file compressed with a custom scheme; reverse-engineer and invert a bespoke compression format. Strong verifier."
+   },
+   {
+    "rank": 10,
+    "task_id": "software-engineering_20260617_051646_015",
+    "skill": 3,
+    "domain": 5,
+    "task_form": 3,
+    "overall": 4,
+    "reason": "Decompress a raw-DEFLATE (RFC 1951) blob by hand; implement a standard compression format from its spec. Strong verifier."
+   }
+  ]
+ },
+ "final_top10": [
+  {
+   "rank": 1,
+   "task_id": "software-engineering_20260604_144210_026",
+   "source": "CalibForge",
+   "skill": 5,
+   "domain": 5,
+   "task_form": 5,
+   "overall": 5,
+   "reason": "Given a deserializer reading a binary format from stdin, write data.bin <=340 bytes that decodes to target.txt; the TB2.1 task verbatim."
+  },
+  {
+   "rank": 2,
+   "task_id": "software-engineering_20260602_105139_026",
+   "source": "CalibForge",
+   "skill": 5,
+   "domain": 5,
+   "task_form": 5,
+   "overall": 5,
+   "reason": "Reverse a BIS decoder and craft data.bis <=5200 bytes decoding to the target integers; same reverse-format-and-encode-to-budget task."
+  },
+  {
+   "rank": 3,
+   "task_id": "software-engineering_20260508_045800_026",
+   "source": "CalibForge",
+   "skill": 5,
+   "domain": 5,
+   "task_form": 5,
+   "overall": 5,
+   "reason": "Given decoder.c, produce data.enc <=800 bytes decoding to data.txt; identical shape with source provided to reverse."
+  },
+  {
+   "rank": 4,
+   "task_id": "task_000185_d6f0bac7",
+   "source": "TMax-15K",
+   "skill": 5,
+   "domain": 5,
+   "task_form": 5,
+   "overall": 5,
+   "reason": "Reverse a stripped unpacker binary's custom archive+compression format and emit a file it accepts under a size budget; near-exact match."
+  },
+  {
+   "rank": 5,
+   "task_id": "software-engineering_20260419_112101_026",
+   "source": "CalibForge",
+   "skill": 5,
+   "domain": 5,
+   "task_form": 5,
+   "overall": 5,
+   "reason": "Given deser.c for a key-value binary format, produce data.bin <=80 bytes decoding to data.txt; tight budget forces true format mastery."
+  },
+  {
+   "rank": 6,
+   "task_id": "software-engineering_20260604_194036_026",
+   "source": "CalibForge",
+   "skill": 5,
+   "domain": 5,
+   "task_form": 4,
+   "overall": 5,
+   "reason": "Write a compact serializer that exactly inverts a source-less compiled deserializer from one example; reverse a format from a binary."
+  },
+  {
+   "rank": 7,
+   "task_id": "task_002100_1c549b41",
+   "source": "TMax-15K",
+   "skill": 4,
+   "domain": 5,
+   "task_form": 4,
+   "overall": 4,
+   "reason": "Reverse the .parc format and its custom compression from the unpacker binary with xxd/strings/ltrace; understand-a-format-from-its-tool."
+  },
+  {
+   "rank": 8,
+   "task_id": "software-engineering_20260610_112157_026",
+   "source": "CalibForge",
+   "skill": 4,
+   "domain": 5,
+   "task_form": 4,
+   "overall": 4,
+   "reason": "Infer an integer encoder's delta+varint scheme from its output and write a matching decoder; recover a compact binary encoding."
+  },
+  {
+   "rank": 9,
+   "task_id": "software-engineering_20260610_111012_016",
+   "source": "CalibForge",
+   "skill": 4,
+   "domain": 5,
+   "task_form": 4,
+   "overall": 4,
+   "reason": "Fix a custom-format decompressor to produce correct output; reason precisely about a compression format's encoding. Strong verifier."
+  },
+  {
+   "rank": 10,
+   "task_id": "software-engineering_20260604_004411_023",
+   "source": "CalibForge",
+   "skill": 4,
+   "domain": 5,
+   "task_form": 3,
+   "overall": 4,
+   "reason": "Implement a correct LZ4 block decompressor in C; master the exact byte semantics of a real compression format. Strong verifier."
+  }
+ ],
+ "notes": "The new corpora dominate. CalibForge is decisive: it ships a whole software-engineering_*_026 family that is the TB2.1 template verbatim - 'I have a decoder/deserializer at /app/X reading stdin; write me a file <=N bytes that decodes to target' - with tight byte budgets and ok/strong verifiers, so seven of the final ten are CalibForge and would be more if not for balance. TMax is the second pillar: task_000185 (reverse a stripped unpacker to produce a file it accepts under a size budget) is a near-exact match, and TMax has deep custom-compression/RLE and reverse-a-format-from-its-binary tasks. Terminal-Lego only reaches binary-serialization adjacency (write floats to binary, DER parse) - no format-reversing or size-budget content. Recursive-Task-Synthesis has crackme-RE and encrypt/validate-magic-bytes roundtrip tasks that touch the skill but every one is graded 'absent' and none is close enough to displace the graded CalibForge/TMax matches. TerminalWorld's closest matches (Singularity image shrink, ESIL binary emulation) are decent but its very best - decompress embedded SWF, create compressed archive - are FREE. SWE-Smith/Rebench reach only codec/serialization adjacency (cantools bit-packing, aiohttp ZLibCompressor, chardet, cloudpickle) with mismatched task_form. Downstream merge: the CalibForge _026 family plus TMax task_000185 are the gold; everything else is supporting."
+}

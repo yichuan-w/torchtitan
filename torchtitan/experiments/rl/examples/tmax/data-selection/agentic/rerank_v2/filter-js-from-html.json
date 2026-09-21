@@ -1,0 +1,782 @@
+{
+ "tb21_id": "filter-js-from-html",
+ "tb21_profile": {
+  "skill": "Parse HTML robustly and remove the complete JavaScript attack surface - script elements, on* handlers, javascript:/data: URLs, srcdoc, style expressions, comment and encoding tricks - while leaving every other byte of the document functionally intact",
+  "domain": "Web security / XSS; Python HTML parsing (html.parser, lxml, BeautifulSoup, bleach) and serialisation",
+  "task_form": "Implement-from-spec: a CLI script editing a file in place, graded on an adversarial corpus of payloads plus benign documents that must survive unchanged"
+ },
+ "verifier_notes": "task_000174_0212094d (TMax) asks for a bit-exact C reimplementation of a binary that sanitises XSS/SQLi payloads - on skill it would rank near the top, but it is graded FREE and is excluded entirely. tw_12702 (parse HTML, emit body text only) is TerminalWorld's best HTML-parsing task and is FREE; ranked 2nd in per_source, not in final_top10. security_20260617_210354_001 (CalibForge filter bypass) is likewise FREE and kept to per_source. task_000588_bcb24536 (CLEAN/EVIL XSS classifier) is FREE and was dropped. Terminal-Lego grades used here (task_06939 ok, task_07072 weak, task_06389 weak) look low relative to content: these corpora run many small assertions and the heuristic dilutes strength, but none is FREE so the hard rule is satisfied.",
+ "searches": [
+  "grep over Terminal-Lego/CalibForge instructions: sanitiz|sanitis",
+  "XSS|cross-site scripting",
+  "strip.{0,20}(script|tag|html)|remove.{0,25}(script|tag)",
+  "BeautifulSoup|lxml|html\\.parser|bleach",
+  "onerror|onload|onclick|javascript:",
+  "whitelist of (safe|allowed) tags|allowed tags|allowlist",
+  "<script>|script tag",
+  "in-?place|modify the file in place",
+  "HTML (CalibForge)",
+  "sanitiz|escape|XSS (CalibForge)",
+  "parser|parse .{0,15}(html|xml|markup) (CalibForge)",
+  "tools.py search all \"sanitiz.{0,60}(HTML|XSS|script)|HTML.{0,40}sanitiz\"",
+  "tools.py search all \"BeautifulSoup|lxml|html\\.parser|bleach|strip_tags\"",
+  "tools.py search all \"XSS\"",
+  "tools.py search smith \"markupsafe|mistune|soupsieve|html5lib|bleach|escape|HTML|markdown|sanitiz\"",
+  "tools.py search smith \"markupsafe|mistune\"",
+  "tools.py search rebench \"escap|sanitiz|XSS|html|HTML\"",
+  "tools.py search rebench \"jinja|weasyprint|markdown|docutils|sphinx|bleach|beautifulsoup|lxml.html|nikola|pygments|xml\"",
+  "tools.py search rts \"sanitiz|XSS|escape HTML|strip.{0,15}tag\"",
+  "tools.py search rts \"HTML\"",
+  "tools.py search rts \"redact|filter out|remove all .{0,25}(lines|entries|occurrences)|scrape|BeautifulSoup\"",
+  "tools.py search tw \"HTML|sanitiz|XSS|escape|script tag|BeautifulSoup\""
+ ],
+ "per_source": {
+  "TMax-15K": [
+   {
+    "rank": 1,
+    "task_id": "task_000699_8860634f",
+    "skill": 4,
+    "domain": 5,
+    "task_form": 4,
+    "overall": 4,
+    "reason": "Implement an XSS/command-injection sanitizer for a C++ WebSocket server against a precise rule list; same enumerate-and-neutralise work"
+   },
+   {
+    "rank": 2,
+    "task_id": "task_000707_1b3b8e20",
+    "skill": 4,
+    "domain": 5,
+    "task_form": 3,
+    "overall": 4,
+    "reason": "Implement HTML entity encoding of <,>,&,\",' to kill reflected XSS in a live endpoint; the escaping primitive filter.py depends on"
+   },
+   {
+    "rank": 3,
+    "task_id": "task_000274_f95e6524",
+    "skill": 4,
+    "domain": 4,
+    "task_form": 4,
+    "overall": 4,
+    "reason": "Reimplement a payload sanitizer as a C binary judged by an adversarial safe/malicious corpus; exact-behaviour filter rewrite"
+   },
+   {
+    "rank": 4,
+    "task_id": "task_000634_51cb5545",
+    "skill": 4,
+    "domain": 5,
+    "task_form": 3,
+    "overall": 4,
+    "reason": "Fixes a URL-unescaping regression that lets XSS vectors slip past analysis; reasoning about decoding layers before filtering"
+   },
+   {
+    "rank": 5,
+    "task_id": "task_000703_e8678a4c",
+    "skill": 4,
+    "domain": 4,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Recover the exact string-sanitisation rules a stripped binary applies and reproduce them; forces precision about what is filtered"
+   },
+   {
+    "rank": 6,
+    "task_id": "task_007308_d61154b8",
+    "skill": 3,
+    "domain": 5,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Detect inline <script> blocks injected into static HTML files against CSP script hashes; parsing HTML for script content"
+   },
+   {
+    "rank": 7,
+    "task_id": "task_000348_6d9e8578",
+    "skill": 3,
+    "domain": 3,
+    "task_form": 4,
+    "overall": 3,
+    "reason": "Path sanitizer whose stdout is fuzz-compared against an oracle; same discipline of dropping only dangerous items"
+   },
+   {
+    "rank": 8,
+    "task_id": "task_000037_6b3061e0",
+    "skill": 3,
+    "domain": 4,
+    "task_form": 4,
+    "overall": 3,
+    "reason": "Filter binary must perfectly split a clean corpus from an evil corpus of XSS/forged payloads; no false positives allowed"
+   },
+   {
+    "rank": 9,
+    "task_id": "task_000505_e8482889",
+    "skill": 3,
+    "domain": 4,
+    "task_form": 2,
+    "overall": 3,
+    "reason": "Identify XSS payloads including their URL-encoded variants in access logs; vector and encoding enumeration"
+   },
+   {
+    "rank": 10,
+    "task_id": "task_002658_a38e6230",
+    "skill": 3,
+    "domain": 4,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Build an input-validation sanitizer against injection while hardening services; sanitizer is one of several phases"
+   }
+  ],
+  "Recursive-Task-Synthesis": [
+   {
+    "rank": 1,
+    "task_id": "rts_task_0e64b1a9ccf801a775656e56",
+    "skill": 3,
+    "domain": 3,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Parse an HTML colour reference from a shell script to look up codes; HTML extraction without a parser library; verifier absent"
+   },
+   {
+    "rank": 2,
+    "task_id": "rts_task_ee48e9838435167e181414ff",
+    "skill": 2,
+    "domain": 3,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Derive the expected section list from a CV's HTML source and check each against a generated PDF; reading HTML structure"
+   },
+   {
+    "rank": 3,
+    "task_id": "rts_task_91d5fdbfee6082edb75655bd",
+    "skill": 3,
+    "domain": 2,
+    "task_form": 3,
+    "overall": 2,
+    "reason": "Apply a written sanitisation policy to a container log and bundle the sanitised artifact; rule-driven redaction"
+   },
+   {
+    "rank": 4,
+    "task_id": "rts_task_8a7b0effdd3929145cd82b61",
+    "skill": 2,
+    "domain": 3,
+    "task_form": 3,
+    "overall": 2,
+    "reason": "Convert LaTeX to standalone, well-formed HTML with no external resource dependencies; producing valid markup"
+   },
+   {
+    "rank": 5,
+    "task_id": "rts_task_ab3dc279f35575deca7234e5",
+    "skill": 2,
+    "domain": 3,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Check which required sections an HTML CV already has and emit a PDF containing all of them"
+   },
+   {
+    "rank": 6,
+    "task_id": "rts_task_e9134b7718c356df291d2a46",
+    "skill": 2,
+    "domain": 3,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Scrape a site's HTML to list channels; markup extraction inside a larger REPL task"
+   },
+   {
+    "rank": 7,
+    "task_id": "rts_task_50d2720141b0f08766f42f84",
+    "skill": 2,
+    "domain": 1,
+    "task_form": 3,
+    "overall": 2,
+    "reason": "Remove files per a written sanitisation spec and log each removal; the shape of selective removal, wrong medium"
+   },
+   {
+    "rank": 8,
+    "task_id": "rts_task_c9737a1793184f185e5f15b1",
+    "skill": 1,
+    "domain": 3,
+    "task_form": 2,
+    "overall": 1,
+    "reason": "Download an HTML page with its resources and archive it; no markup transformation"
+   },
+   {
+    "rank": 9,
+    "task_id": "rts_task_2d28cb8a3dcd3b8aba170984",
+    "skill": 2,
+    "domain": 2,
+    "task_form": 2,
+    "overall": 1,
+    "reason": "Second SomaFM scraping variant; near-duplicate of the above"
+   },
+   {
+    "rank": 10,
+    "task_id": "rts_task_47d13fbb55b80f9b5b918758",
+    "skill": 1,
+    "domain": 3,
+    "task_form": 2,
+    "overall": 1,
+    "reason": "Render an HTML CV to PDF offline; touches HTML only as input to a converter"
+   }
+  ],
+  "TerminalWorld-Seeds-Clean": [
+   {
+    "rank": 1,
+    "task_id": "tw_443383",
+    "skill": 4,
+    "domain": 4,
+    "task_form": 4,
+    "overall": 4,
+    "reason": "page-loader downloads a page and rewrites its HTML so local resource references point at downloaded copies; parse, edit attributes, re-serialise"
+   },
+   {
+    "rank": 2,
+    "task_id": "tw_12702",
+    "skill": 3,
+    "domain": 5,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Parse an HTML article and emit only the body text with no markup; HTML parsing and node selection, but FREE verifier so barred from final_top10"
+   },
+   {
+    "rank": 3,
+    "task_id": "tw_449986",
+    "skill": 3,
+    "domain": 2,
+    "task_form": 4,
+    "overall": 3,
+    "reason": "Remove every object carrying a given key from a JSON document and write the rest back; selective node removal preserving the remainder"
+   },
+   {
+    "rank": 4,
+    "task_id": "tw_563797",
+    "skill": 3,
+    "domain": 2,
+    "task_form": 3,
+    "overall": 2,
+    "reason": "Escape all non-ASCII codepoints in a JSON string to \\u sequences; a mechanical escaping transform"
+   },
+   {
+    "rank": 5,
+    "task_id": "tw_19002",
+    "skill": 3,
+    "domain": 2,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Reproduce MySQL's exact comment-parsing edge cases; comment quirks are precisely what defeats naive HTML filters"
+   },
+   {
+    "rank": 6,
+    "task_id": "tw_104903",
+    "skill": 2,
+    "domain": 4,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Run WCAG-Zoo over HTML files and collect findings; HTML domain, tool-driven, FREE verifier"
+   },
+   {
+    "rank": 7,
+    "task_id": "tw_114823",
+    "skill": 2,
+    "domain": 3,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Produce a self-contained HTML recording of a terminal session; generates markup rather than filtering it"
+   },
+   {
+    "rank": 8,
+    "task_id": "tw_471988",
+    "skill": 2,
+    "domain": 3,
+    "task_form": 3,
+    "overall": 2,
+    "reason": "Rewrite import sources across five JavaScript files with a CLI tool; mechanical source rewriting, FREE verifier"
+   },
+   {
+    "rank": 9,
+    "task_id": "tw_317290",
+    "skill": 2,
+    "domain": 2,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Write a JavaScript quine; exact byte-for-byte output discipline, otherwise unrelated"
+   },
+   {
+    "rank": 10,
+    "task_id": "tw_244302",
+    "skill": 1,
+    "domain": 3,
+    "task_form": 2,
+    "overall": 1,
+    "reason": "Generate a browsable static HTML site from a git repo with a third-party tool; HTML only as output format, FREE verifier"
+   }
+  ],
+  "SWE-Smith-Seeds-Clean": [
+   {
+    "rank": 1,
+    "task_id": "buriy__python-readability.40256f40.func_basic__kjp0xgsf",
+    "skill": 4,
+    "domain": 5,
+    "task_form": 3,
+    "overall": 4,
+    "reason": "clean_attributes in readability's HTML cleaner emits malformed markup; fixing attribute stripping that must leave structure intact"
+   },
+   {
+    "rank": 2,
+    "task_id": "pallets__markupsafe.620c06c9.pr_418",
+    "skill": 4,
+    "domain": 5,
+    "task_form": 3,
+    "overall": 4,
+    "reason": "Markup.striptags() must strip HTML comments as well as tags; exactly the comment-handling gap that defeats naive JS filters"
+   },
+   {
+    "rank": 3,
+    "task_id": "pallets__markupsafe.620c06c9.func_basic__09grfhrm",
+    "skill": 4,
+    "domain": 5,
+    "task_form": 2,
+    "overall": 4,
+    "reason": "HTML escape replaces the wrong entities; the escaping table an XSS filter is built on"
+   },
+   {
+    "rank": 4,
+    "task_id": "lepture__mistune.bf54ef67.lm_rewrite__u9gus5ea",
+    "skill": 4,
+    "domain": 5,
+    "task_form": 2,
+    "overall": 3,
+    "reason": "Markdown renderer leaves special characters unescaped in an HTML class attribute, an XSS hole; attribute-context escaping"
+   },
+   {
+    "rank": 5,
+    "task_id": "buriy__python-readability.40256f40.func_pm_remove_loop__3p4o2p5c",
+    "skill": 3,
+    "domain": 5,
+    "task_form": 2,
+    "overall": 3,
+    "reason": "Another readability defect in the content-cleaning pipeline that prunes nodes from a parsed HTML tree"
+   },
+   {
+    "rank": 6,
+    "task_id": "facelessuser__soupsieve.a8080d97.combine_file__2we2kx8b",
+    "skill": 3,
+    "domain": 4,
+    "task_form": 2,
+    "overall": 3,
+    "reason": "CSS selector matching over a BeautifulSoup tree; selecting the right nodes is half of sanitising"
+   },
+   {
+    "rank": 7,
+    "task_id": "Knio__dominate.9082227e.lm_rewrite__461x0qe2",
+    "skill": 3,
+    "domain": 4,
+    "task_form": 2,
+    "overall": 3,
+    "reason": "HTML document construction and attribute rendering; how attributes serialise back out"
+   },
+   {
+    "rank": 8,
+    "task_id": "buriy__python-readability.40256f40.lm_rewrite__ckr790px",
+    "skill": 2,
+    "domain": 4,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Metadata extraction default value in readability's htmls.py; HTML library domain, thin skill"
+   },
+   {
+    "rank": 9,
+    "task_id": "facelessuser__soupsieve.a8080d97.func_basic__0mwegokv",
+    "skill": 3,
+    "domain": 4,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Second soupsieve selector defect; node-matching semantics only"
+   },
+   {
+    "rank": 10,
+    "task_id": "Knio__dominate.9082227e.func_basic__6sweuh5e",
+    "skill": 2,
+    "domain": 4,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Second dominate defect in HTML element rendering; domain overlap only"
+   }
+  ],
+  "SWE-Rebench-Tasks-Clean": [
+   {
+    "rank": 1,
+    "task_id": "facelessuser__pymdown-extensions-2472",
+    "skill": 3,
+    "domain": 4,
+    "task_form": 2,
+    "overall": 3,
+    "reason": "Markdown extension producing wrong HTML output; generating and reasoning about exact markup"
+   },
+   {
+    "rank": 2,
+    "task_id": "executablebooks__myst-parser-734",
+    "skill": 3,
+    "domain": 4,
+    "task_form": 2,
+    "overall": 3,
+    "reason": "MyST parser turning markup into an HTML/doctree representation; parser-behaviour debugging"
+   },
+   {
+    "rank": 3,
+    "task_id": "kozea__weasyprint-2404",
+    "skill": 2,
+    "domain": 4,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "WeasyPrint duplicates text with RTL content; consuming a parsed HTML/CSS tree"
+   },
+   {
+    "rank": 4,
+    "task_id": "pallets__jinja-1449",
+    "skill": 2,
+    "domain": 4,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Jinja template compilation regression; the templating layer where autoescaping lives, but not escaping itself"
+   },
+   {
+    "rank": 5,
+    "task_id": "pallets__jinja-1455",
+    "skill": 2,
+    "domain": 4,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Second Jinja defect; same ecosystem, no markup filtering"
+   },
+   {
+    "rank": 6,
+    "task_id": "kozea__weasyprint-2405",
+    "skill": 2,
+    "domain": 4,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Another WeasyPrint rendering defect over HTML input"
+   },
+   {
+    "rank": 7,
+    "task_id": "kozea__weasyprint-2416",
+    "skill": 2,
+    "domain": 4,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Third WeasyPrint rendering defect; HTML/CSS domain only"
+   },
+   {
+    "rank": 8,
+    "task_id": "aio-libs__aiohttp-8098",
+    "skill": 2,
+    "domain": 3,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "aiohttp request/response handling; web-stack domain, nothing about markup"
+   },
+   {
+    "rank": 9,
+    "task_id": "aio-libs__aiohttp-8101",
+    "skill": 2,
+    "domain": 3,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Second aiohttp defect; same"
+   },
+   {
+    "rank": 10,
+    "task_id": "pallets__werkzeug-2161",
+    "skill": 2,
+    "domain": 3,
+    "task_form": 2,
+    "overall": 1,
+    "reason": "send_file content handling; web framework domain, no parsing or filtering skill"
+   }
+  ],
+  "Terminal-Lego-15k": [
+   {
+    "rank": 1,
+    "task_id": "task_06939",
+    "skill": 5,
+    "domain": 5,
+    "task_form": 4,
+    "overall": 4,
+    "reason": "Sanitizer that keeps a whitelist of safe tags while regex-stripping every on* event handler and javascript: URL from href/src"
+   },
+   {
+    "rank": 2,
+    "task_id": "task_07072",
+    "skill": 5,
+    "domain": 5,
+    "task_form": 3,
+    "overall": 4,
+    "reason": "Build 15+ XSS vectors (event handlers, malformed tags, null bytes, encoding, whitespace) and test whether a tag stripper survives them"
+   },
+   {
+    "rank": 3,
+    "task_id": "task_06389",
+    "skill": 4,
+    "domain": 4,
+    "task_form": 4,
+    "overall": 4,
+    "reason": "Conditionally remove attributes from a markup root based on whether the document uses them, without reordering or normalising the rest"
+   },
+   {
+    "rank": 4,
+    "task_id": "task_03040",
+    "skill": 4,
+    "domain": 4,
+    "task_form": 4,
+    "overall": 3,
+    "reason": "Rewrite http:// URLs in src/href of link/script/img but never in <a> href; targeted attribute edits that must leave all else byte-intact"
+   },
+   {
+    "rank": 5,
+    "task_id": "task_06168",
+    "skill": 4,
+    "domain": 4,
+    "task_form": 2,
+    "overall": 3,
+    "reason": "Extract hrefs with regex and with a real parser and show where the regex fails; the core lesson against regex HTML filtering"
+   },
+   {
+    "rank": 6,
+    "task_id": "task_06972",
+    "skill": 3,
+    "domain": 4,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Strip all HTML tags and escape &<>\"' in a JS sanitizer; the naive approach plus escaping"
+   },
+   {
+    "rank": 7,
+    "task_id": "task_06174",
+    "skill": 3,
+    "domain": 4,
+    "task_form": 2,
+    "overall": 3,
+    "reason": "Shows how ^/$ anchors let a newline plus <script> slip past a validator; a concrete filter-bypass class"
+   },
+   {
+    "rank": 8,
+    "task_id": "task_03049",
+    "skill": 3,
+    "domain": 4,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Scan an HTML file for mixed-content URLs including ones inside inline <script>; finding every place a URL can hide in markup"
+   },
+   {
+    "rank": 9,
+    "task_id": "task_03512",
+    "skill": 3,
+    "domain": 4,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Unescape HTML entities including numeric and hex character references with stdlib only; the decoding layer a filter must anticipate"
+   },
+   {
+    "rank": 10,
+    "task_id": "task_01607",
+    "skill": 2,
+    "domain": 4,
+    "task_form": 3,
+    "overall": 2,
+    "reason": "Regex removal of everything from <script> onward; the naive filter the TB2.1 task must beat"
+   }
+  ],
+  "CalibForge": [
+   {
+    "rank": 1,
+    "task_id": "security_20260430_081156_003",
+    "skill": 5,
+    "domain": 4,
+    "task_form": 5,
+    "overall": 5,
+    "reason": "Same task template in YAML: argv[1] file, edited in place, dangerous tags neutralised, all legitimate content and formatting preserved"
+   },
+   {
+    "rank": 2,
+    "task_id": "security_20260509_202829_001",
+    "skill": 5,
+    "domain": 5,
+    "task_form": 3,
+    "overall": 5,
+    "reason": "Craft HTML that still fires alert() after a sanitizer that strips <script>, event handlers and javascript: URLs; the exact bypass surface"
+   },
+   {
+    "rank": 3,
+    "task_id": "security_20260614_141608_001",
+    "skill": 4,
+    "domain": 4,
+    "task_form": 4,
+    "overall": 4,
+    "reason": "A /app/filter.py that must block obfuscated (hex/decimal/octal) representations; enumerating encodings is the same failure mode as XSS vectors"
+   },
+   {
+    "rank": 4,
+    "task_id": "security_20260602_105139_001",
+    "skill": 4,
+    "domain": 4,
+    "task_form": 4,
+    "overall": 4,
+    "reason": "Defeat a URL safety filter guarding an internal service; find the representation the blocklist missed"
+   },
+   {
+    "rank": 5,
+    "task_id": "security_20260507_173144_003",
+    "skill": 4,
+    "domain": 3,
+    "task_form": 5,
+    "overall": 4,
+    "reason": "Write a safe extractor that rejects traversal, dangerous file types and metadata escalation while still extracting the legitimate members"
+   },
+   {
+    "rank": 6,
+    "task_id": "scientific-computing_20260508_180627_004",
+    "skill": 3,
+    "domain": 1,
+    "task_form": 5,
+    "overall": 3,
+    "reason": "Remove every forbidden substring from a sequence while preserving its function; the preserve-everything-else constraint in another medium"
+   },
+   {
+    "rank": 7,
+    "task_id": "security_20260416_031414_003",
+    "skill": 3,
+    "domain": 3,
+    "task_form": 4,
+    "overall": 3,
+    "reason": "Patch tarfile.extractall against CVE-2007-4559 path traversal; validate members rather than trusting input"
+   },
+   {
+    "rank": 8,
+    "task_id": "data-processing_20260428_101637_001",
+    "skill": 3,
+    "domain": 4,
+    "task_form": 2,
+    "overall": 3,
+    "reason": "Classify requests by XSS/SQLi/traversal signatures; vector vocabulary, detection rather than removal"
+   },
+   {
+    "rank": 9,
+    "task_id": "data-processing_20260511_015840_001",
+    "skill": 3,
+    "domain": 4,
+    "task_form": 2,
+    "overall": 3,
+    "reason": "Decode double/triple-encoded payloads before classifying attacks; layered decoding before matching"
+   },
+   {
+    "rank": 10,
+    "task_id": "security_20260617_210354_001",
+    "skill": 4,
+    "domain": 3,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Bypass a filename filter blocking shell metacharacters and dangerous tar options; blocklist-gap reasoning, FREE verifier so excluded from final_top10"
+   }
+  ]
+ },
+ "final_top10": [
+  {
+   "rank": 1,
+   "task_id": "security_20260430_081156_003",
+   "source": "CalibForge",
+   "skill": 5,
+   "domain": 4,
+   "task_form": 5,
+   "overall": 5,
+   "reason": "Same instruction template: CLI file argument, in-place edit, neutralise every dangerous tag form, preserve all legitimate content and formatting"
+  },
+  {
+   "rank": 2,
+   "task_id": "security_20260509_202829_001",
+   "source": "CalibForge",
+   "skill": 5,
+   "domain": 5,
+   "task_form": 3,
+   "overall": 5,
+   "reason": "Defeat an HTML sanitizer that strips script tags, event handlers and javascript: URLs; teaches the comment-parsing gap a filter must close"
+  },
+  {
+   "rank": 3,
+   "task_id": "task_06939",
+   "source": "Terminal-Lego-15k",
+   "skill": 5,
+   "domain": 5,
+   "task_form": 4,
+   "overall": 4,
+   "reason": "Whitelist safe tags, strip every on* event-handler attribute and javascript: URL from href/src; the same removal rules filter.py needs"
+  },
+  {
+   "rank": 4,
+   "task_id": "task_07072",
+   "source": "Terminal-Lego-15k",
+   "skill": 5,
+   "domain": 5,
+   "task_form": 3,
+   "overall": 4,
+   "reason": "Enumerate 15+ XSS vectors (malformed tags, null bytes, encodings, whitespace) and prove whether a tag stripper survives them"
+  },
+  {
+   "rank": 5,
+   "task_id": "task_000699_8860634f",
+   "source": "TMax-15K",
+   "skill": 4,
+   "domain": 5,
+   "task_form": 4,
+   "overall": 4,
+   "reason": "Implement a message sanitizer against XSS and command injection to an exact rule list and make it compile and pass"
+  },
+  {
+   "rank": 6,
+   "task_id": "buriy__python-readability.40256f40.func_basic__kjp0xgsf",
+   "source": "SWE-Smith-Seeds-Clean",
+   "skill": 4,
+   "domain": 5,
+   "task_form": 3,
+   "overall": 4,
+   "reason": "Fix clean_attributes so attribute stripping stops corrupting the surrounding HTML; remove-some-attributes-keep-the-document is the TB2.1 constraint"
+  },
+  {
+   "rank": 7,
+   "task_id": "task_06389",
+   "source": "Terminal-Lego-15k",
+   "skill": 4,
+   "domain": 4,
+   "task_form": 4,
+   "overall": 4,
+   "reason": "Remove only the attributes the document does not need, decided by scanning the content, without reordering or normalising anything else"
+  },
+  {
+   "rank": 8,
+   "task_id": "task_000707_1b3b8e20",
+   "source": "TMax-15K",
+   "skill": 4,
+   "domain": 5,
+   "task_form": 3,
+   "overall": 4,
+   "reason": "Implement HTML entity encoding for a reflected-XSS endpoint; the escaping primitive any JS-removal filter rests on"
+  },
+  {
+   "rank": 9,
+   "task_id": "pallets__markupsafe.620c06c9.pr_418",
+   "source": "SWE-Smith-Seeds-Clean",
+   "skill": 4,
+   "domain": 5,
+   "task_form": 3,
+   "overall": 4,
+   "reason": "striptags() must also remove HTML comments; comment handling is a classic hole in naive JavaScript filters"
+  },
+  {
+   "rank": 10,
+   "task_id": "security_20260614_141608_001",
+   "source": "CalibForge",
+   "skill": 4,
+   "domain": 4,
+   "task_form": 4,
+   "overall": 4,
+   "reason": "A /app/filter.py that must catch hex, decimal and octal obfuscations; the same 'did you cover every representation' discipline"
+  }
+ ],
+ "notes": "Both new corpora beat the v1 pool here. CalibForge's security_20260430_081156_003 is almost the same task written for YAML (identical in-place / preserve-formatting wording) and its security_20260509_202829_001 is the attacker's half of this exact problem; Terminal-Lego, as the spec predicted, is genuinely strong on HTML sanitising (task_06939, task_07072, task_06389, task_03040, task_06168) and contributes three of the final ten. SWE-Smith is unusually useful for this TB2.1 task because markupsafe, python-readability, mistune, soupsieve and dominate are precisely the HTML-escaping and HTML-cleaning libraries involved; their repo-tests grade makes them trustworthy. Recursive-Task-Synthesis has nothing defensible - its HTML entries are CV-to-PDF conversions and web-server setup, so ranks 5-10 there are filler. SWE-Rebench is likewise thin: Jinja and WeasyPrint share the ecosystem but not the skill."
+}

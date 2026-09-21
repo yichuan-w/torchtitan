@@ -1,0 +1,123 @@
+{
+  "tb21_id": "dna-assembly",
+  "tb21_profile": {
+    "skill": "Design DNA oligos that satisfy a conjunction of hard numeric/biochemical constraints (Type-IIS BsaI site + spacer + 4nt fusion overhangs, 15-45nt anneal region, 58-72C Tm from an external oracle tool, pair dTm<=5, minimal number of pairs) and emit them in an exact FASTA format.",
+    "domain": "Molecular / synthetic biology: Golden Gate cloning, restriction enzymes, plasmids, PCR primers, reverse complement, primer3 oligotm.",
+    "task_form": "Implement-from-spec / constrained design search, verified against an external CLI oracle, with a strict output-file contract."
+  },
+  "verifier_notes": "scientific-computing_20260513_204536_003 is graded `weak` in the packet (`ok` in work/verifier_strength.json) but I read the instruction: 11 tests over 6 explicit numeric constraints (8bp length, Hamming>=3 vs 20 barcodes, exactly 4 GC, no 3-mer homopolymer, positional balance, FASTA header format). The heuristic undercounts because most assertions are computed over the candidate output rather than compared to a literal; in practice it is nearly ungameable and I treated it as ok/strong. task_003951_424ee2df (TMax, primer GC/Tm/homopolymer feature table) is graded FREE with 1 test - excluded everywhere despite a good surface match. tw_346139 (GFF3 validation), tw_338534 and tw_1025 (BLAST db builds) and scientific-computing_20260414_080620_004 (plasmid digest) are FREE and excluded from final_top10.",
+  "searches": [
+    "tools.py search tmax '(?i)(golden gate|gibson assembly|restriction enzyme|BsaI|overhang|plasmid|oligotm|primer3|melting temperature)'",
+    "tools.py search rts '(?i)(fasta|fastq|bioinformatic|samtools|bwa|biopython|sequence|nucleotide|primer|genom)'",
+    "tools.py words rts fasta fastq dna sequence primer melting biopython genome plasmid nucleotide",
+    "tools.py search rts '(?i)(minimum number of|smallest number of|must satisfy all|satisfy the following constraints|ground truth)'",
+    "tools.py words tw fasta sequence dna primer alignment blast bioinformatics genome protein",
+    "tools.py search smith '(?i)(biopython|fasta|nucleotide|dna|alignment|needleman|smith-waterman|melting|codon|genom)'",
+    "tools.py search rebench '(?i)(biopython|fasta|nucleotide|\\bdna\\b|alignment|needleman|codon|genom|sequence align)'",
+    "tools.py search rebench 'cogent3'",
+    "tools.py show task_002586_51207d88",
+    "tools.py show tw_14129",
+    "grep -rlE 'reverse.complement|\\bprimer\\b|\\.fasta|nucleotide|plasmid|\\bcodon\\b|melting temperature|restriction enzyme|biopython|\\bDNA\\b|genome|sequence alignment' --include=instruction.md /data/yichuan_wang/terminal-lego-15k",
+    "grep -rliE 'primer|melting temperature|\\bTm\\b|anneal|golden gate|gibson|overhang|BsaI|restriction site' --include=instruction.md /data/yichuan_wang/calibforge",
+    "grep -rlE 'reverse complement|substring search|Knuth|Boyer|longest common sub|edit distance|Levenshtein|k-mer|suffix (array|tree)|backtracking' --include=instruction.md /data/yichuan_wang/terminal-lego-15k"
+  ],
+  "per_source": {
+    "TMax-15K": [
+      {"rank": 1, "task_id": "task_002586_51207d88", "skill": 4, "domain": 5, "task_form": 3, "overall": 4, "reason": "Locate BsaI site GGTCTC, take the 4nt immediately 3' of it, reverse-complement it - the exact Golden Gate overhang mechanic."},
+      {"rank": 2, "task_id": "task_001544_7d95dda4", "skill": 4, "domain": 5, "task_form": 4, "overall": 4, "reason": "Design primers for target sequences subject to an off-target binding score; same constrained-primer-design search, different constraint."},
+      {"rank": 3, "task_id": "task_002599_c0a64d58", "skill": 4, "domain": 5, "task_form": 4, "overall": 4, "reason": "PCR primer design plus specificity check against a reference genome; teaches primer construction from a template, not just measurement."},
+      {"rank": 4, "task_id": "task_005084_af94922a", "skill": 3, "domain": 5, "task_form": 3, "overall": 4, "reason": "Match primers to a reference by exact alignment and derive Tm; the specificity + Tm pairing the TB task must satisfy jointly."},
+      {"rank": 5, "task_id": "task_003839_04146172", "skill": 3, "domain": 5, "task_form": 3, "overall": 3, "reason": "Classify primers against a Tm window and a homopolymer-run limit - the same style of conjunctive numeric constraint checking on oligos."},
+      {"rank": 6, "task_id": "task_006512_ac735565", "skill": 3, "domain": 5, "task_form": 3, "overall": 3, "reason": "Extract amplicons from FASTA by locating both primer binding sites, which requires reverse-complement search over sequence."},
+      {"rank": 7, "task_id": "task_009177_2918cf64", "skill": 3, "domain": 5, "task_form": 3, "overall": 3, "reason": "Thermodynamic Tm equation for candidate primers; builds the nearest-neighbour Tm intuition the oligotm constraint rests on."},
+      {"rank": 8, "task_id": "task_004990_cd536857", "skill": 3, "domain": 4, "task_form": 3, "overall": 3, "reason": "Infer the Tm-driven property separating two sequence corpora; strong verifier, teaches sequence-level thermodynamic reasoning."},
+      {"rank": 9, "task_id": "task_000317_6a7b03ce", "skill": 2, "domain": 5, "task_form": 2, "overall": 2, "reason": "Fix a buggy melting_temp() in a Rust seq_utils crate; same quantity, but debugging genre rather than design."},
+      {"rank": 10, "task_id": "task_009904_1cc89ae2", "skill": 2, "domain": 4, "task_form": 2, "overall": 2, "reason": "GC-content distribution over a primers.fasta; only FASTA parsing and a per-oligo statistic transfer."}
+    ],
+    "Recursive-Task-Synthesis": [
+      {"rank": 1, "task_id": "rts_task_f71d016a46de2a54419d3f0d", "skill": 2, "domain": 4, "task_form": 3, "overall": 3, "reason": "Drive wgsim over a nucleotide FASTA in a conda bioinformatics container; FASTA/FASTQ handling and bio-CLI driving, no design."},
+      {"rank": 2, "task_id": "rts_task_2e448e2220ae20e4e643f49a", "skill": 2, "domain": 4, "task_form": 3, "overall": 3, "reason": "Same wgsim simulation but the FASTA input must be located first; adds discovery, still no sequence design."},
+      {"rank": 3, "task_id": "rts_task_accde0c35030f2ddf417ee37", "skill": 2, "domain": 4, "task_form": 3, "overall": 3, "reason": "Build a paired-end reads datastore with GenomeGraphs.jl under exact insert-size parameters; parameterised bio tooling."},
+      {"rank": 4, "task_id": "rts_task_8aff7defcfeb57e4d342612c", "skill": 2, "domain": 4, "task_form": 2, "overall": 2, "reason": "Count variants across VCF.gz and Parquet; genomics file formats only, no sequence-level reasoning."},
+      {"rank": 5, "task_id": "rts_task_645c2f01916c93c2a558b9e2", "skill": 3, "domain": 1, "task_form": 3, "overall": 2, "reason": "Emit a string satisfying schema constraints on length and character composition - the constrained-string-generation shape, wrong domain."},
+      {"rank": 6, "task_id": "rts_task_c5ef554609882dcb176c425e", "skill": 2, "domain": 3, "task_form": 2, "overall": 2, "reason": "refgenie genome asset management and bowtie2 index build; genomics ecosystem plumbing only."},
+      {"rank": 7, "task_id": "rts_task_a717e44fef7ee8da6255c998", "skill": 2, "domain": 3, "task_form": 2, "overall": 2, "reason": "refgenie setup from a README; follow-the-protocol discipline in a genomics stack, nothing about sequences."},
+      {"rank": 8, "task_id": "rts_task_7309cb3df5016041fe969188", "skill": 2, "domain": 1, "task_form": 3, "overall": 2, "reason": "Enumerate the full expected set of permutation outputs from a CLI whose usage must be discovered; external-tool-as-oracle shape."},
+      {"rank": 9, "task_id": "rts_task_804fa1532a71bb9032d5a163", "skill": 3, "domain": 1, "task_form": 3, "overall": 2, "reason": "Derive an unknown offset parameter from a single output constraint, then run; small analogue of solving for a Tm-satisfying length."},
+      {"rank": 10, "task_id": "rts_task_0c5596cdbb72a89d46879d0a", "skill": 1, "domain": 1, "task_form": 2, "overall": 1, "reason": "Build a Rust CLI and run it per a config file; only the run-tool-collect-output skeleton is shared."}
+    ],
+    "TerminalWorld-Seeds-Clean": [
+      {"rank": 1, "task_id": "tw_327279", "skill": 3, "domain": 5, "task_form": 3, "overall": 3, "reason": "Build a nucleotide BLAST database from yeast genomes and run alignments in a conda env; sequence-specificity checking in a real bio toolchain."},
+      {"rank": 2, "task_id": "tw_48144", "skill": 3, "domain": 5, "task_form": 3, "overall": 3, "reason": "Build a DNA sequence with Bio.Seq and extract its reverse complement; the primitive every reverse primer needs."},
+      {"rank": 3, "task_id": "tw_306002", "skill": 2, "domain": 5, "task_form": 3, "overall": 3, "reason": "wgsim paired-end simulation from a nucleotide FASTA; FASTA in, paired FASTQ out, bio-CLI operation."},
+      {"rank": 4, "task_id": "tw_404423", "skill": 2, "domain": 4, "task_form": 3, "overall": 2, "reason": "refgenie environment must satisfy an enumerated list of checks; genomics stack plus multi-constraint compliance."},
+      {"rank": 5, "task_id": "tw_30769", "skill": 2, "domain": 4, "task_form": 2, "overall": 2, "reason": "Intersect gene lists and join lengths from a positions table; genomics data wrangling, no sequence construction."},
+      {"rank": 6, "task_id": "tw_1331", "skill": 2, "domain": 3, "task_form": 2, "overall": 2, "reason": "Round-trip four FASTA files through DELIMINATE/gzip/bzip2/zip and compare; FASTA handling plus tool benchmarking."},
+      {"rank": 7, "task_id": "tw_569867", "skill": 2, "domain": 3, "task_form": 2, "overall": 2, "reason": "Drive proteinshake dataset/task APIs into a precise JSON schema; biomolecular library use with a strict output contract."},
+      {"rank": 8, "task_id": "tw_372371", "skill": 2, "domain": 1, "task_form": 3, "overall": 2, "reason": "N-Queens with CLI flags and saved solutions; constrained enumeration with an exact output contract, unrelated domain."},
+      {"rank": 9, "task_id": "tw_366681", "skill": 2, "domain": 1, "task_form": 3, "overall": 2, "reason": "Run all four permutation algorithms of an undocumented CLI and capture exact output; treating a tool as ground truth."},
+      {"rank": 10, "task_id": "tw_486189", "skill": 1, "domain": 1, "task_form": 2, "overall": 1, "reason": "Byte-exact three-section report about echo vs printf; only the strict output-format discipline transfers."}
+    ],
+    "SWE-Smith-Seeds-Clean": [
+      {"rank": 1, "task_id": "stanfordnlp__string2string.c4a72f59.func_pm_ctrl_shuffle__1qgp29ly", "skill": 3, "domain": 3, "task_form": 2, "overall": 3, "reason": "Repair Smith-Waterman local alignment so aligned substrings are correct; the alignment algorithm used to place primers on templates."},
+      {"rank": 2, "task_id": "life4__textdistance.c3aca916.lm_rewrite__1bwnbljz", "skill": 3, "domain": 3, "task_form": 2, "overall": 3, "reason": "Fix the substitution-matrix lookup feeding Needleman-Wunsch/Smith-Waterman; scoring-matrix semantics that sequence alignment depends on."},
+      {"rank": 3, "task_id": "stanfordnlp__string2string.c4a72f59.func_pm_class_rm_base__sp3rugmd", "skill": 3, "domain": 3, "task_form": 2, "overall": 3, "reason": "Restore Hirschberg linear-space alignment; same dynamic-programming sequence-alignment machinery."},
+      {"rank": 4, "task_id": "luozhouyang__python-string-similarity.115acaac.func_pm_class_rm_funcs__96brcjir", "skill": 3, "domain": 2, "task_form": 2, "overall": 2, "reason": "Implement OptimalStringAlignment distance from scratch; edit-distance DP, the generic form of sequence comparison."},
+      {"rank": 5, "task_id": "life4__textdistance.c3aca916.func_pm_ctrl_shuffle__a0dxas6w", "skill": 2, "domain": 2, "task_form": 2, "overall": 2, "reason": "Another textdistance sequence-similarity regression; same string-algorithm library, weaker tie to alignment specifically."},
+      {"rank": 6, "task_id": "life4__textdistance.c3aca916.pr_95", "skill": 2, "domain": 2, "task_form": 2, "overall": 2, "reason": "textdistance behaviour change on similarity computation; string-metric correctness with upstream tests."},
+      {"rank": 7, "task_id": "life4__textdistance.c3aca916.func_pm_class_rm_funcs__51lt6qtm", "skill": 2, "domain": 2, "task_form": 2, "overall": 2, "reason": "Reimplement removed textdistance methods; exercise of writing a metric to match a pinned reference."},
+      {"rank": 8, "task_id": "pyasn1__pyasn1.0f07d724.lm_rewrite__p6q0xdxm", "skill": 2, "domain": 2, "task_form": 2, "overall": 2, "reason": "Byte-exact integer/BitString encoding; format-spec conformance where one wrong byte fails, like a malformed enzyme site."},
+      {"rank": 9, "task_id": "pydicom__pydicom.7d361b3d.func_basic__wnlz4s6a", "skill": 2, "domain": 2, "task_form": 2, "overall": 2, "reason": "Fix DICOM sequence codification emitting items in reverse order; ordered-record emission in a scientific file format."},
+      {"rank": 10, "task_id": "seatgeek__thefuzz.8a05a3ee.lm_rewrite__tzl04soz", "skill": 1, "domain": 2, "task_form": 2, "overall": 1, "reason": "Restore a warning in fuzzy matching; only loosely in the string-similarity family, nothing about sequence design."}
+    ],
+    "SWE-Rebench-Tasks-Clean": [
+      {"rank": 1, "task_id": "cogent3__cogent3-1622", "skill": 4, "domain": 5, "task_form": 2, "overall": 3, "reason": "Debug k-mer seed sizing in cogent3's dotplot against a brute-force match on a DNA sequence and its reverse complement."},
+      {"rank": 2, "task_id": "cogent3__cogent3-2269", "skill": 3, "domain": 5, "task_form": 2, "overall": 3, "reason": "Fix cogent3 Alignment.omit_gap_pos after renaming DNA sequences; working inside a real molecular-sequence library's data model."},
+      {"rank": 3, "task_id": "cogent3__cogent3-1001", "skill": 2, "domain": 5, "task_form": 2, "overall": 2, "reason": "cogent3 load_tree path handling; same bioinformatics library and ecosystem, but the bug is plumbing, not sequence logic."},
+      {"rank": 4, "task_id": "tdameritrade__stumpy-806", "skill": 3, "domain": 2, "task_form": 2, "overall": 2, "reason": "Matrix-profile subsequence matching with a constant-subsequence guard; nearest-neighbour search over a long sequence."},
+      {"rank": 5, "task_id": "pyomo__pyomo-3472", "skill": 3, "domain": 2, "task_form": 2, "overall": 2, "reason": "Constrained-optimisation modelling layer; the 'minimum number of primer pairs subject to constraints' half of the TB task."},
+      {"rank": 6, "task_id": "pyomo__pyomo-3056", "skill": 3, "domain": 2, "task_form": 2, "overall": 2, "reason": "Another Pyomo constraint/expression correctness bug; reasoning about feasibility of a constraint set."},
+      {"rank": 7, "task_id": "pyomo__pyomo-2765", "skill": 2, "domain": 2, "task_form": 2, "overall": 2, "reason": "Pyomo model-construction fix; transfers only as constraint-system reasoning, not as biology."},
+      {"rank": 8, "task_id": "mne-tools__mne-bids-1362", "skill": 2, "domain": 2, "task_form": 2, "overall": 2, "reason": "BIDS naming/format-spec compliance in a scientific dataset; analogous to the strict >TEMPLATE_DIR FASTA header contract."},
+      {"rank": 9, "task_id": "plasmapy__plasmapy-517", "skill": 2, "domain": 2, "task_form": 2, "overall": 2, "reason": "Domain-object modelling in a physical-science library; scientific-library API reasoning, no sequence content."},
+      {"rank": 10, "task_id": "cuthbertlab__music21-1775", "skill": 1, "domain": 1, "task_form": 2, "overall": 1, "reason": "Symbolic-sequence library bug; only the notion of manipulating a structured symbol stream is shared."}
+    ],
+    "Terminal-Lego-15k": [
+      {"rank": 1, "task_id": "task_09030", "skill": 3, "domain": 2, "task_form": 3, "overall": 3, "reason": "Decide circular identity of two sequences under rotation - exactly the equivalence a circular output plasmid must be checked against."},
+      {"rank": 2, "task_id": "task_08980", "skill": 2, "domain": 3, "task_form": 3, "overall": 2, "reason": "In-place radix sort over ACGT strings; the only Terminal-Lego task that actually manipulates DNA alphabets."},
+      {"rank": 3, "task_id": "task_08928", "skill": 3, "domain": 1, "task_form": 3, "overall": 2, "reason": "Subset-sum solver: exact constraint satisfaction with a minimality flavour, matching the 'minimum number of primer pairs' requirement."},
+      {"rank": 4, "task_id": "task_09743", "skill": 2, "domain": 2, "task_form": 3, "overall": 2, "reason": "KMP prefix table; substring search machinery needed to find enzyme sites and primer binding positions."},
+      {"rank": 5, "task_id": "task_14934", "skill": 2, "domain": 1, "task_form": 3, "overall": 2, "reason": "Sudoku solver - backtracking search over a conjunction of hard constraints, the same solving pattern in a toy domain."},
+      {"rank": 6, "task_id": "task_14935", "skill": 2, "domain": 1, "task_form": 3, "overall": 2, "reason": "Next lexicographically greater permutation; constructing a string that satisfies a precise ordering constraint."},
+      {"rank": 7, "task_id": "task_08979", "skill": 2, "domain": 2, "task_form": 3, "overall": 2, "reason": "Deterministic even point distribution on a sphere; numeric design problem judged against exact expected values."},
+      {"rank": 8, "task_id": "task_13832", "skill": 2, "domain": 1, "task_form": 3, "overall": 2, "reason": "Regex parsing of multiline header+body records; the parsing half of reading and re-emitting FASTA cleanly."},
+      {"rank": 9, "task_id": "task_09160", "skill": 2, "domain": 2, "task_form": 3, "overall": 2, "reason": "Hamming-distance neighbourhood search over a large set; the distance constraint barcodes and overhangs must satisfy."},
+      {"rank": 10, "task_id": "task_05967", "skill": 1, "domain": 1, "task_form": 2, "overall": 1, "reason": "Append rows to CSV writing the header exactly once; only strict output-format discipline transfers."}
+    ],
+    "CalibForge": [
+      {"rank": 1, "task_id": "scientific-computing_20260513_204536_003", "skill": 5, "domain": 5, "task_form": 5, "overall": 5, "reason": "Design new 8bp DNA barcodes meeting six simultaneous constraints and emit FASTA with a fixed header pattern; same design-under-constraints task."},
+      {"rank": 2, "task_id": "scientific-computing_20260508_180627_004", "skill": 5, "domain": 5, "task_form": 4, "overall": 5, "reason": "Remove EcoRI/HindIII/BamHI/XhoI/NotI recognition sites by silent mutation; requires knowing real enzyme sites and editing DNA without breaking it."},
+      {"rank": 3, "task_id": "scientific-computing_20260422_235114_003", "skill": 4, "domain": 5, "task_form": 4, "overall": 4, "reason": "Simulate restriction digestion of circular plasmids and predict fragments; enzyme sites plus circular-coordinate arithmetic."},
+      {"rank": 4, "task_id": "scientific-computing_20260415_123352_003", "skill": 4, "domain": 5, "task_form": 4, "overall": 4, "reason": "Reconstruct a circular plasmid's site layout from EcoRI/HindIII/BamHI fragment sizes; inverse of the assembly reasoning."},
+      {"rank": 5, "task_id": "scientific-computing_20260617_104707_003", "skill": 4, "domain": 5, "task_form": 4, "overall": 4, "reason": "Design a coding DNA sequence from a protein under codon-usage and sequence-feature constraints; construct-a-sequence-to-spec."},
+      {"rank": 6, "task_id": "scientific-computing_20260415_094424_006", "skill": 3, "domain": 5, "task_form": 3, "overall": 4, "reason": "ORF scan on both strands of circular plasmids, including origin-spanning frames; reverse complement plus wrap-around indexing."},
+      {"rank": 7, "task_id": "scientific-computing_20260510_005520_006", "skill": 3, "domain": 5, "task_form": 3, "overall": 3, "reason": "Parse GenBank features that wrap the plasmid origin; the circular-coordinate edge case the output plasmid creates."},
+      {"rank": 8, "task_id": "scientific-computing_20260604_194036_003", "skill": 3, "domain": 5, "task_form": 3, "overall": 3, "reason": "Detect which FASTA entries are in reverse-complement orientation and correct them; strand reasoning needed for reverse primers."},
+      {"rank": 9, "task_id": "scientific-computing_20260508_045800_004", "skill": 3, "domain": 5, "task_form": 3, "overall": 3, "reason": "Codon-optimise a GFP variant against an E. coli usage table; DNA construction from a protein under a numeric objective."},
+      {"rank": 10, "task_id": "scientific-computing_20260610_111702_003", "skill": 3, "domain": 4, "task_form": 3, "overall": 3, "reason": "Rank RNA hairpin variants by folding free energy and ensemble dominance; nucleic-acid thermodynamics, the basis of Tm selection."}
+    ]
+  },
+  "final_top10": [
+    {"rank": 1, "task_id": "scientific-computing_20260513_204536_003", "source": "CalibForge", "skill": 5, "domain": 5, "task_form": 5, "overall": 5, "reason": "Design DNA oligos satisfying six simultaneous constraints and write FASTA with a fixed header format - structurally the same task."},
+    {"rank": 2, "task_id": "scientific-computing_20260508_180627_004", "source": "CalibForge", "skill": 5, "domain": 5, "task_form": 4, "overall": 5, "reason": "Requires real restriction-enzyme recognition sequences and constraint-preserving DNA edits, the knowledge BsaI site placement needs."},
+    {"rank": 3, "task_id": "task_002586_51207d88", "source": "TMax-15K", "skill": 4, "domain": 5, "task_form": 3, "overall": 4, "reason": "BsaI site location, the 4nt downstream overhang, and its reverse complement - the precise Golden Gate primitive."},
+    {"rank": 4, "task_id": "scientific-computing_20260422_235114_003", "source": "CalibForge", "skill": 4, "domain": 5, "task_form": 4, "overall": 4, "reason": "Enzyme-site scanning on circular plasmids with wrap-around fragment arithmetic; same cloning-simulation reasoning."},
+    {"rank": 5, "task_id": "task_001544_7d95dda4", "source": "TMax-15K", "skill": 4, "domain": 5, "task_form": 4, "overall": 4, "reason": "Primer design for multiple templates under an explicit binding-score constraint; the search itself, not just measurement."},
+    {"rank": 6, "task_id": "task_002599_c0a64d58", "source": "TMax-15K", "skill": 4, "domain": 5, "task_form": 4, "overall": 4, "reason": "Design PCR primers for a target and verify specificity against a genome; direct primer-construction practice."},
+    {"rank": 7, "task_id": "scientific-computing_20260415_123352_003", "source": "CalibForge", "skill": 4, "domain": 5, "task_form": 4, "overall": 4, "reason": "Infer circular plasmid structure from digest fragment sizes; forces exact reasoning about site positions on a closed sequence."},
+    {"rank": 8, "task_id": "task_005084_af94922a", "source": "TMax-15K", "skill": 3, "domain": 5, "task_form": 3, "overall": 4, "reason": "Couple exact primer-template matching with Tm determination, the two properties every designed pair must satisfy together."},
+    {"rank": 9, "task_id": "scientific-computing_20260617_104707_003", "source": "CalibForge", "skill": 4, "domain": 5, "task_form": 4, "overall": 4, "reason": "Build a DNA sequence to a written biological spec and emit it as a file; same construct-then-conform genre."},
+    {"rank": 10, "task_id": "task_003839_04146172", "source": "TMax-15K", "skill": 3, "domain": 5, "task_form": 3, "overall": 3, "reason": "Filter primers by a Tm window and homopolymer-run limit; the conjunctive numeric screening the TB primers must pass."}
+  ],
+  "notes": "CalibForge and TMax dominate; the honest top 10 is 5 CalibForge + 5 TMax and no other corpus earns a slot. Terminal-Lego-15k is effectively empty for this task - a whole-corpus grep found only two instructions mentioning DNA at all (task_08980, task_09030), so ranks 3-10 there are constraint-search / exact-output analogues with overall<=2 and should not be trusted as transfer. Recursive-Task-Synthesis has four genuine bioinformatics entries (two of them near-duplicate wgsim tasks) and nothing that designs a sequence; all are `absent`-graded. TerminalWorld's best bio tasks (BLAST db builds tw_338534, tw_1025; GFF3 validation tw_346139; GDB/GenomeTools tw_14129) are graded FREE, so I dropped them and its list bottoms out on unrelated constrained-enumeration tasks. SWE-Smith contributes only sequence-alignment algorithm repairs (string2string, textdistance); SWE-Rebench's only real biology is the three cogent3 issues. Merge step: the two new corpora clearly beat the old ones here - CalibForge supplies the single best candidate and half the final list."
+}

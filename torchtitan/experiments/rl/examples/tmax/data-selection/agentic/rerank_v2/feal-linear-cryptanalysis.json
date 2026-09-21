@@ -1,0 +1,688 @@
+{
+ "tb21_id": "feal-linear-cryptanalysis",
+ "tb21_profile": {
+  "skill": "Mount a known-plaintext statistical attack on a custom Feistel block cipher: read the C source, model the rounds, exploit a biased linear relation and a reduced seed keyspace to recover round keys, then decrypt",
+  "domain": "Symmetric cryptography / cryptanalysis; C source reading, bitwise arithmetic over 32-bit words, brute-force over a 20-bit seed",
+  "task_form": "Implement-an-attack-from-spec: derive an algorithm, write and run it, prove correctness by producing the decrypted plaintexts file"
+ },
+ "verifier_notes": "CORRECTION PASS (fix-team 04, promote_pass.py): the original pass ran against the broken grader; work/verifier_strength.json is now authoritative and both of the CalibForge cryptanalysis tasks it barred are `strong`. I re-read tests/test_outputs.py for each and the new grade is right. mathematics_20260606_172622_001: three tests, each seeds a fresh RNG, draws a random 4-byte key, encrypts 3 plaintexts with the real cipher, rewrites /app/known_pairs.json and asserts recover_key() == that exact key -- the key is generated at test time, so nothing can be hardcoded. mathematics_20260514_011125_001: builds an SPN with random subkeys over three different seeds and asserts attack(encrypt_fn) returns the exact 8-bit K5 nibble pair, plus a 60s bound. Both promoted: 172622_001 to rank 2 and 011125_001 to rank 5. They displaced task_008769_5f286f0d (its cryptanalysis is one third of a DevSecOps chore -- the other two thirds are CWE labelling and a regex redactor -- and a DDT is an analysis artefact, not a key recovery) and task_006795_2e1938f5 (16-bit LCG brute force plus log grepping; a stream cipher with no round structure and a keyspace small enough that no cryptanalysis is needed). Still excluded and still correct: the TerminalWorld crackme cluster (tw_42850, tw_229615, tw_108746, tw_21329, tw_651283) regrades to `ok` but is tool-driven reversing, scored 2-3 in per_source and does not reach the final ten on merit; task_002392_b43fd016 and task_004532_51ae89be also regrade to `ok` but were never ranked in per_source, so they are not eligible for final_top10 under the draw-from-per_source rule. No FREE-graded candidate remains in final_top10.",
+ "searches": [
+  "tools.py search all \"linear cryptanalysis\"",
+  "tools.py search all \"differential cryptanalys\"",
+  "tools.py search all \"Feistel\"",
+  "tools.py search all \"round key\"",
+  "tools.py search all \"S-box|Sbox|S-Box\"",
+  "tools.py search all \"known.plaintext\"",
+  "tools.py search all \"brute.?force the key|brute.force.*keyspace\"",
+  "tools.py search all \"recover the (encryption |secret |round )?key\"",
+  "tools.py search all \"plaintext-ciphertext pairs|plaintext/ciphertext\"",
+  "tools.py search rts \"crack|cryptanaly|brute.?force\"",
+  "tools.py search tw \"crack|cryptanaly|brute.?force\"",
+  "tools.py search rts \"reverse.engineer\"",
+  "tools.py search tw \"reverse.engineer\"",
+  "tools.py search rts \"Implement .{0,40}(cipher|encryption|hash|XOR|Diffie|RSA)|one-time pad|OTP\"",
+  "tools.py search smith \"cipher|encrypt|decrypt|crypto|hash|bitwise|XOR|binary format|struct.unpack\"",
+  "tools.py search smith \"cantools|pyasn1|bit|byte|decode|LZW|checksum\"",
+  "tools.py search rebench \"cryptography|crypto|cipher|RSA|elliptic|prime|bit-?shift|numpy.*precision|float\"",
+  "grep over Terminal-Lego/CalibForge instructions: cryptanaly | cipher | known.plaintext | XOR key | block cipher|round function|subkey|S-box|SPN | brute.?force | key schedule|key derivation | break the|crack|recover the key|frequency analysis|caesar|vigen | bitwise|bit manipulation|bit-level | from scratch | hash collision|md5 | ECB|CBC mode"
+ ],
+ "per_source": {
+  "TMax-15K": [
+   {
+    "rank": 1,
+    "task_id": "task_001946_12623d4f",
+    "skill": 5,
+    "domain": 5,
+    "task_form": 4,
+    "overall": 5,
+    "reason": "Read C++ custom cipher source, use intercepted plaintext-ciphertext pairs to recover the secret key, then forge output"
+   },
+   {
+    "rank": 2,
+    "task_id": "task_001904_f82f3bc6",
+    "skill": 5,
+    "domain": 4,
+    "task_form": 3,
+    "overall": 4,
+    "reason": "Known plaintext-ciphertext test vector plus source; linear/algebraic attack to deduce internal key and decrypt a file"
+   },
+   {
+    "rank": 3,
+    "task_id": "task_001371_86b003c8",
+    "skill": 4,
+    "domain": 5,
+    "task_form": 4,
+    "overall": 4,
+    "reason": "Write a C decryptor that exploits a weak seed keyspace plus known plaintext; same search-over-reduced-keyspace move as the 20-bit seed"
+   },
+   {
+    "rank": 4,
+    "task_id": "task_006795_2e1938f5",
+    "skill": 4,
+    "domain": 4,
+    "task_form": 4,
+    "overall": 4,
+    "reason": "Brute-force a 16-bit LCG seed from known plaintext, then write a Rust decryptor for the whole file"
+   },
+   {
+    "rank": 5,
+    "task_id": "task_008769_5f286f0d",
+    "skill": 4,
+    "domain": 5,
+    "task_form": 3,
+    "overall": 4,
+    "reason": "Builds a difference distribution table for a 4-bit S-box and finds max differential probability: the bias arithmetic FEAL needs"
+   },
+   {
+    "rank": 6,
+    "task_id": "task_000690_9d6ed460",
+    "skill": 4,
+    "domain": 4,
+    "task_form": 3,
+    "overall": 4,
+    "reason": "Known-plaintext attack recovering LCG seed, multiplier and increment, then decrypting the whole payload"
+   },
+   {
+    "rank": 7,
+    "task_id": "task_009816_25751511",
+    "skill": 4,
+    "domain": 4,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Linear cryptanalysis of a custom hash to engineer a collision; same linear-approximation reasoning, different goal"
+   },
+   {
+    "rank": 8,
+    "task_id": "task_004544_3403e2f6",
+    "skill": 4,
+    "domain": 4,
+    "task_form": 2,
+    "overall": 3,
+    "reason": "Differential cryptanalysis of weak_cipher.py to recover a 16-bit key, but buried in a video-extraction and sanitizer pipeline"
+   },
+   {
+    "rank": 9,
+    "task_id": "task_003324_1d8e1b65",
+    "skill": 3,
+    "domain": 4,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Recovers affine cipher keys a,b from a CSV of plaintext-ciphertext byte pairs; algebraic not statistical, plus unrelated TLS phases"
+   },
+   {
+    "rank": 10,
+    "task_id": "task_005717_65ce042f",
+    "skill": 3,
+    "domain": 4,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Reverse-engineer a stripped encryptor binary and use a 12-byte known plaintext to crack it; RE-led rather than statistical"
+   }
+  ],
+  "Recursive-Task-Synthesis": [
+   {
+    "rank": 1,
+    "task_id": "rts_task_dfea171657e568b9e4d21591",
+    "skill": 4,
+    "domain": 3,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Symbolic execution (angr) to recover an accepted input from a binary: algorithmic key recovery rather than guessing; verifier absent"
+   },
+   {
+    "rank": 2,
+    "task_id": "rts_task_eff64e838e9b5d28232cd489",
+    "skill": 3,
+    "domain": 4,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Implement Diffie-Hellman encode/decode primitives from a spec so both parties round-trip; crypto-from-spec, no attack"
+   },
+   {
+    "rank": 3,
+    "task_id": "rts_task_09ae9a494b67fc5452e1edfe",
+    "skill": 3,
+    "domain": 4,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Recover a Flask session signing key and forge a cookie: secret recovery then forgery, the same two-step as key-then-decrypt"
+   },
+   {
+    "rank": 4,
+    "task_id": "rts_task_ce14122249b0cd406c3d636e",
+    "skill": 3,
+    "domain": 3,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Derive a crackme password from program logic, explicitly without brute force; reading a binary's transform backwards"
+   },
+   {
+    "rank": 5,
+    "task_id": "rts_task_5d6a0a000cb4fb920b833a82",
+    "skill": 3,
+    "domain": 3,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Crackme reversed with objdump/gdb and verified by running it; static analysis of a checking routine"
+   },
+   {
+    "rank": 6,
+    "task_id": "rts_task_73801be0c567aacf23f8a420",
+    "skill": 3,
+    "domain": 3,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Three crackmes, the third needing runtime analysis under GDB; multi-stage input recovery"
+   },
+   {
+    "rank": 7,
+    "task_id": "rts_task_ee046ca2ea14fe903af968ec",
+    "skill": 3,
+    "domain": 3,
+    "task_form": 3,
+    "overall": 2,
+    "reason": "Crackme password from binary logic, no guessing allowed; shallower than a statistical attack"
+   },
+   {
+    "rank": 8,
+    "task_id": "rts_task_db69b40a996d889ce10d574d",
+    "skill": 2,
+    "domain": 3,
+    "task_form": 3,
+    "overall": 2,
+    "reason": "Three crackme passwords written to a file; mostly strings/static inspection"
+   },
+   {
+    "rank": 9,
+    "task_id": "rts_task_6e8029aca9566b2126985d35",
+    "skill": 2,
+    "domain": 3,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Crackme password plus an strace capture; the RE half transfers, the tracing half does not"
+   },
+   {
+    "rank": 10,
+    "task_id": "rts_task_8518263d556af939ded07ac4",
+    "skill": 2,
+    "domain": 2,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Find the profile-specific crackme then reverse it; mostly environment discovery and checksumming"
+   }
+  ],
+  "TerminalWorld-Seeds-Clean": [
+   {
+    "rank": 1,
+    "task_id": "tw_383451",
+    "skill": 3,
+    "domain": 3,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Extract a crackme's expected password from program logic using static or dynamic analysis; input recovery from a transform"
+   },
+   {
+    "rank": 2,
+    "task_id": "tw_14342",
+    "skill": 3,
+    "domain": 3,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Exhaustive search over alphabetic strings to invert an MD5 hash: keyspace enumeration against a known target"
+   },
+   {
+    "rank": 3,
+    "task_id": "tw_289006",
+    "skill": 3,
+    "domain": 3,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Three crackmes, two static and one needing runtime analysis; reads a validation routine backwards"
+   },
+   {
+    "rank": 4,
+    "task_id": "tw_42850",
+    "skill": 4,
+    "domain": 3,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Emulates the key-generation block of crackme0x02 with radare2 ESIL to compute the valid key; FREE verifier, excluded from final_top10"
+   },
+   {
+    "rank": 5,
+    "task_id": "tw_229615",
+    "skill": 3,
+    "domain": 3,
+    "task_form": 3,
+    "overall": 2,
+    "reason": "angr symbolic execution to find the accepted input; real technique but FREE verifier"
+   },
+   {
+    "rank": 6,
+    "task_id": "tw_124734",
+    "skill": 2,
+    "domain": 3,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Runs a supplied crack.py and captures its stdout; the cracking is done for you"
+   },
+   {
+    "rank": 7,
+    "task_id": "tw_108746",
+    "skill": 2,
+    "domain": 3,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Wordlist attack on bcrypt hashes with a shared salt; dictionary attack, not cryptanalysis; FREE verifier"
+   },
+   {
+    "rank": 8,
+    "task_id": "tw_21329",
+    "skill": 3,
+    "domain": 2,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Bypass a CPU-flag protection at runtime in a debugger; binary reasoning, no key recovery; FREE verifier"
+   },
+   {
+    "rank": 9,
+    "task_id": "tw_95784",
+    "skill": 1,
+    "domain": 3,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Decrypt a PGP message with the supplied private key; crypto domain but nothing is broken"
+   },
+   {
+    "rank": 10,
+    "task_id": "tw_651283",
+    "skill": 2,
+    "domain": 3,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "John the Ripper against md5crypt hashes with rockyou; tool-driven, FREE verifier"
+   }
+  ],
+  "SWE-Smith-Seeds-Clean": [
+   {
+    "rank": 1,
+    "task_id": "cantools__cantools.0c6a7871.func_pm_op_change_const__66td47t4",
+    "skill": 3,
+    "domain": 2,
+    "task_form": 2,
+    "overall": 3,
+    "reason": "Bit-position to byte-length arithmetic bug in CAN signal packing; same care about bit offsets a cipher round needs"
+   },
+   {
+    "rank": 2,
+    "task_id": "pdfminer__pdfminer.six.1a8bd2f7.combine_file__9pxesytc",
+    "skill": 3,
+    "domain": 2,
+    "task_form": 2,
+    "overall": 3,
+    "reason": "LZW decoder bug: variable-width bit unpacking and dictionary state, close to keystream/bit-slicing work"
+   },
+   {
+    "rank": 3,
+    "task_id": "cantools__cantools.0c6a7871.combine_file__2yrjny26",
+    "skill": 3,
+    "domain": 2,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Off-by-one in a binary diagnostic data offset; byte-layout reasoning"
+   },
+   {
+    "rank": 4,
+    "task_id": "paramiko__paramiko.23f92003.lm_rewrite__ff51dugy",
+    "skill": 3,
+    "domain": 4,
+    "task_form": 2,
+    "overall": 3,
+    "reason": "Key-generation routine produces wrong key bytes; debugging a keying computation against expected output"
+   },
+   {
+    "rank": 5,
+    "task_id": "pyasn1__pyasn1.0f07d724.func_pm_class_rm_funcs__ajm5xzfg",
+    "skill": 3,
+    "domain": 3,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "DER/BER codec defect: tag-and-length binary encoding correctness"
+   },
+   {
+    "rank": 6,
+    "task_id": "chardet__chardet.9630f238.func_pm_ctrl_invert_if__jfcxc4j9",
+    "skill": 2,
+    "domain": 2,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "UTF-16BE detection on surrogate pairs; byte-pattern statistics over a buffer"
+   },
+   {
+    "rank": 7,
+    "task_id": "pyca__pyopenssl.04766a49.combine_file__ia85jsve",
+    "skill": 2,
+    "domain": 4,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "OpenSSL binding defect: crypto ecosystem, but the fix is API plumbing not cryptanalysis"
+   },
+   {
+    "rank": 8,
+    "task_id": "paramiko__paramiko.23f92003.combine_file__fn5svpc8",
+    "skill": 2,
+    "domain": 4,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Second paramiko defect in the same crypto transport code; domain overlap only"
+   },
+   {
+    "rank": 9,
+    "task_id": "cantools__cantools.0c6a7871.lm_rewrite__swakazsi",
+    "skill": 2,
+    "domain": 2,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Another cantools encoding defect; bit-field packing domain, thin skill transfer"
+   },
+   {
+    "rank": 10,
+    "task_id": "pydicom__pydicom.7d361b3d.pr_1931",
+    "skill": 2,
+    "domain": 2,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Binary DICOM element handling; structured-binary parsing only"
+   }
+  ],
+  "SWE-Rebench-Tasks-Clean": [
+   {
+    "rank": 1,
+    "task_id": "borgbackup__borg-8872",
+    "skill": 3,
+    "domain": 3,
+    "task_form": 2,
+    "overall": 3,
+    "reason": "Buzhash xor-seed requires an odd hash window: reasoning about how a seed perturbs a rolling hash's bits"
+   },
+   {
+    "rank": 2,
+    "task_id": "pyca__cryptography-12286",
+    "skill": 2,
+    "domain": 4,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Key-loading error semantics in pyca/cryptography; same ecosystem, no attack reasoning"
+   },
+   {
+    "rank": 3,
+    "task_id": "pyca__cryptography-12693",
+    "skill": 2,
+    "domain": 4,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Second pyca/cryptography defect; crypto library domain only"
+   },
+   {
+    "rank": 4,
+    "task_id": "getmoto__moto-6795",
+    "skill": 2,
+    "domain": 4,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "KMS sign/verify base64 encode/decode mismatch; crypto API byte handling"
+   },
+   {
+    "rank": 5,
+    "task_id": "getmoto__moto-7102",
+    "skill": 2,
+    "domain": 4,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "KMS encrypt path for plaintext over 4k; crypto service behaviour, no cryptanalysis"
+   },
+   {
+    "rank": 6,
+    "task_id": "jcrist__msgspec-225",
+    "skill": 2,
+    "domain": 2,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Binary msgpack encode/decode defect; byte-level serialization correctness"
+   },
+   {
+    "rank": 7,
+    "task_id": "dpkp__kafka-python-2608",
+    "skill": 2,
+    "domain": 2,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Kafka wire-protocol handling; binary framing domain"
+   },
+   {
+    "rank": 8,
+    "task_id": "cloudpipe__cloudpickle-314",
+    "skill": 2,
+    "domain": 2,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Pickle bytecode serialization defect; reasoning about a byte stream's structure"
+   },
+   {
+    "rank": 9,
+    "task_id": "qiskit__qiskit-11063",
+    "skill": 2,
+    "domain": 2,
+    "task_form": 2,
+    "overall": 1,
+    "reason": "Quantum SDK defect; shares only the flavour of exact algebraic computation"
+   },
+   {
+    "rank": 10,
+    "task_id": "qiskit__qiskit-terra-8925",
+    "skill": 2,
+    "domain": 2,
+    "task_form": 2,
+    "overall": 1,
+    "reason": "Second qiskit defect; essentially unrelated to key recovery"
+   }
+  ],
+  "Terminal-Lego-15k": [
+   {
+    "rank": 1,
+    "task_id": "task_13960",
+    "skill": 4,
+    "domain": 4,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Implement XOR encrypt/decrypt then break it by frequency/key-length analysis; the only real cryptanalysis in this corpus"
+   },
+   {
+    "rank": 2,
+    "task_id": "task_01697",
+    "skill": 3,
+    "domain": 3,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Fix an MD5 wordlist cracker so it runs; keyspace search over candidate keys, but the fix is a bytes/str bug"
+   },
+   {
+    "rank": 3,
+    "task_id": "task_06705",
+    "skill": 2,
+    "domain": 4,
+    "task_form": 3,
+    "overall": 2,
+    "reason": "Implement AES-CBC in C++ with Crypto++; building a cipher correctly in C, no attack"
+   },
+   {
+    "rank": 4,
+    "task_id": "task_06758",
+    "skill": 2,
+    "domain": 4,
+    "task_form": 3,
+    "overall": 2,
+    "reason": "Implement AES-256-CBC with PKCS7 in Python; cipher mechanics only"
+   },
+   {
+    "rank": 5,
+    "task_id": "task_06686",
+    "skill": 2,
+    "domain": 4,
+    "task_form": 3,
+    "overall": 2,
+    "reason": "AES-256 encrypt/decrypt round trip in Node; strong verifier but no key recovery"
+   },
+   {
+    "rank": 6,
+    "task_id": "task_06733",
+    "skill": 3,
+    "domain": 4,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Demonstrate why IVs matter by exhibiting ECB/fixed-IV leakage; reasoning about a cipher's weakness"
+   },
+   {
+    "rank": 7,
+    "task_id": "task_06720",
+    "skill": 3,
+    "domain": 4,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Demonstrate the CBC predictable-IV vulnerability; weakness analysis, no key recovery"
+   },
+   {
+    "rank": 8,
+    "task_id": "task_06731",
+    "skill": 2,
+    "domain": 3,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Explain and demonstrate IV vs salt; largely expository"
+   },
+   {
+    "rank": 9,
+    "task_id": "task_13954",
+    "skill": 2,
+    "domain": 3,
+    "task_form": 3,
+    "overall": 2,
+    "reason": "AES-256-CBC CLI with passphrase; plain library usage"
+   },
+   {
+    "rank": 10,
+    "task_id": "task_06736",
+    "skill": 2,
+    "domain": 3,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Show passphrase+salt+IV are all needed; expository crypto demo"
+   }
+  ],
+  "CalibForge": [
+   {
+    "rank": 1,
+    "task_id": "mathematics_20260602_105139_001",
+    "skill": 5,
+    "domain": 5,
+    "task_form": 5,
+    "overall": 5,
+    "reason": "Linear cryptanalysis of a 4-round SPN recovering final-round-key nibbles from 2500 known pairs: the exact attack FEAL needs"
+   },
+   {
+    "rank": 2,
+    "task_id": "mathematics_20260606_172606_002",
+    "skill": 5,
+    "domain": 5,
+    "task_form": 5,
+    "overall": 5,
+    "reason": "Correlation attack on an LFSR combiner implemented in C; recover seeds from known pairs then decrypt 100 ciphertexts"
+   },
+   {
+    "rank": 3,
+    "task_id": "mathematics_20260606_172622_001",
+    "skill": 5,
+    "domain": 5,
+    "task_form": 5,
+    "overall": 4,
+    "reason": "4-round Feistel over bytes, one key byte per round, meet-in-the-middle from 3 known pairs; structurally FEAL, but FREE verifier so barred from final_top10"
+   },
+   {
+    "rank": 4,
+    "task_id": "mathematics_20260601_053159_002",
+    "skill": 5,
+    "domain": 5,
+    "task_form": 4,
+    "overall": 4,
+    "reason": "Build a C keystream generator, recover its hidden state from one known 500-bit pair, predict the next output"
+   },
+   {
+    "rank": 5,
+    "task_id": "mathematics_20260510_062946_001",
+    "skill": 4,
+    "domain": 5,
+    "task_form": 4,
+    "overall": 4,
+    "reason": "Recover LFSR seed and tap positions from several plaintext-ciphertext pairs, then decrypt the unknown entry"
+   },
+   {
+    "rank": 6,
+    "task_id": "mathematics_20260514_011125_001",
+    "skill": 5,
+    "domain": 5,
+    "task_form": 5,
+    "overall": 4,
+    "reason": "Heys-tutorial SPN linear cryptanalysis recovering K5 nibbles with a bias-1/32 approximation; FREE verifier, excluded from final_top10"
+   },
+   {
+    "rank": 7,
+    "task_id": "mathematics_20260606_153537_002",
+    "skill": 4,
+    "domain": 4,
+    "task_form": 5,
+    "overall": 4,
+    "reason": "Compile the provided C knapsack decrypt utility, break the public key, recover all 40 ciphertext blocks to a plaintexts file"
+   },
+   {
+    "rank": 8,
+    "task_id": "mathematics_20260422_235114_002",
+    "skill": 4,
+    "domain": 4,
+    "task_form": 5,
+    "overall": 4,
+    "reason": "Break a 48-element Merkle-Hellman knapsack and write every recovered plaintext out; strong verifier"
+   },
+   {
+    "rank": 9,
+    "task_id": "mathematics_20260604_003113_002",
+    "skill": 4,
+    "domain": 4,
+    "task_form": 4,
+    "overall": 4,
+    "reason": "Keystream reuse: derive 504 bits of keystream from a known pair, model the generator, decrypt the target"
+   },
+   {
+    "rank": 10,
+    "task_id": "mathematics_20260510_005520_002",
+    "skill": 3,
+    "domain": 4,
+    "task_form": 5,
+    "overall": 3,
+    "reason": "Recover an RSA private key from a weak modulus and decrypt every ciphertext to /app/plaintexts.txt; same deliverable shape, number-theoretic skill"
+   }
+  ]
+ },
+ "final_top10": [
+    {"rank": 1, "task_id": "mathematics_20260602_105139_001", "source": "CalibForge", "skill": 5, "domain": 5, "task_form": 5, "overall": 5, "reason": "Linear cryptanalysis of a 4-round SPN recovering round-key bits from known pairs; the same attack the TB2.1 task asks for"},
+    {"rank": 2, "task_id": "mathematics_20260606_172622_001", "source": "CalibForge", "skill": 5, "domain": 5, "task_form": 4, "overall": 5, "reason": "4-round Feistel, one key byte per round, recovered from 3 known pairs by meet-in-the-middle: the FEAL round-key structure itself."},
+    {"rank": 3, "task_id": "task_001946_12623d4f", "source": "TMax-15K", "skill": 5, "domain": 5, "task_form": 4, "overall": 5, "reason": "Read a C++ cipher's source, recover its key from intercepted plaintext-ciphertext pairs, then use the key; strong verifier"},
+    {"rank": 4, "task_id": "mathematics_20260606_172606_002", "source": "CalibForge", "skill": 5, "domain": 5, "task_form": 5, "overall": 5, "reason": "Attack a C-implemented LFSR combiner from 2000 known pairs, recover seeds, decrypt 100 ciphertexts to a file"},
+    {"rank": 5, "task_id": "mathematics_20260514_011125_001", "source": "CalibForge", "skill": 5, "domain": 5, "task_form": 4, "overall": 4, "reason": "Heys SPN linear cryptanalysis end to end: build the LAT, pile up a bias-1/32 trail, partially decrypt, pick the max-bias K5 nibbles."},
+    {"rank": 6, "task_id": "mathematics_20260601_053159_002", "source": "CalibForge", "skill": 5, "domain": 5, "task_form": 4, "overall": 4, "reason": "Compile a C keystream generator, recover its hidden state from one known pair, then predict subsequent output"},
+    {"rank": 7, "task_id": "task_001904_f82f3bc6", "source": "TMax-15K", "skill": 5, "domain": 4, "task_form": 3, "overall": 4, "reason": "Uses a logged known plaintext-ciphertext pair to mount a linear/algebraic attack on a custom cipher and decrypt the secret"},
+    {"rank": 8, "task_id": "mathematics_20260510_062946_001", "source": "CalibForge", "skill": 4, "domain": 5, "task_form": 4, "overall": 4, "reason": "Recovers LFSR seed and taps from known pairs and decrypts the unknown entry; parameter recovery from observed pairs"},
+    {"rank": 9, "task_id": "task_001371_86b003c8", "source": "TMax-15K", "skill": 4, "domain": 5, "task_form": 4, "overall": 4, "reason": "C decryptor that searches a deliberately weak seed keyspace using known plaintext, mirroring the 20-bit round-key seed"},
+    {"rank": 10, "task_id": "mathematics_20260606_153537_002", "source": "CalibForge", "skill": 4, "domain": 4, "task_form": 5, "overall": 4, "reason": "Compile the supplied C crypto utility, break the key, and write every recovered plaintext block out, exactly the FEAL deliverable"}
+  ],
+ "notes": "CalibForge is decisively the best corpus for this task: its mathematics/* slice contains genuine textbook cryptanalysis (SPN linear attacks, LFSR correlation attacks, knapsack/RSA breaks) with the same 'write /app/plaintexts.txt' deliverable, and beats everything in the v1 pool. TMax-15K is second and has a dozen genuine known-plaintext key-recovery tasks, though most bolt the cryptanalysis onto unrelated forensics phases. Terminal-Lego-15k has essentially no cryptanalysis, only library-usage AES tutorials; its list is filler below rank 2. TerminalWorld could not field 10 defensible candidates - half are FREE crackmes. Recursive-Task-Synthesis offers only near-duplicate crackme reversals (all absent verifier). SWE-Smith and SWE-Rebench have nothing on skill; their entries are bit-packing/binary-codec defects picked for the nearest adjacent capability and should be weighted down at merge."
+}

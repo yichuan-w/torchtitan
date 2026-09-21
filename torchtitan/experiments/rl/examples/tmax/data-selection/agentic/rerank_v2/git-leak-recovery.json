@@ -1,0 +1,771 @@
+{
+ "tb21_id": "git-leak-recovery",
+ "tb21_profile": {
+  "skill": "Git object-store forensics: find data that survives a history rewrite as an unreachable object, then actually expunge it (rewrite, expire reflogs, prune packs) without disturbing anything else",
+  "domain": "Git internals - objects, packfiles, refs, reflog, fsck, filter-branch/filter-repo - and secret leakage",
+  "task_form": "recover-hidden-data plus surgical repair, verified both ways: secret found AND secret absent everywhere"
+ },
+ "verifier_notes": "No grade overturned. Two of the very closest candidates are FREE and therefore excluded from final_top10: tw_6480 (recover a dangling blob from the object store - the exact recovery step) and security_20260606_153537_001 (secrets after git reset --hard HEAD~1). security_20260509_154924_007 and security_20260419_182351_003 are also FREE audits of the same scenario. Note that for this TB2.1 task a FREE verifier is especially dangerous: a file containing a plausible secret[...] string passes a substring check without the repo ever being cleaned.",
+ "searches": [
+  "tools.py search all '(?i)dangling|git fsck|reflog|lost-found|unreachable (object|commit)'",
+  "tools.py search all '(?i)filter-branch|filter-repo|\\bBFG\\b|purge.{0,20}history|rewrite.{0,20}(git )?history|committed secret|api key.{0,30}commit'",
+  "tools.py search tw '(?i)\\bgit\\b.{0,80}(history|object|commit|branch|reflog|recover)'",
+  "tools.py search smith '(?i)\\bgit\\b|repository|commit'",
+  "tools.py search smith '(?i)scmrepo|git (config|clone|checkout|branch|rev)|\\brevision\\b|experiment.{0,20}(queue|remove)|secret|password|token'",
+  "tools.py search rebench '(?i)git (log|history|commit|repo)|dulwich|gitpython|pre-commit|secret|credential'",
+  "tools.py search rebench '(?i)git-machete|dulwich|GitPython|pre-commit|detect-secrets|gitlint|nbdime|dvc exp|git ls-files|\\.git/|git blame|git stash|git rev-parse'",
+  "grep -rlE -i 'reflog|dangling|fsck|lost.found|unreachable commit' /data/yichuan_wang/terminal-lego-15k/*/instruction.md",
+  "grep -rlE -i 'filter-branch|BFG|purge|rewrite history|secret|credential' /data/yichuan_wang/terminal-lego-15k/*/instruction.md",
+  "grep -rlE -i 'git stash|cherry-pick|rebase|reset --hard' /data/yichuan_wang/terminal-lego-15k/*/instruction.md",
+  "grep -rlE -i 'git (history|reflog|fsck)|dangling|filter-branch|secret|credential' /data/yichuan_wang/calibforge/*/*/instruction.md"
+ ],
+ "per_source": {
+  "TMax-15K": [
+   {
+    "rank": 1,
+    "task_id": "task_002384_377945af",
+    "skill": 5,
+    "domain": 5,
+    "task_form": 4,
+    "overall": 5,
+    "reason": "Search a repo's git history for an API key committed then removed - the recovery half verbatim, strong verifier."
+   },
+   {
+    "rank": 2,
+    "task_id": "task_009242_97e8668d",
+    "skill": 5,
+    "domain": 5,
+    "task_form": 4,
+    "overall": 4,
+    "reason": "Find a fallback API key that was committed and later removed from history; identical forensics, bundled with a binary-inspection subtask."
+   },
+   {
+    "rank": 3,
+    "task_id": "task_005205_f7c84ca4",
+    "skill": 4,
+    "domain": 5,
+    "task_form": 4,
+    "overall": 4,
+    "reason": "Inspect history of a local repo to recover a key hardcoded in an earlier commit and save the exact string - same deliverable shape."
+   },
+   {
+    "rank": 4,
+    "task_id": "task_003751_ffb23239",
+    "skill": 4,
+    "domain": 4,
+    "task_form": 4,
+    "overall": 4,
+    "reason": "A secret committed in the same commit as a bug and removed later; requires diffing history rather than reading the working tree."
+   },
+   {
+    "rank": 5,
+    "task_id": "task_004940_5066ebb6",
+    "skill": 4,
+    "domain": 4,
+    "task_form": 4,
+    "overall": 4,
+    "reason": "Recover an API key and pin the exact commit that introduced it - commit-level attribution on top of secret recovery."
+   },
+   {
+    "rank": 6,
+    "task_id": "task_004056_fbadeca6",
+    "skill": 3,
+    "domain": 5,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Identify the bad commit hash and fix on top without rewriting main; teaches when history rewriting is and is not allowed."
+   },
+   {
+    "rank": 7,
+    "task_id": "task_001206_fd4e22d4",
+    "skill": 2,
+    "domain": 3,
+    "task_form": 3,
+    "overall": 2,
+    "reason": "3am repair of a broken pipeline repo; git is the workspace rather than the subject, so only incident-triage habits transfer."
+   },
+   {
+    "rank": 8,
+    "task_id": "task_005256_5680ab0a",
+    "skill": 3,
+    "domain": 4,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Recover a lost test asset out of the repository's history while also fixing the build - retrieving deleted content from git."
+   },
+   {
+    "rank": 9,
+    "task_id": "task_002274_41ca317a",
+    "skill": 2,
+    "domain": 3,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Walk a git history to locate the regression commit; history navigation only, nothing about the object store."
+   },
+   {
+    "rank": 10,
+    "task_id": "task_008526_de0ffe38",
+    "skill": 2,
+    "domain": 3,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Debug an intermittently failing CI pipeline on master; repository context but no forensics or rewriting."
+   }
+  ],
+  "Recursive-Task-Synthesis": [
+   {
+    "rank": 1,
+    "task_id": "rts_task_05b12b8f06acd0e46d3f0039",
+    "skill": 5,
+    "domain": 5,
+    "task_form": 4,
+    "overall": 5,
+    "reason": "Locate the dangling commit that added secret.key in a bare repo and git show it - exactly the unreachable-object hunt this task needs."
+   },
+   {
+    "rank": 2,
+    "task_id": "rts_task_d35d647825db9db40f37a95c",
+    "skill": 4,
+    "domain": 5,
+    "task_form": 4,
+    "overall": 4,
+    "reason": "Use the reflog to prove the secret.key commit was reset away and record its hash; reflog forensics on a removed secret."
+   },
+   {
+    "rank": 3,
+    "task_id": "rts_task_2b8f74cc881da66c0a7d60ba",
+    "skill": 4,
+    "domain": 5,
+    "task_form": 4,
+    "overall": 4,
+    "reason": "Capture the full diff of the secret.key commit before rewriting history away - recover first, then purge, in that order."
+   },
+   {
+    "rank": 4,
+    "task_id": "rts_task_096cfc4bf9e7a0fd363c5755",
+    "skill": 4,
+    "domain": 5,
+    "task_form": 4,
+    "overall": 4,
+    "reason": "Expunge the commit that added secret.key from remote history and produce the forensic deliverables; the cleanup half."
+   },
+   {
+    "rank": 5,
+    "task_id": "rts_task_90a2d3a9cfa89ab6fc58dbd2",
+    "skill": 4,
+    "domain": 5,
+    "task_form": 4,
+    "overall": 4,
+    "reason": "Remove a mistakenly committed secret.key from a remote and force-push the corrected history, with forensic reports."
+   },
+   {
+    "rank": 6,
+    "task_id": "rts_task_c3d78bd349e5a80c46f47c11",
+    "skill": 3,
+    "domain": 5,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Repair a broken repository until git fsck --full reports no errors and no dangling objects - the state the cleanup must reach."
+   },
+   {
+    "rank": 7,
+    "task_id": "rts_task_48f9327a4de8c89e48d92d66",
+    "skill": 3,
+    "domain": 5,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Pack the object store and report on dangling objects from a full fsck; teaches how gc and packing hide or expose objects."
+   },
+   {
+    "rank": 8,
+    "task_id": "rts_task_409f0bfc2d21112b81ef04fc",
+    "skill": 3,
+    "domain": 4,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Find the pre-rebase tip using only the reflog, no guessing - reading history that the visible branch no longer shows."
+   },
+   {
+    "rank": 9,
+    "task_id": "rts_task_aff716d5d0206c0c449c0868",
+    "skill": 3,
+    "domain": 4,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Document the pre-rebase baseline from the reflog and diff against it; same reasoning about what a rewrite discarded."
+   },
+   {
+    "rank": 10,
+    "task_id": "rts_task_36b232e46d684d900383b233",
+    "skill": 2,
+    "domain": 5,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Enumerate every object in the store into a manifest after an fsck; object-store literacy but no recovery."
+   }
+  ],
+  "TerminalWorld-Seeds-Clean": [
+   {
+    "rank": 1,
+    "task_id": "tw_6480",
+    "skill": 5,
+    "domain": 5,
+    "task_form": 4,
+    "overall": 4,
+    "reason": "Recover the content of a dangling blob that was staged but never committed - the precise recovery step here. FREE verifier, so excluded from top10."
+   },
+   {
+    "rank": 2,
+    "task_id": "tw_329715",
+    "skill": 4,
+    "domain": 5,
+    "task_form": 4,
+    "overall": 4,
+    "reason": "Remove the commit that added secret.key from a remote's history; the purge half, with a graded verifier."
+   },
+   {
+    "rank": 3,
+    "task_id": "tw_459969",
+    "skill": 4,
+    "domain": 3,
+    "task_form": 4,
+    "overall": 4,
+    "reason": "A secret deleted during a Docker build is still recoverable from an earlier layer - same deleted-but-retained-by-the-store principle."
+   },
+   {
+    "rank": 4,
+    "task_id": "tw_230022",
+    "skill": 3,
+    "domain": 5,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Nuclear reset of a messy repo: back up the tree, re-create the repository clean; strong verifier, adjacent to purging history."
+   },
+   {
+    "rank": 5,
+    "task_id": "tw_594774",
+    "skill": 3,
+    "domain": 4,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Install a gitleaks pre-commit hook and prove it blocks a secret; the detection side of leaked-credential handling."
+   },
+   {
+    "rank": 6,
+    "task_id": "tw_10370",
+    "skill": 3,
+    "domain": 5,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Extract one subtree's history into a standalone repository - a real filtering rewrite that must preserve unrelated commits."
+   },
+   {
+    "rank": 7,
+    "task_id": "tw_195942",
+    "skill": 3,
+    "domain": 5,
+    "task_form": 2,
+    "overall": 3,
+    "reason": "Build a commit with plumbing only (hash-object, write-tree, commit-tree); object-model fluency you need to read a dangling object."
+   },
+   {
+    "rank": 8,
+    "task_id": "tw_277043",
+    "skill": 2,
+    "domain": 4,
+    "task_form": 3,
+    "overall": 2,
+    "reason": "Manage an encrypted secret with git-secret; secrets-in-repos domain, no forensics."
+   },
+   {
+    "rank": 9,
+    "task_id": "tw_107566",
+    "skill": 2,
+    "domain": 4,
+    "task_form": 3,
+    "overall": 2,
+    "reason": "Remove a stale worktree and prune its references so the repo is clean; pruning references is part of a real purge."
+   },
+   {
+    "rank": 10,
+    "task_id": "tw_251367",
+    "skill": 2,
+    "domain": 4,
+    "task_form": 3,
+    "overall": 2,
+    "reason": "Use git bisect to find an injected bad commit; history navigation, but nothing removed or recovered."
+   }
+  ],
+  "SWE-Smith-Seeds-Clean": [
+   {
+    "rank": 1,
+    "task_id": "iterative__dvc.1d6ea681.pr_10343",
+    "skill": 3,
+    "domain": 4,
+    "task_form": 2,
+    "overall": 3,
+    "reason": "Git config is not carried into temporary-directory experiments; debugging how a tool drives a real repository underneath."
+   },
+   {
+    "rank": 2,
+    "task_id": "iterative__dvc.1d6ea681.pr_9934",
+    "skill": 3,
+    "domain": 4,
+    "task_form": 2,
+    "overall": 3,
+    "reason": "DVCFileSystem breaks when the repo has no SCM; reasoning about repository state a tool assumes but may not have."
+   },
+   {
+    "rank": 3,
+    "task_id": "iterative__dvc.1d6ea681.pr_10641",
+    "skill": 2,
+    "domain": 4,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "dvc exp remove --queue -A returns incomplete results; enumerating refs that should all have been removed - an incomplete-purge bug."
+   },
+   {
+    "rank": 4,
+    "task_id": "cookiecutter__cookiecutter.b4451231.func_pm_remove_wrapper__89cymcf0",
+    "skill": 2,
+    "domain": 3,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Repository cloning silently does nothing; a git operation that appears to succeed while leaving the store untouched."
+   },
+   {
+    "rank": 5,
+    "task_id": "cookiecutter__cookiecutter.b4451231.lm_rewrite__gsks0ek9",
+    "skill": 2,
+    "domain": 3,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Repository abbreviation expansion broken; parsing how repositories are addressed, shallow transfer."
+   },
+   {
+    "rank": 6,
+    "task_id": "Cog-Creators__Red-DiscordBot.33e0eac7.combine_module__4138xlqs",
+    "skill": 2,
+    "domain": 3,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Repository objects fail to initialise from their on-disk JSON; managing checked-out repos as data."
+   },
+   {
+    "rank": 7,
+    "task_id": "Cog-Creators__Red-DiscordBot.33e0eac7.combine_file__ib9j050b",
+    "skill": 2,
+    "domain": 3,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Repo and module names swapped, hidden libraries mishandled; bookkeeping over cloned repositories."
+   },
+   {
+    "rank": 8,
+    "task_id": "getmoto__moto.694ce1f4.func_pm_ctrl_shuffle__lqoqu8rl",
+    "skill": 2,
+    "domain": 2,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "SecretsManager list_secrets filters return nothing; secret-store semantics, but an AWS mock rather than git."
+   },
+   {
+    "rank": 9,
+    "task_id": "iterative__dvc.1d6ea681.pr_9635",
+    "skill": 2,
+    "domain": 3,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "checkout with force=True still prompts before deleting; destructive-operation semantics, which a purge also has to get right."
+   },
+   {
+    "rank": 10,
+    "task_id": "cookiecutter__cookiecutter.b4451231.func_pm_remove_wrapper__2yiyoab8",
+    "skill": 1,
+    "domain": 2,
+    "task_form": 2,
+    "overall": 1,
+    "reason": "NameError in the zip-unpacking path; only the fetch-a-project-from-somewhere theme connects it."
+   }
+  ],
+  "SWE-Rebench-Tasks-Clean": [
+   {
+    "rank": 1,
+    "task_id": "jelmer__dulwich-1167",
+    "skill": 4,
+    "domain": 5,
+    "task_form": 2,
+    "overall": 4,
+    "reason": "iterobjects_subset raises KeyError walking the object store of a real repo - debugging object enumeration, the core of finding unreachable blobs."
+   },
+   {
+    "rank": 2,
+    "task_id": "jelmer__dulwich-1073",
+    "skill": 3,
+    "domain": 5,
+    "task_form": 2,
+    "overall": 3,
+    "reason": "reset_index leaves stale entries because build_index_from_tree misbehaves; index-versus-tree reasoning in a pure-Python git."
+   },
+   {
+    "rank": 3,
+    "task_id": "jelmer__dulwich-1578",
+    "skill": 3,
+    "domain": 5,
+    "task_form": 2,
+    "overall": 3,
+    "reason": "porcelain.add corrupts the branch ref; a git write path that silently damages repository state."
+   },
+   {
+    "rank": 4,
+    "task_id": "jelmer__dulwich-1020",
+    "skill": 3,
+    "domain": 5,
+    "task_form": 2,
+    "overall": 3,
+    "reason": "Branch sections in .git/config with brackets are parsed wrongly; the ref/config layer this task must not disturb."
+   },
+   {
+    "rank": 5,
+    "task_id": "jelmer__dulwich-1482",
+    "skill": 2,
+    "domain": 5,
+    "task_form": 2,
+    "overall": 3,
+    "reason": "describe fails on tagless repositories; walking history to name a commit, a git-internals API fix."
+   },
+   {
+    "rank": 6,
+    "task_id": "jelmer__dulwich-1500",
+    "skill": 2,
+    "domain": 5,
+    "task_form": 2,
+    "overall": 3,
+    "reason": "Annotated tag creation fails; constructing a tag object correctly is object-format work."
+   },
+   {
+    "rank": 7,
+    "task_id": "gitpython-developers__gitpython-1832",
+    "skill": 2,
+    "domain": 5,
+    "task_form": 2,
+    "overall": 3,
+    "reason": "index.diff silently returns nothing when diff.external is configured - a git query that lies about the repository's contents."
+   },
+   {
+    "rank": 8,
+    "task_id": "jelmer__dulwich-1568",
+    "skill": 2,
+    "domain": 4,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Config parsing of local clone paths with trailing backslashes; config-file edge cases in a git implementation."
+   },
+   {
+    "rank": 9,
+    "task_id": "gitpython-developers__gitpython-744",
+    "skill": 2,
+    "domain": 4,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Path-to-repository-relative conversion fails at a filesystem root; small validation fix inside a git wrapper."
+   },
+   {
+    "rank": 10,
+    "task_id": "virtuslab__git-machete-525",
+    "skill": 2,
+    "domain": 4,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Rejects fully-qualified refs/heads names; ref-naming discipline, which matters when a rewrite touches refs."
+   }
+  ],
+  "Terminal-Lego-15k": [
+   {
+    "rank": 1,
+    "task_id": "task_11504",
+    "skill": 5,
+    "domain": 5,
+    "task_form": 4,
+    "overall": 5,
+    "reason": "Remove a sensitive file from git history - the exact cleanup half, including making it unrecoverable rather than just deleted."
+   },
+   {
+    "rank": 2,
+    "task_id": "task_11392",
+    "skill": 5,
+    "domain": 5,
+    "task_form": 4,
+    "overall": 4,
+    "reason": "Script the recovery of a dropped stash by finding the lost commit in the object store - the same unreachable-object hunt."
+   },
+   {
+    "rank": 3,
+    "task_id": "task_11631",
+    "skill": 4,
+    "domain": 5,
+    "task_form": 4,
+    "overall": 4,
+    "reason": "Shrink .git by purging historical blobs: rewrite, expire reflogs, gc --prune. Exactly what makes a secret truly gone."
+   },
+   {
+    "rank": 4,
+    "task_id": "task_01833",
+    "skill": 3,
+    "domain": 5,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Repair an empty/corrupt loose object; forces working directly on .git/objects rather than through porcelain."
+   },
+   {
+    "rank": 5,
+    "task_id": "task_10502",
+    "skill": 3,
+    "domain": 5,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Diagnose a repository that clients refuse to open; inspecting refs and object integrity to find what is structurally wrong."
+   },
+   {
+    "rank": 6,
+    "task_id": "task_11615",
+    "skill": 3,
+    "domain": 5,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Move HEAD back and undo commits via detached HEAD; understanding that reset does not destroy the commits it leaves behind."
+   },
+   {
+    "rank": 7,
+    "task_id": "task_01782",
+    "skill": 3,
+    "domain": 5,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Delete a stash made with git stash create, which exists only as an unreferenced commit - deleting an object nothing points at."
+   },
+   {
+    "rank": 8,
+    "task_id": "task_11427",
+    "skill": 2,
+    "domain": 5,
+    "task_form": 3,
+    "overall": 2,
+    "reason": "Extract one file out of a stash without popping it; reading content out of a commit you are not checking out."
+   },
+   {
+    "rank": 9,
+    "task_id": "task_01946",
+    "skill": 2,
+    "domain": 5,
+    "task_form": 3,
+    "overall": 2,
+    "reason": "Undo a git pull using ORIG_HEAD; recovering a prior state from a reference git kept for you."
+   },
+   {
+    "rank": 10,
+    "task_id": "task_11499",
+    "skill": 2,
+    "domain": 5,
+    "task_form": 3,
+    "overall": 2,
+    "reason": "Revert the initial commit, the one case needing a rewrite rather than a revert; strong verifier, narrow skill."
+   }
+  ],
+  "CalibForge": [
+   {
+    "rank": 1,
+    "task_id": "security_20260611_210349_008",
+    "skill": 5,
+    "domain": 5,
+    "task_form": 5,
+    "overall": 5,
+    "reason": "Recover every secret from a repo whose history was cleaned, then verify nothing remains recoverable - both halves of this task, strong verifier."
+   },
+   {
+    "rank": 2,
+    "task_id": "software-engineering_20260602_105139_006",
+    "skill": 5,
+    "domain": 5,
+    "task_form": 5,
+    "overall": 5,
+    "reason": "Recover a formatted secret key still reachable in history and write it to /app/secret.txt; same premise, same deliverable path."
+   },
+   {
+    "rank": 3,
+    "task_id": "system-administration_20260603_181444_008",
+    "skill": 5,
+    "domain": 5,
+    "task_form": 4,
+    "overall": 5,
+    "reason": "Recover the true history then rewrite it so a file was never tracked, leaving fsck clean and tags intact - the purge half, strongly verified."
+   },
+   {
+    "rank": 4,
+    "task_id": "security_20260607_104421_002",
+    "skill": 5,
+    "domain": 5,
+    "task_form": 4,
+    "overall": 4,
+    "reason": "A force-push removed sensitive files but the object database still holds them as unreachable objects; recover them."
+   },
+   {
+    "rank": 5,
+    "task_id": "security_20260508_045557_006",
+    "skill": 4,
+    "domain": 5,
+    "task_form": 4,
+    "overall": 4,
+    "reason": "Audit a repo after a panicked cleanup of new commits, deleted branches and force-pushes; find ALL secrets, not just the obvious one."
+   },
+   {
+    "rank": 6,
+    "task_id": "security_20260601_053159_001",
+    "skill": 4,
+    "domain": 5,
+    "task_form": 4,
+    "overall": 4,
+    "reason": "Attacker deleted files to hide tracks; mine the object database for unreferenced data - same reasoning, incident-response framing."
+   },
+   {
+    "rank": 7,
+    "task_id": "security_20260615_143956_008",
+    "skill": 4,
+    "domain": 5,
+    "task_form": 4,
+    "overall": 4,
+    "reason": "Recover a database password from a history the developer tried to clean; short, direct, same recovery skill."
+   },
+   {
+    "rank": 8,
+    "task_id": "security_20260606_153537_003",
+    "skill": 4,
+    "domain": 5,
+    "task_form": 3,
+    "overall": 4,
+    "reason": "Write a scanner that sweeps every commit for credentials; generalises the search step and is strongly verified."
+   },
+   {
+    "rank": 9,
+    "task_id": "software-engineering_20260613_152233_018",
+    "skill": 4,
+    "domain": 5,
+    "task_form": 4,
+    "overall": 4,
+    "reason": "Scrambled object files hide secret.txt's contents; recover them by reading the object store directly rather than via git."
+   },
+   {
+    "rank": 10,
+    "task_id": "security_20260510_005520_002",
+    "skill": 3,
+    "domain": 4,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Recovered workstation backup with a repo containing committed sensitive configuration; forensics with more environment setup than digging."
+   }
+  ]
+ },
+ "final_top10": [
+  {
+   "rank": 1,
+   "task_id": "security_20260611_210349_008",
+   "source": "CalibForge",
+   "skill": 5,
+   "domain": 5,
+   "task_form": 5,
+   "overall": 5,
+   "reason": "Recover every secret from a cleaned history and verify none remains recoverable; both halves of this task, strong verifier."
+  },
+  {
+   "rank": 2,
+   "task_id": "software-engineering_20260602_105139_006",
+   "source": "CalibForge",
+   "skill": 5,
+   "domain": 5,
+   "task_form": 5,
+   "overall": 5,
+   "reason": "Recover a formatted secret key from a history the developer tried to purge and write it to /app/secret.txt - same premise and same path."
+  },
+  {
+   "rank": 3,
+   "task_id": "task_11504",
+   "source": "Terminal-Lego-15k",
+   "skill": 5,
+   "domain": 5,
+   "task_form": 4,
+   "overall": 5,
+   "reason": "Remove a sensitive file from git history so it is genuinely unrecoverable; the cleanup requirement this task grades separately."
+  },
+  {
+   "rank": 4,
+   "task_id": "system-administration_20260603_181444_008",
+   "source": "CalibForge",
+   "skill": 5,
+   "domain": 5,
+   "task_form": 4,
+   "overall": 5,
+   "reason": "Recover history, then rewrite it so a file was never tracked, leaving fsck clean and everything else intact - strongest verifier of the group."
+  },
+  {
+   "rank": 5,
+   "task_id": "rts_task_05b12b8f06acd0e46d3f0039",
+   "source": "Recursive-Task-Synthesis",
+   "skill": 5,
+   "domain": 5,
+   "task_form": 4,
+   "overall": 5,
+   "reason": "Locate the dangling commit that added secret.key in a bare repo and show it; the unreachable-object hunt, though verifier-absent."
+  },
+  {
+   "rank": 6,
+   "task_id": "security_20260607_104421_002",
+   "source": "CalibForge",
+   "skill": 5,
+   "domain": 5,
+   "task_form": 4,
+   "overall": 4,
+   "reason": "Files removed by a force-push survive as unreachable objects; recover them from the object database."
+  },
+  {
+   "rank": 7,
+   "task_id": "task_002384_377945af",
+   "source": "TMax-15K",
+   "skill": 5,
+   "domain": 5,
+   "task_form": 4,
+   "overall": 5,
+   "reason": "Search git history for an API key committed then removed; the recovery half with a strong verifier."
+  },
+  {
+   "rank": 8,
+   "task_id": "task_11392",
+   "source": "Terminal-Lego-15k",
+   "skill": 5,
+   "domain": 5,
+   "task_form": 4,
+   "overall": 4,
+   "reason": "Recover a dropped stash by finding the commit nothing references any more - same fsck/dangling-object technique."
+  },
+  {
+   "rank": 9,
+   "task_id": "tw_329715",
+   "source": "TerminalWorld-Seeds-Clean",
+   "skill": 4,
+   "domain": 5,
+   "task_form": 4,
+   "overall": 4,
+   "reason": "Expunge the commit that added secret.key from a remote's history; the purge step, graded rather than FREE."
+  },
+  {
+   "rank": 10,
+   "task_id": "security_20260508_045557_006",
+   "source": "CalibForge",
+   "skill": 4,
+   "domain": 5,
+   "task_form": 4,
+   "overall": 4,
+   "reason": "Full audit after a panicked cleanup: find ALL exposed secrets, not just the first one - matches the find-every-occurrence requirement."
+  }
+ ],
+ "notes": "This is the best-covered of my five tasks: five of the seven corpora field genuinely close candidates, and the final ten are split across four of them rather than dominated by one. CalibForge has an entire committed-a-secret-then-cleaned-up family, several of them graded strong or ok, and it is the only corpus that also covers the verify-nothing-remains half. Terminal-Lego contributes the two best single-skill tasks (remove-a-file-from-history, recover-a-dropped-stash) plus a deep bench of git-internals exercises - it clearly beats the old pool here. SWE-Rebench is unusually useful for once because dulwich is a from-scratch Git implementation: those entries teach the object store even though their task_form is wrong. SWE-Smith is the only genuinely weak corpus for this task - no Git-internals repo exists in it, and ranks 8-10 are filler. Caution for the merge: several of the closest matches anywhere in the pool (tw_6480, security_20260606_153537_001, security_20260419_182351_003, security_20260509_154924_007) are FREE, and FREE is particularly toxic here because writing a plausible secret[...] string into a file satisfies a substring check without touching the repository."
+}

@@ -1,0 +1,775 @@
+{
+ "tb21_id": "torch-pipeline-parallelism",
+ "tb21_profile": {
+  "skill": "Implement a distributed training algorithm from a prose spec: split a transformer's layers into balanced stages, hand-roll P2P forward/backward tensor exchange, drive autograd across a stage boundary with an incoming grad, and scale the loss by the microbatch count so accumulated grads match the full batch",
+  "domain": "PyTorch: torch.distributed (P2POp/isend/irecv, rank, world_size), HuggingFace LlamaForCausalLM internals, autograd, dtype/device placement",
+  "task_form": "implement-from-spec of a published algorithm (AFAB pipeline schedule) with a numerical-equivalence test against a reference model; multi-step, no starter code"
+ },
+ "verifier_notes": "No grade overturned. Worth flagging for the merge: the closest-by-topic CalibForge candidate software-engineering_20260509_205636_024 (implement a torch.autograd.Function with a correct custom backward - the single most transferable sub-skill for driving backward across a pipeline stage) is graded FREE, so it is excluded from final_top10 and from per_source. Terminal-Lego's three most on-topic PyTorch tasks (task_13140 gradient clipping, task_13149 Adam vs AdamW, task_05502 CUDA memory leak in an inference loop) are also FREE despite 10-18 tests each. software-engineering_20260604_003113_023 (MoE layer from spec) is graded weak at 0.214 over 14 tests; the instruction is 4.1k chars of precise numeric spec, so the grade probably understates it, but I left it out of final_top10 anyway rather than argue.",
+ "searches": [
+  "tools.py search all 'torch\\.distributed|P2POp|isend|irecv|all_reduce|all_gather|pipeline parallel|tensor parallel|DistributedDataParallel|NCCL|nccl'",
+  "tools.py search tmax 'mpi4py|mpiexec|comm\\.Send|comm\\.Recv|Scatter|Allreduce|MPI\\.COMM_WORLD'",
+  "tools.py search tmax 'LlamaForCausalLM|transformer|attention|nn\\.Module|backward pass|cross_entropy'",
+  "tools.py search tmax 'mpi4py|MPI|multiprocessing|rank|worker processes|shard|partition'",
+  "tools.py search rts 'PyTorch|torch\\b|neural network|train.*model|gradient|backpropagation'",
+  "tools.py search rts 'mpi4py|mpirun|mpiexec|multiprocessing|concurrent\\.futures|worker pool|OpenMP'",
+  "tools.py search rts 'model_config\\.json|nn\\.Module|state_dict|checkpoint|\\.pt\\b|\\.pth\\b'",
+  "tools.py search smith 'torch|PyTorch|tensor|gradient|neural'",
+  "tools.py search rebench 'torch|PyTorch|keras|jax|gradient|autodiff'",
+  "tools.py search rebench 'huggingface__transformers|accelerate|deepspeed|device_map|checkpointing|Trainer'",
+  "tools.py show openmined__pysyft-188 openmined__pysyft-232 openmined__pysyft-233 openmined__pysyft-250",
+  "grep -rliE 'torch\\.distributed|P2POp|pipeline parallel|tensor parallel|all_reduce|DistributedDataParallel' --include=instruction.md terminal-lego-15k calibforge",
+  "grep -rliE 'autograd\\.Function|gradient accumulation|microbatch|micro-batch|torchrun|activation checkpoint' --include=instruction.md calibforge",
+  "grep -rliE 'PyTorch|torch\\.|backpropagation|neural network|autograd' --include=instruction.md terminal-lego-15k",
+  "grep -rliE 'backpropagation|from scratch|cross.entropy|split.*across.*processes|worker processes' --include=instruction.md terminal-lego-15k"
+ ],
+ "per_source": {
+  "TMax-15K": [
+   {
+    "rank": 1,
+    "task_id": "task_002734_fc612574",
+    "skill": 3,
+    "domain": 2,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Partition a large mesh into roughly balanced sub-domains for parallel processing; the balanced-partition-across-workers decision this TB2.1 task opens with."
+   },
+   {
+    "rank": 2,
+    "task_id": "task_000032_5b0167e2",
+    "skill": 3,
+    "domain": 2,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Use mpi4py to split MCMC chains over ranks and combine the per-rank results; rank/world_size reasoning plus a correctness check on the merged output."
+   },
+   {
+    "rank": 3,
+    "task_id": "task_000018_42ce2436",
+    "skill": 3,
+    "domain": 2,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Write an MPI script run as mpiexec -n N that divides a file set across ranks and reduces results; same launch-with-N-ranks test harness shape."
+   },
+   {
+    "rank": 4,
+    "task_id": "task_000004_b4949f3f",
+    "skill": 3,
+    "domain": 2,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Build a parallelised sampler over at least four workers whose combined estimate must match the reference parameters; parallel decomposition with numeric verification."
+   },
+   {
+    "rank": 5,
+    "task_id": "task_009562_91210c7c",
+    "skill": 3,
+    "domain": 4,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Reconstruct an undocumented PyTorch nn.Module from a checkpoint's key/shape layout and run it; requires reading a model's layer structure, which stage-splitting also needs."
+   },
+   {
+    "rank": 6,
+    "task_id": "task_007296_a67e32b2",
+    "skill": 3,
+    "domain": 4,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Rebuild a torch model from saved weights so the regenerated embeddings match a reference exactly; numeric-equivalence-against-reference testing like this TB2.1 task."
+   },
+   {
+    "rank": 7,
+    "task_id": "task_003103_c5ee5fa5",
+    "skill": 2,
+    "domain": 4,
+    "task_form": 3,
+    "overall": 2,
+    "reason": "Load weights into a torch network and run inference over many inputs; torch module and tensor handling, no distribution or backward."
+   },
+   {
+    "rank": 8,
+    "task_id": "task_001697_f00c5c92",
+    "skill": 2,
+    "domain": 4,
+    "task_form": 3,
+    "overall": 2,
+    "reason": "Infer a torch.nn.Sequential architecture from checkpoint keys and shapes; layer-structure reasoning only, forward pass only."
+   },
+   {
+    "rank": 9,
+    "task_id": "task_008162_e3ba09cb",
+    "skill": 2,
+    "domain": 4,
+    "task_form": 3,
+    "overall": 2,
+    "reason": "Fix a buggy PyTorch model definition so the supplied weights load and predictions match; shape-mismatch debugging in torch."
+   },
+   {
+    "rank": 10,
+    "task_id": "task_002645_3b6fc66e",
+    "skill": 2,
+    "domain": 2,
+    "task_form": 3,
+    "overall": 2,
+    "reason": "MPI-parallel numerical integration validated against the analytic value; rank-partitioned compute with a pinned numeric answer, no autograd."
+   }
+  ],
+  "Recursive-Task-Synthesis": [
+   {
+    "rank": 1,
+    "task_id": "rts_task_956ea2e372fe004edbe0d44d",
+    "skill": 3,
+    "domain": 4,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Construct a PyTorch model programmatically from a JSON architecture spec; building nn.Module structure from a description, as stage construction requires."
+   },
+   {
+    "rank": 2,
+    "task_id": "rts_task_2d69f2e120a06f1fad03633d",
+    "skill": 2,
+    "domain": 2,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Configure the MPI environment and run a program across 4 processes collecting combined output; multi-process launch mechanics only."
+   },
+   {
+    "rank": 3,
+    "task_id": "rts_task_c413bfccf3e263bf900811a4",
+    "skill": 2,
+    "domain": 2,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Same MPI 4-process run with environment setup; the rank-count parameterisation matches the world_size 1/2 test sweep."
+   },
+   {
+    "rank": 4,
+    "task_id": "rts_task_8707933864bb7358405a6226",
+    "skill": 2,
+    "domain": 2,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Makefile that compiles with mpicc, runs the test and executes under mpirun; end-to-end multi-rank build-and-run."
+   },
+   {
+    "rank": 5,
+    "task_id": "rts_task_c0553555675bcd47828f4c07",
+    "skill": 2,
+    "domain": 2,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Compile an MPI program, prove libmpi linkage, then run it under mpirun; distributed-runtime plumbing, no algorithm."
+   },
+   {
+    "rank": 6,
+    "task_id": "rts_task_be071fe2ff8cf7f46af5a47e",
+    "skill": 2,
+    "domain": 2,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Compile mpiprocname.c and run it under mpirun after fixing the environment; teaches only that ranks exist."
+   },
+   {
+    "rank": 7,
+    "task_id": "rts_task_c97cadfb47ad0e8723c026af",
+    "skill": 2,
+    "domain": 1,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Config-driven parallel pipeline with a worker count and sequential stages; stage-and-worker vocabulary, trivially different computation."
+   },
+   {
+    "rank": 8,
+    "task_id": "rts_task_6f2e1fd4b9fdcaaa394b748c",
+    "skill": 1,
+    "domain": 1,
+    "task_form": 2,
+    "overall": 1,
+    "reason": "pyperaptor pipeline of multiplication stages over random integers; pure lexical match on pipeline/parallel, negligible transfer."
+   },
+   {
+    "rank": 9,
+    "task_id": "rts_task_daeb82d4d721025947ada274",
+    "skill": 1,
+    "domain": 2,
+    "task_form": 2,
+    "overall": 1,
+    "reason": "Train a sklearn-style classifier through the xorq pipeline library; ML vocabulary only, no torch and no parallelism."
+   },
+   {
+    "rank": 10,
+    "task_id": "rts_task_edec5810a8d291f0ef994764",
+    "skill": 1,
+    "domain": 2,
+    "task_form": 2,
+    "overall": 1,
+    "reason": "Write an envd config for a CUDA/torch image; touches the PyTorch ecosystem at the environment level only."
+   }
+  ],
+  "TerminalWorld-Seeds-Clean": [
+   {
+    "rank": 1,
+    "task_id": "tw_166586",
+    "skill": 2,
+    "domain": 2,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Build and run a numerical program from scratch and produce a 12-decimal answer; numeric-exactness discipline, no torch or ranks."
+   },
+   {
+    "rank": 2,
+    "task_id": "tw_477483",
+    "skill": 2,
+    "domain": 2,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Build a stereo-matching algorithm and its evaluation tools, then run the benchmark and match expected metrics; algorithm-plus-evaluation shape."
+   },
+   {
+    "rank": 3,
+    "task_id": "tw_114781",
+    "skill": 2,
+    "domain": 2,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Compile and run an Erlang leader-election simulation over multiple communicating processes; message-passing between peers, wrong stack."
+   },
+   {
+    "rank": 4,
+    "task_id": "tw_18610",
+    "skill": 1,
+    "domain": 1,
+    "task_form": 2,
+    "overall": 1,
+    "reason": "Recover a password from a TCP stream in a pcap; only the byte-stream-between-endpoints intuition is shared."
+   },
+   {
+    "rank": 5,
+    "task_id": "tw_108329",
+    "skill": 1,
+    "domain": 2,
+    "task_form": 2,
+    "overall": 1,
+    "reason": "Build a C++ project out-of-source with CMake and run its test suite; build-and-test loop, nothing about parallel training."
+   },
+   {
+    "rank": 6,
+    "task_id": "tw_133693",
+    "skill": 1,
+    "domain": 1,
+    "task_form": 2,
+    "overall": 1,
+    "reason": "Drive xmake across languages and target platforms; multi-target build orchestration, no numeric or distributed content."
+   },
+   {
+    "rank": 7,
+    "task_id": "tw_479699",
+    "skill": 1,
+    "domain": 1,
+    "task_form": 2,
+    "overall": 1,
+    "reason": "Compile a Go source file then patch the produced binary; filler, chosen over closer build tasks because those are FREE-graded."
+   },
+   {
+    "rank": 8,
+    "task_id": "tw_121663",
+    "skill": 1,
+    "domain": 1,
+    "task_form": 2,
+    "overall": 1,
+    "reason": "Compile and run an OpenGL project and capture its output; GPU-adjacent in name only."
+   },
+   {
+    "rank": 9,
+    "task_id": "tw_355252",
+    "skill": 1,
+    "domain": 1,
+    "task_form": 2,
+    "overall": 1,
+    "reason": "Compile the Linux kernel and install modules; quota filler, no relationship to the capability under test."
+   },
+   {
+    "rank": 10,
+    "task_id": "tw_441243",
+    "skill": 1,
+    "domain": 1,
+    "task_form": 2,
+    "overall": 1,
+    "reason": "Manage a conda environment and export it; environment management only, included because nothing closer is verified here."
+   }
+  ],
+  "SWE-Smith-Seeds-Clean": [
+   {
+    "rank": 1,
+    "task_id": "facebookresearch__fvcore.a491d5b9.lm_rewrite__pcccevul",
+    "skill": 3,
+    "domain": 4,
+    "task_form": 2,
+    "overall": 3,
+    "reason": "Parameter counts wrongly aggregated over modules and submodules; requires walking a torch module tree the way layer partitioning does."
+   },
+   {
+    "rank": 2,
+    "task_id": "facebookresearch__fvcore.a491d5b9.lm_rewrite__m0xnjits",
+    "skill": 3,
+    "domain": 4,
+    "task_form": 2,
+    "overall": 3,
+    "reason": "Operations mis-tracked in the computation graph during flop counting; forces reasoning about what torch actually executes per op."
+   },
+   {
+    "rank": 3,
+    "task_id": "facebookresearch__fvcore.a491d5b9.lm_rewrite__1lp7kdh2",
+    "skill": 3,
+    "domain": 4,
+    "task_form": 2,
+    "overall": 3,
+    "reason": "Einsum flop count is wrong; shape-and-contraction reasoning over tensors, the same arithmetic that sizes pipeline stages."
+   },
+   {
+    "rank": 4,
+    "task_id": "facebookresearch__fvcore.a491d5b9.func_basic__fmm3wkfc",
+    "skill": 2,
+    "domain": 4,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Module hierarchy printed in reverse order; fix requires understanding torch's nested module traversal order."
+   },
+   {
+    "rank": 5,
+    "task_id": "facebookresearch__fvcore.a491d5b9.combine_module__uxncj1ip",
+    "skill": 2,
+    "domain": 4,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Tensor shape handling broken in to_numpy; dimension bookkeeping across tensor conversions."
+   },
+   {
+    "rank": 6,
+    "task_id": "facebookresearch__fvcore.a491d5b9.lm_rewrite__lo7njclv",
+    "skill": 2,
+    "domain": 4,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Running mean and variance not updated correctly; stateful-layer semantics that also decide whether a split model trains identically."
+   },
+   {
+    "rank": 7,
+    "task_id": "facebookresearch__fvcore.a491d5b9.func_pm_ctrl_invert_if__yvh7zjgj",
+    "skill": 2,
+    "domain": 4,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "smooth_l1_loss degenerates for tiny beta; numerically careful loss implementation, adjacent to the scaled cross-entropy here."
+   },
+   {
+    "rank": 8,
+    "task_id": "facebookresearch__fvcore.a491d5b9.lm_rewrite__o8e26lfs",
+    "skill": 2,
+    "domain": 4,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "giou_loss fails on empty tensors; edge-case handling in a torch loss, weak transfer beyond the domain."
+   },
+   {
+    "rank": 9,
+    "task_id": "facebookresearch__fvcore.a491d5b9.combine_module__k201cjp8",
+    "skill": 2,
+    "domain": 3,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "PeriodicCheckpointer misbehaves; training-loop plumbing in a PyTorch utility library."
+   },
+   {
+    "rank": 10,
+    "task_id": "dask__dask.5f61e423.pr_10042",
+    "skill": 2,
+    "domain": 2,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Dask graph/partitioning behaviour; chunked parallel computation over a task graph, different framework and no gradients."
+   }
+  ],
+  "SWE-Rebench-Tasks-Clean": [
+   {
+    "rank": 1,
+    "task_id": "openmined__pysyft-233",
+    "skill": 3,
+    "domain": 3,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Implement gather on a tensor type to PyTorch's documented semantics with tests; implement-a-named-tensor-primitive-from-spec, exactly this genre."
+   },
+   {
+    "rank": 2,
+    "task_id": "openmined__pysyft-232",
+    "skill": 3,
+    "domain": 3,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Implement in-place scatter_ matching PyTorch semantics; same spec-to-tensor-primitive work in a distributed-learning codebase."
+   },
+   {
+    "rank": 3,
+    "task_id": "cornellius-gp__gpytorch-782",
+    "skill": 2,
+    "domain": 3,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Batch-dimension indexing on a lazy tensor is wrong; leading-dimension bookkeeping like the [microbatch, seq, hidden] plumbing here."
+   },
+   {
+    "rank": 4,
+    "task_id": "cornellius-gp__gpytorch-973",
+    "skill": 2,
+    "domain": 3,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Batch evaluation silently returns wrongly shaped outputs; the silent-wrong-shape failure mode P2P stage transfers also have."
+   },
+   {
+    "rank": 5,
+    "task_id": "huggingface__transformers-36497",
+    "skill": 2,
+    "domain": 4,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Reproducibility of generation under seeding in transformers; same library that supplies LlamaForCausalLM, different concern."
+   },
+   {
+    "rank": 6,
+    "task_id": "keras-team__keras-20602",
+    "skill": 2,
+    "domain": 3,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "train_on_batch lacks a loss tracker; training-step internals and where loss accounting happens, in the wrong framework."
+   },
+   {
+    "rank": 7,
+    "task_id": "pyg-team__pytorch_geometric-8870",
+    "skill": 2,
+    "domain": 3,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "PyTorch Geometric bug; torch tensors and batching in a real training library, no distribution."
+   },
+   {
+    "rank": 8,
+    "task_id": "keras-team__keras-20609",
+    "skill": 2,
+    "domain": 3,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Model built inside a distribution strategy scope misbehaves; the closest thing SWE-Rebench has to multi-device training."
+   },
+   {
+    "rank": 9,
+    "task_id": "openmined__pysyft-188",
+    "skill": 2,
+    "domain": 3,
+    "task_form": 3,
+    "overall": 2,
+    "reason": "Implement log/log1p and their in-place variants to PyTorch semantics with tests; spec-driven tensor op, elementary."
+   },
+   {
+    "rank": 10,
+    "task_id": "gpflow__gpflow-2096",
+    "skill": 2,
+    "domain": 2,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Loss-and-gradient computation inside an optimizer wrapper breaks; gradient plumbing in TensorFlow rather than torch."
+   }
+  ],
+  "Terminal-Lego-15k": [
+   {
+    "rank": 1,
+    "task_id": "task_13155",
+    "skill": 2,
+    "domain": 4,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "The corpus's only torch.distributed task: explain and compute world size, rank and local rank; vocabulary but no real communication."
+   },
+   {
+    "rank": 2,
+    "task_id": "task_01272",
+    "skill": 2,
+    "domain": 2,
+    "task_form": 3,
+    "overall": 2,
+    "reason": "Implement Pool.map over multiple arguments; splitting work across processes and reassembling results, strongly tested."
+   },
+   {
+    "rank": 3,
+    "task_id": "task_12881",
+    "skill": 2,
+    "domain": 4,
+    "task_form": 3,
+    "overall": 2,
+    "reason": "Debug a neural network that will not learn: find the bug in the training loop and make classification actually converge."
+   },
+   {
+    "rank": 4,
+    "task_id": "task_04517",
+    "skill": 2,
+    "domain": 3,
+    "task_form": 3,
+    "overall": 2,
+    "reason": "Implement ReLU numerically from the definition with pinned expected values; smallest version of implement-a-layer-from-spec."
+   },
+   {
+    "rank": 5,
+    "task_id": "task_04356",
+    "skill": 2,
+    "domain": 3,
+    "task_form": 3,
+    "overall": 2,
+    "reason": "Implement softmax including the numerical-stability shift; the same primitive the last stage's cross-entropy depends on."
+   },
+   {
+    "rank": 6,
+    "task_id": "task_13137",
+    "skill": 2,
+    "domain": 4,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Add L1/L2 regularisation into a PyTorch training loop by hand; touching the loss before backward, as stage scaling does."
+   },
+   {
+    "rank": 7,
+    "task_id": "task_00386",
+    "skill": 2,
+    "domain": 2,
+    "task_form": 3,
+    "overall": 2,
+    "reason": "Fix CPU affinity collapse for multiprocessing workers after importing NumPy; genuinely about making parallel workers behave."
+   },
+   {
+    "rank": 8,
+    "task_id": "task_12890",
+    "skill": 2,
+    "domain": 4,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Explain why detach() is required before numpy conversion; forces an accurate mental model of the autograd graph."
+   },
+   {
+    "rank": 9,
+    "task_id": "task_12871",
+    "skill": 2,
+    "domain": 3,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Train a small network twice under different weight initialisations and compare; a real training loop, but demonstration-shaped."
+   },
+   {
+    "rank": 10,
+    "task_id": "task_13133",
+    "skill": 1,
+    "domain": 4,
+    "task_form": 2,
+    "overall": 1,
+    "reason": "Show what model.eval() versus model.train() changes; torch-mode semantics only, nothing about distribution or gradients."
+   }
+  ],
+  "CalibForge": [
+   {
+    "rank": 1,
+    "task_id": "software-engineering_20260414_211532_023",
+    "skill": 4,
+    "domain": 5,
+    "task_form": 4,
+    "overall": 4,
+    "reason": "Multi-task DDP training with gradient checkpointing under torchrun --nproc_per_node=2 fails; same 2-rank harness, same forward/backward-across-processes debugging."
+   },
+   {
+    "rank": 2,
+    "task_id": "software-engineering_20260414_080620_023",
+    "skill": 4,
+    "domain": 5,
+    "task_form": 3,
+    "overall": 4,
+    "reason": "DDP weights silently diverge between ranks; requires reasoning about when gradients actually synchronise, the crux of any hand-rolled parallel scheme."
+   },
+   {
+    "rank": 3,
+    "task_id": "software-engineering_20260508_045740_023",
+    "skill": 4,
+    "domain": 5,
+    "task_form": 3,
+    "overall": 4,
+    "reason": "Make gradient accumulation exactly equal large-batch training; that is the loss-scaled-by-number-of-microbatches requirement in this TB2.1 spec."
+   },
+   {
+    "rank": 4,
+    "task_id": "machine-learning_20260508_180627_002",
+    "skill": 4,
+    "domain": 5,
+    "task_form": 3,
+    "overall": 4,
+    "reason": "batch_size=8 versus 2x4 accumulation must produce identical gradients; pins the microbatch loss-normalisation rule with strong tests."
+   },
+   {
+    "rank": 5,
+    "task_id": "model-training_20260604_193056_002",
+    "skill": 4,
+    "domain": 4,
+    "task_form": 4,
+    "overall": 4,
+    "reason": "Write forward and backward by hand with no autograd; the manual chain-rule reasoning needed to hand off grads between pipeline stages."
+   },
+   {
+    "rank": 6,
+    "task_id": "software-engineering_20260420_020307_023",
+    "skill": 4,
+    "domain": 5,
+    "task_form": 3,
+    "overall": 4,
+    "reason": "DDP plus gradient checkpointing crashes with 2 spawned processes on a multi-forward model; reentrant-backward debugging in a real 2-rank setup."
+   },
+   {
+    "rank": 7,
+    "task_id": "model-training_20260417_112147_003",
+    "skill": 3,
+    "domain": 5,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Accumulated versus full-batch training on variable-length sequences must match; token-count-aware loss normalisation, strongly tested."
+   },
+   {
+    "rank": 8,
+    "task_id": "model-training_20260415_182321_003",
+    "skill": 4,
+    "domain": 4,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "A hand-written backward for a custom activation is subtly wrong and only shows up as slow convergence; exactly the silent-gradient-bug class here."
+   },
+   {
+    "rank": 9,
+    "task_id": "software-engineering_20260604_003113_023",
+    "skill": 3,
+    "domain": 5,
+    "task_form": 4,
+    "overall": 3,
+    "reason": "Implement an MoE layer with router and load balancing into /app/moe.py from a long numeric spec; same write-a-transformer-component-from-spec genre."
+   },
+   {
+    "rank": 10,
+    "task_id": "model-training_20260514_011125_001",
+    "skill": 3,
+    "domain": 5,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Embedding shape mismatch under 8-way tensor parallelism; the only sharding-a-model-across-ranks debugging task in the whole pool."
+   }
+  ]
+ },
+ "final_top10": [
+  {
+   "rank": 1,
+   "task_id": "software-engineering_20260414_211532_023",
+   "source": "CalibForge",
+   "skill": 4,
+   "domain": 5,
+   "task_form": 4,
+   "overall": 4,
+   "reason": "Multi-process torch training under torchrun with gradient checkpointing breaks; same 2-rank harness and same reason-about-backward-across-processes crux."
+  },
+  {
+   "rank": 2,
+   "task_id": "software-engineering_20260508_045740_023",
+   "source": "CalibForge",
+   "skill": 4,
+   "domain": 5,
+   "task_form": 3,
+   "overall": 4,
+   "reason": "Force accumulated microbatch training to equal full-batch training; directly teaches the scale-loss-by-microbatch-count rule this spec demands."
+  },
+  {
+   "rank": 3,
+   "task_id": "software-engineering_20260414_080620_023",
+   "source": "CalibForge",
+   "skill": 4,
+   "domain": 5,
+   "task_form": 3,
+   "overall": 4,
+   "reason": "Model parameters diverge across ranks with no error raised; trains the habit of checking cross-rank agreement, which pipeline stages need."
+  },
+  {
+   "rank": 4,
+   "task_id": "model-training_20260604_193056_002",
+   "source": "CalibForge",
+   "skill": 4,
+   "domain": 4,
+   "task_form": 4,
+   "overall": 4,
+   "reason": "Implement forward and backward passes by hand without autograd; the chain-rule reasoning for passing grads back over a stage boundary."
+  },
+  {
+   "rank": 5,
+   "task_id": "machine-learning_20260508_180627_002",
+   "source": "CalibForge",
+   "skill": 4,
+   "domain": 5,
+   "task_form": 3,
+   "overall": 4,
+   "reason": "Prove and fix gradient equivalence between one big batch and accumulated microbatches; strong pinned tests on the exact normalisation rule."
+  },
+  {
+   "rank": 6,
+   "task_id": "software-engineering_20260420_020307_023",
+   "source": "CalibForge",
+   "skill": 4,
+   "domain": 5,
+   "task_form": 3,
+   "overall": 4,
+   "reason": "DDP with gradient checkpointing crashes when one model runs several forwards per step; multi-forward-then-backward scheduling, as AFAB does."
+  },
+  {
+   "rank": 7,
+   "task_id": "model-training_20260415_182321_003",
+   "source": "CalibForge",
+   "skill": 4,
+   "domain": 4,
+   "task_form": 3,
+   "overall": 3,
+   "reason": "A wrong hand-written backward shows up only as slow convergence; teaches verifying a manual gradient against a reference, which this test does."
+  },
+  {
+   "rank": 8,
+   "task_id": "model-training_20260514_011125_001",
+   "source": "CalibForge",
+   "skill": 3,
+   "domain": 5,
+   "task_form": 3,
+   "overall": 3,
+   "reason": "Debug embedding shape mismatches under 8-way tensor parallelism; the only model-sharded-across-ranks task anywhere in the pool."
+  },
+  {
+   "rank": 9,
+   "task_id": "task_002734_fc612574",
+   "source": "TMax-15K",
+   "skill": 3,
+   "domain": 2,
+   "task_form": 3,
+   "overall": 3,
+   "reason": "Partition a large structure into roughly balanced sub-domains for parallel workers; the balanced-layer-split decision that opens this TB2.1 task."
+  },
+  {
+   "rank": 10,
+   "task_id": "task_000032_5b0167e2",
+   "source": "TMax-15K",
+   "skill": 3,
+   "domain": 2,
+   "task_form": 3,
+   "overall": 3,
+   "reason": "Distribute work across mpi4py ranks and recombine per-rank results into one verified answer; rank/world_size decomposition with a numeric check."
+  }
+ ],
+ "notes": "This is the clearest case yet for the two new corpora. A regex for torch.distributed|P2POp|all_reduce|DistributedDataParallel|pipeline parallel|tensor parallel over all 56,307 v1 instructions returns exactly ONE hit (tqdm__tqdm-617, a tqdm/DataLoader display conflict). The same regex over the new corpora returns four real distributed-PyTorch training tasks in CalibForge plus one in Terminal-Lego. CalibForge also owns a large, well-verified gradient-accumulation-equivalence cluster (at least 15 tasks) that is the best available proxy for the microbatch loss-scaling requirement, and a hand-written-backward cluster that is the best proxy for driving autograd across a stage boundary. Eight of my final ten are CalibForge and I would happily have made it nine. Nothing anywhere in the 76,786-task pool implements pipeline parallelism, P2P send/recv, or an AFAB/1F1B schedule, so the true crux of this TB2.1 task is uncovered; the best we can offer is DDP correctness plus manual backward plus balanced partitioning as three separate half-matches. TerminalWorld is the corpus where I could not find ten defensible candidates: it has no PyTorch training content at all, so entries 4-10 there are honest filler scored 1-2 and should be ignored at merge time rather than treated as a ranked list. Recursive-Task-Synthesis is nearly as bad - one PyTorch task (rts_task_956ea2e372fe004edbe0d44d) and a handful of mpirun-a-C-program chores; its retrieval shortlist was dominated by a pyperaptor 'parallel pipeline' cluster that is a pure lexical false positive on the words pipeline and parallel, and I dropped all but two of those. SWE-Smith's fvcore cluster is a legitimate PyTorch-domain match (module-tree traversal, flop/parameter accounting) but is fix-a-bug shaped, so it caps out at overall 3. TerminalWorld filler note: I swapped out tw_12007 for tw_479699 purely to keep a FREE grade out of the list; neither is a real match."
+}

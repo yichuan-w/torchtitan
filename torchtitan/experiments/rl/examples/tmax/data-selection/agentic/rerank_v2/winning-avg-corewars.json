@@ -1,0 +1,773 @@
+{
+ "tb21_id": "winning-avg-corewars",
+ "tb21_profile": {
+  "skill": "Write a correct program in a restricted low-level VM/assembly language (Redcode) and iterate its logic adversarially until it beats a fixed suite of opponents at required win rates",
+  "domain": "CoreWars / Redcode / pMARS - esoteric self-modifying assembly for a circular memory VM; adjacent to game-bot programming and custom-ISA emulation",
+  "task_form": "implement-from-spec crossed with optimise-for-a-budget: author a competitor and tune it to clear per-opponent win-rate thresholds measured by batch matches"
+ },
+ "verifier_notes": "No CoreWars/Redcode/pMARS task exists anywhere in the pool - all lexical 'MARS/warrior' hits were false positives (Taskwarrior, 'On Mars'). CalibForge software-engineering_20260617_104707_025 (CROBOTS) is a near-clone with a strong verifier. All Recursive-Task-Synthesis assembly matches are graded 'absent' (no verifier ships); two are in final_top10 because they are the only tasks that share the write-in-a-niche-ISA structure, and no graded equivalent covers that specific facet. TerminalWorld's best ISA-emulation matches (tw_229615 angr, tw_134335/tw_42850 radare2 ESIL, tw_130138, tw_197833) are FREE-graded, so they stay in per_source only.",
+ "searches": [
+  "tools.py search all 'corewars|core.?war|redcode|pmars|warrior|MARS'",
+  "grep -rli 'corewar|redcode|pmars|core war' terminal-lego-15k and calibforge",
+  "tools.py search all 'write.*assembly|x86 assembly|self-?(replicat|modif)ing|shellcode|opcode|instruction set|bytecode (interpreter|vm)|emulat.*(cpu|instruction|isa)'",
+  "tools.py search tmax 'assembly|ISA|opcode|emulat|virtual machine|bytecode|interpret.*(instruction|opcode)|self-?(replicat|modif)'",
+  "tools.py search tmax 'minimax|game (ai|bot|tree)|tic.?tac|connect.?four|chess|adversar|win rate|opponent|tournament'",
+  "grep -rli 'assembl|x86|opcode|emulat|brainfuck|virtual machine|minimax|game ai|tic.tac|chess|connect.four|nasm' terminal-lego-15k",
+  "grep -rli 'write.*assembly|nasm|.asm|assembly (program|code|routine)|implement.*(interpreter|virtual machine|vm)|brainfuck|minimax|tic.tac.toe|connect.four|reversi|othello' terminal-lego-15k",
+  "packet CalibForge shown (CROBOTS, Othello, UTTT, Connect4, CHIP-8)",
+  "tools.py search rts 'simulator|custom (isa|instruction)|jmpe|hlt|opcode|virtual machine|Simpsel|register state|minimax|tic.?tac|chess|game (ai|bot)'",
+  "tools.py search all '... ARM64/x86-64 assembly ...' (rts assembly corpus)",
+  "tools.py search smith 'interpreter|state machine|tokeniz|lexer|opcode|bytecode|assembl|game|strateg|negamax|alpha.?beta|evaluat.*(position|move)'",
+  "tools.py search rebench 'axelrod|strateg|tournament|game|chess|minimax|interpreter|bytecode|opcode|virtual machine|emulat|assembl|music21|midi'",
+  "tools.py show software-engineering_20260617_104707_025 (CROBOTS full)"
+ ],
+ "per_source": {
+  "TMax-15K": [
+   {
+    "rank": 1,
+    "task_id": "task_000246_a1b7a5cc",
+    "skill": 4,
+    "domain": 4,
+    "task_form": 4,
+    "overall": 4,
+    "reason": "Build a C virtual machine that executes a custom bytecode from a hex opcode spec with a modulo constant; implement-and-reason-about-an-ISA, the CoreWars mental model."
+   },
+   {
+    "rank": 2,
+    "task_id": "task_000330_15b96164",
+    "skill": 4,
+    "domain": 4,
+    "task_form": 4,
+    "overall": 4,
+    "reason": "Complete a string-processing VM's missing opcodes from a spec; implement opcode semantics for a custom machine."
+   },
+   {
+    "rank": 3,
+    "task_id": "task_000297_dd740392",
+    "skill": 4,
+    "domain": 4,
+    "task_form": 3,
+    "overall": 4,
+    "reason": "Fix a stack-based VM in C (compile errors plus buffer over/underflows); reason precisely about a VM's execution and memory. Strong verifier."
+   },
+   {
+    "rank": 4,
+    "task_id": "task_000258_60a61045",
+    "skill": 4,
+    "domain": 4,
+    "task_form": 4,
+    "overall": 3,
+    "reason": "Translate a JSON test spec into a custom binary bytecode for a server-side VM; encode a program in a machine's instruction format."
+   },
+   {
+    "rank": 5,
+    "task_id": "task_000386_43121cfd",
+    "skill": 4,
+    "domain": 4,
+    "task_form": 4,
+    "overall": 3,
+    "reason": "Build an API for a retro-computing emulator from an assembly-instruction-set spec in an image; model an ISA and its ops."
+   },
+   {
+    "rank": 6,
+    "task_id": "task_000132_72484cb9",
+    "skill": 3,
+    "domain": 5,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Fix broken x86_64 inline assembly for a fast modulo; write and debug real low-level assembly. Strong verifier."
+   },
+   {
+    "rank": 7,
+    "task_id": "task_000444_a1f0ce4d",
+    "skill": 3,
+    "domain": 5,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Fix linking of a C tool with an x86_64 assembly hashing routine; work at the C/assembly boundary. Strong verifier."
+   },
+   {
+    "rank": 8,
+    "task_id": "task_000417_e5e5874b",
+    "skill": 3,
+    "domain": 5,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Fix a Makefile to build a shared lib with a .S assembly fast-math file; assembly build integration."
+   },
+   {
+    "rank": 9,
+    "task_id": "task_000545_876fd6e7",
+    "skill": 3,
+    "domain": 4,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Implement a validation function from an assembly reference so output matches an oracle; read assembly and reproduce its logic."
+   },
+   {
+    "rank": 10,
+    "task_id": "task_000495_b296afa7",
+    "skill": 3,
+    "domain": 3,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Replace a Python WAF bytecode interpreter with a Rust one; reimplement a bytecode VM in another language."
+   }
+  ],
+  "Recursive-Task-Synthesis": [
+   {
+    "rank": 1,
+    "task_id": "rts_task_9791637c7aaaa3b6246aad2d",
+    "skill": 4,
+    "domain": 4,
+    "task_form": 5,
+    "overall": 4,
+    "reason": "Write an assembly program for the Simpsel simulator that reaches a target register state, then run it under the simulator; write-in-a-niche-ISA-for-a-specific-machine, exactly CoreWars's shape. Absent verifier."
+   },
+   {
+    "rank": 2,
+    "task_id": "rts_task_cf4a94edf1bb554d90da7f86",
+    "skill": 4,
+    "domain": 4,
+    "task_form": 4,
+    "overall": 4,
+    "reason": "Write assembly for a custom ISA using add/neq/jmpe/hlt over specific registers and run it on its simulator service; low-level ISA authoring. Absent verifier."
+   },
+   {
+    "rank": 3,
+    "task_id": "rts_task_14fb654851c178c7517d8f02",
+    "skill": 3,
+    "domain": 4,
+    "task_form": 4,
+    "overall": 3,
+    "reason": "Write an x86-64 assembly program that counts characters per a config; hand-writing correct low-level assembly. Absent."
+   },
+   {
+    "rank": 4,
+    "task_id": "rts_task_0b9b2bac6586b91383a541a9",
+    "skill": 3,
+    "domain": 4,
+    "task_form": 4,
+    "overall": 3,
+    "reason": "Write an ARM64 assembly program using only Linux syscalls to compute primes; standalone low-level program authoring. Absent."
+   },
+   {
+    "rank": 5,
+    "task_id": "rts_task_7456b58e87defe2142377a5a",
+    "skill": 3,
+    "domain": 4,
+    "task_form": 4,
+    "overall": 3,
+    "reason": "Write a standalone ARM64 Fibonacci program in raw syscalls, assemble and link; low-level ISA programming. Absent."
+   },
+   {
+    "rank": 6,
+    "task_id": "rts_task_b6b02584385fd4ad601f40ce",
+    "skill": 3,
+    "domain": 4,
+    "task_form": 4,
+    "overall": 3,
+    "reason": "Write an AArch64 assembly program computing LCM from an input file; assembly control flow and arithmetic. Absent."
+   },
+   {
+    "rank": 7,
+    "task_id": "rts_task_2607dd8e8b0d78f50ece4d7f",
+    "skill": 3,
+    "domain": 4,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Write an ARM64 assembly primality check with Spanish output; branchy low-level logic. Absent."
+   },
+   {
+    "rank": 8,
+    "task_id": "rts_task_1baab66ac8844bb9b6272b90",
+    "skill": 3,
+    "domain": 4,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Write an ARM64 assembly Euclidean GCD reading env vars; loops and registers in assembly. Absent."
+   },
+   {
+    "rank": 9,
+    "task_id": "rts_task_a9064ec8576689d713510321",
+    "skill": 3,
+    "domain": 4,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Write an ARM64 assembly palindrome checker over an argv string; assembly string handling. Absent."
+   },
+   {
+    "rank": 10,
+    "task_id": "rts_task_303f2e5fdf7b562f7afedb68",
+    "skill": 3,
+    "domain": 4,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Write an ARM64 assembly program printing a number and its binary form; bit manipulation in assembly. Absent."
+   }
+  ],
+  "TerminalWorld-Seeds-Clean": [
+   {
+    "rank": 1,
+    "task_id": "tw_229615",
+    "skill": 4,
+    "domain": 4,
+    "task_form": 4,
+    "overall": 4,
+    "reason": "Use angr symbolic execution to find the input that drives a binary down a target path; reasoning about a program's execution in a low-level machine model. FREE verifier."
+   },
+   {
+    "rank": 2,
+    "task_id": "tw_134335",
+    "skill": 4,
+    "domain": 4,
+    "task_form": 4,
+    "overall": 3,
+    "reason": "Reverse-engineer and emulate a dan32 binary under radare2's ESIL VM with a custom interrupt handler; drive execution in a VM/ISA, close to CoreWars mechanics. FREE verifier."
+   },
+   {
+    "rank": 3,
+    "task_id": "tw_42850",
+    "skill": 3,
+    "domain": 4,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Use radare2 ESIL to emulate a crackme's key-generation logic; step an ISA's instructions in an emulator. FREE verifier."
+   },
+   {
+    "rank": 4,
+    "task_id": "tw_248066",
+    "skill": 3,
+    "domain": 3,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Explore the Julia type system and multiple dispatch with exact expected values; implement-to-spec in a niche language, moderate transfer."
+   },
+   {
+    "rank": 5,
+    "task_id": "tw_12180",
+    "skill": 3,
+    "domain": 4,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Compile a 32-bit C program and exploit its buffer overflow to redirect flow to a target function; low-level control-flow manipulation."
+   },
+   {
+    "rank": 6,
+    "task_id": "tw_130138",
+    "skill": 3,
+    "domain": 4,
+    "task_form": 2,
+    "overall": 3,
+    "reason": "Extract the complete disassembly of a rop_remote binary with objdump; reading machine code at instruction level. FREE verifier."
+   },
+   {
+    "rank": 7,
+    "task_id": "tw_306630",
+    "skill": 3,
+    "domain": 4,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Drive radare2 via r2pipe to analyse a binary and enumerate functions and xrefs; program-structure analysis at the ISA level."
+   },
+   {
+    "rank": 8,
+    "task_id": "tw_197833",
+    "skill": 2,
+    "domain": 4,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Recover class hierarchy from x86-64 RTTI metadata with radare2; low-level binary-structure reasoning. FREE verifier."
+   },
+   {
+    "rank": 9,
+    "task_id": "tw_25556",
+    "skill": 3,
+    "domain": 4,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Use radare2 to inject shellcode into a live process; hand-assembled low-level code and dynamic execution."
+   },
+   {
+    "rank": 10,
+    "task_id": "tw_48562",
+    "skill": 3,
+    "domain": 4,
+    "task_form": 2,
+    "overall": 3,
+    "reason": "Live-patch /bin/bash by overwriting exact bytes at an address; machine-code-level editing."
+   }
+  ],
+  "SWE-Smith-Seeds-Clean": [
+   {
+    "rank": 1,
+    "task_id": "pygments__pygments.27649ebb.pr_2424",
+    "skill": 3,
+    "domain": 3,
+    "task_form": 2,
+    "overall": 3,
+    "reason": "Fix a lexer for the TAL/uxn assembly language so jumps and function calls tokenise correctly; modelling an assembly ISA's syntax."
+   },
+   {
+    "rank": 2,
+    "task_id": "pallets__jinja.ada0a9a6.combine_file__9n0lapkf",
+    "skill": 2,
+    "domain": 3,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Fix Jinja2 bytecode-cache serialization/deserialization; handling a compiled-template bytecode format."
+   },
+   {
+    "rank": 3,
+    "task_id": "davidhalter__parso.338a5760.lm_rewrite__ug7hl82o",
+    "skill": 2,
+    "domain": 2,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Fix tokenisation of unicode identifiers in a Python parser; language-frontend state-machine correctness."
+   },
+   {
+    "rank": 4,
+    "task_id": "datamade__usaddress.a42a8f0c.lm_rewrite__qrc0sw5h",
+    "skill": 2,
+    "domain": 2,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Fix a tokenizer that mishandles punctuation in a CRF address parser; sequence state-machine debugging."
+   },
+   {
+    "rank": 5,
+    "task_id": "andialbrecht__sqlparse.e57923b3.lm_rewrite__0uc3v1lz",
+    "skill": 2,
+    "domain": 2,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Fix SQL keyword tokenisation for FROM AS; parser/tokeniser correctness."
+   },
+   {
+    "rank": 6,
+    "task_id": "cantools__cantools.0c6a7871.func_pm_remove_assign__e0sp70d9",
+    "skill": 2,
+    "domain": 3,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Fix multiplexed-signal bit-position decoding in a binary bus format; low-level bit-field reasoning."
+   },
+   {
+    "rank": 7,
+    "task_id": "jd__tenacity.0d40e76f.func_pm_ctrl_shuffle__qhd71msz",
+    "skill": 2,
+    "domain": 2,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Fix summing/combining retry wait strategies; composing strategy objects, loose thematic overlap."
+   },
+   {
+    "rank": 8,
+    "task_id": "luozhouyang__python-string-similarity.115acaac.func_pm_class_rm_funcs__c79l98k5",
+    "skill": 2,
+    "domain": 2,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Restore missing tokenizer methods in a SIFT4 string-distance algorithm; implementing an algorithm from spec."
+   },
+   {
+    "rank": 9,
+    "task_id": "davidhalter__parso.338a5760.func_pm_op_break_chains__pt0nzxrt",
+    "skill": 2,
+    "domain": 2,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Fix a tokenizer failing on unicode string literals; parser low-level correctness."
+   },
+   {
+    "rank": 10,
+    "task_id": "Instagram__MonkeyType.70c3acf6.pr_151",
+    "skill": 1,
+    "domain": 2,
+    "task_form": 2,
+    "overall": 1,
+    "reason": "Fix type-stub generation from runtime traces; program-analysis codegen, minimal transfer."
+   }
+  ],
+  "SWE-Rebench-Tasks-Clean": [
+   {
+    "rank": 1,
+    "task_id": "aspp__pelita-875",
+    "skill": 4,
+    "domain": 5,
+    "task_form": 3,
+    "overall": 4,
+    "reason": "Fix run_background_game in Pelita, a multiplayer bot-programming game where agents compete; same write-an-agent-that-wins-a-match domain and framework."
+   },
+   {
+    "rank": 2,
+    "task_id": "axelrod-python__axelrod-638",
+    "skill": 3,
+    "domain": 4,
+    "task_form": 2,
+    "overall": 3,
+    "reason": "Fix finite-state-machine strategy players not resetting in Axelrod's iterated-game tournaments; competitive-agent correctness."
+   },
+   {
+    "rank": 3,
+    "task_id": "axelrod-python__axelrod-1152",
+    "skill": 3,
+    "domain": 4,
+    "task_form": 2,
+    "overall": 3,
+    "reason": "Fix an implementation error in a specific Axelrod game strategy; getting a competitive agent's logic exactly right."
+   },
+   {
+    "rank": 4,
+    "task_id": "axelrod-python__axelrod-1113",
+    "skill": 3,
+    "domain": 4,
+    "task_form": 2,
+    "overall": 3,
+    "reason": "Correct the Gladstein strategy to match a reference implementation; strategy-behaviour fidelity in a tournament framework."
+   },
+   {
+    "rank": 5,
+    "task_id": "axelrod-python__axelrod-671",
+    "skill": 3,
+    "domain": 4,
+    "task_form": 2,
+    "overall": 3,
+    "reason": "Fix payoff-difference computation for self-interactions in Axelrod tournaments; match-scoring correctness like CoreWars win counts."
+   },
+   {
+    "rank": 6,
+    "task_id": "axelrod-python__axelrod-783",
+    "skill": 2,
+    "domain": 4,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Fix stochastic-classification of the Random strategy in Axelrod; competitive-agent metadata correctness."
+   },
+   {
+    "rank": 7,
+    "task_id": "axelrod-python__axelrod-761",
+    "skill": 2,
+    "domain": 4,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Adjust random_choice sampling for deterministic memory-one strategies; game-strategy determinism."
+   },
+   {
+    "rank": 8,
+    "task_id": "axelrod-python__axelrod-1458",
+    "skill": 2,
+    "domain": 4,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Make LimitedHistory override extend to cap remembered moves; game-agent state management."
+   },
+   {
+    "rank": 9,
+    "task_id": "aaugustin__websockets-483",
+    "skill": 2,
+    "domain": 2,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Fix WebSocket close-frame opcode handling; parsing and emitting protocol opcodes, low-level frame logic."
+   },
+   {
+    "rank": 10,
+    "task_id": "aaugustin__websockets-641",
+    "skill": 2,
+    "domain": 2,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Fix handling of a ping-frame opcode during close; protocol opcode/state handling."
+   }
+  ],
+  "Terminal-Lego-15k": [
+   {
+    "rank": 1,
+    "task_id": "task_02504",
+    "skill": 3,
+    "domain": 4,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Write, assemble and run x86 assembly on Linux; hands-on low-level assembly authoring, closest Lego analogue. Strong verifier."
+   },
+   {
+    "rank": 2,
+    "task_id": "task_00232",
+    "skill": 3,
+    "domain": 4,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Demonstrate x86-64 syscall conventions by writing assembly; register/syscall-level programming."
+   },
+   {
+    "rank": 3,
+    "task_id": "task_11151",
+    "skill": 3,
+    "domain": 4,
+    "task_form": 2,
+    "overall": 3,
+    "reason": "Disassemble raw 16-bit x86 machine code (MBR) in Intel syntax; reading machine code directly."
+   },
+   {
+    "rank": 4,
+    "task_id": "task_00352",
+    "skill": 2,
+    "domain": 4,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Disassemble a Linux binary to view its assembly; low-level tooling literacy. Strong verifier."
+   },
+   {
+    "rank": 5,
+    "task_id": "task_00522",
+    "skill": 2,
+    "domain": 4,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Configure objdump to emit Intel-syntax assembly; assembly-inspection workflow. Strong verifier."
+   },
+   {
+    "rank": 6,
+    "task_id": "task_11081",
+    "skill": 2,
+    "domain": 4,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Demonstrate .bss vs .data segment behaviour in ELF binaries; low-level memory-model literacy."
+   },
+   {
+    "rank": 7,
+    "task_id": "task_01159",
+    "skill": 2,
+    "domain": 3,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Understand Python bytecode and .pyc files; disassembling a higher-level VM's instructions."
+   },
+   {
+    "rank": 8,
+    "task_id": "task_06834",
+    "skill": 2,
+    "domain": 4,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Investigate x86 SHA hardware-acceleration instructions; instruction-set-level reasoning."
+   },
+   {
+    "rank": 9,
+    "task_id": "task_00220",
+    "skill": 1,
+    "domain": 3,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Demonstrate GCC __builtin_expect performance; compiler/low-level microarchitecture, weak transfer."
+   },
+   {
+    "rank": 10,
+    "task_id": "task_00476",
+    "skill": 1,
+    "domain": 3,
+    "task_form": 2,
+    "overall": 1,
+    "reason": "Explain the PLT in dynamic linking; binary-internals knowledge, little authoring transfer."
+   }
+  ],
+  "CalibForge": [
+   {
+    "rank": 1,
+    "task_id": "software-engineering_20260617_104707_025",
+    "skill": 5,
+    "domain": 5,
+    "task_form": 5,
+    "overall": 5,
+    "reason": "Write a CROBOTS robot program (restricted C for a battle VM) that beats five opponent robots at fixed win-rate thresholds via batch matches; the TB2.1 task with a different game VM."
+   },
+   {
+    "rank": 2,
+    "task_id": "software-engineering_20260508_045920_025",
+    "skill": 4,
+    "domain": 4,
+    "task_form": 5,
+    "overall": 5,
+    "reason": "Write an Othello bot that defeats five opponent bots of increasing difficulty in a tournament; identical beat-five-opponents adversarial-optimisation shape."
+   },
+   {
+    "rank": 3,
+    "task_id": "software-engineering_20260415_123352_025",
+    "skill": 4,
+    "domain": 4,
+    "task_form": 5,
+    "overall": 5,
+    "reason": "Write an Ultimate Tic-Tac-Toe AI that defeats a series of opponent bots; same competitive-agent-vs-opponent-suite genre and depth."
+   },
+   {
+    "rank": 4,
+    "task_id": "software-engineering_20260606_172622_025",
+    "skill": 4,
+    "domain": 4,
+    "task_form": 3,
+    "overall": 4,
+    "reason": "Fix a CHIP-8 interpreter to match the original ISA's opcode behaviour against test ROMs; core understand-a-VM's-instruction-semantics skill CoreWars needs."
+   },
+   {
+    "rank": 5,
+    "task_id": "games_20260603_181444_001",
+    "skill": 4,
+    "domain": 4,
+    "task_form": 4,
+    "overall": 4,
+    "reason": "Implement Connect Four find_best_move so the AI plays competently; write a game-playing agent that must actually win positions."
+   },
+   {
+    "rank": 6,
+    "task_id": "games_20260416_031414_001",
+    "skill": 3,
+    "domain": 4,
+    "task_form": 3,
+    "overall": 4,
+    "reason": "Fix negamax/alpha-beta so the Connect Four AI blocks threats at shallow depth; adversarial search reasoning."
+   },
+   {
+    "rank": 7,
+    "task_id": "games_20260607_104421_001",
+    "skill": 3,
+    "domain": 4,
+    "task_form": 3,
+    "overall": 4,
+    "reason": "Make the Connect Four AI choose competent moves; game-strategy debugging against an opponent."
+   },
+   {
+    "rank": 8,
+    "task_id": "games_20260508_161717_001",
+    "skill": 3,
+    "domain": 4,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Fix a Connect Four AI that fails to block opponent threats; defensive game-strategy correctness."
+   },
+   {
+    "rank": 9,
+    "task_id": "games_20260429_103257_001",
+    "skill": 3,
+    "domain": 3,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Fix a Minesweeper AI's knowledge-inference engine; logical agent that must deduce correct moves."
+   },
+   {
+    "rank": 10,
+    "task_id": "software-engineering_20260614_141608_025",
+    "skill": 2,
+    "domain": 3,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Fix multiple bugs in a 2048 game engine; implementing correct game-state transition logic."
+   }
+  ]
+ },
+ "final_top10": [
+  {
+   "rank": 1,
+   "task_id": "software-engineering_20260617_104707_025",
+   "source": "CalibForge",
+   "skill": 5,
+   "domain": 5,
+   "task_form": 5,
+   "overall": 5,
+   "reason": "Write a program in a restricted battle-VM C to beat five opponents at fixed win-rate thresholds via batch matches; the TB2.1 task on a sibling game."
+  },
+  {
+   "rank": 2,
+   "task_id": "software-engineering_20260508_045920_025",
+   "source": "CalibForge",
+   "skill": 4,
+   "domain": 4,
+   "task_form": 5,
+   "overall": 5,
+   "reason": "Write an Othello bot that defeats five opponent bots in a tournament; identical beat-five-opponents adversarial-optimisation genre."
+  },
+  {
+   "rank": 3,
+   "task_id": "software-engineering_20260415_123352_025",
+   "source": "CalibForge",
+   "skill": 4,
+   "domain": 4,
+   "task_form": 5,
+   "overall": 5,
+   "reason": "Write an Ultimate Tic-Tac-Toe AI that defeats a series of opponent bots; same competitive-agent-vs-opponent-suite task."
+  },
+  {
+   "rank": 4,
+   "task_id": "software-engineering_20260606_172622_025",
+   "source": "CalibForge",
+   "skill": 4,
+   "domain": 4,
+   "task_form": 3,
+   "overall": 4,
+   "reason": "Fix a CHIP-8 interpreter to match the original ISA's opcode semantics; the understand-a-VM's-instructions skill behind writing a warrior."
+  },
+  {
+   "rank": 5,
+   "task_id": "rts_task_9791637c7aaaa3b6246aad2d",
+   "source": "Recursive-Task-Synthesis",
+   "skill": 4,
+   "domain": 4,
+   "task_form": 5,
+   "overall": 4,
+   "reason": "Write an assembly program for the Simpsel simulator to reach a target state and run it; write-in-a-niche-ISA-for-a-specific-machine, closest structural match. Absent verifier."
+  },
+  {
+   "rank": 6,
+   "task_id": "games_20260603_181444_001",
+   "source": "CalibForge",
+   "skill": 4,
+   "domain": 4,
+   "task_form": 4,
+   "overall": 4,
+   "reason": "Implement Connect Four find_best_move so the agent actually wins positions; write a game-playing agent that must beat play."
+  },
+  {
+   "rank": 7,
+   "task_id": "task_000246_a1b7a5cc",
+   "source": "TMax-15K",
+   "skill": 4,
+   "domain": 4,
+   "task_form": 4,
+   "overall": 4,
+   "reason": "Build a C VM executing a custom bytecode from an opcode spec; implement-and-reason-about-an-ISA, the CoreWars mental model."
+  },
+  {
+   "rank": 8,
+   "task_id": "games_20260416_031414_001",
+   "source": "CalibForge",
+   "skill": 3,
+   "domain": 4,
+   "task_form": 3,
+   "overall": 4,
+   "reason": "Fix negamax/alpha-beta so a Connect Four AI blocks threats; adversarial game-search reasoning."
+  },
+  {
+   "rank": 9,
+   "task_id": "rts_task_cf4a94edf1bb554d90da7f86",
+   "source": "Recursive-Task-Synthesis",
+   "skill": 4,
+   "domain": 4,
+   "task_form": 4,
+   "overall": 4,
+   "reason": "Write assembly for a custom ISA (add/neq/jmpe/hlt) and run it on its simulator; low-level ISA authoring for a specific machine. Absent verifier."
+  },
+  {
+   "rank": 10,
+   "task_id": "aspp__pelita-875",
+   "source": "SWE-Rebench-Tasks-Clean",
+   "skill": 4,
+   "domain": 5,
+   "task_form": 3,
+   "overall": 4,
+   "reason": "Fix Pelita's background-game runner - a multiplayer bot-programming game where agents compete; same write-a-competing-agent domain."
+  }
+ ],
+ "notes": "The new corpora decisively beat the old ones here. CalibForge alone carries this task: it has a CROBOTS task that is a near-exact CoreWars clone (write a program in a battle-VM language, beat five named opponents at per-opponent win-rate thresholds via batch matches) plus a whole suite of adversarial game-bot tasks (Othello/UTTT tournaments, Connect Four negamax, CHIP-8 ISA interpreter) with strong verifiers. SWE-Rebench's axelrod-python (iterated-game strategy tournaments) and aspp/pelita (multiplayer bot game) are a genuinely relevant ecosystem the v1 pool lacked. The old pool contributes two complementary facets: Recursive-Task-Synthesis is the only source of write-a-program-in-a-niche-assembly-ISA-and-run-it-on-a-simulator tasks (Simpsel/custom-ISA) - the closest structural analogue to authoring a warrior - but every one is graded 'absent'; TMax supplies implement-a-VM-from-an-opcode-spec tasks. Terminal-Lego and SWE-Smith only reach low-level-tooling/parser adjacency. Downstream merge: CROBOTS is the standout; treat the RTS assembly tasks as high-skill-but-unverified and do not let their 'absent' grade or simplicity mask that they are the only true ISA-authoring transfer."
+}

@@ -1,0 +1,770 @@
+{
+  "tb21_id": "build-cython-ext",
+  "tb21_profile": {
+    "skill": "Build a Python package with Cython/C extensions from source and fix NumPy 2.x incompatibilities (removed/renamed C-API, PyObject* vs PyArrayObject* casts, deprecated aliases), patch setup.py/.pyx/C so build_ext succeeds, install into the global env, and make the shipped tests and the README example import and run.",
+    "domain": "Python packaging / build toolchain (setup.py, build_ext, pip install from source); Cython and the NumPy C-API; a scientific package (pyknotid) with .pyx extensions.",
+    "task_form": "build/packaging + fix-a-compatibility-break: get a from-source native build to compile, install, and pass its test suite on an incompatible dependency version."
+  },
+  "verifier_notes": "No grade I relied on was wrong. In Terminal-Lego/TW I avoided tw_677182 (build a wheel) because it is FREE; I used tw_129867 and tw_108330 instead. All CalibForge picks are graded strong and their suites import the built extension and run its functions, consistent with the grade. Recursive-Task-Synthesis is entirely 'absent' (no verifier shipped); its build-from-source tasks are legitimate but prefer the graded CalibForge/TMax equivalents, which is why none reach final_top10.",
+  "searches": [
+    "q.py search all (CS) \"Cython|\\.pyx|C extension|C-extension|setup\\.py build|build_ext|pip install.{0,20}source|compile.{0,20}extension|numpy.{0,10}(2\\.|C API|deprecat)|python setup\"",
+    "q.py dump build-cython-ext CalibForge",
+    "q.py show debugging_20260606_172554_001 software-engineering_20260513_204536_002 debugging_20260610_111012_001",
+    "q.py search rts (CS) \"setup\\.py|build_ext|Cython|\\.pyx|C extension|compile.{0,15}(from source|extension)|pip install|Makefile|cmake|configure|numpy\"",
+    "q.py search rts (CS) \"gcc|g\\+\\+|shared library|\\.so\\b|make install|build.{0,12}(wheel|from source|...)|install.{0,10}from source|virtualenv|pip install \\.\"",
+    "q.py search tw (CS) \"Cython|\\.pyx|C extension|build from source|setup\\.py|build_ext|pip install|compile.{0,15}(the|extension|library)|shared library|wheel|numpy|cmake|autoreconf\"",
+    "q.py search smith (CS) \"setup\\.py|Cython|numpy|C extension|build|install|pyproject|wheel|import.{0,10}fail|ImportError|ABI|compil\"",
+    "q.py search rebench (CS) \"Cython|pyccel|numpy|setup\\.py|build|pyproject|wheel|ImportError|compil|pybind|f2py|ABI|extension module\"",
+    "q.py search rebench (CS) \"pyccel|f2py|build_ext|extension module|compil.{0,15}(C|Fortran|extension)|numpy 2|NumPy 2\"",
+    "q.py snip (grade checks across all shortlisted ids)"
+  ],
+  "per_source": {
+    "TMax-15K": [
+      {
+        "rank": 1,
+        "task_id": "task_000485_af988d1d",
+        "skill": 5,
+        "domain": 5,
+        "task_form": 4,
+        "overall": 5,
+        "reason": "setup.py is missing the numpy include directories needed to build the C-extension; fix it so it compiles - the exact numpy-plus-build_ext failure this task hits."
+      },
+      {
+        "rank": 2,
+        "task_id": "task_000084_2e6745ad",
+        "skill": 4,
+        "domain": 5,
+        "task_form": 4,
+        "overall": 4,
+        "reason": "Fix and install a vendored Python C-extension/Cython package whose build is broken, then use it; the fix-source-build-then-import arc of this task."
+      },
+      {
+        "rank": 3,
+        "task_id": "task_000322_52e0a9fe",
+        "skill": 4,
+        "domain": 5,
+        "task_form": 4,
+        "overall": 4,
+        "reason": "A package won't build its C-extensions because setup uses spaces instead of tabs; diagnose the build-config defect from the compiler error, as instructed here."
+      },
+      {
+        "rank": 4,
+        "task_id": "task_001294_25007d3e",
+        "skill": 4,
+        "domain": 4,
+        "task_form": 4,
+        "overall": 4,
+        "reason": "A bad commit broke the build so the C extension no longer compiles; find and repair the regression in the native build."
+      },
+      {
+        "rank": 5,
+        "task_id": "task_000589_21509b0c",
+        "skill": 4,
+        "domain": 5,
+        "task_form": 4,
+        "overall": 4,
+        "reason": "fast-metric-exporter is supposed to use a compiled Cython extension but is broken; get the .pyx extension building and importable."
+      },
+      {
+        "rank": 6,
+        "task_id": "task_001206_6b05f725",
+        "skill": 4,
+        "domain": 4,
+        "task_form": 4,
+        "overall": 4,
+        "reason": "Package fails to build its performance-critical C extension; fix the build so the module loads - same failure class."
+      },
+      {
+        "rank": 7,
+        "task_id": "task_001533_bcad5bcb",
+        "skill": 4,
+        "domain": 4,
+        "task_form": 4,
+        "overall": 4,
+        "reason": "setup.py tries to compile a C-extension but fails; a bug left in the build config must be found from the error output."
+      },
+      {
+        "rank": 8,
+        "task_id": "task_001021_740b1f54",
+        "skill": 4,
+        "domain": 4,
+        "task_form": 4,
+        "overall": 4,
+        "reason": "Debug and fix the build configuration of a vendored package so its C-extension compiles correctly; read-the-compiler-error-and-patch-setup."
+      },
+      {
+        "rank": 9,
+        "task_id": "task_000518_1a8df620",
+        "skill": 3,
+        "domain": 4,
+        "task_form": 4,
+        "overall": 3,
+        "reason": "Package fails to install due to compiler and linker errors in its C-extension; resolve build/link errors to complete the install."
+      },
+      {
+        "rank": 10,
+        "task_id": "task_000505_265772e9",
+        "skill": 3,
+        "domain": 4,
+        "task_form": 4,
+        "overall": 3,
+        "reason": "Run python3 setup.py build_ext --inplace and link a library into the built extension; the build_ext mechanics this task exercises, minus the numpy port."
+      }
+    ],
+    "Recursive-Task-Synthesis": [
+      {
+        "rank": 1,
+        "task_id": "rts_task_a1fb5d219782b2ad9fd0ccbe",
+        "skill": 3,
+        "domain": 3,
+        "task_form": 5,
+        "overall": 3,
+        "reason": "Fetch and build PostgreSQL 16.2 from a source tarball (configure/make/install); classic native build-from-source, though C not Cython and no numpy."
+      },
+      {
+        "rank": 2,
+        "task_id": "rts_task_60accd3bd2214870dd1436f9",
+        "skill": 3,
+        "domain": 4,
+        "task_form": 4,
+        "overall": 3,
+        "reason": "Install a package and record the path/checksum of its compiled native extension; building and locating a native extension, close on domain."
+      },
+      {
+        "rank": 3,
+        "task_id": "rts_task_c6ddfb4c7399b1648f6885fe",
+        "skill": 3,
+        "domain": 3,
+        "task_form": 4,
+        "overall": 3,
+        "reason": "Build a project with CMake in an out-of-source directory and run its tests; compile-from-source-then-tests-pass, the same shape as this task."
+      },
+      {
+        "rank": 4,
+        "task_id": "rts_task_1d7277c108d70c0596338938",
+        "skill": 3,
+        "domain": 3,
+        "task_form": 4,
+        "overall": 3,
+        "reason": "Check out the recommended stable release, build with CMake, run the tests; matches clone-at-a-tag then build then verify."
+      },
+      {
+        "rank": 5,
+        "task_id": "rts_task_58cb004265b47683f571eaa3",
+        "skill": 3,
+        "domain": 3,
+        "task_form": 4,
+        "overall": 3,
+        "reason": "Build a Go shared library (.so) with an init hook; producing a loadable native shared object, the artifact a compiled extension also is."
+      },
+      {
+        "rank": 6,
+        "task_id": "rts_task_029efbf46acf5bd4b1e2890c",
+        "skill": 2,
+        "domain": 3,
+        "task_form": 4,
+        "overall": 2,
+        "reason": "Install a Python package using its provided Makefile; package-install-from-source workflow, no native compilation step."
+      },
+      {
+        "rank": 7,
+        "task_id": "rts_task_a8cd04e7ba1c304c73725efe",
+        "skill": 3,
+        "domain": 3,
+        "task_form": 4,
+        "overall": 2,
+        "reason": "Build the docker-lvm-plugin from source using its own build steps; discover-and-run-a-project's-build, different ecosystem."
+      },
+      {
+        "rank": 8,
+        "task_id": "rts_task_6013228a26da777fb386ca31",
+        "skill": 2,
+        "domain": 3,
+        "task_form": 4,
+        "overall": 2,
+        "reason": "Inspect a repo to discover dependencies and correct build steps, then build successfully; the investigate-the-build-then-fix-it part only."
+      },
+      {
+        "rank": 9,
+        "task_id": "rts_task_715a9899c4d5b5928b161564",
+        "skill": 2,
+        "domain": 2,
+        "task_form": 4,
+        "overall": 2,
+        "reason": "Clone a repo and build a target with make; bare build-from-source with no native-extension or dependency-compat wrinkle."
+      },
+      {
+        "rank": 10,
+        "task_id": "rts_task_04b49c4cbb2f5abf95f8efbc",
+        "skill": 2,
+        "domain": 2,
+        "task_form": 3,
+        "overall": 2,
+        "reason": "Compile a source file so it prints an exact string; compilation only, trivial and unrelated to Python/numpy extensions."
+      }
+    ],
+    "TerminalWorld-Seeds-Clean": [
+      {
+        "rank": 1,
+        "task_id": "tw_11736",
+        "skill": 4,
+        "domain": 4,
+        "task_form": 4,
+        "overall": 4,
+        "reason": "Compile a Python extension in a cloned repo's glut/ subdirectory; build a native Python extension from source, the core of this task."
+      },
+      {
+        "rank": 2,
+        "task_id": "tw_326628",
+        "skill": 3,
+        "domain": 4,
+        "task_form": 4,
+        "overall": 3,
+        "reason": "Clone sds-mnist, install sds and numpy, and run its example workflow; install-a-source-package-that-needs-numpy-then-verify."
+      },
+      {
+        "rank": 3,
+        "task_id": "tw_694280",
+        "skill": 3,
+        "domain": 3,
+        "task_form": 4,
+        "overall": 3,
+        "reason": "Build a C library and install it system-wide with the shared-library cache updated; compile-and-install-a-native-lib, the .so half of an extension."
+      },
+      {
+        "rank": 4,
+        "task_id": "tw_490680",
+        "skill": 3,
+        "domain": 3,
+        "task_form": 4,
+        "overall": 3,
+        "reason": "Produce a production build resulting in a compiled shared library; drive a real build pipeline to a native artifact."
+      },
+      {
+        "rank": 5,
+        "task_id": "tw_417753",
+        "skill": 3,
+        "domain": 3,
+        "task_form": 4,
+        "overall": 3,
+        "reason": "Build and install a library under the default prefix with the shared library file placed correctly; install-a-compiled-library workflow."
+      },
+      {
+        "rank": 6,
+        "task_id": "tw_248132",
+        "skill": 3,
+        "domain": 3,
+        "task_form": 3,
+        "overall": 3,
+        "reason": "Resolve a shared-library dependency so a driver runs and prints its usage; the runtime linking side of getting a compiled extension importable."
+      },
+      {
+        "rank": 7,
+        "task_id": "tw_677186",
+        "skill": 3,
+        "domain": 4,
+        "task_form": 3,
+        "overall": 3,
+        "reason": "Build the tinyget Python project into a distributable wheel after passing style checks; Python packaging/build, no native extension."
+      },
+      {
+        "rank": 8,
+        "task_id": "tw_418406",
+        "skill": 3,
+        "domain": 3,
+        "task_form": 4,
+        "overall": 3,
+        "reason": "Clone a project, build with CMake, then run it; compile-from-source then verify, C++ rather than Python."
+      },
+      {
+        "rank": 9,
+        "task_id": "tw_108330",
+        "skill": 3,
+        "domain": 3,
+        "task_form": 4,
+        "overall": 3,
+        "reason": "Configure a CMake build with Java bindings enabled, compile, and use the bindings; build-with-language-bindings, adjacent skill."
+      },
+      {
+        "rank": 10,
+        "task_id": "tw_129867",
+        "skill": 2,
+        "domain": 3,
+        "task_form": 4,
+        "overall": 2,
+        "reason": "Prepare the build environment and compile Singularity from source; general source build with dependency setup, no Python/numpy angle."
+      }
+    ],
+    "SWE-Smith-Seeds-Clean": [
+      {
+        "rank": 1,
+        "task_id": "conan-io__conan.86f29e13.combine_module__0jv2n7d9",
+        "skill": 3,
+        "domain": 4,
+        "task_form": 2,
+        "overall": 3,
+        "reason": "Conan emits incorrect C++ standard flags for Clang; reasoning about the compiler flags a native build needs, the layer where extension builds fail."
+      },
+      {
+        "rank": 2,
+        "task_id": "conan-io__conan.86f29e13.combine_module__ox7m3k6h",
+        "skill": 3,
+        "domain": 4,
+        "task_form": 2,
+        "overall": 3,
+        "reason": "C++ standard flags mishandled for Clang and GCC; the same compiler-invocation correctness that decides whether a C extension compiles."
+      },
+      {
+        "rank": 3,
+        "task_id": "conan-io__conan.86f29e13.pr_12380",
+        "skill": 3,
+        "domain": 3,
+        "task_form": 2,
+        "overall": 2,
+        "reason": "Dependency-graph package-type processing is wrong in a C/C++ package manager; build-system dependency resolution, adjacent to fixing a broken build."
+      },
+      {
+        "rank": 4,
+        "task_id": "conan-io__conan.86f29e13.lm_rewrite__gtej07ly",
+        "skill": 3,
+        "domain": 3,
+        "task_form": 2,
+        "overall": 2,
+        "reason": "Incorrect deduction of compiled library locations; locating built .so/.lib artifacts is exactly what a from-source install must get right."
+      },
+      {
+        "rank": 5,
+        "task_id": "conan-io__conan.86f29e13.combine_file__y3e83gj5",
+        "skill": 2,
+        "domain": 3,
+        "task_form": 2,
+        "overall": 2,
+        "reason": "BazelDeps generator behaviour in Conan; build-system code generation for native dependencies, same territory as build config."
+      },
+      {
+        "rank": 6,
+        "task_id": "conan-io__conan.86f29e13.func_pm_class_rm_funcs__3807jlzd",
+        "skill": 2,
+        "domain": 3,
+        "task_form": 2,
+        "overall": 2,
+        "reason": "OS/arch detection (is_apple_os) in the build manager; platform-conditional build logic, the kind that breaks cross-environment compiles."
+      },
+      {
+        "rank": 7,
+        "task_id": "conan-io__conan.86f29e13.func_pm_remove_cond__c3v70uy4",
+        "skill": 2,
+        "domain": 3,
+        "task_form": 2,
+        "overall": 2,
+        "reason": "Subsettings not invalidated when settings change; build-configuration state handling in a C/C++ package manager."
+      },
+      {
+        "rank": 8,
+        "task_id": "conan-io__conan.86f29e13.combine_file__i0i0pdfw",
+        "skill": 2,
+        "domain": 3,
+        "task_form": 2,
+        "overall": 2,
+        "reason": "Profile.dumps mis-serialises build settings; managing the settings that drive a native compile, weak but on the build path."
+      },
+      {
+        "rank": 9,
+        "task_id": "Cog-Creators__Red-DiscordBot.33e0eac7.combine_file__ib9j050b",
+        "skill": 2,
+        "domain": 2,
+        "task_form": 2,
+        "overall": 2,
+        "reason": "A downloader cog mishandles a repo with a shared library; loading a compiled shared object at install time, thin transfer."
+      },
+      {
+        "rank": 10,
+        "task_id": "conan-io__conan.86f29e13.pr_14886",
+        "skill": 1,
+        "domain": 2,
+        "task_form": 2,
+        "overall": 1,
+        "reason": "Missing path in PyRequire serialization within the C/C++ build manager; keeping build-dependency metadata correct, adjacent to the build config a source install depends on."
+      }
+    ],
+    "SWE-Rebench-Tasks-Clean": [
+      {
+        "rank": 1,
+        "task_id": "pypa__setuptools-4676",
+        "skill": 4,
+        "domain": 5,
+        "task_form": 3,
+        "overall": 4,
+        "reason": "A setuptools issue built around setup.py with an Extension (simpleext); fixing how setuptools builds a compiled Extension is the exact machinery this task drives."
+      },
+      {
+        "rank": 2,
+        "task_id": "pyccel__pyccel-2186",
+        "skill": 4,
+        "domain": 4,
+        "task_form": 2,
+        "overall": 3,
+        "reason": "Pyccel mis-handles np.empty when compiling numpy code to C/Fortran; numpy-array semantics crossing into a native compile, the core hazard here."
+      },
+      {
+        "rank": 3,
+        "task_id": "pyccel__pyccel-1780",
+        "skill": 3,
+        "domain": 4,
+        "task_form": 2,
+        "overall": 3,
+        "reason": "Fix a bug in pyccel's handling of typed array arguments during Python-to-C compilation; numpy typing at the Python/native boundary."
+      },
+      {
+        "rank": 4,
+        "task_id": "h5py__h5py-2433",
+        "skill": 3,
+        "domain": 5,
+        "task_form": 2,
+        "overall": 3,
+        "reason": "h5py is a Cython extension over a C library; debugging it exercises the Cython/C-API/build environment this task lives in."
+      },
+      {
+        "rank": 5,
+        "task_id": "bashtage__arch-741",
+        "skill": 3,
+        "domain": 4,
+        "task_form": 2,
+        "overall": 3,
+        "reason": "A bug reported explicitly against numpy 2; the same NumPy-2.x behaviour change that breaks the pyknotid build, at the Python level."
+      },
+      {
+        "rank": 6,
+        "task_id": "aio-libs__aiohttp-8823",
+        "skill": 3,
+        "domain": 4,
+        "task_form": 2,
+        "overall": 3,
+        "reason": "A defect the reporter notes may need a Cython-side fix; working across the Cython/pure-Python boundary of a build."
+      },
+      {
+        "rank": 7,
+        "task_id": "pypa__setuptools-1389",
+        "skill": 3,
+        "domain": 4,
+        "task_form": 2,
+        "overall": 3,
+        "reason": "Manifest/egg-info generation during a setuptools build; packaging-build internals that decide whether a source install succeeds."
+      },
+      {
+        "rank": 8,
+        "task_id": "pyccel__pyccel-1837",
+        "skill": 3,
+        "domain": 4,
+        "task_form": 2,
+        "overall": 3,
+        "reason": "A semantic-annotation error while compiling Python to C/Fortran; native-code generation failure to diagnose from the error, like reading build errors here."
+      },
+      {
+        "rank": 9,
+        "task_id": "pyccel__pyccel-2114",
+        "skill": 2,
+        "domain": 4,
+        "task_form": 2,
+        "overall": 2,
+        "reason": "A traceback from pyccel's C/Fortran backend; debugging a Python-to-native compiler's failure, right domain, issue-fix form."
+      },
+      {
+        "rank": 10,
+        "task_id": "tox-dev__tox-391",
+        "skill": 2,
+        "domain": 3,
+        "task_form": 2,
+        "overall": 2,
+        "reason": "Manifest/SOURCES.txt handling during a build; packaging plumbing, weak but on the build-and-install path."
+      }
+    ],
+    "Terminal-Lego-15k": [
+      {
+        "rank": 1,
+        "task_id": "task_11943",
+        "skill": 3,
+        "domain": 4,
+        "task_form": 4,
+        "overall": 3,
+        "reason": "Fix a missing pcre.h header that breaks compiling a PHP extension from source; resolve a missing-header build failure, the same kind of C-extension compile error."
+      },
+      {
+        "rank": 2,
+        "task_id": "task_02424",
+        "skill": 3,
+        "domain": 3,
+        "task_form": 4,
+        "overall": 3,
+        "reason": "An R package fails to build because of a missing system dev header; apt-install the dependency then build - the fix-the-native-build-dependency skill."
+      },
+      {
+        "rank": 3,
+        "task_id": "task_11942",
+        "skill": 3,
+        "domain": 3,
+        "task_form": 4,
+        "overall": 3,
+        "reason": "R 'curl' package fails to compile from source due to missing libcurl system dependency; diagnose and satisfy a build dependency, then rebuild."
+      },
+      {
+        "rank": 4,
+        "task_id": "task_13918",
+        "skill": 3,
+        "domain": 3,
+        "task_form": 4,
+        "overall": 3,
+        "reason": "Resolve system-dependency issues so R packages install from source on Debian/Ubuntu; the diagnose-and-install-build-deps loop this task needs."
+      },
+      {
+        "rank": 5,
+        "task_id": "task_10439",
+        "skill": 3,
+        "domain": 3,
+        "task_form": 3,
+        "overall": 3,
+        "reason": "rJava builds from source but fails to load its shared library; fix the compiled-extension load path, the runtime side of a native build."
+      },
+      {
+        "rank": 6,
+        "task_id": "task_11999",
+        "skill": 3,
+        "domain": 3,
+        "task_form": 4,
+        "overall": 3,
+        "reason": "Fix rJava installation by configuring JNI headers in R; supply the include paths a native build needs, mirroring the numpy-include fix here."
+      },
+      {
+        "rank": 7,
+        "task_id": "task_05481",
+        "skill": 2,
+        "domain": 3,
+        "task_form": 3,
+        "overall": 2,
+        "reason": "Install R packages not in r-essentials via conda; resolving a build/install path for a package, no native compile."
+      },
+      {
+        "rank": 8,
+        "task_id": "task_02261",
+        "skill": 2,
+        "domain": 2,
+        "task_form": 3,
+        "overall": 2,
+        "reason": "Fix an NGINX build/config detail (gzip for JS); build/config troubleshooting, wrong ecosystem."
+      },
+      {
+        "rank": 9,
+        "task_id": "task_11929",
+        "skill": 2,
+        "domain": 3,
+        "task_form": 3,
+        "overall": 2,
+        "reason": "Upgrade R to the latest version on Ubuntu via package management; toolchain/version setup that underlies a from-source build."
+      },
+      {
+        "rank": 10,
+        "task_id": "task_13554",
+        "skill": 2,
+        "domain": 3,
+        "task_form": 3,
+        "overall": 2,
+        "reason": "Build an R model deployment pipeline with multiple export formats; multi-step build/packaging in R, thin transfer to Cython."
+      }
+    ],
+    "CalibForge": [
+      {
+        "rank": 1,
+        "task_id": "debugging_20260606_172554_001",
+        "skill": 5,
+        "domain": 5,
+        "task_form": 5,
+        "overall": 5,
+        "reason": "Build fitsio from source against NumPy 2.3.0, fixing incompatible-pointer-type errors from the NumPy 2.0 C-API change and GCC 14, so tests pass - the same task, same numpy version."
+      },
+      {
+        "rank": 2,
+        "task_id": "software-engineering_20260513_204536_002",
+        "skill": 5,
+        "domain": 5,
+        "task_form": 5,
+        "overall": 5,
+        "reason": "A package's Cython extensions build on NumPy 1.x but fail on NumPy 2.0/Python 3.12; fix the build so pip install . works - the exact NumPy-2 Cython break."
+      },
+      {
+        "rank": 3,
+        "task_id": "debugging_20260610_111012_001",
+        "skill": 5,
+        "domain": 5,
+        "task_form": 5,
+        "overall": 5,
+        "reason": "Compile the Cython extensions in faststats (.pyx + setup.py) and make its pytest suite pass; build-the-extension-then-tests-pass, exactly this task's success bar."
+      },
+      {
+        "rank": 4,
+        "task_id": "debugging_20260509_065529_001",
+        "skill": 4,
+        "domain": 5,
+        "task_form": 5,
+        "overall": 4,
+        "reason": "Build and install sigproc from source, whose Cython extensions interface with C for complex-number and window functions; clone-source, build .pyx, install."
+      },
+      {
+        "rank": 5,
+        "task_id": "debugging_20260613_152233_001",
+        "skill": 4,
+        "domain": 5,
+        "task_form": 5,
+        "overall": 4,
+        "reason": "arrproc uses Cython for performance but has build errors and messy code; make it compile and install from source, reading the build errors as guidance."
+      },
+      {
+        "rank": 6,
+        "task_id": "software-engineering_20260419_023954_020",
+        "skill": 4,
+        "domain": 5,
+        "task_form": 4,
+        "overall": 4,
+        "reason": "A physics project's Cython extension calls into C functions and must be built; the build-a-.pyx-that-links-C skill at the heart of pyknotid."
+      },
+      {
+        "rank": 7,
+        "task_id": "debugging_20260610_111702_001",
+        "skill": 4,
+        "domain": 4,
+        "task_form": 5,
+        "overall": 4,
+        "reason": "Clone datrie and build it from source - a Cython package wrapping the libdatrie C library; clone-at-a-branch then compile the extension, same workflow."
+      },
+      {
+        "rank": 8,
+        "task_id": "debugging_20260419_182351_001",
+        "skill": 4,
+        "domain": 4,
+        "task_form": 4,
+        "overall": 4,
+        "reason": "Build the simplerockets C extension from source because no prebuilt wheels exist for this environment; the no-wheel-so-compile-from-source situation verbatim."
+      },
+      {
+        "rank": 9,
+        "task_id": "debugging_20260417_145736_001",
+        "skill": 4,
+        "domain": 4,
+        "task_form": 4,
+        "overall": 4,
+        "reason": "Build fastfilters, an image-processing package with C implementations and Cython bindings, from its README; compile Cython bindings over C."
+      },
+      {
+        "rank": 10,
+        "task_id": "scientific-computing_20260616_094815_005",
+        "skill": 4,
+        "domain": 4,
+        "task_form": 4,
+        "overall": 4,
+        "reason": "The C extension for an adaptive-quadrature package no longer compiles; fix the broken native build so the extension imports - same fix-the-compile task."
+      }
+    ]
+  },
+  "final_top10": [
+    {
+      "rank": 1,
+      "task_id": "debugging_20260606_172554_001",
+      "source": "CalibForge",
+      "skill": 5,
+      "domain": 5,
+      "task_form": 5,
+      "overall": 5,
+      "reason": "Build fitsio from source against NumPy 2.3.0, fixing the exact incompatible-pointer-type C-API errors from NumPy 2.0 and GCC 14, then pass its tests - the same task at the same numpy version."
+    },
+    {
+      "rank": 2,
+      "task_id": "software-engineering_20260513_204536_002",
+      "source": "CalibForge",
+      "skill": 5,
+      "domain": 5,
+      "task_form": 5,
+      "overall": 5,
+      "reason": "Cython extensions that build on NumPy 1.x but fail on NumPy 2.0; fix the build so pip install . works - the precise NumPy-2 Cython break pyknotid has."
+    },
+    {
+      "rank": 3,
+      "task_id": "task_000485_af988d1d",
+      "source": "TMax-15K",
+      "skill": 5,
+      "domain": 5,
+      "task_form": 4,
+      "overall": 5,
+      "reason": "setup.py is missing the numpy include directories required to build the C-extension; fix it so compilation succeeds - the numpy-plus-build_ext failure directly."
+    },
+    {
+      "rank": 4,
+      "task_id": "debugging_20260610_111012_001",
+      "source": "CalibForge",
+      "skill": 5,
+      "domain": 5,
+      "task_form": 5,
+      "overall": 5,
+      "reason": "Compile the Cython extensions of faststats and make pytest pass; build-the-.pyx-then-tests-pass matches this task's exact success condition."
+    },
+    {
+      "rank": 5,
+      "task_id": "debugging_20260509_065529_001",
+      "source": "CalibForge",
+      "skill": 4,
+      "domain": 5,
+      "task_form": 5,
+      "overall": 4,
+      "reason": "Build and install sigproc from source, whose Cython extensions interface with C; clone-source, compile .pyx, install into the environment."
+    },
+    {
+      "rank": 6,
+      "task_id": "task_000084_2e6745ad",
+      "source": "TMax-15K",
+      "skill": 4,
+      "domain": 5,
+      "task_form": 4,
+      "overall": 4,
+      "reason": "Fix and install a broken vendored Python C-extension/Cython package, then use it; the fix-the-source-build-then-import sequence of pyknotid."
+    },
+    {
+      "rank": 7,
+      "task_id": "debugging_20260613_152233_001",
+      "source": "CalibForge",
+      "skill": 4,
+      "domain": 5,
+      "task_form": 5,
+      "overall": 4,
+      "reason": "Make arrproc's Cython build compile and install from source despite errors and messy code, reading the build errors - as this task instructs."
+    },
+    {
+      "rank": 8,
+      "task_id": "debugging_20260610_111702_001",
+      "source": "CalibForge",
+      "skill": 4,
+      "domain": 4,
+      "task_form": 5,
+      "overall": 4,
+      "reason": "Clone datrie at a branch and build the Cython extension wrapping libdatrie from source; the clone-at-a-tag-then-compile workflow of this task."
+    },
+    {
+      "rank": 9,
+      "task_id": "task_000322_52e0a9fe",
+      "source": "TMax-15K",
+      "skill": 4,
+      "domain": 5,
+      "task_form": 4,
+      "overall": 4,
+      "reason": "Diagnose why a package won't build its C-extensions (a setup indentation defect) from the compiler error; read-the-error-and-fix-the-build."
+    },
+    {
+      "rank": 10,
+      "task_id": "pypa__setuptools-4676",
+      "source": "SWE-Rebench-Tasks-Clean",
+      "skill": 4,
+      "domain": 5,
+      "task_form": 3,
+      "overall": 4,
+      "reason": "A setuptools issue centered on setup.py building a compiled Extension; fixing how setuptools compiles an Extension is the machinery pyknotid's build_ext runs on."
+    }
+  ],
+  "notes": "This is the best-covered of my five tasks and CalibForge is overwhelmingly the strongest corpus: it holds 6 of the final 10, including two 5/5/5 twins - debugging_20260606_172554_001 (build fitsio from source against NumPy 2.3.0, fix the NumPy-2.0 C-API pointer-cast errors, pass tests) and software-engineering_20260513_204536_002 (Cython builds on numpy1 but fails on numpy2). CalibForge has a whole cluster of 'build this Cython/C extension from source and pass tests' tasks, all graded strong, which is exactly the corpus note's promised Cython coverage; it beats the v1 pool decisively here. TMax is a strong second (its numpy-include-dir and vendored-C-extension-build tasks are near-perfect and take three final slots). SWE-Rebench is unexpectedly useful: pypa/setuptools issues about building an Extension, pyccel (Python->C/Fortran compiler over numpy arrays), h5py (Cython) and an explicit numpy-2 bug give it real skill/domain transfer despite the issue-fix task_form, so it earns one final slot. SWE-Smith is the weakest graded corpus for this task - its best is conan (a C/C++ build-system/compiler-flags manager), decent on domain but no Cython/numpy and pure bug-fix form; note conan-io__conan...combine_module__ib9j050b at rank 10 is a deliberately-labeled low-transfer placeholder. Terminal-Lego's real contribution is R-package-from-source build-dependency fixes (missing pcre.h/libcurl/JNI headers) - genuinely the same 'satisfy the native build dependency then recompile' skill, just in R. Recursive-Task-Synthesis ships NO verifier (all absent) and has no Cython/numpy task; its build-from-source chores (PostgreSQL tarball, CMake builds, Go .so) are honest task_form matches but were kept out of final in favor of graded equivalents. Downstream: if only one corpus can be drawn on for this TB2.1 task, CalibForge alone supplies four or five 4-5 finalists."
+}

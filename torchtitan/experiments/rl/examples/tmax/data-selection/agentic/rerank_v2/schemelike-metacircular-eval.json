@@ -1,0 +1,778 @@
+{
+ "tb21_id": "schemelike-metacircular-eval",
+ "tb21_profile": {
+  "skill": "Write an eval/apply interpreter for a Lisp dialect in that same dialect: s-expression reader, environment model with closures, special forms (quote/if/lambda/define), and enough fidelity to the reference interp.py that the evaluator can run itself",
+  "domain": "Scheme/Lisp, interpreters and metacircular evaluation, stdin/stdout program plumbing",
+  "task_form": "implement-from-spec: build a self-hosting interpreter that must match a reference implementation's behaviour"
+ },
+ "verifier_notes": "Four of the best on-topic candidates are FREE and therefore per_source-only: task_09515 (SICP 1.6 special-form-vs-procedure, the single most on-point conceptual task in the pool), task_09733 (code-as-data/quote in Scheme), software-engineering_20260604_004411_013 (MiniLisp interpreter) and tw_102792/tw_165299/tw_109958/tw_113202 in TerminalWorld. I did not re-grade any of them; the Terminal-Lego Scheme pair really are demo-and-explain tasks whose tests check that files exist and contain expected strings, so FREE looks right there.",
+ "searches": [
+  "tools.py search all \"metacircular|meta-circular\"",
+  "tools.py search all \"Scheme|Lisp|s-expression|sexp\"",
+  "tools.py search all \"\\.scm\\b|\\(define |\\(lambda |\\bcdr\\b|\\bracket\\b|SICP|guile|chicken scheme\"",
+  "tools.py search lego \"Scheme (program|code|interpreter|language|expression|list|procedure|function)|in Scheme|Scheme's|\\bLisp\\b|Clojure|Emacs Lisp\"",
+  "tools.py search lego \"\\(define |\\(lambda \\(|\\(car |\\(cdr |quasiquote|\\.scm\"",
+  "tools.py search lego \"#.*(Interpreter|Evaluator|Parser|Compiler|Virtual Machine|Expression Evaluat)|[Bb]rainfuck|recursive descent|shunting.yard\"",
+  "tools.py search lego \"evaluate (an? )?(arithmetic|mathematical|infix|postfix)|expression evaluator|bytecode|stack-based (virtual )?machine|tokeniz|self-interpret|bootstrap\"",
+  "tools.py search calib \"interpreter|evaluator|metacircular|self-host\"",
+  "tools.py search tmax \"interpreter for|write an interpreter|expression evaluator|recursive descent|tokeniz|abstract syntax tree|\\bAST\\b|stack-based VM|bytecode|DSL\"",
+  "tools.py search rts \"Scheme|Lisp|interpreter|BASIC program|brainfuck|forth|repl\"",
+  "tools.py search rts \"brainfuck|interpreter for|yacc|bison|flex lexer|grammar|calculator|evaluate expression|LDPL|forth\"",
+  "tools.py search tw \"Scheme|Lisp|Racket|guile|interpreter|REPL|parser combinator\"",
+  "tools.py search tw \"recursive|nested (list|structure|dict)|expression|evaluate\"",
+  "tools.py search smith \"pyparsing\"",
+  "tools.py search smith \"parso\"",
+  "tools.py search smith \"pyparsing|parso|nestedExpr|recursion error|grammar|AST|abstract syntax\"",
+  "tools.py search rebench \"pfp|pyccel|asteval|numexpr|template language|transpil|code generation|qasm\"",
+  "tools.py show software-engineering_20260610_112157_021 software-engineering_20260604_002443_021 software-engineering_20260419_065313_022 software-engineering_20260615_143301_015"
+ ],
+ "per_source": {
+  "TMax-15K": [
+   {
+    "rank": 1,
+    "task_id": "task_009887_3b3d8380",
+    "skill": 4,
+    "domain": 3,
+    "task_form": 4,
+    "overall": 3,
+    "reason": "Fix an interpreter written in C for a custom dependency language and get its test suite green - reading and repairing evaluator semantics"
+   },
+   {
+    "rank": 2,
+    "task_id": "task_006210_e9532fdc",
+    "skill": 4,
+    "domain": 3,
+    "task_form": 4,
+    "overall": 3,
+    "reason": "Write an emulator for a custom Stack Machine language from its spec, driven by shell scripts - implement-a-language-runtime from a written semantics"
+   },
+   {
+    "rank": 3,
+    "task_id": "task_008662_c35e316e",
+    "skill": 4,
+    "domain": 3,
+    "task_form": 4,
+    "overall": 3,
+    "reason": "Parse a custom DSL and evaluate embedded expressions, wiring in compiled code; parser plus evaluator built from scratch"
+   },
+   {
+    "rank": 4,
+    "task_id": "task_000246_a1b7a5cc",
+    "skill": 4,
+    "domain": 3,
+    "task_form": 4,
+    "overall": 3,
+    "reason": "Implement a bytecode VM in C that evaluates expressions per a written spec - dispatch loop and operand semantics"
+   },
+   {
+    "rank": 5,
+    "task_id": "task_000330_15b96164",
+    "skill": 3,
+    "domain": 3,
+    "task_form": 4,
+    "overall": 3,
+    "reason": "Register-machine VM reading binary bytecode from a file; instruction decode and state machine"
+   },
+   {
+    "rank": 6,
+    "task_id": "task_004559_4a3ed1a6",
+    "skill": 4,
+    "domain": 3,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Replace eval() with a real parser and evaluator for arithmetic expressions - build the evaluation yourself instead of delegating to the host"
+   },
+   {
+    "rank": 7,
+    "task_id": "task_000677_fd223462",
+    "skill": 3,
+    "domain": 3,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Evaluate RPN expressions correctly; stack-based expression evaluation, the substrate of an interpreter"
+   },
+   {
+    "rank": 8,
+    "task_id": "task_003304_a4d538db",
+    "skill": 3,
+    "domain": 3,
+    "task_form": 3,
+    "overall": 2,
+    "reason": "Review and fix a patch to a C RPN calculator; reading someone else's evaluator and finding the semantic error"
+   },
+   {
+    "rank": 9,
+    "task_id": "task_000405_db54ffe9",
+    "skill": 4,
+    "domain": 3,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Repair an AST-building evaluator written badly by an intern - tree construction plus evaluation"
+   },
+   {
+    "rank": 10,
+    "task_id": "task_000416_754609f9",
+    "skill": 3,
+    "domain": 3,
+    "task_form": 3,
+    "overall": 2,
+    "reason": "Deploy and validate a math expression evaluator; mostly packaging, some evaluator semantics"
+   }
+  ],
+  "Recursive-Task-Synthesis": [
+   {
+    "rank": 1,
+    "task_id": "rts_task_52a962d6d68b73c1ddba4309",
+    "skill": 3,
+    "domain": 4,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Build and run a Brainfuck interpreter against a test program - an interpreter for a minimal language with stdin/stdout semantics"
+   },
+   {
+    "rank": 2,
+    "task_id": "rts_task_818c8049c58399477676d052",
+    "skill": 3,
+    "domain": 4,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Compile two Brainfuck interpreter implementations and compare their output on the same program - differential interpreter behaviour"
+   },
+   {
+    "rank": 3,
+    "task_id": "rts_task_19a3734be4aaae760ed3fed9",
+    "skill": 3,
+    "domain": 4,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Same two-interpreter comparison, focused on matching outputs exactly"
+   },
+   {
+    "rank": 4,
+    "task_id": "rts_task_9b539584f9698c9c66230886",
+    "skill": 3,
+    "domain": 3,
+    "task_form": 3,
+    "overall": 2,
+    "reason": "Compile an interactive LDPL program and feed it input from a config-specified source - run-an-interpreted-program-with-redirected-stdin"
+   },
+   {
+    "rank": 5,
+    "task_id": "rts_task_1d75d217e5543c34b8b2b58f",
+    "skill": 3,
+    "domain": 3,
+    "task_form": 3,
+    "overall": 2,
+    "reason": "LDPL source reads a name from stdin; wiring stdin into an interpreted program"
+   },
+   {
+    "rank": 6,
+    "task_id": "rts_task_63d750c3da07c01af15d1edb",
+    "skill": 2,
+    "domain": 4,
+    "task_form": 3,
+    "overall": 2,
+    "reason": "Static analysis workflow over a Brainfuck interpreter's source; reads interpreter code but does not implement semantics"
+   },
+   {
+    "rank": 7,
+    "task_id": "rts_task_787ad0bd3528db818c301164",
+    "skill": 2,
+    "domain": 4,
+    "task_form": 3,
+    "overall": 2,
+    "reason": "Set up the toolchain to analyse a Brainfuck interpreter; environment work around an interpreter"
+   },
+   {
+    "rank": 8,
+    "task_id": "rts_task_041eaeb0d8c40b1ff33eb853",
+    "skill": 2,
+    "domain": 3,
+    "task_form": 3,
+    "overall": 2,
+    "reason": "Compile an LDPL program with compiler config; build plumbing for a small language"
+   },
+   {
+    "rank": 9,
+    "task_id": "rts_task_e5bd81efa46be4c09427ee73",
+    "skill": 2,
+    "domain": 3,
+    "task_form": 3,
+    "overall": 2,
+    "reason": "LDPL compile driven by a config file; same family, shallower"
+   },
+   {
+    "rank": 10,
+    "task_id": "rts_task_469ae9c3a2966eb3357a54fa",
+    "skill": 2,
+    "domain": 3,
+    "task_form": 3,
+    "overall": 2,
+    "reason": "Drive an interactive tactic REPL to construct a proof; feeding a language processor over stdin"
+   }
+  ],
+  "TerminalWorld-Seeds-Clean": [
+   {
+    "rank": 1,
+    "task_id": "tw_334878",
+    "skill": 4,
+    "domain": 5,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Get a Fennel (Lisp-on-Lua) implementation running under Node and correctly evaluating Fennel expressions - a real Lisp evaluator brought up from source"
+   },
+   {
+    "rank": 2,
+    "task_id": "tw_117921",
+    "skill": 3,
+    "domain": 4,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "A Polish prefix-notation calculator that reads expressions from stdin one per line - prefix evaluation with the same stdin-driven interface"
+   },
+   {
+    "rank": 3,
+    "task_id": "tw_49852",
+    "skill": 3,
+    "domain": 3,
+    "task_form": 3,
+    "overall": 2,
+    "reason": "Define a custom `..` operator so expressions using it evaluate to a block - extending a language's evaluation rules"
+   },
+   {
+    "rank": 4,
+    "task_id": "tw_3699",
+    "skill": 3,
+    "domain": 3,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Patch the runtime's == and then evaluate an expression through it; changing evaluator behaviour and observing it"
+   },
+   {
+    "rank": 5,
+    "task_id": "tw_204417",
+    "skill": 2,
+    "domain": 3,
+    "task_form": 3,
+    "overall": 2,
+    "reason": "Run the same program under three interpreters and capture each output - comparing interpreter behaviour"
+   },
+   {
+    "rank": 6,
+    "task_id": "tw_567611",
+    "skill": 2,
+    "domain": 4,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Package a Fennel interpreter into an image; Lisp ecosystem, build work only"
+   },
+   {
+    "rank": 7,
+    "task_id": "tw_102792",
+    "skill": 3,
+    "domain": 3,
+    "task_form": 3,
+    "overall": 2,
+    "reason": "Evaluate a series of expressions with a small interpreter binary; FREE verifier so excluded from final"
+   },
+   {
+    "rank": 8,
+    "task_id": "tw_165299",
+    "skill": 2,
+    "domain": 5,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Install a Scheme library with the Akku.scm package manager - the only Scheme-toolchain task in TerminalWorld, FREE verifier"
+   },
+   {
+    "rank": 9,
+    "task_id": "tw_109958",
+    "skill": 2,
+    "domain": 4,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Build a language from source and drive its REPL; FREE verifier"
+   },
+   {
+    "rank": 10,
+    "task_id": "tw_113202",
+    "skill": 3,
+    "domain": 4,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Exercise a Lexer and Parser through an interactive console; FREE verifier"
+   }
+  ],
+  "SWE-Smith-Seeds-Clean": [
+   {
+    "rank": 1,
+    "task_id": "pyparsing__pyparsing.533adf47.combine_file__8qpr32v3",
+    "skill": 4,
+    "domain": 4,
+    "task_form": 2,
+    "overall": 3,
+    "reason": "Parsing nested parenthesised structures is broken - reading balanced nested expressions is exactly the reader half of a Scheme evaluator"
+   },
+   {
+    "rank": 2,
+    "task_id": "pyparsing__pyparsing.533adf47.combine_file__lzvw1lgj",
+    "skill": 4,
+    "domain": 4,
+    "task_form": 2,
+    "overall": 3,
+    "reason": "nestedExpr and other helpers broken; recovering nested list structure from text"
+   },
+   {
+    "rank": 3,
+    "task_id": "andialbrecht__sqlparse.e57923b3.lm_rewrite__jby5rkxx",
+    "skill": 4,
+    "domain": 3,
+    "task_form": 2,
+    "overall": 3,
+    "reason": "flatten() recurses to death on deeply nested token trees - recursion depth over nested syntax trees, which self-interpretation stresses"
+   },
+   {
+    "rank": 4,
+    "task_id": "davidhalter__parso.338a5760.func_pm_op_break_chains__pt0nzxrt",
+    "skill": 4,
+    "domain": 4,
+    "task_form": 2,
+    "overall": 3,
+    "reason": "Tokenizer emits wrong tokens; getting the lexer right before any evaluation can happen"
+   },
+   {
+    "rank": 5,
+    "task_id": "davidhalter__parso.338a5760.lm_rewrite__2yh78ixn",
+    "skill": 3,
+    "domain": 4,
+    "task_form": 2,
+    "overall": 3,
+    "reason": "Syntax-error detection in a Python parser; distinguishing valid from invalid programs"
+   },
+   {
+    "rank": 6,
+    "task_id": "andialbrecht__sqlparse.e57923b3.func_pm_class_rm_funcs__ly91hfu7",
+    "skill": 3,
+    "domain": 3,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Token.is_child_of removed - navigating a parse tree by parent/child, the shape an evaluator walks"
+   },
+   {
+    "rank": 7,
+    "task_id": "andialbrecht__sqlparse.e57923b3.combine_module__zqrr80g2",
+    "skill": 3,
+    "domain": 3,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Tokens processed in reverse order; evaluation-order bug in a tree walker"
+   },
+   {
+    "rank": 8,
+    "task_id": "davidhalter__parso.338a5760.func_pm_ctrl_shuffle__t6e0f270",
+    "skill": 3,
+    "domain": 4,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Name used before it is defined in the local scope - scope analysis, the environment model in another guise"
+   },
+   {
+    "rank": 9,
+    "task_id": "agronholm__typeguard.b6a7e438.func_pm_class_rm_base__aecogv9v",
+    "skill": 3,
+    "domain": 4,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "AST NodeTransformer inheritance dropped, breaking a source-to-source transform"
+   },
+   {
+    "rank": 10,
+    "task_id": "pyparsing__pyparsing.533adf47.func_basic__aaeon0ay",
+    "skill": 2,
+    "domain": 4,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Parse results come back in reverse order; ordering in a parser's output structure"
+   }
+  ],
+  "SWE-Rebench-Tasks-Clean": [
+   {
+    "rank": 1,
+    "task_id": "d0c-s4vage__pfp-128",
+    "skill": 5,
+    "domain": 4,
+    "task_form": 2,
+    "overall": 4,
+    "reason": "Short-circuit evaluation is not implemented in this template-language interpreter - the special-form-vs-procedure distinction a metacircular evaluator must get right"
+   },
+   {
+    "rank": 2,
+    "task_id": "d0c-s4vage__pfp-116",
+    "skill": 4,
+    "domain": 4,
+    "task_form": 2,
+    "overall": 3,
+    "reason": "Chained assignment a = b = c unsupported; fixing it means changing how the interpreter evaluates assignment expressions"
+   },
+   {
+    "rank": 3,
+    "task_id": "d0c-s4vage__pfp-112",
+    "skill": 4,
+    "domain": 4,
+    "task_form": 2,
+    "overall": 3,
+    "reason": "Implicit array handling wrong in the interpreter's evaluation of declarations - value model bug inside an interpreter"
+   },
+   {
+    "rank": 4,
+    "task_id": "d0c-s4vage__pfp-126",
+    "skill": 4,
+    "domain": 4,
+    "task_form": 2,
+    "overall": 3,
+    "reason": "Another implicit-array code path in the same interpreter's parse/eval loop"
+   },
+   {
+    "rank": 5,
+    "task_id": "d0c-s4vage__pfp-114",
+    "skill": 3,
+    "domain": 4,
+    "task_form": 2,
+    "overall": 3,
+    "reason": "Enum values and set_val in the interpreter's type/parse machinery"
+   },
+   {
+    "rank": 6,
+    "task_id": "d0c-s4vage__pfp-109",
+    "skill": 3,
+    "domain": 4,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "An unimplemented interpreter feature surfacing as a stack trace; implement the missing evaluation path"
+   },
+   {
+    "rank": 7,
+    "task_id": "d0c-s4vage__pfp-123",
+    "skill": 2,
+    "domain": 4,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Ergonomics of walking the interpreter's DOM tree of parsed values"
+   },
+   {
+    "rank": 8,
+    "task_id": "d0c-s4vage__pfp-99",
+    "skill": 2,
+    "domain": 4,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Fix flows from the underlying parser library; parser/interpreter integration"
+   },
+   {
+    "rank": 9,
+    "task_id": "pyccel__pyccel-2038",
+    "skill": 3,
+    "domain": 3,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Python-to-C translator bug; source-to-source translation rather than interpretation"
+   },
+   {
+    "rank": 10,
+    "task_id": "ambv__black-339",
+    "skill": 2,
+    "domain": 3,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "AST/parse-tree driven formatter failure; syntax-tree handling only"
+   }
+  ],
+  "Terminal-Lego-15k": [
+   {
+    "rank": 1,
+    "task_id": "task_09619",
+    "skill": 5,
+    "domain": 4,
+    "task_form": 4,
+    "overall": 4,
+    "reason": "Write a language that interprets itself - compiler/interpreter bootstrapping, the self-hosting requirement that makes this TB2.1 task hard"
+   },
+   {
+    "rank": 2,
+    "task_id": "task_09515",
+    "skill": 5,
+    "domain": 5,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "SICP 1.6: why if must be a special form and not a procedure - applicative-order evaluation, the exact trap in writing eval; FREE verifier so excluded from final"
+   },
+   {
+    "rank": 3,
+    "task_id": "task_09733",
+    "skill": 4,
+    "domain": 5,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Code-as-data in Scheme: quote, lists as programs, manipulating code as data - homoiconicity is what makes a metacircular evaluator possible; FREE verifier"
+   },
+   {
+    "rank": 4,
+    "task_id": "task_03840",
+    "skill": 3,
+    "domain": 3,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Fix the file-reading path of a Brainfuck interpreter in C - loading a program file into an interpreter loop"
+   },
+   {
+    "rank": 5,
+    "task_id": "task_09618",
+    "skill": 3,
+    "domain": 4,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Naive recursion blows the stack in Clojure; convert to a form that survives deep recursion - recursion depth matters when eval interprets eval"
+   },
+   {
+    "rank": 6,
+    "task_id": "task_15051",
+    "skill": 3,
+    "domain": 4,
+    "task_form": 3,
+    "overall": 2,
+    "reason": "Implement a persistent immutable queue in Clojure; cons-cell-style structural sharing"
+   },
+   {
+    "rank": 7,
+    "task_id": "task_15007",
+    "skill": 3,
+    "domain": 4,
+    "task_form": 3,
+    "overall": 2,
+    "reason": "Memoised recursive functions in Clojure; closures over mutable caches in a Lisp"
+   },
+   {
+    "rank": 8,
+    "task_id": "task_09589",
+    "skill": 3,
+    "domain": 4,
+    "task_form": 3,
+    "overall": 2,
+    "reason": "Lazy sieve overflows the stack in Clojure; laziness and evaluation strategy"
+   },
+   {
+    "rank": 9,
+    "task_id": "task_06015",
+    "skill": 3,
+    "domain": 4,
+    "task_form": 3,
+    "overall": 2,
+    "reason": "Write an Emacs Lisp batch script driven from the command line over input files - running Lisp as a scripting interpreter"
+   },
+   {
+    "rank": 10,
+    "task_id": "task_11687",
+    "skill": 2,
+    "domain": 4,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Use Emacs Lisp in batch mode to transform a code block; Lisp as the implementation language"
+   }
+  ],
+  "CalibForge": [
+   {
+    "rank": 1,
+    "task_id": "software-engineering_20260604_002443_021",
+    "skill": 5,
+    "domain": 5,
+    "task_form": 5,
+    "overall": 5,
+    "reason": "Write a Scheme interpreter: cons cells, quote/if/lambda/define/begin/set!, dotted parameter lists, lexical closures, applicative order, reading expressions from stdin - every component of eval.scm"
+   },
+   {
+    "rank": 2,
+    "task_id": "software-engineering_20260425_072438_022",
+    "skill": 5,
+    "domain": 5,
+    "task_form": 5,
+    "overall": 5,
+    "reason": "Implement an interpreter for a small functional language with s-expression syntax and cons/car/cdr lists - the same reader-plus-evaluator build"
+   },
+   {
+    "rank": 3,
+    "task_id": "software-engineering_20260419_065313_022",
+    "skill": 5,
+    "domain": 4,
+    "task_form": 4,
+    "overall": 4,
+    "reason": "Implement the evaluator for a lambda/let/letrec language with closures, thunks and recursive bindings; forcing and environments are the crux"
+   },
+   {
+    "rank": 4,
+    "task_id": "software-engineering_20260615_143301_015",
+    "skill": 4,
+    "domain": 5,
+    "task_form": 4,
+    "overall": 4,
+    "reason": "Lisp-shaped language with (define name value), (if c t e) and nil/t truthiness - special forms and an environment"
+   },
+   {
+    "rank": 5,
+    "task_id": "software-engineering_20260604_003113_014",
+    "skill": 4,
+    "domain": 5,
+    "task_form": 3,
+    "overall": 4,
+    "reason": "Mini Lisp interpreter in C with a mark-and-sweep collector; cons cells, environments and their lifetimes"
+   },
+   {
+    "rank": 6,
+    "task_id": "software-engineering_20260601_053159_008",
+    "skill": 4,
+    "domain": 5,
+    "task_form": 3,
+    "overall": 4,
+    "reason": "Regression in a Lisp interpreter's parser for malformed input - the s-expression reader, which eval.scm also has to implement"
+   },
+   {
+    "rank": 7,
+    "task_id": "software-engineering_20260610_112157_021",
+    "skill": 4,
+    "domain": 3,
+    "task_form": 5,
+    "overall": 4,
+    "reason": "Write a full Brainfuck interpreter in POSIX shell, self-contained, reading the program from a file and data from stdin - an interpreter in a deliberately weak host language"
+   },
+   {
+    "rank": 8,
+    "task_id": "software-engineering_20260418_190236_022",
+    "skill": 4,
+    "domain": 5,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "letrec-bound factorial fails; fixing it means getting recursive environment binding right inside an evaluator"
+   },
+   {
+    "rank": 9,
+    "task_id": "software-engineering_20260613_152233_017",
+    "skill": 3,
+    "domain": 4,
+    "task_form": 4,
+    "overall": 3,
+    "reason": "Interpret a small language with (define name value) and pattern-matched dispatch, with error exit codes"
+   },
+   {
+    "rank": 10,
+    "task_id": "software-engineering_20260604_004411_013",
+    "skill": 4,
+    "domain": 5,
+    "task_form": 4,
+    "overall": 3,
+    "reason": "MiniLisp interpreter with define, arithmetic, negative numbers and variables - close on skill, but FREE verifier so excluded from final"
+   }
+  ]
+ },
+ "final_top10": [
+  {
+   "rank": 1,
+   "task_id": "software-engineering_20260604_002443_021",
+   "skill": 5,
+   "domain": 5,
+   "task_form": 5,
+   "overall": 5,
+   "reason": "A Scheme interpreter with closures, cons cells, quote/lambda/define and stdin-driven evaluation; every piece eval.scm needs, verifier strength 1.0",
+   "source": "CalibForge"
+  },
+  {
+   "rank": 2,
+   "task_id": "software-engineering_20260425_072438_022",
+   "skill": 5,
+   "domain": 5,
+   "task_form": 5,
+   "overall": 5,
+   "reason": "Interpreter for an s-expression functional language with cons/car/cdr - same reader plus eval/apply construction",
+   "source": "CalibForge"
+  },
+  {
+   "rank": 3,
+   "task_id": "software-engineering_20260419_065313_022",
+   "skill": 5,
+   "domain": 4,
+   "task_form": 4,
+   "overall": 4,
+   "reason": "Write the evaluator: closures, let/letrec recursive bindings, thunks and forcing - environment-model reasoning at full depth",
+   "source": "CalibForge"
+  },
+  {
+   "rank": 4,
+   "task_id": "task_09619",
+   "skill": 5,
+   "domain": 4,
+   "task_form": 4,
+   "overall": 4,
+   "reason": "Self-hosting: write a language that interprets itself, the bootstrapping property this TB2.1 task is really testing",
+   "source": "Terminal-Lego-15k"
+  },
+  {
+   "rank": 5,
+   "task_id": "software-engineering_20260615_143301_015",
+   "skill": 4,
+   "domain": 5,
+   "task_form": 4,
+   "overall": 4,
+   "reason": "Lisp-shaped interpreter with define/if and nil semantics; special forms plus an environment",
+   "source": "CalibForge"
+  },
+  {
+   "rank": 6,
+   "task_id": "software-engineering_20260604_003113_014",
+   "skill": 4,
+   "domain": 5,
+   "task_form": 3,
+   "overall": 4,
+   "reason": "Mini Lisp in C with GC - cons cells and environment lifetimes made explicit",
+   "source": "CalibForge"
+  },
+  {
+   "rank": 7,
+   "task_id": "software-engineering_20260601_053159_008",
+   "skill": 4,
+   "domain": 5,
+   "task_form": 3,
+   "overall": 4,
+   "reason": "Repair an s-expression reader that mishandles malformed input; eval.scm must parse .scm text itself",
+   "source": "CalibForge"
+  },
+  {
+   "rank": 8,
+   "task_id": "software-engineering_20260610_112157_021",
+   "skill": 4,
+   "domain": 3,
+   "task_form": 5,
+   "overall": 4,
+   "reason": "Implement a complete interpreter in a weak host language reading the program file plus stdin - the same constrained self-contained-interpreter exercise",
+   "source": "CalibForge"
+  },
+  {
+   "rank": 9,
+   "task_id": "software-engineering_20260418_190236_022",
+   "skill": 4,
+   "domain": 5,
+   "task_form": 3,
+   "overall": 3,
+   "reason": "Recursive binding through letrec broken in an evaluator; the exact bug a hand-written eval hits on recursive define",
+   "source": "CalibForge"
+  },
+  {
+   "rank": 10,
+   "task_id": "task_009887_3b3d8380",
+   "skill": 4,
+   "domain": 3,
+   "task_form": 4,
+   "overall": 3,
+   "reason": "Read and repair an interpreter for a custom language in C until its tests pass; interpreter-semantics debugging",
+   "source": "TMax-15K"
+  }
+ ],
+ "notes": "This is the clearest case for the enlarged pool. The v1 corpora contain no Scheme or Lisp interpreter task at all: TMax's best are bytecode VMs and RPN/expression evaluators, TerminalWorld's Lisp content is four FREE-graded REPL chores plus a Fennel build, Recursive-Task-Synthesis offers Brainfuck-interpreter build-and-run and LDPL compiles, and SWE-Smith/SWE-Rebench contribute parser and interpreter-internals bugs (pyparsing nested expressions, parso tokenizer, and the pfp template-language interpreter, whose missing short-circuit evaluation is a genuine special-form bug). CalibForge alone supplies real Scheme/Lisp interpreter implementations with strong verifiers, and takes 8 of the final 10; Terminal-Lego supplies the one task in the whole pool about self-hosting (task_09619) and the two SICP-flavoured Scheme tasks, both unfortunately FREE. Neither TerminalWorld nor Recursive-Task-Synthesis has 10 defensible candidates here - their lists are padded with build-and-run-an-interpreter chores scored 2."
+}

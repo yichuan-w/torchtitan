@@ -1,0 +1,773 @@
+{
+ "tb21_id": "tune-mjcf",
+ "tb21_profile": {
+  "skill": "Make a numerical simulation run at least 40% faster by changing only its configuration (solver, integrator, iteration/tolerance settings, disabled features, collision pruning) while the full physics state stays within atol=1e-5 of the reference and never goes NaN/Inf - i.e. measure, hypothesise, change one knob, re-measure against a supplied eval script",
+  "domain": "MuJoCo / MJCF XML, rigid-body physics simulation, numerical integrators and constraint solvers, wall-clock profiling",
+  "task_form": "optimise-for-a-budget with a hard numerical-equivalence constraint; edit a declarative config rather than write code, and iterate against a provided eval harness"
+ },
+ "verifier_notes": "No grade overturned here. Applying the same conservative union rule as my other four tasks (treat a candidate as FREE if either the packet's embedded `verifier` field or the newer work/verifier_strength.json says FREE), which excludes tw_157071 - build MBDyn and simulate a multibody robot-arm model, the single closest domain match anywhere in the pool - from final_top10: the packet grades it FREE even though the global file grades it ok 0.667. It sits at TerminalWorld rank 1 in per_source instead. tw_127063 (performance benchmarking pipeline) and tw_313711 (CPU profiling artifacts) are FREE under both files and were dropped entirely. See the verifier_notes on train-fasttext for the full packet-versus-global discrepancy accounting.",
+ "searches": [
+  "tools.py search all 'mujoco|MuJoCo|mjcf|MJCF|physics engine|rigid body|Bullet physics|gymnasium'",
+  "tools.py search tmax 'speed ?up|faster than|at least [0-9.]+x|runtime.*reduce|reduce.*runtime|wall.clock|within.*tolerance|atol|numerically identical|bit-for-bit'",
+  "tools.py search tmax 'integrator|Runge-Kutta|RK4|time ?step|simulation|solver tolerance|ODE'",
+  "tools.py search tw 'simulat|benchmark|performance|optimiz|faster|profil|XML config'",
+  "tools.py search rts 'benchmark|performance|optimiz|faster|profil|simulat|tolerance'",
+  "tools.py search rts 'speed ?up|faster|reduce the (time|runtime)|optimi[sz]e the|tune|XML|physics'",
+  "tools.py search rts 'measure the (time|runtime|elapsed)|timing|time the '",
+  "tools.py search rts 'sysctl|worker_processes|tuning|kernel parameter|resource limit|memory limit|cgroup'",
+  "tools.py search smith 'performance|slow|speed|optimi[sz]|benchmark|regression in (time|speed)|XML'",
+  "tools.py search rebench 'performance regression|too slow|speed ?up|optimi[sz]ation|benchmark|XML|solver|tolerance|simulation'",
+  "grep -rliE 'mujoco|MuJoCo|mjcf|MJCF|physics engine|rigid body|simulation step' --include=instruction.md terminal-lego-15k calibforge",
+  "grep -rliE 'speedup|[0-9]x faster|reduce.*runtime|wall.clock|simulation|integrator|solver|tolerance|benchmark' --include=instruction.md calibforge",
+  "grep -rliE 'speedup|at least [0-9.]+x|[0-9]+% faster|must run in under|same results|identical results|numerically identical|within.*1e-|matching the (baseline|reference)' --include=instruction.md calibforge"
+ ],
+ "per_source": {
+  "TMax-15K": [
+   {
+    "rank": 1,
+    "task_id": "task_000396_2ead682a",
+    "skill": 4,
+    "domain": 4,
+    "task_form": 4,
+    "overall": 4,
+    "reason": "Profile and validate the numerical integrators of a physics engine; the exact pairing of timing measurement with numerical-accuracy validation this task needs."
+   },
+   {
+    "rank": 2,
+    "task_id": "task_000211_b569407c",
+    "skill": 4,
+    "domain": 2,
+    "task_form": 5,
+    "overall": 4,
+    "reason": "Reimplementation must hit at least 3.0x speedup over the Python baseline while its checksum output stays identical; speed target plus exact-output constraint."
+   },
+   {
+    "rank": 3,
+    "task_id": "task_000160_121a396b",
+    "skill": 4,
+    "domain": 2,
+    "task_form": 5,
+    "overall": 4,
+    "reason": "Achieve at least 10x speedup over a measured reference baseline with output still matching the oracle; same measure-then-optimise loop."
+   },
+   {
+    "rank": 4,
+    "task_id": "task_000358_79df129c",
+    "skill": 4,
+    "domain": 2,
+    "task_form": 5,
+    "overall": 4,
+    "reason": "Wrapper must return identical results while cutting the time for a burst of 100 requests by a required factor; speed budget with an equivalence check."
+   },
+   {
+    "rank": 5,
+    "task_id": "task_000361_91b89625",
+    "skill": 4,
+    "domain": 4,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Fix adaptive step-size control so the step halves above tolerance and doubles well below it; integrator tolerance tuning, the MJCF solver knob in miniature."
+   },
+   {
+    "rank": 6,
+    "task_id": "task_000171_b8f5cb4d",
+    "skill": 3,
+    "domain": 2,
+    "task_form": 4,
+    "overall": 3,
+    "reason": "A benchmark script writes a speedup multiplier that CI gates on; teaches iterating until a measured ratio clears a threshold."
+   },
+   {
+    "rank": 7,
+    "task_id": "task_007821_3509cddc",
+    "skill": 3,
+    "domain": 4,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Track a subtle regression making a Rust physics engine's trajectories inaccurate; detecting when a change silently breaks physical fidelity."
+   },
+   {
+    "rank": 8,
+    "task_id": "task_000191_cf1ea71b",
+    "skill": 3,
+    "domain": 4,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "A physics engine producing wildly wrong values from numerical instability; the NaN/Inf failure mode this TB2.1 task forbids."
+   },
+   {
+    "rank": 9,
+    "task_id": "task_000252_aa3c814d",
+    "skill": 3,
+    "domain": 2,
+    "task_form": 4,
+    "overall": 3,
+    "reason": "Rewrite a badly scaling graph program in C++ for a large speedup evaluated on a massive input; optimisation judged by measured time."
+   },
+   {
+    "rank": 10,
+    "task_id": "task_000268_852c1d3e",
+    "skill": 3,
+    "domain": 2,
+    "task_form": 4,
+    "overall": 3,
+    "reason": "Proxy must reach at least 3.0x over sequential execution while still routing correctly; throughput target with a correctness side-condition."
+   }
+  ],
+  "Recursive-Task-Synthesis": [
+   {
+    "rank": 1,
+    "task_id": "rts_task_6e856ad684edb9435074706f",
+    "skill": 3,
+    "domain": 2,
+    "task_form": 3,
+    "overall": 2,
+    "reason": "A conf file defines per-program performance thresholds that measured runtimes must clear; hit-a-timing-threshold, config-driven."
+   },
+   {
+    "rank": 2,
+    "task_id": "rts_task_864ede02bc057c9d0119a53f",
+    "skill": 3,
+    "domain": 2,
+    "task_form": 3,
+    "overall": 2,
+    "reason": "Read acceptable time bounds from a spec file, then measure each program against them; explicit wall-clock budget checking."
+   },
+   {
+    "rank": 3,
+    "task_id": "rts_task_6b0f79ef14015f6da0f667cb",
+    "skill": 2,
+    "domain": 2,
+    "task_form": 3,
+    "overall": 2,
+    "reason": "Profile two implementations and emit PASS only if one is faster; comparative timing with a pass/fail criterion, like eval.py's 60% gate."
+   },
+   {
+    "rank": 4,
+    "task_id": "rts_task_4db46e166767cea1a9608958",
+    "skill": 2,
+    "domain": 2,
+    "task_form": 3,
+    "overall": 2,
+    "reason": "Measure and report elapsed milliseconds for the same program across six implementations; disciplined wall-clock measurement."
+   },
+   {
+    "rank": 5,
+    "task_id": "rts_task_42df9bc32ce8f455fe875c59",
+    "skill": 2,
+    "domain": 2,
+    "task_form": 3,
+    "overall": 2,
+    "reason": "Run a script and then conduct a performance benchmark of it, reporting both; benchmark-then-report, no optimisation pressure."
+   },
+   {
+    "rank": 6,
+    "task_id": "rts_task_7be62e4744c1011e080077dc",
+    "skill": 2,
+    "domain": 2,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Demonstrate Julia performance concepts with captured @time output; exposure to what makes numeric code fast, demonstration-shaped."
+   },
+   {
+    "rank": 7,
+    "task_id": "rts_task_90b077865428068f87c2ce00",
+    "skill": 2,
+    "domain": 1,
+    "task_form": 3,
+    "overall": 2,
+    "reason": "Generate a workload, time the operation and report; the measure-the-change habit with no numerical constraint."
+   },
+   {
+    "rank": 8,
+    "task_id": "rts_task_d340f40ed31f99a831410eb3",
+    "skill": 2,
+    "domain": 2,
+    "task_form": 3,
+    "overall": 2,
+    "reason": "Import an OVA overriding its defaults so the resulting VM domain XML matches a config; editing a declarative XML machine description to spec."
+   },
+   {
+    "rank": 9,
+    "task_id": "rts_task_577ede360208ae70e9246954",
+    "skill": 1,
+    "domain": 2,
+    "task_form": 2,
+    "overall": 1,
+    "reason": "Julia session covering performance and error propagation with measurement uncertainty; tangential, included for quota."
+   },
+   {
+    "rank": 10,
+    "task_id": "rts_task_956ea2e372fe004edbe0d44d",
+    "skill": 1,
+    "domain": 2,
+    "task_form": 2,
+    "overall": 1,
+    "reason": "Build a model from a declarative JSON config; config-to-object construction only, no timing or tolerance."
+   }
+  ],
+  "TerminalWorld-Seeds-Clean": [
+   {
+    "rank": 1,
+    "task_id": "tw_157071",
+    "skill": 3,
+    "domain": 5,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Build MBDyn and simulate a robot_arm multibody model; the pool's only multibody-dynamics simulation. Packet grades it FREE, so excluded from final_top10."
+   },
+   {
+    "rank": 2,
+    "task_id": "tw_471679",
+    "skill": 2,
+    "domain": 5,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Install MuJoCo 2.1.0 and gym-robotics with its dependencies; literally MuJoCo, but the task is environment setup, not model tuning."
+   },
+   {
+    "rank": 3,
+    "task_id": "tw_338947",
+    "skill": 3,
+    "domain": 2,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Build and run an image-processing benchmark suite out-of-source and produce its timing results; benchmark-driven workflow, strongly verified."
+   },
+   {
+    "rank": 4,
+    "task_id": "tw_342042",
+    "skill": 3,
+    "domain": 2,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Compile and run parallel computing benchmarks across three projects; measuring runtime of compute kernels as the deliverable."
+   },
+   {
+    "rank": 5,
+    "task_id": "tw_290643",
+    "skill": 3,
+    "domain": 2,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Profile the instantiation cost of two class variants and explain the difference; hypothesis-driven profiling of a small performance delta."
+   },
+   {
+    "rank": 6,
+    "task_id": "tw_247983",
+    "skill": 2,
+    "domain": 2,
+    "task_form": 3,
+    "overall": 2,
+    "reason": "Julia High Performance chapter exercises with benchmark output captured; what changes make numeric code faster."
+   },
+   {
+    "rank": 7,
+    "task_id": "tw_240491",
+    "skill": 2,
+    "domain": 2,
+    "task_form": 3,
+    "overall": 2,
+    "reason": "Encode, corrupt, repair and decode, then verify the decoded output matches the original exactly; exact-equivalence verification after a transformation."
+   },
+   {
+    "rank": 8,
+    "task_id": "tw_211906",
+    "skill": 2,
+    "domain": 2,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Julia session including @time performance output and propagated numerical uncertainty; timing plus tolerance, demonstration-shaped."
+   },
+   {
+    "rank": 9,
+    "task_id": "tw_114781",
+    "skill": 1,
+    "domain": 2,
+    "task_form": 2,
+    "overall": 1,
+    "reason": "Compile and run a multi-process Erlang simulation; a simulation in name, no tuning or measurement."
+   },
+   {
+    "rank": 10,
+    "task_id": "tw_166586",
+    "skill": 1,
+    "domain": 2,
+    "task_form": 2,
+    "overall": 1,
+    "reason": "Produce a 12-decimal numeric result from a program you build; the tight-tolerance standard only."
+   }
+  ],
+  "SWE-Smith-Seeds-Clean": [
+   {
+    "rank": 1,
+    "task_id": "cantools__cantools.0c6a7871.pr_701",
+    "skill": 3,
+    "domain": 3,
+    "task_form": 2,
+    "overall": 3,
+    "reason": "ARXML parsing of a physical-system model description is wrong; reading and reasoning about a declarative XML model of hardware, MJCF's genre."
+   },
+   {
+    "rank": 2,
+    "task_id": "cantools__cantools.0c6a7871.func_pm_ctrl_invert_if__jkvwk270",
+    "skill": 3,
+    "domain": 3,
+    "task_form": 2,
+    "overall": 3,
+    "reason": "ARXML signal loading fails on a missing child element; XML tree structure and which elements may legally be absent, the trap when editing MJCF."
+   },
+   {
+    "rank": 3,
+    "task_id": "cantools__cantools.0c6a7871.lm_rewrite__2zyq1y1d",
+    "skill": 3,
+    "domain": 3,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Initial values for signals are extracted incorrectly from an AUTOSAR 3 file; default-versus-explicit attribute semantics in a model XML."
+   },
+   {
+    "rank": 4,
+    "task_id": "cantools__cantools.0c6a7871.func_pm_class_rm_funcs__pzu3ho8l",
+    "skill": 2,
+    "domain": 3,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "The ARXML loader lost a method and now fails; XML model-loading pipeline debugging."
+   },
+   {
+    "rank": 5,
+    "task_id": "cantools__cantools.0c6a7871.combine_module__a5qhxz82",
+    "skill": 2,
+    "domain": 3,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Loading an AUTOSAR database misbehaves; parsing a large declarative description into a usable model."
+   },
+   {
+    "rank": 6,
+    "task_id": "dask__dask.5f61e423.pr_7191",
+    "skill": 3,
+    "domain": 2,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "HighLevelGraph leaks into the scheduler's optimization routines; graph-level optimisation passes that must preserve results exactly."
+   },
+   {
+    "rank": 7,
+    "task_id": "dask__dask.5f61e423.lm_rewrite__5elhetca",
+    "skill": 2,
+    "domain": 2,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Task-graph alias resolution is broken; reasoning about a computation graph whose optimisation must not change the answer."
+   },
+   {
+    "rank": 8,
+    "task_id": "PyCQA__flake8.cf1542ce.lm_rewrite__akiiq6ow",
+    "skill": 2,
+    "domain": 1,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "The --benchmark output format is inconsistent with what is expected; reporting timing measurements in a machine-checkable form."
+   },
+   {
+    "rank": 9,
+    "task_id": "Suor__funcy.207a7810.lm_rewrite__638b50bo",
+    "skill": 2,
+    "domain": 1,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "An indexing fast-path changes behaviour on empty sequences; an optimisation that silently broke correctness, the risk this TB2.1 task guards against."
+   },
+   {
+    "rank": 10,
+    "task_id": "cantools__cantools.0c6a7871.func_pm_op_change_const__66td47t4",
+    "skill": 2,
+    "domain": 3,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Message encoding fails after a constant changed in a KCD-described bus; a one-value edit to a model file breaking behaviour."
+   }
+  ],
+  "SWE-Rebench-Tasks-Clean": [
+   {
+    "rank": 1,
+    "task_id": "benchopt__benchopt-644",
+    "skill": 3,
+    "domain": 2,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Compilation time leaks into measured results unless a warm_up method runs first; benchmarking methodology, the thing that makes a 60% claim real."
+   },
+   {
+    "rank": 2,
+    "task_id": "automl__smac3-1069",
+    "skill": 3,
+    "domain": 2,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Configuration-optimiser state handling bug; the library's whole job is searching a configuration space against a measured objective."
+   },
+   {
+    "rank": 3,
+    "task_id": "jax-ml__jax-25787",
+    "skill": 2,
+    "domain": 3,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Replacing a hand-written Thomas-algorithm solver with a library tridiagonal_solve changes results; swapping a solver while expecting identical numerics."
+   },
+   {
+    "rank": 4,
+    "task_id": "bashtage__arch-752",
+    "skill": 2,
+    "domain": 3,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Simulation-based forecasting produces wrong values; numerical simulation correctness in a statistics library."
+   },
+   {
+    "rank": 5,
+    "task_id": "cornellius-gp__gpytorch-973",
+    "skill": 2,
+    "domain": 3,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Slowly converging variational solve and wrongly shaped batch output; solver convergence versus cost, the trade-off MJCF solver settings expose."
+   },
+   {
+    "rank": 6,
+    "task_id": "openmdao__openmdao-3042",
+    "skill": 2,
+    "domain": 3,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Multidisciplinary-optimisation framework defect; solver and driver configuration for coupled physical models."
+   },
+   {
+    "rank": 7,
+    "task_id": "pybamm-team__pybamm-1025",
+    "skill": 2,
+    "domain": 3,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Battery-simulation framework issue; configuring and running an ODE/DAE physical model, the same solver vocabulary."
+   },
+   {
+    "rank": 8,
+    "task_id": "pybamm-team__pybamm-645",
+    "skill": 2,
+    "domain": 3,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Another PyBaMM simulation-model defect; parameter and model setup for a physics simulation."
+   },
+   {
+    "rank": 9,
+    "task_id": "networkx__networkx-3636",
+    "skill": 1,
+    "domain": 2,
+    "task_form": 2,
+    "overall": 1,
+    "reason": "write_gexf emits NaN/inf incorrectly into XML; serialising non-finite numbers into an XML model file, a narrow but real overlap."
+   },
+   {
+    "rank": 10,
+    "task_id": "qiskit__qiskit-terra-9104",
+    "skill": 1,
+    "domain": 2,
+    "task_form": 2,
+    "overall": 1,
+    "reason": "Qiskit transpiler-adjacent defect; circuit optimisation passes that must preserve semantics, distant from physics tuning."
+   }
+  ],
+  "Terminal-Lego-15k": [
+   {
+    "rank": 1,
+    "task_id": "task_09162",
+    "skill": 3,
+    "domain": 2,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Explain unexpected matrix-multiplication performance by measuring it; profile-then-explain rather than guess, which is what eval.py forces."
+   },
+   {
+    "rank": 2,
+    "task_id": "task_02275",
+    "skill": 3,
+    "domain": 2,
+    "task_form": 4,
+    "overall": 3,
+    "reason": "Diagnose and fix an nginx config whose worker_connections limit throttles the server; tuning declarative config parameters to lift a measured limit."
+   },
+   {
+    "rank": 3,
+    "task_id": "task_02364",
+    "skill": 3,
+    "domain": 2,
+    "task_form": 4,
+    "overall": 3,
+    "reason": "Raise nginx's max-open-files limits across config and system; changing configuration numbers rather than code to change runtime behaviour."
+   },
+   {
+    "rank": 4,
+    "task_id": "task_05507",
+    "skill": 3,
+    "domain": 2,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Configure OpenBLAS threading for a resource-constrained environment; a config knob that trades throughput against resources, exactly the MJCF pattern."
+   },
+   {
+    "rank": 5,
+    "task_id": "task_04642",
+    "skill": 3,
+    "domain": 2,
+    "task_form": 3,
+    "overall": 2,
+    "reason": "Limit NumPy's thread count through the right environment variables; controlling a numeric library's runtime behaviour without touching its code."
+   },
+   {
+    "rank": 6,
+    "task_id": "task_04606",
+    "skill": 2,
+    "domain": 2,
+    "task_form": 3,
+    "overall": 2,
+    "reason": "Benchmark einsum against built-in reductions and report which wins; measuring two ways of computing the same result."
+   },
+   {
+    "rank": 7,
+    "task_id": "task_04347",
+    "skill": 2,
+    "domain": 2,
+    "task_form": 3,
+    "overall": 2,
+    "reason": "Find the fastest way to reverse a NumPy array while producing the same array; identical output, minimised time, in miniature."
+   },
+   {
+    "rank": 8,
+    "task_id": "task_04552",
+    "skill": 2,
+    "domain": 2,
+    "task_form": 3,
+    "overall": 2,
+    "reason": "Benchmark Python sum against numpy.sum and account for the difference; timing methodology on numeric code."
+   },
+   {
+    "rank": 9,
+    "task_id": "task_04541",
+    "skill": 2,
+    "domain": 2,
+    "task_form": 3,
+    "overall": 2,
+    "reason": "Compute cosine similarity efficiently on sparse matrices; choosing a representation that is faster for the same numerical answer."
+   },
+   {
+    "rank": 10,
+    "task_id": "task_04482",
+    "skill": 2,
+    "domain": 2,
+    "task_form": 3,
+    "overall": 2,
+    "reason": "Benchmark matrix multiplication across Python, C++ and BLAS; comparative timing of one computation, weakly verified across 26 tests."
+   }
+  ],
+  "CalibForge": [
+   {
+    "rank": 1,
+    "task_id": "scientific-computing_20260604_003814_008",
+    "skill": 5,
+    "domain": 4,
+    "task_form": 5,
+    "overall": 5,
+    "reason": "A too-slow PDE solver must run under 2s with error below 1e-8, iterating against a supplied /app/eval.py; same speed-plus-accuracy gate, same harness."
+   },
+   {
+    "rank": 2,
+    "task_id": "optimization_20260604_003113_001",
+    "skill": 5,
+    "domain": 3,
+    "task_form": 5,
+    "overall": 4,
+    "reason": "Make a fast implementation match the slow baseline's output exactly AND reach 20x speedup; the two-sided constraint this TB2.1 task imposes."
+   },
+   {
+    "rank": 3,
+    "task_id": "scientific-computing_20260610_111012_008",
+    "skill": 4,
+    "domain": 4,
+    "task_form": 5,
+    "overall": 4,
+    "reason": "Fix a numerical bug and reach 100x faster with results matching a reference to rtol 1e-12; speed target bounded by a tight tolerance."
+   },
+   {
+    "rank": 4,
+    "task_id": "scientific-computing_20260616_094815_001",
+    "skill": 4,
+    "domain": 5,
+    "task_form": 3,
+    "overall": 4,
+    "reason": "Debug an adaptive-step DOPRI5 integrator's error control; step size versus tolerance is precisely the MJCF timestep/solver-tolerance trade-off."
+   },
+   {
+    "rank": 5,
+    "task_id": "scientific-computing_20260508_204815_008",
+    "skill": 4,
+    "domain": 5,
+    "task_form": 3,
+    "overall": 4,
+    "reason": "Velocity-Verlet with SHAKE constraints drifts in energy; constrained rigid-body integration, the same solver family MuJoCo uses."
+   },
+   {
+    "rank": 6,
+    "task_id": "scientific-computing_20260429_103257_003",
+    "skill": 4,
+    "domain": 5,
+    "task_form": 3,
+    "overall": 4,
+    "reason": "An N-body simulation shows 4% energy drift that must be brought under control; integrator and step-size choice judged by a conserved quantity."
+   },
+   {
+    "rank": 7,
+    "task_id": "optimization_20260612_191200_001",
+    "skill": 4,
+    "domain": 3,
+    "task_form": 5,
+    "overall": 4,
+    "reason": "Speed up a kernel computation whose current fast trick costs accuracy; the speed-versus-numerical-fidelity trade this task is entirely about."
+   },
+   {
+    "rank": 8,
+    "task_id": "scientific-computing_20260510_005520_008",
+    "skill": 4,
+    "domain": 4,
+    "task_form": 5,
+    "overall": 4,
+    "reason": "A SciPy BVP solve of a physical system is too slow and must be made to meet a time target without losing accuracy."
+   },
+   {
+    "rank": 9,
+    "task_id": "optimization_20260604_194036_001",
+    "skill": 3,
+    "domain": 3,
+    "task_form": 5,
+    "overall": 3,
+    "reason": "Reimplement a Conjugate Gradient solver to beat the Python baseline while producing the same solution; solver speed under an equivalence check."
+   },
+   {
+    "rank": 10,
+    "task_id": "optimization_20260508_045740_001",
+    "skill": 3,
+    "domain": 2,
+    "task_form": 5,
+    "overall": 3,
+    "reason": "Beat NetworkX's Dijkstra with a C extension whose paths must still match; measured speedup gated on exact agreement with the reference."
+   }
+  ]
+ },
+ "final_top10": [
+  {
+   "rank": 1,
+   "task_id": "scientific-computing_20260604_003814_008",
+   "source": "CalibForge",
+   "skill": 5,
+   "domain": 4,
+   "task_form": 5,
+   "overall": 5,
+   "reason": "Make a slow numerical simulation hit a wall-clock target while error stays under 1e-8, iterating with a provided eval.py; same task shape, same harness."
+  },
+  {
+   "rank": 2,
+   "task_id": "optimization_20260604_003113_001",
+   "source": "CalibForge",
+   "skill": 5,
+   "domain": 3,
+   "task_form": 5,
+   "overall": 4,
+   "reason": "Output must match the baseline exactly and the implementation must be 20x faster; the speed-plus-equivalence pairing this TB2.1 task grades."
+  },
+  {
+   "rank": 3,
+   "task_id": "scientific-computing_20260616_094815_001",
+   "source": "CalibForge",
+   "skill": 4,
+   "domain": 5,
+   "task_form": 3,
+   "overall": 4,
+   "reason": "Fix an adaptive-step DOPRI5 integrator's error control; step size against tolerance is the MJCF timestep and solver-tolerance decision."
+  },
+  {
+   "rank": 4,
+   "task_id": "scientific-computing_20260508_204815_008",
+   "source": "CalibForge",
+   "skill": 4,
+   "domain": 5,
+   "task_form": 3,
+   "overall": 4,
+   "reason": "Constrained rigid-body MD drifts in energy under velocity-Verlet plus SHAKE; the same constrained-integrator machinery MuJoCo runs."
+  },
+  {
+   "rank": 5,
+   "task_id": "scientific-computing_20260610_111012_008",
+   "source": "CalibForge",
+   "skill": 4,
+   "domain": 4,
+   "task_form": 5,
+   "overall": 4,
+   "reason": "Reach 100x faster while matching a reference to rtol 1e-12; forces optimisation that cannot be bought with accuracy."
+  },
+  {
+   "rank": 6,
+   "task_id": "task_000396_2ead682a",
+   "source": "TMax-15K",
+   "skill": 4,
+   "domain": 4,
+   "task_form": 4,
+   "overall": 4,
+   "reason": "Profile and validate a physics engine's numerical integrators; timing measurement and numerical validation of a simulator, together."
+  },
+  {
+   "rank": 7,
+   "task_id": "optimization_20260612_191200_001",
+   "source": "CalibForge",
+   "skill": 4,
+   "domain": 3,
+   "task_form": 5,
+   "overall": 4,
+   "reason": "Speed up a kernel whose existing fast path sacrifices accuracy; the speed-versus-numerical-fidelity judgement this task is built on."
+  },
+  {
+   "rank": 8,
+   "task_id": "scientific-computing_20260429_103257_003",
+   "source": "CalibForge",
+   "skill": 4,
+   "domain": 5,
+   "task_form": 3,
+   "overall": 4,
+   "reason": "Cut energy drift in an N-body simulation by choosing integrator and step size; physics fidelity as the constraint on a config change."
+  },
+  {
+   "rank": 9,
+   "task_id": "task_000211_b569407c",
+   "source": "TMax-15K",
+   "skill": 4,
+   "domain": 2,
+   "task_form": 5,
+   "overall": 4,
+   "reason": "Must hit at least 3.0x over the baseline while output stays identical; the cleanest TMax instance of speed-target-with-equivalence."
+  },
+  {
+   "rank": 10,
+   "task_id": "scientific-computing_20260510_005520_008",
+   "source": "CalibForge",
+   "skill": 4,
+   "domain": 4,
+   "task_form": 5,
+   "overall": 4,
+   "reason": "A physical-system BVP solve is too slow and must meet a time target without losing accuracy; optimise a solver's configuration, not its physics."
+  }
+ ],
+ "notes": "The new corpora beat the old ones here, but less overwhelmingly than on the fastText and distributed-PyTorch tasks, and TMax is a genuine second. MuJoCo itself is essentially absent from the pool: a regex for mujoco|mjcf|physics engine|rigid body over all 56,307 v1 instructions returns 5 hits (4 generic TMax 'physics engine' fictions plus tw_471679, which only installs MuJoCo 2.1.0), and over the 20,479 new-corpus instructions it returns zero. So nobody can supply the domain. What CalibForge supplies instead, and supplies far better than anything in v1, is the task_form: a large, strongly-verified 'optimization' and 'scientific-computing' family whose tasks are literally 'this simulation is too slow, make it hit a time target while its numbers still match a reference to a stated tolerance', several of which even ship an /app/eval.py to iterate against. scientific-computing_20260604_003814_008 is the standout - under 2 seconds, error below 1e-8, iterate with eval.py - and CalibForge additionally has three integrator/energy-drift tasks (DOPRI5 error control, velocity-Verlet+SHAKE, N-body drift) that are the nearest thing to reasoning about a physics solver's accuracy-versus-cost knobs. Eight of my final ten are CalibForge and two are TMax; TMax's speedup-with-identical-output cluster (10x, 3x, burst-of-100) is real and I would not drop it. Corpora where I could not find ten defensible candidates: TerminalWorld (its two on-domain tasks are an MBDyn build graded FREE by the packet and a MuJoCo pip install; ranks 6-10 are benchmark-adjacent filler) and Recursive-Task-Synthesis (nothing above overall 2 - its best is 'check measured runtimes against thresholds in a conf file', and everything is `absent`). SWE-Rebench is also weak; I picked the physical-simulation frameworks (PyBaMM, OpenMDAO, arch) and benchmarking-methodology issues (benchopt warm_up, smac3) over the lexically-retrieved noise, but nothing there exceeds overall 2. One deliberate non-obvious call: I ranked the SWE-Smith cantools/ARXML cluster first in that corpus because MJCF is a declarative XML description of a physical system, and those tasks are the only place in the pool where someone must reason about the semantics of such a file rather than about code."
+}

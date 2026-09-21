@@ -1,0 +1,117 @@
+{
+  "tb21_id": "distribution-search",
+  "tb21_profile": {
+    "skill": "Numerically construct a probability distribution over a large vocabulary that hits two exact information-theoretic targets (forward and backward KL vs uniform, both 10.0 within 1e-3), via a parametrised family solved with root-finding/optimization; emit a valid distribution as .npy",
+    "domain": "Information theory (KL divergence/entropy) and numerical statistics, numpy/scipy optimization, LLM token-probability metrics",
+    "task_form": "implement-from-spec / solve-to-exact-numerical-target: build data satisfying precise coupled constraints within tolerance"
+  },
+  "verifier_notes": "No grade disagreements. TMax task_003486_0eb03622 (optimize diffusion rates to match a target distribution) and task_000624_6f630314 (KL over k-mers) are FREE, so both are kept out of TMax's top ranks / final. The CalibForge machine-learning_* 'construct a distribution with exact divergence/entropy/MI' family is uniformly strong-verified.",
+  "searches": [
+    "tools.py packet review across all seven corpora",
+    "grade lookups via work/verifier_strength.json for ~60 candidates",
+    "tools.py search rts 'KL diverg|Kullback|entropy|probability distribution|scipy|maximum likelihood|softmax|divergence'",
+    "tools.py search smith 'entropy|divergence|scipy|probability|distribution|softmax|optimize'",
+    "tools.py search rebench 'KL diverg|entropy|scipy\\.optimize|probability distribution|softmax|maximum likelihood|minimize'",
+    "new-corpora regex: CalibForge 'KL diverg|Kullback|entropy|scipy\\.optimize|curve.?fit|root.?find|probability distribution|maximum likelihood|\\.npy|minimize'",
+    "new-corpora regex: Terminal-Lego 'KL diverg|Kullback|entropy|scipy\\.optimize|scipy\\.stats|probability distribution|maximum likelihood|curve_fit|minimize|softmax|cross.?entropy'"
+  ],
+  "per_source": {
+    "TMax-15K": [
+      {"rank": 1, "task_id": "task_006780_f07da33b", "skill": 4, "domain": 4, "task_form": 4, "overall": 4, "reason": "Characterise a non-Gaussian distribution via numerical integration and nonlinear equation solving plus distance metrics; the solve-a-nonlinear-system-over-a-distribution crux."},
+      {"rank": 2, "task_id": "task_005957_389ea559", "skill": 3, "domain": 4, "task_form": 4, "overall": 3, "reason": "Fit a diffusion model's parameters by numerically integrating to match target output; parameter-search-to-match-a-target, adjacent to hitting KL targets."},
+      {"rank": 3, "task_id": "task_004749_2e948d53", "skill": 3, "domain": 4, "task_form": 3, "overall": 3, "reason": "Fit a theoretical noise model to a spectrum and measure deviation from an expected distribution; distribution fitting with a numeric target, verifier strong."},
+      {"rank": 4, "task_id": "task_004885_eb2c6b25", "skill": 3, "domain": 4, "task_form": 3, "overall": 3, "reason": "Compute a graph's analytical stationary distribution and compare via KL; constructs a distribution and uses KL divergence, no exact-target search."},
+      {"rank": 5, "task_id": "task_001153_3caae8f4", "skill": 3, "domain": 4, "task_form": 3, "overall": 3, "reason": "Test whether an empirical distribution matches uniform (null hypothesis) with a divergence/GoF statistic; uniform-reference divergence reasoning."},
+      {"rank": 6, "task_id": "task_002505_20aa9678", "skill": 2, "domain": 4, "task_form": 3, "overall": 2, "reason": "Compute distances between k-mer probability distributions; builds and compares distributions, but only measures rather than constructs to a target."},
+      {"rank": 7, "task_id": "task_002475_e0379918", "skill": 2, "domain": 4, "task_form": 2, "overall": 2, "reason": "Fix a broken KL-divergence implementation yielding negative values; forces correct KL math, but a debugging genre."},
+      {"rank": 8, "task_id": "task_001931_be8a0d10", "skill": 2, "domain": 3, "task_form": 3, "overall": 2, "reason": "Compute deviation of spectral intensity from a uniform background model; uniform-reference distance, simple genre."},
+      {"rank": 9, "task_id": "task_001646_8e2c498e", "skill": 2, "domain": 3, "task_form": 3, "overall": 2, "reason": "Normalise data into a probability distribution and compute a statistical distance; distribution normalisation, behavioral verifier."},
+      {"rank": 10, "task_id": "task_002801_0a48887f", "skill": 2, "domain": 3, "task_form": 3, "overall": 2, "reason": "Make a transcript-count probability distribution reproducible under float reduction; touches distributions, mostly a determinism fix."}
+    ],
+    "Recursive-Task-Synthesis": [
+      {"rank": 1, "task_id": "rts_task_8c7952523d80afdc25568971", "skill": 2, "domain": 3, "task_form": 3, "overall": 2, "reason": "Build a text pipeline using entropy/n-gram statistics tools and pass a validator; information-theoretic statistics, no distribution construction."},
+      {"rank": 2, "task_id": "rts_task_6ad84c7dff59258b0217f141", "skill": 2, "domain": 2, "task_form": 2, "overall": 2, "reason": "Compute per-item hashes and write an 'entropy' binary; only nominally information-theoretic, low transfer."},
+      {"rank": 3, "task_id": "rts_task_634e80a627f837bf3aa0b8e7", "skill": 1, "domain": 3, "task_form": 2, "overall": 1, "reason": "Create conda envs with a pinned scipy version and validate; the scipy ecosystem only, no numerics."},
+      {"rank": 4, "task_id": "rts_task_ca5f8d828f3d44a9dc0a1678", "skill": 1, "domain": 3, "task_form": 2, "overall": 1, "reason": "Install scipy under two solvers and log to SQLite; scipy-install chore, no distribution work."},
+      {"rank": 5, "task_id": "rts_task_23c39782c8328be958397acf", "skill": 1, "domain": 3, "task_form": 2, "overall": 1, "reason": "Install scipy with classic vs libmamba solver; environment management only."},
+      {"rank": 6, "task_id": "rts_task_7c319183d7a71d1936af7e8c", "skill": 1, "domain": 3, "task_form": 2, "overall": 1, "reason": "Another scipy classic/libmamba install variant; token overlap on 'scipy' only."},
+      {"rank": 7, "task_id": "rts_task_15ec2b913401dc02ff1afa3b", "skill": 1, "domain": 3, "task_form": 2, "overall": 1, "reason": "scipy dual-solver install chore; no numerical content."},
+      {"rank": 8, "task_id": "rts_task_de06b9a7a7ad8727c24386c3", "skill": 1, "domain": 3, "task_form": 2, "overall": 1, "reason": "Configure conda libmamba solver and install scipy; environment task."},
+      {"rank": 9, "task_id": "rts_task_1001c37ffd7de0b44b719333", "skill": 1, "domain": 3, "task_form": 2, "overall": 1, "reason": "scipy install with two solvers; no distribution or optimization."},
+      {"rank": 10, "task_id": "rts_task_e607430ae9d44dee1696c61c", "skill": 1, "domain": 3, "task_form": 2, "overall": 1, "reason": "scipy classic/libmamba install; filler, no transfer."}
+    ],
+    "TerminalWorld-Seeds-Clean": [
+      {"rank": 1, "task_id": "tw_500724", "skill": 2, "domain": 3, "task_form": 3, "overall": 2, "reason": "Compute a trimmed mean with a precisely specified truncation rule and exact output; hit-an-exact-numeric-answer-under-a-rule, no distribution."},
+      {"rank": 2, "task_id": "tw_21631", "skill": 1, "domain": 3, "task_form": 3, "overall": 2, "reason": "pandas filter and derive a log-transformed column; numerical-array manipulation in the scientific-Python stack only."},
+      {"rank": 3, "task_id": "tw_419029", "skill": 1, "domain": 2, "task_form": 2, "overall": 1, "reason": "Run a GA app over a dataset at varying parallelism; optimization-flavoured app run, not numerical construction."},
+      {"rank": 4, "task_id": "tw_125169", "skill": 1, "domain": 3, "task_form": 2, "overall": 1, "reason": "Julia Posit-vs-float linear-system demo; numerical-precision domain, unrelated task."},
+      {"rank": 5, "task_id": "tw_338947", "skill": 1, "domain": 1, "task_form": 2, "overall": 1, "reason": "Build an image-processing benchmark; unrelated."},
+      {"rank": 6, "task_id": "tw_177994", "skill": 1, "domain": 1, "task_form": 1, "overall": 1, "reason": "Compile a trivial C program; no transfer."},
+      {"rank": 7, "task_id": "tw_672607", "skill": 1, "domain": 1, "task_form": 1, "overall": 1, "reason": "C++ Makefile build lifecycle; unrelated."},
+      {"rank": 8, "task_id": "tw_120186", "skill": 1, "domain": 1, "task_form": 1, "overall": 1, "reason": "Custom-compiler hello build; unrelated."},
+      {"rank": 9, "task_id": "tw_132320", "skill": 1, "domain": 1, "task_form": 1, "overall": 1, "reason": "Install a CLI tool; unrelated."},
+      {"rank": 10, "task_id": "tw_316893", "skill": 1, "domain": 1, "task_form": 1, "overall": 1, "reason": "Install Docker/Compose; unrelated filler — TerminalWorld has no distribution/KL content."}
+    ],
+    "SWE-Smith-Seeds-Clean": [
+      {"rank": 1, "task_id": "facebookresearch__fvcore.a491d5b9.combine_file__htnzvb1x", "skill": 2, "domain": 3, "task_form": 1, "overall": 2, "reason": "Fix weight-init routines (fan_in/out, nonlinearity) producing wrong weight distributions; numerical-distribution correctness in the ML stack, as a library fix."},
+      {"rank": 2, "task_id": "chardet__chardet.9630f238.func_pm_remove_cond__vjza6vvb", "skill": 2, "domain": 2, "task_form": 1, "overall": 2, "reason": "A distribution analyzer fails to feed the detector; reasoning about frequency distributions, wrong subject and genre."},
+      {"rank": 3, "task_id": "pandas-dev__pandas.95280573.pr_45301", "skill": 1, "domain": 3, "task_form": 1, "overall": 1, "reason": "Pandas/scipy-adjacent bug fix; scientific-Python ecosystem only."},
+      {"rank": 4, "task_id": "Mimino666__langdetect.a1598f1a.func_basic__y336mfnv", "skill": 1, "domain": 2, "task_form": 1, "overall": 1, "reason": "Fix probability-object comparison; touches probabilities, nothing to construct."},
+      {"rank": 5, "task_id": "dask__dask.5f61e423.lm_rewrite__5elhetca", "skill": 1, "domain": 2, "task_form": 1, "overall": 1, "reason": "Task-graph alias resolution bug; array-compute ecosystem only."},
+      {"rank": 6, "task_id": "dask__dask.5f61e423.pr_10042", "skill": 1, "domain": 2, "task_form": 1, "overall": 1, "reason": "Parquet filter NoneType; unrelated to distributions."},
+      {"rank": 7, "task_id": "dask__dask.5f61e423.pr_7191", "skill": 1, "domain": 1, "task_form": 1, "overall": 1, "reason": "Dask scheduler bug; no transfer."},
+      {"rank": 8, "task_id": "andialbrecht__sqlparse.e57923b3.pr_792", "skill": 1, "domain": 1, "task_form": 1, "overall": 1, "reason": "SQL hint preservation; unrelated."},
+      {"rank": 9, "task_id": "lincolnloop__python-qrcode.456b01d4.func_pm_ctrl_invert_if__q01zoi9f", "skill": 1, "domain": 1, "task_form": 1, "overall": 1, "reason": "QR-code data-chunk optimization; the word 'optimize' only."},
+      {"rank": 10, "task_id": "agronholm__typeguard.b6a7e438.pr_350", "skill": 1, "domain": 1, "task_form": 1, "overall": 1, "reason": "Typeguard respects sys.flags.optimize; no numerical transfer."}
+    ],
+    "SWE-Rebench-Tasks-Clean": [
+      {"rank": 1, "task_id": "gpflow__gpflow-2096", "skill": 2, "domain": 4, "task_form": 1, "overall": 2, "reason": "scipy-based optimizer (SLSQP) errors during a GP model fit; the scipy.optimize-to-minimize-an-objective machinery the TB task uses, as a bug fix."},
+      {"rank": 2, "task_id": "keras-team__keras-19300", "skill": 2, "domain": 3, "task_form": 1, "overall": 2, "reason": "keras.ops.softmax errors in a compiled function; softmax builds a probability distribution, the natural parametrisation for this task."},
+      {"rank": 3, "task_id": "pyomo__pyomo-2863", "skill": 2, "domain": 3, "task_form": 1, "overall": 2, "reason": "Constrained optimization model with an objective and bounds; solving-to-satisfy-constraints domain, different framework."},
+      {"rank": 4, "task_id": "pyomo__pyomo-3288", "skill": 2, "domain": 3, "task_form": 1, "overall": 2, "reason": "Flow-balance constrained optimization bug; constraint-satisfaction/optimization reasoning, wrong genre."},
+      {"rank": 5, "task_id": "opennmt__opennmt-tf-527", "skill": 1, "domain": 3, "task_form": 1, "overall": 1, "reason": "Cross-entropy loss reduction over a batch; softmax/cross-entropy adjacency only."},
+      {"rank": 6, "task_id": "keras-team__keras-20602", "skill": 1, "domain": 2, "task_form": 1, "overall": 1, "reason": "Keras numerical model bug; ML-numeric ecosystem only."},
+      {"rank": 7, "task_id": "rasbt__mlxtend-1087", "skill": 1, "domain": 2, "task_form": 1, "overall": 1, "reason": "ML utility library fix; shares the numerical-data-science stack and nothing specific."},
+      {"rank": 8, "task_id": "sdv-dev__rdt-712", "skill": 1, "domain": 2, "task_form": 1, "overall": 1, "reason": "Rounding-scheme detection in synthetic-data transforms; distribution-adjacent, low transfer."},
+      {"rank": 9, "task_id": "googlefonts__glyphslib-563", "skill": 1, "domain": 1, "task_form": 1, "overall": 1, "reason": "Glyph-file conversion crash; unrelated, 'minimize' is font-diff not optimization."},
+      {"rank": 10, "task_id": "python-trio__trio-2845", "skill": 1, "domain": 1, "task_form": 1, "overall": 1, "reason": "Exception-group wrapping bug; no numerical transfer, filler."}
+    ],
+    "Terminal-Lego-15k": [
+      {"rank": 1, "task_id": "task_04356", "skill": 3, "domain": 4, "task_form": 3, "overall": 3, "reason": "Implement a numerically stable softmax in numpy; softmax is the standard way to parametrise a valid probability distribution to search over."},
+      {"rank": 2, "task_id": "task_04376", "skill": 3, "domain": 4, "task_form": 3, "overall": 3, "reason": "Exponential/logarithmic curve fitting with scipy.optimize; the fit-parameters-to-hit-a-target solver the TB task needs."},
+      {"rank": 3, "task_id": "task_04540", "skill": 3, "domain": 4, "task_form": 3, "overall": 3, "reason": "Piecewise-linear fit with automatic breakpoint detection via scipy.optimize; nonlinear least-squares / root-finding practice."},
+      {"rank": 4, "task_id": "task_03743", "skill": 3, "domain": 4, "task_form": 3, "overall": 3, "reason": "Compute Shannon entropy of a byte sequence; the core information-theoretic quantity behind KL divergence, implemented from scratch."},
+      {"rank": 5, "task_id": "task_04497", "skill": 2, "domain": 4, "task_form": 3, "overall": 2, "reason": "Two-sample KS test comparing distributions with scipy.stats; distribution-comparison in the same stack, no construction."},
+      {"rank": 6, "task_id": "task_12895", "skill": 2, "domain": 4, "task_form": 3, "overall": 2, "reason": "Compute a multivariate-normal PDF efficiently; builds a probability density with numpy/scipy, no target-hitting search."},
+      {"rank": 7, "task_id": "task_13427", "skill": 2, "domain": 4, "task_form": 3, "overall": 2, "reason": "Output a classifier's per-class probability distribution; produces a valid distribution, but from a fitted model."},
+      {"rank": 8, "task_id": "task_04409", "skill": 2, "domain": 4, "task_form": 3, "overall": 2, "reason": "Compute a confidence interval assuming normality with scipy.stats; numerical-statistics practice, unrelated objective."},
+      {"rank": 9, "task_id": "task_04443", "skill": 1, "domain": 4, "task_form": 3, "overall": 2, "reason": "Efficient binned means with scipy/numpy; array numerics only."},
+      {"rank": 10, "task_id": "task_04429", "skill": 1, "domain": 4, "task_form": 3, "overall": 2, "reason": "Kernel density estimation plot; estimates a density but does not construct one to a constraint."}
+    ],
+    "CalibForge": [
+      {"rank": 1, "task_id": "machine-learning_20260604_003113_002", "skill": 5, "domain": 5, "task_form": 5, "overall": 5, "reason": "Find a probability distribution meeting exact KL-divergence constraints against a reference q (n items) and save .npy; the TB task with the same solver and output."},
+      {"rank": 2, "task_id": "machine-learning_20260504_125558_002", "skill": 5, "domain": 5, "task_form": 5, "overall": 5, "reason": "Find a sparse distribution over 50,000 tokens satisfying constrained divergences AND entropy, output .npy; same construct-to-exact-divergence-target over a large vocab."},
+      {"rank": 3, "task_id": "machine-learning_20260510_062946_002", "skill": 5, "domain": 5, "task_form": 5, "overall": 5, "reason": "Calibrate an LLM token distribution to four coupled constraints including Shannon entropy within tolerance; same coupled-info-theoretic-constraint solve."},
+      {"rank": 4, "task_id": "machine-learning_20260509_065529_002", "skill": 5, "domain": 5, "task_form": 5, "overall": 5, "reason": "Construct a maximum-entropy discrete distribution subject to moment constraints; the constrained-distribution-construction crux, strongly verified."},
+      {"rank": 5, "task_id": "machine-learning_20260601_053159_002", "skill": 5, "domain": 5, "task_form": 5, "overall": 5, "reason": "Recover a maximum-entropy distribution over 15,000 categories from 50 moment constraints; large-vocabulary constrained construction with numerical solving."},
+      {"rank": 6, "task_id": "machine-learning_20260425_072438_002", "skill": 5, "domain": 5, "task_form": 5, "overall": 5, "reason": "Construct a joint distribution with exact mutual information, conditional-entropy ratio and joint entropy within tolerance; identical exact-info-theoretic-target genre."},
+      {"rank": 7, "task_id": "machine-learning_20260508_045740_002", "skill": 4, "domain": 5, "task_form": 5, "overall": 4, "reason": "Find a joint distribution with a specified mutual-information value while preserving marginals; construct-a-distribution-to-hit-a-target with tolerance."},
+      {"rank": 8, "task_id": "machine-learning_20260510_005520_002", "skill": 4, "domain": 5, "task_form": 5, "overall": 4, "reason": "Another constrained-mutual-information joint-distribution construction; same solve-for-a-distribution skill and info-theory domain."},
+      {"rank": 9, "task_id": "machine-learning_20260508_153434_002", "skill": 4, "domain": 4, "task_form": 5, "overall": 4, "reason": "Construct a symmetric-PD matrix with an exact condition number (10000) within tolerance; same solve-to-exact-numerical-target skill on a different object."},
+      {"rank": 10, "task_id": "data-science_20260617_051646_002", "skill": 3, "domain": 4, "task_form": 4, "overall": 3, "reason": "Bayesian optimization with a GP to find a black-box objective's global minimum; iterative-search-to-hit-a-numerical-target, different mechanism."}
+    ]
+  },
+  "final_top10": [
+    {"rank": 1, "task_id": "machine-learning_20260604_003113_002", "source": "CalibForge", "skill": 5, "domain": 5, "task_form": 5, "overall": 5, "reason": "Find a distribution meeting exact KL-divergence constraints vs a reference and save it as .npy; the TB task with the same numerical solve and output format."},
+    {"rank": 2, "task_id": "machine-learning_20260504_125558_002", "source": "CalibForge", "skill": 5, "domain": 5, "task_form": 5, "overall": 5, "reason": "Construct a distribution over 50,000 tokens satisfying constrained divergences and entropy, output .npy; same large-vocab construct-to-exact-divergence task."},
+    {"rank": 3, "task_id": "machine-learning_20260510_062946_002", "source": "CalibForge", "skill": 5, "domain": 5, "task_form": 5, "overall": 5, "reason": "Calibrate an LLM token distribution to coupled constraints including Shannon entropy within tolerance; the same coupled-KL/entropy solve on token probabilities."},
+    {"rank": 4, "task_id": "machine-learning_20260509_065529_002", "source": "CalibForge", "skill": 5, "domain": 5, "task_form": 5, "overall": 5, "reason": "Build a maximum-entropy distribution subject to moment constraints; the constrained-distribution-construction crux, strongly verified."},
+    {"rank": 5, "task_id": "machine-learning_20260425_072438_002", "source": "CalibForge", "skill": 5, "domain": 5, "task_form": 5, "overall": 5, "reason": "Construct a joint distribution with exact mutual information, entropy ratio and joint entropy within tolerance; identical exact-info-theoretic-target construction."},
+    {"rank": 6, "task_id": "machine-learning_20260601_053159_002", "source": "CalibForge", "skill": 5, "domain": 5, "task_form": 5, "overall": 5, "reason": "Recover a max-entropy distribution over 15,000 categories from 50 constraints; large-vocabulary constrained construction via numerical solving."},
+    {"rank": 7, "task_id": "machine-learning_20260508_045740_002", "source": "CalibForge", "skill": 4, "domain": 5, "task_form": 5, "overall": 4, "reason": "Find a joint distribution with a specified mutual information while preserving marginals; construct-to-hit-a-target with tolerance, strong verifier."},
+    {"rank": 8, "task_id": "machine-learning_20260508_153434_002", "source": "CalibForge", "skill": 4, "domain": 4, "task_form": 5, "overall": 4, "reason": "Construct an SPD matrix with an exact condition number within tolerance; the same solve-to-exact-numerical-target skill on a different object."},
+    {"rank": 9, "task_id": "task_006780_f07da33b", "source": "TMax-15K", "skill": 4, "domain": 4, "task_form": 4, "overall": 4, "reason": "Characterise a non-Gaussian distribution with numerical integration and nonlinear equation solving; the closest non-CalibForge solve-over-a-distribution task."},
+    {"rank": 10, "task_id": "task_04356", "source": "Terminal-Lego-15k", "skill": 3, "domain": 4, "task_form": 3, "overall": 3, "reason": "Implement a numerically stable numpy softmax; softmax is the standard parametrisation of the valid distribution this task must search over."}
+  ],
+  "notes": "Another decisive win for the new corpora. CalibForge is essentially a bank of siblings of this exact TB2.1 task: 'find/construct a probability distribution with exact KL-divergence / entropy / mutual-information constraints (with tolerance), over a large vocabulary, saved as .npy' — including one titled almost identically and several over token distributions. All are strongly verified, so final_top10 is 8/10 CalibForge and would honestly be more. The v1 pool has nothing this close: TMax has abundant KL-divergence and distribution-fitting tasks but they mostly COMPUTE divergence or FIT a model to data rather than SOLVE for a distribution hitting exact targets, so its best (task_006780, nonlinear solving over a distribution) is a 4. Terminal-Lego contributes the enabling primitives — softmax, scipy.optimize curve-fitting, Shannon entropy — all strongly verified but each only a piece of the task (overall 3). SWE-Rebench's scipy.optimize/pyomo/softmax fixes and SWE-Smith's weight-distribution/chardet fixes are domain-adjacent at best (overall 1-2) and are filler. Recursive-Task-Synthesis has no real match: its 'scipy' hits are conda-install chores and its entropy hits are text-stats pipelines, all absent-verifier and low transfer — the merge step should treat that whole block as weak. No FREE candidate is in final_top10."
+}

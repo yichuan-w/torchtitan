@@ -1,0 +1,769 @@
+{
+ "tb21_id": "large-scale-text-editing",
+ "tb21_profile": {
+  "skill": "Express an exact whole-file text transformation as Vim normal-mode keystrokes and ex substitutions stored in registers, under a keystroke budget, escaping them correctly inside setreg() and running headlessly.",
+  "domain": "Vim / ex: registers and macros, Vim's own regex dialect, :%normal!, headless invocation (vim -Nu NONE -n -Es -S); large CSV text.",
+  "task_form": "Implement-from-spec under a hard resource budget (optimise-for-a-budget), with byte-for-byte output equality and a restricted allowed-command list."
+ },
+ "verifier_notes": "I found no grade I disagreed with on inspection here. NOTE ON GRADES: work/verifier_strength.json was regenerated after work/packets_v2 was built and the two disagree on ~27% of shown candidates (844 flip into or out of FREE). The one that matters for this task is optimization_20260601_053159_001 (10x speedup with byte-for-byte identical output), FREE in the packet but ok(1.0) in the regenerated file - it is the best task_form match in CalibForge, and I ranked it second there but kept it out of final_top10 under the conservative rule that FREE in either file disqualifies. Everything in final_top10 is ok or better in both files.",
+ "searches": [
+  "(new corpora, local grep) search all '\\bvim\\b|vimrc|\\bex command|macro.*register|\\bsed -i\\b.{0,40}vim'",
+  "tools.py search all '\\bvim\\b|vimrc|normal!'",
+  "(new corpora, local grep) search Terminal-Lego-15k 'vim macro|record a macro|@q|:normal|vim -es|vim -c |ex mode|setreg|register [a-z]\\b'",
+  "(new corpora, local grep) search Terminal-Lego-15k 'macro'",
+  "(new corpora, local grep) search all 'million (rows|lines)|large (csv|file).{0,30}(rows|lines)|byte-for-byte|byte for byte'",
+  "(new corpora, local grep) search CalibForge '\\bsed script|\\bawk script|\\bsed\\b.{0,40}(program|script)|golf|fewest|keystroke'",
+  "tools.py search rts '\\bsed\\b|\\bawk\\b|regular expression|regex'",
+  "tools.py search rts 'using `sed`|with sed|awk one-liner|in-place edit|search and replace|find and replace'",
+  "tools.py search smith 'sqlfluff|format|lint|whitespace|indent'"
+ ],
+ "per_source": {
+  "TMax-15K": [
+   {
+    "rank": 1,
+    "task_id": "task_001805_7adfc444",
+    "skill": 4,
+    "domain": 3,
+    "task_form": 4,
+    "overall": 4,
+    "reason": "Apply a specified text-replacement macro across a codebase under stated file-selection rules; macro-style bulk editing with exact expected results."
+   },
+   {
+    "rank": 2,
+    "task_id": "task_002814_a0d45cad",
+    "skill": 3,
+    "domain": 3,
+    "task_form": 4,
+    "overall": 3,
+    "reason": "Recursive rebranding of docs with sed/awk/vim; whole-tree search-and-replace verified against exact content. Strong verifier."
+   },
+   {
+    "rank": 3,
+    "task_id": "task_004492_3b641d92",
+    "skill": 3,
+    "domain": 3,
+    "task_form": 4,
+    "overall": 3,
+    "reason": "Replace a placeholder token throughout files with standard text tools, output checked exactly. Strong verifier."
+   },
+   {
+    "rank": 4,
+    "task_id": "task_005000_2130e59a",
+    "skill": 3,
+    "domain": 3,
+    "task_form": 4,
+    "overall": 3,
+    "reason": "Fix a broken text-transformation script in a docs pipeline so its output matches; transformation correctness, scripted."
+   },
+   {
+    "rank": 5,
+    "task_id": "task_001677_c0f543b6",
+    "skill": 3,
+    "domain": 3,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Substitute a placeholder in draft.txt using sed/awk/vim; the substitution skill, small scale."
+   },
+   {
+    "rank": 6,
+    "task_id": "task_002751_bfd06946",
+    "skill": 3,
+    "domain": 3,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Locate an error and fix it with sed/awk/vim text transformation; editor-driven repair of a file."
+   },
+   {
+    "rank": 7,
+    "task_id": "task_003865_7caa8afe",
+    "skill": 3,
+    "domain": 3,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "A CSV-processing bash script blows up on volume and must be made correct and bounded; large-file throughput under a budget."
+   },
+   {
+    "rank": 8,
+    "task_id": "task_004063_eed44624",
+    "skill": 2,
+    "domain": 3,
+    "task_form": 3,
+    "overall": 2,
+    "reason": "Join two data feeds with a robust shell pipeline; line-oriented CSV processing, no editor."
+   },
+   {
+    "rank": 9,
+    "task_id": "task_001350_a6e2bdb3",
+    "skill": 2,
+    "domain": 3,
+    "task_form": 3,
+    "overall": 2,
+    "reason": "Analyse CSV datasets with shell only; text processing with pinned numeric outputs."
+   },
+   {
+    "rank": 10,
+    "task_id": "task_003889_a2da409d",
+    "skill": 2,
+    "domain": 2,
+    "task_form": 3,
+    "overall": 2,
+    "reason": "Debug a bash script producing wrong scores; script repair, only loosely related."
+   }
+  ],
+  "Recursive-Task-Synthesis": [
+   {
+    "rank": 1,
+    "task_id": "rts_task_afcc587b8604fd501f56665b",
+    "skill": 3,
+    "domain": 3,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Extract a specific command class from a session transcript into an exact output file; pattern-driven line extraction."
+   },
+   {
+    "rank": 2,
+    "task_id": "rts_task_cbfa4307f539d123b5711957",
+    "skill": 3,
+    "domain": 3,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Same transcript extraction as an executable bash script against a spec; regex selection plus exact formatting."
+   },
+   {
+    "rank": 3,
+    "task_id": "rts_task_e310969f514289c50fccce04",
+    "skill": 3,
+    "domain": 3,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Validate a larger dataset of phone numbers with a single regular expression; forces one regex to cover every case, like one macro covering a million rows."
+   },
+   {
+    "rank": 4,
+    "task_id": "rts_task_9e8321bd084e9b221059a332",
+    "skill": 2,
+    "domain": 3,
+    "task_form": 3,
+    "overall": 2,
+    "reason": "Email-validation regex tested against four fixed strings; regex authoring at small scale."
+   },
+   {
+    "rank": 5,
+    "task_id": "rts_task_df30cb8e56b8f8521c00f5c2",
+    "skill": 2,
+    "domain": 3,
+    "task_form": 3,
+    "overall": 2,
+    "reason": "Export a validating regex from a module and classify addresses; near-duplicate of the regex family."
+   },
+   {
+    "rank": 6,
+    "task_id": "rts_task_c07fa2980dc69528e95337b0",
+    "skill": 2,
+    "domain": 3,
+    "task_form": 3,
+    "overall": 2,
+    "reason": "Generate regexes with rgxg and validate a log file with them; regex tooling, output written to files."
+   },
+   {
+    "rank": 7,
+    "task_id": "rts_task_11ea6d36ae3c92f4fee74e8d",
+    "skill": 2,
+    "domain": 2,
+    "task_form": 3,
+    "overall": 2,
+    "reason": "Correct and join key-value files into one exact output; file-content repair to a spec."
+   },
+   {
+    "rank": 8,
+    "task_id": "rts_task_6e70befb955f2b77ff948f39",
+    "skill": 2,
+    "domain": 2,
+    "task_form": 3,
+    "overall": 2,
+    "reason": "Produce a result line with exactly three space-separated fields; exact-output formatting discipline."
+   },
+   {
+    "rank": 9,
+    "task_id": "rts_task_3f529f4d3e51cddb5bc8ff1b",
+    "skill": 2,
+    "domain": 2,
+    "task_form": 3,
+    "overall": 2,
+    "reason": "Clean raw measurement data to a configured output format; data cleaning, not editing."
+   },
+   {
+    "rank": 10,
+    "task_id": "rts_task_ab5bc7c95754d09a283042ed",
+    "skill": 2,
+    "domain": 2,
+    "task_form": 3,
+    "overall": 2,
+    "reason": "Apply sentinel-value rules and a column order from a schema; transformation to an exact layout."
+   }
+  ],
+  "TerminalWorld-Seeds-Clean": [
+   {
+    "rank": 1,
+    "task_id": "tw_17688",
+    "skill": 2,
+    "domain": 5,
+    "task_form": 2,
+    "overall": 3,
+    "reason": "Build Vim from source with the huge feature set; same tool and forces reading Vim's feature/compile surface, but it is a build task."
+   },
+   {
+    "rank": 2,
+    "task_id": "tw_474817",
+    "skill": 3,
+    "domain": 3,
+    "task_form": 4,
+    "overall": 3,
+    "reason": "Shell functions for upper/lower/other text transformations of a file; per-line transformation with pinned output. Strong verifier."
+   },
+   {
+    "rank": 3,
+    "task_id": "tw_12673",
+    "skill": 3,
+    "domain": 3,
+    "task_form": 4,
+    "overall": 3,
+    "reason": "Derive a new CSV from an existing one with computed columns; exact CSV-to-CSV transformation."
+   },
+   {
+    "rank": 4,
+    "task_id": "tw_166221",
+    "skill": 3,
+    "domain": 3,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Expand C-preprocessor macros over Go source templates; macro-driven text expansion producing exact source."
+   },
+   {
+    "rank": 5,
+    "task_id": "tw_316425",
+    "skill": 3,
+    "domain": 3,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "One regular expression must accept and reject a specified set of phone formats; single-pattern-covers-everything discipline."
+   },
+   {
+    "rank": 6,
+    "task_id": "tw_529306",
+    "skill": 2,
+    "domain": 2,
+    "task_form": 3,
+    "overall": 2,
+    "reason": "Script reporting line/word/character counts with an exact no-argument message; exact-output shell scripting."
+   },
+   {
+    "rank": 7,
+    "task_id": "tw_310044",
+    "skill": 2,
+    "domain": 2,
+    "task_form": 3,
+    "overall": 2,
+    "reason": "Scrape and reformat colour entries into a display format; text extraction and formatting."
+   },
+   {
+    "rank": 8,
+    "task_id": "tw_5263",
+    "skill": 1,
+    "domain": 2,
+    "task_form": 2,
+    "overall": 1,
+    "reason": "conftest.py placement so tests are discoverable from two directories; unrelated capability."
+   },
+   {
+    "rank": 9,
+    "task_id": "tw_256057",
+    "skill": 1,
+    "domain": 2,
+    "task_form": 3,
+    "overall": 1,
+    "reason": "Encode, corrupt, repair and decode an SBX archive checking the result matches; byte-exactness is the only link."
+   },
+   {
+    "rank": 10,
+    "task_id": "tw_294687",
+    "skill": 1,
+    "domain": 1,
+    "task_form": 2,
+    "overall": 1,
+    "reason": "Make a Django task run without raising; unrelated, included to reach ten."
+   }
+  ],
+  "SWE-Smith-Seeds-Clean": [
+   {
+    "rank": 1,
+    "task_id": "sqlfluff__sqlfluff.50a1c4b6.pr_5676",
+    "skill": 3,
+    "domain": 3,
+    "task_form": 2,
+    "overall": 3,
+    "reason": "SQLFluff is a linter/auto-formatter that rewrites text to exact expected output; reasoning about file-by-file transformation and its exit status."
+   },
+   {
+    "rank": 2,
+    "task_id": "mozilla__bleach.73871d76.lm_rewrite__01ahwe6g",
+    "skill": 2,
+    "domain": 3,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "linkify rewrites HTML text in place; a text-transformation library where output must match exactly."
+   },
+   {
+    "rank": 3,
+    "task_id": "seatgeek__thefuzz.8a05a3ee.lm_rewrite__tzl04soz",
+    "skill": 2,
+    "domain": 2,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Processor reduces a string to empty without warning; string-preprocessing edge cases."
+   },
+   {
+    "rank": 4,
+    "task_id": "Cog-Creators__Red-DiscordBot.33e0eac7.func_pm_remove_assign__z4uptllb",
+    "skill": 2,
+    "domain": 2,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "pagify, which splits long text into chunks, is broken; line/chunk-boundary handling over large text."
+   },
+   {
+    "rank": 5,
+    "task_id": "mozillazg__python-pinyin.e42dede5.lm_rewrite__zhlzdi5y",
+    "skill": 2,
+    "domain": 2,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Text-conversion CLI exits unexpectedly on subcommands; transformation tool driven from the command line."
+   },
+   {
+    "rank": 6,
+    "task_id": "john-kurkowski__tldextract.3d1bf184.func_pm_remove_cond__gj9korb7",
+    "skill": 1,
+    "domain": 2,
+    "task_form": 2,
+    "overall": 1,
+    "reason": "CLI does not exit non-zero with no input; exit-status correctness, which this task also checks, but nothing else."
+   },
+   {
+    "rank": 7,
+    "task_id": "cantools__cantools.0c6a7871.pr_697",
+    "skill": 1,
+    "domain": 2,
+    "task_form": 2,
+    "overall": 1,
+    "reason": "Case-insensitive filtering broken in monitor mode; filtering semantics only."
+   },
+   {
+    "rank": 8,
+    "task_id": "cloudpipe__cloudpickle.6220b0ce.lm_rewrite__l4p0eaum",
+    "skill": 1,
+    "domain": 2,
+    "task_form": 2,
+    "overall": 1,
+    "reason": "Non-deterministic global extraction; determinism matters here too, but the mechanism is unrelated."
+   },
+   {
+    "rank": 9,
+    "task_id": "getnikola__nikola.0f4c230e.combine_file__oroam8mp",
+    "skill": 1,
+    "domain": 1,
+    "task_form": 2,
+    "overall": 1,
+    "reason": "Commands exit with SystemExit: 3; unrelated."
+   },
+   {
+    "rank": 10,
+    "task_id": "conan-io__conan.86f29e13.lm_rewrite__hv01aovz",
+    "skill": 1,
+    "domain": 1,
+    "task_form": 2,
+    "overall": 1,
+    "reason": "Lockfile add mishandles requirements; unrelated, fills the ten."
+   }
+  ],
+  "SWE-Rebench-Tasks-Clean": [
+   {
+    "rank": 1,
+    "task_id": "pandas-dev__pandas-59080",
+    "skill": 3,
+    "domain": 3,
+    "task_form": 2,
+    "overall": 3,
+    "reason": "read_csv breaks when combining iterator and nrows; chunked traversal of a large CSV, the scale problem this task has."
+   },
+   {
+    "rank": 2,
+    "task_id": "tobikodata__sqlmesh-2903",
+    "skill": 2,
+    "domain": 3,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Macro expansion inside generated SQL misbehaves; macro-as-text-substitution reasoning, different macro system."
+   },
+   {
+    "rank": 3,
+    "task_id": "tobikodata__sqlmesh-3457",
+    "skill": 2,
+    "domain": 3,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Inconsistent expansion of the @this_model macro; again macro substitution semantics."
+   },
+   {
+    "rank": 4,
+    "task_id": "tornadoweb__tornado-3489",
+    "skill": 2,
+    "domain": 2,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "NUL and CR wrongly permitted in header values; byte-exact validation of text, which this task's byte-for-byte check rewards."
+   },
+   {
+    "rank": 5,
+    "task_id": "pylons__waitress-434",
+    "skill": 2,
+    "domain": 2,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Stray \\xa0 and \\x85 stripped from header values; exact character handling at boundaries."
+   },
+   {
+    "rank": 6,
+    "task_id": "timothycrosley__isort-891",
+    "skill": 2,
+    "domain": 2,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "isort ignores skip settings while rewriting files in place; in-place file rewriting tool."
+   },
+   {
+    "rank": 7,
+    "task_id": "oscal-compass__compliance-trestle-1573",
+    "skill": 1,
+    "domain": 2,
+    "task_form": 2,
+    "overall": 1,
+    "reason": "CSV headings should be accepted in any case; CSV column handling, shallow."
+   },
+   {
+    "rank": 8,
+    "task_id": "pallets__click-2006",
+    "skill": 1,
+    "domain": 1,
+    "task_form": 2,
+    "overall": 1,
+    "reason": "click.Path wrongly reports a missing file; unrelated."
+   },
+   {
+    "rank": 9,
+    "task_id": "delgan__loguru-960",
+    "skill": 1,
+    "domain": 1,
+    "task_form": 2,
+    "overall": 1,
+    "reason": "Log rotation produces odd files; unrelated."
+   },
+   {
+    "rank": 10,
+    "task_id": "pypa__pipx-1339",
+    "skill": 1,
+    "domain": 1,
+    "task_form": 2,
+    "overall": 1,
+    "reason": "pipx upgrade should take several packages; unrelated, fills the ten."
+   }
+  ],
+  "Terminal-Lego-15k": [
+   {
+    "rank": 1,
+    "task_id": "task_06307",
+    "skill": 5,
+    "domain": 5,
+    "task_form": 5,
+    "overall": 5,
+    "reason": "Capitalize each word by driving Vim headlessly (vim -es / vim -c) with ex commands, output compared byte-for-byte. Same tool, same invocation, same success criterion."
+   },
+   {
+    "rank": 2,
+    "task_id": "task_06308",
+    "skill": 5,
+    "domain": 5,
+    "task_form": 4,
+    "overall": 5,
+    "reason": "Series of :%s/// replacements where the whole difficulty is escaping inside Vim's substitution syntax - exactly what breaks a setreg macro string."
+   },
+   {
+    "rank": 3,
+    "task_id": "task_06291",
+    "skill": 5,
+    "domain": 5,
+    "task_form": 4,
+    "overall": 5,
+    "reason": "Multi-line matching in Vim's own regex dialect (\\_. and friends) via ex mode; Vim regex is not PCRE and this is where solvers go wrong here."
+   },
+   {
+    "rank": 4,
+    "task_id": "task_06116",
+    "skill": 4,
+    "domain": 5,
+    "task_form": 4,
+    "overall": 4,
+    "reason": "Append a character to every line with :%s and $ motions run non-interactively; the per-line whole-file edit this task performs three times."
+   },
+   {
+    "rank": 5,
+    "task_id": "task_06134",
+    "skill": 4,
+    "domain": 5,
+    "task_form": 4,
+    "overall": 4,
+    "reason": "Search-and-replace in Vim including the confirm variant; precise control of :%s ranges and flags. Strong verifier."
+   },
+   {
+    "rank": 6,
+    "task_id": "task_06205",
+    "skill": 4,
+    "domain": 5,
+    "task_form": 4,
+    "overall": 4,
+    "reason": "Vim word-boundary syntax (\\< \\>) used from ex mode to filter lines; Vim-dialect regex authoring against an exact output."
+   },
+   {
+    "rank": 7,
+    "task_id": "task_06187",
+    "skill": 4,
+    "domain": 5,
+    "task_form": 3,
+    "overall": 4,
+    "reason": "Regex capture groups in Vim's \\(...\\) / \\1 form to rewrite words; the substitution the TB macros must get right."
+   },
+   {
+    "rank": 8,
+    "task_id": "task_02007",
+    "skill": 3,
+    "domain": 5,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Join lines in Vim by deleting newlines (J / :%s/\\n/); normal-mode editing operators applied across a file."
+   },
+   {
+    "rank": 9,
+    "task_id": "task_06455",
+    "skill": 3,
+    "domain": 5,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Navigate and duplicate XML sections with % tag matching in Vim; normal-mode motions and yank/put, macro-style editing."
+   },
+   {
+    "rank": 10,
+    "task_id": "task_09547",
+    "skill": 3,
+    "domain": 4,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Batch edits across files with :cdo/:cfdo and %s, optionally via vim -E; scriptable Vim editing at scale."
+   }
+  ],
+  "CalibForge": [
+   {
+    "rank": 1,
+    "task_id": "software-engineering_20260510_062946_021",
+    "skill": 4,
+    "domain": 4,
+    "task_form": 5,
+    "overall": 4,
+    "reason": "Write a standalone sed program that tracks bracket nesting - programming inside an editor language with only its primitives, like macro-only Vim. Strong verifier."
+   },
+   {
+    "rank": 2,
+    "task_id": "optimization_20260601_053159_001",
+    "skill": 3,
+    "domain": 3,
+    "task_form": 5,
+    "overall": 3,
+    "reason": "Rewrite a CSV pipeline to be 10x faster with byte-for-byte identical output; the budget-plus-exact-output shape. Packet grades it FREE, so it stays out of final_top10."
+   },
+   {
+    "rank": 3,
+    "task_id": "software-engineering_20260419_065313_005",
+    "skill": 3,
+    "domain": 4,
+    "task_form": 4,
+    "overall": 3,
+    "reason": "Repair a legacy AWK script that transforms transaction records; line-oriented text processing in a terse editing language."
+   },
+   {
+    "rank": 4,
+    "task_id": "data-querying_20260604_002443_001",
+    "skill": 3,
+    "domain": 4,
+    "task_form": 4,
+    "overall": 3,
+    "reason": "Write awk scripts that aggregate a large delimited file into exact expected output; per-line transformation with pinned results."
+   },
+   {
+    "rank": 5,
+    "task_id": "data-processing_20260430_081156_004",
+    "skill": 3,
+    "domain": 3,
+    "task_form": 4,
+    "overall": 3,
+    "reason": "Per-row encoding repair in a merged CSV; byte-level correctness across a large row set, Python rather than an editor."
+   },
+   {
+    "rank": 6,
+    "task_id": "file-operations_20260613_152233_005",
+    "skill": 3,
+    "domain": 3,
+    "task_form": 4,
+    "overall": 3,
+    "reason": "Reconstruct files from a mangled single-line xxd dump; exact byte reconstruction from a text representation."
+   },
+   {
+    "rank": 7,
+    "task_id": "software-engineering_20260414_211532_018",
+    "skill": 3,
+    "domain": 2,
+    "task_form": 4,
+    "overall": 3,
+    "reason": "Generate quines - programs that must reproduce themselves exactly, which is escaping and self-reference discipline, as setreg strings demand."
+   },
+   {
+    "rank": 8,
+    "task_id": "file-operations_20260602_105139_002",
+    "skill": 2,
+    "domain": 3,
+    "task_form": 4,
+    "overall": 2,
+    "reason": "Undo CRLF-to-LF mangling in binary PNGs; byte-exact repair of a whole-file transformation."
+   },
+   {
+    "rank": 9,
+    "task_id": "software-engineering_20260502_090008_023",
+    "skill": 2,
+    "domain": 2,
+    "task_form": 3,
+    "overall": 2,
+    "reason": "A CSV-processing app hangs under multiprocessing; large-CSV throughput, but the fix is concurrency not editing."
+   },
+   {
+    "rank": 10,
+    "task_id": "software-engineering_20260604_003113_017",
+    "skill": 2,
+    "domain": 2,
+    "task_form": 3,
+    "overall": 2,
+    "reason": "Reverse-engineer a line-in/line-out oracle and reimplement it; input-to-output fidelity, different mechanism."
+   }
+  ]
+ },
+ "final_top10": [
+  {
+   "rank": 1,
+   "task_id": "task_06307",
+   "source": "Terminal-Lego-15k",
+   "skill": 5,
+   "domain": 5,
+   "task_form": 5,
+   "overall": 5,
+   "reason": "Drive Vim headlessly (vim -es / vim -c) with ex commands to transform a file, checked byte-for-byte. Same tool, same invocation, same success criterion."
+  },
+  {
+   "rank": 2,
+   "task_id": "task_06308",
+   "source": "Terminal-Lego-15k",
+   "skill": 5,
+   "domain": 5,
+   "task_form": 4,
+   "overall": 5,
+   "reason": "Chained :%s/// replacements whose whole difficulty is escaping inside Vim's substitution syntax - the exact hazard in a setreg macro string."
+  },
+  {
+   "rank": 3,
+   "task_id": "task_06291",
+   "source": "Terminal-Lego-15k",
+   "skill": 5,
+   "domain": 5,
+   "task_form": 4,
+   "overall": 5,
+   "reason": "Multi-line matching in Vim's own regex dialect from ex mode; Vim regex is not PCRE and that is where this task's macros fail."
+  },
+  {
+   "rank": 4,
+   "task_id": "task_06116",
+   "source": "Terminal-Lego-15k",
+   "skill": 4,
+   "domain": 5,
+   "task_form": 4,
+   "overall": 4,
+   "reason": "Whole-file per-line edit run non-interactively with :%s and end-of-line motions; one of the three transformations this task needs."
+  },
+  {
+   "rank": 5,
+   "task_id": "task_06134",
+   "source": "Terminal-Lego-15k",
+   "skill": 4,
+   "domain": 5,
+   "task_form": 4,
+   "overall": 4,
+   "reason": "Precise control of :%s ranges, flags and confirmation in Vim; strong verifier on the resulting file."
+  },
+  {
+   "rank": 6,
+   "task_id": "task_06205",
+   "source": "Terminal-Lego-15k",
+   "skill": 4,
+   "domain": 5,
+   "task_form": 4,
+   "overall": 4,
+   "reason": "Vim word-boundary syntax used from ex mode to produce an exact filtered file; Vim-dialect regex authoring."
+  },
+  {
+   "rank": 7,
+   "task_id": "task_06187",
+   "source": "Terminal-Lego-15k",
+   "skill": 4,
+   "domain": 5,
+   "task_form": 3,
+   "overall": 4,
+   "reason": "Capture groups in Vim's \\(...\\)/\\1 form to rewrite every word; the substitution the macros here must get right."
+  },
+  {
+   "rank": 8,
+   "task_id": "software-engineering_20260510_062946_021",
+   "source": "CalibForge",
+   "skill": 4,
+   "domain": 4,
+   "task_form": 5,
+   "overall": 4,
+   "reason": "Write a sed program that tracks nesting using only the editor language's primitives - the same 'no scripting allowed, use the editor' constraint. Strong verifier."
+  },
+  {
+   "rank": 9,
+   "task_id": "task_001805_7adfc444",
+   "source": "TMax-15K",
+   "skill": 4,
+   "domain": 3,
+   "task_form": 4,
+   "overall": 4,
+   "reason": "Apply a specified text-replacement macro across a codebase under stated selection rules, verified against exact content. Strong verifier."
+  },
+  {
+   "rank": 10,
+   "task_id": "task_02007",
+   "source": "Terminal-Lego-15k",
+   "skill": 3,
+   "domain": 5,
+   "task_form": 3,
+   "overall": 3,
+   "reason": "Join lines in Vim by removing newlines; normal-mode operators applied over a whole file, which macros @a/@b/@c must do."
+  }
+ ],
+ "notes": "This is the clearest case in my five where a new corpus beats the old pool outright. The v1 pool (56k tasks) contains essentially no Vim editing tasks - 'tools.py search all vim' returns nine hits, all of them incidental mentions of vim as one of several editors, plus one 'build VIM from source'. Terminal-Lego-15k has a dense, mostly strong-graded cluster of tasks that drive Vim headlessly in ex mode and check output byte-for-byte (task_063xx family), which is exactly this TB2.1 task. Eight of my final ten are Terminal-Lego and that is the honest answer, not a quota artifact. CalibForge's contribution is the sed-program task, which captures the 'program using only the editor's own primitives' constraint. SWE-Smith and SWE-Rebench have nothing here; their entries are filler with overall 1-3 and should not be read as endorsements. TerminalWorld also has no Vim content beyond tw_17688 (building Vim)."
+}

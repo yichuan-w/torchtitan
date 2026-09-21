@@ -1,0 +1,35 @@
+{
+  "n_tb21_done": 89,
+  "n_tb21_expected": 89,
+  "n_rows_final": 890,
+  "final_top10_source_slots": {
+    "CalibForge": 500,
+    "TMax-15K": 217,
+    "Terminal-Lego-15k": 97,
+    "SWE-Rebench-Tasks-Clean": 18,
+    "SWE-Smith-Seeds-Clean": 16,
+    "TerminalWorld-Seeds-Clean": 25,
+    "Recursive-Task-Synthesis": 17
+  },
+  "final_rank1_source_wins": {
+    "CalibForge": 72,
+    "TMax-15K": 9,
+    "SWE-Smith-Seeds-Clean": 1,
+    "Terminal-Lego-15k": 6,
+    "Recursive-Task-Synthesis": 1
+  },
+  "mean_scores_final": {
+    "skill": 4.366,
+    "domain": 4.554,
+    "task_form": 4.18,
+    "overall": 4.254
+  },
+  "overall_histogram": {
+    "3": 42,
+    "4": 580,
+    "5": 268
+  },
+  "single_source_top10": [],
+  "near_duplicate_pairs_in_top10": {},
+  "problems": []
+}

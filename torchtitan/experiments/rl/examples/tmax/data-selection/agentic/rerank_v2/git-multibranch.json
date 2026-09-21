@@ -1,0 +1,770 @@
+{
+ "tb21_id": "git-multibranch",
+ "tb21_profile": {
+  "skill": "Wire several daemons into one working pipeline: sshd with password auth, a bare repo whose post-receive hook checks out two branches to two web roots, and nginx serving both over self-signed TLS",
+  "domain": "Linux service administration - OpenSSH, git hooks and bare repos, nginx virtual hosts and path routing, OpenSSL self-signed certificates",
+  "task_form": "configure-a-service end to end, graded by observed behaviour (clone, push, curl two URLs) rather than by any file's contents"
+ },
+ "verifier_notes": "No grade overturned. task_003669_be3ad2e1 (TMax) is the same CD-pipeline-plus-HTTPS shape but FREE, so it is left out entirely rather than ranked. Note that this TB2.1 task's own grading is end-to-end behavioural, so `behavioral` and `strong` candidates transfer the right habit and `FREE` ones actively teach the wrong one.",
+ "searches": [
+  "tools.py search all '(?i)post-receive|git hook|bare repos|git daemon|git server|git over ssh'",
+  "tools.py search all '(?i)self-signed|nginx.{0,60}(https|ssl|tls|443)|openssl req'",
+  "tools.py search tmax '(?i)sshd|ssh server|password authentication|systemd service|reverse proxy'",
+  "tools.py search tw '(?i)nginx|apache|https://localhost|self-signed|sshd|ssh server|virtual host|serve.{0,25}(static|over http)'",
+  "tools.py search rebench '(?i)self-signed|ssl context|\\bsshd?\\b|paramiko|tls certificate|nginx|reverse proxy|wsgi server'",
+  "tools.py search smith '(?i)self-signed|ssl|paramiko|\\bssh\\b|nginx|proxy|wsgi|static files'",
+  "grep -rlE -i 'nginx' /data/yichuan_wang/terminal-lego-15k/*/instruction.md",
+  "grep -rlE -i 'sshd|ssh server|authorized_keys|password authentication' /data/yichuan_wang/terminal-lego-15k/*/instruction.md",
+  "grep -rlE -i 'self-signed|https.{0,30}(cert|ssl)|openssl req' /data/yichuan_wang/terminal-lego-15k/*/instruction.md",
+  "grep -rlE -i 'post-receive|bare repo|git server|deploy' /data/yichuan_wang/terminal-lego-15k/*/instruction.md"
+ ],
+ "per_source": {
+  "TMax-15K": [
+   {
+    "rank": 1,
+    "task_id": "task_003575_8f9fa187",
+    "skill": 5,
+    "domain": 5,
+    "task_form": 5,
+    "overall": 5,
+    "reason": "A bare repo whose post-receive hook should check code out to a served directory but does not; debug the hook until a push deploys."
+   },
+   {
+    "rank": 2,
+    "task_id": "task_008507_de9e4b80",
+    "skill": 5,
+    "domain": 5,
+    "task_form": 5,
+    "overall": 5,
+    "reason": "Push to a local git server, validate in the hook, serve over a secure web server - the same three-stage pipeline."
+   },
+   {
+    "rank": 3,
+    "task_id": "task_005719_210d44da",
+    "skill": 4,
+    "domain": 5,
+    "task_form": 5,
+    "overall": 4,
+    "reason": "Create the bare repo and a post-receive hook that builds and runs a daemon on every push; hook authorship with a strong verifier."
+   },
+   {
+    "rank": 4,
+    "task_id": "task_005236_7e112103",
+    "skill": 4,
+    "domain": 5,
+    "task_form": 5,
+    "overall": 4,
+    "reason": "Git-push deployment that restarts a service automatically; the push-triggers-side-effect contract, strongly verified."
+   },
+   {
+    "rank": 5,
+    "task_id": "task_006679_24c9d5ea",
+    "skill": 4,
+    "domain": 5,
+    "task_form": 4,
+    "overall": 4,
+    "reason": "Finish a half-built staged pipeline by writing the git hook and the routing proxy - hook plus front-end routing, exactly this pairing."
+   },
+   {
+    "rank": 6,
+    "task_id": "task_007275_4fc0e2ff",
+    "skill": 4,
+    "domain": 4,
+    "task_form": 4,
+    "overall": 4,
+    "reason": "Git deployment pipeline plus traffic redirection to the new version; deployment wiring with port-level plumbing."
+   },
+   {
+    "rank": 7,
+    "task_id": "task_008540_a95835ab",
+    "skill": 4,
+    "domain": 5,
+    "task_form": 4,
+    "overall": 4,
+    "reason": "Continuous deployment through git hooks with no root and no init system; forces the hook itself to manage the served process."
+   },
+   {
+    "rank": 8,
+    "task_id": "task_008370_d7c9163e",
+    "skill": 3,
+    "domain": 4,
+    "task_form": 4,
+    "overall": 3,
+    "reason": "Combine git hooks, a TLS web server and a health checker; right ingredients, but graded weakly and padded with C work."
+   },
+   {
+    "rank": 9,
+    "task_id": "task_000330_e670f9a0",
+    "skill": 3,
+    "domain": 4,
+    "task_form": 4,
+    "overall": 3,
+    "reason": "Generate a self-signed cert then stand up a gateway in front of several backend services - TLS setup plus multi-service routing."
+   },
+   {
+    "rank": 10,
+    "task_id": "task_000244_5126f863",
+    "skill": 3,
+    "domain": 4,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Diagnose a 502 from nginx to its backend; the debugging loop you hit when a deployed path serves nothing."
+   }
+  ],
+  "Recursive-Task-Synthesis": [
+   {
+    "rank": 1,
+    "task_id": "rts_task_ac5bae979fa490a126c01773",
+    "skill": 4,
+    "domain": 5,
+    "task_form": 4,
+    "overall": 4,
+    "reason": "Configure HTTPS via default-ssl with a self-signed CN=localhost cert at fixed key/cert paths, and make a page serve correctly - same TLS wiring."
+   },
+   {
+    "rank": 2,
+    "task_id": "rts_task_cf457446831c5c062d5d52d8",
+    "skill": 3,
+    "domain": 5,
+    "task_form": 4,
+    "overall": 3,
+    "reason": "Confirm the index page serves over both http and https with the self-signed default-ssl site; end-to-end verification by fetching URLs."
+   },
+   {
+    "rank": 3,
+    "task_id": "rts_task_7515170acbac59c9ce9c299c",
+    "skill": 3,
+    "domain": 4,
+    "task_form": 4,
+    "overall": 3,
+    "reason": "Provision Apache with SSL, the ssl module and default-ssl site plus PHP; multi-component service provisioning."
+   },
+   {
+    "rank": 4,
+    "task_id": "rts_task_7c2c9533c50d05a84a2b2980",
+    "skill": 3,
+    "domain": 4,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Generate a self-signed X.509 with a required CommonName using openssl when the existing one is unsuitable - the certificate step alone."
+   },
+   {
+    "rank": 5,
+    "task_id": "rts_task_a8a49001c63725f5108ecce4",
+    "skill": 3,
+    "domain": 4,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Build a CA plus node and client certificates and bring up a TLS-secured service with them; deeper PKI than this task needs."
+   },
+   {
+    "rank": 6,
+    "task_id": "rts_task_6fe52fdbbf86eaa72584b683",
+    "skill": 3,
+    "domain": 4,
+    "task_form": 4,
+    "overall": 3,
+    "reason": "Iterate on a pre-flight check, generating the missing TLS certificate until the service starts - fix-until-the-check-passes loop."
+   },
+   {
+    "rank": 7,
+    "task_id": "rts_task_b9c87bbb14b5d47ed45d40c3",
+    "skill": 3,
+    "domain": 5,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Create a bare repository and push a branch into it; the server side of this task, minus hooks and serving."
+   },
+   {
+    "rank": 8,
+    "task_id": "rts_task_c9e30662e7248b9d83fd511f",
+    "skill": 3,
+    "domain": 5,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Configure a local bare repo as origin and push the branch and tags - remote configuration and push mechanics."
+   },
+   {
+    "rank": 9,
+    "task_id": "rts_task_c32eed3ce340b50a59ad390f",
+    "skill": 2,
+    "domain": 5,
+    "task_form": 3,
+    "overall": 2,
+    "reason": "Add a remote pointing at a bare repo and push so the remote holds the commit; verified on the remote's state, like this task."
+   },
+   {
+    "rank": 10,
+    "task_id": "rts_task_2d173883079e638aee794622",
+    "skill": 2,
+    "domain": 5,
+    "task_form": 3,
+    "overall": 2,
+    "reason": "Commit index.html and push to a bare remote; same artefacts and vocabulary, none of the service wiring."
+   }
+  ],
+  "TerminalWorld-Seeds-Clean": [
+   {
+    "rank": 1,
+    "task_id": "tw_11181",
+    "skill": 4,
+    "domain": 5,
+    "task_form": 4,
+    "overall": 4,
+    "reason": "Stand up an SSH server with a set root password and expose it on a port - password-authenticated sshd, the access layer this task needs."
+   },
+   {
+    "rank": 2,
+    "task_id": "tw_248466",
+    "skill": 4,
+    "domain": 4,
+    "task_form": 4,
+    "overall": 4,
+    "reason": "Build a web server image that serves a specific index.html at the document root; graded by the exact served content, as here."
+   },
+   {
+    "rank": 3,
+    "task_id": "tw_304629",
+    "skill": 4,
+    "domain": 4,
+    "task_form": 4,
+    "overall": 4,
+    "reason": "An httpd that will not start and is unreachable: fix it until the server actually answers over the network. Strong verifier."
+   },
+   {
+    "rank": 4,
+    "task_id": "tw_117157",
+    "skill": 3,
+    "domain": 5,
+    "task_form": 4,
+    "overall": 3,
+    "reason": "Edit sshd_config and get the daemon actually listening on the new port - config-then-verify-the-listener, the sshd half."
+   },
+   {
+    "rank": 5,
+    "task_id": "tw_321921",
+    "skill": 3,
+    "domain": 4,
+    "task_form": 4,
+    "overall": 3,
+    "reason": "Make httpd reachable on a port another service and the firewall are blocking; port-level debugging of a served endpoint."
+   },
+   {
+    "rank": 6,
+    "task_id": "tw_134374",
+    "skill": 3,
+    "domain": 5,
+    "task_form": 4,
+    "overall": 3,
+    "reason": "Install and configure an nginx plus php-fpm stack from scratch; multi-package service provisioning, weakly verified."
+   },
+   {
+    "rank": 7,
+    "task_id": "tw_138158",
+    "skill": 3,
+    "domain": 4,
+    "task_form": 4,
+    "overall": 3,
+    "reason": "Reproduce a staging stack: Apache with specific modules plus Varnish and Node; wiring several services into one working environment."
+   },
+   {
+    "rank": 8,
+    "task_id": "tw_11162",
+    "skill": 3,
+    "domain": 4,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Build and run an sshd container with ports published; getting an SSH endpoint reachable, containerised."
+   },
+   {
+    "rank": 9,
+    "task_id": "tw_244302",
+    "skill": 2,
+    "domain": 4,
+    "task_form": 3,
+    "overall": 2,
+    "reason": "Render every branch of a repository into a static HTML site - the branches-become-web-content idea, done by a tool not a hook."
+   },
+   {
+    "rank": 10,
+    "task_id": "tw_313804",
+    "skill": 2,
+    "domain": 5,
+    "task_form": 3,
+    "overall": 2,
+    "reason": "Add a remote, commit index.html and push so the bare repo holds it; the client half only, strong verifier."
+   }
+  ],
+  "SWE-Smith-Seeds-Clean": [
+   {
+    "rank": 1,
+    "task_id": "encode__starlette.db5063c2.combine_file__spx82e31",
+    "skill": 3,
+    "domain": 4,
+    "task_form": 2,
+    "overall": 3,
+    "reason": "Static file serving returns 404 for files that exist; debugging why a path does not serve its file is the failure mode here."
+   },
+   {
+    "rank": 2,
+    "task_id": "encode__starlette.db5063c2.pr_2583",
+    "skill": 3,
+    "domain": 4,
+    "task_form": 2,
+    "overall": 3,
+    "reason": "StaticFiles mounted at a prefix mishandles a path it cannot serve; prefix mounting is exactly what the /dev/ endpoint needs."
+   },
+   {
+    "rank": 3,
+    "task_id": "benoitc__gunicorn.bacbf8aa.func_pm_ctrl_invert_if__niwrv91e",
+    "skill": 3,
+    "domain": 4,
+    "task_form": 2,
+    "overall": 3,
+    "reason": "A server ignores its config file and never binds where told; config-is-not-taking-effect debugging, the daily work of this task."
+   },
+   {
+    "rank": 4,
+    "task_id": "benoitc__gunicorn.bacbf8aa.lm_rewrite__4twhroug",
+    "skill": 3,
+    "domain": 4,
+    "task_form": 2,
+    "overall": 3,
+    "reason": "Stale unix socket left behind on shutdown; service lifecycle and socket hygiene, which a redeploy-on-push must also handle."
+   },
+   {
+    "rank": 5,
+    "task_id": "django__daphne.32ac73e1.func_basic__f755cc7l",
+    "skill": 2,
+    "domain": 4,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Proxy-header options take effect without their enabling flag; reverse-proxy configuration semantics behind a front-end server."
+   },
+   {
+    "rank": 6,
+    "task_id": "benoitc__gunicorn.bacbf8aa.combine_module__ernek77y",
+    "skill": 2,
+    "domain": 4,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "The WSGI application's configuration system is broken at construction; same server, shallower cause."
+   },
+   {
+    "rank": 7,
+    "task_id": "benoitc__gunicorn.bacbf8aa.lm_rewrite__rirs2pou",
+    "skill": 2,
+    "domain": 4,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "CLI flags and config file merge incorrectly; precedence rules between config sources, a recurring sysadmin trap."
+   },
+   {
+    "rank": 8,
+    "task_id": "benoitc__gunicorn.bacbf8aa.combine_file__l5lzzje0",
+    "skill": 2,
+    "domain": 3,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "HTTP body readers broken; protocol-level server internals rather than deployment configuration."
+   },
+   {
+    "rank": 9,
+    "task_id": "iterative__dvc.1d6ea681.combine_module__ixxgp1s2",
+    "skill": 2,
+    "domain": 3,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "ssh:// remote URLs no longer resolve to a filesystem; parsing the same git@host:/path shape this task's remote uses."
+   },
+   {
+    "rank": 10,
+    "task_id": "cookiecutter__cookiecutter.b4451231.func_pm_remove_wrapper__89cymcf0",
+    "skill": 2,
+    "domain": 3,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Cloning over git and ssh silently does nothing; a remote operation that reports success without transferring anything."
+   }
+  ],
+  "SWE-Rebench-Tasks-Clean": [
+   {
+    "rank": 1,
+    "task_id": "devpi__devpi-1074",
+    "skill": 3,
+    "domain": 4,
+    "task_form": 2,
+    "overall": 3,
+    "reason": "A service fronted by nginx with a TLS cert and basic auth stops storing credentials; auth across a reverse proxy, the deployment shape here."
+   },
+   {
+    "rank": 2,
+    "task_id": "conan-io__conan-18444",
+    "skill": 3,
+    "domain": 4,
+    "task_form": 2,
+    "overall": 3,
+    "reason": "Parsing ssh://git@host:port/path remotes fails on treeless clones - the exact remote-URL form this task's clients use."
+   },
+   {
+    "rank": 3,
+    "task_id": "pyca__cryptography-12286",
+    "skill": 3,
+    "domain": 4,
+    "task_form": 2,
+    "overall": 3,
+    "reason": "SSH key loading disagrees with PEM on unencrypted keys and passwords; key-format handling behind SSH authentication."
+   },
+   {
+    "rank": 4,
+    "task_id": "pylons__waitress-434",
+    "skill": 2,
+    "domain": 4,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "An HTTP server mangles header values it should preserve; server-side request handling, useful for reasoning about proxied headers."
+   },
+   {
+    "rank": 5,
+    "task_id": "pylons__waitress-376",
+    "skill": 2,
+    "domain": 4,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Header-size accounting wrong when headers arrive in chunks; HTTP server internals under the endpoints this task exposes."
+   },
+   {
+    "rank": 6,
+    "task_id": "boto__botocore-830",
+    "skill": 2,
+    "domain": 4,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "A client uses HTTPS where the endpoint declares HTTP; scheme-versus-endpoint confusion, the same class as a wrong TLS listener."
+   },
+   {
+    "rank": 7,
+    "task_id": "neoteroi__blacksheep-366",
+    "skill": 2,
+    "domain": 4,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Invalid Access-Control-Allow-Origin emitted for multiple origins; getting a response header exactly right for a served endpoint."
+   },
+   {
+    "rank": 8,
+    "task_id": "jazzband__django-axes-1022",
+    "skill": 2,
+    "domain": 4,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Client IP resolution behind a load balancer and reverse proxy via X-Forwarded-For; the proxy-in-front mental model."
+   },
+   {
+    "rank": 9,
+    "task_id": "fsspec__universal_pathlib-265",
+    "skill": 2,
+    "domain": 3,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "SSH/SFTP path handling changed between versions; reasoning about ssh:// URLs and remote paths."
+   },
+   {
+    "rank": 10,
+    "task_id": "pypa__pipx-1625",
+    "skill": 1,
+    "domain": 3,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "VCS URL scheme validation for git+ssh and friends; only the URL vocabulary overlaps."
+   }
+  ],
+  "Terminal-Lego-15k": [
+   {
+    "rank": 1,
+    "task_id": "task_10658",
+    "skill": 4,
+    "domain": 5,
+    "task_form": 4,
+    "overall": 4,
+    "reason": "Configure a web server with a self-signed SSL certificate on Debian - generate the cert, wire the vhost, serve HTTPS. The TLS half exactly."
+   },
+   {
+    "rank": 2,
+    "task_id": "task_11863",
+    "skill": 4,
+    "domain": 5,
+    "task_form": 4,
+    "overall": 4,
+    "reason": "Fix try_files with alias so a sub-path serves the right file; this is precisely how /dev/index.html usually breaks. Strong verifier."
+   },
+   {
+    "rank": 3,
+    "task_id": "task_02277",
+    "skill": 4,
+    "domain": 5,
+    "task_form": 4,
+    "overall": 4,
+    "reason": "Repair an nginx config hosting several sites at once - two independent document roots under one server, as required here."
+   },
+   {
+    "rank": 4,
+    "task_id": "task_11831",
+    "skill": 3,
+    "domain": 5,
+    "task_form": 4,
+    "overall": 3,
+    "reason": "Make nginx actually serve local files from a root; document-root and permission debugging, strongly verified."
+   },
+   {
+    "rank": 5,
+    "task_id": "task_00392",
+    "skill": 3,
+    "domain": 5,
+    "task_form": 4,
+    "overall": 3,
+    "reason": "Fix SSH connection refused on localhost - getting sshd running and accepting connections, the first thing this task needs."
+   },
+   {
+    "rank": 6,
+    "task_id": "task_11743",
+    "skill": 3,
+    "domain": 5,
+    "task_form": 4,
+    "overall": 3,
+    "reason": "Diagnose and fix SSH connection failures; systematic service-reachability debugging with pinned expected outcomes."
+   },
+   {
+    "rank": 7,
+    "task_id": "task_02071",
+    "skill": 3,
+    "domain": 5,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Make ssh to localhost work without a password prompt; the git@localhost access path, via keys instead of a password."
+   },
+   {
+    "rank": 8,
+    "task_id": "task_10568",
+    "skill": 3,
+    "domain": 5,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Script an sshd_config override file rather than editing the main config; the right way to enable password auth cleanly."
+   },
+   {
+    "rank": 9,
+    "task_id": "task_03058",
+    "skill": 3,
+    "domain": 4,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Configure and verify HTTPS on a non-default port, which is the 8443 requirement here; graded only weakly."
+   },
+   {
+    "rank": 10,
+    "task_id": "task_11486",
+    "skill": 2,
+    "domain": 5,
+    "task_form": 3,
+    "overall": 2,
+    "reason": "Convert a normal repository into a bare one - the server-side repo form that a push target and its hooks require."
+   }
+  ],
+  "CalibForge": [
+   {
+    "rank": 1,
+    "task_id": "system-administration_20260415_094424_002",
+    "skill": 5,
+    "domain": 5,
+    "task_form": 5,
+    "overall": 5,
+    "reason": "A bare repo that should deploy to an nginx-served root on push, and does not. Same architecture, same failure, strong verifier."
+   },
+   {
+    "rank": 2,
+    "task_id": "system-administration_20260604_003814_003",
+    "skill": 5,
+    "domain": 5,
+    "task_form": 5,
+    "overall": 5,
+    "reason": "Generate a self-signed cert and have nginx serve two different apps over HTTPS on port 8443; the serving half almost exactly."
+   },
+   {
+    "rank": 3,
+    "task_id": "system-administration_20260604_193056_006",
+    "skill": 5,
+    "domain": 5,
+    "task_form": 5,
+    "overall": 5,
+    "reason": "A private git-over-SSH server where the user, sshd and repo dirs exist but nothing works end to end; diagnose every issue and finish it."
+   },
+   {
+    "rank": 4,
+    "task_id": "system-administration_20260606_172554_003",
+    "skill": 4,
+    "domain": 5,
+    "task_form": 5,
+    "overall": 4,
+    "reason": "Two endpoints over HTTPS on 8443 with their own web roots, plus a PKI to build; same port and routing, harder certificate story."
+   },
+   {
+    "rank": 5,
+    "task_id": "system-administration_20260613_152233_007",
+    "skill": 5,
+    "domain": 5,
+    "task_form": 5,
+    "overall": 4,
+    "reason": "Self-hosted git server with anonymous reads, authenticated SSH pushes and a web view of the repos - the multi-access-path wiring."
+   },
+   {
+    "rank": 6,
+    "task_id": "system-administration_20260610_112157_007",
+    "skill": 4,
+    "domain": 5,
+    "task_form": 5,
+    "overall": 4,
+    "reason": "Git server exposing git-daemon and SSH with per-repository export markers; careful access configuration across two protocols."
+   },
+   {
+    "rank": 7,
+    "task_id": "system-administration_20260604_002443_003",
+    "skill": 4,
+    "domain": 5,
+    "task_form": 4,
+    "overall": 4,
+    "reason": "nginx serving a signed repository over HTTPS at localhost:8443 behind basic auth; same endpoint shape, plus signing."
+   },
+   {
+    "rank": 8,
+    "task_id": "system-administration_20260601_053159_005",
+    "skill": 4,
+    "domain": 5,
+    "task_form": 5,
+    "overall": 4,
+    "reason": "Git over HTTP through nginx and git-http-backend plus a git:// path and push logging; hook-driven side effects on push."
+   },
+   {
+    "rank": 9,
+    "task_id": "system-administration_20260510_142854_003",
+    "skill": 4,
+    "domain": 5,
+    "task_form": 4,
+    "overall": 4,
+    "reason": "Restore an HTTPS site and SSH access after a hardening script broke both; the same two services, approached as repair."
+   },
+   {
+    "rank": 10,
+    "task_id": "system-administration_20260610_111702_002",
+    "skill": 3,
+    "domain": 5,
+    "task_form": 4,
+    "overall": 4,
+    "reason": "Bring an app up behind nginx on HTTPS 8443, verified by curl -k against two paths - identical acceptance criteria."
+   }
+  ]
+ },
+ "final_top10": [
+  {
+   "rank": 1,
+   "task_id": "system-administration_20260415_094424_002",
+   "source": "CalibForge",
+   "skill": 5,
+   "domain": 5,
+   "task_form": 5,
+   "overall": 5,
+   "reason": "Bare repo that should deploy to an nginx document root on push but does not; same architecture and same failure, strongly verified."
+  },
+  {
+   "rank": 2,
+   "task_id": "task_003575_8f9fa187",
+   "source": "TMax-15K",
+   "skill": 5,
+   "domain": 5,
+   "task_form": 5,
+   "overall": 5,
+   "reason": "Debug a post-receive hook that fails to check the pushed code out to the deploy directory - the hook half of this task."
+  },
+  {
+   "rank": 3,
+   "task_id": "system-administration_20260604_003814_003",
+   "source": "CalibForge",
+   "skill": 5,
+   "domain": 5,
+   "task_form": 5,
+   "overall": 5,
+   "reason": "Self-signed certificate plus nginx serving two distinct apps over HTTPS on 8443; the serving half almost exactly."
+  },
+  {
+   "rank": 4,
+   "task_id": "system-administration_20260604_193056_006",
+   "source": "CalibForge",
+   "skill": 5,
+   "domain": 5,
+   "task_form": 5,
+   "overall": 5,
+   "reason": "Private git-over-SSH server with user, sshd and repos half-configured; make the whole path work end to end."
+  },
+  {
+   "rank": 5,
+   "task_id": "task_008507_de9e4b80",
+   "source": "TMax-15K",
+   "skill": 5,
+   "domain": 5,
+   "task_form": 5,
+   "overall": 5,
+   "reason": "Push to a local git server, validate in the hook, serve the result over a secure web server - the same three-stage pipeline."
+  },
+  {
+   "rank": 6,
+   "task_id": "system-administration_20260606_172554_003",
+   "source": "CalibForge",
+   "skill": 4,
+   "domain": 5,
+   "task_form": 5,
+   "overall": 4,
+   "reason": "Two HTTPS endpoints on port 8443 with separate web roots and certificates you must build; same port and routing problem."
+  },
+  {
+   "rank": 7,
+   "task_id": "system-administration_20260613_152233_007",
+   "source": "CalibForge",
+   "skill": 5,
+   "domain": 5,
+   "task_form": 5,
+   "overall": 4,
+   "reason": "Self-hosted git server with anonymous read, authenticated SSH push and a web view; the multi-access-path wiring this task needs."
+  },
+  {
+   "rank": 8,
+   "task_id": "task_11863",
+   "source": "Terminal-Lego-15k",
+   "skill": 4,
+   "domain": 5,
+   "task_form": 4,
+   "overall": 4,
+   "reason": "Fix try_files with alias so a sub-path serves its file - precisely how the /dev/index.html endpoint usually breaks."
+  },
+  {
+   "rank": 9,
+   "task_id": "task_10658",
+   "source": "Terminal-Lego-15k",
+   "skill": 4,
+   "domain": 5,
+   "task_form": 4,
+   "overall": 4,
+   "reason": "Generate a self-signed certificate and configure the web server to serve HTTPS with it; the TLS requirement on its own."
+  },
+  {
+   "rank": 10,
+   "task_id": "system-administration_20260604_002443_003",
+   "source": "CalibForge",
+   "skill": 4,
+   "domain": 5,
+   "task_form": 4,
+   "overall": 4,
+   "reason": "nginx serving a repository over HTTPS at localhost:8443 behind auth; same endpoint shape with a signing step added."
+  }
+ ],
+ "notes": "Strongest corpus by far is CalibForge, which has an entire system-administration family of git-server and nginx-HTTPS-on-8443 tasks, several of them graded strong - including one (20260415_094424_002) that is essentially this task minus the second branch. TMax is a close second thanks to a large git-hook deployment-pipeline family. Terminal-Lego contributes precise single-skill pieces the others lack (nginx alias/try_files on a sub-path, self-signed cert on Apache, sshd_config override, fix ssh-to-localhost), and its verifiers here are unusually good - many strong. So yes, both new corpora beat the old ones on this task. Recursive-Task-Synthesis is usable but shallow: its Apache-with-default-ssl and push-to-a-bare-repo entries cover single ingredients, never the integration, and all are verifier-absent. SWE-Smith and SWE-Rebench have no service-configuration tasks at all; I ranked their web-server and ssh-URL library bugs on domain, and their overall scores should be read as 'do not select these unless slots remain'. One thing the merge should know: this task grades behaviour end to end, so candidates whose own tests only check that a config file contains a string would train the wrong reflex - I preferred behaviourally or strongly verified entries at equal skill."
+}

@@ -30,6 +30,8 @@ HERE = Path(__file__).resolve().parent
 CACHE = HERE / "work" / "cache"
 CORPORA = [
     "TMax-15K",
+    "Terminal-Lego-15k",
+    "CalibForge",
     "Recursive-Task-Synthesis",
     "TerminalWorld-Seeds-Clean",
     "SWE-Smith-Seeds-Clean",
