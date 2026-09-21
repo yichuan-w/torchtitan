@@ -569,7 +569,13 @@ def revalidate(
         return {
             "ok": False,
             "stage": "oracle",
-            "why": oracle.get("test_tail", "")[-200:],
+            "why": (oracle.get("why") or oracle.get("test_tail", ""))[-200:],
+            "solve_exit": oracle.get("solve_exit"),
+            "tail": "\n\n".join(
+                text
+                for text in (oracle.get("solve_tail", ""), oracle.get("test_tail", ""))
+                if text
+            ),
         }
     null = sl.shortcut_check(work, image, tid, ":")
     if null.get("passed"):
@@ -993,7 +999,7 @@ def process_one(
         for iteration in range(1, rounds + 1):
             if v["ok"] or rec["action"] != "evolve":
                 break
-            if v.get("stage") not in ("daytona_oracle", "step_size"):
+            if v.get("stage") not in ("daytona_oracle", "oracle", "step_size"):
                 break
             age = _rewrite_age(rewrite)
             budget = float(os.environ.get("EVOLVE_REWRITE_BUDGET_SEC", str(6 * 3600)))

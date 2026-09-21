@@ -263,19 +263,25 @@ def test_revalidate_passes_when_every_unseen_path_is_a_precondition(
     assert v["ok"] is True and v["fast_path"] == "daytona_oracle"
 
 
-def test_process_one_returns_a_step_size_verdict_to_the_agents_session(
-    tmp_path, monkeypatch
+@pytest.mark.parametrize("stage", ["step_size", "daytona_oracle", "oracle"])
+def test_process_one_returns_a_repairable_verdict_to_the_agents_session(
+    tmp_path, monkeypatch, stage
 ) -> None:
     monkeypatch.setenv("EVOLVE_HARDER_OPERATORS", "1")
     rw, r0 = _rewrite(tmp_path, monkeypatch)
     seen = {}
+    reason = (
+        "The rewrite is more than one rung above the seed"
+        if stage == "step_size"
+        else "reward=0"
+    )
     verdicts = iter(
         [
             {
                 "ok": False,
-                "stage": "step_size",
-                "step": ["the reference solution has 40 lines"],
-                "why": "The rewrite is more than one rung above the seed: ...",
+                "stage": stage,
+                "why": reason,
+                "tail": "failure output",
                 "solve_exit": 0,
             },
             {"ok": True, "fast_path": "daytona_oracle", "reward": 1.0},
@@ -321,7 +327,7 @@ def test_process_one_returns_a_step_size_verdict_to_the_agents_session(
     assert rec["status"] == "accepted", rec
     assert rec["oracle_repair"]["ok"] is True
     assert seen["rewrite"] is rw and seen["job"] == "harder"
-    assert seen["observed"].startswith("The rewrite is more than one rung")
+    assert seen["observed"] == reason + "\n\nfailure output"
     assert seen["exit_code"] == 0
     assert rec["operator"] == "op" and rec["arm"] == "codex" and rec["job"] == "harder"
     assert rec["verdicts"]["oracle"] == "pass" and rec["changed"] == [
@@ -333,6 +339,34 @@ def test_process_one_returns_a_step_size_verdict_to_the_agents_session(
         rw.package / "instruction.md"
     ).read_text() == "Write the audit to /app/out.json.\n"
     assert "usage" in rec and rec["t_end"] >= rec["t_start"]
+
+
+@pytest.mark.parametrize("solve_exit", [0, 7])
+def test_docker_oracle_failure_preserves_repair_evidence(
+    tmp_path, monkeypatch, solve_exit
+):
+    work, task = _pkg(tmp_path, SEED["instruction"], SEED["test_state_py"])
+    monkeypatch.setattr(fb, "docker_usable", lambda: True)
+    monkeypatch.setattr(fb.sl, "sh", lambda *a, **k: (0, ""))
+    monkeypatch.setattr(fb.sl, "build_image", lambda *a: (True, ""))
+    monkeypatch.setattr(
+        fb.sl,
+        "oracle_check",
+        lambda *a: {
+            "ok": False,
+            "why": "reward=0",
+            "solve_exit": solve_exit,
+            "solve_tail": "solution output",
+            "test_tail": "FAILED test_report: missing report",
+        },
+    )
+
+    verdict = fb.revalidate(work, "img", "tid", task, orig=SEED)
+
+    assert verdict["ok"] is False and verdict["stage"] == "oracle"
+    assert verdict["solve_exit"] == solve_exit
+    assert verdict["why"] == "reward=0"
+    assert verdict["tail"] == "solution output\n\nFAILED test_report: missing report"
 
 
 def test_process_one_rejects_on_the_verdict_and_says_which_stage(
