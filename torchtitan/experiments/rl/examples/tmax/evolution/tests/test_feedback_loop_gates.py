@@ -1015,3 +1015,54 @@ def test_a_filtered_session_is_retried_fresh_then_gives_up(
     with pytest.raises(AlwaysFiltered.Filtered):
         fb._evolve_retrying_the_filter(AlwaysFiltered(), rec, "tw_x", rw, {}, [])
     assert len(calls) == 3
+
+
+@pytest.mark.parametrize(
+    "which,info_rc,usable",
+    [
+        (None, None, False),            # no client: della, and the original case
+        ("/usr/bin/docker", 0, True),   # client and a daemon that answers
+        ("/usr/bin/docker", 1, False),  # client, no daemon: the case that bit us
+    ],
+)
+def test_docker_is_usable_only_when_the_daemon_answers(
+    monkeypatch, which, info_rc, usable
+) -> None:
+    """A build needs a daemon, not a client.
+
+    The client is a small package that arrives with many base images; the
+    daemon needs a privileged service. A host with one and not the other used
+    to take the local-build branch and fail every structural rewrite at
+    `build` with a socket error, while a configured Daytona probe sat unused
+    beside it.
+    """
+    fb.docker_usable.cache_clear()
+    monkeypatch.setattr(shutil, "which", lambda _name: which)
+    calls = []
+
+    def fake_run(cmd, **kwargs):
+        calls.append(cmd)
+        return types.SimpleNamespace(returncode=info_rc)
+
+    monkeypatch.setattr(fb.subprocess, "run", fake_run)
+    assert fb.docker_usable() is usable
+    # No client means no call at all; the check must not cost a fork to say no.
+    assert calls == ([] if which is None else [["docker", "info"]])
+    fb.docker_usable.cache_clear()
+
+
+def test_docker_daemon_check_survives_its_own_failures(monkeypatch) -> None:
+    """A hung or missing daemon answers "no", not a traceback out of the loop."""
+    fb.docker_usable.cache_clear()
+    monkeypatch.setattr(shutil, "which", lambda _name: "/usr/bin/docker")
+
+    def raise_timeout(cmd, **kwargs):
+        raise fb.subprocess.TimeoutExpired(cmd, 30)
+
+    monkeypatch.setattr(fb.subprocess, "run", raise_timeout)
+    assert fb.docker_usable() is False
+    fb.docker_usable.cache_clear()
+
+    monkeypatch.setattr(fb.subprocess, "run", lambda *a, **k: (_ for _ in ()).throw(OSError()))
+    assert fb.docker_usable() is False
+    fb.docker_usable.cache_clear()

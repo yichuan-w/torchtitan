@@ -32,6 +32,7 @@ The loop writes the record and decides what happens to the package.
 
 from __future__ import annotations
 
+import functools
 import json
 import logging
 import os
@@ -78,6 +79,38 @@ DAYTONA_VENV_PY = (
 DAYTONA_ENV_FILE = os.environ.get(
     "DAYTONA_ENV_FILE", os.path.expanduser("~/.config/daytona/env")
 )
+
+
+@functools.lru_cache(maxsize=1)
+def docker_usable() -> bool:
+    """Whether a build can actually run here, not whether the client is installed.
+
+    The choice between the local build and the Daytona probe used to read
+    `shutil.which("docker")`. A host with the client and no daemon -- the
+    client is a 30 MB package that arrives with half the base images, the
+    daemon needs a privileged service -- answers yes to that and no to the
+    build that follows, so every structural rewrite is rejected at `build`
+    with a socket error while a configured Daytona probe sits unused beside
+    it. Measured on this box 2026-09-20: `docker` at /usr/bin/docker, no
+    /var/run/docker.sock, and the first rewrite the Claude arm produced was
+    thrown away for it.
+
+    `docker info` is the cheapest call that touches the daemon. Cached: the
+    answer cannot change inside one loop process, and the call costs a fork.
+    """
+    if not shutil.which("docker"):
+        return False
+    try:
+        return (
+            subprocess.run(
+                ["docker", "info"],
+                capture_output=True,
+                timeout=30,
+            ).returncode
+            == 0
+        )
+    except (OSError, subprocess.SubprocessError):
+        return False
 
 
 _INFRA_RE = re.compile(
@@ -394,7 +427,7 @@ def revalidate(
     # training rollouts, so an oracle pass there is trust earned on the very
     # environment the task will be solved in. Only when neither docker nor the
     # Daytona probe is available does the change stay unshipped.
-    if not shutil.which("docker"):
+    if not docker_usable():
         # In the box the row will be provisioned at. The probe used to open the
         # harness default (2/4/6) whatever the row said, so a task that fit
         # there and not in its training box (1/2/2 on this corpus) passed here
@@ -1064,5 +1097,5 @@ def process_one(
         # remove; and on a docker-less host the call itself would raise out of
         # the finally and mask the real result. Clean up only when docker is
         # actually present.
-        if shutil.which("docker"):
+        if docker_usable():
             sl.sh(["docker", "rmi", "-f", image], 300)
