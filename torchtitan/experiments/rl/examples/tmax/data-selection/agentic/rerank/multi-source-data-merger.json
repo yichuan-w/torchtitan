@@ -1,0 +1,107 @@
+{
+  "tb21_id": "multi-source-data-merger",
+  "tb21_profile": {
+    "skill": "Heterogeneous-schema ETL: read JSON/CSV/Parquet, map differently-named fields to one schema, outer-merge on a key, resolve per-field conflicts by source priority, coerce dtypes and date formats, and emit an auditable conflict report",
+    "domain": "Python data engineering: pandas / pyarrow / Parquet, JSON and CSV ingestion, schema mapping and master-data reconciliation",
+    "task_form": "implement-from-spec: a multi-step pipeline producing two exactly-specified artifacts (a typed Parquet table and a JSON report whose counts must be self-consistent)"
+  },
+  "searches": [
+    "tools.py full multi-source-data-merger",
+    "tools.py search all parquet",
+    "tools.py search all conflict",
+    "tools.py search all \"precedence|priority.{0,30}(source|highest)\"",
+    "tools.py search all \"schema (mapping|unification|normaliz)\"",
+    "tools.py search tmax parquet",
+    "tools.py search tmax \"reconcil|deduplicat|merge.{0,20}(records|datasets|sources)\"",
+    "tools.py search tmax YYYY-MM-DD",
+    "tools.py search rts \"merge.{0,40}(json|csv|two|objects|data)|join.{0,20}(two|csv|table)\"",
+    "tools.py search tw \"parquet|pyarrow\"",
+    "tools.py search tw pandas",
+    "tools.py search tw \"merge|join\"",
+    "tools.py search smith \"parquet|pyarrow\"",
+    "tools.py search smith schema",
+    "tools.py search smith \"date.{0,20}(format|parse)|ISO 8601|strftime\"",
+    "tools.py search smith \"merge|concat|combine.{0,20}(dict|dataframe|records)\"",
+    "tools.py search rebench \"to_parquet|read_parquet|pyarrow\"",
+    "tools.py search rebench \"merge\\(|concat\\(|join.{0,15}dataframe\"",
+    "tools.py search rebench \"dtype|schema\"",
+    "tools.py show task_009065_79ba1fe5 task_002650_61b2beb7 task_000089_d3fd1f01",
+    "tools.py show rts_task_a3615b3d3cbf853cca0fb73c rts_task_8ed75bdc12cd0cf5969c2042 rts_task_6d848620bdb35048a14f32f7 rts_task_48ec66a244115f6079c9ebda",
+    "tools.py show vaexio__vaex-402 jazzband__tablib-456"
+  ],
+  "per_source": {
+    "TMax-15K": [
+      {"rank": 1, "task_id": "task_009065_79ba1fe5", "skill": 5, "domain": 5, "task_form": 5, "overall": 5, "reason": "Same three formats (CSV, JSON, Parquet) with different column names per source, unified to a fixed schema and written as Parquet plus a JSON side-report."},
+      {"rank": 2, "task_id": "task_002650_61b2beb7", "skill": 5, "domain": 5, "task_form": 4, "overall": 5, "reason": "Three sources (Parquet, CSV, JSON) with differing key names (id vs user_id), unioned and joined on the user key into an exactly-keyed output."},
+      {"rank": 3, "task_id": "task_005278_e150eff8", "skill": 4, "domain": 4, "task_form": 4, "overall": 4, "reason": "Explicit multi-format reading plus schema unification of two channel datasets before aggregation; the field-mapping half of this task."},
+      {"rank": 4, "task_id": "task_002333_9fc62ff2", "skill": 4, "domain": 5, "task_form": 4, "overall": 4, "reason": "Consolidate CSV and JSONL user data into one Parquet file while eliminating duplicate records from retried runs; merge-key dedup plus Parquet output."},
+      {"rank": 5, "task_id": "task_002307_b945c419", "skill": 4, "domain": 4, "task_form": 4, "overall": 4, "reason": "Different legacy systems dump different formats and schemas; map host_name/etc into exactly four unified keys. Pure field-mapping ETL."},
+      {"rank": 6, "task_id": "task_002426_6981197e", "skill": 4, "domain": 5, "task_form": 4, "overall": 4, "reason": "Standardize fields across raw files, remove duplicates and write a clean Parquet file; same standardize-then-dedup-to-Parquet chain."},
+      {"rank": 7, "task_id": "task_000326_43906003", "skill": 4, "domain": 4, "task_form": 4, "overall": 4, "reason": "Clean, deduplicate and merge daily user dumps, normalizing join_date from mixed inputs to YYYY-MM-DD; the exact date-normalization requirement here."},
+      {"rank": 8, "task_id": "task_003448_8b782fd0", "skill": 4, "domain": 4, "task_form": 4, "overall": 4, "reason": "Three files in different formats from a failed-and-retried ETL; identify and reconcile duplicated records across them."},
+      {"rank": 9, "task_id": "task_000270_92b7693a", "skill": 4, "domain": 3, "task_form": 3, "overall": 4, "reason": "When several records share a key, keep only the one with the highest timestamp: priority-based conflict resolution on a merge key."},
+      {"rank": 10, "task_id": "task_000089_d3fd1f01", "skill": 3, "domain": 3, "task_form": 3, "overall": 3, "reason": "Explicit deduplication/conflict-resolution stage over duplicated, inconsistently formatted config change records."}
+    ],
+    "Recursive-Task-Synthesis": [
+      {"rank": 1, "task_id": "rts_task_a3615b3d3cbf853cca0fb73c", "skill": 4, "domain": 3, "task_form": 4, "overall": 4, "reason": "Union two objects resolving key conflicts by a documented rule, write merged.json, then validate against a schema and emit a report: merge plus conflict report."},
+      {"rank": 2, "task_id": "rts_task_6d848620bdb35048a14f32f7", "skill": 4, "domain": 2, "task_form": 4, "overall": 4, "reason": "Merge settings from several sources under stated precedence rules and produce a reconciliation report documenting every override applied."},
+      {"rank": 3, "task_id": "rts_task_8ed75bdc12cd0cf5969c2042", "skill": 3, "domain": 2, "task_form": 3, "overall": 3, "reason": "Union JSON objects twice, once with default conflict resolution and once with a custom combiner; directly about how conflicting keys are chosen."},
+      {"rank": 4, "task_id": "rts_task_79ea2748fb6b85293c8c573c", "skill": 3, "domain": 3, "task_form": 4, "overall": 3, "reason": "Join two key-value files and additionally emit a duplicates audit file; the same joined-output-plus-conflict-audit pair of artifacts."},
+      {"rank": 5, "task_id": "rts_task_31facfa646c74fab2f7f8979", "skill": 3, "domain": 2, "task_form": 3, "overall": 3, "reason": "Config-driven in-place object unions emitting each merged object; merging under externally specified rules."},
+      {"rank": 6, "task_id": "rts_task_c3edcaf63962b4df0b86b74e", "skill": 3, "domain": 3, "task_form": 3, "overall": 3, "reason": "Inner join two CSV tables on a foreign key and derive a summary; the key-join step, without conflict resolution."},
+      {"rank": 7, "task_id": "rts_task_8aff7defcfeb57e4d342612c", "skill": 3, "domain": 4, "task_form": 3, "overall": 3, "reason": "Read a gzipped VCF and a Parquet file in the same task and reconcile counts; multi-format ingestion including Parquet."},
+      {"rank": 8, "task_id": "rts_task_47fea2d62c7193b686c7265d", "skill": 3, "domain": 2, "task_form": 3, "overall": 3, "reason": "Prepare (normalize/sort) two inputs before they can be joined; the schema-alignment prerequisite that dominates this task."},
+      {"rank": 9, "task_id": "rts_task_ee31aa0137bd340f9b846fe7", "skill": 3, "domain": 2, "task_form": 3, "overall": 3, "reason": "Join two config files and produce a normalization report alongside the joined output; two-artifact merge with documentation."},
+      {"rank": 10, "task_id": "rts_task_13020741bd119a8a68d225aa", "skill": 2, "domain": 3, "task_form": 3, "overall": 2, "reason": "Join two CSVs on a shared key and summarize; basic relational merge, no field mapping or priority rules."}
+    ],
+    "TerminalWorld-Seeds-Clean": [
+      {"rank": 1, "task_id": "tw_647708", "skill": 4, "domain": 3, "task_form": 4, "overall": 4, "reason": "Combine two CSVs with different column sets, filter, and write exactly-shaped per-area statistics; join plus strict output schema."},
+      {"rank": 2, "task_id": "tw_584886", "skill": 3, "domain": 4, "task_form": 3, "overall": 3, "reason": "Read a gzipped VCF and a Parquet file in one task and reconcile their record counts; Parquet plus foreign-format ingestion."},
+      {"rank": 3, "task_id": "tw_589790", "skill": 3, "domain": 3, "task_form": 4, "overall": 3, "reason": "Produce a structured difference report between two JSON configuration files; the conflict-report artifact in miniature."},
+      {"rank": 4, "task_id": "tw_139449", "skill": 3, "domain": 3, "task_form": 4, "overall": 3, "reason": "Convert newline-delimited JSON into a SQLite table with a declared column schema; format conversion with typed columns."},
+      {"rank": 5, "task_id": "tw_284665", "skill": 3, "domain": 2, "task_form": 3, "overall": 3, "reason": "Join two pre-sorted key-value files into one output; the merge-on-key operation with exact output formatting."},
+      {"rank": 6, "task_id": "tw_326975", "skill": 3, "domain": 3, "task_form": 4, "overall": 3, "reason": "Dump every table of a database into one JSON object keyed by table with row objects; assembling a strictly-shaped nested JSON report."},
+      {"rank": 7, "task_id": "tw_12789", "skill": 2, "domain": 1, "task_form": 3, "overall": 2, "reason": "Merge three sorted files into one deduplicated sorted output; merge-and-dedupe semantics with no schema work."},
+      {"rank": 8, "task_id": "tw_753474", "skill": 2, "domain": 2, "task_form": 4, "overall": 2, "reason": "Extract related records from an API into two separate formatted JSON files; same two-artifact, exact-shape output discipline."},
+      {"rank": 9, "task_id": "tw_733941", "skill": 2, "domain": 4, "task_form": 2, "overall": 2, "reason": "Load a Parquet dataset and produce derived output; Parquet IO in the pandas ecosystem, no merging."},
+      {"rank": 10, "task_id": "tw_101457", "skill": 2, "domain": 3, "task_form": 2, "overall": 2, "reason": "pandas row filtering on a multi-valued column; dataframe manipulation only, far below this task's depth."}
+    ],
+    "SWE-Smith-Seeds-Clean": [
+      {"rank": 1, "task_id": "facebookresearch__fvcore.a491d5b9.lm_rewrite__ipg0fu5k", "skill": 4, "domain": 3, "task_form": 2, "overall": 4, "reason": "A config inheriting from multiple base files must merge values from all of them with correct precedence: multi-source merge with priority, exactly this task's rule."},
+      {"rank": 2, "task_id": "Suor__funcy.207a7810.func_pm_remove_assign__v58qm31z", "skill": 4, "domain": 3, "task_form": 2, "overall": 3, "reason": "join_with/merge_with combine mappings under a combiner function; implementing key-collision merge semantics correctly."},
+      {"rank": 3, "task_id": "facebookresearch__fvcore.a491d5b9.func_pm_ctrl_invert_if__o2oo5ppj", "skill": 4, "domain": 3, "task_form": 2, "overall": 3, "reason": "merge_from_file mishandles nested dictionaries; deep-merge-with-override correctness, the core of priority resolution."},
+      {"rank": 4, "task_id": "dask__dask.5f61e423.pr_11233", "skill": 3, "domain": 5, "task_form": 2, "overall": 3, "reason": "Parquet roundtrip loses timestamp resolution; preserving dtypes and date fidelity through Parquet is a graded requirement here."},
+      {"rank": 5, "task_id": "dask__dask.5f61e423.pr_10500", "skill": 3, "domain": 5, "task_form": 2, "overall": 3, "reason": "Missing preserve_index when building a PyArrow schema from a pandas DataFrame; pandas-to-Parquet schema construction."},
+      {"rank": 6, "task_id": "alecthomas__voluptuous.a7a55f83.lm_rewrite__dj1zx0iw", "skill": 3, "domain": 2, "task_form": 2, "overall": 3, "reason": "Schema.extend() mishandles nested dictionaries and subclasses; combining two schemas into one, as the three sources require."},
+      {"rank": 7, "task_id": "pandas-dev__pandas.95280573.pr_48995", "skill": 2, "domain": 5, "task_form": 2, "overall": 3, "reason": "df.to_parquet fails for an unusual file handle; writing the merged frame to Parquet is the final graded step here."},
+      {"rank": 8, "task_id": "dask__dask.5f61e423.combine_module__nurma78x", "skill": 3, "domain": 4, "task_form": 2, "overall": 3, "reason": "concat of DataFrames raises NameError; combining frames with differing columns is the mechanical core of this merge."},
+      {"rank": 9, "task_id": "gweis__isodate.17cb25eb.combine_file__b141cm1v", "skill": 3, "domain": 2, "task_form": 2, "overall": 2, "reason": "ISO date formatting produces wrong output; the created_date YYYY-MM-DD normalization is a separately graded criterion."},
+      {"rank": 10, "task_id": "dask__dask.5f61e423.pr_10042", "skill": 2, "domain": 4, "task_form": 2, "overall": 2, "reason": "Parquet column filtering fails on NoneType with the pandas backend; missing-value handling during Parquet reads."}
+    ],
+    "SWE-Rebench-Tasks-Clean": [
+      {"rank": 1, "task_id": "vaexio__vaex-402", "skill": 4, "domain": 4, "task_form": 2, "overall": 3, "reason": "Left/right join breaks when keys exist on one side only and repeat on the other: precisely the outer-merge case the three user sources create."},
+      {"rank": 2, "task_id": "jazzband__tablib-456", "skill": 3, "domain": 4, "task_form": 2, "overall": 3, "reason": "Support importing ragged CSV whose rows do not match the declared headers; ingesting tabular sources with inconsistent schemas."},
+      {"rank": 3, "task_id": "pandas-dev__pandas-59284", "skill": 3, "domain": 4, "task_form": 2, "overall": 3, "reason": "read_json silently turns large integers into strings without an explicit dtype; the user_id-must-be-integer hazard on JSON ingest."},
+      {"rank": 4, "task_id": "alteryx__woodwork-1594", "skill": 3, "domain": 4, "task_form": 2, "overall": 3, "reason": "Renaming columns reorders/corrupts the tracked schema; field renaming while preserving types is the mapping step of this task."},
+      {"rank": 5, "task_id": "igorbenav__fastcrud-107", "skill": 3, "domain": 3, "task_form": 2, "overall": 3, "reason": "Nested join returns rows with every field None; debugging why a join loses values, as priority merging must not."},
+      {"rank": 6, "task_id": "jazzband__tablib-547", "skill": 2, "domain": 4, "task_form": 2, "overall": 2, "reason": "Importing an xlsx exported by another tool stopped working; multi-format tabular ingestion robustness."},
+      {"rank": 7, "task_id": "pandas-dev__pandas-55115", "skill": 2, "domain": 4, "task_form": 2, "overall": 2, "reason": "usecols behaves incorrectly with the pyarrow read_csv engine; selecting the right columns at ingest time."},
+      {"rank": 8, "task_id": "pandas-dev__pandas-56585", "skill": 2, "domain": 4, "task_form": 2, "overall": 2, "reason": "convert_dtypes with a pyarrow backend raises TypeError; dtype coercion on a frame destined for Parquet."},
+      {"rank": 9, "task_id": "alteryx__woodwork-685", "skill": 2, "domain": 3, "task_form": 2, "overall": 2, "reason": "Logical-type to physical dtype handling in a dataframe schema library; the typed-column bookkeeping this output needs."},
+      {"rank": 10, "task_id": "narwhals-dev__narwhals-1869", "skill": 2, "domain": 3, "task_form": 2, "overall": 2, "reason": "Selecting columns by dtype misses timezone-aware ones across dataframe backends; dtype-aware column handling, weaker transfer."}
+    ]
+  },
+  "final_top10": [
+    {"rank": 1, "task_id": "task_009065_79ba1fe5", "source": "TMax-15K", "skill": 5, "domain": 5, "task_form": 5, "overall": 5, "reason": "Identical setup: CSV, JSON and Parquet sources with different column names unified to one schema, written as Parquet plus a structured JSON report."},
+    {"rank": 2, "task_id": "task_002650_61b2beb7", "source": "TMax-15K", "skill": 5, "domain": 5, "task_form": 4, "overall": 5, "reason": "Parquet, CSV and JSON sources whose key column is named differently (id vs user_id), unioned and joined on that key into an exactly-keyed output."},
+    {"rank": 3, "task_id": "task_005278_e150eff8", "source": "TMax-15K", "skill": 4, "domain": 4, "task_form": 4, "overall": 4, "reason": "Multi-format reading with explicit schema unification across two channels before further processing; the field-mapping core of this task."},
+    {"rank": 4, "task_id": "task_002333_9fc62ff2", "source": "TMax-15K", "skill": 4, "domain": 5, "task_form": 4, "overall": 4, "reason": "Consolidate CSV and JSONL sources into a single Parquet file while removing records duplicated across runs; merge-key dedup into Parquet."},
+    {"rank": 5, "task_id": "rts_task_a3615b3d3cbf853cca0fb73c", "source": "Recursive-Task-Synthesis", "skill": 4, "domain": 3, "task_form": 4, "overall": 4, "reason": "Merge two objects resolving key conflicts by a documented rule, emit merged.json, then validate against a schema and write a report."},
+    {"rank": 6, "task_id": "task_002307_b945c419", "source": "TMax-15K", "skill": 4, "domain": 4, "task_form": 4, "overall": 4, "reason": "Legacy systems dump different formats and schemas; map their differing field names onto one exact record shape. Pure schema-mapping ETL."},
+    {"rank": 7, "task_id": "facebookresearch__fvcore.a491d5b9.lm_rewrite__ipg0fu5k", "source": "SWE-Smith-Seeds-Clean", "skill": 4, "domain": 3, "task_form": 2, "overall": 4, "reason": "Values from multiple base configs must merge with correct precedence; the source_a > source_b > source_c rule as a debugging problem."},
+    {"rank": 8, "task_id": "task_000326_43906003", "source": "TMax-15K", "skill": 4, "domain": 4, "task_form": 4, "overall": 4, "reason": "Merge and deduplicate user dumps while standardizing mixed date inputs to YYYY-MM-DD; the date-format criterion graded here."},
+    {"rank": 9, "task_id": "task_000270_92b7693a", "source": "TMax-15K", "skill": 4, "domain": 3, "task_form": 3, "overall": 4, "reason": "Among records sharing a key, keep only the highest-priority one; the per-key winner selection that drives both outputs here."},
+    {"rank": 10, "task_id": "tw_647708", "source": "TerminalWorld-Seeds-Clean", "skill": 4, "domain": 3, "task_form": 4, "overall": 4, "reason": "Combine two CSVs with different column sets and emit an exactly-shaped derived table; join plus strict output schema."}
+  ],
+  "notes": "TMax is rich here (multi-format ETL with schema unification is a recurring TMax genre) and takes 7 of the final 10. Two useful cross-corpus finds the retrievers missed: fvcore's multiple-base-config merge with precedence (SWE-Smith) is the best non-TMax match for the source-priority rule, and vaex-402 (SWE-Rebench) is the best match for outer-join-with-keys-missing-on-either-side. RTS's shortlist was dominated by unrelated Slack-cookie and git-audit tasks; the useful RTS material (extra-object union with conflict resolution, key-value file joins, config precedence merges) came only from my own searches. TerminalWorld is thin on Parquet (2 instructions corpus-wide) and pandas (3), so its ranks 7-10 score 2. 'conflict' matches 525 instructions, mostly Docker-package and git-merge boilerplate - ignored."
+}

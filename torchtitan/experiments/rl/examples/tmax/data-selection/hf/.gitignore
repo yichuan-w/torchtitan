@@ -1,0 +1,3 @@
+# Local copies of the two HF parquets (180MB). bootstrap_cache.py downloads
+# them from the Hub when absent; see ../README.md for the resolve URLs.
+*.parquet

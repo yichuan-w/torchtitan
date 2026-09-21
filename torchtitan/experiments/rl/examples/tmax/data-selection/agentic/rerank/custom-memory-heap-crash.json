@@ -1,0 +1,101 @@
+{
+  "tb21_id": "custom-memory-heap-crash",
+  "tb21_profile": {
+    "skill": "Debug a C++ program that crashes only under -O2/NDEBUG (not debug): diagnose optimization-exposed undefined behavior / static-initialization-order fiasco with custom allocators and STL facets, then patch it to a Valgrind-clean fix",
+    "domain": "C++ / g++ / libstdc++ internals, heap and custom memory allocators, static/global initialization, Valgrind memory checking",
+    "task_form": "Find-and-patch-a-crash/memory-bug: locate the root cause of a release-only crash in one editable source file and make it correct and leak-free"
+  },
+  "searches": [
+    "tools.py full custom-memory-heap-crash",
+    "tools.py search all \"use.after.free|double free|dangling|heap corruption|buffer overflow\" -n 15",
+    "tools.py search all \"valgrind\" -n 15",
+    "tools.py search all \"static initialization|initialization order|static.*order\" -n 15",
+    "tools.py search all \"-O2|NDEBUG|release mode|optimization\" -n 15",
+    "tools.py search all \"segfault|segmentation fault|SIGSEGV\" -n 15",
+    "tools.py search all \"operator new|operator delete|custom allocator|placement new\" -n 15",
+    "tools.py search all \"undefined behavior|-fsanitize|AddressSanitizer|ASan|UBSan\" -n 15",
+    "tools.py search all \"crashes.{0,20}(release|optimi|-O2)|only.{0,15}(release|optimized)|passes.{0,15}debug\" -n 12",
+    "tools.py search all \"locale|facet|std::locale\" -n 12",
+    "tools.py search all \"libstdc\\+\\+|libstdcxx|STL internal\" -n 12",
+    "tools.py search all \"inline assembly|clobber|asm volatile\" -n 12",
+    "tools.py search tw \"segfault|segmentation|valgrind|memory leak|use.after.free|gdb|crash|sanitizer|buffer overflow|-O2|undefined behav\" -n 40",
+    "tools.py search rebench \"segfault|memory|crash|valgrind|malloc|leak|memray|initializ|C++|-O2|debug build|use-after\" -n 40",
+    "tools.py show task_005123_5f117bdb task_002407_11a9ee76 task_009821_3f039f12 task_000405_db54ffe9 task_001257_21489dc1 task_000297_dd740392",
+    "tools.py show task_000583_85cb2773 task_001308_2876327b tw_7829 rts_task_2a02992f7b6dffcd73f6dfd1 task_000342_ca9a6adf"
+  ],
+  "per_source": {
+    "TMax-15K": [
+      {"rank": 1, "task_id": "task_000583_85cb2773", "skill": 5, "domain": 5, "task_form": 5, "overall": 5, "reason": "Test suite passes locally but segfaults in CI only under -O3 due to UB (missing asm clobber) plus a memory leak; the exact release-only-UB-then-fix scenario."},
+      {"rank": 2, "task_id": "task_002407_11a9ee76", "skill": 5, "domain": 5, "task_form": 5, "overall": 5, "reason": "Compiled with -O2, crashes randomly from UB and a bad comparator plus memory-management errors; fix must be leak-free under Valgrind, same crux."},
+      {"rank": 3, "task_id": "task_005123_5f117bdb", "skill": 4, "domain": 5, "task_form": 5, "overall": 5, "reason": "C++ port works locally but crashes in CI from UB and memory-safety violations; must be Valgrind-clean (0 leaks, 0 errors), same debug-vs-release dichotomy."},
+      {"rank": 4, "task_id": "task_009821_3f039f12", "skill": 4, "domain": 5, "task_form": 4, "overall": 4, "reason": "Fix a use-after-free and memory leaks in a C++ interpreter, compiled -O2 and checked leak-free under Valgrind; same C++ heap-safety debugging."},
+      {"rank": 5, "task_id": "task_000405_db54ffe9", "skill": 4, "domain": 5, "task_form": 4, "overall": 4, "reason": "Fix dangling pointers and leaks causing segfaults in C++ AST construction/eval, using Valgrind/gdb; same pointer-lifetime crash hunt."},
+      {"rank": 6, "task_id": "task_000342_ca9a6adf", "skill": 4, "domain": 5, "task_form": 4, "overall": 4, "reason": "Diagnose and fix a C++ service that crashes and leaks on edge-case input, -O2 build, Valgrind must report 0 bytes leaked; same fix-crash-and-leaks goal."},
+      {"rank": 7, "task_id": "task_001257_21489dc1", "skill": 4, "domain": 4, "task_form": 4, "overall": 4, "reason": "Fix memory leaks and UB (buffer over/under-reads) in a C library crashing under conditions, via Valgrind/ASan; same memory-safety debugging, C not C++."},
+      {"rank": 8, "task_id": "task_000297_dd740392", "skill": 4, "domain": 4, "task_form": 4, "overall": 4, "reason": "Fix buffer overflow/underflow UB in a C VM that only manifests on malformed input; same undefined-behavior root-cause-and-patch work."},
+      {"rank": 9, "task_id": "task_001203_ae3adfdd", "skill": 3, "domain": 4, "task_form": 4, "overall": 3, "reason": "Find and fix a memory leak in a C++ log processor and verify with Valgrind; same C++ leak-hunting, less about an optimization-only crash."},
+      {"rank": 10, "task_id": "task_000930_463cd8bd", "skill": 3, "domain": 4, "task_form": 4, "overall": 3, "reason": "Find and fix memory leaks around array allocation in a C URL parameter parser; same allocate/free-correctness debugging in a native program."}
+    ],
+    "Recursive-Task-Synthesis": [
+      {"rank": 1, "task_id": "rts_task_2a02992f7b6dffcd73f6dfd1", "skill": 3, "domain": 3, "task_form": 4, "overall": 3, "reason": "Build a crashing C program with debug symbols and capture the crash point under GDB; diagnosing a native crash's root cause, no fix required."},
+      {"rank": 2, "task_id": "rts_task_004ae31b8d6616bcaec74bae", "skill": 3, "domain": 3, "task_form": 4, "overall": 3, "reason": "Reproduce a real interpreter segfault (PHP bug #81698 on a dynamic property); reasoning about a native memory crash triggered by a specific path."},
+      {"rank": 3, "task_id": "rts_task_10c3a279c58fb60d3cd9124b", "skill": 3, "domain": 3, "task_form": 4, "overall": 3, "reason": "Diagnose a crash, write root cause and apply the fix; same reproduce-diagnose-fix loop on a low-level failure."},
+      {"rank": 4, "task_id": "rts_task_86778b502b4ca4cd3ad111d1", "skill": 3, "domain": 3, "task_form": 4, "overall": 3, "reason": "Build with debug symbols and run under GDB to capture the crash; core crash-triage skill on a compiled binary."},
+      {"rank": 5, "task_id": "rts_task_78fa4f0f97ec119f07575205", "skill": 3, "domain": 3, "task_form": 4, "overall": 3, "reason": "Ensure .debug_info present, run under GDB, capture the crash backtrace; debug-symbol-driven crash analysis, adjacent to debug-vs-release."},
+      {"rank": 6, "task_id": "rts_task_c35973d746b8960e1d17ea9b", "skill": 3, "domain": 4, "task_form": 3, "overall": 3, "reason": "Analyze the sudo heap buffer overflow CVE-2021-3156; reasoning about heap corruption and memory layout, the domain of the TB crash."},
+      {"rank": 7, "task_id": "rts_task_73c7b6eadc061cfadae4d4cc", "skill": 3, "domain": 4, "task_form": 3, "overall": 3, "reason": "Exploit a Protostar stack overflow via a env-var strcpy; hands-on understanding of stack memory corruption and overwrites."},
+      {"rank": 8, "task_id": "rts_task_9009d3942d4dc9df40d74d91", "skill": 3, "domain": 4, "task_form": 3, "overall": 3, "reason": "Derive the sudo heap-overflow exploit; deep reasoning about heap allocator behavior, same memory-corruption territory."},
+      {"rank": 9, "task_id": "rts_task_328e189c621404304506dbcc", "skill": 2, "domain": 3, "task_form": 4, "overall": 2, "reason": "Reproduce a low-level program problem then verify the fixed behavior; reproduce-then-fix shape but shallow (assembly starter)."},
+      {"rank": 10, "task_id": "rts_task_5eb9edd8702740ef07b72933", "skill": 2, "domain": 3, "task_form": 4, "overall": 2, "reason": "Diagnose why ARM64 assembly fails to assemble/link and fix it; low-level debugging, but a link error rather than a runtime memory crash."}
+    ],
+    "TerminalWorld-Seeds-Clean": [
+      {"rank": 1, "task_id": "tw_7829", "skill": 4, "domain": 4, "task_form": 4, "overall": 4, "reason": "Compile a C++ program with symbols, use GDB to trace a segfault to an uninitialized struct member and name the culprit; classic native crash root-cause."},
+      {"rank": 2, "task_id": "tw_245032", "skill": 4, "domain": 4, "task_form": 4, "overall": 4, "reason": "Investigate a segmentation fault in the openal-soft C++ library during initialization; debugging a real C++ library crash, close domain and skill."},
+      {"rank": 3, "task_id": "tw_234227", "skill": 3, "domain": 3, "task_form": 4, "overall": 3, "reason": "Analyze the crash behavior of the buggy-png binary; native crash triage, understanding why a compiled program faults."},
+      {"rank": 4, "task_id": "tw_453949", "skill": 3, "domain": 3, "task_form": 4, "overall": 3, "reason": "Reproduce and verify a PHP interpreter segfault (#81698); reason about the exact path that triggers a native crash."},
+      {"rank": 5, "task_id": "tw_104501", "skill": 3, "domain": 4, "task_form": 3, "overall": 3, "reason": "Compile a C++ program that triggers an ASan stack buffer overflow and capture output; hands-on with the sanitizer tooling used to find such UB."},
+      {"rank": 6, "task_id": "tw_12180", "skill": 3, "domain": 4, "task_form": 3, "overall": 3, "reason": "Compile a C program containing a buffer overflow vulnerability; building and reasoning about a memory-corruption bug in native code."},
+      {"rank": 7, "task_id": "tw_453208", "skill": 3, "domain": 4, "task_form": 3, "overall": 3, "reason": "Exploit the sudo heap buffer overflow CVE-2021-3156; reasoning about heap allocator corruption, the same memory territory as the TB crash."},
+      {"rank": 8, "task_id": "tw_764682", "skill": 2, "domain": 3, "task_form": 3, "overall": 2, "reason": "Compile C and practice finding variables in GDB with symbols stripped; debugger-driven inspection, but no memory crash to fix."},
+      {"rank": 9, "task_id": "tw_14129", "skill": 2, "domain": 3, "task_form": 3, "overall": 2, "reason": "Use GDB to inspect internal interpreter state while running Python; low-level debugging skill, unrelated to C++ heap safety."},
+      {"rank": 10, "task_id": "tw_130138", "skill": 2, "domain": 4, "task_form": 3, "overall": 2, "reason": "Buffer overflow plus ROP exploitation challenge; memory-corruption domain but offensive exploitation rather than fixing a crash."}
+    ],
+    "SWE-Smith-Seeds-Clean": [
+      {"rank": 1, "task_id": "encode__starlette.db5063c2.func_pm_ctrl_shuffle__gvkb5ynp", "skill": 3, "domain": 2, "task_form": 2, "overall": 3, "reason": "ExceptionMiddleware initialization-order bug causes an AttributeError; the same initialization-order-fiasco reasoning, in Python not C++."},
+      {"rank": 2, "task_id": "joke2k__faker.8b401a7d.func_pm_ctrl_shuffle__nreuzr4i", "skill": 3, "domain": 2, "task_form": 2, "overall": 3, "reason": "DynamicProvider initialization order produces empty elements; debugging state that depends on init ordering, the crux class of the TB bug."},
+      {"rank": 3, "task_id": "madzak__python-json-logger.5f85723f.func_pm_ctrl_shuffle__akdfdoh3", "skill": 3, "domain": 2, "task_form": 2, "overall": 3, "reason": "JsonFormatter initialization order causes an AttributeError; same object-initialization-order failure mode to trace and reorder."},
+      {"rank": 4, "task_id": "iterative__dvc.1d6ea681.pr_9181", "skill": 3, "domain": 2, "task_form": 2, "overall": 2, "reason": "Variables accessed before being initialized; use-before-init reasoning, analogous to static-init-order but in Python."},
+      {"rank": 5, "task_id": "conan-io__conan.86f29e13.combine_module__ox7m3k6h", "skill": 2, "domain": 3, "task_form": 2, "overall": 2, "reason": "Wrong C++ standard flags generated for GCC/Clang; touches the g++ compiler-flag domain of the TB build, but only string generation."},
+      {"rank": 6, "task_id": "conan-io__conan.86f29e13.pr_11678", "skill": 2, "domain": 3, "task_form": 2, "overall": 2, "reason": "AutotoolsToolchain mishandles compiler flags; native-build-toolchain domain, ordinary Python logic fix."},
+      {"rank": 7, "task_id": "sunpy__sunpy.f8edfd5c.func_pm_ctrl_shuffle__2ifmv19x", "skill": 3, "domain": 1, "task_form": 2, "overall": 2, "reason": "UnboundLocalError from accessing an uninitialized local; same use-before-initialization class, unrelated domain."},
+      {"rank": 8, "task_id": "arrow-py__arrow.1d70d009.func_pm_ctrl_shuffle__vk4xpu8x", "skill": 3, "domain": 1, "task_form": 2, "overall": 2, "reason": "DateTimeParser attribute-order bug causes AttributeError; initialization-ordering defect, far domain."},
+      {"rank": 9, "task_id": "benoitc__gunicorn.bacbf8aa.combine_file__l5lzzje0", "skill": 2, "domain": 1, "task_form": 2, "overall": 2, "reason": "Constructor swaps parameters; an initialization/assignment bug, but trivial and unrelated stack."},
+      {"rank": 10, "task_id": "conan-io__conan.86f29e13.lm_rewrite__m0121wmw", "skill": 2, "domain": 3, "task_form": 2, "overall": 2, "reason": "Inconsistent compiler-variable resolution during cross-compile; native-toolchain domain overlap only, Python bug fix."}
+    ],
+    "SWE-Rebench-Tasks-Clean": [
+      {"rank": 1, "task_id": "pypa__setuptools-4676", "skill": 2, "domain": 3, "task_form": 2, "overall": 3, "reason": "Wheel ABI tag is wrong when building against a debug build of CPython; directly reasons about the debug-vs-release build distinction central to the TB task."},
+      {"rank": 2, "task_id": "bloomberg__memray-552", "skill": 2, "domain": 3, "task_form": 2, "overall": 3, "reason": "Fix behavior of memray, a C++/Python memory profiler; memory-tooling domain adjacent to Valgrind, though the bug itself is a CLI arg issue."},
+      {"rank": 3, "task_id": "pyccel__pyccel-1780", "skill": 2, "domain": 3, "task_form": 2, "overall": 2, "reason": "Bug in pyccel, which transpiles Python to C/Fortran; native-code-generation domain, but a Python-side logic fix."},
+      {"rank": 4, "task_id": "pyccel__pyccel-2186", "skill": 2, "domain": 3, "task_form": 2, "overall": 2, "reason": "Another pyccel transpiler bug; touches C code generation and compilation, weak transfer to heap-crash debugging."},
+      {"rank": 5, "task_id": "bashtage__arch-741", "skill": 2, "domain": 2, "task_form": 2, "overall": 2, "reason": "Error inside a Cython-compiled recursion routine; a compiled-extension bug, but numerical/statistics domain."},
+      {"rank": 6, "task_id": "jax-ml__jax-24823", "skill": 2, "domain": 2, "task_form": 2, "overall": 2, "reason": "Plugin factory registered twice warning; a registration/initialization-order defect, unrelated domain."},
+      {"rank": 7, "task_id": "cornellius-gp__gpytorch-484", "skill": 2, "domain": 2, "task_form": 2, "overall": 2, "reason": "Batch-indexing a lazy covariance matrix fails; native-adjacent numerical library debugging, no memory-safety element."},
+      {"rank": 8, "task_id": "getmoto__moto-7105", "skill": 2, "domain": 1, "task_form": 2, "overall": 2, "reason": "Joining a thread before it is started raises; an object-lifecycle/ordering bug, only nominal skill overlap."},
+      {"rank": 9, "task_id": "nipy__nibabel-750", "skill": 2, "domain": 2, "task_form": 2, "overall": 2, "reason": "Cannot set values in a GIFTI data array loaded from file; buffer/array-backing debugging, unrelated stack."},
+      {"rank": 10, "task_id": "enthought__traits-1846", "skill": 1, "domain": 2, "task_form": 2, "overall": 1, "reason": "Traits (C-extension) behavior bug; loose native-extension domain link, essentially no capability transfer."}
+    ]
+  },
+  "final_top10": [
+    {"rank": 1, "task_id": "task_000583_85cb2773", "source": "TMax-15K", "skill": 5, "domain": 5, "task_form": 5, "overall": 5, "reason": "Segfaults in CI only under -O3 from UB (missing asm clobber) plus a leak; the closest twin to a release-only crash caused by undefined behavior."},
+    {"rank": 2, "task_id": "task_002407_11a9ee76", "source": "TMax-15K", "skill": 5, "domain": 5, "task_form": 5, "overall": 5, "reason": "Compiled -O2, crashes randomly from UB and a bad comparator plus memory bugs; fix must be Valgrind-clean, same optimization-exposed crux."},
+    {"rank": 3, "task_id": "task_005123_5f117bdb", "source": "TMax-15K", "skill": 4, "domain": 5, "task_form": 5, "overall": 5, "reason": "C++ works locally but crashes in CI from UB and memory-safety bugs; must pass Valgrind with 0 leaks and 0 errors, same debug-vs-release split."},
+    {"rank": 4, "task_id": "task_009821_3f039f12", "source": "TMax-15K", "skill": 4, "domain": 5, "task_form": 4, "overall": 4, "reason": "Fix a use-after-free and leaks in a C++ interpreter, -O2, Valgrind-verified; same C++ heap-lifetime debugging capability."},
+    {"rank": 5, "task_id": "tw_7829", "source": "TerminalWorld-Seeds-Clean", "skill": 4, "domain": 4, "task_form": 4, "overall": 4, "reason": "Use GDB to trace a C++ segfault to an uninitialized struct member; native crash root-cause analysis, the debugging half of the TB task."},
+    {"rank": 6, "task_id": "task_000405_db54ffe9", "source": "TMax-15K", "skill": 4, "domain": 5, "task_form": 4, "overall": 4, "reason": "Fix dangling pointers and leaks causing C++ segfaults, via Valgrind/gdb; same pointer-lifetime crash hunt and leak-free requirement."},
+    {"rank": 7, "task_id": "task_000342_ca9a6adf", "source": "TMax-15K", "skill": 4, "domain": 5, "task_form": 4, "overall": 4, "reason": "Fix a C++ service that crashes and leaks on edge cases, -O2 build, Valgrind must show 0 bytes leaked; same crash-and-leak repair."},
+    {"rank": 8, "task_id": "task_001257_21489dc1", "source": "TMax-15K", "skill": 4, "domain": 4, "task_form": 4, "overall": 4, "reason": "Fix memory leaks and UB buffer over/under-reads in a crashing C library using Valgrind/ASan; same memory-safety debugging in native code."},
+    {"rank": 9, "task_id": "tw_245032", "source": "TerminalWorld-Seeds-Clean", "skill": 4, "domain": 4, "task_form": 4, "overall": 4, "reason": "Investigate a segmentation fault in the openal-soft C++ library at init; debugging a real C++ library crash, close skill and domain."},
+    {"rank": 10, "task_id": "task_000297_dd740392", "source": "TMax-15K", "skill": 4, "domain": 4, "task_form": 4, "overall": 4, "reason": "Fix buffer overflow/underflow UB in a C VM that only faults on malformed input; same undefined-behavior root-cause-and-patch work."}
+  ],
+  "notes": "TMax is by far the strongest corpus: it has a whole family of 'C/C++ crashes and leaks, fix it and pass Valgrind' tasks, and two (task_000583 optimization-only UB from a missing asm clobber; task_002407 -O2 UB + bad comparator) reproduce the exact release-only-crash-from-UB scenario of the TB task. TerminalWorld contributes genuine C++ crash-debugging (tw_7829 uninitialized-member segfault via GDB; tw_245032 openal-soft crash). RTS shortlist was almost entirely boilerplate (sqrt.cc build chores, 'print 599' multi-file C, ARM64 assembly starters) - discarded; the real RTS signal is the reproduce/diagnose-a-crash-under-GDB and heap/stack-overflow families I found by searching. SWE-Smith and SWE-Rebench cannot match domain (all Python) or task_form (issue-fix), so their scores are honestly low; the one real skill bridge is the *-initialization-order* bug class in SWE-Smith (starlette/faker/json-logger), which mirrors the static-initialization-order fiasco, and setuptools-4676's debug-vs-release-build reasoning in Rebench. Merge note: the buggy-png crash seed and the PHP #81698 segfault seed and the sudo CVE-2021-3156 seed each appear in BOTH RTS and TerminalWorld, so some picks across those two are siblings."
+}

@@ -1,0 +1,99 @@
+{
+  "tb21_id": "tune-mjcf",
+  "tb21_profile": {
+    "skill": "Speed up a numerical simulation by ~1.7x purely through solver/integrator/discretisation settings, keeping the final state within 1e-5 of the reference — measure, change one knob, re-measure",
+    "domain": "MuJoCo physics engine and MJCF XML configuration; numerical integrators, solver iterations/tolerances, timestep and contact settings; scientific computing",
+    "task_form": "optimise-for-a-budget: hit a runtime target under a hard numerical-equivalence constraint, by editing configuration rather than rewriting code"
+  },
+  "searches": [
+    "tools.py search all \"mujoco|MuJoCo|mjcf\"",
+    "tools.py search all \"physics simulation|rigid body|collision detection\" -n 30",
+    "tools.py search all \"solver (iteration|tolerance)|integrator|timestep|time step\"",
+    "tools.py search all \"speedup of at least|speedup >=|faster than the (baseline|reference)|runtime .{0,20}reduc\"",
+    "tools.py search all \"atol|tolerance of 1e-|within .{0,10}1e-[0-9]\"",
+    "tools.py search all \"speedup of at least|speedup >=|speedup of|must achieve a .{0,20}speedup|faster than the (baseline|reference)\" -n 42",
+    "tools.py search all \"adaptive step|step size|rtol|solve_ivp|stiff|Runge-Kutta|RK4|numerical stability|converge\" -n 40",
+    "tools.py show task_000693_bf5b334d task_004094_2c27cda3 task_003789_221005da",
+    "tools.py show task_000269_3b0056a6 task_000140_40bb239d task_000048_b0bd6829 task_000157_45d18f63",
+    "tools.py search tw \"simulat|benchmark|physics|solver|ODE|tune|optimi[sz]|profil\" -n 40",
+    "tools.py search tw \"benchmark|wall-clock|execution time|performance test|speedup|tune the|parameter sweep\" -n 30",
+    "tools.py search rts \"benchmark|execution time|wall.clock|simulat|physics|solver|tune|profil|speedup|XML config\" -n 35",
+    "tools.py search rebench \"solver|tolerance|timestep|time step|converg|integrator|atol|rtol|simulation\" -n 40",
+    "tools.py search smith \"performance|slow|optimiz|benchmark|tolerance|converg|numerical|float|precision\" -n 40"
+  ],
+  "per_source": {
+    "TMax-15K": [
+      {"rank": 1, "task_id": "task_000269_3b0056a6", "skill": 5, "domain": 4, "task_form": 5, "overall": 5, "reason": "Swap the ODE integrator so a stiff simulation finishes fast, with an assertion that the result stays within 1e-5 of the exact value — the same trade."},
+      {"rank": 2, "task_id": "task_004094_2c27cda3", "skill": 4, "domain": 4, "task_form": 5, "overall": 4, "reason": "Fix a diverging integrator and make it >=2x faster than an oracle while matching its output to 1e-6; integrator choice and step control."},
+      {"rank": 3, "task_id": "task_003789_221005da", "skill": 4, "domain": 3, "task_form": 5, "overall": 4, "reason": "Reach a 50x speedup on a numerical computation while keeping the answer within 1e-5 of the naive method — speed under an accuracy constraint."},
+      {"rank": 4, "task_id": "task_000693_bf5b334d", "skill": 4, "domain": 4, "task_form": 5, "overall": 4, "reason": "Profile a mechanical simulation, replace the solver, and hit 5x while the output stays mathematically equivalent (MSE < 1e-4)."},
+      {"rank": 5, "task_id": "task_000157_45d18f63", "skill": 4, "domain": 4, "task_form": 3, "overall": 4, "reason": "Adaptive step-size logic is inverted, so steps grow when local error grows; reasoning about step size versus error is the core of this tuning."},
+      {"rank": 6, "task_id": "task_000048_b0bd6829", "skill": 4, "domain": 4, "task_form": 3, "overall": 3, "reason": "Run a mesh-refinement convergence study and tabulate error versus discretisation — how coarse you can go before the tolerance breaks."},
+      {"rank": 7, "task_id": "task_000140_40bb239d", "skill": 3, "domain": 4, "task_form": 3, "overall": 3, "reason": "Discretisation error fails to shrink at the expected O(h^2) rate; understanding a scheme's accuracy order is what makes a bigger timestep safe."},
+      {"rank": 8, "task_id": "task_003614_bd7e07bf", "skill": 3, "domain": 3, "task_form": 5, "overall": 3, "reason": "Make the pipeline significantly faster while the output must match a reference array to MSE < 1e-8; same two-sided constraint."},
+      {"rank": 9, "task_id": "task_000023_004a85b4", "skill": 3, "domain": 4, "task_form": 3, "overall": 3, "reason": "An adaptive Runge-Kutta change broke a reaction-diffusion simulator; diagnosing integrator settings inside a simulation package."},
+      {"rank": 10, "task_id": "task_002734_fc612574", "skill": 3, "domain": 3, "task_form": 4, "overall": 3, "reason": "Partition a CFD mesh 3x faster while producing byte-identical HDF5 output; optimisation constrained by exact-output equality."}
+    ],
+    "Recursive-Task-Synthesis": [
+      {"rank": 1, "task_id": "rts_task_7be62e4744c1011e080077dc", "skill": 3, "domain": 3, "task_form": 3, "overall": 3, "reason": "Demonstrate performance techniques on numerical code and record benchmark timings; measurement-driven optimisation of a hot loop."},
+      {"rank": 2, "task_id": "rts_task_6b0f79ef14015f6da0f667cb", "skill": 3, "domain": 2, "task_form": 3, "overall": 2, "reason": "Profile two implementations, time both, and assert which is faster; the measure-then-compare loop this task lives in."},
+      {"rank": 3, "task_id": "rts_task_4f96b56ca30926a893a0da57", "skill": 2, "domain": 2, "task_form": 3, "overall": 2, "reason": "Write queries that must be correct and then record elapsed wall-clock time; correctness plus a timing artifact."},
+      {"rank": 4, "task_id": "rts_task_553e97d0849febb32776d17b", "skill": 2, "domain": 2, "task_form": 3, "overall": 2, "reason": "Benchmark six programs that produce the same output and rank them by speed; same output, different cost."},
+      {"rank": 5, "task_id": "rts_task_d301045ff41892ce07897811", "skill": 2, "domain": 2, "task_form": 3, "overall": 2, "reason": "Run a benchmarking tool under a project configuration and report timings; config-driven measurement."},
+      {"rank": 6, "task_id": "rts_task_42df9bc32ce8f455fe875c59", "skill": 2, "domain": 2, "task_form": 3, "overall": 2, "reason": "Execute a script then perform a timed performance comparison and record the numbers."},
+      {"rank": 7, "task_id": "rts_task_23c39782c8328be958397acf", "skill": 2, "domain": 2, "task_form": 2, "overall": 2, "reason": "Install the same scientific package under two solver backends and record the difference; swapping a solver for speed, at package level."},
+      {"rank": 8, "task_id": "rts_task_634e80a627f837bf3aa0b8e7", "skill": 1, "domain": 2, "task_form": 2, "overall": 2, "reason": "Sibling of the two-solver conda setup; environment configuration rather than numerical tuning."},
+      {"rank": 9, "task_id": "rts_task_956ea2e372fe004edbe0d44d", "skill": 2, "domain": 3, "task_form": 3, "overall": 2, "reason": "Build a model from a config file and profile its computation cost; config-to-cost accounting, no tuning target."},
+      {"rank": 10, "task_id": "rts_task_2629efb30267270e1cd69b57", "skill": 2, "domain": 2, "task_form": 2, "overall": 2, "reason": "Implement an N-Queens solver to a CLI spec; search-algorithm work with no performance constraint on the output."}
+    ],
+    "TerminalWorld-Seeds-Clean": [
+      {"rank": 1, "task_id": "tw_471679", "skill": 1, "domain": 5, "task_form": 2, "overall": 2, "reason": "The only other MuJoCo task in the pool: installs MuJoCo and gym-robotics. Same engine, but the work is environment setup, not tuning."},
+      {"rank": 2, "task_id": "tw_125169", "skill": 3, "domain": 3, "task_form": 3, "overall": 3, "reason": "Compare solver variants on the same linear system and show which converges to the exact solution; accuracy consequences of a numeric setting."},
+      {"rank": 3, "task_id": "tw_247983", "skill": 3, "domain": 3, "task_form": 3, "overall": 3, "reason": "Apply performance techniques to numerical code and capture benchmark timings proving the improvement."},
+      {"rank": 4, "task_id": "tw_248066", "skill": 3, "domain": 3, "task_form": 3, "overall": 3, "reason": "Type-stability and kernel-level optimisation measured with a benchmarking harness; find the setting that makes the same computation cheaper."},
+      {"rank": 5, "task_id": "tw_419029", "skill": 2, "domain": 2, "task_form": 4, "overall": 2, "reason": "Sweep a configuration parameter and record wall-clock time for each setting — the sweep-and-time loop eval.py supports here."},
+      {"rank": 6, "task_id": "tw_127063", "skill": 2, "domain": 2, "task_form": 3, "overall": 2, "reason": "Run a full benchmarking pipeline: generate inputs, run variants, compare timings."},
+      {"rank": 7, "task_id": "tw_500771", "skill": 2, "domain": 2, "task_form": 3, "overall": 2, "reason": "Benchmark six programs with identical output and report their speeds; isolating cost from behaviour."},
+      {"rank": 8, "task_id": "tw_342042", "skill": 2, "domain": 3, "task_form": 3, "overall": 2, "reason": "Build and run numerical parallel benchmarks (Monte Carlo, sorting, PageRank) and collect their results."},
+      {"rank": 9, "task_id": "tw_338947", "skill": 2, "domain": 2, "task_form": 3, "overall": 2, "reason": "Compile and run an image-processing benchmark suite; timing a compute kernel from a build."},
+      {"rank": 10, "task_id": "tw_500710", "skill": 1, "domain": 2, "task_form": 3, "overall": 2, "reason": "Measure and compare thread versus process creation cost; microbenchmarking only."}
+    ],
+    "SWE-Smith-Seeds-Clean": [
+      {"rank": 1, "task_id": "facebookresearch__fvcore.a491d5b9.lm_rewrite__1lp7kdh2", "skill": 3, "domain": 3, "task_form": 2, "overall": 2, "reason": "Flop counting checked against a hand-derived cost formula; building a cost model for a computation, which guides which knob to turn."},
+      {"rank": 2, "task_id": "jsvine__pdfplumber.02ff4313.func_pm_ctrl_invert_if__ngsgk4s9", "skill": 3, "domain": 2, "task_form": 2, "overall": 2, "reason": "A tolerance parameter produces wrong groupings; getting tolerance semantics exactly right is what the atol=1e-5 check demands."},
+      {"rank": 3, "task_id": "facebookresearch__fvcore.a491d5b9.func_pm_ctrl_shuffle__kd43vy4l", "skill": 2, "domain": 3, "task_form": 2, "overall": 2, "reason": "Regression in per-op cost accounting for matmuls; estimating where the compute actually goes."},
+      {"rank": 4, "task_id": "dask__dask.5f61e423.pr_11337", "skill": 3, "domain": 2, "task_form": 2, "overall": 2, "reason": "Rechunking arrays: chunk size is dask's performance knob, tuned exactly like a timestep, with results that must stay identical."},
+      {"rank": 5, "task_id": "dask__dask.5f61e423.pr_7191", "skill": 2, "domain": 2, "task_form": 2, "overall": 2, "reason": "Graph metadata leaks into scheduler optimisation routines; optimisation passes that must not change the computed result."},
+      {"rank": 6, "task_id": "facebookresearch__fvcore.a491d5b9.func_pm_ctrl_invert_if__yvh7zjgj", "skill": 3, "domain": 2, "task_form": 2, "overall": 2, "reason": "A piecewise loss misbehaves for very small beta; reasoning about a numerical parameter's regime, as with tiny timesteps."},
+      {"rank": 7, "task_id": "facebookresearch__fvcore.a491d5b9.lm_rewrite__1df9kxnf", "skill": 2, "domain": 2, "task_form": 2, "overall": 2, "reason": "A parameter range check stopped raising, so out-of-range settings pass silently; validating a config value's admissible range."},
+      {"rank": 8, "task_id": "dask__dask.5f61e423.lm_rewrite__ffikl1dk", "skill": 2, "domain": 2, "task_form": 2, "overall": 2, "reason": "Rounding of fractional indices when slicing a discretised array; off-by-a-fraction discretisation bugs."},
+      {"rank": 9, "task_id": "iterative__dvc.1d6ea681.pr_5839", "skill": 1, "domain": 2, "task_form": 2, "overall": 1, "reason": "A precision flag has no effect on reported metrics; only the reporting of numerical results overlaps."},
+      {"rank": 10, "task_id": "PyCQA__flake8.cf1542ce.lm_rewrite__akiiq6ow", "skill": 1, "domain": 1, "task_form": 2, "overall": 1, "reason": "Benchmark output formatting; shares the word benchmark and nothing else."}
+    ],
+    "SWE-Rebench-Tasks-Clean": [
+      {"rank": 1, "task_id": "pybamm-team__pybamm-645", "skill": 4, "domain": 4, "task_form": 2, "overall": 3, "reason": "Making relative and absolute solver tolerances settable — literally the knob that trades simulation speed against accuracy here."},
+      {"rank": 2, "task_id": "pybamm-team__pybamm-794", "skill": 4, "domain": 4, "task_form": 2, "overall": 3, "reason": "Discretisation point counts and solver selection for a physics simulation; coarser mesh versus accuracy is the same decision."},
+      {"rank": 3, "task_id": "openmdao__openmdao-3315", "skill": 3, "domain": 4, "task_form": 2, "overall": 3, "reason": "A nonlinear solver's convergence criterion only takes effect one iteration late, so it does extra work; solver iteration accounting."},
+      {"rank": 4, "task_id": "pybamm-team__pybamm-595", "skill": 3, "domain": 4, "task_form": 2, "overall": 3, "reason": "Simulation termination events fire inconsistently between solvers; the same solution must come out whichever solver runs."},
+      {"rank": 5, "task_id": "pybamm-team__pybamm-1025", "skill": 3, "domain": 4, "task_form": 2, "overall": 2, "reason": "A simulation misbehaves under a particular configuration; debugging a physics model's run settings."},
+      {"rank": 6, "task_id": "openmdao__openmdao-2782", "skill": 2, "domain": 4, "task_form": 2, "overall": 2, "reason": "Nonlinear solver configuration on a coupled model; wiring solver options through a simulation framework."},
+      {"rank": 7, "task_id": "pybamm-team__pybamm-4019", "skill": 2, "domain": 4, "task_form": 2, "overall": 2, "reason": "Parameter-set and solver interaction in a battery simulation; model parameters versus solver behaviour."},
+      {"rank": 8, "task_id": "pyomo__pyomo-3541", "skill": 3, "domain": 3, "task_form": 2, "overall": 2, "reason": "Decomposing a system into strongly connected blocks so the solver does far less work for the same answer."},
+      {"rank": 9, "task_id": "openmdao__openmdao-3126", "skill": 2, "domain": 3, "task_form": 2, "overall": 2, "reason": "Nonlinear solver setup for a coupled circuit model that must converge; solver choice on a stiff coupled system."},
+      {"rank": 10, "task_id": "jax-ml__jax-25787", "skill": 2, "domain": 3, "task_form": 2, "overall": 2, "reason": "Tridiagonal (Thomas algorithm) solver and its differentiation support; numerical solver internals in an array framework."}
+    ]
+  },
+  "final_top10": [
+    {"rank": 1, "task_id": "task_000269_3b0056a6", "source": "TMax-15K", "skill": 5, "domain": 4, "task_form": 5, "overall": 5, "reason": "Change the integrator so a stiff simulation runs fast while asserting the answer stays within 1e-5 — the identical speed/accuracy trade."},
+    {"rank": 2, "task_id": "task_004094_2c27cda3", "source": "TMax-15K", "skill": 4, "domain": 4, "task_form": 5, "overall": 4, "reason": "Fix divergence and beat an oracle by 2x while matching its output to 1e-6; step control and integrator choice under a tolerance."},
+    {"rank": 3, "task_id": "task_003789_221005da", "source": "TMax-15K", "skill": 4, "domain": 3, "task_form": 5, "overall": 4, "reason": "Hit a hard speedup target while the numerical result must stay within 1e-5 of the reference implementation."},
+    {"rank": 4, "task_id": "task_000693_bf5b334d", "source": "TMax-15K", "skill": 4, "domain": 4, "task_form": 5, "overall": 4, "reason": "Profile a simulation to find the bottleneck, replace the solver, and keep the output mathematically equivalent while hitting 5x."},
+    {"rank": 5, "task_id": "task_000157_45d18f63", "source": "TMax-15K", "skill": 4, "domain": 4, "task_form": 3, "overall": 4, "reason": "Inverted adaptive step-size logic; step size versus local error is exactly the reasoning a bigger MuJoCo timestep needs."},
+    {"rank": 6, "task_id": "pybamm-team__pybamm-645", "source": "SWE-Rebench-Tasks-Clean", "skill": 4, "domain": 4, "task_form": 2, "overall": 3, "reason": "Exposes relative and absolute solver tolerances on a physics simulation — the same knob, in another simulator."},
+    {"rank": 7, "task_id": "task_000048_b0bd6829", "source": "TMax-15K", "skill": 4, "domain": 4, "task_form": 3, "overall": 3, "reason": "Mesh-refinement convergence study: measure error as discretisation coarsens, which is how you pick the cheapest safe setting."},
+    {"rank": 8, "task_id": "pybamm-team__pybamm-794", "source": "SWE-Rebench-Tasks-Clean", "skill": 4, "domain": 4, "task_form": 2, "overall": 3, "reason": "Discretisation point counts plus solver choice for a simulation; cost is set by resolution and solver, as in MJCF."},
+    {"rank": 9, "task_id": "task_000140_40bb239d", "source": "TMax-15K", "skill": 3, "domain": 4, "task_form": 3, "overall": 3, "reason": "Error must fall at the scheme's expected order as the grid refines; knowing that order is what licenses a coarser setting."},
+    {"rank": 10, "task_id": "task_003614_bd7e07bf", "source": "TMax-15K", "skill": 3, "domain": 3, "task_form": 5, "overall": 3, "reason": "Significant speedup required while the output must match a reference to MSE < 1e-8; both constraints binding at once."}
+  ],
+  "notes": "Only one task in the whole pool mentions MuJoCo at all (tw_471679, which just installs it), so domain-5 matches essentially do not exist and I ranked on skill: speed up a numerical simulation without moving its output. TMax is by far the strongest corpus here — it has a large, genuinely relevant cluster of 'X-times speedup with output within tolerance' tasks plus a separate cluster on integrator choice, step-size adaptation and convergence order, which is the actual physics-solver knowledge this task needs; task_000269_3b0056a6 is close to a duplicate of the TB task in a different simulator. SWE-Rebench contributes real value through pybamm/openmdao/pyomo (solver tolerances, discretisation, convergence criteria) even though the task_form never matches. SWE-Smith is the weak corpus: it contains no numerical-simulation repos, so its entries top out around overall 2 and ranks 9-10 there are filler. One caution for merge: the 'must achieve a speedup of Nx' family in TMax is large (40+ tasks) and mostly about rewriting slow code in a faster language, which is NOT this task — this task forbids changing the physics and only allows config. I kept the ones where a numerical tolerance also binds and dropped the pure rewrite-it-in-Rust ones."
+}

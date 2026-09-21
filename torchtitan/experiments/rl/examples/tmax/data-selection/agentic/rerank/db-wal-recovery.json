@@ -1,0 +1,99 @@
+{
+  "tb21_id": "db-wal-recovery",
+  "tb21_profile": {
+    "skill": "Reverse the XOR encryption of a SQLite WAL file and hand-parse the WAL binary format (header/frames) to replay it and recover every record, emitting sorted JSON",
+    "domain": "SQLite internals and the write-ahead-log file format, binary file parsing, XOR/simple-cipher decryption, database recovery",
+    "task_form": "Recover/repair-corrupted-data: fix a broken binary WAL and reconstruct the full dataset that a naive reader misses"
+  },
+  "searches": [
+    "tools.py full db-wal-recovery",
+    "tools.py search all \"SQLite|sqlite3|\\.sqlite|\\.db-wal\" -n 14",
+    "tools.py search all \"write.ahead log|WAL\" -n 14",
+    "tools.py search all \"XOR|xor\" -n 14",
+    "tools.py search all \"checksum|magic (byte|number)|salt|frame header|page header\" -n 14",
+    "tools.py search all \"corrupt.{0,25}(recover|repair|database|file)\" -n 14",
+    "tools.py search all \"struct.unpack|parse the binary|binary format|hexdump|byte offset\" -n 14",
+    "tools.py search rts \"blkar|SBX|repair.*corrupt|recover.*(file|data|database)\" -n 20",
+    "tools.py search rts \"sqlite.*(corrupt|recover|dump|malformed)|journal|checkpoint|dump.*table\" -n 15",
+    "tools.py search tw \"sqlite|WAL|blkar|recover|corrupt|carve|dump.*table\" -n 40",
+    "tools.py search smith \"sqlite|database|struct.unpack|binary|wal|deserializ|corrupt|little.endian|read.*bytes\" -n 30",
+    "tools.py search rebench \"sqlite|database|corrupt|recover|struct|binary|hdf5|dulwich|deserializ|parse.*file|wal|decode\" -n 40",
+    "tools.py show task_002015_30c1f280 task_004777_b2057787 task_007266_e52c7a7f task_002461_c1a45b43 task_000397_d04a33da task_006555_9c55c13d",
+    "tools.py show task_002240_b361df6f task_006301_63d62c7b task_008316_09995a25 task_000838_38901502 task_002443_7bc346b3"
+  ],
+  "per_source": {
+    "TMax-15K": [
+      {"rank": 1, "task_id": "task_000838_38901502", "skill": 5, "domain": 4, "task_form": 5, "overall": 5, "reason": "Hand-parse a binary WAL with magic signature, TxID and length prefixes to recover a record's payload; the exact WAL-header-and-frame parsing the TB task needs."},
+      {"rank": 2, "task_id": "task_002015_30c1f280", "skill": 5, "domain": 4, "task_form": 5, "overall": 5, "reason": "Reverse-engineer a WAL binary format and write a clean-room parser that recovers records to JSON, handling corrupted length prefixes; same recover-from-binary-WAL crux."},
+      {"rank": 3, "task_id": "task_002461_c1a45b43", "skill": 4, "domain": 5, "task_form": 4, "overall": 5, "reason": "Recover records from an orphaned SQLite .db-wal into the base .db after a crash; literally SQLite WAL recovery, the TB task's own domain."},
+      {"rank": 4, "task_id": "task_008316_09995a25", "skill": 5, "domain": 4, "task_form": 5, "overall": 5, "reason": "Parse a custom binary WAL, fix an off-by-one that drops the final record, and emit the full recovered JSON array; same byte-offset WAL parsing to full recovery."},
+      {"rank": 5, "task_id": "task_006301_63d62c7b", "skill": 4, "domain": 4, "task_form": 5, "overall": 4, "reason": "Parse sequentially packed WAL records (little-endian TxID, length, JSON payload), skip an undecodable one, and recover the rest; same length-prefixed frame parsing."},
+      {"rank": 6, "task_id": "task_000397_d04a33da", "skill": 5, "domain": 4, "task_form": 4, "overall": 4, "reason": "Write C to parse a custom WAL (8-byte header, fixed records), skip the corrupt record and recover the rest; same header+frame hand-parsing of a binary log."},
+      {"rank": 7, "task_id": "task_007266_e52c7a7f", "skill": 4, "domain": 5, "task_form": 4, "overall": 4, "reason": "Forensic recovery of a corrupted SQLite database (malformed disk image) into a new db and extract records; same SQLite corruption-recovery domain."},
+      {"rank": 8, "task_id": "task_004777_b2057787", "skill": 4, "domain": 4, "task_form": 4, "overall": 4, "reason": "Repair a WAL parser that panics on a truncated final entry so it recovers all valid records to JSONL; same truncated-WAL recovery to structured output."},
+      {"rank": 9, "task_id": "task_002240_b361df6f", "skill": 4, "domain": 4, "task_form": 4, "overall": 4, "reason": "Fix encoding/serialization bugs in a C++ tool that parses a binary WAL and dump all recovered key-value records; same binary-log parse-and-recover."},
+      {"rank": 10, "task_id": "task_006555_9c55c13d", "skill": 3, "domain": 4, "task_form": 4, "overall": 3, "reason": "Fix a WAL replay tool so it reconstructs the latest DB state with last-write-wins; same replay-the-log-to-rebuild-state idea, text log not binary."}
+    ],
+    "Recursive-Task-Synthesis": [
+      {"rank": 1, "task_id": "rts_task_a44e26e5c23f4e379bbe1c21", "skill": 3, "domain": 3, "task_form": 4, "overall": 3, "reason": "Encode a file to a blkar archive, corrupt it, repair it and decode back; recover-corrupted-binary-data, same repair-then-read shape as the WAL."},
+      {"rank": 2, "task_id": "rts_task_0bdfa5f3c0dbd09d6a8b37a1", "skill": 3, "domain": 3, "task_form": 4, "overall": 3, "reason": "blkar encode, simulate corruption, then repair the encoded archive; corrupted-binary repair-and-recover, matching the WAL fix step."},
+      {"rank": 3, "task_id": "rts_task_36863e879384891432d4ac9b", "skill": 2, "domain": 4, "task_form": 3, "overall": 3, "reason": "Extract all data from every table of a SQLite database into JSON; same SQLite-to-JSON extraction output, without corruption or WAL parsing."},
+      {"rank": 4, "task_id": "rts_task_3032df2cab8deebbcc7dc099", "skill": 3, "domain": 3, "task_form": 4, "overall": 3, "reason": "Recover a hidden chain via binary carving, decoding and decryption; same carve-and-decrypt-a-binary-artifact to recover data."},
+      {"rank": 5, "task_id": "rts_task_739e0cb8fefd2149580b92b7", "skill": 3, "domain": 2, "task_form": 3, "overall": 3, "reason": "Compute inode locations by reasoning about byte offsets in a filesystem layout; same on-disk-structure byte-offset arithmetic as WAL frames."},
+      {"rank": 6, "task_id": "rts_task_4d8e61a4970a71c62e579bc8", "skill": 2, "domain": 4, "task_form": 3, "overall": 3, "reason": "Locate and read an application's local SQLite database; SQLite-file forensic reading, but no corruption, WAL, or decryption."},
+      {"rank": 7, "task_id": "rts_task_25559b99d4b6ca3814b6ca6e", "skill": 2, "domain": 3, "task_form": 3, "overall": 2, "reason": "Encode a data file with blkar and save the archive; binary archive tooling, but no corruption or recovery step."},
+      {"rank": 8, "task_id": "rts_task_657fed70f3b55efe64dc22bb", "skill": 2, "domain": 3, "task_form": 4, "overall": 2, "reason": "Repair a corrupted GPG public key file so it can be imported; repair-a-corrupted-file shape, different format and no data replay."},
+      {"rank": 9, "task_id": "rts_task_90ce9e50d921b3cf72020f7d", "skill": 2, "domain": 4, "task_form": 3, "overall": 2, "reason": "Inventory the tables/rows of a SQLite database; SQLite domain and extraction, but shallow and no recovery."},
+      {"rank": 10, "task_id": "rts_task_20f5ab0e2ba13d0d6fc36015", "skill": 2, "domain": 3, "task_form": 3, "overall": 2, "reason": "Drive a stateful machine and encrypt a string, touching SQLite; only loose SQLite-plus-encryption overlap, no WAL recovery."}
+    ],
+    "TerminalWorld-Seeds-Clean": [
+      {"rank": 1, "task_id": "tw_240491", "skill": 3, "domain": 3, "task_form": 4, "overall": 3, "reason": "blkar encode, corrupt, repair and decode a binary archive; recover-corrupted-binary-data, the same repair-then-read arc as fixing the WAL."},
+      {"rank": 2, "task_id": "tw_256057", "skill": 3, "domain": 3, "task_form": 4, "overall": 3, "reason": "Encode to an SBX archive, corrupt it, repair, and decode to a byte-identical file; corrupted-binary repair-and-recovery."},
+      {"rank": 3, "task_id": "tw_117526", "skill": 3, "domain": 3, "task_form": 3, "overall": 3, "reason": "Recover a compressed file archive embedded in an ext4 disk image; carve and extract data from a raw binary container."},
+      {"rank": 4, "task_id": "tw_12138", "skill": 3, "domain": 3, "task_form": 4, "overall": 3, "reason": "Manipulate the magic bytes of an ELF binary at specific offsets; same understanding of file magic/header bytes that gates fixing a WAL header."},
+      {"rank": 5, "task_id": "tw_187062", "skill": 2, "domain": 4, "task_form": 3, "overall": 3, "reason": "Read a SQLite table ordered by id and write the values to a result file; same query-SQLite-and-emit-sorted-output endpoint, no corruption."},
+      {"rank": 6, "task_id": "tw_208504", "skill": 3, "domain": 3, "task_form": 4, "overall": 3, "reason": "Follow a chain of artifacts by extracting and decoding with a passphrase; layered decode/decrypt-to-recover, akin to decrypt-then-parse the WAL."},
+      {"rank": 7, "task_id": "tw_296449", "skill": 3, "domain": 3, "task_form": 4, "overall": 3, "reason": "Work through nested encodings with Chepy to recover the payload; peel encoding/encryption layers to recover data, same decode-then-read skill."},
+      {"rank": 8, "task_id": "tw_152765", "skill": 3, "domain": 3, "task_form": 3, "overall": 3, "reason": "Decrypt an encrypted flag given as a hex string; reverse a simple cipher over raw bytes, matching the XOR-decrypt half of the WAL task."},
+      {"rank": 9, "task_id": "tw_123595", "skill": 2, "domain": 4, "task_form": 3, "overall": 2, "reason": "Restore a MySQL database dump into an RDS instance; database restore domain, but a managed import rather than binary recovery."},
+      {"rank": 10, "task_id": "tw_197833", "skill": 2, "domain": 3, "task_form": 3, "overall": 2, "reason": "Recover class-hierarchy (RTTI) info from a binary with radare2; binary reverse-engineering, no WAL or database element."}
+    ],
+    "SWE-Smith-Seeds-Clean": [
+      {"rank": 1, "task_id": "cantools__cantools.0c6a7871.combine_file__2yrjny26", "skill": 3, "domain": 3, "task_form": 2, "overall": 3, "reason": "Decoded value is off by one from a binary CAN frame; bit/byte-level unpacking correctness, the parse-binary-frames skill of WAL recovery."},
+      {"rank": 2, "task_id": "pudo__dataset.5c2dc8d3.lm_rewrite__jazezf2x", "skill": 2, "domain": 4, "task_form": 2, "overall": 3, "reason": "TypeError in pad_chunk_columns during SQLite table writes; same SQLite storage-layer library, though an ordinary Python bug fix."},
+      {"rank": 3, "task_id": "benoitc__gunicorn.bacbf8aa.combine_file__37c15gzh", "skill": 3, "domain": 2, "task_form": 2, "overall": 3, "reason": "Unreader buffer handling broken; reading length-delimited bytes from a stream buffer, the same frame-boundary parsing as WAL frames."},
+      {"rank": 4, "task_id": "pudo__dataset.5c2dc8d3.combine_file__glss5km2", "skill": 2, "domain": 4, "task_form": 2, "overall": 3, "reason": "ChunkedUpdate.update doesn't persist SQLite rows; SQLite-database library correctness, close domain to the TB task."},
+      {"rank": 5, "task_id": "cantools__cantools.0c6a7871.func_pm_class_rm_funcs__pzu3ho8l", "skill": 3, "domain": 3, "task_form": 2, "overall": 2, "reason": "A message-decoding function was removed/broken; decoding structured binary payloads, same skill as reading WAL records."},
+      {"rank": 6, "task_id": "benoitc__gunicorn.bacbf8aa.func_pm_class_rm_funcs__3wvm4iyk", "skill": 3, "domain": 2, "task_form": 2, "overall": 2, "reason": "Body reader for chunked/length-delimited HTTP bodies broken; byte-stream length parsing, adjacent to frame parsing."},
+      {"rank": 7, "task_id": "cantools__cantools.0c6a7871.lm_rewrite__swakazsi", "skill": 3, "domain": 3, "task_form": 2, "overall": 2, "reason": "Certain data types decoded incorrectly from a CAN database; binary-format type decoding correctness."},
+      {"rank": 8, "task_id": "cantools__cantools.0c6a7871.func_pm_remove_assign__vbi7sxdd", "skill": 2, "domain": 3, "task_form": 2, "overall": 2, "reason": "SYM database dump fails with UnboundLocalError while parsing a database file; parsing a structured DB file format."},
+      {"rank": 9, "task_id": "Instagram__MonkeyType.70c3acf6.pr_17", "skill": 2, "domain": 3, "task_form": 2, "overall": 2, "reason": "Serialization broken for generic types stored in MonkeyType's SQLite trace store; (de)serialization into a SQLite-backed store."},
+      {"rank": 10, "task_id": "msiemens__tinydb.10644a0e.lm_rewrite__avoumrgh", "skill": 2, "domain": 3, "task_form": 2, "overall": 2, "reason": "Bug in tinydb, a JSON-file-backed document database; embedded-database storage domain, ordinary logic fix."}
+    ],
+    "SWE-Rebench-Tasks-Clean": [
+      {"rank": 1, "task_id": "d0c-s4vage__pfp-112", "skill": 4, "domain": 3, "task_form": 2, "overall": 3, "reason": "pfp fails parsing a DEX binary with a 010-editor template; hands-on binary-format parsing driven by field/offset definitions, the WAL-parse skill."},
+      {"rank": 2, "task_id": "d0c-s4vage__pfp-114", "skill": 4, "domain": 3, "task_form": 2, "overall": 3, "reason": "Another pfp binary-template parsing failure; interpreting a binary file's structured layout, same core capability."},
+      {"rank": 3, "task_id": "d0c-s4vage__pfp-126", "skill": 4, "domain": 3, "task_form": 2, "overall": 3, "reason": "Implicit/duplicate arrays mishandled in pfp binary parsing; reasoning about repeated binary records, like WAL frames."},
+      {"rank": 4, "task_id": "d0c-s4vage__pfp-109", "skill": 4, "domain": 3, "task_form": 2, "overall": 3, "reason": "pfp binary-parsing bug in the template interpreter; same declarative binary-structure parsing skill."},
+      {"rank": 5, "task_id": "jelmer__dulwich-1578", "skill": 3, "domain": 3, "task_form": 2, "overall": 3, "reason": "dulwich.add() corrupts a branch; diagnosing and repairing corruption in a git object store, a recover-from-corruption task in Python."},
+      {"rank": 6, "task_id": "asdf-format__asdf-1907", "skill": 3, "domain": 3, "task_form": 2, "overall": 2, "reason": "Reading an ASDF file with a recursive reference fails; parsing a structured scientific file format with binary blocks."},
+      {"rank": 7, "task_id": "biocore__biom-format-929", "skill": 3, "domain": 3, "task_form": 2, "overall": 2, "reason": "Reading a BIOM (HDF5-backed) table file fails; binary-backed data-file IO, adjacent parsing skill."},
+      {"rank": 8, "task_id": "h5py__h5py-2577", "skill": 2, "domain": 3, "task_form": 2, "overall": 2, "reason": "Bug in h5py, the HDF5 binary container library; binary on-disk data format domain, low task-shape overlap."},
+      {"rank": 9, "task_id": "nipy__nibabel-750", "skill": 2, "domain": 3, "task_form": 2, "overall": 2, "reason": "Cannot set values in a GIFTI array loaded from a binary neuroimaging file; buffer-backed binary format IO."},
+      {"rank": 10, "task_id": "dpkp__kafka-python-2608", "skill": 2, "domain": 3, "task_form": 2, "overall": 2, "reason": "Kafka client bug; Kafka is an append-only log with offsets, conceptually WAL-like, but the fix is client protocol handling."}
+    ]
+  },
+  "final_top10": [
+    {"rank": 1, "task_id": "task_000838_38901502", "source": "TMax-15K", "skill": 5, "domain": 4, "task_form": 5, "overall": 5, "reason": "Hand-parse a binary WAL by magic signature, TxID and length prefix to recover a payload; the exact header-and-frame parsing the TB task requires."},
+    {"rank": 2, "task_id": "task_002461_c1a45b43", "source": "TMax-15K", "skill": 4, "domain": 5, "task_form": 4, "overall": 5, "reason": "Recover records from an orphaned SQLite .db-wal into the base database after a crash; literally SQLite WAL recovery."},
+    {"rank": 3, "task_id": "task_002015_30c1f280", "source": "TMax-15K", "skill": 5, "domain": 4, "task_form": 5, "overall": 5, "reason": "Reverse-engineer a WAL binary format and clean-room a parser that recovers records to JSON despite corrupted length prefixes; same crux."},
+    {"rank": 4, "task_id": "task_008316_09995a25", "source": "TMax-15K", "skill": 5, "domain": 4, "task_form": 5, "overall": 5, "reason": "Fix an off-by-one in a binary-WAL parser so it recovers every record into the full JSON array; same byte-offset parse-to-full-recovery."},
+    {"rank": 5, "task_id": "task_007266_e52c7a7f", "source": "TMax-15K", "skill": 4, "domain": 5, "task_form": 4, "overall": 4, "reason": "Forensic recovery of a malformed SQLite database into a new one and extract the records; same SQLite corruption-recovery domain."},
+    {"rank": 6, "task_id": "task_000397_d04a33da", "source": "TMax-15K", "skill": 5, "domain": 4, "task_form": 4, "overall": 4, "reason": "Parse a custom WAL (header plus fixed records) in C, skip the corrupt record and recover the rest; same header+frame hand-parsing."},
+    {"rank": 7, "task_id": "task_006301_63d62c7b", "source": "TMax-15K", "skill": 4, "domain": 4, "task_form": 5, "overall": 4, "reason": "Parse little-endian length-prefixed WAL records with JSON payloads, skip an undecodable one, and recover the rest; same frame parsing."},
+    {"rank": 8, "task_id": "task_004777_b2057787", "source": "TMax-15K", "skill": 4, "domain": 4, "task_form": 4, "overall": 4, "reason": "Repair a WAL parser that panics on a truncated final entry so all valid records are recovered to JSONL; same truncated-WAL recovery."},
+    {"rank": 9, "task_id": "task_002240_b361df6f", "source": "TMax-15K", "skill": 4, "domain": 4, "task_form": 4, "overall": 4, "reason": "Fix encoding/serialization bugs in a C++ tool parsing a binary WAL and dump all recovered records; same binary-log parse-and-recover."},
+    {"rank": 10, "task_id": "d0c-s4vage__pfp-112", "source": "SWE-Rebench-Tasks-Clean", "skill": 4, "domain": 3, "task_form": 2, "overall": 3, "reason": "Fix pfp parsing a DEX binary via a field/offset template; the closest non-TMax match for hand-parsing a structured binary format."}
+  ],
+  "notes": "TMax is overwhelmingly the right pool: it contains a large 'crashed DB, corrupted WAL, recover the records' family, several of which hand-parse a binary WAL (magic + length-prefixed frames) exactly like the TB task, and one (task_002461) that recovers a real orphaned SQLite .db-wal. final_top10 is 9/10 TMax by honest merit. The RTS and TerminalWorld shortlists were dominated by SQLAlchemy DB-init chores and Chinook table extraction (boilerplate, discarded); their real signal is the blkar/SBX corrupt-and-repair family and layered decode/decrypt chains, which match the repair-corrupted-data and decrypt-then-read shape but not SQLite/WAL specifically. SWE-Smith and SWE-Rebench can't match task_form (issue-fix); their best skill bridges are binary-format parsing - cantools bit/byte decode and especially SWE-Rebench's pfp (a binary-template parser) - plus the SQLite-backed libraries pudo/dataset and MonkeyType; scores kept honest at 2-3. Merge note: the blkar/SBX corrupt-repair seed appears in BOTH RTS (rts_task_a44e26e5, 0bdfa5f3, 25559b99) and TerminalWorld (tw_240491, tw_256057), so those picks are siblings; likewise several TMax WAL tasks share the '3 AM on-call, WAL won't replay' template but are genuinely distinct parsers."
+}

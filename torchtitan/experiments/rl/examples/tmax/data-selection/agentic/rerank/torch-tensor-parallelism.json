@@ -1,0 +1,102 @@
+{
+  "tb21_id": "torch-tensor-parallelism",
+  "tb21_profile": {
+    "skill": "Shard a weight matrix along the correct axis per rank and implement nn.Module forward/backward whose outputs, bias handling and gradients match an unsharded reference (all_gather / all_reduce semantics by hand)",
+    "domain": "PyTorch nn.Module and autograd, torch.distributed rank/world_size, dense linear algebra (row/column block decomposition of a matmul)",
+    "task_form": "implement-from-spec to fixed class signatures, verified numerically (weights, bias, outputs, gradients) at world_size 1/2/4"
+  },
+  "searches": [
+    "tools.py search all \"block matrix|matrix multiplication|matmul|GEMM\" -n 45",
+    "tools.py search all \"shard|sharding|partition the (matrix|weight)\" -n 20",
+    "tools.py search all \"linear layer|nn\\.Linear|weight matrix\"",
+    "tools.py search all \"all_gather|all-gather|reduce-scatter|scatter/gather\"",
+    "tools.py search all \"gradient\" -n 40",
+    "tools.py search all \"torch\\.distributed\"",
+    "tools.py search all \"tensor parallel\"",
+    "tools.py search tmax \"\\bMPI\\b|mpi4py|mpirun\" -n 40",
+    "tools.py search tw \"matrix|BLAS|linear algebra|eigen|numpy|tensor\" -n 30",
+    "tools.py search rts \"matrix|linear algebra|numpy|eigen|dot product|vector\" -n 25",
+    "tools.py search rts \"model_config\\.json|nn\\.Linear|PyTorch|torch\\.nn\" -n 25",
+    "tools.py search rebench \"pytensor|linalg|matmul|transpose|einsum|dot product\" -n 30",
+    "tools.py search smith \"fvcore\" -n 40",
+    "tools.py search smith \"dask\" -n 40",
+    "tools.py show task_007681_7a842004 task_001585_39214bf7 task_003742_b2a4ee18 task_004753_df1f62f5",
+    "tools.py show task_009503_05e189db task_001030_45a9959c task_003377_14281b29 task_000441_7a89002c",
+    "tools.py show tw_125169 tw_1025"
+  ],
+  "per_source": {
+    "TMax-15K": [
+      {"rank": 1, "task_id": "task_000816_72e21ee9", "skill": 4, "domain": 3, "task_form": 4, "overall": 4, "reason": "Partition the rows of a matrix across mpi4py ranks and recombine exactly — the same row-block decomposition RowParallelLinear needs."},
+      {"rank": 2, "task_id": "task_001030_45a9959c", "skill": 4, "domain": 4, "task_form": 4, "overall": 4, "reason": "Recover a 5x3 projection matrix by probing with basis vectors and reimplement the linear layer bit-exactly; weight-layout reasoning is the crux."},
+      {"rank": 3, "task_id": "task_009503_05e189db", "skill": 3, "domain": 4, "task_form": 4, "overall": 3, "reason": "Implement y_j = sum_i x_i W_ij plus ReLU from an explicit index convention; exactly the orientation discipline column/row sharding demands."},
+      {"rank": 4, "task_id": "task_003742_b2a4ee18", "skill": 3, "domain": 3, "task_form": 3, "overall": 3, "reason": "Code does elementwise multiply where X @ W is required; diagnosing a wrong matmul axis is the classic tensor-parallel bug."},
+      {"rank": 5, "task_id": "task_001585_39214bf7", "skill": 3, "domain": 3, "task_form": 4, "overall": 3, "reason": "Compute Y = X·P with cblas_dgemm and measure max absolute deviation from a reference matrix; same 'match the unsharded reference' check."},
+      {"rank": 6, "task_id": "task_009562_91210c7c", "skill": 3, "domain": 5, "task_form": 3, "overall": 3, "reason": "Infer an nn.Module's layer shapes from state_dict keys and load weights strictly; the shape bookkeeping sharding requires."},
+      {"rank": 7, "task_id": "task_008162_e3ba09cb", "skill": 3, "domain": 5, "task_form": 3, "overall": 3, "reason": "Hidden-layer size disagrees with the saved weights; fix the module so the state_dict loads — weight-partition shape reasoning."},
+      {"rank": 8, "task_id": "task_004753_df1f62f5", "skill": 3, "domain": 3, "task_form": 3, "overall": 3, "reason": "Hand-implement a linear autoencoder forward (W·h + b) in C++ and reproduce reference reconstruction errors, bias included."},
+      {"rank": 9, "task_id": "task_000441_7a89002c", "skill": 3, "domain": 2, "task_form": 3, "overall": 3, "reason": "A wrong gradient expression stops convergence; deriving and checking gradients by hand is what the grad tests here demand."},
+      {"rank": 10, "task_id": "task_001552_7ed8f9bf", "skill": 3, "domain": 3, "task_form": 4, "overall": 3, "reason": "Each MPI rank owns a slice of the computation and results must reassemble exactly; rank-indexed partition arithmetic."}
+    ],
+    "Recursive-Task-Synthesis": [
+      {"rank": 1, "task_id": "rts_task_956ea2e372fe004edbe0d44d", "skill": 3, "domain": 5, "task_form": 4, "overall": 3, "reason": "Build a PyTorch model from a JSON architecture spec and report per-layer parameter tables; module construction from a written contract."},
+      {"rank": 2, "task_id": "rts_task_fe9b38379292388dd5e39009", "skill": 2, "domain": 3, "task_form": 3, "overall": 2, "reason": "Derive the required embedding dimension from repository history, train, and compute cosine similarity; dimension bookkeeping over vectors."},
+      {"rank": 3, "task_id": "rts_task_e69fdae3612dcbc49b035654", "skill": 2, "domain": 3, "task_form": 3, "overall": 2, "reason": "Train two embedding models and compare their vectors; vector-space arithmetic with a numerically checked output."},
+      {"rank": 4, "task_id": "rts_task_b03e51290519516337fed40c", "skill": 2, "domain": 3, "task_form": 2, "overall": 2, "reason": "Set up and run a numpy MNIST classification workflow; ML-numerics ecosystem but mostly environment plumbing."},
+      {"rank": 5, "task_id": "rts_task_c97cadfb47ad0e8723c026af", "skill": 2, "domain": 2, "task_form": 3, "overall": 2, "reason": "Parallel pipeline whose worker count and stages come from a config file; parameterising work over N workers."},
+      {"rank": 6, "task_id": "rts_task_4a9d7abd249bbfbf71a7c9d5", "skill": 2, "domain": 2, "task_form": 3, "overall": 2, "reason": "Four-stage pipeline executed by parallel workers with results collected in order; toy parallel decomposition."},
+      {"rank": 7, "task_id": "rts_task_20e847f9116b2497b13e085d", "skill": 2, "domain": 3, "task_form": 3, "overall": 2, "reason": "Write MPI code from scratch where each process reports its own rank out of the world size; rank/world_size API from a spec."},
+      {"rank": 8, "task_id": "rts_task_02ed6aca52dbb52944300e62", "skill": 2, "domain": 3, "task_form": 2, "overall": 2, "reason": "Repair a multi-rank program so every rank prints its index out of the total; minimal rank-indexing correctness."},
+      {"rank": 9, "task_id": "rts_task_32ebe57dc3a069ccf9d88c84", "skill": 1, "domain": 3, "task_form": 2, "overall": 2, "reason": "Another MPI hello-world repair verified by a process-level test; essentially no algorithmic content."},
+      {"rank": 10, "task_id": "rts_task_549d1fccca663947ef795605", "skill": 1, "domain": 3, "task_form": 2, "overall": 1, "reason": "Compile and launch a job under mpirun with the right env vars; launcher plumbing only."}
+    ],
+    "TerminalWorld-Seeds-Clean": [
+      {"rank": 1, "task_id": "tw_718060", "skill": 3, "domain": 5, "task_form": 4, "overall": 3, "reason": "Define an nn.Module exactly as specified (Linear/Conv shapes, requires_grad_ freezing), run a forward, and report per-layer parameter counts."},
+      {"rank": 2, "task_id": "tw_668448", "skill": 3, "domain": 5, "task_form": 3, "overall": 3, "reason": "Runs a torch distributed job on the gloo CPU backend — the same process-group runtime these classes query for rank/world_size."},
+      {"rank": 3, "task_id": "tw_668460", "skill": 2, "domain": 5, "task_form": 3, "overall": 3, "reason": "Same torch distributed job launched under mpirun; environment and rank wiring for a multi-rank torch run."},
+      {"rank": 4, "task_id": "tw_125169", "skill": 3, "domain": 3, "task_form": 3, "overall": 3, "reason": "Exact accumulation when summing partial products in a linear solve; the numerics question behind summing rank-partial outputs."},
+      {"rank": 5, "task_id": "tw_251773", "skill": 2, "domain": 3, "task_form": 3, "overall": 2, "reason": "Run an mpi4py program across two hosts with a shared world; multi-rank launch and rank-aware behaviour."},
+      {"rank": 6, "task_id": "tw_1025", "skill": 2, "domain": 2, "task_form": 3, "overall": 2, "reason": "Split a dataset into ten roughly equal parts and process each shard independently; the balanced-partition step, without tensors."},
+      {"rank": 7, "task_id": "tw_125964", "skill": 2, "domain": 2, "task_form": 3, "overall": 2, "reason": "Partition a network adjacency matrix into communities; matrix-structured partitioning, different objective."},
+      {"rank": 8, "task_id": "tw_510751", "skill": 2, "domain": 3, "task_form": 3, "overall": 2, "reason": "Build and run an MPI program printing rank, world size and host; smallest possible rank/world exercise."},
+      {"rank": 9, "task_id": "tw_18325", "skill": 2, "domain": 2, "task_form": 3, "overall": 2, "reason": "Split a computation over worker processes and collect the results; work partition without any communication semantics."},
+      {"rank": 10, "task_id": "tw_419029", "skill": 2, "domain": 2, "task_form": 3, "overall": 2, "reason": "Run the identical workload at 1,2,4..12-way parallelism and confirm each succeeds; mirrors the world_size sweep."}
+    ],
+    "SWE-Smith-Seeds-Clean": [
+      {"rank": 1, "task_id": "facebookresearch__fvcore.a491d5b9.lm_rewrite__m0xnjits", "skill": 4, "domain": 5, "task_form": 2, "overall": 3, "reason": "Custom torch.autograd.Function nodes in the graph; the forward/backward contract these parallel layers must get right."},
+      {"rank": 2, "task_id": "facebookresearch__fvcore.a491d5b9.func_pm_ctrl_shuffle__kd43vy4l", "skill": 3, "domain": 5, "task_form": 2, "overall": 3, "reason": "matmul flop accounting from a traced torch model; requires reasoning about matmul operand shapes exactly as sharding does."},
+      {"rank": 3, "task_id": "facebookresearch__fvcore.a491d5b9.lm_rewrite__pcccevul", "skill": 3, "domain": 5, "task_form": 2, "overall": 3, "reason": "Count parameters per submodule over a module tree; the same weight-inventory check the sharding tests perform."},
+      {"rank": 4, "task_id": "facebookresearch__fvcore.a491d5b9.lm_rewrite__1lp7kdh2", "skill": 3, "domain": 4, "task_form": 2, "overall": 3, "reason": "Flop counting for an einsum model: index-contraction semantics, the algebra behind column vs row partitioning."},
+      {"rank": 5, "task_id": "facebookresearch__fvcore.a491d5b9.lm_rewrite__lo7njclv", "skill": 3, "domain": 4, "task_form": 2, "overall": 2, "reason": "Accumulating running statistics correctly across batches; the summation-of-partials discipline of an all_reduce."},
+      {"rank": 6, "task_id": "facebookresearch__fvcore.a491d5b9.combine_module__uxncj1ip", "skill": 2, "domain": 4, "task_form": 2, "overall": 2, "reason": "Tensor shape handling broken in a conversion helper; shape-contract debugging in the torch ecosystem."},
+      {"rank": 7, "task_id": "facebookresearch__fvcore.a491d5b9.lm_rewrite__pef4qmpy", "skill": 2, "domain": 4, "task_form": 2, "overall": 2, "reason": "Detect which submodules never ran in a forward pass; module-level bookkeeping over a partitioned model."},
+      {"rank": 8, "task_id": "dask__dask.5f61e423.pr_11337", "skill": 3, "domain": 2, "task_form": 2, "overall": 2, "reason": "Rechunking an array along chosen dimensions — deciding a balanced split of a big tensor is the same decision here."},
+      {"rank": 9, "task_id": "dask__dask.5f61e423.pr_6749", "skill": 3, "domain": 2, "task_form": 2, "overall": 2, "reason": "Missing 2D case for least-squares residuals; getting a linear-algebra routine right for the multi-column shape."},
+      {"rank": 10, "task_id": "facebookresearch__fvcore.a491d5b9.func_pm_ctrl_shuffle__n9luhuy3", "skill": 2, "domain": 4, "task_form": 2, "overall": 2, "reason": "state_dict load ordering breaks checkpoint restore; relevant to distributing a master weight into per-rank buffers."}
+    ],
+    "SWE-Rebench-Tasks-Clean": [
+      {"rank": 1, "task_id": "pymc-devs__pytensor-1231", "skill": 4, "domain": 3, "task_form": 2, "overall": 3, "reason": "Transpose handling inside the gradient of a linear-algebra op — precisely the transpose bookkeeping row/column-parallel grads need."},
+      {"rank": 2, "task_id": "keras-team__keras-20609", "skill": 4, "domain": 4, "task_form": 2, "overall": 3, "reason": "Model output changes with the number of replicas; the exact invariance the world_size 1/2/4 tests enforce."},
+      {"rank": 3, "task_id": "cornellius-gp__gpytorch-216", "skill": 3, "domain": 4, "task_form": 2, "overall": 3, "reason": "Structured (Kronecker) matrix product fails for non-square factors; block-decomposed matmul shape reasoning in torch."},
+      {"rank": 4, "task_id": "cornellius-gp__gpytorch-782", "skill": 3, "domain": 4, "task_form": 2, "overall": 3, "reason": "Batch-dimension indexing of torch covariance tensors breaks; leading-dimension shape discipline under partitioning."},
+      {"rank": 5, "task_id": "pymc-devs__pytensor-1185", "skill": 3, "domain": 3, "task_form": 2, "overall": 2, "reason": "Einsum contraction bug: getting which index is summed over right is the same question as row vs column sharding."},
+      {"rank": 6, "task_id": "pydata__sparse-870", "skill": 3, "domain": 2, "task_form": 2, "overall": 2, "reason": "Conjugate transpose followed by matmul gives the wrong result; operand-orientation debugging in an array library."},
+      {"rank": 7, "task_id": "pymc-devs__pytensor-1394", "skill": 2, "domain": 3, "task_form": 2, "overall": 2, "reason": "A solver that does not accept batched inputs; making a linear-algebra op work over an extra leading dimension."},
+      {"rank": 8, "task_id": "simpeg__simpeg-1621", "skill": 2, "domain": 2, "task_form": 2, "overall": 2, "reason": "A block matrix of sparse blocks must still behave as one operator in the dot product; block-decomposition semantics."},
+      {"rank": 9, "task_id": "pyg-team__pytorch_geometric-9446", "skill": 2, "domain": 4, "task_form": 2, "overall": 2, "reason": "Composing torch Linear/ReLU/Dropout into a working module goes wrong; plain nn.Module construction practice."},
+      {"rank": 10, "task_id": "keras-team__keras-19636", "skill": 2, "domain": 3, "task_form": 2, "overall": 2, "reason": "Autocast silently changes input dtypes; dtype discipline, a real trap when sharded buffers must keep the master dtype."}
+    ]
+  },
+  "final_top10": [
+    {"rank": 1, "task_id": "task_000816_72e21ee9", "source": "TMax-15K", "skill": 4, "domain": 3, "task_form": 4, "overall": 4, "reason": "Row-block partition of a matrix computation across ranks, recombined to match the serial result exactly."},
+    {"rank": 2, "task_id": "task_001030_45a9959c", "source": "TMax-15K", "skill": 4, "domain": 4, "task_form": 4, "overall": 4, "reason": "Recover a linear layer's weight matrix by basis-vector probing and reproduce its output bit-exactly, activation and layout included."},
+    {"rank": 3, "task_id": "pymc-devs__pytensor-1231", "source": "SWE-Rebench-Tasks-Clean", "skill": 4, "domain": 3, "task_form": 2, "overall": 3, "reason": "Transpose handling in the gradient of a linear-algebra op; the same transpose bookkeeping decides correct sharded gradients."},
+    {"rank": 4, "task_id": "tw_718060", "source": "TerminalWorld-Seeds-Clean", "skill": 3, "domain": 5, "task_form": 4, "overall": 3, "reason": "Implement an nn.Module exactly to a written architecture spec, manage requires_grad, and account for parameters per layer."},
+    {"rank": 5, "task_id": "task_009503_05e189db", "source": "TMax-15K", "skill": 3, "domain": 4, "task_form": 4, "overall": 3, "reason": "Implement y_j = sum_i x_i W_ij with the index convention spelled out — the orientation question at the heart of column vs row parallel."},
+    {"rank": 6, "task_id": "facebookresearch__fvcore.a491d5b9.lm_rewrite__m0xnjits", "source": "SWE-Smith-Seeds-Clean", "skill": 4, "domain": 5, "task_form": 2, "overall": 3, "reason": "Custom autograd Function inside a torch graph; both tasks stand or fall on forward/backward contract correctness."},
+    {"rank": 7, "task_id": "keras-team__keras-20609", "source": "SWE-Rebench-Tasks-Clean", "skill": 4, "domain": 4, "task_form": 2, "overall": 3, "reason": "Output must not depend on replica count — the invariance the world_size 1/2/4 test sweep checks."},
+    {"rank": 8, "task_id": "task_003742_b2a4ee18", "source": "TMax-15K", "skill": 3, "domain": 3, "task_form": 3, "overall": 3, "reason": "Elementwise multiply used where X @ W is required; finding a wrong-axis matmul is the standard tensor-parallel failure."},
+    {"rank": 9, "task_id": "tw_668448", "source": "TerminalWorld-Seeds-Clean", "skill": 3, "domain": 5, "task_form": 3, "overall": 3, "reason": "Exercises the torch distributed gloo runtime whose get_rank/get_world_size these classes are built around."},
+    {"rank": 10, "task_id": "cornellius-gp__gpytorch-216", "source": "SWE-Rebench-Tasks-Clean", "skill": 3, "domain": 4, "task_form": 2, "overall": 3, "reason": "Structured Kronecker matmul fails for non-square factors; block-decomposed matrix product shape reasoning in torch."}
+  ],
+  "notes": "Same corpus gap as torch-pipeline-parallelism: no task in the pool mentions torch.distributed, tensor parallelism, all_gather or all_reduce. I split transfer into (a) explicit weight-matrix/matmul-orientation work and hand-derived gradients, and (b) rank-partitioned computation, and ranked (a) higher here because the verifier checks sharding, outputs and gradients rather than a communication schedule. Retriever shortlists were dominated by generic 'ML data pipeline' TMax entries and, for TW/RTS, by pure shell-script boilerplate; nearly everything I kept came from my own searches. RTS is again the weakest corpus (its PyTorch content is a single torchmeter task, rts_task_956ea2e372fe004edbe0d44d; the rest is MPI hello-world and env setup), and its ranks 4-10 should be discounted at merge. Note the large overlap with my torch-pipeline-parallelism file — that is real, not an accident: the two TB tasks share a domain and the pool has only one small set of relevant tasks."
+}

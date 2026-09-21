@@ -1,0 +1,101 @@
+{
+  "tb21_id": "cancel-async-tasks",
+  "tb21_profile": {
+    "skill": "Bounded-concurrency async scheduling plus correct cancellation semantics: a semaphore/TaskGroup limit, and propagating CancelledError/KeyboardInterrupt so every task's cleanup code still runs",
+    "domain": "Python asyncio (tasks, gather, semaphores, CancelledError, signal/KeyboardInterrupt handling)",
+    "task_form": "implement-a-small-API-from-spec whose difficulty is entirely in subtle concurrency edge cases"
+  },
+  "searches": [
+    "tools.py search all 'asyncio|CancelledError|KeyboardInterrupt|SIGINT'",
+    "tools.py search all 'semaphore|bounded_gather|max_concurrent|concurrency limit|gather\\(|TaskGroup|nursery|cancel scope|graceful shutdown'",
+    "tools.py search smith 'trio|async|await|coroutine|cancel'",
+    "tools.py search smith 'trio'",
+    "tools.py search smith 'python-trio'",
+    "tools.py search rebench 'trio|nursery|cancel|CancelledError|shutdown|signal handler'",
+    "tools.py search tmax 'asyncio|async def|await |coroutine|event loop'",
+    "tools.py search rts 'concurrent|parallel|SIGINT|SIGTERM|trap |interrupt|background process|worker pool|thread'",
+    "tools.py search tw 'concurrent|parallel|SIGINT|SIGTERM|trap |interrupt|goroutine|thread|async'",
+    "tools.py search tw 'Task\\.|Elixir|Erlang|actor|supervisor|GenServer|await|promise|future'",
+    "tools.py show task_002782_8ddf86de task_003764_3d6b8df9 task_000705_dd1c4aef",
+    "tools.py show task_003660_31110d11 task_002399_ad3ad461",
+    "tools.py show rts_task_0e6f1cc0fb0e1aef5a9781eb rts_task_804fa1532a71bb9032d5a163 rts_task_d0d85b0aa334978c5f38571f rts_task_ab1b8e55bf9ba9559d50a4f7",
+    "tools.py show tw_454290 tw_196065 tw_39289 tw_351695",
+    "tools.py show aaugustin__websockets-467 aaugustin__websockets-483 bentoml__bentoml-5084 amoffat__sh-603",
+    "tools.py show Cog-Creators__Red-DiscordBot.33e0eac7.combine_module__9p10bve9"
+  ],
+  "per_source": {
+    "TMax-15K": [
+      {"rank": 1, "task_id": "task_002782_8ddf86de", "skill": 5, "domain": 5, "task_form": 4, "overall": 5, "reason": "Requires the async function to terminate on cancellation and explicitly forbids catching or swallowing asyncio.CancelledError - the exact semantics here."},
+      {"rank": 2, "task_id": "task_000705_dd1c4aef", "skill": 5, "domain": 5, "task_form": 3, "overall": 4, "reason": "Server ignores client cancellation and leaves an orphaned task; fix is to handle asyncio.CancelledError so the task actually stops."},
+      {"rank": 3, "task_id": "task_003430_e10679d1", "skill": 4, "domain": 5, "task_form": 3, "overall": 4, "reason": "Asyncio task leak when a client goes away - same lifecycle bug the run_tasks contract exists to prevent."},
+      {"rank": 4, "task_id": "task_001433_7846c37a", "skill": 4, "domain": 5, "task_form": 3, "overall": 4, "reason": "Service leaks asyncio tasks on client disconnect; must make in-flight tasks be cancelled and torn down."},
+      {"rank": 5, "task_id": "task_000395_1ab555d1", "skill": 4, "domain": 5, "task_form": 3, "overall": 4, "reason": "Asyncio task leak causing memory exhaustion, plus a regression test that proves tasks are reclaimed - tests cancellation hygiene."},
+      {"rank": 6, "task_id": "task_002185_f65006df", "skill": 3, "domain": 5, "task_form": 3, "overall": 3, "reason": "Vendored async package leaks asyncio tasks and connections when a build aborts; abort-path cleanup is the crux."},
+      {"rank": 7, "task_id": "task_003157_3377a91e", "skill": 3, "domain": 5, "task_form": 3, "overall": 3, "reason": "Asyncio chunk-processing service leaks memory/tasks; requires reasoning about task lifetime in a running event loop."},
+      {"rank": 8, "task_id": "task_003764_3d6b8df9", "skill": 3, "domain": 4, "task_form": 2, "overall": 3, "reason": "Defines the leak precisely as tasks cancelled without their cleanup ever emitted - the exact failure mode, though the work is log analysis."},
+      {"rank": 9, "task_id": "task_003660_31110d11", "skill": 3, "domain": 3, "task_form": 3, "overall": 3, "reason": "Must enforce a strict semaphore of at most 4 concurrent calls while fanning work out - the max_concurrent half, in Go."},
+      {"rank": 10, "task_id": "task_000189_2844d799", "skill": 3, "domain": 4, "task_form": 3, "overall": 3, "reason": "Concurrent handlers lose updates; fix by making the critical section async-safe with asyncio.Lock - concurrency primitive selection."}
+    ],
+    "Recursive-Task-Synthesis": [
+      {"rank": 1, "task_id": "rts_task_d0d85b0aa334978c5f38571f", "skill": 4, "domain": 3, "task_form": 3, "overall": 4, "reason": "Two things run concurrently and on SIGINT all children must be terminated cleanly - the interrupt-must-still-clean-up requirement."},
+      {"rank": 2, "task_id": "rts_task_0e6f1cc0fb0e1aef5a9781eb", "skill": 4, "domain": 3, "task_form": 3, "overall": 4, "reason": "Runs until interrupted and must flush collected state to disk before exiting on SIGTERM or KeyboardInterrupt - cleanup on interrupt."},
+      {"rank": 3, "task_id": "rts_task_804fa1532a71bb9032d5a163", "skill": 3, "domain": 3, "task_form": 3, "overall": 3, "reason": "On EOF or SIGINT the script must still print its summary and exit message - finalisation code that survives the interrupt."},
+      {"rank": 4, "task_id": "rts_task_0516f500a33f74e941f006ba", "skill": 3, "domain": 3, "task_form": 3, "overall": 3, "reason": "Three concurrent background jobs are stopped/resumed/terminated with Unix signals; process-level analogue of cancelling tasks."},
+      {"rank": 5, "task_id": "rts_task_0f60c3a8e1f3decb902a234a", "skill": 3, "domain": 3, "task_form": 3, "overall": 3, "reason": "Manage concurrent background workers to a spec, including their orderly signalling and shutdown."},
+      {"rank": 6, "task_id": "rts_task_ab1b8e55bf9ba9559d50a4f7", "skill": 3, "domain": 2, "task_form": 3, "overall": 3, "reason": "Drive a runner whose parallelism is capped by NUMBER_OF_PARALLEL_COMMANDS and which must tolerate individual failures."},
+      {"rank": 7, "task_id": "rts_task_6dfc24cf4ac2937eebd7d732", "skill": 3, "domain": 2, "task_form": 3, "overall": 3, "reason": "Start several concurrent writers and manage their lifecycle with signals; same start-many-then-stop-them-all shape."},
+      {"rank": 8, "task_id": "rts_task_098682d5efeff2d2cf258312", "skill": 2, "domain": 2, "task_form": 3, "overall": 2, "reason": "Background processes appending to a shared file, controlled by signals; concurrency without any cancellation subtlety."},
+      {"rank": 9, "task_id": "rts_task_658b2291aa04be5ddc99d1a7", "skill": 2, "domain": 3, "task_form": 3, "overall": 2, "reason": "Build a parallel processing pipeline with a worker pool library - fan-out only, no cancellation or cleanup guarantee."},
+      {"rank": 10, "task_id": "rts_task_82736b81116093aed6b8fa0c", "skill": 2, "domain": 2, "task_form": 3, "overall": 2, "reason": "Run several long processes concurrently, capture their output and then signal them; shell-level process control."}
+    ],
+    "TerminalWorld-Seeds-Clean": [
+      {"rank": 1, "task_id": "tw_454290", "skill": 4, "domain": 3, "task_form": 3, "overall": 4, "reason": "Probes what detaching an async task does to its link and liveness - exactly the ownership question behind cancelling and cleaning up tasks."},
+      {"rank": 2, "task_id": "tw_47825", "skill": 4, "domain": 3, "task_form": 3, "overall": 3, "reason": "Monitor a spawned process, kill it, and capture the exit reason delivered to the monitor - forced termination plus its notification."},
+      {"rank": 3, "task_id": "tw_39289", "skill": 3, "domain": 3, "task_form": 4, "overall": 3, "reason": "Implement concurrent fan-out over a list of inputs by spawning async tasks and collecting each result - the non-cancel half of run_tasks."},
+      {"rank": 4, "task_id": "tw_380790", "skill": 3, "domain": 2, "task_form": 3, "overall": 3, "reason": "Concurrent background workers driven through signal handling; a process-level version of interrupting running jobs."},
+      {"rank": 5, "task_id": "tw_380466", "skill": 3, "domain": 2, "task_form": 3, "overall": 3, "reason": "Pause, terminate and resume specific concurrent processes with SIGSTOP/SIGTERM - selective cancellation of running work."},
+      {"rank": 6, "task_id": "tw_196065", "skill": 3, "domain": 2, "task_form": 3, "overall": 3, "reason": "Exercise a runner whose parallelism is capped by an env var and which must not abort the batch when one command fails."},
+      {"rank": 7, "task_id": "tw_18325", "skill": 2, "domain": 3, "task_form": 4, "overall": 2, "reason": "Write a Python script that fans work out across a process pool; concurrency API usage with no cancellation semantics."},
+      {"rank": 8, "task_id": "tw_293066", "skill": 2, "domain": 3, "task_form": 3, "overall": 2, "reason": "Parallel pipeline over 1000 items with a pool library - throughput-style concurrency only."},
+      {"rank": 9, "task_id": "tw_132235", "skill": 2, "domain": 2, "task_form": 3, "overall": 2, "reason": "Drive a Go concurrent process executor over two command sets; running many jobs at once, nothing about stopping them."},
+      {"rank": 10, "task_id": "tw_351695", "skill": 2, "domain": 2, "task_form": 3, "overall": 2, "reason": "Serial vs parallel waiting with timeouts and exit codes; only the wait-for-many-things-at-once idea transfers."}
+    ],
+    "SWE-Smith-Seeds-Clean": [
+      {"rank": 1, "task_id": "Cog-Creators__Red-DiscordBot.33e0eac7.combine_module__9p10bve9", "skill": 5, "domain": 5, "task_form": 2, "overall": 4, "reason": "bounded_gather is a semaphore-limited asyncio.gather; the bug is in how the concurrency limit is validated - the same function being asked for."},
+      {"rank": 2, "task_id": "python-trio__trio.cfbbe2c1.pr_3051", "skill": 5, "domain": 4, "task_form": 2, "overall": 4, "reason": "Add shield support to cancel scopes - shielding is precisely how cleanup code is allowed to finish after a cancel."},
+      {"rank": 3, "task_id": "python-trio__trio.cfbbe2c1.combine_module__2e5xy8b7", "skill": 4, "domain": 4, "task_form": 2, "overall": 4, "reason": "Signal handling (the Ctrl-C path) plus subprocess pipe setup inside an async runtime - interrupt delivery in a concurrent program."},
+      {"rank": 4, "task_id": "python-trio__trio.cfbbe2c1.pr_3112", "skill": 4, "domain": 4, "task_form": 2, "overall": 4, "reason": "Async generator finalisation is broken - whether teardown code runs when an async object is discarded, the same guarantee."},
+      {"rank": 5, "task_id": "aio-libs__async-timeout.d0baa9f1.lm_rewrite__kqd6t1mb", "skill": 4, "domain": 5, "task_form": 2, "overall": 4, "reason": "Timeout state machine after exit/expiration; async_timeout works by cancelling the task and re-interpreting CancelledError."},
+      {"rank": 6, "task_id": "aio-libs__async-timeout.d0baa9f1.combine_file__la9dmvt9", "skill": 3, "domain": 5, "task_form": 2, "overall": 3, "reason": "Timeout object behaves unexpectedly around its cancellation callbacks; requires reading asyncio cancellation flow carefully."},
+      {"rank": 7, "task_id": "aio-libs__async-timeout.d0baa9f1.lm_rewrite__6u2agdmd", "skill": 3, "domain": 5, "task_form": 2, "overall": 3, "reason": "reject() allows invalid state transitions in a cancellation-driven timeout - state validity across cancel points."},
+      {"rank": 8, "task_id": "Cog-Creators__Red-DiscordBot.33e0eac7.lm_rewrite__uwiuayml", "skill": 2, "domain": 4, "task_form": 2, "overall": 2, "reason": "Registration accepts non-coroutine callables where awaitables are required - the Callable[[], Awaitable] contract this API also has."},
+      {"rank": 9, "task_id": "django__channels.a144b4b8.func_basic__vh9zpg0p", "skill": 2, "domain": 4, "task_form": 2, "overall": 2, "reason": "Sync-to-async wrapper drops the result of the wrapped call; awaiting across the sync/async boundary correctly."},
+      {"rank": 10, "task_id": "python-trio__trio.cfbbe2c1.pr_3096", "skill": 2, "domain": 4, "task_form": 1, "overall": 2, "reason": "Type sleep_forever as NoReturn; structured-concurrency library domain but the fix is a typing annotation."}
+    ],
+    "SWE-Rebench-Tasks-Clean": [
+      {"rank": 1, "task_id": "aaugustin__websockets-467", "skill": 5, "domain": 5, "task_form": 2, "overall": 4, "reason": "Whole issue is when to cancel a future versus set an exception, and how callers can tell why CancelledError arrived - core cancellation design."},
+      {"rank": 2, "task_id": "python-trio__trio-2845", "skill": 4, "domain": 4, "task_form": 2, "overall": 4, "reason": "Exception structure escaping a nursery when children fail or are cancelled; how errors from concurrent children reach the caller."},
+      {"rank": 3, "task_id": "aaugustin__websockets-483", "skill": 4, "domain": 5, "task_form": 2, "overall": 4, "reason": "Server-side tasks stay alive longer than they should after the peer goes away; deciding when to cancel outstanding work."},
+      {"rank": 4, "task_id": "bentoml__bentoml-5084", "skill": 4, "domain": 5, "task_form": 2, "overall": 3, "reason": "Failure inside an await asyncio.gather(*tasks) cleanup path - cleanup that itself awaits, which is what run_tasks must get right."},
+      {"rank": 5, "task_id": "aio-libs__aiohttp-7869", "skill": 4, "domain": 5, "task_form": 2, "overall": 3, "reason": "A cancelled request corrupts later requests; reasoning about state left behind when a coroutine is cancelled mid-flight."},
+      {"rank": 6, "task_id": "amoffat__sh-603", "skill": 3, "domain": 4, "task_form": 2, "overall": 3, "reason": "KeyboardInterrupt lands while waiting on a child process and leaves a lock held - Ctrl-C arriving at the worst moment."},
+      {"rank": 7, "task_id": "aio-libs__aiohttp-8680", "skill": 3, "domain": 5, "task_form": 2, "overall": 3, "reason": "Graceful shutdown does not drain as documented; shutting down running handlers in an orderly way."},
+      {"rank": 8, "task_id": "aaugustin__websockets-627", "skill": 3, "domain": 5, "task_form": 2, "overall": 3, "reason": "keepalive_ping's wait_for/timeout interaction misbehaves - timeouts implemented on top of task cancellation."},
+      {"rank": 9, "task_id": "aio-libs__aiohttp-10764", "skill": 3, "domain": 5, "task_form": 2, "overall": 3, "reason": "Two long-running tasks gathered together with signal handling disabled; lifetime and interruption of gathered tasks."},
+      {"rank": 10, "task_id": "tomplus__kubernetes_asyncio-330", "skill": 2, "domain": 4, "task_form": 2, "overall": 2, "reason": "Async client call hangs/fails against a finished pod; asyncio API debugging with no cancellation content."}
+    ]
+  },
+  "final_top10": [
+    {"rank": 1, "task_id": "task_002782_8ddf86de", "source": "TMax-15K", "skill": 5, "domain": 5, "task_form": 4, "overall": 5, "reason": "Explicitly requires the coroutine to terminate on cancellation and not swallow asyncio.CancelledError - the same rule this task turns on."},
+    {"rank": 2, "task_id": "Cog-Creators__Red-DiscordBot.33e0eac7.combine_module__9p10bve9", "source": "SWE-Smith-Seeds-Clean", "skill": 5, "domain": 5, "task_form": 2, "overall": 4, "reason": "bounded_gather is a semaphore-bounded asyncio.gather; the bug lives in its concurrency-limit handling, exactly run_tasks' signature."},
+    {"rank": 3, "task_id": "aaugustin__websockets-467", "source": "SWE-Rebench-Tasks-Clean", "skill": 5, "domain": 5, "task_form": 2, "overall": 4, "reason": "Deep argument about cancelling futures versus raising, and what a task can know when CancelledError arrives."},
+    {"rank": 4, "task_id": "task_000705_dd1c4aef", "source": "TMax-15K", "skill": 5, "domain": 5, "task_form": 3, "overall": 4, "reason": "Orphaned task survives client cancellation; must handle asyncio.CancelledError so the work actually stops."},
+    {"rank": 5, "task_id": "python-trio__trio.cfbbe2c1.pr_3051", "source": "SWE-Smith-Seeds-Clean", "skill": 5, "domain": 4, "task_form": 2, "overall": 4, "reason": "Shielding a cancel scope is the mechanism that lets cleanup finish after cancellation - the requirement stated in the prompt."},
+    {"rank": 6, "task_id": "task_003430_e10679d1", "source": "TMax-15K", "skill": 4, "domain": 5, "task_form": 3, "overall": 4, "reason": "Asyncio task leak when a client disconnects; tasks must be cancelled and reaped rather than left running."},
+    {"rank": 7, "task_id": "python-trio__trio-2845", "source": "SWE-Rebench-Tasks-Clean", "skill": 4, "domain": 4, "task_form": 2, "overall": 4, "reason": "How exceptions from concurrently running children surface out of a nursery - the structured-concurrency version of this API."},
+    {"rank": 8, "task_id": "rts_task_d0d85b0aa334978c5f38571f", "source": "Recursive-Task-Synthesis", "skill": 4, "domain": 3, "task_form": 3, "overall": 4, "reason": "On SIGINT every concurrently running child must be terminated cleanly - the keyboard-interrupt-still-cleans-up requirement."},
+    {"rank": 9, "task_id": "python-trio__trio.cfbbe2c1.combine_module__2e5xy8b7", "source": "SWE-Smith-Seeds-Clean", "skill": 4, "domain": 4, "task_form": 2, "overall": 4, "reason": "Signal (Ctrl-C) delivery inside an async runtime, the path by which a KeyboardInterrupt becomes a cancellation."},
+    {"rank": 10, "task_id": "task_001433_7846c37a", "source": "TMax-15K", "skill": 4, "domain": 5, "task_form": 3, "overall": 4, "reason": "Fix an asyncio task leak on disconnect so abandoned tasks are cancelled instead of accumulating."}
+  ],
+  "notes": "Strongest task of the five for retrieval: TMax has a whole family of asyncio cancellation/task-leak tasks and SWE-Smith/Rebench cover trio, async-timeout, websockets and aiohttp cancellation directly, so final_top10 is dominated by those three pools. The two weak corpora are RTS and TerminalWorld: neither contains asyncio at all, so their ten are Unix-signal process-control and pool-parallelism tasks - the SIGINT-cleanup ones (rts_task_d0d85b0aa334978c5f38571f, rts_task_0e6f1cc0fb0e1aef5a9781eb) genuinely teach the cleanup-on-interrupt discipline, but everything below rank 6 in those two lists is fan-out-only and scored 2. The lexical shortlist for RTS/TW was almost pure noise (pipx/Taskwarrior/npm chores that merely mention 'task'); every RTS and TW id above came from my own signal/concurrency searches."
+}

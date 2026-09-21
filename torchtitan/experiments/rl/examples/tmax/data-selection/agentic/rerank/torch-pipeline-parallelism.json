@@ -1,0 +1,107 @@
+{
+  "tb21_id": "torch-pipeline-parallelism",
+  "tb21_profile": {
+    "skill": "Implement a distributed training schedule from a written spec: partition a transformer's layers across ranks, hand-roll forward/backward with P2P send/recv, and match a reference model's activations and gradients exactly",
+    "domain": "PyTorch, torch.distributed P2POp/rank/world_size, HuggingFace LlamaForCausalLM internals, autograd, tensor shape/dtype/device discipline",
+    "task_form": "implement-from-spec to a fixed function signature, verified numerically against a reference implementation; hard, many steps"
+  },
+  "searches": [
+    "tools.py search all \"torch\\.distributed\"",
+    "tools.py search all \"pipeline parallel\"",
+    "tools.py search all \"tensor parallel\"",
+    "tools.py search all \"all_reduce|allreduce\"",
+    "tools.py search all \"microbatch|micro-batch\"",
+    "tools.py search all \"isend|irecv|send/recv|point-to-point\"",
+    "tools.py search all \"world_size|rank 0 and rank\"",
+    "tools.py search all \"\\bMPI\\b\"",
+    "tools.py search all \"mpi4py\"",
+    "tools.py search all \"backpropagation|backprop\"",
+    "tools.py search all \"autograd|backpropagation|backprop\" -n 34",
+    "tools.py search all \"distributed training|data parallel\" -n 10",
+    "tools.py search all \"transformer|attention mechanism|LLaMA|llama|GPT-2|nn\\.Module\" -n 40",
+    "tools.py search tmax \"\\bMPI\\b|mpi4py|mpirun\" -n 40",
+    "tools.py search tw \"pytorch|torch\\.|nn\\.Module|train a (neural|model)|deep learning\" -n 30",
+    "tools.py search tw \"\\bMPI\\b|mpirun|mpi4py|parallel|multiprocess|OpenMP|distributed\" -n 40",
+    "tools.py search rts \"pytorch|torch\\b|neural network|train a model|tensorflow|keras|scikit-learn|inference\" -n 25",
+    "tools.py search rts \"model_config\\.json|nn\\.Linear|PyTorch|torch\\.nn\" -n 25",
+    "tools.py search rts \"in parallel|worker processes|concurrenc|multiprocessing|thread pool|producer-consumer|pipeline stage\" -n 25",
+    "tools.py search smith \"fvcore\" -n 40",
+    "tools.py search smith \"dask\" -n 40",
+    "tools.py search rebench \"^\" (repo histogram, grep for torch/keras/jax/transformers)"
+  ],
+  "per_source": {
+    "TMax-15K": [
+      {"rank": 1, "task_id": "task_000816_72e21ee9", "skill": 4, "domain": 3, "task_form": 4, "overall": 4, "reason": "Split rows of a matrix across mpi4py ranks, gather, and keep log-softmax numerics exact — same distribute/communicate/verify loop."},
+      {"rank": 2, "task_id": "task_003980_d394a7e3", "skill": 4, "domain": 3, "task_form": 4, "overall": 4, "reason": "Results must stop depending on the number of MPI processes; the TB test likewise demands identical output at world_size 1 and 2."},
+      {"rank": 3, "task_id": "task_001552_7ed8f9bf", "skill": 4, "domain": 3, "task_form": 4, "overall": 4, "reason": "Write an MPI script where each rank owns a slice of the sweep, steps a stencil, and the ranks' results are reassembled exactly."},
+      {"rank": 4, "task_id": "task_009562_91210c7c", "skill": 3, "domain": 5, "task_form": 3, "overall": 3, "reason": "Reconstruct an nn.Module from state_dict keys/shapes and reproduce exact float outputs; same torch module-internals fluency."},
+      {"rank": 5, "task_id": "task_003899_3e4bce86", "skill": 3, "domain": 3, "task_form": 4, "overall": 3, "reason": "Implement a parallel 2D integrator with mpi4py from a precise numerical spec and show convergence against reference values."},
+      {"rank": 6, "task_id": "task_008162_e3ba09cb", "skill": 3, "domain": 5, "task_form": 3, "overall": 3, "reason": "Fix a PyTorch model definition so the state_dict loads, then run eval-mode forward passes; layer-shape reasoning transfers."},
+      {"rank": 7, "task_id": "task_005079_5043f665", "skill": 3, "domain": 3, "task_form": 3, "overall": 3, "reason": "Output ordering currently depends on which MPI rank finishes first; must impose deterministic cross-rank assembly."},
+      {"rank": 8, "task_id": "task_009526_5dfa5955", "skill": 3, "domain": 3, "task_form": 3, "overall": 3, "reason": "Write an MPI parallel generator and prove its output matches a serial reference dataset — the same equivalence check."},
+      {"rank": 9, "task_id": "task_002645_3b6fc66e", "skill": 3, "domain": 2, "task_form": 3, "overall": 3, "reason": "Partition an integration range across MPI ranks and reduce partial results; basic rank arithmetic plus collective."},
+      {"rank": 10, "task_id": "task_008873_24721464", "skill": 2, "domain": 4, "task_form": 3, "overall": 2, "reason": "Rebuild lost inference code from weights and vocabulary; torch forward-pass reconstruction but no parallelism at all."}
+    ],
+    "Recursive-Task-Synthesis": [
+      {"rank": 1, "task_id": "rts_task_956ea2e372fe004edbe0d44d", "skill": 3, "domain": 5, "task_form": 4, "overall": 3, "reason": "Build a PyTorch model from a JSON architecture spec and profile it per layer; module construction and per-layer accounting."},
+      {"rank": 2, "task_id": "rts_task_4a9d7abd249bbfbf71a7c9d5", "skill": 3, "domain": 2, "task_form": 3, "overall": 2, "reason": "Configure a four-stage sequential pipeline executed by parallel workers; the toy shape of stage-wise pipelined execution."},
+      {"rank": 3, "task_id": "rts_task_d69dda4392678ad2633524fc", "skill": 3, "domain": 2, "task_form": 3, "overall": 2, "reason": "Same staged-pipeline-with-N-workers construction; teaches stage ordering plus result collection, nothing about gradients."},
+      {"rank": 4, "task_id": "rts_task_34ecbce5e26956e131aa1124", "skill": 2, "domain": 2, "task_form": 3, "overall": 2, "reason": "Third variant of the parallel staged pipeline; only the worker-count configuration differs."},
+      {"rank": 5, "task_id": "rts_task_20e847f9116b2497b13e085d", "skill": 2, "domain": 3, "task_form": 3, "overall": 2, "reason": "Write MPI source from scratch so every process prints its own rank out of the world size; rank/size API from a spec."},
+      {"rank": 6, "task_id": "rts_task_02ed6aca52dbb52944300e62", "skill": 2, "domain": 3, "task_form": 2, "overall": 2, "reason": "Fix MPI code so each process reports 'rank of size'; minimal multi-rank program correctness."},
+      {"rank": 7, "task_id": "rts_task_32ebe57dc3a069ccf9d88c84", "skill": 2, "domain": 3, "task_form": 2, "overall": 2, "reason": "Repair an MPI hello-world so it emits rank and size and passes a process-level test."},
+      {"rank": 8, "task_id": "rts_task_549d1fccca663947ef795605", "skill": 2, "domain": 3, "task_form": 2, "overall": 2, "reason": "Compile and launch a multi-process job under mpirun, fixing the runtime environment; launcher mechanics only."},
+      {"rank": 9, "task_id": "rts_task_be071fe2ff8cf7f46af5a47e", "skill": 1, "domain": 3, "task_form": 2, "overall": 2, "reason": "Same mpirun launch/configuration chore; no algorithm and no inter-rank data movement."},
+      {"rank": 10, "task_id": "rts_task_8707933864bb7358405a6226", "skill": 1, "domain": 2, "task_form": 2, "overall": 1, "reason": "Makefile targets to build and run an MPI hello-world; build automation, essentially no transfer."}
+    ],
+    "TerminalWorld-Seeds-Clean": [
+      {"rank": 1, "task_id": "tw_668448", "skill": 3, "domain": 5, "task_form": 3, "overall": 3, "reason": "Install CPU PyTorch and run a distributed training job on the gloo backend — the exact runtime this task initialises a process group in."},
+      {"rank": 2, "task_id": "tw_718060", "skill": 3, "domain": 5, "task_form": 4, "overall": 3, "reason": "Define a nested nn.Module from a written architecture spec, run a forward pass, and report per-layer parameter/compute stats."},
+      {"rank": 3, "task_id": "tw_668460", "skill": 3, "domain": 5, "task_form": 3, "overall": 3, "reason": "Same ezpz distributed training job launched under mpirun; torch distributed launch and rank environment variables."},
+      {"rank": 4, "task_id": "tw_251773", "skill": 3, "domain": 3, "task_form": 3, "overall": 3, "reason": "Run an mpi4py program across two hosts, which forces correct rank/world configuration and inter-process communication."},
+      {"rank": 5, "task_id": "tw_419029", "skill": 2, "domain": 2, "task_form": 3, "overall": 2, "reason": "Run the same workload at 1,2,4..12-way parallelism and check each run succeeds; mirrors the world_size sweep in the tests."},
+      {"rank": 6, "task_id": "tw_510751", "skill": 2, "domain": 3, "task_form": 3, "overall": 2, "reason": "Build and run an MPI program that prints rank, world size and host; smallest possible multi-rank exercise."},
+      {"rank": 7, "task_id": "tw_18325", "skill": 2, "domain": 2, "task_form": 3, "overall": 2, "reason": "Write a multiprocessing script that computes results in parallel and collects them; work splitting without communication."},
+      {"rank": 8, "task_id": "tw_342042", "skill": 2, "domain": 2, "task_form": 3, "overall": 2, "reason": "Build and run three parallel-computing benchmarks; exposure to parallel decomposition of numeric workloads."},
+      {"rank": 9, "task_id": "tw_479372", "skill": 2, "domain": 3, "task_form": 2, "overall": 2, "reason": "Launch an MPI benchmark through a container backend; multi-rank job orchestration, no algorithm work."},
+      {"rank": 10, "task_id": "tw_690306", "skill": 2, "domain": 2, "task_form": 2, "overall": 2, "reason": "Build an MD simulator with MPI compilers and run it; mostly build plumbing in the HPC ecosystem."}
+    ],
+    "SWE-Smith-Seeds-Clean": [
+      {"rank": 1, "task_id": "facebookresearch__fvcore.a491d5b9.lm_rewrite__m0xnjits", "skill": 4, "domain": 5, "task_form": 2, "overall": 3, "reason": "Handling a custom torch.autograd.Function inside the traced computation graph; forward/backward graph reasoning is the crux here too."},
+      {"rank": 2, "task_id": "facebookresearch__fvcore.a491d5b9.lm_rewrite__pef4qmpy", "skill": 3, "domain": 5, "task_form": 2, "overall": 3, "reason": "Detect which submodules were never called during a forward — the TB tests likewise check each rank actually ran its layers."},
+      {"rank": 3, "task_id": "facebookresearch__fvcore.a491d5b9.lm_rewrite__pcccevul", "skill": 3, "domain": 5, "task_form": 2, "overall": 3, "reason": "Per-submodule parameter counting over a module tree; the same traversal you need to partition layers in a balanced way."},
+      {"rank": 4, "task_id": "facebookresearch__fvcore.a491d5b9.lm_rewrite__lo7njclv", "skill": 3, "domain": 4, "task_form": 2, "overall": 3, "reason": "Correctly accumulating running mean/variance across many batches; same accumulate-over-microbatches numerics discipline."},
+      {"rank": 5, "task_id": "facebookresearch__fvcore.a491d5b9.func_pm_ctrl_shuffle__kd43vy4l", "skill": 3, "domain": 4, "task_form": 2, "overall": 2, "reason": "Per-op flop accounting from a jit trace of a torch model; op-level understanding of a transformer's matmuls."},
+      {"rank": 6, "task_id": "facebookresearch__fvcore.a491d5b9.lm_rewrite__1lp7kdh2", "skill": 3, "domain": 4, "task_form": 2, "overall": 2, "reason": "Flop counting for an einsum-based torch model; tensor-shape and op-semantics reasoning."},
+      {"rank": 7, "task_id": "facebookresearch__fvcore.a491d5b9.lm_rewrite__lragrp0w", "skill": 2, "domain": 4, "task_form": 2, "overall": 2, "reason": "FlopCountAnalysis on a model with an unrecognised custom op; extending analysis over a torch module graph."},
+      {"rank": 8, "task_id": "facebookresearch__fvcore.a491d5b9.func_pm_ctrl_shuffle__n9luhuy3", "skill": 2, "domain": 4, "task_form": 2, "overall": 2, "reason": "Checkpoint loading order breaks state_dict restore; relevant to moving a model's parameters between stages."},
+      {"rank": 9, "task_id": "dask__dask.5f61e423.pr_11337", "skill": 3, "domain": 2, "task_form": 2, "overall": 2, "reason": "Rechunking arrays across dimensions: choosing a balanced partition of a big tensor is the same decision as layer partitioning."},
+      {"rank": 10, "task_id": "dask__dask.5f61e423.pr_7191", "skill": 2, "domain": 2, "task_form": 2, "overall": 2, "reason": "HighLevelGraph leaking into scheduler optimisation; task-graph scheduling, the distant cousin of a pipeline schedule."}
+    ],
+    "SWE-Rebench-Tasks-Clean": [
+      {"rank": 1, "task_id": "keras-team__keras-20609", "skill": 4, "domain": 4, "task_form": 2, "overall": 3, "reason": "Changing the replica count changes fit/evaluate output — exactly the world_size-invariance bug class this task must avoid."},
+      {"rank": 2, "task_id": "cornellius-gp__gpytorch-782", "skill": 3, "domain": 4, "task_form": 2, "overall": 3, "reason": "Batch-dimension indexing of torch tensors breaks for b x n x d inputs; the shape discipline the hidden-state plumbing needs."},
+      {"rank": 3, "task_id": "pyg-team__pytorch_geometric-9494", "skill": 3, "domain": 4, "task_form": 2, "overall": 2, "reason": "MessagePassing codegen assumes an argument exists; reasoning about generated forward signatures in a torch module."},
+      {"rank": 4, "task_id": "keras-team__keras-19636", "skill": 3, "domain": 3, "task_form": 2, "overall": 2, "reason": "Autocasting silently converts int inputs to float; the same dtype-discipline trap as moving ids and hidden states to a dtype."},
+      {"rank": 5, "task_id": "pyg-team__pytorch_geometric-8870", "skill": 2, "domain": 4, "task_form": 2, "overall": 2, "reason": "TorchScript model works in memory but type-mismatches after a save/load round trip; torch module serialization semantics."},
+      {"rank": 6, "task_id": "cornellius-gp__gpytorch-656", "skill": 2, "domain": 4, "task_form": 2, "overall": 2, "reason": "A rank-1 tensor reaches code expecting a matrix; debugging shape contracts through a torch numerical stack."},
+      {"rank": 7, "task_id": "pyg-team__pytorch_geometric-9446", "skill": 2, "domain": 4, "task_form": 2, "overall": 2, "reason": "Composing torch Linear/ReLU/Dropout layers into a callable module goes wrong; basic nn module composition."},
+      {"rank": 8, "task_id": "huggingface__transformers-36497", "skill": 2, "domain": 4, "task_form": 2, "overall": 2, "reason": "Make LM batch construction reproducible with an explicit generator; reproducibility of a training step, in the HF stack."},
+      {"rank": 9, "task_id": "pyg-team__pytorch_geometric-8248", "skill": 2, "domain": 3, "task_form": 2, "overall": 2, "reason": "Torch model breaks on a degenerate input partition (zero-degree nodes); edge cases of a partitioned input."},
+      {"rank": 10, "task_id": "huggingface__transformers-36903", "skill": 1, "domain": 4, "task_form": 2, "overall": 2, "reason": "Seeding a data collator for pretraining reproducibility; same library, almost no overlapping capability."}
+    ]
+  },
+  "final_top10": [
+    {"rank": 1, "task_id": "task_000816_72e21ee9", "source": "TMax-15K", "skill": 4, "domain": 3, "task_form": 4, "overall": 4, "reason": "Distribute rows of a matrix over mpi4py ranks and gather exact log-softmax results; closest thing in the pool to rank-partitioned exact compute."},
+    {"rank": 2, "task_id": "task_003980_d394a7e3", "source": "TMax-15K", "skill": 4, "domain": 3, "task_form": 4, "overall": 4, "reason": "Make numerical output independent of MPI process count, mirroring the world_size 1 vs 2 equivalence the verifier enforces."},
+    {"rank": 3, "task_id": "task_001552_7ed8f9bf", "source": "TMax-15K", "skill": 4, "domain": 3, "task_form": 4, "overall": 4, "reason": "Per-rank ownership of a slice of work in an MPI solver written to a precise spec, with results reassembled exactly."},
+    {"rank": 4, "task_id": "tw_668448", "source": "TerminalWorld-Seeds-Clean", "skill": 3, "domain": 5, "task_form": 3, "overall": 3, "reason": "Runs a torch distributed training job on the gloo CPU backend — the same process-group runtime this task builds on."},
+    {"rank": 5, "task_id": "facebookresearch__fvcore.a491d5b9.lm_rewrite__m0xnjits", "source": "SWE-Smith-Seeds-Clean", "skill": 4, "domain": 5, "task_form": 2, "overall": 3, "reason": "Custom autograd Function nodes inside the computation graph; forward/backward graph semantics are the crux of AFAB too."},
+    {"rank": 6, "task_id": "task_009562_91210c7c", "source": "TMax-15K", "skill": 3, "domain": 5, "task_form": 3, "overall": 3, "reason": "Reconstruct an nn.Module from state_dict shapes and reproduce exact float outputs under eval; torch module internals."},
+    {"rank": 7, "task_id": "keras-team__keras-20609", "source": "SWE-Rebench-Tasks-Clean", "skill": 4, "domain": 4, "task_form": 2, "overall": 3, "reason": "Replica count changing model output is precisely the failure mode a pipeline-parallel implementation must not have."},
+    {"rank": 8, "task_id": "tw_718060", "source": "TerminalWorld-Seeds-Clean", "skill": 3, "domain": 5, "task_form": 4, "overall": 3, "reason": "Build a nested nn.Module from a written spec, run a forward pass, and account for parameters and compute per layer."},
+    {"rank": 9, "task_id": "facebookresearch__fvcore.a491d5b9.lm_rewrite__pcccevul", "source": "SWE-Smith-Seeds-Clean", "skill": 3, "domain": 5, "task_form": 2, "overall": 3, "reason": "Walk a torch module tree counting parameters per submodule — the same traversal used to partition layers evenly."},
+    {"rank": 10, "task_id": "task_003899_3e4bce86", "source": "TMax-15K", "skill": 3, "domain": 3, "task_form": 4, "overall": 3, "reason": "Implement a parallel numerical kernel with mpi4py from a written spec and validate against reference convergence values."}
+  ],
+  "notes": "Nothing in the 56k pool mentions torch.distributed, pipeline/tensor parallelism, P2POp, all_reduce or world_size (verified by search); the corpus has no distributed-deep-learning tasks at all. I therefore split transfer into two halves: MPI rank-partitioning tasks (TMax has a genuinely useful cluster of ~30) for the split-work/communicate/match-reference skill, and PyTorch module-internals tasks (fvcore in SWE-Smith, torchmeter in TW/RTS, pyg/keras in Rebench) for the domain. Recursive-Task-Synthesis is the weakest corpus by far: its only distributed content is ~60 near-identical MPI hello-world compile chores, so ranks 5-10 there are low-confidence filler and should be discounted at merge. The original shortlists were near-useless here (generic 'ML data pipeline' and '/app file chore' lexical matches); >80% of what I kept came from my own searches."
+}

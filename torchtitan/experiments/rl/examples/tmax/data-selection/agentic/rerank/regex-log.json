@@ -1,0 +1,98 @@
+{
+  "tb21_id": "regex-log",
+  "tb21_profile": {
+    "skill": "Author one precise Python regex that encodes numeric range constraints (IPv4 octets 0-255 no leading zeros, month/day bounds), matches only the last date on qualifying lines, and rejects near-miss false positives via boundary/lookaround anchoring",
+    "domain": "Python re engine (alternation, backreferences, lookaround, word boundaries, MULTILINE, findall), IPv4 and YYYY-MM-DD text formats, log parsing",
+    "task_form": "implement-from-spec, single-artifact: write a regex to a file, graded by exact accept/reject behaviour over a corpus with adversarial near-matches"
+  },
+  "searches": [
+    "tools.py full regex-log",
+    "tools.py search all \"IPv4|octet|0-9]{1,3}\\.|IP address.*valid|valid IP\" -n 30",
+    "tools.py search all \"lookahead|lookbehind|negative lookahead|word boundary|\\bre\\.findall|POSIX Extended Regular Expression\" -n 30",
+    "tools.py search tmax \"must strictly match the regex|strictly match the following POSIX|regex pattern .\\^|matches the pattern|validate that the|reject the record if|must match the regex\" -n 30",
+    "tools.py search all \"write.{0,30}regex.{0,40}to a file|save your regex|regex\\.txt|pattern\\.txt|the regex must (not )?match|must not match\" -n 30",
+    "tools.py search tmax \"YYYY-MM-DD|ISO8601|date.*regex|regex.*date|timestamp.*regex\" -n 25",
+    "tools.py search rts \"valid IPv4|IPv4 address|octet|extract.*IP|match.*IP address|out-of-range o\" -n 15",
+    "tools.py search smith \"IPv4|ip address|date.*regex|datetime.*parse|iso8601|timestamp\" -n 20",
+    "tools.py search rebench \"IPv4|ip address|X-Forwarded|iso8601|date.*format|validate.*date|octet\" -n 15",
+    "tools.py words tw regex \"regular expression\" validate pattern match extract log \"IP address\" date timestamp grep sed awk -n 22",
+    "tools.py show task_005223_f66a60ed task_000071_74a60bf5 task_002771_35d6f10f task_001130_5a244d2f",
+    "tools.py show task_003972_dd9ee15b task_003747_67da80a7 task_000352_88055f14 task_002994_6807a3b0",
+    "tools.py show rts_task_35132947ff66120393d1befa"
+  ],
+  "per_source": {
+    "TMax-15K": [
+      {"rank": 1, "task_id": "task_000071_74a60bf5", "skill": 5, "domain": 4, "task_form": 4, "overall": 5, "reason": "Must build a matcher accepting 100% of a clean corpus and rejecting 100% of an adversarial evil corpus; identical exact-accept/reject-with-false-positives bar."},
+      {"rank": 2, "task_id": "task_005223_f66a60ed", "skill": 4, "domain": 5, "task_form": 4, "overall": 4, "reason": "Reasons about exactly which payloads a WAF regex matches versus misses; the same must-not-match near-miss reasoning as avoiding fake dates/IPs."},
+      {"rank": 3, "task_id": "task_000352_88055f14", "skill": 4, "domain": 5, "task_form": 4, "overall": 4, "reason": "Regex validates a normalized string contains only an exact allowed set, graded against clean/evil corpora; charset-precision and false-positive control."},
+      {"rank": 4, "task_id": "task_002771_35d6f10f", "skill": 4, "domain": 5, "task_form": 3, "overall": 4, "reason": "Strictly validates that a parameter is a well-formed IPv4 address before use; the exact IPv4-octet-recognition half of the TB2.1 regex."},
+      {"rank": 5, "task_id": "task_003747_67da80a7", "skill": 4, "domain": 5, "task_form": 3, "overall": 4, "reason": "Keeps only rows whose Email strictly matches a given POSIX regex; anchored full-string validation with a nontrivial character-class pattern."},
+      {"rank": 6, "task_id": "task_001130_5a244d2f", "skill": 4, "domain": 5, "task_form": 3, "overall": 4, "reason": "Silently drops any line not strictly matching a supplied POSIX ERE; line-level accept/reject on an exact pattern, like matching only qualifying log lines."},
+      {"rank": 7, "task_id": "task_000631_aa3e6699", "skill": 3, "domain": 5, "task_form": 3, "overall": 3, "reason": "Rejects records whose values match a POSIX ERE for shell metacharacters; negative-match discipline central to avoiding false positives."},
+      {"rank": 8, "task_id": "task_003972_dd9ee15b", "skill": 3, "domain": 4, "task_form": 3, "overall": 3, "reason": "Filters log rows whose message matches an anchored regex and buckets timestamps; regex-over-log-lines with date handling."},
+      {"rank": 9, "task_id": "task_000115_9522f0f1", "skill": 3, "domain": 5, "task_form": 3, "overall": 3, "reason": "Finds and replaces email addresses defined by an exact POSIX ERE; authoring a precise recogniser and applying it across text."},
+      {"rank": 10, "task_id": "task_002994_6807a3b0", "skill": 3, "domain": 4, "task_form": 3, "overall": 3, "reason": "Extracts unique IPs tied to 403 errors from disparate logs; IP-in-log recognition, though more pipeline than single regex."}
+    ],
+    "Recursive-Task-Synthesis": [
+      {"rank": 1, "task_id": "rts_task_35132947ff66120393d1befa", "skill": 4, "domain": 5, "task_form": 4, "overall": 4, "reason": "Write one regex with a backreference enforcing the same separator twice, parens-optional area code; near-identical single-regex boundary construction to matching the last date."},
+      {"rank": 2, "task_id": "rts_task_38015ef16f15c68ca0575081", "skill": 4, "domain": 5, "task_form": 4, "overall": 4, "reason": "Single backreference regex for phone formats; same skill of encoding alternation plus a repeated-group constraint in one pattern."},
+      {"rank": 3, "task_id": "rts_task_c3344863b93120155992f8db", "skill": 3, "domain": 5, "task_form": 3, "overall": 3, "reason": "Validates area codes and separators with a single regex against a fixed accept/reject set; precise pattern authoring."},
+      {"rank": 4, "task_id": "rts_task_d4fa11883f97ea52e04b0aed", "skill": 3, "domain": 5, "task_form": 3, "overall": 3, "reason": "One regex must match exactly four given phone numbers and reject the rest; acceptance-set precision on a structured format."},
+      {"rank": 5, "task_id": "rts_task_63be45e96c3c4ec52219b541", "skill": 3, "domain": 5, "task_form": 3, "overall": 3, "reason": "Single-regex phone validation plus config-driven constraints; regex authoring with edge-case handling."},
+      {"rank": 6, "task_id": "rts_task_9e8321bd084e9b221059a332", "skill": 3, "domain": 5, "task_form": 3, "overall": 3, "reason": "Email-validation regex tested against specific strings including tricky ones; anchored full-match with false-positive avoidance."},
+      {"rank": 7, "task_id": "rts_task_df30cb8e56b8f8521c00f5c2", "skill": 3, "domain": 5, "task_form": 3, "overall": 3, "reason": "Regex must accept and reject an exact email set; the accept/reject discipline the TB2.1 corpus grades."},
+      {"rank": 8, "task_id": "rts_task_6406502d375776ad51fafe33", "skill": 3, "domain": 5, "task_form": 3, "overall": 3, "reason": "Reads a regex pattern from a file and reports exec() results per input; the write-pattern-to-file-then-apply shape of regex-log."},
+      {"rank": 9, "task_id": "rts_task_c07fa2980dc69528e95337b0", "skill": 2, "domain": 4, "task_form": 3, "overall": 2, "reason": "Generates regexes with rgxg and validates a log; regex-as-artifact against log data, but tool-generated not hand-authored."},
+      {"rank": 10, "task_id": "rts_task_6747ee8facc349974f57a0c9", "skill": 2, "domain": 4, "task_form": 2, "overall": 2, "reason": "Cleans an allowed-IPs file flagging invalid formats and out-of-range octets; IPv4 validity reasoning, but via data-cleaning not one regex."}
+    ],
+    "TerminalWorld-Seeds-Clean": [
+      {"rank": 1, "task_id": "tw_316425", "skill": 4, "domain": 5, "task_form": 4, "overall": 4, "reason": "Single regular expression validating North American phone number formats; same author-one-precise-pattern task on a structured string."},
+      {"rank": 2, "task_id": "tw_316426", "skill": 3, "domain": 5, "task_form": 3, "overall": 3, "reason": "Regex email validation against a fixed set of strings; anchored full-match with tricky cases, false-positive control."},
+      {"rank": 3, "task_id": "tw_9913", "skill": 3, "domain": 5, "task_form": 3, "overall": 3, "reason": "Uses a regex to extract the name before a comma-space; capture-group extraction with boundary reasoning like matching the last date."},
+      {"rank": 4, "task_id": "tw_10593", "skill": 3, "domain": 5, "task_form": 3, "overall": 3, "reason": "Extracts Hangul runs with a Unicode character-class regex; getting the class and multiplicity exactly right, findall-style extraction."},
+      {"rank": 5, "task_id": "tw_147333", "skill": 3, "domain": 4, "task_form": 3, "overall": 3, "reason": "Finds MaxRequest-followed-by-digits pattern and rewrites it across files; regex match plus contextual constraint, close to log filtering."},
+      {"rank": 6, "task_id": "tw_262649", "skill": 2, "domain": 4, "task_form": 3, "overall": 2, "reason": "Generates several regexes with rgxg in exact order; regex-as-artifact, generated rather than hand-crafted."},
+      {"rank": 7, "task_id": "tw_269108", "skill": 2, "domain": 3, "task_form": 2, "overall": 2, "reason": "Resolves domains to IPs and scans them; IP-handling domain overlap, but no regex authoring."},
+      {"rank": 8, "task_id": "tw_288382", "skill": 2, "domain": 3, "task_form": 2, "overall": 2, "reason": "Finds files matching pattern categories and records them; pattern-based filesystem search, weak transfer to a numeric-range regex."},
+      {"rank": 9, "task_id": "tw_267933", "skill": 2, "domain": 3, "task_form": 2, "overall": 2, "reason": "Feeds a URL-extraction regex to an OSINT module and runs it; supplying a working regex to a consumer, shallow."},
+      {"rank": 10, "task_id": "tw_346139", "skill": 1, "domain": 2, "task_form": 2, "overall": 1, "reason": "Validates GFF3 files with a schema validator; validation genre only, no regex or IP/date matter."}
+    ],
+    "SWE-Smith-Seeds-Clean": [
+      {"rank": 1, "task_id": "Suor__funcy.207a7810.func_pm_remove_cond__sshmq0kq", "skill": 4, "domain": 5, "task_form": 2, "overall": 3, "reason": "Fixes re_find/re_all helpers; forces exact reasoning about Python re group capture and match semantics used by findall."},
+      {"rank": 2, "task_id": "django__daphne.32ac73e1.lm_rewrite__vjm0inna", "skill": 3, "domain": 5, "task_form": 2, "overall": 3, "reason": "Corrects IPv4/IPv6 address handling when parsing X-Forwarded-For; precise IP-address recognition, the IPv4 half of regex-log."},
+      {"rank": 3, "task_id": "cknd__stackprinter.219fcc52.lm_rewrite__3mnfhdq1", "skill": 3, "domain": 5, "task_form": 2, "overall": 3, "reason": "A match() wrongly using substring containment instead of pattern matching; exactly the literal-vs-regex distinction the task turns on."},
+      {"rank": 4, "task_id": "graphql-python__graphene.82903263.pr_1581", "skill": 3, "domain": 4, "task_form": 2, "overall": 3, "reason": "DateTime scalar fails to parse ISO 8601 with Z; date-format edge-case reasoning like the YYYY-MM-DD bounds."},
+      {"rank": 5, "task_id": "gweis__isodate.17cb25eb.combine_module__cenvquqa", "skill": 3, "domain": 4, "task_form": 2, "overall": 3, "reason": "Parses ISO date/time strings with many edge cases; the boundary-condition mindset for month/day/date validity."},
+      {"rank": 6, "task_id": "django__daphne.32ac73e1.combine_file__7y9nhxun", "skill": 3, "domain": 5, "task_form": 2, "overall": 3, "reason": "X-Forwarded-For parsing extracting a client IP correctly; IP-token extraction from a log-like header string."},
+      {"rank": 7, "task_id": "arrow-py__arrow.1d70d009.func_pm_ctrl_shuffle__vk4xpu8x", "skill": 3, "domain": 4, "task_form": 2, "overall": 2, "reason": "Regex-map-driven datetime parser initialisation broken; table-of-regexes date parsing, moderate transfer."},
+      {"rank": 8, "task_id": "arrow-py__arrow.1d70d009.combine_file__8pbefy25", "skill": 2, "domain": 4, "task_form": 2, "overall": 2, "reason": "Timestamp normalisation and ordinal (day-of-year) validation; numeric date-bound validation, in a library not a regex."},
+      {"rank": 9, "task_id": "pyparsing__pyparsing.533adf47.combine_file__3jw3qikd", "skill": 2, "domain": 3, "task_form": 2, "overall": 2, "reason": "Matches succeed/fail in inverted cases; acceptance-set debugging in a matching engine, different formalism."},
+      {"rank": 10, "task_id": "andialbrecht__sqlparse.e57923b3.func_basic__63ry9978", "skill": 2, "domain": 3, "task_form": 2, "overall": 2, "reason": "Bracket-indexing token pattern mis-parsed; small pattern-recognition fix, weak domain overlap."}
+    ],
+    "SWE-Rebench-Tasks-Clean": [
+      {"rank": 1, "task_id": "pallets__werkzeug-2596", "skill": 4, "domain": 5, "task_form": 2, "overall": 3, "reason": "Route regexes with a literal ISO-date DATE_PATTERN mixing parameters; exactly the compose-anchored-date-and-other-patterns-in-one-regex challenge."},
+      {"rank": 2, "task_id": "hypothesisworks__hypothesis-2983", "skill": 4, "domain": 5, "task_form": 2, "overall": 3, "reason": "Empty-pattern fast path ignores fullmatch; the precise Python re anchoring/fullmatch semantics the last-date-only constraint depends on."},
+      {"rank": 3, "task_id": "elastic__curator-603", "skill": 3, "domain": 5, "task_form": 2, "overall": 3, "reason": "Fixes regex over-escaping in a pattern filter; escaping and metacharacter correctness that decides whether dots match literally."},
+      {"rank": 4, "task_id": "hypothesisworks__hypothesis-3824", "skill": 3, "domain": 5, "task_form": 2, "overall": 3, "reason": "Reasoning from a regex to the strings it matches under match/fullmatch; the inverse thinking needed to avoid false-positive dates."},
+      {"rank": 5, "task_id": "pallets__werkzeug-2583", "skill": 3, "domain": 5, "task_form": 2, "overall": 3, "reason": "A group inside a converter regex changes matching isolation; subtle group-semantics inside a larger composed pattern."},
+      {"rank": 6, "task_id": "cloudtools__troposphere-2191", "skill": 3, "domain": 4, "task_form": 2, "overall": 2, "reason": "AllowedPattern regular-expression validation wrongly rejects valid patterns; regex-as-validation-config correctness."},
+      {"rank": 7, "task_id": "elastic__curator-1355", "skill": 2, "domain": 4, "task_form": 2, "overall": 2, "reason": "Regex pattern filter not matching expected indices; acceptance-set debugging over string patterns."},
+      {"rank": 8, "task_id": "jazzband__django-axes-1022", "skill": 2, "domain": 4, "task_form": 2, "overall": 2, "reason": "Extract the right client IP from an appended X-Forwarded-For chain behind proxies; IP-string parsing edge cases."},
+      {"rank": 9, "task_id": "boto__botocore-626", "skill": 2, "domain": 3, "task_form": 2, "overall": 2, "reason": "Timestamp serialisation choosing iso8601 vs rfc822; date-format handling, weak regex link."},
+      {"rank": 10, "task_id": "getmoto__moto-6208", "skill": 2, "domain": 3, "task_form": 2, "overall": 2, "reason": "Template tokenizer crashes skipping characters; hand-written scanner correctness, tangential to regex authoring."}
+    ]
+  },
+  "final_top10": [
+    {"rank": 1, "task_id": "task_000071_74a60bf5", "source": "TMax-15K", "skill": 5, "domain": 4, "task_form": 4, "overall": 5, "reason": "Matcher must accept 100% clean and reject 100% adversarial evil inputs; the exact accept/reject-with-near-misses bar of regex-log."},
+    {"rank": 2, "task_id": "rts_task_35132947ff66120393d1befa", "source": "Recursive-Task-Synthesis", "skill": 4, "domain": 5, "task_form": 4, "overall": 4, "reason": "Write one regex with a backreference enforcing a repeated separator and optional parens; the same single-pattern boundary encoding."},
+    {"rank": 3, "task_id": "task_005223_f66a60ed", "source": "TMax-15K", "skill": 4, "domain": 5, "task_form": 4, "overall": 4, "reason": "Determines exactly which payloads a WAF regex matches vs misses; must-not-match near-miss reasoning central to avoiding fake dates/IPs."},
+    {"rank": 4, "task_id": "task_002771_35d6f10f", "source": "TMax-15K", "skill": 4, "domain": 5, "task_form": 3, "overall": 4, "reason": "Strictly validates a well-formed IPv4 address before use; the exact IPv4-octet recognition the TB2.1 regex must encode."},
+    {"rank": 5, "task_id": "task_000352_88055f14", "source": "TMax-15K", "skill": 4, "domain": 5, "task_form": 4, "overall": 4, "reason": "Regex validates only an exact allowed character set, graded on clean/evil corpora; charset precision and false-positive control."},
+    {"rank": 6, "task_id": "task_003747_67da80a7", "source": "TMax-15K", "skill": 4, "domain": 5, "task_form": 3, "overall": 4, "reason": "Keeps rows whose Email strictly matches a nontrivial anchored POSIX regex; full-string validation with character classes."},
+    {"rank": 7, "task_id": "rts_task_38015ef16f15c68ca0575081", "source": "Recursive-Task-Synthesis", "skill": 4, "domain": 5, "task_form": 4, "overall": 4, "reason": "Single backreference regex for phone formats; encoding alternation plus a repeated-group constraint in one pattern."},
+    {"rank": 8, "task_id": "task_001130_5a244d2f", "source": "TMax-15K", "skill": 4, "domain": 5, "task_form": 3, "overall": 4, "reason": "Drops every line not strictly matching a supplied POSIX ERE; line-level exact accept/reject like selecting qualifying log lines."},
+    {"rank": 9, "task_id": "pallets__werkzeug-2596", "source": "SWE-Rebench-Tasks-Clean", "skill": 4, "domain": 5, "task_form": 2, "overall": 3, "reason": "Route regexes embedding a literal ISO-date pattern and mixing captures; composing an anchored date pattern with others in one regex."},
+    {"rank": 10, "task_id": "tw_316425", "source": "TerminalWorld-Seeds-Clean", "skill": 4, "domain": 5, "task_form": 4, "overall": 4, "reason": "Author a single regex validating phone-number formats; same write-one-precise-pattern task over a structured string."}
+  ],
+  "notes": "This task is unusually pure: author ONE Python regex, no code, graded by re.findall behaviour over a corpus with adversarial near-matches. So skill (precise pattern authoring, false-positive control) and domain (regex + IPv4/date formats) dominate; task_form penalises the SWE bug-fix corpora as expected. The RTS/TW phone/email single-regex-with-backreference family is the best structural match anywhere and I ranked it high despite low lexical overlap in the shortlist. TMax's true strengths (WAF-evasion regex, IPv4 validation, clean/evil corpus matchers) came from my own searches, not the shortlist, which was dominated by generic log-ETL pipeline tasks that only share the word 'log'. No corpus is short of 10 defensible candidates here, though SWE-Smith/Rebench necessarily lose on task_form. Merge step: the phone/email RTS regex tasks recur across regex-chess and regex-log; they are genuinely on-point for regex authoring but are near-duplicates of each other, so treat multiple appearances as one signal."
+}

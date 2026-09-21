@@ -1,5 +1,11 @@
 # TB 2.1 TF-IDF neighbors
 
+> This is the **lexical** run: all five corpora pooled, global top-30 by TF-IDF
+> cosine. For the agent-reranked answer — 10 per TB task, mixed across pools,
+> scored on required skill / domain / task form — see [`agentic/`](agentic/).
+> The two barely overlap: only 12.5% of the agentic picks appear in this
+> file's top-30.
+
 For each Terminal-Bench 2.1 task, rank the pooled training corpora by
 TF-IDF cosine on the **instruction / problem statement** (1–2 grams,
 fit on the training side only).

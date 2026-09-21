@@ -1,0 +1,584 @@
+{
+ "tb21_id": "compile-compcert",
+ "tb21_profile": {
+  "skill": "Build a large third-party source tree end to end: satisfy the toolchain and library prerequisites, run ./configure with the correct host OS/ISA target, drive make through its failures, and leave a working binary at an exact path",
+  "domain": "Unix source builds \u2014 autoconf/configure, make, cross/host target triples, compiler and language toolchains (here OCaml/Coq)",
+  "task_form": "build/packaging: compile-a-named-version-from-source until the produced artifact runs"
+ },
+ "searches": [
+  "tools.py search all 'coq\\b|OCaml|ocaml|opam|menhir|dune build' -n 40",
+  "tools.py search tw '\\./configure|build .{0,30}from source|compile .{0,25}from source|cross-compil|toolchain' -n 45",
+  "tools.py search tmax '\\./configure|build .{0,30}from source|Makefile|CMakeLists|autoconf|automake|fails to (compile|build|link)' -n 45",
+  "tools.py search tmax 'vendored .{0,40}(zlib|simdjson|xxHash|wrk|sqlite|openssl|curl|boost|libpng|ffmpeg)|(zlib|simdjson|xxHash|openssl|libcurl|boost)-[0-9]' -n 30",
+  "tools.py search tmax 'no internet|offline|without network access|air-gapped' -n 25",
+  "tools.py search all 'LLVM|llvm|build (gcc|clang|the compiler)|verified compiler|CompCert|formal verification' -n 30",
+  "tools.py search rts 'build .{0,25}from source|compile .{0,25}from source|\\./configure|make install|cross-compilation|toolchain' -n 40",
+  "sqlite: SELECT task_id FROM doc WHERE source='SWE-Smith-Seeds-Clean' AND task_id LIKE '%conan%'/'%tox%'/'%cookiecutter%'/'%pip%'",
+  "sqlite: SELECT task_id FROM doc WHERE source='SWE-Rebench-Tasks-Clean' AND task_id LIKE '%setuptools%'/'%cibuildwheel%'/'%scikit%'/'%nox%'/'%pip-%'/'%pipx%'/'%conan%'"
+ ],
+ "per_source": {
+  "TMax-15K": [
+   {
+    "rank": 1,
+    "task_id": "task_002579_198b9870",
+    "skill": 4,
+    "domain": 4,
+    "task_form": 4,
+    "overall": 4,
+    "reason": "Repair a broken offline zlib-1.3 source tree, build it, then build the dependent tool against it; no-network dependency build."
+   },
+   {
+    "rank": 2,
+    "task_id": "task_004618_d562309e",
+    "skill": 4,
+    "domain": 4,
+    "task_form": 4,
+    "overall": 4,
+    "reason": "Fix a deliberately broken build configuration in a vendored SQLite source tree and compile it into a working artifact."
+   },
+   {
+    "rank": 3,
+    "task_id": "task_001361_777650b1",
+    "skill": 4,
+    "domain": 4,
+    "task_form": 4,
+    "overall": 4,
+    "reason": "Fix and install a vendored simdjson v3.6.0 source drop, then build the consumer against it; exact-version source build."
+   },
+   {
+    "rank": 4,
+    "task_id": "task_002577_61b36a9f",
+    "skill": 4,
+    "domain": 4,
+    "task_form": 4,
+    "overall": 4,
+    "reason": "make on the vendored wrk source fails on a missing dependency; diagnose, satisfy it, build and run the tool."
+   },
+   {
+    "rank": 5,
+    "task_id": "task_001689_43cd859c",
+    "skill": 4,
+    "domain": 4,
+    "task_form": 3,
+    "overall": 4,
+    "reason": "Find the Makefile perturbation in vendored xxHash-0.8.2, build libxxhash.a and statically link it into a new binary."
+   },
+   {
+    "rank": 6,
+    "task_id": "task_002398_c625560c",
+    "skill": 4,
+    "domain": 4,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Build against a vendored zlib-1.3.1 whose configuration is wrong; library-plus-consumer build chain repair."
+   },
+   {
+    "rank": 7,
+    "task_id": "task_000672_0f6d1fb1",
+    "skill": 3,
+    "domain": 4,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Repair the vendored SQLite build script so the amalgamation compiles, then use the result downstream."
+   },
+   {
+    "rank": 8,
+    "task_id": "task_002530_b5b649ea",
+    "skill": 3,
+    "domain": 4,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Build a C++ tool on top of a vendored simdjson v3.6.0 tree; compiler flags and include/link wiring are the work."
+   },
+   {
+    "rank": 9,
+    "task_id": "task_000515_f832640b",
+    "skill": 3,
+    "domain": 3,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "With no internet, fix the local nlohmann/json header so the project compiles; offline dependency repair."
+   },
+   {
+    "rank": 10,
+    "task_id": "task_000578_c53a235b",
+    "skill": 3,
+    "domain": 4,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Vendored pen-0.34.1 C source must be corrected and rebuilt into a working load balancer binary."
+   }
+  ],
+  "Recursive-Task-Synthesis": [
+   {
+    "rank": 1,
+    "task_id": "rts_task_020ad1689cad3626497b56fe",
+    "skill": 5,
+    "domain": 5,
+    "task_form": 5,
+    "overall": 5,
+    "reason": "Build Janus v0.10.5 plus libwebsockets/libnice/libsrtp from source, checksum-verify tarballs and install to /opt/janus. Same pinned-version dependency-chain build."
+   },
+   {
+    "rank": 2,
+    "task_id": "rts_task_afd60c089eb038e4ad5ef336",
+    "skill": 5,
+    "domain": 5,
+    "task_form": 5,
+    "overall": 5,
+    "reason": "Download PostgreSQL 16.2 source, configure, build and install under a named prefix; exact-version source build ending in a runnable binary."
+   },
+   {
+    "rank": 3,
+    "task_id": "rts_task_a1fb5d219782b2ad9fd0ccbe",
+    "skill": 4,
+    "domain": 5,
+    "task_form": 5,
+    "overall": 4,
+    "reason": "Same PostgreSQL 16.2 tarball-to-installed-prefix build, different framing; configure/make/make install discipline."
+   },
+   {
+    "rank": 4,
+    "task_id": "rts_task_23434452c7727f330a7edb22",
+    "skill": 4,
+    "domain": 4,
+    "task_form": 5,
+    "overall": 4,
+    "reason": "Build and system-wide-install Paho MQTT Embedded-C from source, then compile a client against the installed headers and libs."
+   },
+   {
+    "rank": 5,
+    "task_id": "rts_task_3f3664306872177f4ab3d032",
+    "skill": 4,
+    "domain": 5,
+    "task_form": 5,
+    "overall": 4,
+    "reason": "Third PostgreSQL 16.2 from-source variant; same configure-build-install-to-prefix skill on a large C codebase."
+   },
+   {
+    "rank": 6,
+    "task_id": "rts_task_5dc6d30bea094a078a2adabb",
+    "skill": 4,
+    "domain": 4,
+    "task_form": 4,
+    "overall": 4,
+    "reason": "Compile Fennel 0.4.1 to WebAssembly with Emscripten; building a language implementation for a specific target with a non-default toolchain."
+   },
+   {
+    "rank": 7,
+    "task_id": "rts_task_00eea4c5290e0e1d8f6b1728",
+    "skill": 4,
+    "domain": 4,
+    "task_form": 4,
+    "overall": 4,
+    "reason": "Install an MT2735 cross-compiler toolchain from an archive, verify it against its manifest and report; toolchain provisioning."
+   },
+   {
+    "rank": 8,
+    "task_id": "rts_task_d9dad40a35b6c1aa98b53bb4",
+    "skill": 4,
+    "domain": 4,
+    "task_form": 4,
+    "overall": 4,
+    "reason": "Same cross toolchain plus the aarch64-poky-linux sysroot extraction and a reconciled installation report."
+   },
+   {
+    "rank": 9,
+    "task_id": "rts_task_abd324af884bad21c1069d2e",
+    "skill": 3,
+    "domain": 3,
+    "task_form": 4,
+    "overall": 3,
+    "reason": "Build docker-lvm-plugin from source including its man page and install it system-wide; Makefile-driven build and install."
+   },
+   {
+    "rank": 10,
+    "task_id": "rts_task_62bcf5431e2e7da62f190200",
+    "skill": 3,
+    "domain": 3,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Multi-file C build that must use a compiler version the spec pins, then reconcile the produced artifacts; toolchain-version matching."
+   }
+  ],
+  "TerminalWorld-Seeds-Clean": [
+   {
+    "rank": 1,
+    "task_id": "tw_135422",
+    "skill": 5,
+    "domain": 5,
+    "task_form": 5,
+    "overall": 5,
+    "reason": "Configure and build binutils 2.27 as an LFS cross-toolchain targeting $LFS_TGT; configure-for-the-right-target is the crux, as with CompCert."
+   },
+   {
+    "rank": 2,
+    "task_id": "tw_528959",
+    "skill": 5,
+    "domain": 4,
+    "task_form": 5,
+    "overall": 5,
+    "reason": "Compile Python 3.9.1 from source on Debian and end with a working python3.9 executable; same version-pinned build-and-prove-it-runs."
+   },
+   {
+    "rank": 3,
+    "task_id": "tw_157071",
+    "skill": 5,
+    "domain": 4,
+    "task_form": 5,
+    "overall": 5,
+    "reason": "Build MBDyn 1.7.3 from source and then actually simulate a model with it; build plus functional verification of the produced binary."
+   },
+   {
+    "rank": 4,
+    "task_id": "tw_17688",
+    "skill": 4,
+    "domain": 4,
+    "task_form": 5,
+    "overall": 4,
+    "reason": "Build VIM from source with a specific feature set and interpreter bindings and install to an exact path; configure-flag selection drives everything."
+   },
+   {
+    "rank": 5,
+    "task_id": "tw_112262",
+    "skill": 4,
+    "domain": 4,
+    "task_form": 5,
+    "overall": 4,
+    "reason": "Clone, prepare prerequisites and autotools-build Singularity so the binary is on PATH system-wide."
+   },
+   {
+    "rank": 6,
+    "task_id": "tw_322195",
+    "skill": 4,
+    "domain": 4,
+    "task_form": 5,
+    "overall": 4,
+    "reason": "Build Git from source, resolving its build prerequisites, and leave a working install."
+   },
+   {
+    "rank": 7,
+    "task_id": "tw_6033",
+    "skill": 4,
+    "domain": 4,
+    "task_form": 4,
+    "overall": 4,
+    "reason": "Configure the build with the i586-elf- cross-compiler prefix and compile the OS; picking the right target toolchain prefix is the whole difficulty."
+   },
+   {
+    "rank": 8,
+    "task_id": "tw_12007",
+    "skill": 4,
+    "domain": 3,
+    "task_form": 5,
+    "overall": 4,
+    "reason": "Compile Julia from source after pulling upstream; a long, dependency-heavy build that has to actually finish."
+   },
+   {
+    "rank": 9,
+    "task_id": "tw_8156",
+    "skill": 3,
+    "domain": 3,
+    "task_form": 5,
+    "overall": 3,
+    "reason": "Build Neovim from source in a prepared checkout; straightforward but the same make-it-actually-build genre."
+   },
+   {
+    "rank": 10,
+    "task_id": "tw_270154",
+    "skill": 4,
+    "domain": 4,
+    "task_form": 4,
+    "overall": 3,
+    "reason": "Configure and build Ruby 2.6 from source with substituted compiler wrappers; forces care about which CC/CXX the build picks up."
+   }
+  ],
+  "SWE-Smith-Seeds-Clean": [
+   {
+    "rank": 1,
+    "task_id": "conan-io__conan.86f29e13.func_pm_remove_assign__vt2zl5s6",
+    "skill": 4,
+    "domain": 5,
+    "task_form": 2,
+    "overall": 4,
+    "reason": "GNU triplet generation broken for mips/mips64/s390; mapping an architecture to the right build triple is exactly CompCert's configure step."
+   },
+   {
+    "rank": 2,
+    "task_id": "conan-io__conan.86f29e13.combine_module__ox7m3k6h",
+    "skill": 4,
+    "domain": 5,
+    "task_form": 2,
+    "overall": 3,
+    "reason": "Wrong C++ standard flags emitted per Clang/GCC version; compiler-version-dependent flag selection, the usual source-build failure mode."
+   },
+   {
+    "rank": 3,
+    "task_id": "conan-io__conan.86f29e13.func_pm_class_rm_funcs__3807jlzd",
+    "skill": 4,
+    "domain": 5,
+    "task_form": 2,
+    "overall": 3,
+    "reason": "GnuDepsFlags applies Apple framework flags on non-Apple OSes; OS-conditional build flags, the other half of configure detection."
+   },
+   {
+    "rank": 4,
+    "task_id": "conan-io__conan.86f29e13.combine_module__0jv2n7d9",
+    "skill": 3,
+    "domain": 5,
+    "task_form": 2,
+    "overall": 3,
+    "reason": "Incorrect C++ standard flags for Clang across versions; same compiler-capability-to-flag mapping problem."
+   },
+   {
+    "rank": 5,
+    "task_id": "conan-io__conan.86f29e13.func_pm_remove_cond__ucg6f79v",
+    "skill": 3,
+    "domain": 5,
+    "task_form": 2,
+    "overall": 3,
+    "reason": "CMakeDeps mishandles transitive dependencies; getting a dependency chain to link is the recurring cost of building from source."
+   },
+   {
+    "rank": 6,
+    "task_id": "conan-io__conan.86f29e13.func_pm_remove_cond__c3v70uy4",
+    "skill": 3,
+    "domain": 4,
+    "task_form": 2,
+    "overall": 3,
+    "reason": "Profile subsettings not invalidated when the compiler setting changes; reasoning about a build profile's consistency."
+   },
+   {
+    "rank": 7,
+    "task_id": "conan-io__conan.86f29e13.combine_file__i0i0pdfw",
+    "skill": 3,
+    "domain": 4,
+    "task_form": 2,
+    "overall": 3,
+    "reason": "Profile.dumps drops the settings section; serialising the os/arch/compiler configuration a build depends on."
+   },
+   {
+    "rank": 8,
+    "task_id": "conan-io__conan.86f29e13.combine_file__y3e83gj5",
+    "skill": 3,
+    "domain": 4,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "BazelDeps component name resolution wrong; generating correct build-system inputs for a dependency graph."
+   },
+   {
+    "rank": 9,
+    "task_id": "tox-dev__pipdeptree.c31b6418.lm_rewrite__npj9fiku",
+    "skill": 2,
+    "domain": 3,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Dependency-graph filtering is wrong; reasoning about a package dependency tree, which is what stalls source builds."
+   },
+   {
+    "rank": 10,
+    "task_id": "cookiecutter__cookiecutter.b4451231.lm_rewrite__dkp657a4",
+    "skill": 2,
+    "domain": 2,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Hook subprocess failures are swallowed and misreported; correctly surfacing a failing build step's error."
+   }
+  ],
+  "SWE-Rebench-Tasks-Clean": [
+   {
+    "rank": 1,
+    "task_id": "pypa__setuptools-4676",
+    "skill": 4,
+    "domain": 4,
+    "task_form": 2,
+    "overall": 4,
+    "reason": "Wheel ABI tag computed wrong for a debug Python build; detecting the host interpreter/ABI correctly is the configure-detection problem."
+   },
+   {
+    "rank": 2,
+    "task_id": "joerick__cibuildwheel-408",
+    "skill": 3,
+    "domain": 4,
+    "task_form": 2,
+    "overall": 3,
+    "reason": "CIBW_ENVIRONMENT no longer reaches the compile step; getting build-time environment variables to the compiler, a classic configure failure."
+   },
+   {
+    "rank": 3,
+    "task_id": "scikit-build__scikit-build-core-712",
+    "skill": 3,
+    "domain": 4,
+    "task_form": 2,
+    "overall": 3,
+    "reason": "CMake-backed build backend crashes on boolean config settings; passing build options through to the native build system."
+   },
+   {
+    "rank": 4,
+    "task_id": "joerick__cibuildwheel-295",
+    "skill": 3,
+    "domain": 4,
+    "task_form": 2,
+    "overall": 3,
+    "reason": "Building a package whose sources sit in a subdirectory; invoking the build in the right working tree, as CompCert requires."
+   },
+   {
+    "rank": 5,
+    "task_id": "jazzband__pip-tools-737",
+    "skill": 3,
+    "domain": 3,
+    "task_form": 2,
+    "overall": 3,
+    "reason": "pip-sync picks the first pip on PATH instead of the matching interpreter's; picking the right toolchain binary out of several."
+   },
+   {
+    "rank": 6,
+    "task_id": "pypa__setuptools-1129",
+    "skill": 3,
+    "domain": 4,
+    "task_form": 2,
+    "overall": 3,
+    "reason": "Transitive setup_requires must override system versions; build-time dependency resolution against what is already installed."
+   },
+   {
+    "rank": 7,
+    "task_id": "pypa__setuptools-1554",
+    "skill": 3,
+    "domain": 4,
+    "task_form": 2,
+    "overall": 3,
+    "reason": "build_meta omits setup.py from the sdist, so a from-source build of the package fails downstream."
+   },
+   {
+    "rank": 8,
+    "task_id": "theacodes__nox-363",
+    "skill": 2,
+    "domain": 3,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Install via 'python -m pip' rather than the bare 'pip' binary; same class of which-tool-am-I-actually-running bug."
+   },
+   {
+    "rank": 9,
+    "task_id": "conan-io__conan-18444",
+    "skill": 2,
+    "domain": 3,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Git remote parsing fails on treeless clones during source acquisition; fetching the sources a build needs."
+   },
+   {
+    "rank": 10,
+    "task_id": "pypa__setuptools-1150",
+    "skill": 2,
+    "domain": 3,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "setup.cfg metadata does not honour setup_requires; declarative build configuration not taking effect."
+   }
+  ]
+ },
+ "final_top10": [
+  {
+   "rank": 1,
+   "task_id": "rts_task_020ad1689cad3626497b56fe",
+   "source": "Recursive-Task-Synthesis",
+   "skill": 5,
+   "domain": 5,
+   "task_form": 5,
+   "overall": 5,
+   "reason": "Build Janus v0.10.5 and three pinned dependencies from source, verify tarball checksums, install to a fixed prefix. Same shape as CompCert 3.13.1."
+  },
+  {
+   "rank": 2,
+   "task_id": "rts_task_afd60c089eb038e4ad5ef336",
+   "source": "Recursive-Task-Synthesis",
+   "skill": 5,
+   "domain": 5,
+   "task_form": 5,
+   "overall": 5,
+   "reason": "Fetch, configure, build and install PostgreSQL 16.2 under a named prefix; exact-version source build ending in a usable binary."
+  },
+  {
+   "rank": 3,
+   "task_id": "tw_528959",
+   "source": "TerminalWorld-Seeds-Clean",
+   "skill": 5,
+   "domain": 4,
+   "task_form": 5,
+   "overall": 5,
+   "reason": "Compile Python 3.9.1 from source and prove the produced executable runs; version-pinned build with a working-binary acceptance test."
+  },
+  {
+   "rank": 4,
+   "task_id": "tw_135422",
+   "source": "TerminalWorld-Seeds-Clean",
+   "skill": 5,
+   "domain": 5,
+   "task_form": 5,
+   "overall": 5,
+   "reason": "Configure binutils 2.27 for a specific target triple and build it; choosing the right configure target is CompCert's central step."
+  },
+  {
+   "rank": 5,
+   "task_id": "tw_157071",
+   "source": "TerminalWorld-Seeds-Clean",
+   "skill": 5,
+   "domain": 4,
+   "task_form": 5,
+   "overall": 5,
+   "reason": "Build MBDyn 1.7.3 from source then run a model through it; build plus a functional check of the artifact, like invoking ./ccomp."
+  },
+  {
+   "rank": 6,
+   "task_id": "tw_17688",
+   "source": "TerminalWorld-Seeds-Clean",
+   "skill": 4,
+   "domain": 4,
+   "task_form": 5,
+   "overall": 4,
+   "reason": "Configure VIM with a demanding feature/interpreter set and install to an exact path; configure-flag selection against available libraries."
+  },
+  {
+   "rank": 7,
+   "task_id": "rts_task_a1fb5d219782b2ad9fd0ccbe",
+   "source": "Recursive-Task-Synthesis",
+   "skill": 4,
+   "domain": 5,
+   "task_form": 5,
+   "overall": 4,
+   "reason": "Second PostgreSQL 16.2 tarball-to-prefix build; reinforces configure/make/make install on a large C tree."
+  },
+  {
+   "rank": 8,
+   "task_id": "tw_112262",
+   "source": "TerminalWorld-Seeds-Clean",
+   "skill": 4,
+   "domain": 4,
+   "task_form": 5,
+   "overall": 4,
+   "reason": "Install build prerequisites and autotools-build Singularity from a git checkout until the binary is on PATH."
+  },
+  {
+   "rank": 9,
+   "task_id": "rts_task_23434452c7727f330a7edb22",
+   "source": "Recursive-Task-Synthesis",
+   "skill": 4,
+   "domain": 4,
+   "task_form": 5,
+   "overall": 4,
+   "reason": "Build and install a C library from source, then compile and run a client against the installed artifact; end-to-end usability check."
+  },
+  {
+   "rank": 10,
+   "task_id": "tw_6033",
+   "source": "TerminalWorld-Seeds-Clean",
+   "skill": 4,
+   "domain": 4,
+   "task_form": 4,
+   "overall": 4,
+   "reason": "Configure the build with the correct cross-compiler prefix before compiling; target/toolchain selection is the failure point."
+  }
+ ],
+ "notes": "No corpus contains an OCaml/Coq/opam build (4 OCaml hits pool-wide, all trivial QCheck tasks), so nobody scores 5 on the exact ecosystem. TerminalWorld and RTS are the right pools here and both were under-ranked by the lexical retrievers: RTS's PostgreSQL-16.2-from-source and Janus-v0.10.5-from-source clusters were absent from the shortlist entirely and I found them with a 'build from source | ./configure | make install' regex. I deliberately ranked TMax below them: TMax's 1200+ build tasks are almost all 'find the deliberate perturbation in a Makefile', which is a find-the-bug genre rather than a provision-and-configure-a-real-build genre, so they score well on domain and poorly on task_form. For the two SWE corpora I judged on domain and scored the conan cluster (GNU triplets, per-compiler flags, OS-conditional flags, CMakeDeps) highest, because that is the same target-triple and toolchain-flag reasoning ./configure does; setuptools/cibuildwheel cover host-ABI detection and build-environment propagation."
+}

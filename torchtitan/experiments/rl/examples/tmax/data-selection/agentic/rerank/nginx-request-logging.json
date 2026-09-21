@@ -1,0 +1,101 @@
+{
+  "tb21_id": "nginx-request-logging",
+  "tb21_profile": {
+    "skill": "Author a correct Nginx configuration with directives in the right contexts (http-level log_format and limit_req_zone, server-level limit_req, error_page, root, listen 8080), then validate with nginx -t, restart the service and prove it serves",
+    "domain": "Nginx / Linux web-server administration: package install, /etc/nginx layout, access and error logging, per-IP rate limiting, custom error pages, service lifecycle",
+    "task_form": "configure-a-service: many interacting requirements graded both by config-file content and by live HTTP behaviour on localhost:8080"
+  },
+  "searches": [
+    "tools.py full nginx-request-logging",
+    "tools.py search all nginx",
+    "tools.py search all \"log_format|limit_req|access_log|error_page\"",
+    "tools.py search all \"nginx\\.conf|sites-enabled|proxy_pass|server_name|conf\\.d\"",
+    "tools.py search all \"reverse proxy|virtual host|vhost\"",
+    "tools.py search all \"rate limit|rate.limiting|throttl\"",
+    "tools.py search tw nginx",
+    "tools.py search tw \"log.{0,15}(rotat|format)|logrotate|rsyslog|journald\"",
+    "tools.py search rts \"DocumentRoot|document root\"",
+    "tools.py search rts \"listen(ing)? on port 8080|:8080\"",
+    "tools.py search rts \"custom (error|404)|404\\.html\"",
+    "tools.py search rts \"systemctl|service .* (start|restart)\"",
+    "tools.py search smith \"access.?log|gunicorn|log format|logging config|worker|bind\"",
+    "tools.py search rebench \"nginx|gunicorn|uvicorn|http server|reverse proxy|static files|rate limit\"",
+    "tools.py search rebench \"access log|logging|static file|404|X-Forwarded|client ip|ipware\"",
+    "tools.py show task_005935_cd483540 task_007982_fd0af271 task_001011_daf5764a"
+  ],
+  "per_source": {
+    "TMax-15K": [
+      {"rank": 1, "task_id": "task_005935_cd483540", "skill": 5, "domain": 5, "task_form": 5, "overall": 5, "reason": "Write an nginx.conf listening on 8080 with limit_req_zone/limit_req per client IP plus burst, redirected log and pid paths, then start nginx. Same directives."},
+      {"rank": 2, "task_id": "task_007982_fd0af271", "skill": 5, "domain": 5, "task_form": 4, "overall": 5, "reason": "Standalone nginx.conf: http block, server on 8080, named limit_req_zone of a given size keyed by IP, explicit access_log and error_log paths."},
+      {"rank": 3, "task_id": "task_004858_d0a2763f", "skill": 4, "domain": 5, "task_form": 4, "overall": 4, "reason": "Repair an Nginx stack so the server listens on 8080 and proxies correctly, then harden it; same config-plus-verify-it-serves loop."},
+      {"rank": 4, "task_id": "task_003556_76a04b16", "skill": 4, "domain": 5, "task_form": 4, "overall": 4, "reason": "Fix an nginx.conf meant to listen on 8080 that will not run, and build reliable process supervision; config syntax plus service lifecycle."},
+      {"rank": 5, "task_id": "task_005436_d605aece", "skill": 4, "domain": 5, "task_form": 4, "overall": 4, "reason": "Author an Nginx load balancer with TLS termination and unprivileged paths; multi-directive config authoring that must actually start and serve."},
+      {"rank": 6, "task_id": "task_007670_4ef18312", "skill": 4, "domain": 5, "task_form": 3, "overall": 4, "reason": "Diagnose a 502 from an Nginx reverse proxy on localhost:8080; reading nginx error logs back to a config mistake."},
+      {"rank": 7, "task_id": "task_002317_8395ec45", "skill": 4, "domain": 4, "task_form": 4, "overall": 4, "reason": "Provision a load balancer in front of a slow backend and verify throughput; server-block authoring plus start-and-measure verification."},
+      {"rank": 8, "task_id": "task_001011_daf5764a", "skill": 4, "domain": 5, "task_form": 4, "overall": 4, "reason": "Generate Nginx reverse-proxy server blocks programmatically from a YAML route spec; exercises knowing which directive belongs where."},
+      {"rank": 9, "task_id": "task_000571_533a2fa6", "skill": 3, "domain": 5, "task_form": 3, "overall": 3, "reason": "Automate backend deployment and debug an Nginx proxy returning 502; same nginx-config-and-service troubleshooting territory."},
+      {"rank": 10, "task_id": "task_001885_7068f4fe", "skill": 3, "domain": 5, "task_form": 3, "overall": 3, "reason": "Nginx proxy misconfigured and backend down; fix both so the site responds. Nginx config debugging, no logging or rate-limit content."}
+    ],
+    "Recursive-Task-Synthesis": [
+      {"rank": 1, "task_id": "rts_task_d3290515a5700373e22d7dad", "skill": 4, "domain": 4, "task_form": 5, "overall": 4, "reason": "Install and configure a web server end to end (modules, SSL, extensions) and replace the default index page with custom content; same checklist-style service setup."},
+      {"rank": 2, "task_id": "rts_task_bce7a0f220c63168ec1db414", "skill": 4, "domain": 4, "task_form": 4, "overall": 4, "reason": "Diagnose why httpd will not serve on its port, resolve the conflict, and make the service running and enabled; config-plus-service verification."},
+      {"rank": 3, "task_id": "rts_task_a3213dc42d14eb6e79080b36", "skill": 3, "domain": 4, "task_form": 4, "overall": 3, "reason": "Install Apache2 and point the default document root at a specific file that must be served; the document-root and index-file half of this task."},
+      {"rank": 4, "task_id": "rts_task_e1eed50a4cda6f5b844a0fd7", "skill": 3, "domain": 4, "task_form": 4, "overall": 3, "reason": "Provision a stack from a manifest, enable modules and sites, remove the default page, and debug via the server error log."},
+      {"rank": 5, "task_id": "rts_task_7798397b24fb48c4a7e022c0", "skill": 3, "domain": 4, "task_form": 4, "overall": 3, "reason": "Enable SSL and the default site, deploy specific pages into the web root, remove the stock index.html and verify over HTTP."},
+      {"rank": 6, "task_id": "rts_task_5e2ccc6f4d6304bda4cabc38", "skill": 3, "domain": 4, "task_form": 4, "overall": 3, "reason": "Install Apache2, run it as a service and make the document root serve a required HTML file; install-configure-verify in miniature."},
+      {"rank": 7, "task_id": "rts_task_a4d77e401ddc2927ecc1f508", "skill": 3, "domain": 4, "task_form": 3, "overall": 3, "reason": "Work against a running Apache and its default document root; editing server config so content is served from the intended path."},
+      {"rank": 8, "task_id": "rts_task_320523b1d794e753ca4c0438", "skill": 3, "domain": 4, "task_form": 3, "overall": 3, "reason": "Start Nginx, confirm it listens on its port and curl the served page; the start-and-prove-it-responds step graded here."},
+      {"rank": 9, "task_id": "rts_task_068cb4467e9b09812075a293", "skill": 2, "domain": 3, "task_form": 3, "overall": 2, "reason": "Permanently open the nginx and httpd ports in firewalld and enable the service; port-reachability administration, no server config."},
+      {"rank": 10, "task_id": "rts_task_2871baada66ed1ea8945ea15", "skill": 2, "domain": 4, "task_form": 3, "overall": 2, "reason": "Another Apache document-root-serves-this-string variant; near-duplicate of higher-ranked entries, limited additional signal."}
+    ],
+    "TerminalWorld-Seeds-Clean": [
+      {"rank": 1, "task_id": "tw_529969", "skill": 4, "domain": 4, "task_form": 5, "overall": 4, "reason": "Configure an HTTPS web server on a non-standard port with every system-level prerequisite so the service starts cleanly; the same listen-on-an-odd-port setup."},
+      {"rank": 2, "task_id": "tw_321921", "skill": 4, "domain": 4, "task_form": 4, "overall": 4, "reason": "Make httpd actually reachable on a chosen port by clearing a port conflict and opening the firewall; port-binding and reachability debugging."},
+      {"rank": 3, "task_id": "tw_304629", "skill": 4, "domain": 4, "task_form": 4, "overall": 4, "reason": "An httpd that fails to start must be diagnosed and made operational and enabled at boot; config-syntax-then-service-start, as nginx -t demands here."},
+      {"rank": 4, "task_id": "tw_533008", "skill": 3, "domain": 5, "task_form": 3, "overall": 4, "reason": "Build and install a specific Nginx version from source and prove it starts and functions; direct nginx domain knowledge."},
+      {"rank": 5, "task_id": "tw_649919", "skill": 3, "domain": 4, "task_form": 5, "overall": 3, "reason": "Install a web server with modules enabled, the SSL vhost activated and specific files in the web root; same long checklist of server requirements."},
+      {"rank": 6, "task_id": "tw_138158", "skill": 3, "domain": 4, "task_form": 4, "overall": 3, "reason": "Mirror a staging web stack: enable named Apache modules and configure several services together; multi-directive server configuration."},
+      {"rank": 7, "task_id": "tw_649977", "skill": 3, "domain": 4, "task_form": 4, "overall": 3, "reason": "Provision a LAMP stack with the SSL module and default-ssl site activated; module enablement and service verification."},
+      {"rank": 8, "task_id": "tw_31288", "skill": 3, "domain": 5, "task_form": 3, "overall": 3, "reason": "Render an nginx configuration from a Consul Template source against registered service definitions; generating valid nginx config text."},
+      {"rank": 9, "task_id": "tw_312373", "skill": 2, "domain": 3, "task_form": 4, "overall": 2, "reason": "Configure firewalld permanent rules for the nginx and httpd ports and enable it at boot; adjacent sysadmin work, no server config."},
+      {"rank": 10, "task_id": "tw_465446", "skill": 2, "domain": 3, "task_form": 4, "overall": 2, "reason": "LAMP plus WordPress with modules enabled and services running; service provisioning, further from log and rate-limit directives."}
+    ],
+    "SWE-Smith-Seeds-Clean": [
+      {"rank": 1, "task_id": "encode__starlette.db5063c2.combine_file__spx82e31", "skill": 3, "domain": 4, "task_form": 2, "overall": 3, "reason": "StaticFiles returns the wrong status codes and responses; serving a document root and emitting the right 404 is graded here."},
+      {"rank": 2, "task_id": "django__daphne.32ac73e1.func_pm_remove_cond__l15tmnui", "skill": 3, "domain": 4, "task_form": 2, "overall": 3, "reason": "Server fails to start when only a host or only a port is given; the listen-directive binding semantics this config must get right."},
+      {"rank": 3, "task_id": "benoitc__gunicorn.bacbf8aa.combine_module__ernek77y", "skill": 3, "domain": 4, "task_form": 2, "overall": 3, "reason": "Web-server configuration loading is broken; reasoning about how a server assembles settings from files and flags."},
+      {"rank": 4, "task_id": "django__daphne.32ac73e1.combine_file__7y9nhxun", "skill": 3, "domain": 4, "task_form": 2, "overall": 3, "reason": "X-Forwarded-For parsing gives the wrong client IP; per-IP rate limiting and access logs depend on identifying the client correctly."},
+      {"rank": 5, "task_id": "django__daphne.32ac73e1.func_basic__2cpoddzp", "skill": 3, "domain": 4, "task_form": 2, "overall": 3, "reason": "Server will not start with default binding settings and uses None as the host; default-versus-explicit listen configuration."},
+      {"rank": 6, "task_id": "encode__starlette.db5063c2.pr_2583", "skill": 2, "domain": 4, "task_form": 2, "overall": 2, "reason": "StaticFiles mishandles over-long filenames instead of returning a clean error; static-serving edge cases behind a document root."},
+      {"rank": 7, "task_id": "benoitc__gunicorn.bacbf8aa.func_pm_ctrl_invert_if__niwrv91e", "skill": 2, "domain": 4, "task_form": 2, "overall": 2, "reason": "Config-file loading breaks when the path comes from an environment variable; server config resolution order."},
+      {"rank": 8, "task_id": "borntyping__python-colorlog.dfa10f59.combine_file__mgwf3p06", "skill": 2, "domain": 3, "task_form": 2, "overall": 2, "reason": "basicConfig-style log configuration is broken; declaring a log format and handler correctly is the log_format analogue."},
+      {"rank": 9, "task_id": "getnikola__nikola.0f4c230e.combine_module__7m3d5u7t", "skill": 2, "domain": 3, "task_form": 2, "overall": 2, "reason": "A development HTTP server serves no content because its request handler is wrong; static-file serving failure diagnosis."},
+      {"rank": 10, "task_id": "benoitc__gunicorn.bacbf8aa.func_pm_ctrl_shuffle__dsta2igz", "skill": 2, "domain": 3, "task_form": 2, "overall": 2, "reason": "Worker-class config property raises before the server can start; server startup configuration plumbing only."}
+    ],
+    "SWE-Rebench-Tasks-Clean": [
+      {"rank": 1, "task_id": "devpi__devpi-1074", "skill": 3, "domain": 5, "task_form": 2, "overall": 3, "reason": "Deployment split across Nginx locations with TLS and auth; reasoning about which location block handles which request path."},
+      {"rank": 2, "task_id": "jazzband__django-axes-1022", "skill": 3, "domain": 4, "task_form": 2, "overall": 3, "reason": "Behind a load balancer and reverse proxy the client IP is misidentified; the exact hazard for limit_req_zone keyed on $binary_remote_addr."},
+      {"rank": 3, "task_id": "jazzband__django-axes-950", "skill": 3, "domain": 3, "task_form": 2, "overall": 3, "reason": "User-agent-based tracking not working; capturing and keying on the User-Agent header is a graded part of this log format."},
+      {"rank": 4, "task_id": "tornadoweb__tornado-3489", "skill": 3, "domain": 4, "task_form": 2, "overall": 3, "reason": "NUL and CR wrongly permitted in HTTP header values; header hygiene, directly relevant to quoting $http_user_agent in a log line."},
+      {"rank": 5, "task_id": "ctfd__ctfd-432", "skill": 3, "domain": 3, "task_form": 2, "overall": 3, "reason": "Discussion and fix around request rate limiting being bypassed; how a per-client request budget is actually enforced."},
+      {"rank": 6, "task_id": "neoteroi__blacksheep-467", "skill": 2, "domain": 4, "task_form": 2, "overall": 2, "reason": "An ASGI app served by uvicorn stops working at a version; HTTP server wiring and startup behaviour."},
+      {"rank": 7, "task_id": "tornadoweb__tornado-3477", "skill": 2, "domain": 4, "task_form": 2, "overall": 2, "reason": "HTTP server framing issue also reproduced under gunicorn; protocol-level correctness in a web server."},
+      {"rank": 8, "task_id": "aio-libs__aiohttp-6653", "skill": 2, "domain": 3, "task_form": 2, "overall": 2, "reason": "TLS fingerprint check silently passes when setting up an HTTP server; server setup and verification semantics."},
+      {"rank": 9, "task_id": "pallets__werkzeug-2596", "skill": 2, "domain": 3, "task_form": 2, "overall": 2, "reason": "Route matching mixes up parameters when several patterns apply; the location-matching precedence problem in another stack."},
+      {"rank": 10, "task_id": "jazzband__django-axes-1198", "skill": 2, "domain": 3, "task_form": 2, "overall": 2, "reason": "Concurrent sessions mis-tracked per client; shared per-client counter state, the concept behind a limit_req shared memory zone."}
+    ]
+  },
+  "final_top10": [
+    {"rank": 1, "task_id": "task_005935_cd483540", "source": "TMax-15K", "skill": 5, "domain": 5, "task_form": 5, "overall": 5, "reason": "Write an nginx.conf on port 8080 with limit_req_zone plus limit_req keyed by client IP and burst, explicit log paths, then start nginx. Same directives."},
+    {"rank": 2, "task_id": "task_007982_fd0af271", "source": "TMax-15K", "skill": 5, "domain": 5, "task_form": 4, "overall": 5, "reason": "Standalone nginx.conf with an http block, a server on 8080, a named sized limit_req_zone keyed by IP, and separate access and error logs."},
+    {"rank": 3, "task_id": "task_004858_d0a2763f", "source": "TMax-15K", "skill": 4, "domain": 5, "task_form": 4, "overall": 4, "reason": "Make a broken Nginx server listen on 8080 and serve correctly, then harden it; the configure-then-prove-it-responds loop graded here."},
+    {"rank": 4, "task_id": "task_003556_76a04b16", "source": "TMax-15K", "skill": 4, "domain": 5, "task_form": 4, "overall": 4, "reason": "An nginx.conf for port 8080 that refuses to run must be fixed and kept running; config-syntax validation plus service lifecycle."},
+    {"rank": 5, "task_id": "task_005436_d605aece", "source": "TMax-15K", "skill": 4, "domain": 5, "task_form": 4, "overall": 4, "reason": "Author a multi-directive Nginx config (TLS, upstreams, writable paths) that must actually start and balance traffic."},
+    {"rank": 6, "task_id": "tw_529969", "source": "TerminalWorld-Seeds-Clean", "skill": 4, "domain": 4, "task_form": 5, "overall": 4, "reason": "Bring a web server up on a non-standard port with every system prerequisite so it runs without errors; same end-state-is-a-working-server grading."},
+    {"rank": 7, "task_id": "task_001011_daf5764a", "source": "TMax-15K", "skill": 4, "domain": 5, "task_form": 4, "overall": 4, "reason": "Generate Nginx server blocks from a route spec; forces knowing which directive belongs in which context, the crux of limit_req_zone placement."},
+    {"rank": 8, "task_id": "task_007670_4ef18312", "source": "TMax-15K", "skill": 4, "domain": 5, "task_form": 3, "overall": 4, "reason": "Debug a 502 from an Nginx proxy on localhost:8080 by reading its error log back to the offending directive."},
+    {"rank": 9, "task_id": "tw_321921", "source": "TerminalWorld-Seeds-Clean", "skill": 4, "domain": 4, "task_form": 4, "overall": 4, "reason": "Make a web server genuinely reachable on a chosen port by clearing a conflicting listener and the firewall; port-binding reachability work."},
+    {"rank": 10, "task_id": "rts_task_d3290515a5700373e22d7dad", "source": "Recursive-Task-Synthesis", "skill": 4, "domain": 4, "task_form": 5, "overall": 4, "reason": "Install and configure a web server against a long requirement checklist and replace the default index with custom pages; same genre and depth."}
+  ],
+  "notes": "Best-supplied of the five tasks so far. TMax contains a real cluster of user-space Nginx tasks, two of which (task_005935_cd483540, task_007982_fd0af271) specify limit_req_zone/limit_req on port 8080 by name - as close to this TB2.1 task as the pool gets. TerminalWorld and RTS contribute the configure-and-verify-a-web-server genre but almost entirely Apache/LAMP rather than Nginx (RTS's 713 'nginx' hits are overwhelmingly the same create-user-xiaou and Kubernetes-manifest templates; discounted). No task anywhere in the pool mentions log_format, error_page or a custom 404 page for a web server, so the logging-format half of this task is unrepresented - worth flagging for coverage. SWE-Smith's gunicorn/daphne/starlette cluster and SWE-Rebench's django-axes client-IP and user-agent issues are the honest best of those two corpora, capped at overall 3."
+}

@@ -1,0 +1,100 @@
+{
+  "tb21_id": "openssl-selfsigned-cert",
+  "tb21_profile": {
+    "skill": "Drive the openssl CLI to make a 2048-bit RSA key and a self-signed X.509 cert with an exact subject (O and CN) and 365-day validity, bundle key+cert into a PEM, set 0600 on the key, extract subject/validity/SHA-256 fingerprint, and write a Python script that loads the cert and prints CN and notAfter as YYYY-MM-DD",
+    "domain": "TLS / X.509 PKI: openssl genrsa and req -x509 and x509 subcommands, PEM formats, Unix file permissions, Python cryptography / pyOpenSSL certificate parsing",
+    "task_form": "implement-from-spec: a checklist of exactly-named artifacts under /app/ssl plus a verification script, graded on file contents, permissions and script output"
+  },
+  "searches": [
+    "tools.py full openssl-selfsigned-cert",
+    "tools.py search all \"self-signed|selfsigned\"",
+    "tools.py search all openssl",
+    "tools.py search all \"x509|X\\.509|certificate signing request|CSR\"",
+    "tools.py search all \"SHA-?256 fingerprint\"",
+    "tools.py search all \"chmod 600|permissions.{0,15}600|0600\"",
+    "tools.py search all \"cryptography.{0,20}(library|x509)|load_pem_x509|pyOpenSSL\"",
+    "tools.py search all \"notAfter|expiration date|expiry date|valid for 365\"",
+    "tools.py search tw \"openssl|x509|certificate|private key|TLS\"",
+    "tools.py search smith \"pyopenssl|certificate|x509|TLS|ssl|private key|cryptograph\"",
+    "tools.py search smith paramiko",
+    "tools.py search smith \"chmod|file permission|0o600|umask\"",
+    "tools.py search rebench \"certificate|x509|TLS|ssl context|private key|cryptograph\"",
+    "tools.py show task_000575_10c82d13 task_000811_5ea45778 task_000475_b509da2d task_000486_8ed674fd",
+    "tools.py show task_000168_9a147e4d"
+  ],
+  "per_source": {
+    "TMax-15K": [
+      {"rank": 1, "task_id": "task_000475_b509da2d", "skill": 5, "domain": 5, "task_form": 5, "overall": 5, "reason": "Generate self-signed CA and leaf RSA-2048 key/cert pairs, enforce an exact permission mode on the key file, and write a Python script that loads the cert. Covers all three distinctive steps."},
+      {"rank": 2, "task_id": "task_000575_10c82d13", "skill": 5, "domain": 5, "task_form": 4, "overall": 5, "reason": "Create a directory, generate a 2048-bit RSA server.key and a self-signed X.509 server.crt valid 365 days with a specified CN: steps 1-3 verbatim."},
+      {"rank": 3, "task_id": "task_002770_06806953", "skill": 5, "domain": 5, "task_form": 4, "overall": 5, "reason": "Use openssl non-interactively (silently, so -subj) to produce a self-signed RSA-2048 cert and key valid 365 days for a given Common Name."},
+      {"rank": 4, "task_id": "task_001163_eb9fe538", "skill": 4, "domain": 5, "task_form": 4, "overall": 4, "reason": "Generate a self-signed 2048-bit RSA server.crt and server.key valid for 365 days under /app; same artifact names and validity requirement."},
+      {"rank": 5, "task_id": "task_000811_5ea45778", "skill": 4, "domain": 5, "task_form": 4, "overall": 4, "reason": "Rotate credentials by generating a new RSA-2048 private key and a self-signed X.509 cert valid 365 days whose Subject contains an exact CN."},
+      {"rank": 6, "task_id": "task_000784_672a48fb", "skill": 4, "domain": 5, "task_form": 3, "overall": 4, "reason": "Extract the Issuer Common Name from a PEM certificate using openssl or Python cryptography; the certificate-inspection half of verification.txt and check_cert.py."},
+      {"rank": 7, "task_id": "task_000486_8ed674fd", "skill": 4, "domain": 5, "task_form": 4, "overall": 4, "reason": "Create a directory with strict owner-only permissions and generate a self-signed RSA-2048 cert with an unencrypted key; permissions plus key generation together."},
+      {"rank": 8, "task_id": "task_001918_ce196296", "skill": 3, "domain": 5, "task_form": 3, "overall": 3, "reason": "Write a Python script using the cryptography library to parse certificates and pull fields out of them; the check_cert.py step in another guise."},
+      {"rank": 9, "task_id": "task_000966_374a6040", "skill": 3, "domain": 5, "task_form": 4, "overall": 3, "reason": "Create a certs directory and generate a self-signed RSA-2048 cert.pem and key.pem valid for 365 days; the generation step with no verification work."},
+      {"rank": 10, "task_id": "task_000131_f54cfb8c", "skill": 3, "domain": 4, "task_form": 3, "overall": 3, "reason": "Enforce least privilege so key material is readable and writable only by the owner (chmod 600); the permission criterion graded on server.key."}
+    ],
+    "Recursive-Task-Synthesis": [
+      {"rank": 1, "task_id": "rts_task_7c2c9533c50d05a84a2b2980", "skill": 5, "domain": 5, "task_form": 5, "overall": 5, "reason": "Use openssl to produce a self-signed X.509 hostcert.pem with a required CommonName plus a hostkey.pem, each at an exact permission mode. Same artifacts and same permission grading."},
+      {"rank": 2, "task_id": "rts_task_f11853d9765a4a3c191f8018", "skill": 4, "domain": 5, "task_form": 4, "overall": 4, "reason": "Produce a report recording the certificate's Subject, Issuer and SHA-256 fingerprint: exactly the contents of verification.txt."},
+      {"rank": 3, "task_id": "rts_task_75542adcd1bb4680a7cdedc0", "skill": 4, "domain": 5, "task_form": 4, "overall": 4, "reason": "Validate a certificate's subject with openssl and record its SHA-256 fingerprint computed via openssl x509 -fingerprint; the same two subcommands."},
+      {"rank": 4, "task_id": "rts_task_a8a49001c63725f5108ecce4", "skill": 4, "domain": 5, "task_form": 4, "overall": 4, "reason": "Generate a CA key and self-signed CA certificate from openssl .cnf configs and derive node/client certs; deeper openssl req/x509 driving."},
+      {"rank": 5, "task_id": "rts_task_7be15613a8f6e653a6c64eb1", "skill": 4, "domain": 5, "task_form": 3, "overall": 4, "reason": "Extract subject CN, issuer CN and expiry date from a TLS certificate with openssl; the field-extraction the verification file and script both need."},
+      {"rank": 6, "task_id": "rts_task_a3d487851977bb7a9bfeb5ed", "skill": 3, "domain": 5, "task_form": 4, "overall": 4, "reason": "Host certificate and key files each required at an exact permission mode inside a directory; the 600-on-the-key criterion."},
+      {"rank": 7, "task_id": "rts_task_835acd66937cb698ac5b268c", "skill": 3, "domain": 5, "task_form": 4, "overall": 3, "reason": "Generate a key and certificate then prove them end to end, serving the certificate's SHA256 fingerprint; generation plus fingerprint verification."},
+      {"rank": 8, "task_id": "rts_task_5c5b9a258416634e16ea5b08", "skill": 3, "domain": 5, "task_form": 4, "overall": 3, "reason": "Readiness report listing Subject, Issuer and SHA-256 fingerprint of a certificate; near-duplicate of rank 2 but still the right output shape."},
+      {"rank": 9, "task_id": "rts_task_6fe52fdbbf86eaa72584b683", "skill": 3, "domain": 5, "task_form": 3, "overall": 3, "reason": "A preflight check reports a missing TLS certificate and a valid self-signed one must be generated to satisfy it."},
+      {"rank": 10, "task_id": "rts_task_14bd701b9a24f0444c8bbc6a", "skill": 3, "domain": 4, "task_form": 3, "overall": 3, "reason": "Retrieve a TLS certificate, save it and compute its SHA256 fingerprint; certificate analysis without any generation."}
+    ],
+    "TerminalWorld-Seeds-Clean": [
+      {"rank": 1, "task_id": "tw_358114", "skill": 5, "domain": 5, "task_form": 4, "overall": 5, "reason": "Build a chain with a root CA whose Organization is a literal string and CN is a literal string, plus an end-entity cert; setting O and CN exactly is the graded subject here."},
+      {"rank": 2, "task_id": "tw_235174", "skill": 4, "domain": 5, "task_form": 4, "overall": 4, "reason": "Use OpenSSL to generate a 2048-bit RSA key pair and then exercise it; the same genrsa step and CLI fluency."},
+      {"rank": 3, "task_id": "tw_417535", "skill": 4, "domain": 5, "task_form": 4, "overall": 4, "reason": "Generate a full PKI including a Certificate Authority with a specified CN, writing every artifact to exact paths."},
+      {"rank": 4, "task_id": "tw_324541", "skill": 4, "domain": 5, "task_form": 4, "overall": 4, "reason": "Create certificates from supplied OpenSSL .cnf configuration files and make a service actually accept them; openssl config plus end-to-end validation."},
+      {"rank": 5, "task_id": "tw_296397", "skill": 3, "domain": 5, "task_form": 4, "overall": 4, "reason": "Set up a host certificate directory with the required certificate and key files at the required modes; directory layout and permissions for key material."},
+      {"rank": 6, "task_id": "tw_526697", "skill": 3, "domain": 5, "task_form": 3, "overall": 3, "reason": "Build and run a container that produces self-signed certificates with mkcert; self-signed certificate issuance through a different tool."},
+      {"rank": 7, "task_id": "tw_508682", "skill": 3, "domain": 5, "task_form": 3, "overall": 3, "reason": "Obtain a signed TLS certificate through a CSR workflow with a private key generated first; key-then-CSR-then-certificate sequencing."},
+      {"rank": 8, "task_id": "tw_114457", "skill": 3, "domain": 4, "task_form": 3, "overall": 3, "reason": "Place a PEM private key at a specific path with permissions set to 400; exactly the restrictive-mode-on-key-material requirement."},
+      {"rank": 9, "task_id": "tw_465830", "skill": 3, "domain": 4, "task_form": 3, "overall": 3, "reason": "Retrieve a service's TLS certificate over HTTPS and analyse it; certificate inspection with openssl-style tooling."},
+      {"rank": 10, "task_id": "tw_16895", "skill": 2, "domain": 4, "task_form": 3, "overall": 2, "reason": "Write an RSA PEM private key to exact locations on disk securely; PEM handling and file placement only, no certificate work."}
+    ],
+    "SWE-Smith-Seeds-Clean": [
+      {"rank": 1, "task_id": "pyca__pyopenssl.04766a49.combine_file__ia85jsve", "skill": 3, "domain": 5, "task_form": 2, "overall": 3, "reason": "Fix error handling inside pyOpenSSL itself; the Python binding to the same OpenSSL library this task drives from the CLI."},
+      {"rank": 2, "task_id": "paramiko__paramiko.23f92003.combine_file__fn5svpc8", "skill": 3, "domain": 4, "task_form": 2, "overall": 3, "reason": "Key-exchange hash computation is wrong for both SHA-1 and SHA-256 variants; getting a cryptographic digest exactly right, as the SHA-256 fingerprint must be."},
+      {"rank": 3, "task_id": "paramiko__paramiko.23f92003.lm_rewrite__kc4qu7b1", "skill": 3, "domain": 4, "task_form": 2, "overall": 3, "reason": "Loading key material from a file fails during HostKeys initialization; parsing stored key files correctly, as check_cert.py must."},
+      {"rank": 4, "task_id": "python-trio__trio.cfbbe2c1.func_pm_class_rm_funcs__lt07y37l", "skill": 2, "domain": 5, "task_form": 2, "overall": 3, "reason": "SSLStream is missing do_handshake and receive_some; TLS session mechanics that the generated certificate is ultimately for."},
+      {"rank": 5, "task_id": "paramiko__paramiko.23f92003.lm_rewrite__ff51dugy", "skill": 3, "domain": 4, "task_form": 2, "overall": 3, "reason": "Failures or incorrect encryption in the crypto path; debugging a cryptographic primitive until its output matches the reference."},
+      {"rank": 6, "task_id": "scrapy__scrapy.35212ec5.pr_5406", "skill": 2, "domain": 4, "task_form": 2, "overall": 2, "reason": "Fix STARTTLS negotiation against a newer Twisted; TLS client configuration in Python."},
+      {"rank": 7, "task_id": "pydicom__pydicom.7d361b3d.pr_1931", "skill": 2, "domain": 3, "task_form": 2, "overall": 2, "reason": "generate_uid is not cryptographically random; reasoning about what counts as secure random material, adjacent to key generation."},
+      {"rank": 8, "task_id": "gweis__isodate.17cb25eb.lm_rewrite__j6o0746p", "skill": 2, "domain": 2, "task_form": 2, "overall": 2, "reason": "parse_date raises on valid input; producing the validity dates in YYYY-MM-DD form is a separately graded criterion here."},
+      {"rank": 9, "task_id": "arrow-py__arrow.1d70d009.func_pm_class_rm_funcs__3ewpmr5u", "skill": 2, "domain": 2, "task_form": 2, "overall": 2, "reason": "DateTimeFormatter.format is missing; formatting a parsed expiry datetime into a required string form."},
+      {"rank": 10, "task_id": "conan-io__conan.86f29e13.pr_17566", "skill": 2, "domain": 3, "task_form": 2, "overall": 2, "reason": "Package and consume openssl as a dependency; the openssl ecosystem, but packaging rather than certificate work."}
+    ],
+    "SWE-Rebench-Tasks-Clean": [
+      {"rank": 1, "task_id": "pyca__cryptography-11201", "skill": 4, "domain": 5, "task_form": 2, "overall": 4, "reason": "X509 CommonName field length is not validated during certificate creation; building a self-signed cert with a specific CN in the library check_cert.py would use."},
+      {"rank": 2, "task_id": "pyca__cryptography-12342", "skill": 3, "domain": 5, "task_form": 2, "overall": 3, "reason": "load_ssh_private_key lacks the RSA key-validation flag load_pem_private_key has; loading and validating an RSA private key from PEM."},
+      {"rank": 3, "task_id": "pyca__cryptography-12693", "skill": 3, "domain": 5, "task_form": 2, "overall": 3, "reason": "Add OCSP response-builder APIs that identify certificates by hash; X.509 object construction and certificate hashing in pyca/cryptography."},
+      {"rank": 4, "task_id": "aio-libs__aiohttp-6653", "skill": 3, "domain": 4, "task_form": 2, "overall": 3, "reason": "A server-certificate fingerprint mismatch silently passes instead of raising; fingerprint comparison correctness, the value written to verification.txt."},
+      {"rank": 5, "task_id": "opensearch-project__opensearch-py-843", "skill": 3, "domain": 4, "task_form": 2, "overall": 3, "reason": "Client fails against a host with a self-signed certificate; the trust and verification consequences of self-signing."},
+      {"rank": 6, "task_id": "kubernetes-client__python-2303", "skill": 2, "domain": 4, "task_form": 2, "overall": 2, "reason": "A kubeconfig exec plugin supplying a client certificate is mishandled; loading certificate and key material from configured paths."},
+      {"rank": 7, "task_id": "kubernetes-client__python-1933", "skill": 2, "domain": 4, "task_form": 2, "overall": 2, "reason": "Client ignores tls-server-name, so the certificate's name is checked against the wrong value; CN/SAN matching semantics."},
+      {"rank": 8, "task_id": "getmoto__moto-7144", "skill": 2, "domain": 4, "task_form": 2, "overall": 2, "reason": "Certificate-manager behaviour modelled incorrectly; certificate lifecycle fields such as validity and status."},
+      {"rank": 9, "task_id": "celery__celery-8982", "skill": 2, "domain": 3, "task_form": 2, "overall": 2, "reason": "Configuration pairing a private key path with a certificate path for message signing; wiring key and cert files into an application."},
+      {"rank": 10, "task_id": "getmoto__moto-6085", "skill": 2, "domain": 3, "task_form": 2, "overall": 2, "reason": "IoT delete_certificate behaviour; certificate registry semantics, weakest real link to generating one."}
+    ]
+  },
+  "final_top10": [
+    {"rank": 1, "task_id": "rts_task_7c2c9533c50d05a84a2b2980", "source": "Recursive-Task-Synthesis", "skill": 5, "domain": 5, "task_form": 5, "overall": 5, "reason": "openssl-generated self-signed X.509 with a required CommonName plus its key, each at an exact permission mode. Same artifacts, same permission grading."},
+    {"rank": 2, "task_id": "task_000475_b509da2d", "source": "TMax-15K", "skill": 5, "domain": 5, "task_form": 5, "overall": 5, "reason": "Self-signed RSA-2048 CA and leaf certs, an exact permission mode enforced on the key, and a Python script that loads the certificate: all three distinctive steps."},
+    {"rank": 3, "task_id": "task_000575_10c82d13", "source": "TMax-15K", "skill": 5, "domain": 5, "task_form": 4, "overall": 5, "reason": "Create the directory, generate a 2048-bit RSA key and a self-signed X.509 cert valid 365 days with a named CN; steps 1 through 3 verbatim."},
+    {"rank": 4, "task_id": "task_002770_06806953", "source": "TMax-15K", "skill": 5, "domain": 5, "task_form": 4, "overall": 5, "reason": "Drive openssl non-interactively to emit a self-signed RSA-2048 cert and key valid 365 days for a given Common Name."},
+    {"rank": 5, "task_id": "tw_358114", "source": "TerminalWorld-Seeds-Clean", "skill": 5, "domain": 5, "task_form": 4, "overall": 5, "reason": "Certificates whose Organization and CN must be literal specified strings; setting the subject fields exactly is what the verifier checks here."},
+    {"rank": 6, "task_id": "rts_task_f11853d9765a4a3c191f8018", "source": "Recursive-Task-Synthesis", "skill": 4, "domain": 5, "task_form": 4, "overall": 4, "reason": "Write a report containing the certificate's Subject, Issuer and SHA-256 fingerprint: the exact contents required of verification.txt."},
+    {"rank": 7, "task_id": "rts_task_75542adcd1bb4680a7cdedc0", "source": "Recursive-Task-Synthesis", "skill": 4, "domain": 5, "task_form": 4, "overall": 4, "reason": "Check a certificate's subject with openssl and record its SHA-256 fingerprint from openssl x509 -fingerprint; the same two invocations."},
+    {"rank": 8, "task_id": "task_001163_eb9fe538", "source": "TMax-15K", "skill": 4, "domain": 5, "task_form": 4, "overall": 4, "reason": "Generate a self-signed 2048-bit RSA server.crt and server.key valid 365 days under /app; identical artifact names and validity."},
+    {"rank": 9, "task_id": "rts_task_7be15613a8f6e653a6c64eb1", "source": "Recursive-Task-Synthesis", "skill": 4, "domain": 5, "task_form": 3, "overall": 4, "reason": "Extract subject CN, issuer CN and expiry date from a certificate with openssl; the field extraction both verification.txt and check_cert.py require."},
+    {"rank": 10, "task_id": "task_000784_672a48fb", "source": "TMax-15K", "skill": 4, "domain": 5, "task_form": 3, "overall": 4, "reason": "Pull the Issuer Common Name out of a PEM certificate with openssl or Python cryptography; the certificate-inspection half of this task."}
+  ],
+  "notes": "Best-covered task of the five: self-signed-certificate generation is a recurring motif in TMax (207 instructions mention self-signed) and RTS has a genuinely excellent match in rts_task_7c2c9533c50d05a84a2b2980 (openssl self-signed cert with a required CN, key at mode 600) that the retrievers ranked nowhere. final_top10 is 4 TMax, 4 RTS, 1 TW; that is the honest ordering. Note that RTS also carries the best matches for the verification.txt half (Subject/Issuer/SHA-256-fingerprint reports) while TMax carries the best matches for the generation half - a merge should keep both families rather than deduplicating to one. SWE-Smith is the weak corpus: only 5 instructions mention pyOpenSSL and exactly 1 mentions file permissions, so its list leans on paramiko crypto-primitive bugs and date-formatting bugs and caps at overall 3. SWE-Rebench is saved by the pyca/cryptography entries, which are the exact library check_cert.py would import."
+}

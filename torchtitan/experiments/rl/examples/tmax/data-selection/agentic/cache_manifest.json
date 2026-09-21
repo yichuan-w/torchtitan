@@ -1,0 +1,44 @@
+{
+  "built_at": "2026-09-20T21:20:56",
+  "elapsed_sec": 0.9,
+  "source_paths": {
+    "tb21_trees": "/data/yichuan_wang/cache/huggingface/hub/datasets--harborframework--terminal-bench-2.1/snapshots/e92c0b6487086111ee3a74df8af8203ea69ba00b/tasks",
+    "SWE-Smith-Seeds-Clean": "/data/yichuan_wang/tmax-9b-centralia-mix-v2/data/sources/swesmith-58af1819/tasks",
+    "SWE-Rebench-Tasks-Clean": "/data/yichuan_wang/tmax-9b-centralia-rebench/data/sources/swe-rebench-tasks-clean/tasks",
+    "TerminalWorld-Seeds-Clean": "/data/yichuan_wang/tmax-9b-centralia/data/sources/tw-extract/tasks",
+    "Recursive-Task-Synthesis": "Zhongzhi1228/Recursive-Task-Synthesis",
+    "TMax-15K": "allenai/TMax-15K"
+  },
+  "files": {
+    "tb21_docs.jsonl": {
+      "rows": 89,
+      "sha256": "f9c5758c52ea060e22bf3ade85ae32065df28459f88da76ca8da05309885b6bf",
+      "bytes": 1038359
+    },
+    "SWE-Smith-Seeds-Clean.jsonl": {
+      "rows": 1552,
+      "sha256": "475468042b62928417efa6a9e8681fc7ba046faf1b3863bab039a8b31f0236eb",
+      "bytes": 22151190
+    },
+    "SWE-Rebench-Tasks-Clean.jsonl": {
+      "rows": 1317,
+      "sha256": "cf2e282a80413a07e27a11f709b4e50c36b78113f2bc0b15753af29a643a50fe",
+      "bytes": 26736976
+    },
+    "TerminalWorld-Seeds-Clean.jsonl": {
+      "rows": 1353,
+      "sha256": "5a8f1d948972b3fdbd32f5c01546b8f9976f9071c23fddefdeed93b0940df90d",
+      "bytes": 11272704
+    },
+    "Recursive-Task-Synthesis.jsonl": {
+      "rows": 37484,
+      "sha256": "73ff06d49d8e2f48a2d216ee5ef7515f49ffef6341843dfb3158cfa32322545d",
+      "bytes": 271884166
+    },
+    "TMax-15K.jsonl": {
+      "rows": 14601,
+      "sha256": "d8cf712c34044f08217a5d0bdbb9af994de6a9e5494e09cbaa4c3a7388c4f5e0",
+      "bytes": 165151738
+    }
+  }
+}

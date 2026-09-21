@@ -1,0 +1,104 @@
+{
+  "tb21_id": "mteb-retrieve",
+  "tb21_profile": {
+    "skill": "Drive a pinned embedding library (mteb 1.36.8) to load a model at an exact HF revision, encode a query and a line-per-document corpus, compute cosine similarity, rank and take the 5th highest without an off-by-one",
+    "domain": "Text-embedding semantic retrieval: sentence-transformers / mteb / HuggingFace models, numpy cosine similarity over dense vectors",
+    "task_form": "implement-from-spec: a short data-science script whose only graded artifact is one exactly-correct line written to /app/result.txt"
+  },
+  "searches": [
+    "tools.py full mteb-retrieve",
+    "tools.py search all \"(fifth|5th|third|3rd|second highest|Nth)\"",
+    "tools.py search all \"cosine similarity\"",
+    "tools.py search all all-MiniLM-L6-v2",
+    "tools.py search all \"revision|commit hash.*model|pinned version\"",
+    "tools.py search all \"most similar (document|line|sentence|text)\"",
+    "tools.py search all \"top.?(3|5|k|10) (most )?similar\"",
+    "tools.py search all \"retriev.{0,25}(query|document)\"",
+    "tools.py search tw similarit",
+    "tools.py search tw \"faiss|nearest neighbou?r|vector (search|index)|elasticsearch|whoosh\"",
+    "tools.py search tw \"rank(ed|ing)? by|sort.{0,20}(descending|by score)\"",
+    "tools.py search tw \"tokeniz|corpus\"",
+    "tools.py search rts \"tf-?idf|inverted index|semantic search|full.?text search\"",
+    "tools.py search rts \"nearest|most similar|top.{0,5}(3|5|10)\"",
+    "tools.py search rts \"numpy|scikit|torch\"",
+    "tools.py search smith \"similarit|cosine|distance metric|textdistance\"",
+    "tools.py search rebench \"encode|cosine|similarity|sentence-transformers|from_pretrained|revision\"",
+    "tools.py search rebench \"retriev|top_k|rank|nearest|vector store|dspy\"",
+    "tools.py show task_007919_9f671c59 task_003184_6024c47e task_009339_2e902d57 task_003205_4267f918"
+  ],
+  "per_source": {
+    "TMax-15K": [
+      {"rank": 1, "task_id": "task_003184_6024c47e", "skill": 5, "domain": 5, "task_form": 5, "overall": 5, "reason": "Install sentence-transformers, embed a document set and a query with a named model, cosine-rank, emit the top matches: the same task with k=3."},
+      {"rank": 2, "task_id": "task_009339_2e902d57", "skill": 5, "domain": 5, "task_form": 4, "overall": 5, "reason": "sentence-transformers embeddings for a corpus and a query, cosine similarity, write the single most similar item's id to a file."},
+      {"rank": 3, "task_id": "task_003078_2ecd85ff", "skill": 4, "domain": 4, "task_form": 4, "overall": 4, "reason": "Encode a query through an opaque embedding tool and find the top_k most similar documents by cosine; same encode-then-rank-a-document-database core."},
+      {"rank": 4, "task_id": "task_007919_9f671c59", "skill": 4, "domain": 4, "task_form": 4, "overall": 4, "reason": "Embed corpus lines and a query, cosine-compare, report the 0-indexed line numbers of the top 3; identical line-per-document ranking with indexing care."},
+      {"rank": 5, "task_id": "task_001841_ca029bee", "skill": 4, "domain": 4, "task_form": 4, "overall": 4, "reason": "Embed a query with the same vectorizer as the corpus and return the top 5 most similar text ids by cosine similarity."},
+      {"rank": 6, "task_id": "task_003704_3cde6594", "skill": 4, "domain": 5, "task_form": 4, "overall": 4, "reason": "Load all-MiniLM-L6-v2 via sentence-transformers, embed a filtered corpus and run retrieval; same library, same embed-then-retrieve phase structure."},
+      {"rank": 7, "task_id": "task_003205_4267f918", "skill": 4, "domain": 5, "task_form": 3, "overall": 4, "reason": "Chunk text then embed every chunk with sentence-transformers/all-MiniLM-L6-v2 for similarity work; same model-loading and encoding discipline."},
+      {"rank": 8, "task_id": "task_004123_683a6ab3", "skill": 4, "domain": 3, "task_form": 4, "overall": 4, "reason": "Implement similarity search returning the top 5 most similar documents to a query document; the ranked-top-k step the 5th-best answer needs."},
+      {"rank": 9, "task_id": "task_003148_9ffe84be", "skill": 4, "domain": 3, "task_form": 3, "overall": 3, "reason": "Find the top 5 most similar documents per query and cross-check two similarity-matrix implementations; teaches numerically careful cosine ranking."},
+      {"rank": 10, "task_id": "task_009829_eeab4f65", "skill": 3, "domain": 5, "task_form": 3, "overall": 3, "reason": "Install and use sentence-transformers to embed cleaned text and query it; same embedding stack, retrieval step is simpler."}
+    ],
+    "Recursive-Task-Synthesis": [
+      {"rank": 1, "task_id": "rts_task_abd2d2db375ec35a34770513", "skill": 4, "domain": 5, "task_form": 4, "overall": 4, "reason": "Train CADE embedding models and write the resulting cosine similarity as a single exact float; embedding library plus one exact answer file."},
+      {"rank": 2, "task_id": "rts_task_fe9b38379292388dd5e39009", "skill": 4, "domain": 5, "task_form": 4, "overall": 4, "reason": "Activate the given venv, record the installed CADE version, then embed and cosine-compare; exercises the pinned-library-version handling mteb 1.36.8 demands."},
+      {"rank": 3, "task_id": "rts_task_6a81762bd5745f498f36b83e", "skill": 4, "domain": 5, "task_form": 4, "overall": 4, "reason": "Train compass and slice embedding models, compute cosine similarity for a word, write it as a bare float line."},
+      {"rank": 4, "task_id": "rts_task_4211c0d68f0910d3a1094ef6", "skill": 4, "domain": 5, "task_form": 4, "overall": 4, "reason": "Cosine similarity between word vectors from two embedding models with the embedding size read from config; parameterized model loading plus similarity."},
+      {"rank": 5, "task_id": "rts_task_eab6205971c16154d4c2b493", "skill": 3, "domain": 5, "task_form": 3, "overall": 4, "reason": "Same CADE cosine-similarity pipeline but the embedding dimension must first be recovered from git history; adds config archaeology."},
+      {"rank": 6, "task_id": "rts_task_c51f023173f7b2f61465a9af", "skill": 3, "domain": 5, "task_form": 3, "overall": 3, "reason": "CADE semantic-shift cosine similarity with a config report; embedding-library driving with an extra documentation artifact."},
+      {"rank": 7, "task_id": "rts_task_1297af62a50a4ef6a8ec01ac", "skill": 3, "domain": 5, "task_form": 3, "overall": 3, "reason": "Verify the embedding library imports, then train models and compute cosine similarity; the import/API-verification step matters for mteb here."},
+      {"rank": 8, "task_id": "rts_task_e69fdae3612dcbc49b035654", "skill": 3, "domain": 5, "task_form": 3, "overall": 3, "reason": "CADE cosine similarity where the embedding size comes from a local HTTP config service; same embedding work behind extra plumbing."},
+      {"rank": 9, "task_id": "rts_task_b03e51290519516337fed40c", "skill": 3, "domain": 3, "task_form": 3, "overall": 3, "reason": "Set up a venv, install the sds similarity library, fetch MNIST and run its similarity workflow; install-and-drive-a-similarity-library practice."},
+      {"rank": 10, "task_id": "rts_task_945e147d1c700438e3be05f6", "skill": 2, "domain": 3, "task_form": 3, "overall": 2, "reason": "Near-duplicate sds-mnist environment setup and similarity run; adds env-setup reps but little new retrieval reasoning."}
+    ],
+    "TerminalWorld-Seeds-Clean": [
+      {"rank": 1, "task_id": "tw_323887", "skill": 4, "domain": 5, "task_form": 4, "overall": 4, "reason": "Drive the CADE embedding library end-to-end and write the cosine similarity between two word vectors; embedding-plus-cosine with an exact output file."},
+      {"rank": 2, "task_id": "tw_441728", "skill": 4, "domain": 2, "task_form": 3, "overall": 3, "reason": "Install a package and enumerate the classes in every submodule: exactly the API-introspection needed to find mteb 1.36.8's model-loading entry points."},
+      {"rank": 3, "task_id": "tw_582963", "skill": 3, "domain": 4, "task_form": 3, "overall": 3, "reason": "Run the SRTK subgraph-retrieval toolkit to retrieve for a natural-language question; retrieval-framework driving with a pinned input record."},
+      {"rank": 4, "task_id": "tw_126622", "skill": 3, "domain": 4, "task_form": 3, "overall": 3, "reason": "Build an inverted index over a text corpus; classic information-retrieval indexing, the lexical counterpart of this dense retrieval task."},
+      {"rank": 5, "task_id": "tw_326628", "skill": 3, "domain": 3, "task_form": 3, "overall": 3, "reason": "Install an image-similarity library into a venv, fetch the dataset and run its similarity example, capturing exact output."},
+      {"rank": 6, "task_id": "tw_30769", "skill": 3, "domain": 1, "task_form": 3, "overall": 2, "reason": "Join records against a lookup table and take the top 10 by descending value; the sort-and-take-k step, no embeddings."},
+      {"rank": 7, "task_id": "tw_286149", "skill": 3, "domain": 1, "task_form": 3, "overall": 2, "reason": "Query for the 5 highest-ranked rows in descending order and save them exactly; top-k selection with exact-output discipline."},
+      {"rank": 8, "task_id": "tw_241555", "skill": 2, "domain": 2, "task_form": 4, "overall": 2, "reason": "Use a specific library class to encode and decode a string, writing three exactly-specified lines; same drive-a-small-API-for-exact-output shape."},
+      {"rank": 9, "task_id": "tw_588262", "skill": 2, "domain": 3, "task_form": 3, "overall": 2, "reason": "Load pretrained model weights and config through library bindings and run inference; model-loading mechanics in a different modality."},
+      {"rank": 10, "task_id": "tw_385269", "skill": 2, "domain": 2, "task_form": 3, "overall": 2, "reason": "Create a venv, install a package and report its exact installed version; version-pinning awareness only, no retrieval content."}
+    ],
+    "SWE-Smith-Seeds-Clean": [
+      {"rank": 1, "task_id": "life4__textdistance.c3aca916.combine_module__9gw2bici", "skill": 4, "domain": 4, "task_form": 2, "overall": 3, "reason": "MongeElkan similarity returns wrong values; debugging a text-similarity metric until its numbers match expectations is the core skill here."},
+      {"rank": 2, "task_id": "luozhouyang__python-string-similarity.115acaac.combine_file__jzax0e58", "skill": 4, "domain": 4, "task_form": 2, "overall": 3, "reason": "A broken shingle base class corrupts every downstream similarity metric; tracing wrong similarity scores back to the vectorization step."},
+      {"rank": 3, "task_id": "life4__textdistance.c3aca916.combine_file__bbyj98tv", "skill": 3, "domain": 4, "task_form": 2, "overall": 3, "reason": "Matrix similarity algorithm returns incorrect scores; same text-similarity-correctness territory as getting cosine ranking right."},
+      {"rank": 4, "task_id": "luozhouyang__python-string-similarity.115acaac.func_pm_class_rm_funcs__81k3t0m0", "skill": 3, "domain": 4, "task_form": 2, "overall": 3, "reason": "Jaccard similarity implementation missing; reimplementing a similarity measure from its definition, as cosine must be here."},
+      {"rank": 5, "task_id": "life4__textdistance.c3aca916.func_pm_ctrl_shuffle__a0dxas6w", "skill": 3, "domain": 4, "task_form": 2, "overall": 3, "reason": "RatcliffObershelp similarity crashes; repairing a similarity algorithm in a text-distance library."},
+      {"rank": 6, "task_id": "luozhouyang__python-string-similarity.115acaac.func_pm_remove_assign__310qsv3a", "skill": 3, "domain": 4, "task_form": 2, "overall": 3, "reason": "JaroWinkler similarity computes wrong values; numeric correctness of a string-similarity score."},
+      {"rank": 7, "task_id": "life4__textdistance.c3aca916.lm_rewrite__fyf67mz0", "skill": 3, "domain": 3, "task_form": 2, "overall": 2, "reason": "ArithNCD gives incorrect similarity values; same library, compression-based metric, slightly further from vector cosine."},
+      {"rank": 8, "task_id": "life4__textdistance.c3aca916.combine_file__2ow6yk33", "skill": 3, "domain": 3, "task_form": 2, "overall": 2, "reason": "Jaro/JaroWinkler/Levenshtein disagree with external implementations; reconciling a metric against a reference, as cosine must match the grader."},
+      {"rank": 9, "task_id": "msiemens__tinydb.10644a0e.pr_504", "skill": 2, "domain": 2, "task_form": 2, "overall": 2, "reason": "get() no longer retrieves multiple documents by id; document-retrieval API semantics, but lexical rather than semantic."},
+      {"rank": 10, "task_id": "facebookresearch__fvcore.a491d5b9.func_pm_ctrl_shuffle__n9luhuy3", "skill": 2, "domain": 3, "task_form": 2, "overall": 2, "reason": "PyTorch-ecosystem numeric utility bug; shares the tensor/ML stack the embedding model runs on, nothing about retrieval."}
+    ],
+    "SWE-Rebench-Tasks-Clean": [
+      {"rank": 1, "task_id": "berriai__litellm-3470", "skill": 3, "domain": 5, "task_form": 2, "overall": 3, "reason": "Embedding endpoint returns nothing usable for a provider; debugging an embedding call path is the first thing that breaks in this task."},
+      {"rank": 2, "task_id": "huggingface__transformers-36497", "skill": 3, "domain": 5, "task_form": 2, "overall": 3, "reason": "Work inside HuggingFace transformers, the library mteb loads the bge model through; teaches its APIs and reproducibility knobs."},
+      {"rank": 3, "task_id": "stanfordnlp__dspy-1651", "skill": 3, "domain": 4, "task_form": 2, "overall": 3, "reason": "Loading a saved/optimized model in an NLP framework fails; same load-a-specific-model-version obstacle as the pinned revision here."},
+      {"rank": 4, "task_id": "dirty-cat__dirty_cat-421", "skill": 3, "domain": 4, "task_form": 2, "overall": 3, "reason": "GapEncoder text-encoding component in a similarity-encoder library; producing and validating text embeddings for downstream comparison."},
+      {"rank": 5, "task_id": "pyg-team__pytorch_geometric-8248", "skill": 3, "domain": 4, "task_form": 2, "overall": 3, "reason": "MetaPath2Vec embedding model misuse and embedding_dim handling; embedding-model construction in PyTorch."},
+      {"rank": 6, "task_id": "huggingface__transformers-36903", "skill": 2, "domain": 5, "task_form": 2, "overall": 2, "reason": "Seeding encoder-only transformer pretraining for reproducibility; same HF encoder stack, determinism concern mirrors the pinned revision."},
+      {"rank": 7, "task_id": "feature-engine__feature_engine-531", "skill": 2, "domain": 3, "task_form": 2, "overall": 2, "reason": "Extend MeanEncoder in a sklearn-style encoder library; encoding-transform plumbing, no similarity ranking."},
+      {"rank": 8, "task_id": "keras-team__keras-20550", "skill": 2, "domain": 3, "task_form": 2, "overall": 2, "reason": "Cloning a model fails with input_tensors; model construction/loading mechanics in a deep-learning framework."},
+      {"rank": 9, "task_id": "rstudio__vetiver-python-185", "skill": 2, "domain": 3, "task_form": 2, "overall": 2, "reason": "Pydantic v2 breaks model prototype creation in a model-deployment library; version-pin breakage in an ML stack."},
+      {"rank": 10, "task_id": "openmined__pysyft-233", "skill": 2, "domain": 2, "task_form": 2, "overall": 2, "reason": "Implement gather on a base tensor type; tensor-indexing implementation, the mechanical layer under top-k selection."}
+    ]
+  },
+  "final_top10": [
+    {"rank": 1, "task_id": "task_003184_6024c47e", "source": "TMax-15K", "skill": 5, "domain": 5, "task_form": 5, "overall": 5, "reason": "Same task with k=3: install sentence-transformers, embed documents and a query with a named model, cosine-rank, write the exact top matches."},
+    {"rank": 2, "task_id": "task_009339_2e902d57", "source": "TMax-15K", "skill": 5, "domain": 5, "task_form": 4, "overall": 5, "reason": "Embed a corpus and a query with sentence-transformers, cosine-compare, and write the single most similar item's identifier to a file."},
+    {"rank": 3, "task_id": "task_007919_9f671c59", "source": "TMax-15K", "skill": 4, "domain": 4, "task_form": 4, "overall": 4, "reason": "Corpus is one sentence per line; embed, cosine against a query, return top-3 0-indexed line numbers, exactly the off-by-one hazard here."},
+    {"rank": 4, "task_id": "task_003078_2ecd85ff", "source": "TMax-15K", "skill": 4, "domain": 4, "task_form": 4, "overall": 4, "reason": "Encode a query with an opaque embedding tool and return the top_k most similar documents by cosine from a document store."},
+    {"rank": 5, "task_id": "task_001841_ca029bee", "source": "TMax-15K", "skill": 4, "domain": 4, "task_form": 4, "overall": 4, "reason": "Embed the query with the same vectorizer used for the corpus and return the top 5 by cosine; identical query-vs-corpus consistency requirement."},
+    {"rank": 6, "task_id": "task_003704_3cde6594", "source": "TMax-15K", "skill": 4, "domain": 5, "task_form": 4, "overall": 4, "reason": "Loads all-MiniLM-L6-v2 via sentence-transformers and runs embedding-based retrieval over a filtered corpus; same library and phase structure."},
+    {"rank": 7, "task_id": "tw_323887", "source": "TerminalWorld-Seeds-Clean", "skill": 4, "domain": 5, "task_form": 4, "overall": 4, "reason": "Drive an unfamiliar embedding library to train models and emit a cosine similarity; embedding API plus exact single-value output file."},
+    {"rank": 8, "task_id": "rts_task_abd2d2db375ec35a34770513", "source": "Recursive-Task-Synthesis", "skill": 4, "domain": 5, "task_form": 4, "overall": 4, "reason": "Embedding models trained via a library, cosine similarity written as one exact float; same library-to-exact-answer chain."},
+    {"rank": 9, "task_id": "task_003205_4267f918", "source": "TMax-15K", "skill": 4, "domain": 5, "task_form": 3, "overall": 4, "reason": "Deterministic chunking plus sentence-transformers/all-MiniLM-L6-v2 encoding; the exact model-loading and encoding discipline mteb requires."},
+    {"rank": 10, "task_id": "rts_task_fe9b38379292388dd5e39009", "source": "Recursive-Task-Synthesis", "skill": 4, "domain": 5, "task_form": 4, "overall": 4, "reason": "Uses a provided venv, logs the installed embedding-library version, then embeds and cosine-compares; rehearses pinned-version library work."}
+  ],
+  "notes": "Strong pool for this one. TMax has a dense cluster of sentence-transformers embed-query-cosine-topk tasks that transfer almost directly; final_top10 is 6/10 TMax by honest judgement. RTS is essentially one task family (CADE compass/slice embeddings, ~15 near-duplicate variants) plus sds-mnist, so its list is necessarily repetitive - downstream dedup may want to keep only 2-3 CADE variants. TerminalWorld is thin: only 3 instructions in the whole corpus mention similarity, so ranks 6-10 there are scored 2. SWE-Smith's only real contribution is the life4/textdistance and python-string-similarity families (similarity-metric correctness). 'result.txt' and 'top 10' (massdns Alexa top-10k in RTS) were ignored as boilerplate/false friends."
+}

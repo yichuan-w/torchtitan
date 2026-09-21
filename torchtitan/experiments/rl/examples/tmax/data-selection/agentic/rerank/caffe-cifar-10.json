@@ -1,0 +1,103 @@
+{
+  "tb21_id": "caffe-cifar-10",
+  "tb21_profile": {
+    "skill": "Build a large legacy C++ ML framework from a git clone with the right feature flags (CPU-only) and dependencies, then drive its example scripts to train a CNN and read accuracy out of the log",
+    "domain": "Deep learning frameworks (Caffe/CNN/CIFAR-10), C++/CMake/Makefile.config builds, protobuf-style solver configs",
+    "task_form": "build-from-source plus configure-and-run-a-training-job until a numeric accuracy target is met"
+  },
+  "searches": [
+    "tools.py search all 'caffe|cifar|prototxt|CPU_ONLY|convolutional'",
+    "tools.py search tw 'train.{0,40}(model|network|classifier)|accuracy|epoch|MNIST'",
+    "tools.py search tw 'darknet|opencv|dlib|xgboost|tensorflow|pytorch|torch|neural|deep learning|libsvm|scikit'",
+    "tools.py search rts 'neural|deep learning|tensorflow|pytorch|keras|train.{0,30}(epochs|iterations)|accuracy'",
+    "tools.py words tw train model dataset classifier accuracy predict",
+    "tools.py words rts train model dataset classifier accuracy machine learning",
+    "tools.py search tmax 'neural network|epochs|accuracy of at least|test accuracy|train .{0,20}model.{0,40}(accuracy|threshold)'",
+    "tools.py search tw 'clone .{0,60}(build|compile)|build .{0,40}example|run the (included|bundled|provided) example'",
+    "tools.py search tmax 'train(ing)? (a|the) (CNN|model|classifier).{0,80}(accuracy|iterations)|pytorch|torch\\.'",
+    "tools.py search rebench 'keras|tensorflow|torch|training loop|fit\\(|model\\.fit|epochs|CIFAR|dataset'",
+    "tools.py search rebench 'keras|opennmt|gpytorch|deepcell|evalml|mlxtend|scikit-lego|pysyft|fuel'",
+    "tools.py search smith 'fvcore'",
+    "tools.py search smith 'fvcore|conv|neural|learning rate|scheduler|model'",
+    "tools.py search rts 'cmake|make -j|C\\+\\+|clone .{0,50}build'",
+    "tools.py show task_000854_fe200810 task_003870_e1a15227 task_005422_44da660a task_001129_becccfbc",
+    "tools.py show rts_task_956ea2e372fe004edbe0d44d rts_task_daeb82d4d721025947ada274 rts_task_273506dfe1d5bfc5c2b4f83c rts_task_a48bb6a87568de6f4342d7e0",
+    "tools.py show tw_157071 tw_588262 tw_18273",
+    "tools.py show mila-udem__fuel-192 vanvalenlab__deepcell-tf-673 keras-team__keras-20079 opennmt__opennmt-tf-525"
+  ],
+  "per_source": {
+    "TMax-15K": [
+      {"rank": 1, "task_id": "task_005422_44da660a", "skill": 4, "domain": 4, "task_form": 4, "overall": 4, "reason": "Fix a C++ classifier's training code, compile it with g++ and run it so it emits Test Accuracy - compile-then-train-then-read-accuracy, same loop."},
+      {"rank": 2, "task_id": "task_001129_becccfbc", "skill": 4, "domain": 4, "task_form": 4, "overall": 4, "reason": "Repair a vendored CMakeLists C++ standard so the library builds, then implement a neural-net forward pass in C++ - build fix plus net semantics."},
+      {"rank": 3, "task_id": "task_000854_fe200810", "skill": 4, "domain": 4, "task_form": 3, "overall": 4, "reason": "Training run diverges to NaN; must debug the pipeline until training actually completes without touching lr, seed, epochs or architecture."},
+      {"rank": 4, "task_id": "task_003870_e1a15227", "skill": 3, "domain": 4, "task_form": 3, "overall": 3, "reason": "Recover exact architecture hyperparameters, train, and be graded on held-out accuracy - same architecture-config-then-accuracy-target structure."},
+      {"rank": 5, "task_id": "task_000815_ccae7035", "skill": 3, "domain": 3, "task_form": 3, "overall": 3, "reason": "Write and compile a C classifier, cross-validate it and print average validation accuracy; native-code training with a metric to hit."},
+      {"rank": 6, "task_id": "task_000802_aa7b130a", "skill": 3, "domain": 3, "task_form": 3, "overall": 3, "reason": "Model is judged on a hidden test set and must exceed a fixed accuracy floor, exactly like the >45% / within-5% gate here."},
+      {"rank": 7, "task_id": "task_000644_9d78a6c5", "skill": 3, "domain": 3, "task_form": 3, "overall": 3, "reason": "Iterate the data-prep script, re-running the evaluator until reported ACCURACY clears a threshold - same run-inspect-metric-retry loop."},
+      {"rank": 8, "task_id": "task_002099_b590b9eb", "skill": 3, "domain": 3, "task_form": 3, "overall": 3, "reason": "Fix a broken training pipeline and then meet a performance budget; combines correctness of training with a measured target."},
+      {"rank": 9, "task_id": "task_000956_976073c2", "skill": 2, "domain": 3, "task_form": 3, "overall": 2, "reason": "Run a tracked training job and write the exact computed test accuracy to a file; only the report-the-metric step transfers."},
+      {"rank": 10, "task_id": "task_008424_5e62d7d3", "skill": 2, "domain": 3, "task_form": 3, "overall": 2, "reason": "Track down a bug in a training script by running it and reading its output; debugging-a-training-run but pure Python sklearn."}
+    ],
+    "Recursive-Task-Synthesis": [
+      {"rank": 1, "task_id": "rts_task_a48bb6a87568de6f4342d7e0", "skill": 4, "domain": 3, "task_form": 5, "overall": 4, "reason": "Clone source, build with the cmake flags a spec file dictates, install, then compile and run a smoke test and log its full output."},
+      {"rank": 2, "task_id": "rts_task_273506dfe1d5bfc5c2b4f83c", "skill": 4, "domain": 4, "task_form": 4, "overall": 4, "reason": "Set up the env, download the four MNIST data files, run the example classification script and save the whole run output."},
+      {"rank": 3, "task_id": "rts_task_701f5d0306f50ec992604a56", "skill": 3, "domain": 4, "task_form": 4, "overall": 3, "reason": "Clone an image-classification library, build an env for it, fetch MNIST and run its example - clone-install-fetch-data-run, same chain."},
+      {"rank": 4, "task_id": "rts_task_8338e56f4a097c915f109c3e", "skill": 3, "domain": 4, "task_form": 4, "overall": 3, "reason": "Same sds-mnist setup: venv, deps, download the dataset files, supply the missing config, run the classifier."},
+      {"rank": 5, "task_id": "rts_task_956ea2e372fe004edbe0d44d", "skill": 3, "domain": 4, "task_form": 3, "overall": 3, "reason": "A JSON config file specifies a network architecture that must be materialised and profiled - the solver/net-prototxt idea in Python."},
+      {"rank": 6, "task_id": "rts_task_23434452c7727f330a7edb22", "skill": 3, "domain": 2, "task_form": 4, "overall": 3, "reason": "Clone a C library repo, build it from source and install system-wide before anything downstream can run."},
+      {"rank": 7, "task_id": "rts_task_daeb82d4d721025947ada274", "skill": 3, "domain": 3, "task_form": 3, "overall": 3, "reason": "Fit a classification pipeline with a controlled random seed and produce predictions; trains a model but no build and no accuracy gate."},
+      {"rank": 8, "task_id": "rts_task_0d4c15474074a305ff2be8f2", "skill": 2, "domain": 3, "task_form": 3, "overall": 2, "reason": "Run a provided training workflow, then serve the model and collect predictions; mostly workflow driving, not training control."},
+      {"rank": 9, "task_id": "rts_task_d50f880e583d83436a7b5796", "skill": 2, "domain": 3, "task_form": 3, "overall": 2, "reason": "Train a classification model on a tabular dataset after inspecting the workspace; shallow sklearn pipeline, no native build."},
+      {"rank": 10, "task_id": "rts_task_38b12bbdb7b9e929a2768e7c", "skill": 2, "domain": 3, "task_form": 3, "overall": 2, "reason": "Run a three-stage pipeline whose first stage trains SVR models from provided scripts; driving someone else's training code."}
+    ],
+    "TerminalWorld-Seeds-Clean": [
+      {"rank": 1, "task_id": "tw_588262", "skill": 4, "domain": 4, "task_form": 4, "overall": 4, "reason": "Compile an OpenCV binding from source with precompiled artifacts disabled, load YOLOv4 weights and run inference - build-flag wrangling plus a CNN."},
+      {"rank": 2, "task_id": "tw_157071", "skill": 4, "domain": 3, "task_form": 5, "overall": 4, "reason": "Build and install a scientific C++ solver from source, then run a supplied model file and capture all stdout/stderr to a result file."},
+      {"rank": 3, "task_id": "tw_18271", "skill": 4, "domain": 4, "task_form": 4, "overall": 4, "reason": "Use the libsvm source tree to split heart_scale, train a classifier and evaluate it - train-with-a-C++-toolkit and report accuracy."},
+      {"rank": 4, "task_id": "tw_17238", "skill": 4, "domain": 4, "task_form": 4, "overall": 4, "reason": "Clone a machine-learning C++ library, init submodules and build it with CMake with tests enabled; same build-an-ML-lib-from-git job."},
+      {"rank": 5, "task_id": "tw_18273", "skill": 3, "domain": 4, "task_form": 4, "overall": 3, "reason": "Train an SVM with LIBSVM on a train/validation split and produce model plus predictions files; training-and-evaluating with a C toolkit."},
+      {"rank": 6, "task_id": "tw_2597", "skill": 3, "domain": 3, "task_form": 4, "overall": 3, "reason": "Clone two scientific packages and build them from source into a local prefix; dependency-ordered source builds."},
+      {"rank": 7, "task_id": "tw_326628", "skill": 3, "domain": 4, "task_form": 3, "overall": 3, "reason": "Install an MNIST image-similarity library from GitHub and run its example classification workflow end to end."},
+      {"rank": 8, "task_id": "tw_519670", "skill": 3, "domain": 4, "task_form": 3, "overall": 3, "reason": "Provision a deep-learning environment (CUDA/cuDNN/torch) on a pinned base - the dependency-stack half of getting Caffe to build."},
+      {"rank": 9, "task_id": "tw_668448", "skill": 3, "domain": 4, "task_form": 3, "overall": 3, "reason": "Install CPU-only PyTorch and then the cloned package - the same deliberately-CPU-only deep-learning install constraint."},
+      {"rank": 10, "task_id": "tw_530770", "skill": 2, "domain": 4, "task_form": 3, "overall": 2, "reason": "Build MNIST datasets from an example project's dataset.yaml; only the prepare-the-example-dataset step overlaps."}
+    ],
+    "SWE-Smith-Seeds-Clean": [
+      {"rank": 1, "task_id": "facebookresearch__fvcore.a491d5b9.combine_file__htnzvb1x", "skill": 3, "domain": 4, "task_form": 1, "overall": 3, "reason": "c2_xavier_fill / c2_msra_fill weight init for conv and linear layers - literally the Caffe2 initialisation scheme a CNN trains under."},
+      {"rank": 2, "task_id": "facebookresearch__fvcore.a491d5b9.combine_file__0e71vue2", "skill": 3, "domain": 4, "task_form": 1, "overall": 3, "reason": "Model statistics over a conv net; requires reasoning about layer shapes and parameter counts the way a net definition does."},
+      {"rank": 3, "task_id": "facebookresearch__fvcore.a491d5b9.func_pm_ctrl_shuffle__n9luhuy3", "skill": 3, "domain": 4, "task_form": 1, "overall": 3, "reason": "Checkpointer.load fails to restore weights - the same save/restore-a-trained-model concern as the .caffemodel snapshot."},
+      {"rank": 4, "task_id": "facebookresearch__fvcore.a491d5b9.combine_module__k201cjp8", "skill": 3, "domain": 4, "task_form": 1, "overall": 3, "reason": "PeriodicCheckpointer and CfgNode bugs: iteration-based snapshotting and config merging, the solver.prototxt machinery in Python."},
+      {"rank": 5, "task_id": "facebookresearch__fvcore.a491d5b9.func_pm_class_rm_funcs__9vmtfuxv", "skill": 2, "domain": 4, "task_form": 1, "overall": 2, "reason": "CfgNode computed-attribute handling - config-file semantics for a training framework, no training run involved."},
+      {"rank": 6, "task_id": "facebookresearch__fvcore.a491d5b9.combine_file__fjezb8sp", "skill": 2, "domain": 4, "task_form": 1, "overall": 2, "reason": "SqueezeExcitation block behaves wrongly; requires reading a CNN module's forward path carefully."},
+      {"rank": 7, "task_id": "facebookresearch__fvcore.a491d5b9.func_pm_ctrl_shuffle__kd43vy4l", "skill": 2, "domain": 4, "task_form": 1, "overall": 2, "reason": "FLOP counting for matmul in a traced net; layer-level arithmetic of a conv/fc network."},
+      {"rank": 8, "task_id": "facebookresearch__fvcore.a491d5b9.combine_file__s4s6z0sh", "skill": 2, "domain": 4, "task_form": 1, "overall": 2, "reason": "HistoryBuffer of training metrics is broken - the smoothed loss/accuracy bookkeeping you read out of a training log."},
+      {"rank": 9, "task_id": "facebookresearch__fvcore.a491d5b9.func_pm_op_swap__bybhuobu", "skill": 2, "domain": 4, "task_form": 1, "overall": 2, "reason": "giou_loss computes the wrong value; loss-function correctness in a vision training stack."},
+      {"rank": 10, "task_id": "facebookresearch__fvcore.a491d5b9.func_basic__fmm3wkfc", "skill": 2, "domain": 3, "task_form": 1, "overall": 2, "reason": "Module hierarchy printed in reverse; only the inspect-a-network-structure habit transfers."}
+    ],
+    "SWE-Rebench-Tasks-Clean": [
+      {"rank": 1, "task_id": "keras-team__keras-20602", "skill": 3, "domain": 4, "task_form": 1, "overall": 3, "reason": "Loss tracker is lost when a model is compiled more than once - exactly the compile/solver-state confusion that breaks a training run."},
+      {"rank": 2, "task_id": "opennmt__opennmt-tf-527", "skill": 3, "domain": 4, "task_form": 1, "overall": 3, "reason": "ValueError raised inside the loss during actual training; requires reasoning about a real training loop, not just an API."},
+      {"rank": 3, "task_id": "keras-team__keras-20079", "skill": 3, "domain": 4, "task_form": 1, "overall": 3, "reason": "Build/compile/fit path of a model with a preprocessing layer - the layer-configuration-affects-training relationship."},
+      {"rank": 4, "task_id": "vanvalenlab__deepcell-tf-673", "skill": 3, "domain": 4, "task_form": 1, "overall": 3, "reason": "CNN tiling/padding removal produces an empty array; conv-net spatial bookkeeping of exactly the CIFAR-sized kind."},
+      {"rank": 5, "task_id": "opennmt__opennmt-tf-525", "skill": 2, "domain": 4, "task_form": 1, "overall": 2, "reason": "Training entrypoint crashes on a None; debugging a deep-learning framework's training path."},
+      {"rank": 6, "task_id": "mila-udem__fuel-192", "skill": 2, "domain": 4, "task_form": 1, "overall": 2, "reason": "Dataset iteration scheme is exhausted after one epoch - epoch/batch iteration semantics of a data layer."},
+      {"rank": 7, "task_id": "mila-udem__fuel-217", "skill": 2, "domain": 4, "task_form": 1, "overall": 2, "reason": "Main training loop fails getting its epoch iterator; same data-feeding-into-a-training-loop territory."},
+      {"rank": 8, "task_id": "keras-team__keras-20609", "skill": 2, "domain": 4, "task_form": 1, "overall": 2, "reason": "Model compile under a distribution strategy; framework-level training configuration, no build or metric target."},
+      {"rank": 9, "task_id": "keras-team__keras-19924", "skill": 2, "domain": 4, "task_form": 1, "overall": 2, "reason": "Multi-input model compiled with a loss behaves wrongly; ordinary DL-framework debugging."},
+      {"rank": 10, "task_id": "alteryx__evalml-1321", "skill": 2, "domain": 3, "task_form": 1, "overall": 2, "reason": "Pipelines are not given a random_state, so runs are irreproducible - the seeding discipline a graded training run needs."}
+    ]
+  },
+  "final_top10": [
+    {"rank": 1, "task_id": "rts_task_a48bb6a87568de6f4342d7e0", "source": "Recursive-Task-Synthesis", "skill": 4, "domain": 3, "task_form": 5, "overall": 4, "reason": "Clone, build with the exact cmake flags a spec demands, install, run the bundled smoke test and log its full output - the same shape."},
+    {"rank": 2, "task_id": "tw_588262", "source": "TerminalWorld-Seeds-Clean", "skill": 4, "domain": 4, "task_form": 4, "overall": 4, "reason": "Compile an OpenCV binding from source with precompiled artifacts disabled, then run a YOLOv4 CNN on a test image."},
+    {"rank": 3, "task_id": "task_005422_44da660a", "source": "TMax-15K", "skill": 4, "domain": 4, "task_form": 4, "overall": 4, "reason": "Compile a C++ training program and run it so it prints Test Accuracy; native-code training with a metric to verify."},
+    {"rank": 4, "task_id": "rts_task_273506dfe1d5bfc5c2b4f83c", "source": "Recursive-Task-Synthesis", "skill": 4, "domain": 4, "task_form": 4, "overall": 4, "reason": "Set up the environment, download the dataset files and run the example classifier, saving the full run output."},
+    {"rank": 5, "task_id": "tw_18271", "source": "TerminalWorld-Seeds-Clean", "skill": 4, "domain": 4, "task_form": 4, "overall": 4, "reason": "Split a dataset, train an SVM with the libsvm source tree and evaluate it - train-and-measure with a C++ toolkit."},
+    {"rank": 6, "task_id": "tw_157071", "source": "TerminalWorld-Seeds-Clean", "skill": 4, "domain": 3, "task_form": 5, "overall": 4, "reason": "Build and install a scientific C++ package from source, then run a supplied model and capture all output to a file."},
+    {"rank": 7, "task_id": "task_001129_becccfbc", "source": "TMax-15K", "skill": 4, "domain": 4, "task_form": 4, "overall": 4, "reason": "Fix a vendored CMakeLists so the C++ dependency builds, then implement the network's forward pass by hand."},
+    {"rank": 8, "task_id": "tw_17238", "source": "TerminalWorld-Seeds-Clean", "skill": 4, "domain": 4, "task_form": 4, "overall": 4, "reason": "Clone a machine-learning C++ library with submodules and build it with CMake and tests enabled."},
+    {"rank": 9, "task_id": "task_000854_fe200810", "source": "TMax-15K", "skill": 4, "domain": 4, "task_form": 3, "overall": 4, "reason": "Training diverges to NaN and must be made to converge without touching lr, seed, epochs or architecture."},
+    {"rank": 10, "task_id": "facebookresearch__fvcore.a491d5b9.combine_file__htnzvb1x", "source": "SWE-Smith-Seeds-Clean", "skill": 3, "domain": 4, "task_form": 1, "overall": 3, "reason": "Caffe2-style conv weight initialisation (c2_msra_fill/c2_xavier_fill) - the initialisation a CIFAR CNN's accuracy depends on."}
+  ],
+  "notes": "No corpus contains Caffe, CIFAR-10, prototxt or CPU_ONLY - a search over all 56k instructions returned three irrelevant hits for 'convolutional'. So nothing matches both halves of this task; I ranked candidates that hit one half well (build-a-C/C++-project-from-source-with-flags, or train-a-model-to-an-accuracy-target) over Python ML-pipeline chores that merely share the word 'training'. The retrieval shortlist for TMax and RTS was almost entirely sklearn ETL/'data leakage' pipelines - high lexical overlap on 'machine learning', near-zero transfer to a framework build; I demoted essentially all of them. SWE-Smith's only deep-learning repo is fvcore, so its ten are all fvcore; SWE-Rebench's are keras/opennmt/fuel. Both are honest 2-3s."
+}

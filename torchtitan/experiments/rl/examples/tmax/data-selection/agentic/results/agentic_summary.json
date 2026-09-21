@@ -1,0 +1,46 @@
+{
+  "n_tb21_done": 89,
+  "n_tb21_expected": 89,
+  "n_rows_final": 890,
+  "final_top10_source_slots": {
+    "TMax-15K": 562,
+    "SWE-Rebench-Tasks-Clean": 71,
+    "TerminalWorld-Seeds-Clean": 127,
+    "SWE-Smith-Seeds-Clean": 40,
+    "Recursive-Task-Synthesis": 90
+  },
+  "final_rank1_source_wins": {
+    "TMax-15K": 74,
+    "TerminalWorld-Seeds-Clean": 9,
+    "Recursive-Task-Synthesis": 6
+  },
+  "mean_scores_final": {
+    "skill": 4.104,
+    "domain": 4.275,
+    "task_form": 3.63,
+    "overall": 3.994
+  },
+  "overall_histogram": {
+    "2": 2,
+    "3": 173,
+    "4": 543,
+    "5": 172
+  },
+  "single_source_top10": [
+    "code-from-image",
+    "distribution-search",
+    "pytorch-model-cli",
+    "video-processing",
+    "write-compressor"
+  ],
+  "near_duplicate_pairs_in_top10": {
+    "polyglot-rust-c": [
+      [
+        "tw_317290",
+        "rts_task_59ae2da3d0ccc51f525f042a",
+        0.782
+      ]
+    ]
+  },
+  "problems": []
+}

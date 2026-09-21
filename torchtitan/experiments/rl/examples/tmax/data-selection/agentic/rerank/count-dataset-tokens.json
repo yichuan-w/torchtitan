@@ -1,0 +1,105 @@
+{
+  "tb21_id": "count-dataset-tokens",
+  "tb21_profile": {
+    "skill": "Load a HuggingFace dataset, read its README to learn which split/column/field to use, apply a specific subword tokenizer, and aggregate an exact integer token count",
+    "domain": "HuggingFace ecosystem (datasets + transformers tokenizers), NLP/LLM data preparation, Python data wrangling",
+    "task_form": "Analyse-a-dataset-and-report-one-exact-number, with the critical usage detail hidden in accompanying documentation"
+  },
+  "searches": [
+    "tools.py search all \"hugging\\s*face|huggingface\" -n 40",
+    "tools.py search all \"AutoTokenizer\" -n 20",
+    "tools.py search all \"parquet\" -n 25",
+    "tools.py search all \"tokeniz\" -n 0",
+    "tools.py search all \"BPE|byte.pair\" -n 0",
+    "tools.py search all \"vocab\" -n 0",
+    "tools.py search all \"answer\\.txt\" -n 0",
+    "tools.py search all \"(count|number of).{0,30}tokens\" -n 40",
+    "tools.py search all \"README\" -n 30",
+    "tools.py search rts \"tokeniz|spacy|nltk|transformers|embedding\" -n 30",
+    "tools.py search rts \"pandas|dataframe|\\.csv\" -n 25",
+    "tools.py search rts \"how many\" -n 20",
+    "tools.py search tw \"pandas|dataset\" -n 35",
+    "tools.py search rebench \"tokenizer\" -n 25",
+    "tools.py search rebench \"huggingface__|tensorflow__datasets|mila-udem__fuel|opennmt\" -n 40",
+    "tools.py search smith \"groupby|aggregat|value_counts|read_csv|dataframe\" -n 20",
+    "tools.py search smith \"flop|parameter_count\" -n 8",
+    "tools.py show rts_task_9fc576bfba789ec7cbb43fbb rts_task_44866fbbbe89d4edd09da524 rts_task_e69fdae3612dcbc49b035654 rts_task_1297af62a50a4ef6a8ec01ac",
+    "tools.py show task_004701_979f0bf8 task_008358_9397763a task_004812_68a1963b task_002347_599a129f",
+    "tools.py show rts_task_c3edcaf63962b4df0b86b74e rts_task_96a22e8b553ac94c19c977e9 rts_task_7493e4ba507eae6813cf2e77 tw_240515 tw_97603 tw_569867"
+  ],
+  "per_source": {
+    "TMax-15K": [
+      {"rank": 1, "task_id": "task_004701_979f0bf8", "skill": 5, "domain": 4, "task_form": 4, "overall": 5, "reason": "Tokenizes a cleaned corpus with the HuggingFace bert-base-uncased tokenizer and must report total_tokens as an exact integer."},
+      {"rank": 2, "task_id": "task_004812_68a1963b", "skill": 4, "domain": 4, "task_form": 4, "overall": 4, "reason": "LLM corpus prep: map text to token ids via a vocab, store as int32 memmap, report exact total_tokens; same counting discipline."},
+      {"rank": 3, "task_id": "task_003644_d3ffecd2", "skill": 4, "domain": 4, "task_form": 3, "overall": 4, "reason": "Trains a HuggingFace BPE tokenizer on a JSONL LM dataset; exercises tokenizer library API and dataset field selection."},
+      {"rank": 4, "task_id": "task_002347_599a129f", "skill": 4, "domain": 3, "task_form": 4, "overall": 4, "reason": "Tokenizes a review dataset and reports the total token count across all rows; same aggregate-exact-count endpoint."},
+      {"rank": 5, "task_id": "task_008358_9397763a", "skill": 3, "domain": 3, "task_form": 3, "overall": 3, "reason": "Builds vocabulary from a train split and computes token statistics on a test split; split/field discipline plus exact numeric output."},
+      {"rank": 6, "task_id": "task_003986_4e4c690f", "skill": 3, "domain": 4, "task_form": 3, "overall": 3, "reason": "Loads a HuggingFace model and processor, runs inference and extracts raw tokens; same transformers-library handling."},
+      {"rank": 7, "task_id": "task_002581_11ed779a", "skill": 3, "domain": 2, "task_form": 4, "overall": 3, "reason": "Walks a directory of dataset text files and reports the total token count; same aggregate-over-a-corpus answer shape, C++ instead of Python."},
+      {"rank": 8, "task_id": "task_000125_99ca1102", "skill": 3, "domain": 3, "task_form": 3, "overall": 3, "reason": "ETL over a raw dataset producing vocab_size and token counts as JSON metrics; filtering rules must be applied exactly."},
+      {"rank": 9, "task_id": "task_000680_ff6ac094", "skill": 2, "domain": 4, "task_form": 3, "overall": 3, "reason": "Must use a named HuggingFace transformers model for reproducibility, same pinned-model-from-the-hub requirement as the Qwen tokenizer."},
+      {"rank": 10, "task_id": "task_003614_f562c94a", "skill": 3, "domain": 2, "task_form": 3, "overall": 3, "reason": "Custom tokenization of a raw text dataset with exact counting rules; transfers the counting rigour, not the HF stack."}
+    ],
+    "Recursive-Task-Synthesis": [
+      {"rank": 1, "task_id": "rts_task_e69fdae3612dcbc49b035654", "skill": 4, "domain": 3, "task_form": 4, "overall": 4, "reason": "Run an NLP embedding library over text corpora with a critical parameter that must be discovered elsewhere, then emit one number."},
+      {"rank": 2, "task_id": "rts_task_1297af62a50a4ef6a8ec01ac", "skill": 4, "domain": 3, "task_form": 4, "overall": 4, "reason": "Same CADE corpus pipeline; the run is only correct if the externally documented embedding size is retrieved first."},
+      {"rank": 3, "task_id": "rts_task_9fc576bfba789ec7cbb43fbb", "skill": 4, "domain": 3, "task_form": 4, "overall": 4, "reason": "Locate a compressed JSON dataset, count occurrences per field value, write exact counts; same find-the-data-then-count shape."},
+      {"rank": 4, "task_id": "rts_task_44866fbbbe89d4edd09da524", "skill": 3, "domain": 3, "task_form": 4, "overall": 3, "reason": "Counts occurrences of each event_type in a gzipped JSON dataset using a query DSL; exact aggregate over records."},
+      {"rank": 5, "task_id": "rts_task_abd2d2db375ec35a34770513", "skill": 3, "domain": 3, "task_form": 4, "overall": 3, "reason": "CADE run whose embedding size must be recovered from repo history before training; documentation-gated dataset processing."},
+      {"rank": 6, "task_id": "rts_task_fe9b38379292388dd5e39009", "skill": 3, "domain": 3, "task_form": 4, "overall": 3, "reason": "Determine the required embedding size before training compass/slice models on corpora; same read-the-docs-then-run dependency."},
+      {"rank": 7, "task_id": "rts_task_96a22e8b553ac94c19c977e9", "skill": 3, "domain": 2, "task_form": 4, "overall": 3, "reason": "README states the encoding and delimiter needed to ingest the dataset correctly; ignoring the README silently corrupts the result."},
+      {"rank": 8, "task_id": "rts_task_c3edcaf63962b4df0b86b74e", "skill": 3, "domain": 2, "task_form": 3, "overall": 3, "reason": "Join two dataset files and compute grouped count/sum/average aggregates; exact aggregation over tabular data."},
+      {"rank": 9, "task_id": "rts_task_7493e4ba507eae6813cf2e77", "skill": 3, "domain": 2, "task_form": 3, "overall": 3, "reason": "Aggregate counts and totals per category from CSV datasets with no hardcoding allowed; same derive-the-number-from-the-data rule."},
+      {"rank": 10, "task_id": "rts_task_c830a142e0cd42f3caf7f963", "skill": 2, "domain": 3, "task_form": 3, "overall": 2, "reason": "ML pipeline over a parquet dataset with a third-party library; shares dataset-loading mechanics but nothing about tokenization or counting."}
+    ],
+    "TerminalWorld-Seeds-Clean": [
+      {"rank": 1, "task_id": "tw_259453", "skill": 4, "domain": 3, "task_form": 4, "overall": 4, "reason": "Count occurrences of each event_type across a compressed JSON dataset and write exact counts; same aggregate-over-a-dataset answer."},
+      {"rank": 2, "task_id": "tw_21631", "skill": 3, "domain": 3, "task_form": 4, "overall": 3, "reason": "Load a dataset file with pandas, filter to specific category values, derive a column; same filter-the-domain-then-compute step."},
+      {"rank": 3, "task_id": "tw_97603", "skill": 3, "domain": 2, "task_form": 4, "overall": 3, "reason": "Parse a gzipped newline-delimited JSON dataset and summarise every record by field; must cover all rows exactly."},
+      {"rank": 4, "task_id": "tw_569867", "skill": 3, "domain": 4, "task_form": 3, "overall": 3, "reason": "Drive an ML dataset library's dataset/task API to pull records and split indices; same library-API-for-datasets skill as HF datasets."},
+      {"rank": 5, "task_id": "tw_240515", "skill": 3, "domain": 2, "task_form": 3, "overall": 3, "reason": "Query a CSV dataset for grouped counts and extrema; exact aggregation over dataset rows with strict output format."},
+      {"rank": 6, "task_id": "tw_686647", "skill": 2, "domain": 4, "task_form": 3, "overall": 3, "reason": "Install a pinned library with its datasets extra and run it on a named dataset; same pinned-package-plus-named-dataset environment work."},
+      {"rank": 7, "task_id": "tw_326628", "skill": 2, "domain": 4, "task_form": 3, "overall": 3, "reason": "Set up a venv, download a standard ML dataset, run the pipeline; mirrors the environment plumbing around fetching a hub dataset."},
+      {"rank": 8, "task_id": "tw_733941", "skill": 2, "domain": 3, "task_form": 3, "overall": 2, "reason": "Trains a model on a named parquet dataset via a specific library; dataset loading transfers, token counting does not."},
+      {"rank": 9, "task_id": "tw_18271", "skill": 2, "domain": 3, "task_form": 3, "overall": 2, "reason": "Split a named dataset into train/test by index and train a classifier; shares split-selection discipline only."},
+      {"rank": 10, "task_id": "tw_500724", "skill": 2, "domain": 1, "task_form": 3, "overall": 2, "reason": "Compute an exact statistic from given data with an exclusion rule and write it to a result file; only the answer shape matches."}
+    ],
+    "SWE-Smith-Seeds-Clean": [
+      {"rank": 1, "task_id": "facebookresearch__fvcore.a491d5b9.lm_rewrite__pcccevul", "skill": 4, "domain": 4, "task_form": 2, "overall": 4, "reason": "parameter_count() returns wrong per-module counts; debugging an exact count aggregated over a PyTorch model."},
+      {"rank": 2, "task_id": "stanfordnlp__string2string.c4a72f59.func_pm_remove_assign__os17lckf", "skill": 3, "domain": 4, "task_form": 2, "overall": 3, "reason": "ROUGE metric over tokenized text in an NLP library; same tokenize-then-aggregate-a-number machinery."},
+      {"rank": 3, "task_id": "stanfordnlp__string2string.c4a72f59.func_pm_remove_assign__tommce5q", "skill": 3, "domain": 4, "task_form": 2, "overall": 3, "reason": "sacreBLEU computation broken; corpus-level NLP metric that depends on correct tokenization of the dataset."},
+      {"rank": 4, "task_id": "facebookresearch__fvcore.a491d5b9.lm_rewrite__1lp7kdh2", "skill": 3, "domain": 4, "task_form": 2, "overall": 3, "reason": "Einsum FLOP count is wrong; same class of exact-quantity accounting over a torch model."},
+      {"rank": 5, "task_id": "dask__dask.5f61e423.pr_10751", "skill": 3, "domain": 3, "task_form": 2, "overall": 3, "reason": "value_counts(normalize=True) broken by a parameter-order change; counting rows by category over a large dataframe."},
+      {"rank": 6, "task_id": "davidhalter__parso.338a5760.func_pm_op_break_chains__pt0nzxrt", "skill": 3, "domain": 2, "task_form": 2, "overall": 3, "reason": "Tokenizer mis-handles unicode in strings and identifiers; tokenization correctness on non-ASCII text, which drives token counts."},
+      {"rank": 7, "task_id": "jawah__charset_normalizer.1fdd6463.func_pm_remove_cond__uzg0sqf7", "skill": 3, "domain": 2, "task_form": 2, "overall": 3, "reason": "Charset detection returns nothing for decodable files; decoding text correctly before counting is a real failure mode here."},
+      {"rank": 8, "task_id": "pygments__pygments.27649ebb.combine_module__4f18zaiv", "skill": 3, "domain": 2, "task_form": 2, "overall": 2, "reason": "Lexers emit wrong token streams; debugging why a tokenizer produces the wrong number of tokens."},
+      {"rank": 9, "task_id": "stanfordnlp__string2string.c4a72f59.func_pm_remove_assign__51e0kkyi", "skill": 3, "domain": 4, "task_form": 2, "overall": 2, "reason": "Second ROUGE breakage in the same NLP metric library; same tokenized-text scoring path, largely redundant with rank 2."},
+      {"rank": 10, "task_id": "facebookresearch__fvcore.a491d5b9.func_pm_ctrl_shuffle__kd43vy4l", "skill": 2, "domain": 4, "task_form": 2, "overall": 2, "reason": "matmul_flop_jit regression in torch model statistics; ML-accounting domain but pure NameError debugging."}
+    ],
+    "SWE-Rebench-Tasks-Clean": [
+      {"rank": 1, "task_id": "huggingface__transformers-36497", "skill": 3, "domain": 5, "task_form": 2, "overall": 4, "reason": "Works inside transformers' data collator for masked LM; exactly the transformers tokenization/data pipeline the TB task drives."},
+      {"rank": 2, "task_id": "huggingface__transformers-36903", "skill": 3, "domain": 5, "task_form": 2, "overall": 3, "reason": "Adds seeding across transformers data collators; same library internals for turning a dataset into tokenized batches."},
+      {"rank": 3, "task_id": "tensorflow__datasets-240", "skill": 3, "domain": 4, "task_form": 2, "overall": 3, "reason": "FeatureConnector serialization for byte strings in a dataset library; dataset feature/encoding handling transfers."},
+      {"rank": 4, "task_id": "mila-udem__fuel-217", "skill": 3, "domain": 4, "task_form": 2, "overall": 3, "reason": "H5PyDataset breaks after deserialization; debugging a dataset-loading abstraction over on-disk data files."},
+      {"rank": 5, "task_id": "huggingface__transformers-19219", "skill": 2, "domain": 5, "task_form": 2, "overall": 3, "reason": "HfArgumentParser config parsing in transformers; same ecosystem and the same config-drives-behaviour theme."},
+      {"rank": 6, "task_id": "mila-udem__fuel-186", "skill": 3, "domain": 4, "task_form": 2, "overall": 3, "reason": "IndexableDataset __getattr__ interferes with pickling; dataset object model in an ML data-loading library."},
+      {"rank": 7, "task_id": "pythainlp__pythainlp-1046", "skill": 3, "domain": 3, "task_form": 2, "overall": 3, "reason": "Per-token linguistic analysis returning the wrong label; NLP text-processing correctness on non-Latin script."},
+      {"rank": 8, "task_id": "mila-udem__fuel-192", "skill": 2, "domain": 4, "task_form": 2, "overall": 2, "reason": "cross_validation scheme is exhausted after one pass; dataset split/iteration semantics, close to choosing the right split."},
+      {"rank": 9, "task_id": "pandas-dev__pandas-59284", "skill": 2, "domain": 3, "task_form": 2, "overall": 2, "reason": "read_csv with nrows plus iterator while converting to parquet; chunked dataset reading, the mechanics of scanning a big dataset."},
+      {"rank": 10, "task_id": "opennmt__opennmt-tf-525", "skill": 2, "domain": 3, "task_form": 2, "overall": 2, "reason": "NMT training config with feature/label files fails on a None field; NLP training-data configuration, weak skill overlap."}
+    ]
+  },
+  "final_top10": [
+    {"rank": 1, "task_id": "task_004701_979f0bf8", "source": "TMax-15K", "skill": 5, "domain": 4, "task_form": 4, "overall": 5, "reason": "Tokenizes a corpus with a named HuggingFace tokenizer and reports total_tokens as an exact integer; nearest thing in the pool."},
+    {"rank": 2, "task_id": "task_004812_68a1963b", "source": "TMax-15K", "skill": 4, "domain": 4, "task_form": 4, "overall": 4, "reason": "LLM corpus prep ending in an exact total_tokens figure; same vocabulary-mapping and counting discipline."},
+    {"rank": 3, "task_id": "huggingface__transformers-36497", "source": "SWE-Rebench-Tasks-Clean", "skill": 3, "domain": 5, "task_form": 2, "overall": 4, "reason": "Deep inside transformers' tokenized-batch pipeline; teaches the exact library whose tokenizer the TB task must drive."},
+    {"rank": 4, "task_id": "task_003644_d3ffecd2", "source": "TMax-15K", "skill": 4, "domain": 4, "task_form": 3, "overall": 4, "reason": "Trains a HuggingFace BPE tokenizer over a JSONL dataset; subword tokenizer API plus dataset field selection."},
+    {"rank": 5, "task_id": "task_002347_599a129f", "source": "TMax-15K", "skill": 4, "domain": 3, "task_form": 4, "overall": 4, "reason": "Tokenizes every row of a dataset and reports the total token count; identical aggregate endpoint."},
+    {"rank": 6, "task_id": "rts_task_e69fdae3612dcbc49b035654", "source": "Recursive-Task-Synthesis", "skill": 4, "domain": 3, "task_form": 4, "overall": 4, "reason": "Corpus-level NLP computation whose critical parameter must first be discovered externally, then one number written out."},
+    {"rank": 7, "task_id": "tw_259453", "source": "TerminalWorld-Seeds-Clean", "skill": 4, "domain": 3, "task_form": 4, "overall": 4, "reason": "Exact per-category counts over a compressed JSON dataset; same count-the-records-correctly failure surface."},
+    {"rank": 8, "task_id": "rts_task_9fc576bfba789ec7cbb43fbb", "source": "Recursive-Task-Synthesis", "skill": 4, "domain": 3, "task_form": 4, "overall": 4, "reason": "Find the dataset in the tree, verify it, count per field value; same locate-then-count-exactly workflow."},
+    {"rank": 9, "task_id": "facebookresearch__fvcore.a491d5b9.lm_rewrite__pcccevul", "source": "SWE-Smith-Seeds-Clean", "skill": 4, "domain": 4, "task_form": 2, "overall": 3, "reason": "Wrong parameter_count over a torch model: debugging an exact count aggregated across a structure, in the ML stack."},
+    {"rank": 10, "task_id": "task_008358_9397763a", "source": "TMax-15K", "skill": 3, "domain": 3, "task_form": 3, "overall": 3, "reason": "Vocabulary built only from the train split, statistics on test; split and field selection drive the numeric answer."}
+  ],
+  "notes": "Only 7 tasks in the whole 56k pool mention HuggingFace at all, so domain-5 matches are essentially limited to the three huggingface/transformers Rebench issues. Recursive-Task-Synthesis shortlist was almost pure boilerplate overlap on the word 'dataset' (dtool/btoep dataset-creation chores, AES encryption) - all discarded; the CADE embedding family and the EQL counting family were found by my own searches and are the real RTS signal. TerminalWorld and RTS share near-duplicate seeds (EQL/counts.json, CADE, dtool), so several picks across those two corpora are siblings; merge should expect that. SWE-Smith has no dataset/tokenizer-pipeline tasks at all - fvcore counting and string2string NLP metrics are the honest best, and their overall scores say so."
+}

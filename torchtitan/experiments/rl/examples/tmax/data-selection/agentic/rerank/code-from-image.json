@@ -1,0 +1,591 @@
+{
+ "tb21_id": "code-from-image",
+ "tb21_profile": {
+  "skill": "Read text/pseudocode out of a rendered image (OCR or visual reading), then faithfully execute or re-implement that snippet's semantics to produce one exact final value",
+  "domain": "OCR / image-to-text extraction plus small-program semantics (interpreters, arithmetic, hashing) producing a hash-like answer string",
+  "task_form": "implement-from-spec where the spec lives in an image; single exact answer written to a file"
+ },
+ "searches": [
+  "tools.py search all '\\.png|\\.jpg|\\.jpeg|tesseract|OCR' -n 60",
+  "tools.py search all 'tesseract|OCR|optical character' -n 60",
+  "tools.py search all 'pseudocode|pseudo-code' -n 30",
+  "tools.py search tmax 'image .{0,60}(algorithm|formula|logic|flowchart|state machine|pseudocode)|(algorithm|formula|flowchart|state machine) .{0,40}(image|screenshot|png|diagram)' -n 40",
+  "tools.py search rts 'tesseract|OCR\\b|extract the text from .{0,20}(image|screenshot)|image contains|screenshot' -n 12",
+  "tools.py search tw 'tesseract|OCR\\b|extract the text from .{0,20}(image|screenshot)|image contains|screenshot' -n 12",
+  "tools.py search smith 'tesseract|OCR\\b|extract the text from .{0,20}(image|screenshot)|image contains|screenshot' -n 12",
+  "tools.py search rebench 'tesseract|OCR\\b|extract the text from .{0,20}(image|screenshot)|image contains|screenshot' -n 12",
+  "tools.py search tw 'PNG|image file|Pillow|PIL|imagemagick|pixel' -n 20",
+  "tools.py search rts 'interpreter|bytecode|virtual machine|state machine|evaluate the expression' -n 20",
+  "tools.py search all 'brainfuck|Brainfuck|esoteric|whitespace language' -n 20",
+  "tools.py search all 'what (the|this) (program|script|code) (would|will) (print|output)|determine the (output|final value)|final value it would print|simulate the (program|execution)' -n 25",
+  "tools.py show task_000246_a1b7a5cc task_000153_c5ddde93 task_000234_dc2d9846",
+  "tools.py show task_003492_fbc876b2 task_002191_1eb8c657 task_003153_b8377035 task_004606_391aae46",
+  "sqlite: SELECT task_id FROM doc WHERE source='SWE-Smith-Seeds-Clean' AND task_id LIKE '%pdfplumber%'/'%pdfminer%'/'%word_cloud%'/'%qrcode%'/'%parso%'/'%charset_normalizer%'",
+  "sqlite: SELECT task_id FROM doc WHERE source='SWE-Rebench-Tasks-Clean' AND task_id LIKE '%pfp%'/'%mpmath%'/'%music21%'/'%lark%'/'%pdf%'"
+ ],
+ "per_source": {
+  "TMax-15K": [
+   {
+    "rank": 1,
+    "task_id": "task_000246_a1b7a5cc",
+    "skill": 5,
+    "domain": 5,
+    "task_form": 5,
+    "overall": 5,
+    "reason": "OCR a spec image giving opcodes and a modulo constant, then implement the VM so its printed value matches the oracle. Same task shape."
+   },
+   {
+    "rank": 2,
+    "task_id": "task_000153_c5ddde93",
+    "skill": 5,
+    "domain": 5,
+    "task_form": 4,
+    "overall": 5,
+    "reason": "Read a state machine out of a diagram image and implement it exactly; the image is the only source of the logic."
+   },
+   {
+    "rank": 3,
+    "task_id": "task_002191_1eb8c657",
+    "skill": 5,
+    "domain": 5,
+    "task_form": 4,
+    "overall": 5,
+    "reason": "OCR a text flowchart and implement its rules in the exact given order, bit-exact against a reference; image-as-pseudocode."
+   },
+   {
+    "rank": 4,
+    "task_id": "task_003492_fbc876b2",
+    "skill": 5,
+    "domain": 5,
+    "task_form": 4,
+    "overall": 5,
+    "reason": "Extract request syntax, defaults, state machine and error codes from rules.png and reproduce them fuzz-exactly."
+   },
+   {
+    "rank": 5,
+    "task_id": "task_003153_b8377035",
+    "skill": 5,
+    "domain": 5,
+    "task_form": 4,
+    "overall": 5,
+    "reason": "A screenshot is the only surviving spec for a normalization algorithm; reimplement it bit-exactly from the image."
+   },
+   {
+    "rank": 6,
+    "task_id": "task_004606_391aae46",
+    "skill": 5,
+    "domain": 5,
+    "task_form": 4,
+    "overall": 4,
+    "reason": "OCR spec.png for filter/aggregation business logic and implement it bit-exactly against an oracle binary."
+   },
+   {
+    "rank": 7,
+    "task_id": "task_000234_dc2d9846",
+    "skill": 4,
+    "domain": 5,
+    "task_form": 4,
+    "overall": 4,
+    "reason": "OCR a requirements image for the exact hashing formula and implement it; answer is a single exact hash value, like the bee26a check."
+   },
+   {
+    "rank": 8,
+    "task_id": "task_003622_c13285ca",
+    "skill": 4,
+    "domain": 5,
+    "task_form": 4,
+    "overall": 4,
+    "reason": "Tesseract a formula image holding the numerical algorithm and reproduce the transformation exactly."
+   },
+   {
+    "rank": 9,
+    "task_id": "task_003914_d9c1a0ff",
+    "skill": 4,
+    "domain": 4,
+    "task_form": 4,
+    "overall": 4,
+    "reason": "Read routing rules from a flowchart image and implement them in Go so the printed decision string matches the legacy binary."
+   },
+   {
+    "rank": 10,
+    "task_id": "task_002229_9a52b13d",
+    "skill": 4,
+    "domain": 5,
+    "task_form": 3,
+    "overall": 4,
+    "reason": "Read the exact Profiling Index formula out of spec.png and compute it; correctness hinges on transcribing the image right."
+   }
+  ],
+  "Recursive-Task-Synthesis": [
+   {
+    "rank": 1,
+    "task_id": "rts_task_6e7106906920194ed82eddd3",
+    "skill": 3,
+    "domain": 2,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Read Lisp source you did not write, repair it, and run the interpreter to obtain one exact numeric answer; execute-a-snippet-for-its-value."
+   },
+   {
+    "rank": 2,
+    "task_id": "rts_task_aeee91a542d45671432a5113",
+    "skill": 3,
+    "domain": 2,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Same Lisp-interpreter family: derive the single value that makes the 12-day average exactly 2300 and report it verbatim."
+   },
+   {
+    "rank": 3,
+    "task_id": "rts_task_818c8049c58399477676d052",
+    "skill": 3,
+    "domain": 2,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Two Brainfuck interpreters and a .bf program: faithful execution of an opaque snippet is the whole task."
+   },
+   {
+    "rank": 4,
+    "task_id": "rts_task_19a3734be4aaae760ed3fed9",
+    "skill": 3,
+    "domain": 2,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Compile two Brainfuck interpreters, run the same program through each and save the exact outputs; snippet-execution fidelity."
+   },
+   {
+    "rank": 5,
+    "task_id": "rts_task_3ec8503ff0252f0f1a70cbe0",
+    "skill": 3,
+    "domain": 2,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Implement a 7-bit-binary-to-character decoder with a configurable ASCII offset and decode a file to the exact intended text."
+   },
+   {
+    "rank": 6,
+    "task_id": "rts_task_51ee93fe3faed53bb7a0a715",
+    "skill": 3,
+    "domain": 1,
+    "task_form": 3,
+    "overall": 2,
+    "reason": "Read the game's source to derive the one correct puzzle answer, then drive the session; answer must be recovered from code, not guessed."
+   },
+   {
+    "rank": 7,
+    "task_id": "rts_task_95bea5e69710e72bd8032c35",
+    "skill": 2,
+    "domain": 1,
+    "task_form": 3,
+    "overall": 2,
+    "reason": "Fix a buggy Clojure my-last so result.txt holds the correct single value; implement-and-emit-exact-answer, trivially small."
+   },
+   {
+    "rank": 8,
+    "task_id": "rts_task_8564b881f3d2a9cba4939799",
+    "skill": 2,
+    "domain": 2,
+    "task_form": 3,
+    "overall": 2,
+    "reason": "ARM64 palindrome checker with an exactly prescribed output string; exact-output implementation in an unfamiliar language."
+   },
+   {
+    "rank": 9,
+    "task_id": "rts_task_af23213021b1421b77fa4d6d",
+    "skill": 2,
+    "domain": 1,
+    "task_form": 3,
+    "overall": 2,
+    "reason": "Construct one exact target string through a constrained intermediate variable and write it to output.txt; exact-value emission only."
+   },
+   {
+    "rank": 10,
+    "task_id": "rts_task_4b703d820a79a0a30289ff6f",
+    "skill": 2,
+    "domain": 2,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Render phrases as ASCII art with a specific figlet font; text-as-picture rendering, the inverse of reading text from a picture."
+   }
+  ],
+  "TerminalWorld-Seeds-Clean": [
+   {
+    "rank": 1,
+    "task_id": "tw_152765",
+    "skill": 4,
+    "domain": 2,
+    "task_form": 4,
+    "overall": 3,
+    "reason": "Read the given cipher implementation, invert it, and recover the one exact flag string; derive an exact answer from a code snippet."
+   },
+   {
+    "rank": 2,
+    "task_id": "tw_134335",
+    "skill": 4,
+    "domain": 2,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Reverse engineer dan32 code and emulate it under radare2 ESIL to reach the target value; executing code you cannot run natively."
+   },
+   {
+    "rank": 3,
+    "task_id": "tw_383451",
+    "skill": 3,
+    "domain": 2,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Extract the exact expected password from a crackme's logic rather than guessing; single exact-answer recovery from opaque code."
+   },
+   {
+    "rank": 4,
+    "task_id": "tw_14342",
+    "skill": 3,
+    "domain": 2,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Brute-force an MD5 hash to recover the exact plaintext and write it out; hash-shaped single-answer output like the bee26a check."
+   },
+   {
+    "rank": 5,
+    "task_id": "tw_318475",
+    "skill": 3,
+    "domain": 2,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Reason about what a program's stdout actually is, decode it and write the exact two bytes; byte-exact predicted output."
+   },
+   {
+    "rank": 6,
+    "task_id": "tw_186702",
+    "skill": 2,
+    "domain": 1,
+    "task_form": 4,
+    "overall": 2,
+    "reason": "Implement my-last from scratch in Clojure and write the single resulting element to result.txt; exact-value emission, tiny scale."
+   },
+   {
+    "rank": 7,
+    "task_id": "tw_694721",
+    "skill": 2,
+    "domain": 1,
+    "task_form": 4,
+    "overall": 2,
+    "reason": "Compute GCDs and emit exactly the prescribed lines; correctness judged purely on an exact output file."
+   },
+   {
+    "rank": 8,
+    "task_id": "tw_197232",
+    "skill": 2,
+    "domain": 1,
+    "task_form": 4,
+    "overall": 2,
+    "reason": "Construct one exact string under a constraint and write it to output.txt; same single-exact-value acceptance test."
+   },
+   {
+    "rank": 9,
+    "task_id": "tw_713369",
+    "skill": 2,
+    "domain": 2,
+    "task_form": 3,
+    "overall": 2,
+    "reason": "ARM64 primality program with an exactly specified printed message; implement-to-exact-output in an unfamiliar language."
+   },
+   {
+    "rank": 10,
+    "task_id": "tw_36070",
+    "skill": 2,
+    "domain": 1,
+    "task_form": 3,
+    "overall": 2,
+    "reason": "Apply a library's quoting rules to a fixed value list in order and record exact results; faithful rule application, no extraction step."
+   }
+  ],
+  "SWE-Smith-Seeds-Clean": [
+   {
+    "rank": 1,
+    "task_id": "jsvine__pdfplumber.02ff4313.func_pm_ctrl_invert_if__tv5b85l9",
+    "skill": 4,
+    "domain": 4,
+    "task_form": 2,
+    "overall": 3,
+    "reason": "extract_text(layout=True) broken: reconstructing readable text from positioned glyphs is the same problem OCR layout solves."
+   },
+   {
+    "rank": 2,
+    "task_id": "jsvine__pdfplumber.02ff4313.func_pm_ctrl_invert_if__ngsgk4s9",
+    "skill": 4,
+    "domain": 4,
+    "task_form": 2,
+    "overall": 3,
+    "reason": "cluster_list tolerance grouping is wrong; grouping glyph positions into lines/words is the core of reading text off a page."
+   },
+   {
+    "rank": 3,
+    "task_id": "jsvine__pdfplumber.02ff4313.func_pm_ctrl_shuffle__9tpnaojo",
+    "skill": 3,
+    "domain": 4,
+    "task_form": 2,
+    "overall": 3,
+    "reason": "Word extraction returns wrong direction for rotated text; spatial text recovery from a rendered document."
+   },
+   {
+    "rank": 4,
+    "task_id": "pdfminer__pdfminer.six.1a8bd2f7.lm_rewrite__0ya3bz6x",
+    "skill": 3,
+    "domain": 4,
+    "task_form": 2,
+    "overall": 3,
+    "reason": "Character width calculation wrong; glyph metrics drive where characters land, which is what makes extracted text legible."
+   },
+   {
+    "rank": 5,
+    "task_id": "pdfminer__pdfminer.six.1a8bd2f7.pr_887",
+    "skill": 3,
+    "domain": 4,
+    "task_form": 2,
+    "overall": 3,
+    "reason": "Text extraction fails on certain PDFs; getting readable text out of a rendered document, the non-OCR half of this task."
+   },
+   {
+    "rank": 6,
+    "task_id": "jsvine__pdfplumber.02ff4313.lm_rewrite__fkldf5pb",
+    "skill": 3,
+    "domain": 4,
+    "task_form": 2,
+    "overall": 3,
+    "reason": "PageImage crop renders the wrong region; reasoning about page-to-image coordinates, the space OCR preprocessing works in."
+   },
+   {
+    "rank": 7,
+    "task_id": "davidhalter__parso.338a5760.func_pm_remove_wrapper__8fki8qk0",
+    "skill": 3,
+    "domain": 3,
+    "task_form": 2,
+    "overall": 3,
+    "reason": "Parser error recovery on incomplete code; making sense of imperfect source text is exactly the post-OCR problem."
+   },
+   {
+    "rank": 8,
+    "task_id": "davidhalter__parso.338a5760.func_pm_op_break_chains__pt0nzxrt",
+    "skill": 3,
+    "domain": 3,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Tokenizer mishandles unicode identifiers and strings; robust tokenization of arbitrary source characters."
+   },
+   {
+    "rank": 9,
+    "task_id": "jawah__charset_normalizer.1fdd6463.func_basic__7t2bal22",
+    "skill": 3,
+    "domain": 3,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Recovering the right text from ambiguous bytes; the noisy-recognition analogue of OCR, judged on exact decoded text."
+   },
+   {
+    "rank": 10,
+    "task_id": "lincolnloop__python-qrcode.456b01d4.lm_rewrite__443c7kwz",
+    "skill": 2,
+    "domain": 3,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "ASCII QR rendering broken; encoding data into a visual grid, the inverse direction of reading code out of a picture."
+   }
+  ],
+  "SWE-Rebench-Tasks-Clean": [
+   {
+    "rank": 1,
+    "task_id": "d0c-s4vage__pfp-128",
+    "skill": 4,
+    "domain": 3,
+    "task_form": 2,
+    "overall": 3,
+    "reason": "Interpreter must short-circuit boolean logic lazily to match 010's semantics; getting a snippet's evaluation order exactly right."
+   },
+   {
+    "rank": 2,
+    "task_id": "d0c-s4vage__pfp-116",
+    "skill": 4,
+    "domain": 3,
+    "task_form": 2,
+    "overall": 3,
+    "reason": "Chained assignment a=b=c unsupported in the template interpreter; implementing the intended semantics of a code construct."
+   },
+   {
+    "rank": 3,
+    "task_id": "d0c-s4vage__pfp-112",
+    "skill": 4,
+    "domain": 3,
+    "task_form": 2,
+    "overall": 3,
+    "reason": "Implicit array handling must match the reference 010 implementation; faithful reproduction of another engine's snippet semantics."
+   },
+   {
+    "rank": 4,
+    "task_id": "d0c-s4vage__pfp-126",
+    "skill": 3,
+    "domain": 3,
+    "task_form": 2,
+    "overall": 3,
+    "reason": "Implicit arrays fail outside a struct child; same interpreter-semantics fidelity, narrower case."
+   },
+   {
+    "rank": 5,
+    "task_id": "d0c-s4vage__pfp-109",
+    "skill": 3,
+    "domain": 3,
+    "task_form": 2,
+    "overall": 3,
+    "reason": "Implement a missing builtin (Memcmp) so templates evaluate as the reference does; fill in a snippet's required primitive."
+   },
+   {
+    "rank": 6,
+    "task_id": "toblerity__shapely-851",
+    "skill": 4,
+    "domain": 2,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Polylabel must implement the published algorithm correctly including holes; faithful algorithm implementation judged by an exact value."
+   },
+   {
+    "rank": 7,
+    "task_id": "mpmath__mpmath-881",
+    "skill": 3,
+    "domain": 2,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "format() output must match CPython's exactly for a tricky float; exact-string fidelity of a computed value."
+   },
+   {
+    "rank": 8,
+    "task_id": "pycqa__pyflakes-668",
+    "skill": 3,
+    "domain": 3,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Statically reason about what a small snippet does with an unused annotation; reading code to infer behaviour without running it."
+   },
+   {
+    "rank": 9,
+    "task_id": "reata__sqllineage-617",
+    "skill": 3,
+    "domain": 2,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Parse SQL and trace a scalar subquery's table reference; deriving semantics from a code snippet's text."
+   },
+   {
+    "rank": 10,
+    "task_id": "lark-parser__lark-1003",
+    "skill": 2,
+    "domain": 3,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Grammar cache loading failure in a parser generator; parsing-infrastructure domain, little of this task's extraction or execution skill."
+   }
+  ]
+ },
+ "final_top10": [
+  {
+   "rank": 1,
+   "task_id": "task_000246_a1b7a5cc",
+   "source": "TMax-15K",
+   "skill": 5,
+   "domain": 5,
+   "task_form": 5,
+   "overall": 5,
+   "reason": "OCR a spec image for opcode semantics and a constant, implement the VM, match the oracle's printed value. Near-identical task."
+  },
+  {
+   "rank": 2,
+   "task_id": "task_002191_1eb8c657",
+   "source": "TMax-15K",
+   "skill": 5,
+   "domain": 5,
+   "task_form": 4,
+   "overall": 5,
+   "reason": "The image is a text flowchart; rules must be applied in the exact order shown and the output matched bit-for-bit."
+  },
+  {
+   "rank": 3,
+   "task_id": "task_000153_c5ddde93",
+   "source": "TMax-15K",
+   "skill": 5,
+   "domain": 5,
+   "task_form": 4,
+   "overall": 5,
+   "reason": "A diagram image is the sole source of a state machine that must be implemented and evaluated exactly."
+  },
+  {
+   "rank": 4,
+   "task_id": "task_003492_fbc876b2",
+   "source": "TMax-15K",
+   "skill": 5,
+   "domain": 5,
+   "task_form": 4,
+   "overall": 5,
+   "reason": "Syntax, defaults, state machine and error codes all live only in rules.png and must be reproduced fuzz-exactly."
+  },
+  {
+   "rank": 5,
+   "task_id": "task_003153_b8377035",
+   "source": "TMax-15K",
+   "skill": 5,
+   "domain": 5,
+   "task_form": 4,
+   "overall": 5,
+   "reason": "A screenshot is the only surviving spec of the algorithm; reimplement it bit-exactly, the pure image-to-code case."
+  },
+  {
+   "rank": 6,
+   "task_id": "task_004606_391aae46",
+   "source": "TMax-15K",
+   "skill": 5,
+   "domain": 5,
+   "task_form": 4,
+   "overall": 4,
+   "reason": "OCR spec.png for the filter/aggregate logic and match an oracle binary's output exactly."
+  },
+  {
+   "rank": 7,
+   "task_id": "task_000234_dc2d9846",
+   "source": "TMax-15K",
+   "skill": 4,
+   "domain": 5,
+   "task_form": 4,
+   "overall": 4,
+   "reason": "OCR the exact hashing formula from a requirements image; the deliverable is one exact hash value, like the bee26a check."
+  },
+  {
+   "rank": 8,
+   "task_id": "task_003622_c13285ca",
+   "source": "TMax-15K",
+   "skill": 4,
+   "domain": 5,
+   "task_form": 4,
+   "overall": 4,
+   "reason": "Tesseract a formula image carrying the numerical algorithm and reproduce the transformation exactly."
+  },
+  {
+   "rank": 9,
+   "task_id": "task_003914_d9c1a0ff",
+   "source": "TMax-15K",
+   "skill": 4,
+   "domain": 4,
+   "task_form": 4,
+   "overall": 4,
+   "reason": "Read routing rules off a flowchart image and emit the same decision string as the legacy binary."
+  },
+  {
+   "rank": 10,
+   "task_id": "task_002229_9a52b13d",
+   "source": "TMax-15K",
+   "skill": 4,
+   "domain": 5,
+   "task_form": 3,
+   "overall": 4,
+   "reason": "The exact metric formula exists only in spec.png; the answer is wrong if the image is transcribed wrong."
+  }
+ ],
+ "notes": "OCR/image-as-specification exists in exactly one corpus: TMax (~800 instructions mention tesseract/OCR; ~55 of them put the algorithm itself in the image). RTS, TerminalWorld, SWE-Smith and SWE-Rebench contain zero OCR tasks, so the honest final_top10 is all TMax and I did not dilute it. For the other four corpora I scored against the task's second half instead (faithfully executing or re-implementing a snippet to one exact value) and, for SWE-Smith, against the closest domain available (pdfplumber/pdfminer text-from-rendered-page extraction). The SWE-Rebench pfp cluster (an interpreter for 010 Editor binary templates) is the best non-TMax skill match and was almost entirely missed by the retrievers. RTS and TerminalWorld ranks 6-10 are filler; the shortlists there were dominated by 'write string to /app/output.txt' boilerplate, which I deliberately ranked low even though it matched lexically."
+}

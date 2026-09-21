@@ -1,0 +1,5 @@
+# Regenerable intermediates (~1.1GB): corpus jsonl dumps, the sqlite index,
+# retrieval candidates, agent packets, cached dense vectors, logs.
+# Rebuild with ./run.sh --from cache. Keep rerank/ and out/ — rerank/ holds the
+# agent judgements and cannot be recomputed.
+work/

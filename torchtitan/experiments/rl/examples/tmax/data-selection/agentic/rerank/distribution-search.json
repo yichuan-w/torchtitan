@@ -1,0 +1,98 @@
+{
+  "tb21_id": "distribution-search",
+  "tb21_profile": {
+    "skill": "Numerically construct/search a valid probability distribution over a large vocabulary that satisfies two exact nonlinear KL-divergence constraints within tolerance, using scipy/numpy root-finding or optimization and information-theory math",
+    "domain": "Numerical computing and information theory: KL divergence/entropy, probability distributions, numpy/scipy optimization and root-finding",
+    "task_form": "Implement-from-spec / solve-a-numerical-problem-to-a-tolerance: emit a .npy artifact whose exact numeric properties the verifier checks"
+  },
+  "searches": [
+    "tools.py full distribution-search",
+    "tools.py search all \"KL diverg|Kullback|relative entropy|cross.entropy\" -n 14",
+    "tools.py search all \"\\bentropy\\b\" -n 14",
+    "tools.py search all \"scipy.optimize|root.find|bisect|newton|fsolve|minimize|brentq\" -n 14",
+    "tools.py search all \"probability distribution\" -n 14",
+    "tools.py search all \"softmax|logits|normaliz.*(sum to 1|distribution)\" -n 14",
+    "tools.py search all \"tolerance|within.*(tolerance|epsilon)|converge\" -n 14",
+    "tools.py search all \"\\.npy|np.save|numpy array\" -n 14",
+    "tools.py search rts \"KL diverg|entropy|scipy|probability distribution|fit.*(model|distribution|parameter)|minimiz\" -n 25",
+    "tools.py search tw \"KL diverg|entropy|scipy|probability distribution|softmax|optimiz|root.find|newton|numerical|integrat\" -n 25",
+    "tools.py search smith \"entropy|divergence|distance|scipy|stats|lstsq|probability|compression|halstead|numeric|linalg\" -n 20",
+    "tools.py search rebench \"entropy|divergence|KL|distribution|scipy|optimiz|softmax|probability|likelihood|minimize|numeric\" -n 25",
+    "tools.py show task_000750_5938801b task_006780_f07da33b task_007169_83929304 task_000918_17d9e1bd task_003486_0eb03622 task_002475_e0379918"
+  ],
+  "per_source": {
+    "TMax-15K": [
+      {"rank": 1, "task_id": "task_006780_f07da33b", "skill": 5, "domain": 5, "task_form": 5, "overall": 5, "reason": "Parametrizes a PDF and root-finds the parameter so a target functional matches within tol, then computes KL; identical search-a-distribution-to-hit-a-target-numeric skill."},
+      {"rank": 2, "task_id": "task_003486_0eb03622", "skill": 5, "domain": 5, "task_form": 4, "overall": 5, "reason": "Optimizes a parameter vector to minimize KL divergence to a target probability distribution; verifier checks the resulting KL, same optimize-a-distribution-under-a-KL-objective."},
+      {"rank": 3, "task_id": "task_007169_83929304", "skill": 4, "domain": 5, "task_form": 4, "overall": 5, "reason": "Implements Newton/bisection to solve a nonlinear equation to 1e-6, builds a normalized distribution, computes KL; same root-find-then-build-distribution pipeline."},
+      {"rank": 4, "task_id": "task_000750_5938801b", "skill": 4, "domain": 5, "task_form": 3, "overall": 4, "reason": "Constructs a valid clamped-and-normalized probability distribution and computes KL to 6-decimal exactness; same valid-distribution + KL numerical-stability core."},
+      {"rank": 5, "task_id": "task_000918_17d9e1bd", "skill": 3, "domain": 5, "task_form": 3, "overall": 4, "reason": "Normalizes a raw signal into a valid PDF via trapezoidal integration and computes a distribution distance; same build-a-valid-distribution-and-measure-it work."},
+      {"rank": 6, "task_id": "task_000530_58721129", "skill": 3, "domain": 5, "task_form": 3, "overall": 4, "reason": "Builds normalized 64-bin probability distributions with pseudo-counts and computes a divergence/distance; same construct-distribution-then-KL math."},
+      {"rank": 7, "task_id": "task_001168_93422366", "skill": 3, "domain": 5, "task_form": 3, "overall": 4, "reason": "Forms two distributions summing to 1 with 1e-9 smoothing and computes KL divergence; same valid-distribution and stable-KL computation."},
+      {"rank": 8, "task_id": "task_001293_5525a528", "skill": 3, "domain": 5, "task_form": 3, "overall": 3, "reason": "Computes nucleotide probability distributions and their base-2 KL divergence; same information-theory distance over constructed distributions."},
+      {"rank": 9, "task_id": "task_001070_8899fda7", "skill": 3, "domain": 5, "task_form": 3, "overall": 3, "reason": "Applies Laplace smoothing to get valid probabilities and compares distributions; same avoid-zero-probability discipline needed for well-defined KL."},
+      {"rank": 10, "task_id": "task_002475_e0379918", "skill": 3, "domain": 5, "task_form": 3, "overall": 3, "reason": "Fixes a KL-divergence implementation to the correct P*log(P/Q) form; requires understanding the exact KL definition central to the TB task."}
+    ],
+    "Recursive-Task-Synthesis": [
+      {"rank": 1, "task_id": "rts_task_739e0cb8fefd2149580b92b7", "skill": 3, "domain": 2, "task_form": 3, "overall": 2, "reason": "Computes inode addresses via numeric byte-offset arithmetic; some numerical-derivation skill, no probability or optimization."},
+      {"rank": 2, "task_id": "rts_task_7836dcfef37937c57280ca02", "skill": 2, "domain": 3, "task_form": 3, "overall": 2, "reason": "Loads a .npy array, transforms it and writes output; shares the numpy-array-in/out mechanics and .npy artifact, but trivial computation."},
+      {"rank": 3, "task_id": "rts_task_b0259cede190f1ef494456f5", "skill": 2, "domain": 3, "task_form": 3, "overall": 2, "reason": "Processes a NumPy array with NaNs into clean output; numpy numeric data handling, no distribution or constraint solving."},
+      {"rank": 4, "task_id": "rts_task_34b3e31022f3fb683b07b0c8", "skill": 2, "domain": 2, "task_form": 3, "overall": 2, "reason": "Implements a GCD algorithm over integer pairs; a small self-contained numeric algorithm, unrelated to distributions."},
+      {"rank": 5, "task_id": "rts_task_5f1fc20736e1fc16c3f71a2b", "skill": 2, "domain": 3, "task_form": 3, "overall": 2, "reason": "Processes a NumPy .npy input with pandas; numpy/scientific-Python plumbing, no information theory."},
+      {"rank": 6, "task_id": "rts_task_2335d1cbbde9821a4477d247", "skill": 2, "domain": 3, "task_form": 3, "overall": 2, "reason": "Processes a NumPy data file to a cleaned output; same numpy-array workflow but no numerical constraint to satisfy."},
+      {"rank": 7, "task_id": "rts_task_f9be8e49ac93e031600624e6", "skill": 2, "domain": 2, "task_form": 3, "overall": 2, "reason": "Implements numeric functions foo/bar and writes a computed number; small numerical implement-from-spec, unrelated domain."},
+      {"rank": 8, "task_id": "rts_task_1662988ad2f244d9abbb52c7", "skill": 2, "domain": 2, "task_form": 3, "overall": 1, "reason": "GCD computation from an input file; elementary number theory, no probability or optimization transfer."},
+      {"rank": 9, "task_id": "rts_task_e22f09d81acdd0f844580eb7", "skill": 1, "domain": 1, "task_form": 3, "overall": 1, "reason": "GCD in ARM64 assembly; only the implement-a-numeric-algorithm shell overlaps."},
+      {"rank": 10, "task_id": "rts_task_b5d47f91364d935bba23cc62", "skill": 1, "domain": 2, "task_form": 3, "overall": 1, "reason": "A small C++ numeric-computation program; generic compute-and-print, essentially no transfer."}
+    ],
+    "TerminalWorld-Seeds-Clean": [
+      {"rank": 1, "task_id": "tw_561688", "skill": 4, "domain": 3, "task_form": 3, "overall": 3, "reason": "Solves a bundle-adjustment optimization problem via Julia's solver ecosystem; same set-up-and-run-a-numerical-optimization-to-convergence skill."},
+      {"rank": 2, "task_id": "tw_125882", "skill": 3, "domain": 2, "task_form": 3, "overall": 3, "reason": "Finds the magic constant satisfying a binary's constraint using search over AFL findings; constraint-satisfaction / search-for-a-value-that-meets-a-check."},
+      {"rank": 3, "task_id": "tw_241711", "skill": 2, "domain": 3, "task_form": 3, "overall": 2, "reason": "Compares observed n-gram type counts to the theoretical maximum 26^n; statistical counting over a combinatorial space, no distribution search."},
+      {"rank": 4, "task_id": "tw_257385", "skill": 2, "domain": 3, "task_form": 3, "overall": 2, "reason": "Computes the colour rendering index by numerical integration over a spectrum; scientific-Python numeric computation, unrelated objective."},
+      {"rank": 5, "task_id": "tw_125169", "skill": 2, "domain": 2, "task_form": 3, "overall": 2, "reason": "Demonstrates posit vs float numerical accuracy in Julia; floating-point numerics awareness, no probability or KL."},
+      {"rank": 6, "task_id": "tw_621404", "skill": 2, "domain": 2, "task_form": 3, "overall": 2, "reason": "Implements an integer square-root (a root-finding flavour) in Forth; elementary numeric algorithm, weak transfer."},
+      {"rank": 7, "task_id": "tw_18271", "skill": 2, "domain": 3, "task_form": 3, "overall": 2, "reason": "Trains an SVM on a numeric dataset with a fixed split; numerical ML computation, no distribution construction."},
+      {"rank": 8, "task_id": "tw_18273", "skill": 2, "domain": 3, "task_form": 3, "overall": 2, "reason": "LIBSVM training on heart-scale; same numeric-ML flavour, unrelated to the KL objective."},
+      {"rank": 9, "task_id": "tw_487175", "skill": 1, "domain": 2, "task_form": 3, "overall": 1, "reason": "Drops NaN rows from a numpy array with pandas; numpy/pandas plumbing only."},
+      {"rank": 10, "task_id": "tw_366681", "skill": 1, "domain": 2, "task_form": 3, "overall": 1, "reason": "Generates permutation sequences via a CLI; combinatorial generation, essentially no transfer."}
+    ],
+    "SWE-Smith-Seeds-Clean": [
+      {"rank": 1, "task_id": "life4__textdistance.c3aca916.lm_rewrite__9v6u6jmp", "skill": 3, "domain": 3, "task_form": 2, "overall": 3, "reason": "Fix a Normalized Compression Distance so it is correct and symmetric; implementing a mathematical distance metric with exact properties, adjacent to KL."},
+      {"rank": 2, "task_id": "dask__dask.5f61e423.pr_6749", "skill": 3, "domain": 3, "task_form": 2, "overall": 3, "reason": "Add the missing 2D residuals case to lstsq; numerical linear-algebra correctness against numpy semantics, same get-the-math-exactly-right skill."},
+      {"rank": 3, "task_id": "rubik__radon.54b88e58.combine_file__qt4ibwba", "skill": 3, "domain": 2, "task_form": 2, "overall": 3, "reason": "Fix incorrect Halstead-metric and Maintainability-Index formulas; reproducing exact numerical formulas, the formula-fidelity the KL task needs."},
+      {"rank": 4, "task_id": "life4__textdistance.c3aca916.combine_module__9gw2bici", "skill": 3, "domain": 3, "task_form": 2, "overall": 2, "reason": "Computed distance values don't match expected outputs; numeric-metric correctness in a distance library."},
+      {"rank": 5, "task_id": "life4__textdistance.c3aca916.combine_file__bbyj98tv", "skill": 3, "domain": 3, "task_form": 2, "overall": 2, "reason": "Match/mismatch costs produce wrong distances; getting a similarity/distance computation numerically right."},
+      {"rank": 6, "task_id": "facebookresearch__fvcore.a491d5b9.lm_rewrite__lo7njclv", "skill": 2, "domain": 3, "task_form": 2, "overall": 2, "reason": "BatchNorm running statistics not updating correctly; computing running numerical statistics, ML-numeric domain."},
+      {"rank": 7, "task_id": "facebookresearch__fvcore.a491d5b9.combine_file__0e71vue2", "skill": 2, "domain": 3, "task_form": 2, "overall": 2, "reason": "Model statistics computation broken; numeric-statistics accounting, loose transfer."},
+      {"rank": 8, "task_id": "dask__dask.5f61e423.pr_11767", "skill": 2, "domain": 2, "task_form": 2, "overall": 2, "reason": "Numeric dask array operation bug; array-computation debugging, unrelated objective."},
+      {"rank": 9, "task_id": "jsvine__pdfplumber.02ff4313.lm_rewrite__opilcf85", "skill": 2, "domain": 1, "task_form": 2, "overall": 1, "reason": "Cluster PDF objects by an attribute; a numeric clustering step, essentially unrelated."},
+      {"rank": 10, "task_id": "burnash__gspread.a8be3b96.lm_rewrite__5f2hh6o4", "skill": 2, "domain": 1, "task_form": 2, "overall": 1, "reason": "numeric_value parsing bug; numeric string handling only, no relevant math."}
+    ],
+    "SWE-Rebench-Tasks-Clean": [
+      {"rank": 1, "task_id": "sdv-dev__copulas-365", "skill": 3, "domain": 4, "task_form": 2, "overall": 3, "reason": "Bug in the copulas library, which fits and samples parametric probability distributions; same probability-distribution modelling domain."},
+      {"rank": 2, "task_id": "automl__smac3-1069", "skill": 3, "domain": 3, "task_form": 2, "overall": 3, "reason": "Fix racing/incumbent handling in a Bayesian hyperparameter optimizer; optimization-under-an-objective machinery, the search half of the task."},
+      {"rank": 3, "task_id": "bashtage__arch-752", "skill": 3, "domain": 3, "task_form": 2, "overall": 3, "reason": "Fix a GARCH volatility-process computation; likelihood/recursion numerics over a statistical model, close numerical-statistics domain."},
+      {"rank": 4, "task_id": "bashtage__arch-741", "skill": 3, "domain": 3, "task_form": 2, "overall": 2, "reason": "Error in a Cython GARCH recursion; numerical statistics computation, ordinary bug fix."},
+      {"rank": 5, "task_id": "qutip__qutip-2548", "skill": 2, "domain": 3, "task_form": 2, "overall": 2, "reason": "Bug in qutip's distributions module (quadrature correlation); probability-distribution numerics in quantum optics."},
+      {"rank": 6, "task_id": "keras-team__keras-19300", "skill": 2, "domain": 3, "task_form": 2, "overall": 2, "reason": "Keras numeric/softmax-adjacent bug; probability-output ML computation, weak task-shape match."},
+      {"rank": 7, "task_id": "cornellius-gp__gpytorch-484", "skill": 2, "domain": 3, "task_form": 2, "overall": 2, "reason": "Batch-indexing a lazy covariance matrix fails; numerical linear algebra over a probabilistic model."},
+      {"rank": 8, "task_id": "quantum-tii__qibo-328", "skill": 2, "domain": 2, "task_form": 2, "overall": 2, "reason": "Einsum/tensor contraction bug over quantum amplitudes; numeric tensor computation, distant objective."},
+      {"rank": 9, "task_id": "rasbt__mlxtend-1087", "skill": 2, "domain": 3, "task_form": 2, "overall": 2, "reason": "mlxtend statistics/ML utility bug; numerical statistics domain, no distribution search."},
+      {"rank": 10, "task_id": "alteryx__evalml-1476", "skill": 1, "domain": 2, "task_form": 2, "overall": 1, "reason": "AutoML pipeline bug; ML-numeric plumbing, essentially no transfer to constrained-distribution construction."}
+    ]
+  },
+  "final_top10": [
+    {"rank": 1, "task_id": "task_006780_f07da33b", "source": "TMax-15K", "skill": 5, "domain": 5, "task_form": 5, "overall": 5, "reason": "Parametrizes a PDF, root-finds the parameter so a target functional matches within tolerance, then computes KL; the exact search-a-distribution-to-a-numeric-target skill."},
+    {"rank": 2, "task_id": "task_003486_0eb03622", "source": "TMax-15K", "skill": 5, "domain": 5, "task_form": 4, "overall": 5, "reason": "Optimizes parameters to minimize KL divergence to a target distribution; verifier checks the resulting KL, same optimize-under-a-KL-objective."},
+    {"rank": 3, "task_id": "task_007169_83929304", "source": "TMax-15K", "skill": 4, "domain": 5, "task_form": 4, "overall": 5, "reason": "Newton/bisection solves a nonlinear equation to 1e-6, builds a normalized distribution and computes KL; same root-find-then-build-distribution pipeline."},
+    {"rank": 4, "task_id": "task_000750_5938801b", "source": "TMax-15K", "skill": 4, "domain": 5, "task_form": 3, "overall": 4, "reason": "Constructs a valid clamped-normalized probability distribution and computes KL to exact 6 decimals; same valid-distribution and KL numerical-stability core."},
+    {"rank": 5, "task_id": "task_000918_17d9e1bd", "source": "TMax-15K", "skill": 3, "domain": 5, "task_form": 3, "overall": 4, "reason": "Normalizes a signal into a valid PDF via trapezoidal integration and measures a distribution distance; same build-a-valid-distribution-and-measure-it."},
+    {"rank": 6, "task_id": "task_000530_58721129", "source": "TMax-15K", "skill": 3, "domain": 5, "task_form": 3, "overall": 4, "reason": "Builds normalized probability distributions with pseudo-counts and computes a divergence; same construct-distribution-then-information-theory-distance."},
+    {"rank": 7, "task_id": "task_001168_93422366", "source": "TMax-15K", "skill": 3, "domain": 5, "task_form": 3, "overall": 4, "reason": "Forms two distributions summing to 1 with smoothing and computes KL; same valid-distribution and stable-KL computation."},
+    {"rank": 8, "task_id": "task_001293_5525a528", "source": "TMax-15K", "skill": 3, "domain": 5, "task_form": 3, "overall": 3, "reason": "Computes probability distributions and their base-2 KL divergence; same information-theory distance over constructed distributions."},
+    {"rank": 9, "task_id": "task_001070_8899fda7", "source": "TMax-15K", "skill": 3, "domain": 5, "task_form": 3, "overall": 3, "reason": "Applies Laplace smoothing for valid probabilities and compares distributions; the avoid-zero-probability discipline that makes KL well-defined."},
+    {"rank": 10, "task_id": "task_002475_e0379918", "source": "TMax-15K", "skill": 3, "domain": 5, "task_form": 3, "overall": 3, "reason": "Fixes a KL-divergence implementation to the correct P*log(P/Q) form; demands exact understanding of the KL definition central to the TB task."}
+  ],
+  "notes": "TMax is overwhelmingly dominant and correctly owns all 10 of final_top10. It has a large information-theory family (build a valid probability distribution, compute KL/JS/TVD), and crucially three tasks that SEARCH/SOLVE for a distribution: task_006780 root-finds a PDF parameter to hit a target variance within tolerance then computes KL; task_003486 optimizes a parameter vector to minimize KL to a target; task_007169 hand-rolls Newton/bisection to a 1e-6 tolerance and builds a distribution. Those three are near-exact skill+domain+form matches. The RTS shortlist was almost entirely false positives on the word 'distribution' (conda 'source distribution', DistributedLedger, GCD) - all discarded; RTS's real numeric content is generic .npy/GCD chores with no probability or optimization, so its scores are honestly low (mostly 1-2). TerminalWorld's best are a Julia optimization solve (tw_561688) and a constraint-search (tw_125882), both only overall 3. SWE-Smith and SWE-Rebench cannot match task_form; the best skill bridges are numerical-metric/formula fidelity (life4/textdistance distances, radon Halstead, dask lstsq) and probability-distribution libraries (sdv-dev/copulas, bashtage/arch GARCH, qutip distributions) plus optimization (smac3), all capped at overall 3. Merge should expect this task to be a TMax landslide; the other four corpora contribute little defensible signal beyond overall 3."
+}

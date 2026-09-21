@@ -1,0 +1,600 @@
+{
+ "tb21_id": "sanitize-git-repo",
+ "tb21_profile": {
+  "skill": "Exhaustively grep a real checked-out codebase for credential patterns (AKIA..., 40-char AWS secrets, ghp_/hf_ tokens) across YAML/Python/JSON and replace each with an exact placeholder string, byte-for-byte, touching no uncontaminated file",
+  "domain": "Git working tree + secret management: AWS/GitHub/HuggingFace credentials, shell text tooling (grep/sed), config file formats",
+  "task_form": "find-and-patch audit with a strict no-collateral-damage constraint, verified by git diff against a baseline commit"
+ },
+ "searches": [
+  "tools.py tb sanitize-git-repo",
+  "tools.py full sanitize-git-repo",
+  "tools.py search all \"AWS_ACCESS_KEY_ID|AWS_SECRET_ACCESS_KEY|AKIA\"",
+  "tools.py search all \"redact|sanitiz|scrub|mask.*secret\"",
+  "tools.py search all \"API key|api_key|token\"",
+  "tools.py search all \"filter-branch|filter-repo|BFG|rewrite.*history|purge.*history\"",
+  "tools.py search all \"gitleaks|trufflehog|git-secret|detect-secrets\"",
+  "tools.py search all \"placeholder\"",
+  "tools.py search all \"not modify any other|leave.*unchanged|must not.*other files|do not modify.*other\"",
+  "tools.py search all \"only the.*files that contain|untouched\"",
+  "tools.py search tw \"in-place|in place|sed -i\"",
+  "tools.py search tw \"replace every occurrence|replace all occurrences|find and replace\"",
+  "tools.py search tw \"secret|credential|password\"",
+  "tools.py search smith \"secret|token|credential|password|API key\"",
+  "tools.py search smith \"dotenv|\\.env|environment variable\"",
+  "tools.py search smith \"regex|re\\.sub|substitut|replace\"",
+  "tools.py search smith \"dotenv\"",
+  "tools.py search smith \"safety|paramiko|oauthlib\"",
+  "tools.py search rebench \"secret|credential|api.?key|token\"",
+  "tools.py search rebench \"git |gitpython|dulwich|\\.gitignore\"",
+  "tools.py search rebench \"yaml|YAML\"",
+  "tools.py search rts \"replace that value|replace the value|substitute placeholders\"",
+  "tools.py search rts \"grep -r|recursively.*search|scan all files\"",
+  "tools.py show task_001329_30ac46c8 task_000841_29b88124 task_006805_fcd765f5 task_003538_037af2cd",
+  "tools.py show virtuslab__git-machete-525 jupyterhub__oauthenticator-579 relekang__python-semantic-release-319 jelmer__dulwich-1578 pyca__cryptography-12286 boto__botocore-746"
+ ],
+ "per_source": {
+  "TMax-15K": [
+   {
+    "rank": 1,
+    "task_id": "task_001329_30ac46c8",
+    "skill": 5,
+    "domain": 5,
+    "task_form": 4,
+    "overall": 5,
+    "reason": "Search .conf files in a directory and replace the value after AWS_ACCESS_KEY_ID= and AWS_SECRET_ACCESS_KEY= with an exact fixed string; the TB task's core operation."
+   },
+   {
+    "rank": 2,
+    "task_id": "task_003538_037af2cd",
+    "skill": 4,
+    "domain": 4,
+    "task_form": 4,
+    "overall": 4,
+    "reason": "Recursively traverse a tree, edit only the matching files in place replacing SECRET_KEY=<value> with a fixed literal, and leave non-.conf files alone."
+   },
+   {
+    "rank": 3,
+    "task_id": "task_003054_604bca66",
+    "skill": 4,
+    "domain": 5,
+    "task_form": 3,
+    "overall": 4,
+    "reason": "Implement redaction for several distinct secret patterns including AKIA+16; same multi-pattern credential recognition the TB task needs."
+   },
+   {
+    "rank": 4,
+    "task_id": "task_000841_29b88124",
+    "skill": 4,
+    "domain": 4,
+    "task_form": 3,
+    "overall": 4,
+    "reason": "Scan an application source tree for AKIA-prefixed access keys and replace each with the exact literal [REDACTED], writing a sanitized copy."
+   },
+   {
+    "rank": 5,
+    "task_id": "task_002299_6f1836ab",
+    "skill": 4,
+    "domain": 5,
+    "task_form": 3,
+    "overall": 4,
+    "reason": "Detect both PEM PRIVATE KEY blocks and AKIA[0-9A-Z]{16} keys; teaches the pattern vocabulary for finding secrets in mixed file types."
+   },
+   {
+    "rank": 6,
+    "task_id": "task_004106_ffd2d064",
+    "skill": 4,
+    "domain": 4,
+    "task_form": 4,
+    "overall": 4,
+    "reason": "Use sed/awk to find AWS-style API keys and redact them; the exact shell-tooling route a repo-wide sanitization takes."
+   },
+   {
+    "rank": 7,
+    "task_id": "task_003804_30b4a169",
+    "skill": 4,
+    "domain": 4,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Credential rotation plus redacting AWS access keys leaking into application logs; same recognize-then-replace loop, different container."
+   },
+   {
+    "rank": 8,
+    "task_id": "task_006805_fcd765f5",
+    "skill": 3,
+    "domain": 5,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Hunt an AKIA API key a developer committed to config.json and later deleted, inside a real git repo's history."
+   },
+   {
+    "rank": 9,
+    "task_id": "task_001545_5bc94827",
+    "skill": 3,
+    "domain": 5,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Stand up a git server hook that intercepts private keys being pushed; secret pattern detection wired into git rather than applied to a tree."
+   },
+   {
+    "rank": 10,
+    "task_id": "task_005093_cffbdce9",
+    "skill": 3,
+    "domain": 5,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Recover a secret from version control while diagnosing a regression; combines git archaeology with credential handling."
+   }
+  ],
+  "Recursive-Task-Synthesis": [
+   {
+    "rank": 1,
+    "task_id": "rts_task_ade8f1eb8d6d543d1b223b92",
+    "skill": 4,
+    "domain": 5,
+    "task_form": 3,
+    "overall": 4,
+    "reason": "Install a Gitleaks pre-commit hook and prove it blocks a .env holding a real bot token; the same secret-pattern detection over repo content."
+   },
+   {
+    "rank": 2,
+    "task_id": "rts_task_a1f849c57e17b4f4302493d0",
+    "skill": 3,
+    "domain": 5,
+    "task_form": 4,
+    "overall": 4,
+    "reason": "Remove a committed secret.key and also find and fix every other project file that still references it; the 'sweep the whole repo' discipline."
+   },
+   {
+    "rank": 3,
+    "task_id": "rts_task_2cf2a64ff5afb7a8ee078d11",
+    "skill": 4,
+    "domain": 2,
+    "task_form": 4,
+    "overall": 3,
+    "reason": "Find every note where a named key holds a given value and replace just that value with one resolved from config; consistent multi-file value substitution."
+   },
+   {
+    "rank": 4,
+    "task_id": "rts_task_9675e79e2a87417799714b98",
+    "skill": 3,
+    "domain": 5,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Recover an access key / secret key / endpoint that was committed then deleted from a git repo, and produce a sanitized config dump."
+   },
+   {
+    "rank": 5,
+    "task_id": "rts_task_e5ea24a83bc9d744931596a3",
+    "skill": 3,
+    "domain": 5,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "A credentials file with an AKIAIOS... access key ID committed to git then deleted; same credential file shapes and git context."
+   },
+   {
+    "rank": 6,
+    "task_id": "rts_task_5cdda202e85593e5dd1eca35",
+    "skill": 3,
+    "domain": 5,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Undo the commit that pushed secret.key, force-push corrected history, and produce a commit audit of exactly what changed."
+   },
+   {
+    "rank": 7,
+    "task_id": "rts_task_2b8f74cc881da66c0a7d60ba",
+    "skill": 3,
+    "domain": 5,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Capture the full diff of the commit that introduced secret.key before expunging it; forces reading a repo diff for secret content."
+   },
+   {
+    "rank": 8,
+    "task_id": "rts_task_096cfc4bf9e7a0fd363c5755",
+    "skill": 2,
+    "domain": 5,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Rewrite remote history to expunge the secret.key commit; same 'secret must not remain in the repo' goal, heavier git machinery."
+   },
+   {
+    "rank": 9,
+    "task_id": "rts_task_b6896e4576d4516f331896af",
+    "skill": 3,
+    "domain": 4,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Recover the original values from a file before they were replaced with the word 'redacted'; the inverse of the TB substitution, same text diffing."
+   },
+   {
+    "rank": 10,
+    "task_id": "rts_task_1e4bd964f29e7fee2aa74b93",
+    "skill": 3,
+    "domain": 3,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Stage only one hunk and leave every other unstaged change untouched: surgical git edits under a strict no-collateral-change constraint."
+   }
+  ],
+  "TerminalWorld-Seeds-Clean": [
+   {
+    "rank": 1,
+    "task_id": "tw_147333",
+    "skill": 5,
+    "domain": 3,
+    "task_form": 4,
+    "overall": 4,
+    "reason": "Find every file matching a regex and apply the same in-place replacement across all of them; mechanically identical to the sanitization pass."
+   },
+   {
+    "rank": 2,
+    "task_id": "tw_566624",
+    "skill": 4,
+    "domain": 3,
+    "task_form": 4,
+    "overall": 4,
+    "reason": "Locate every occurrence of a named key holding a specific value across many files, replace just the value, and commit the result."
+   },
+   {
+    "rank": 3,
+    "task_id": "tw_594774",
+    "skill": 4,
+    "domain": 5,
+    "task_form": 3,
+    "overall": 4,
+    "reason": "Gitleaks pre-commit hook that must actually block a .env containing a bot token; secret-pattern recognition inside a git repo."
+   },
+   {
+    "rank": 4,
+    "task_id": "tw_361500",
+    "skill": 3,
+    "domain": 5,
+    "task_form": 3,
+    "overall": 4,
+    "reason": "Reconstruct an exposed .git and diff two commits to reveal exactly what sensitive config was removed; reading a repo for leaked secrets."
+   },
+   {
+    "rank": 5,
+    "task_id": "tw_329715",
+    "skill": 3,
+    "domain": 5,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Remove the commit that added secret.key from a remote repository so the file no longer exists there."
+   },
+   {
+    "rank": 6,
+    "task_id": "tw_41811",
+    "skill": 3,
+    "domain": 5,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Use git-secret so a sensitive file is encrypted rather than committed in plaintext; the preventive side of the same problem."
+   },
+   {
+    "rank": 7,
+    "task_id": "tw_459969",
+    "skill": 3,
+    "domain": 4,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Recover a secret still present in a Docker image layer despite removal attempts; teaches that deleting a file does not remove the secret."
+   },
+   {
+    "rank": 8,
+    "task_id": "tw_277043",
+    "skill": 3,
+    "domain": 5,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Second git-secret task: manage an encrypted secret file inside a repo so plaintext never lands in a commit."
+   },
+   {
+    "rank": 9,
+    "task_id": "tw_341419",
+    "skill": 2,
+    "domain": 4,
+    "task_form": 3,
+    "overall": 2,
+    "reason": "SOPS-encrypted secret files that must be decrypted in place before use; secrets-in-repo tooling, no scanning or replacement."
+   },
+   {
+    "rank": 10,
+    "task_id": "tw_136139",
+    "skill": 3,
+    "domain": 2,
+    "task_form": 3,
+    "overall": 2,
+    "reason": "Correct every occurrence of a misspelled token in a source file in place, saving the file with only that change."
+   }
+  ],
+  "SWE-Smith-Seeds-Clean": [
+   {
+    "rank": 1,
+    "task_id": "theskumar__python-dotenv.2b8635b7.combine_file__63lxvkh0",
+    "skill": 3,
+    "domain": 4,
+    "task_form": 2,
+    "overall": 3,
+    "reason": "Fix .env KEY=VALUE parsing with ${VAR} interpolation: exactly the credential-file format that must be edited without breaking it."
+   },
+   {
+    "rank": 2,
+    "task_id": "theskumar__python-dotenv.2b8635b7.func_basic__t56zdyva",
+    "skill": 3,
+    "domain": 4,
+    "task_form": 2,
+    "overall": 3,
+    "reason": "Parser reports wrong line numbers and truncates values when reading a .env; line-accurate secret-file parsing is the crux."
+   },
+   {
+    "rank": 3,
+    "task_id": "john-kurkowski__tldextract.3d1bf184.combine_file__zfqj17dm",
+    "skill": 3,
+    "domain": 4,
+    "task_form": 2,
+    "overall": 3,
+    "reason": "Release script swaps the GitHub token and version when calling the API; forces reasoning about where a token flows in code."
+   },
+   {
+    "rank": 4,
+    "task_id": "pyupio__safety.7654596b.lm_rewrite__4dskd93y",
+    "skill": 3,
+    "domain": 4,
+    "task_form": 2,
+    "overall": 3,
+    "reason": "Severity checks broken in a security-scanning CLI; debugging the classification step of a scanner is the skill the TB task applies by hand."
+   },
+   {
+    "rank": 5,
+    "task_id": "paramiko__paramiko.23f92003.lm_rewrite__kc4qu7b1",
+    "skill": 3,
+    "domain": 4,
+    "task_form": 2,
+    "overall": 3,
+    "reason": "Parsing ssh-rsa key material from a file; recognising and handling credential blobs in text, same territory as PEM/token detection."
+   },
+   {
+    "rank": 6,
+    "task_id": "theskumar__python-dotenv.2b8635b7.lm_rewrite__540d0xgo",
+    "skill": 2,
+    "domain": 4,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Blank lines in a .env break parsing; edge-case robustness in the exact config format the contaminated repo uses."
+   },
+   {
+    "rank": 7,
+    "task_id": "john-kurkowski__tldextract.3d1bf184.lm_rewrite__3fgtc4wo",
+    "skill": 2,
+    "domain": 4,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "GitHub-token-driven release draft reports the wrong URL and warnings; more token-handling code paths, shallow fix."
+   },
+   {
+    "rank": 8,
+    "task_id": "adrienverge__yamllint.8513d9b9.combine_module__fzne3jq3",
+    "skill": 3,
+    "domain": 3,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "YAML anchor/alias tracking in a linter; one of the contaminated files is a ray_cluster.yaml, so YAML-structure care transfers."
+   },
+   {
+    "rank": 9,
+    "task_id": "oauthlib__oauthlib.1fd52536.lm_rewrite__66uf5pkm",
+    "skill": 2,
+    "domain": 4,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Token response scope validation in an OAuth library; credential ecosystem but no scanning or text rewriting."
+   },
+   {
+    "rank": 10,
+    "task_id": "pyupio__safety.7654596b.pr_508",
+    "skill": 2,
+    "domain": 4,
+    "task_form": 3,
+    "overall": 2,
+    "reason": "Add headless authentication to a security CLI; security-tooling domain, implement-a-feature shape, little skill overlap."
+   }
+  ],
+  "SWE-Rebench-Tasks-Clean": [
+   {
+    "rank": 1,
+    "task_id": "boto__botocore-746",
+    "skill": 3,
+    "domain": 4,
+    "task_form": 2,
+    "overall": 3,
+    "reason": "Cross-account role credential loading fails; deep exposure to the aws_access_key_id/secret credential file shapes being redacted."
+   },
+   {
+    "rank": 2,
+    "task_id": "jelmer__dulwich-1578",
+    "skill": 3,
+    "domain": 4,
+    "task_form": 2,
+    "overall": 3,
+    "reason": "porcelain.add corrupts the branch: reasoning about which files an operation actually touches in a git working tree and index."
+   },
+   {
+    "rank": 3,
+    "task_id": "pyca__cryptography-12286",
+    "skill": 3,
+    "domain": 4,
+    "task_form": 2,
+    "overall": 3,
+    "reason": "Inconsistent password handling between PEM and SSH private-key loaders; recognising and validating key material formats."
+   },
+   {
+    "rank": 4,
+    "task_id": "virtuslab__git-machete-525",
+    "skill": 2,
+    "domain": 4,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Branch-name parsing bug in a git-workflow tool; git-plumbing fluency, no secret handling."
+   },
+   {
+    "rank": 5,
+    "task_id": "devpi__devpi-1074",
+    "skill": 2,
+    "domain": 4,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Basic auth credentials no longer persisted after an upgrade; tracing where credentials are stored and read."
+   },
+   {
+    "rank": 6,
+    "task_id": "pypa__pip-10288",
+    "skill": 2,
+    "domain": 4,
+    "task_form": 3,
+    "overall": 2,
+    "reason": "Add a flag so pip always fetches the password from keyring instead of storing it; 'never hardcode credentials' as a feature."
+   },
+   {
+    "rank": 7,
+    "task_id": "jupyterhub__oauthenticator-579",
+    "skill": 2,
+    "domain": 4,
+    "task_form": 3,
+    "overall": 2,
+    "reason": "Implement refresh_user to re-validate stored auth state and tokens; token lifecycle code, unrelated task shape."
+   },
+   {
+    "rank": 8,
+    "task_id": "jupyter__kernel_gateway-234",
+    "skill": 2,
+    "domain": 4,
+    "task_form": 3,
+    "overall": 2,
+    "reason": "Support token auth via a query parameter; small feature in credential-passing code, little transfer beyond vocabulary."
+   },
+   {
+    "rank": 9,
+    "task_id": "relekang__python-semantic-release-319",
+    "skill": 2,
+    "domain": 4,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Release automation failing in a GitHub Action that carries a token; CI credential plumbing, diagnostic not editorial."
+   },
+   {
+    "rank": 10,
+    "task_id": "conan-io__conan-18444",
+    "skill": 2,
+    "domain": 3,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Parsing the remote URL out of a treeless git clone for the scm attribute; git-metadata extraction only."
+   }
+  ]
+ },
+ "final_top10": [
+  {
+   "rank": 1,
+   "task_id": "task_001329_30ac46c8",
+   "source": "TMax-15K",
+   "skill": 5,
+   "domain": 5,
+   "task_form": 4,
+   "overall": 5,
+   "reason": "Replace the value after AWS_ACCESS_KEY_ID= and AWS_SECRET_ACCESS_KEY= with an exact fixed string across config files in a tree."
+  },
+  {
+   "rank": 2,
+   "task_id": "task_003538_037af2cd",
+   "source": "TMax-15K",
+   "skill": 4,
+   "domain": 4,
+   "task_form": 4,
+   "overall": 4,
+   "reason": "Recursive traversal editing only matching files in place, replacing a secret value with a literal, leaving other files alone."
+  },
+  {
+   "rank": 3,
+   "task_id": "tw_147333",
+   "source": "TerminalWorld-Seeds-Clean",
+   "skill": 5,
+   "domain": 3,
+   "task_form": 4,
+   "overall": 4,
+   "reason": "Find all files matching a regex and apply the identical in-place replacement to each; the mechanical core of the sanitization."
+  },
+  {
+   "rank": 4,
+   "task_id": "task_003054_604bca66",
+   "source": "TMax-15K",
+   "skill": 4,
+   "domain": 5,
+   "task_form": 3,
+   "overall": 4,
+   "reason": "Redact several distinct secret patterns including AKIA+16-char keys: the multi-pattern credential vocabulary this task needs."
+  },
+  {
+   "rank": 5,
+   "task_id": "task_004106_ffd2d064",
+   "source": "TMax-15K",
+   "skill": 4,
+   "domain": 4,
+   "task_form": 4,
+   "overall": 4,
+   "reason": "Use sed/awk to find and redact AWS-style API keys; the exact shell route a repo-wide sanitization pass takes."
+  },
+  {
+   "rank": 6,
+   "task_id": "task_000841_29b88124",
+   "source": "TMax-15K",
+   "skill": 4,
+   "domain": 4,
+   "task_form": 3,
+   "overall": 4,
+   "reason": "Scan an application source tree for AKIA-prefixed keys and substitute an exact placeholder literal in the output."
+  },
+  {
+   "rank": 7,
+   "task_id": "rts_task_ade8f1eb8d6d543d1b223b92",
+   "source": "Recursive-Task-Synthesis",
+   "skill": 4,
+   "domain": 5,
+   "task_form": 3,
+   "overall": 4,
+   "reason": "Gitleaks hook must actually detect a real token in a .env staged for commit; secret-pattern detection over repo content."
+  },
+  {
+   "rank": 8,
+   "task_id": "task_002299_6f1836ab",
+   "source": "TMax-15K",
+   "skill": 4,
+   "domain": 5,
+   "task_form": 3,
+   "overall": 4,
+   "reason": "Detect PEM private-key blocks and AKIA[0-9A-Z]{16} keys across mixed file types before redacting them."
+  },
+  {
+   "rank": 9,
+   "task_id": "rts_task_a1f849c57e17b4f4302493d0",
+   "source": "Recursive-Task-Synthesis",
+   "skill": 3,
+   "domain": 5,
+   "task_form": 4,
+   "overall": 4,
+   "reason": "Remove a committed secret and then sweep the rest of the repo for files that still reference it; whole-repo consistency."
+  },
+  {
+   "rank": 10,
+   "task_id": "tw_566624",
+   "source": "TerminalWorld-Seeds-Clean",
+   "skill": 4,
+   "domain": 3,
+   "task_form": 4,
+   "overall": 4,
+   "reason": "Find a named key's value in every note across a tree and replace only that value, consistently, then commit."
+  }
+ ],
+ "notes": "I read the verifier: it checks the three contaminated files byte-match reference copies AND that git diff against commit d6987af shows no other file changed. So this is a working-tree edit, NOT a history rewrite - I deliberately ranked the many 'expunge secret.key from remote history' tasks (RTS/TW have a big cluster of them) below the plain find-and-redact tasks, even though they score higher lexically. TMax is by far the strongest pool here: it has a whole family of AKIA-redaction tasks and I could have filled 20 slots. SWE-Rebench is weak - no secret-scanning task exists there, so I fell back to credential-handling libraries (botocore creds, cryptography key loading, keyring/token plumbing) and git-tooling internals; ranks 4-10 there are honest filler at overall 2. RTS's secret.key/rclone-credential-recovery families have many near-duplicates; I picked distinct variants but the merge step should dedupe across them."
+}

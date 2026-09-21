@@ -1,0 +1,96 @@
+{
+  "tb21_id": "reshard-c4-data",
+  "tb21_profile": {
+    "skill": "Write a reversible pair of scripts that walk a directory tree, repack/split its contents to satisfy per-directory count and per-file byte-size caps, and reconstruct the original structure and bytes exactly; plus set up a uv/pyproject.toml environment",
+    "domain": "Python filesystem manipulation (os.walk, chunking by size, tar/zip-style repackaging, manifests), reproducible dependency management with uv and pyproject.toml",
+    "task_form": "implement-from-spec: build two CLI scripts (forward transform + exact inverse) validated by byte-for-byte round-trip on a data slice"
+  },
+  "searches": [
+    "tools.py full reshard-c4-data",
+    "tools.py search all \"split.*into.*chunks|split the archive|maximum.*MB|chunk.*size|shard|reshard|reconstruct.*original|reversib|round-trip|exactly reconstruct\" -n 35",
+    "tools.py search all \"uv sync|uv venv|uv run|pyproject.toml\" -n 25",
+    "tools.py search tmax \"reconstruct the original|revert.*back|losslessly|round.trip|repack|reassemble|reversible|byte-for-byte identical|exactly the original\" -n 25",
+    "tools.py search smith \"chunk|split.*file|archive|tarfile|zipfile|directory tree|walk|file size|shard|serializ|round.trip|pyproject|packaging\" -n 25",
+    "tools.py search rebench \"chunk|split.*file|archive|tarfile|zipfile|directory|walk|file size|shard|round.trip|pyproject|packaging|dependency\" -n 22",
+    "tools.py show task_002475_22f2fc1c task_002545_4033c847 task_002193_2697352f task_003344_882b8d3c task_000688_39e964ad",
+    "tools.py show task_002832_36c7197a task_002888_ad604dd3 task_002263_aecf536f",
+    "tools.py show borgbackup__borg-8872 dask__dask.5f61e423.pr_11337 ambv__black-339",
+    "tools.py show tw_529306 tw_233693",
+    "tools.py show rts_task_80f1685212d62033bd158b5e rts_task_d0828f447d9a56c5dc276400 rts_task_c908e2ac29d8388fff4c4d55"
+  ],
+  "per_source": {
+    "TMax-15K": [
+      {"rank": 1, "task_id": "task_002193_2697352f", "skill": 4, "domain": 5, "task_form": 5, "overall": 5, "reason": "Two CLI scripts (archive.py in / extract.py out) that pack a directory into one artifact and reconstruct it byte-for-byte; the exact bidirectional compress/decompress shape."},
+      {"rank": 2, "task_id": "task_002475_22f2fc1c", "skill": 5, "domain": 5, "task_form": 4, "overall": 5, "reason": "Walks extracted files, splits any file over a byte threshold into exact-size .partN chunks, repackages and logs; the per-file-size-cap resharding crux."},
+      {"rank": 3, "task_id": "task_003344_882b8d3c", "skill": 4, "domain": 5, "task_form": 4, "overall": 4, "reason": "Splits binaries into exact-byte chunks with zero-padded names and a manifest proving lossless reconstruction; same size-bounded reversible chunking."},
+      {"rank": 4, "task_id": "task_002545_4033c847", "skill": 4, "domain": 5, "task_form": 4, "overall": 4, "reason": "Chunks a file and reconstructs a directory of files at exact relative paths; rebuilding an original tree from chunks, like decompress.py."},
+      {"rank": 5, "task_id": "task_002832_36c7197a", "skill": 4, "domain": 4, "task_form": 4, "overall": 4, "reason": "Reassembles split archives, extracts, dedups and repackages a dataset tree while preserving links/size; whole repack-a-directory-under-constraints pipeline."},
+      {"rank": 6, "task_id": "task_002263_aecf536f", "skill": 4, "domain": 4, "task_form": 3, "overall": 3, "reason": "Safely walks a dataset tree with cyclic symlinks (no infinite loops) to back up matching files; the robust-directory-traversal skill reshard needs."},
+      {"rank": 7, "task_id": "task_002888_ad604dd3", "skill": 3, "domain": 4, "task_form": 3, "overall": 3, "reason": "Splits one concatenated blob back into its original named files by delimiter and repackages; the de-shard-to-original-files half of the task."},
+      {"rank": 8, "task_id": "task_002464_b9082674", "skill": 3, "domain": 4, "task_form": 3, "overall": 3, "reason": "Verifies then merges ordered chunks to reconstruct the original file exactly; the reassembly-with-integrity that decompress must guarantee."},
+      {"rank": 9, "task_id": "task_001257_5c6792a0", "skill": 3, "domain": 3, "task_form": 3, "overall": 3, "reason": "Program that merges and chunks a repo of files according to a config with size limits; config-driven chunking of a file collection."},
+      {"rank": 10, "task_id": "task_003801_4eedb61f", "skill": 2, "domain": 3, "task_form": 3, "overall": 2, "reason": "Organizes a massive multi-file dataset through a filtering ingestion pipeline; large-directory dataset wrangling, no reversibility or size caps."}
+    ],
+    "Recursive-Task-Synthesis": [
+      {"rank": 1, "task_id": "rts_task_80f1685212d62033bd158b5e", "skill": 3, "domain": 4, "task_form": 3, "overall": 3, "reason": "Writes data chunks at configured offsets into a sized dataset and verifies total size against config; chunk-placement-and-size-verification like the 15MB/30-entry caps."},
+      {"rank": 2, "task_id": "rts_task_d0828f447d9a56c5dc276400", "skill": 3, "domain": 3, "task_form": 4, "overall": 3, "reason": "Makes a script take source-dir and output-path as CLI args, handle wrong-arg errors, and create outputs; the exact CLI + directory-processing contract of compress.py."},
+      {"rank": 3, "task_id": "rts_task_c908e2ac29d8388fff4c4d55", "skill": 3, "domain": 4, "task_form": 3, "overall": 3, "reason": "Reconciles pyproject.toml with a lockfile and validates a distribution's contents; the reproducible dependency-declaration skill the uv/pyproject requirement demands."},
+      {"rank": 4, "task_id": "rts_task_2ceb10235d2aaf8fd109241d", "skill": 3, "domain": 4, "task_form": 3, "overall": 3, "reason": "Keeps poetry.lock consistent with pyproject.toml so builds are reproducible; same lockfile-vs-manifest discipline as making uv sync install exactly the deps."},
+      {"rank": 5, "task_id": "rts_task_777fea398fd073d63b5e2cb2", "skill": 3, "domain": 3, "task_form": 3, "overall": 3, "reason": "Converts a hardcoded-path file processor into one taking source directory and output file as CLI arguments; directory-in / file-out interface."},
+      {"rank": 6, "task_id": "rts_task_a19965744f95f2d0c771e18d", "skill": 2, "domain": 3, "task_form": 3, "overall": 2, "reason": "Adds sys.argv source-dir/output-file parsing plus --help and exit codes; the argument-handling plumbing of the two scripts."},
+      {"rank": 7, "task_id": "rts_task_6c7f0f8f8dc106a2ddc2ad79", "skill": 2, "domain": 3, "task_form": 3, "overall": 2, "reason": "Same source-dir/output-file CLI refactor over a directory of files; near-duplicate directory-processing contract."},
+      {"rank": 8, "task_id": "rts_task_763f8c332deb453fab51aedb", "skill": 2, "domain": 2, "task_form": 3, "overall": 2, "reason": "Adds --input/--output overrides to a script and requires workdir-independence; the generic-over-any-slice requirement, thin content."},
+      {"rank": 9, "task_id": "rts_task_2b183be3ea35cbe5864ac34a", "skill": 2, "domain": 2, "task_form": 3, "overall": 2, "reason": "Makes a computation script take optional input/output args and run regardless of working directory; portability-of-scripts overlap only."},
+      {"rank": 10, "task_id": "rts_task_505c7d8a8ee7b766c38391bb", "skill": 2, "domain": 3, "task_form": 2, "overall": 2, "reason": "Locates a project root by pyproject.toml then builds and installs it; project-layout and packaging touch, no resharding."}
+    ],
+    "TerminalWorld-Seeds-Clean": [
+      {"rank": 1, "task_id": "tw_233693", "skill": 3, "domain": 4, "task_form": 3, "overall": 3, "reason": "Builds a directory of hard links to originals and verifies the structure; link-aware directory reconstruction, relevant to preserving structure on reshard."},
+      {"rank": 2, "task_id": "tw_529306", "skill": 2, "domain": 3, "task_form": 3, "overall": 2, "reason": "A CLI script that takes a file-or-directory path and reports per-file stats, iterating a directory's contents; directory-walking script with arg handling."},
+      {"rank": 3, "task_id": "tw_511462", "skill": 2, "domain": 3, "task_form": 3, "overall": 2, "reason": "Creates and verifies a dtool dataset, adding files and checking results; dataset packaging and verification, adjacent domain."},
+      {"rank": 4, "task_id": "tw_474868", "skill": 2, "domain": 2, "task_form": 3, "overall": 2, "reason": "Bash scripts iterating positional arguments to a combined output; multi-script CLI-argument handling shape."},
+      {"rank": 5, "task_id": "tw_5263", "skill": 2, "domain": 3, "task_form": 2, "overall": 2, "reason": "Sets up pytest conftest so tests run from either directory; making tooling work generically regardless of invocation directory, like reshard's generic-slice requirement."},
+      {"rank": 6, "task_id": "tw_162164", "skill": 2, "domain": 3, "task_form": 2, "overall": 2, "reason": "Uses a Python client to pull container images into a managed environment; dependency/environment setup flavour."},
+      {"rank": 7, "task_id": "tw_31670", "skill": 2, "domain": 3, "task_form": 2, "overall": 2, "reason": "Installs pinned dependencies into a local repo so a build succeeds; reproducible-dependency-install skill the uv sync step needs."},
+      {"rank": 8, "task_id": "tw_527904", "skill": 2, "domain": 2, "task_form": 3, "overall": 2, "reason": "Shell scripts producing specified outputs from system/text processing; scripts-to-exact-output genre, weak on resharding."},
+      {"rank": 9, "task_id": "tw_474817", "skill": 1, "domain": 2, "task_form": 2, "overall": 2, "reason": "Shell script exposing file text-transformation functions; only the write-a-file-utility shell overlaps."},
+      {"rank": 10, "task_id": "tw_474864", "skill": 1, "domain": 2, "task_form": 2, "overall": 1, "reason": "Another positional-argument shell script chore; filler, minimal transfer to reversible resharding."}
+    ],
+    "SWE-Smith-Seeds-Clean": [
+      {"rank": 1, "task_id": "dask__dask.5f61e423.pr_11337", "skill": 3, "domain": 4, "task_form": 2, "overall": 3, "reason": "Fixes the rechunk function that reshapes data into new chunk boundaries; rechunking is precisely the resize-into-new-shards operation."},
+      {"rank": 2, "task_id": "Instagram__MonkeyType.70c3acf6.pr_17", "skill": 3, "domain": 3, "task_form": 2, "overall": 3, "reason": "Serialization/deserialization broken for generic types; the encode-then-decode-exactly round-trip property decompress must satisfy."},
+      {"rank": 3, "task_id": "cloudpipe__cloudpickle.6220b0ce.lm_rewrite__l4p0eaum", "skill": 3, "domain": 3, "task_form": 2, "overall": 3, "reason": "Non-deterministic serialization breaks reproducibility; deterministic, faithful serialization is what makes reshard reversible."},
+      {"rank": 4, "task_id": "cookiecutter__cookiecutter.b4451231.func_pm_remove_wrapper__2yiyoab8", "skill": 3, "domain": 4, "task_form": 2, "overall": 3, "reason": "zipfile unzip function NameError; extracting an archive back to files, the decompress side of the task."},
+      {"rank": 5, "task_id": "benoitc__gunicorn.bacbf8aa.pr_3258", "skill": 3, "domain": 3, "task_form": 2, "overall": 3, "reason": "Validates chunk sizes in HTTP chunked encoding; reasoning about splitting a stream into correctly-sized chunks."},
+      {"rank": 6, "task_id": "conan-io__conan.86f29e13.pr_14886", "skill": 2, "domain": 3, "task_form": 2, "overall": 2, "reason": "Missing path in serialization of Python requires; dependency-declaration serialization in a packaging tool, tangential."},
+      {"rank": 7, "task_id": "conan-io__conan.86f29e13.combine_file__i0i0pdfw", "skill": 2, "domain": 3, "task_form": 2, "overall": 2, "reason": "Profile dumps mis-serializing settings; round-trip fidelity of a config serializer, moderate transfer."},
+      {"rank": 8, "task_id": "cookiecutter__cookiecutter.b4451231.func_pm_remove_assign__sr0dfj04", "skill": 2, "domain": 3, "task_form": 2, "overall": 2, "reason": "Handling of cached zip files from URLs; archive-file handling logic, narrow."},
+      {"rank": 9, "task_id": "dask__dask.5f61e423.pr_8860", "skill": 2, "domain": 3, "task_form": 2, "overall": 2, "reason": "Auto-chunking reasons about chunk sizes for a dtype; chunk-size arithmetic, but for arrays not files."},
+      {"rank": 10, "task_id": "agronholm__typeguard.b6a7e438.lm_rewrite__49nqqhsl", "skill": 1, "domain": 2, "task_form": 2, "overall": 2, "reason": "pytest plugin config-list handling; only touches tooling configuration, weak link to resharding."}
+    ],
+    "SWE-Rebench-Tasks-Clean": [
+      {"rank": 1, "task_id": "borgbackup__borg-8872", "skill": 4, "domain": 5, "task_form": 2, "overall": 3, "reason": "Content-defined (buzhash) chunker in a deduplicating backup tool; the chunk-a-file-collection-for-storage-and-restore domain, exactly reshard's territory."},
+      {"rank": 2, "task_id": "ambv__black-339", "skill": 3, "domain": 4, "task_form": 2, "overall": 3, "reason": "Crash on a symlink pointing outside the root during directory recursion; safe directory-tree traversal the reshard walker must get right."},
+      {"rank": 3, "task_id": "aio-libs__aiohttp-8823", "skill": 3, "domain": 3, "task_form": 2, "overall": 2, "reason": "Chunked transfer-encoding handling with a size field; splitting a byte stream into declared-size chunks."},
+      {"rank": 4, "task_id": "aio-libs__aiohttp-7865", "skill": 2, "domain": 3, "task_form": 2, "overall": 2, "reason": "Compressor with a max_sync_chunk parameter; chunk-size-bounded stream processing, indirect."},
+      {"rank": 5, "task_id": "bids-standard__pybids-1123", "skill": 2, "domain": 3, "task_form": 2, "overall": 2, "reason": "Skip junk files (._*, .DS_Store) when walking a dataset directory; directory-traversal filtering relevant to enumerating slice contents."},
+      {"rank": 6, "task_id": "callowayproject__bump-my-version-36", "skill": 2, "domain": 3, "task_form": 2, "overall": 2, "reason": "Reads a project config across a file structure; project-config-driven behaviour like the pyproject requirement, weak."},
+      {"rank": 7, "task_id": "academysoftwarefoundation__opentimelineio-1862", "skill": 2, "domain": 3, "task_form": 2, "overall": 2, "reason": "Bug in an .otioz zip-bundle round-trip; packaging assets into and out of an archive bundle."},
+      {"rank": 8, "task_id": "aws-cloudformation__cfn-lint-3900", "skill": 2, "domain": 2, "task_form": 2, "overall": 2, "reason": "Glob-based ignore over a directory tree of files; path enumeration and matching over a tree."},
+      {"rank": 9, "task_id": "backblaze__b2_command_line_tool-420", "skill": 2, "domain": 3, "task_form": 2, "overall": 2, "reason": "Directory-regex exclusion when syncing a file tree; recursive file-tree processing with filters."},
+      {"rank": 10, "task_id": "agnostiqhq__covalent-1287", "skill": 1, "domain": 2, "task_form": 2, "overall": 2, "reason": "Backslash in a key mangles object-store upload paths; path-handling edge case, thin transfer."}
+    ]
+  },
+  "final_top10": [
+    {"rank": 1, "task_id": "task_002193_2697352f", "source": "TMax-15K", "skill": 4, "domain": 5, "task_form": 5, "overall": 5, "reason": "Two CLI scripts packing a directory to one artifact and reconstructing it byte-for-byte with a size budget; the exact bidirectional compress/decompress task."},
+    {"rank": 2, "task_id": "task_002475_22f2fc1c", "source": "TMax-15K", "skill": 5, "domain": 5, "task_form": 4, "overall": 5, "reason": "Splits any file over a byte threshold into exact-size .partN chunks and repackages with a manifest; the per-file-size-cap resharding crux."},
+    {"rank": 3, "task_id": "task_003344_882b8d3c", "source": "TMax-15K", "skill": 4, "domain": 5, "task_form": 4, "overall": 4, "reason": "Chunks binaries to exact byte size with a manifest guaranteeing lossless reconstruction; size-bounded reversible chunking."},
+    {"rank": 4, "task_id": "task_002545_4033c847", "source": "TMax-15K", "skill": 4, "domain": 5, "task_form": 4, "overall": 4, "reason": "Chunks then reconstructs a directory of files at exact relative paths; rebuilding the original tree, like decompress.py."},
+    {"rank": 5, "task_id": "task_002832_36c7197a", "source": "TMax-15K", "skill": 4, "domain": 4, "task_form": 4, "overall": 4, "reason": "Reassembles, extracts, dedups and repackages a dataset tree preserving links and size; the whole repack-under-constraints pipeline."},
+    {"rank": 6, "task_id": "borgbackup__borg-8872", "source": "SWE-Rebench-Tasks-Clean", "skill": 4, "domain": 5, "task_form": 2, "overall": 3, "reason": "Content-defined chunker inside a deduplicating backup tool; exactly the chunk-for-storage-and-restore domain, though a bug fix."},
+    {"rank": 7, "task_id": "task_002263_aecf536f", "source": "TMax-15K", "skill": 4, "domain": 4, "task_form": 3, "overall": 3, "reason": "Safely walks a tree with cyclic symlinks without infinite loops; the robust directory traversal the reshard walker requires."},
+    {"rank": 8, "task_id": "rts_task_80f1685212d62033bd158b5e", "source": "Recursive-Task-Synthesis", "skill": 3, "domain": 4, "task_form": 3, "overall": 3, "reason": "Writes data chunks at configured offsets and verifies total dataset size against a config; chunk-placement plus size-constraint verification."},
+    {"rank": 9, "task_id": "dask__dask.5f61e423.pr_11337", "source": "SWE-Smith-Seeds-Clean", "skill": 3, "domain": 4, "task_form": 2, "overall": 3, "reason": "Fixes rechunk, which reshapes data across new chunk boundaries; rechunking is the resize-into-new-shards operation itself."},
+    {"rank": 10, "task_id": "rts_task_c908e2ac29d8388fff4c4d55", "source": "Recursive-Task-Synthesis", "skill": 3, "domain": 4, "task_form": 3, "overall": 3, "reason": "Reconciles pyproject.toml with a lockfile for reproducible installs; the deps-declared-exactly discipline behind the uv sync / pyproject.toml requirement."}
+  ],
+  "notes": "TMax carries this task strongly: my own searches for chunk/repack/reconstruct/byte-for-byte surfaced task_002475, task_002193, task_003344, task_002545, task_002832 - several stronger than the lexical shortlist, which was dominated by generic 'data pipeline / ETL / dataset' overlap on the word 'data'. The single best structural match is task_002193 (two scripts: dir->archive->dir, byte-for-byte round-trip, size budget). The task has two sub-skills: (a) size/count-bounded reversible chunking, best served by TMax and borgbackup; (b) reproducible uv/pyproject.toml dependency setup, which only the RTS poetry/pyproject-reconcile tasks touch - no corpus has a genuine uv task ('uv sync/venv/run' returned nothing). SWE-Smith/Rebench lose on task_form as expected; borg and dask-rechunk are the only two with true chunking domain. All corpora yielded 10 defensible candidates, though TW ranks 8-10 and several SWE entries are overall<=2. Merge note: the RTS find_pdf.py / compute_gcd CLI-arg-refactor family recurs and is near-duplicated; count it as one weak signal."
+}

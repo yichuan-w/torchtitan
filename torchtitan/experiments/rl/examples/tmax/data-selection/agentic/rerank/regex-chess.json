@@ -1,0 +1,104 @@
+{
+  "tb21_id": "regex-chess",
+  "tb21_profile": {
+    "skill": "Compile a complete, rule-exact algorithm (full chess move generation with castling, en passant, promotion, check legality) into a restricted computational substrate — an ordered list of re.sub rewrite rules — and verify it against a reference implementation",
+    "domain": "Python re semantics (backreferences, alternation, anchoring, ordered rewriting), FEN string encoding, game-rule state machines",
+    "task_form": "implement-from-spec at extreme depth: programmatically generate a large size-capped artifact that behaves as an interpreter, validated exhaustively against python-chess"
+  },
+  "searches": [
+    "tools.py full regex-chess",
+    "tools.py search all \"chess|FEN|checkmate|legal move|Stockfish|PGN\" -n 40",
+    "tools.py search all \"chess|\\bFEN\\b|checkmate|\\bpawn\\b|bishop|Stockfish|chessboard|\\bknight\\b\" -n 40",
+    "tools.py search all \"chess\" -n 20",
+    "tools.py search all \"board game|tic.tac.toe|sudoku|puzzle solver|game of life|Conway\" -n 25",
+    "tools.py search all \"regular expression|regex|re\\.sub|backreference|capture group\" -n 45",
+    "tools.py search tmax \"regular expression|regex|re\\.sub|backreference|catastrophic backtracking|finite automat|DFA|NFA\" -n 35",
+    "tools.py search tmax \"interpreter|virtual machine|bytecode|emulat|Turing|brainfuck|cellular automat|term rewriting|transpil|compiler for|code generator|generate.*program\" -n 35",
+    "tools.py search tmax \"without using any|you may not use|are strictly forbidden|only using|must not use any|pure bash|only standard Linux utilities|no external libraries\" -n 30",
+    "tools.py search tmax \"reference implementation|oracle|bit-exact|byte-for-byte|differential test|exhaustive|every possible|all possible|100% of\" -n 30",
+    "tools.py search smith \"regular expression|regex|re\\.sub|pattern match|lexer|parser|grammar|tokeni\" -n 30",
+    "tools.py search smith \"pyparsing\" -n 12",
+    "tools.py search rebench \"regular expression|regex|re\\.sub|lexer|grammar|tokeni|state machine\" -n 25",
+    "tools.py search tw \"regular expression|regex|rgxg|interpreter|emulat|virtual machine|bytecode|state machine|Prolog|parser|grammar|sed \" -n 35",
+    "tools.py search rts \"interpreter|bytecode|virtual machine|emulat|state machine|sed -[a-z]*E|awk program\" -n 22",
+    "tools.py show rts_task_527213b6bed4f9562ec6d7ad rts_task_e310969f514289c50fccce04 rts_task_6406502d375776ad51fafe33",
+    "tools.py show hypothesisworks__hypothesis-2983 axelrod-python__axelrod-638",
+    "tools.py show task_000330_15b96164 task_000462_5b0f16f7 task_000246_a1b7a5cc task_000002_8be5378a task_000140_a41de773",
+    "tools.py show rts_task_818c8049c58399477676d052 rts_task_aeee91a542d45671432a5113"
+  ],
+  "per_source": {
+    "TMax-15K": [
+      {"rank": 1, "task_id": "task_000330_15b96164", "skill": 4, "domain": 3, "task_form": 4, "overall": 4, "reason": "Implements a string-rewriting VM's missing opcodes and is fuzzed against a reference implementation; same build-an-exact-string-machine crux."},
+      {"rank": 2, "task_id": "task_000246_a1b7a5cc", "skill": 4, "domain": 2, "task_form": 4, "overall": 4, "reason": "Writes a bytecode interpreter from a recovered spec that must match an oracle for any input byte sequence; same exhaustive-equivalence bar."},
+      {"rank": 3, "task_id": "task_000462_5b0f16f7", "skill": 4, "domain": 2, "task_form": 4, "overall": 4, "reason": "Writes a stateful DSL interpreter in a deliberately weak language (Bash) including a topological sort; implement-a-machine-under-constraint."},
+      {"rank": 4, "task_id": "task_000140_a41de773", "skill": 4, "domain": 2, "task_form": 4, "overall": 4, "reason": "Reverse-engineers a binary's format and reimplements it 100% bit-exactly in pure Bash; total rule fidelity in a restricted substrate."},
+      {"rank": 5, "task_id": "task_000002_8be5378a", "skill": 3, "domain": 2, "task_form": 3, "overall": 3, "reason": "Must make a transformation exactly match a hidden oracle for arbitrary inputs, including the boundary case; the edge-case discipline castling/en-passant need."},
+      {"rank": 6, "task_id": "task_006111_f9cc96c1", "skill": 3, "domain": 3, "task_form": 3, "overall": 3, "reason": "Ports a state-machine parser across language versions while preserving exact behaviour; state-transition correctness is the crux."},
+      {"rank": 7, "task_id": "task_000879_f9c4483c", "skill": 3, "domain": 2, "task_form": 3, "overall": 3, "reason": "Translates a Python state-machine log parser into pure Bash; re-encoding a state machine in a weaker substrate."},
+      {"rank": 8, "task_id": "task_000125_66da44d3", "skill": 3, "domain": 2, "task_form": 3, "overall": 3, "reason": "Ports a numerical state machine from Python 2 to pure Bash with identical behaviour; same transliterate-a-machine skill."},
+      {"rank": 9, "task_id": "task_000297_dd740392", "skill": 3, "domain": 2, "task_form": 2, "overall": 3, "reason": "Repairs a stack-based virtual machine in C; requires holding the whole instruction-semantics model in head, genre is debug not build."},
+      {"rank": 10, "task_id": "task_000416_754609f9", "skill": 3, "domain": 3, "task_form": 2, "overall": 3, "reason": "Fixes and builds an expression interpreter with an AST depth limit; parser/evaluator semantics under a hard resource cap."}
+    ],
+    "Recursive-Task-Synthesis": [
+      {"rank": 1, "task_id": "rts_task_e310969f514289c50fccce04", "skill": 3, "domain": 4, "task_form": 3, "overall": 3, "reason": "One regex with a backreference enforcing the same separator twice, then partitioning a dataset by match; exact regex semantics is the whole task."},
+      {"rank": 2, "task_id": "rts_task_527213b6bed4f9562ec6d7ad", "skill": 3, "domain": 4, "task_form": 2, "overall": 3, "reason": "Same backreference-regex construction, driven by a config file, with null for non-matches; regex-authoring precision transfers directly."},
+      {"rank": 3, "task_id": "rts_task_6406502d375776ad51fafe33", "skill": 3, "domain": 4, "task_form": 2, "overall": 3, "reason": "Loads a regex pattern from JSON and reports exec() results per input; the same pattern-plus-data-file plumbing as re.json."},
+      {"rank": 4, "task_id": "rts_task_95a03fc14b5b16da150d9c57", "skill": 3, "domain": 4, "task_form": 2, "overall": 3, "reason": "Single-regex phone validator with optional parentheses and repeated separator; must get alternation and grouping exactly right."},
+      {"rank": 5, "task_id": "rts_task_d1260fe29b75082cff131717", "skill": 2, "domain": 4, "task_form": 2, "overall": 2, "reason": "Another single-regex acceptance-set task; reinforces regex construction but has no state machine to build."},
+      {"rank": 6, "task_id": "rts_task_c07fa2980dc69528e95337b0", "skill": 2, "domain": 4, "task_form": 2, "overall": 2, "reason": "Generates regexes with rgxg and validates a log with them; regex-as-generated-artifact, which is what re.json is."},
+      {"rank": 7, "task_id": "rts_task_0778991a17c85a6fe7a21b67", "skill": 2, "domain": 4, "task_form": 2, "overall": 2, "reason": "Produces a set of regex artifacts for a fixed sentence; machine-generated regex output, shallow."},
+      {"rank": 8, "task_id": "rts_task_818c8049c58399477676d052", "skill": 2, "domain": 3, "task_form": 2, "overall": 2, "reason": "Compiles and differentially runs two Brainfuck interpreters; esoteric-interpreter domain, but the work is static-analysis flags."},
+      {"rank": 9, "task_id": "rts_task_df30cb8e56b8f8521c00f5c2", "skill": 2, "domain": 4, "task_form": 2, "overall": 2, "reason": "Email regex that must accept and reject an exact given set; acceptance-set reasoning, tiny scope."},
+      {"rank": 10, "task_id": "rts_task_9e8321bd084e9b221059a332", "skill": 2, "domain": 4, "task_form": 1, "overall": 2, "reason": "Near-duplicate email-regex task; included because this corpus has nothing closer to building a machine out of regexes."}
+    ],
+    "TerminalWorld-Seeds-Clean": [
+      {"rank": 1, "task_id": "tw_134335", "skill": 4, "domain": 2, "task_form": 4, "overall": 3, "reason": "Emulates a dan32 binary from a disk image with a hand-written interrupt handler; executing a machine you have to model yourself."},
+      {"rank": 2, "task_id": "tw_262649", "skill": 2, "domain": 4, "task_form": 2, "overall": 2, "reason": "Generates several regular expressions with rgxg and orders their output exactly; regex-as-artifact with strict ordering."},
+      {"rank": 3, "task_id": "tw_102792", "skill": 2, "domain": 3, "task_form": 2, "overall": 2, "reason": "Drives a custom expression interpreter and captures exact evaluation output; interpreter semantics, no implementation."},
+      {"rank": 4, "task_id": "tw_10593", "skill": 2, "domain": 4, "task_form": 2, "overall": 2, "reason": "Extracts Hangul runs with a character-class regex; requires getting a Unicode regex exactly right, small scope."},
+      {"rank": 5, "task_id": "tw_283245", "skill": 3, "domain": 2, "task_form": 2, "overall": 2, "reason": "Proves commutativity in Agda via an interactive tactic REPL; total-correctness-over-all-cases mindset, wrong substrate."},
+      {"rank": 6, "task_id": "tw_117921", "skill": 2, "domain": 2, "task_form": 2, "overall": 2, "reason": "Drives a prefix-notation calculator and reproduces its exact numeric results; evaluator semantics, shallow."},
+      {"rank": 7, "task_id": "tw_320307", "skill": 2, "domain": 2, "task_form": 2, "overall": 2, "reason": "Encodes a constraint puzzle declaratively in Prolog; expressing rules in a non-imperative substrate, tiny."},
+      {"rank": 8, "task_id": "tw_114781", "skill": 2, "domain": 2, "task_form": 2, "overall": 2, "reason": "Builds and runs a finite-state-machine leader-election simulation; FSM state reasoning, mostly a build task."},
+      {"rank": 9, "task_id": "tw_318475", "skill": 2, "domain": 2, "task_form": 2, "overall": 2, "reason": "Reproduces byte-exact output a system would emit; exact-output-equivalence discipline only."},
+      {"rank": 10, "task_id": "tw_550958", "skill": 2, "domain": 2, "task_form": 2, "overall": 1, "reason": "Computes inode indirection levels by rule from block and pointer sizes; pure rule evaluation, no machine construction."}
+    ],
+    "SWE-Smith-Seeds-Clean": [
+      {"rank": 1, "task_id": "Suor__funcy.207a7810.func_pm_remove_cond__sshmq0kq", "skill": 3, "domain": 4, "task_form": 2, "overall": 3, "reason": "Repairs re_find/re_all-style regex helpers; forces exact reasoning about group capture and match semantics in Python re."},
+      {"rank": 2, "task_id": "cknd__stackprinter.219fcc52.lm_rewrite__3mnfhdq1", "skill": 3, "domain": 4, "task_form": 2, "overall": 3, "reason": "A match() rewritten as substring containment instead of pattern matching; exactly the regex-vs-literal semantics distinction re.json depends on."},
+      {"rank": 3, "task_id": "pyparsing__pyparsing.533adf47.combine_file__8qpr32v3", "skill": 3, "domain": 3, "task_form": 2, "overall": 3, "reason": "Nested-structure parsing broken in a parser-combinator library; grammar composition reasoning close to composing rewrite rules."},
+      {"rank": 4, "task_id": "pyparsing__pyparsing.533adf47.combine_file__3jw3qikd", "skill": 3, "domain": 3, "task_form": 2, "overall": 3, "reason": "Matches succeed and fail in inverted cases; debugging acceptance-set errors in a matching engine."},
+      {"rank": 5, "task_id": "davidhalter__parso.338a5760.combine_file__frch0s4f", "skill": 3, "domain": 3, "task_form": 2, "overall": 3, "reason": "Grammar normalizer-issue machinery in a Python parser; rule-driven traversal correctness."},
+      {"rank": 6, "task_id": "andialbrecht__sqlparse.e57923b3.lm_rewrite__n19hsh7s", "skill": 3, "domain": 3, "task_form": 2, "overall": 3, "reason": "Splitting SQL scripts with DECLARE CURSOR and BEGIN blocks; ordered-token state machine with nesting, like castling-rights bookkeeping."},
+      {"rank": 7, "task_id": "datamade__usaddress.a42a8f0c.lm_rewrite__qrc0sw5h", "skill": 2, "domain": 3, "task_form": 2, "overall": 2, "reason": "Tokenization breaking on punctuation; lexical-rule edge cases, statistical tagger rather than deterministic rules."},
+      {"rank": 8, "task_id": "arrow-py__arrow.1d70d009.func_pm_ctrl_shuffle__vk4xpu8x", "skill": 2, "domain": 3, "task_form": 2, "overall": 2, "reason": "Parser initialisation of a regex map for datetime formats; regex-table-driven parsing, shallow fix."},
+      {"rank": 9, "task_id": "andialbrecht__sqlparse.e57923b3.func_basic__63ry9978", "skill": 2, "domain": 3, "task_form": 2, "overall": 2, "reason": "Array-indexing syntax mis-parsed; small grammar-rule correction."},
+      {"rank": 10, "task_id": "pyparsing__pyparsing.533adf47.func_basic__aaeon0ay", "skill": 2, "domain": 3, "task_form": 2, "overall": 2, "reason": "Parse results returned in reverse order; ordering semantics of a matching engine, narrow."}
+    ],
+    "SWE-Rebench-Tasks-Clean": [
+      {"rank": 1, "task_id": "hypothesisworks__hypothesis-2983", "skill": 4, "domain": 4, "task_form": 2, "overall": 3, "reason": "Empty-pattern fast path ignores fullmatch; demands precise Python re anchoring semantics, the exact trap re.json rules fall into."},
+      {"rank": 2, "task_id": "hypothesisworks__hypothesis-3824", "skill": 3, "domain": 4, "task_form": 2, "overall": 3, "reason": "Generating strings that satisfy re.match/fullmatch filters; reasoning backwards from a regex to its language, as re.json requires."},
+      {"rank": 3, "task_id": "axelrod-python__axelrod-638", "skill": 3, "domain": 3, "task_form": 2, "overall": 3, "reason": "Finite-state-machine game players fail to reset state between matches; game-rule state bookkeeping analogous to castling rights."},
+      {"rank": 4, "task_id": "pallets__werkzeug-2596", "skill": 3, "domain": 4, "task_form": 2, "overall": 3, "reason": "Multiple regex route patterns mix up captured parameters; ordered pattern matching with capture groups colliding."},
+      {"rank": 5, "task_id": "pallets__werkzeug-2583", "skill": 3, "domain": 4, "task_form": 2, "overall": 3, "reason": "Converter regex containing a group changes matching isolation; subtle grouping semantics inside a larger composed pattern."},
+      {"rank": 6, "task_id": "lark-parser__lark-1003", "skill": 3, "domain": 3, "task_form": 2, "overall": 2, "reason": "Grammar caching/loading failure in a parser generator; grammar-as-data machinery, the bug is serialisation not semantics."},
+      {"rank": 7, "task_id": "elastic__curator-603", "skill": 2, "domain": 4, "task_form": 2, "overall": 2, "reason": "Regex over-escaping in a pattern filter; escaping correctness, which directly bites when generating regex strings into JSON."},
+      {"rank": 8, "task_id": "elastic__curator-1355", "skill": 2, "domain": 4, "task_form": 2, "overall": 2, "reason": "Regex pattern filter not matching what the user expects; acceptance-set debugging, small."},
+      {"rank": 9, "task_id": "cloudtools__troposphere-2191", "skill": 2, "domain": 3, "task_form": 2, "overall": 2, "reason": "AllowedPattern regular-expression validation rejected valid patterns; regex-as-config-value handling."},
+      {"rank": 10, "task_id": "getmoto__moto-6208", "skill": 2, "domain": 2, "task_form": 2, "overall": 2, "reason": "Template tokenizer crashes on input; hand-written scanner correctness, weak link to regex rewriting."}
+    ]
+  },
+  "final_top10": [
+    {"rank": 1, "task_id": "task_000330_15b96164", "source": "TMax-15K", "skill": 4, "domain": 3, "task_form": 4, "overall": 4, "reason": "Completes a string-rewriting VM whose output is fuzzed against a reference; building an exact string machine is the shared crux."},
+    {"rank": 2, "task_id": "task_000246_a1b7a5cc", "source": "TMax-15K", "skill": 4, "domain": 2, "task_form": 4, "overall": 4, "reason": "Implements an interpreter from a recovered spec that must equal an oracle on every input; same total-correctness standard."},
+    {"rank": 3, "task_id": "task_000462_5b0f16f7", "source": "TMax-15K", "skill": 4, "domain": 2, "task_form": 4, "overall": 4, "reason": "Builds a stateful DSL interpreter in Bash, a deliberately weak substrate, including graph ordering; constraint-substrate implementation."},
+    {"rank": 4, "task_id": "task_000140_a41de773", "source": "TMax-15K", "skill": 4, "domain": 2, "task_form": 4, "overall": 4, "reason": "Bit-exact reimplementation of a binary's whole format in pure Bash; zero-tolerance rule fidelity under substrate limits."},
+    {"rank": 5, "task_id": "hypothesisworks__hypothesis-2983", "source": "SWE-Rebench-Tasks-Clean", "skill": 4, "domain": 4, "task_form": 2, "overall": 3, "reason": "Python re fullmatch/anchoring edge case in an empty-pattern fast path; precisely the regex semantics re.json rules hinge on."},
+    {"rank": 6, "task_id": "tw_134335", "source": "TerminalWorld-Seeds-Clean", "skill": 4, "domain": 2, "task_form": 4, "overall": 3, "reason": "Emulates a foreign architecture's binary with a hand-written handler; you must model and run a machine you did not design."},
+    {"rank": 7, "task_id": "rts_task_e310969f514289c50fccce04", "source": "Recursive-Task-Synthesis", "skill": 3, "domain": 4, "task_form": 3, "overall": 3, "reason": "Single backreference regex enforcing a repeated separator, then exact accept/reject partitioning of a dataset."},
+    {"rank": 8, "task_id": "task_006111_f9cc96c1", "source": "TMax-15K", "skill": 3, "domain": 3, "task_form": 3, "overall": 3, "reason": "Ports a state-machine parser while preserving exact behaviour; state-transition fidelity is the graded property."},
+    {"rank": 9, "task_id": "axelrod-python__axelrod-638", "source": "SWE-Rebench-Tasks-Clean", "skill": 3, "domain": 3, "task_form": 2, "overall": 3, "reason": "Game-playing finite state machine keeps stale state across matches; the castling-rights class of state-bookkeeping bug."},
+    {"rank": 10, "task_id": "task_000002_8be5378a", "source": "TMax-15K", "skill": 3, "domain": 2, "task_form": 3, "overall": 3, "reason": "Must satisfy a spec for every arbitrary input including the boundary case, fuzzed against a hidden oracle."}
+  ],
+  "notes": "No corpus contains a single chess task: 'chess' matches zero instructions across all 56k. So domain scores are driven by regex semantics and rule-engine/state-machine territory instead. The shortlists were almost pure boilerplate: the TMax shortlist surfaced generic log-parsing and py2-to-py3 chores, and every strong candidate here came from my own searches for interpreter/VM/bit-exact-oracle and regex-backreference tasks. Recursive-Task-Synthesis has no machine-building task at all; its top entries are the single-regex-with-backreference family, which at least teaches exact re semantics. TerminalWorld ranks 5-10 and SWE-Smith ranks 7-10 are filler at overall<=2. Note the two halves of this TB2.1 task pull apart: substrate skill (regex semantics) is best served by hypothesis/werkzeug/funcy, machine-construction skill by the TMax VM and interpreter tasks; no candidate covers both."
+}

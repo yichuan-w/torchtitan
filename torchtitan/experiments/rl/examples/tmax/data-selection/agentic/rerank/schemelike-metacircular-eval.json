@@ -1,0 +1,593 @@
+{
+ "tb21_id": "schemelike-metacircular-eval",
+ "tb21_profile": {
+  "skill": "Write an interpreter for a language whose exact semantics must be reverse-engineered from a reference implementation (interp.py) - s-expression reading, environments, closures, special forms, stdin plumbing - and write it in that same language so it can evaluate itself",
+  "domain": "Programming-language implementation: Scheme/Lisp, parsers and evaluators, ASTs, closures and environments, stdin/stdout stream plumbing",
+  "task_form": "implement-from-spec at the deep end: build a self-hosting evaluator that must pass the reference's own test programs and then bootstrap on itself"
+ },
+ "searches": [
+  "tools.py tb schemelike-metacircular-eval",
+  "tools.py search all \"scheme|lisp|s-expression|racket|clojure\"",
+  "tools.py search all \"interpreter|evaluator|metacircular|REPL\"",
+  "tools.py search all \"parser|tokeniz|abstract syntax tree|AST\\b|grammar\"",
+  "tools.py search tmax \"interpreter|evaluator|REPL\"",
+  "tools.py search tmax \"parser|tokeniz|grammar|syntax tree\"",
+  "tools.py search tmax \"lisp|scheme|forth|brainfuck|prolog|s-expression\"",
+  "tools.py search tmax \"expression evaluator|expression parser|recursive descent|stack machine|bytecode|virtual machine\"",
+  "tools.py search tmax \"domain-specific language|DSL|custom language|mini-language\"",
+  "tools.py search tw \"interpreter|evaluator|REPL\"",
+  "tools.py search tw \"parser|tokeniz|grammar|syntax tree\"",
+  "tools.py search tw \"lisp|scheme|forth|brainfuck|prolog|s-expression\"",
+  "tools.py search smith \"parsimonious\"",
+  "tools.py search smith \"pyparsing\"",
+  "tools.py search smith \"parso\\.\"",
+  "tools.py search rebench \"d0c-s4vage|pfp\"",
+  "tools.py search rebench \"pyccel|restrictedpython|pyanalyze|transpil\"",
+  "tools.py show task_006210_e9532fdc task_001481_3bacc41d task_009887_3b3d8380"
+ ],
+ "per_source": {
+  "TMax-15K": [
+   {
+    "rank": 1,
+    "task_id": "task_001481_3bacc41d",
+    "skill": 5,
+    "domain": 4,
+    "task_form": 4,
+    "overall": 5,
+    "reason": "Reverse-engineer a stack language from a reference binary and reimplement it natively, matching stdout and error behaviour exactly on thousands of random programs."
+   },
+   {
+    "rank": 2,
+    "task_id": "task_006210_e9532fdc",
+    "skill": 4,
+    "domain": 4,
+    "task_form": 5,
+    "overall": 4,
+    "reason": "Write an emulator for a written language spec (stack, opcodes, underflow error) plus run/test drivers; implement-a-language-from-spec at comparable depth."
+   },
+   {
+    "rank": 3,
+    "task_id": "task_001320_249b9329",
+    "skill": 4,
+    "domain": 4,
+    "task_form": 4,
+    "overall": 4,
+    "reason": "Build a Go interpreter that parses and evaluates a custom mathematical DSL and orchestrates other components; full parse-then-evaluate pipeline."
+   },
+   {
+    "rank": 4,
+    "task_id": "task_000246_a1b7a5cc",
+    "skill": 4,
+    "domain": 4,
+    "task_form": 4,
+    "overall": 4,
+    "reason": "Implement a small virtual machine in C that evaluates expressions encoded in a custom bytecode, working strictly from the written specification."
+   },
+   {
+    "rank": 5,
+    "task_id": "task_001127_c4f978a7",
+    "skill": 4,
+    "domain": 4,
+    "task_form": 4,
+    "overall": 4,
+    "reason": "Build a custom bytecode emulator in Python: decode instructions, maintain machine state, produce exactly the specified output."
+   },
+   {
+    "rank": 6,
+    "task_id": "task_005358_fd7abc24",
+    "skill": 4,
+    "domain": 3,
+    "task_form": 4,
+    "overall": 4,
+    "reason": "Write a Go interpreter that parses and evaluates a rule grammar with operators and boolean connectives; grammar-to-semantics in one piece."
+   },
+   {
+    "rank": 7,
+    "task_id": "task_009887_3b3d8380",
+    "skill": 4,
+    "domain": 4,
+    "task_form": 3,
+    "overall": 4,
+    "reason": "Fix a C interpreter for a custom dependency language and make it evaluate a DAG to the right value; debugging evaluation order in an interpreter."
+   },
+   {
+    "rank": 8,
+    "task_id": "task_000488_8361a3be",
+    "skill": 4,
+    "domain": 3,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Write a real expression parser (recursive descent or shunting-yard) and evaluator instead of eval; the core parse/eval loop in miniature."
+   },
+   {
+    "rank": 9,
+    "task_id": "task_000297_dd740392",
+    "skill": 3,
+    "domain": 4,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Repair a broken C stack-based virtual machine project until it builds and runs; reading someone else's evaluator and making its semantics right."
+   },
+   {
+    "rank": 10,
+    "task_id": "task_002919_31938290",
+    "skill": 3,
+    "domain": 2,
+    "task_form": 4,
+    "overall": 3,
+    "reason": "Analyse a stripped reference binary and write a program that is behaviourally equivalent; the 'match the reference implementation exactly' half of the TB task."
+   }
+  ],
+  "Recursive-Task-Synthesis": [
+   {
+    "rank": 1,
+    "task_id": "rts_task_818c8049c58399477676d052",
+    "skill": 4,
+    "domain": 4,
+    "task_form": 3,
+    "overall": 4,
+    "reason": "Two Brainfuck interpreter implementations plus a test program: compare and repair an interpreter until it runs the program correctly."
+   },
+   {
+    "rank": 2,
+    "task_id": "rts_task_8ff7e8819dddd6be23d1edc0",
+    "skill": 3,
+    "domain": 5,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Read the C sources of a Lisp interpreter (Lispy) to work out how to build it, then drive it from the command line."
+   },
+   {
+    "rank": 3,
+    "task_id": "rts_task_ab99eb52d5b57e7a4eba1fc8",
+    "skill": 3,
+    "domain": 5,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Write Lisp for a custom Lisp interpreter to solve an arithmetic problem; hands-on s-expression authoring against an unfamiliar dialect."
+   },
+   {
+    "rank": 4,
+    "task_id": "rts_task_e34707faf01e2a0574bfb038",
+    "skill": 3,
+    "domain": 5,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Same custom-Lisp-interpreter family: read the data file, express the computation in the dialect the interpreter accepts."
+   },
+   {
+    "rank": 5,
+    "task_id": "rts_task_574606df7806a9d85751d776",
+    "skill": 3,
+    "domain": 4,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Implement my-last in Clojure without the builtin: recursive list traversal in a Lisp, exactly what a metacircular eval is built from."
+   },
+   {
+    "rank": 6,
+    "task_id": "rts_task_bf4efc39c14eb4892d19e783",
+    "skill": 3,
+    "domain": 4,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Debug a buggy Clojure program that reads EDN config; reading and repairing s-expression source in a Lisp dialect."
+   },
+   {
+    "rank": 7,
+    "task_id": "rts_task_c062247643c6acea8736ef20",
+    "skill": 2,
+    "domain": 5,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Use the custom Lisp interpreter at bin/lisp over a data file; more exposure to writing and running Lisp, lighter reasoning."
+   },
+   {
+    "rank": 8,
+    "task_id": "rts_task_d1adb0121f2ab0e6fbbb2cf6",
+    "skill": 2,
+    "domain": 5,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Find a .lisp data file and use the Lisp interpreter to compute the missing value; Lisp-dialect fluency, modest difficulty."
+   },
+   {
+    "rank": 9,
+    "task_id": "rts_task_8589280a0f1877c2cee24a2d",
+    "skill": 2,
+    "domain": 4,
+    "task_form": 3,
+    "overall": 2,
+    "reason": "Babashka script defining two functions and composing them over CLI args; function definition and application in a Lisp, nothing deeper."
+   },
+   {
+    "rank": 10,
+    "task_id": "rts_task_469ae9c3a2966eb3357a54fa",
+    "skill": 2,
+    "domain": 3,
+    "task_form": 3,
+    "overall": 2,
+    "reason": "Drive an interactive tactic REPL to build a proof term; symbolic-term manipulation through a line-oriented interpreter."
+   }
+  ],
+  "TerminalWorld-Seeds-Clean": [
+   {
+    "rank": 1,
+    "task_id": "tw_102792",
+    "skill": 3,
+    "domain": 5,
+    "task_form": 3,
+    "overall": 4,
+    "reason": "Feed a Lisp interpreter s-expressions exercising head/tail, nested lists, import and recursion; the exact language shape eval.scm must handle."
+   },
+   {
+    "rank": 2,
+    "task_id": "tw_117921",
+    "skill": 4,
+    "domain": 4,
+    "task_form": 3,
+    "overall": 4,
+    "reason": "Prefix-notation calculator reading nested expressions line-by-line from stdin; the same recursive prefix-form evaluation and stdin plumbing."
+   },
+   {
+    "rank": 3,
+    "task_id": "tw_113202",
+    "skill": 4,
+    "domain": 4,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Lex source into tokens and run them through a real Parser, inspecting results in a REPL; front-end of an interpreter in practice."
+   },
+   {
+    "rank": 4,
+    "task_id": "tw_109958",
+    "skill": 3,
+    "domain": 5,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Build a whole programming language (Octaspire Dern) from source and drive its REPL; language-implementation codebase familiarity."
+   },
+   {
+    "rank": 5,
+    "task_id": "tw_165299",
+    "skill": 3,
+    "domain": 5,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Write and run an R6RS Scheme program under a Scheme package manager; actual Scheme authoring, the output language of the TB task."
+   },
+   {
+    "rank": 6,
+    "task_id": "tw_362046",
+    "skill": 3,
+    "domain": 4,
+    "task_form": 2,
+    "overall": 3,
+    "reason": "Static-analysis pass over a Brainfuck interpreter written in C; reading interpreter source closely enough to reason about its defects."
+   },
+   {
+    "rank": 7,
+    "task_id": "tw_621404",
+    "skill": 3,
+    "domain": 4,
+    "task_form": 4,
+    "overall": 3,
+    "reason": "Define a new Forth word implementing Newton's method; programming in a stack language by composing words, close to writing eval primitives."
+   },
+   {
+    "rank": 8,
+    "task_id": "tw_360407",
+    "skill": 3,
+    "domain": 4,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Gforth program converting an integer to its decimal string; low-level manipulation inside a minimal language runtime."
+   },
+   {
+    "rank": 9,
+    "task_id": "tw_534776",
+    "skill": 3,
+    "domain": 2,
+    "task_form": 3,
+    "overall": 2,
+    "reason": "Script that repeatedly reads one line from stdin, decodes it and loops; the line-at-a-time stdin protocol eval.scm must implement."
+   },
+   {
+    "rank": 10,
+    "task_id": "tw_114834",
+    "skill": 2,
+    "domain": 4,
+    "task_form": 3,
+    "overall": 2,
+    "reason": "A REPL that supports importing packages at runtime; dynamic evaluation of user input inside a running interpreter."
+   }
+  ],
+  "SWE-Smith-Seeds-Clean": [
+   {
+    "rank": 1,
+    "task_id": "erikrose__parsimonious.0d3f5f93.combine_file__twkln5sg",
+    "skill": 4,
+    "domain": 5,
+    "task_form": 2,
+    "overall": 4,
+    "reason": "NodeVisitor.visit/generic_visit broken in a PEG parser: fixing the tree-walking dispatch that every evaluator is built around."
+   },
+   {
+    "rank": 2,
+    "task_id": "pyparsing__pyparsing.533adf47.combine_file__8qpr32v3",
+    "skill": 4,
+    "domain": 4,
+    "task_form": 2,
+    "overall": 3,
+    "reason": "Nested-structure parsing (parentheses, brackets) broken; reading balanced nested parens is literally the s-expression reader."
+   },
+   {
+    "rank": 3,
+    "task_id": "davidhalter__parso.338a5760.lm_rewrite__ug7hl82o",
+    "skill": 4,
+    "domain": 4,
+    "task_form": 2,
+    "overall": 3,
+    "reason": "Tokenizer emits wrong token types for identifiers; getting the lexer's token classification right is step one of eval."
+   },
+   {
+    "rank": 4,
+    "task_id": "davidhalter__parso.338a5760.func_pm_op_break_chains__pt0nzxrt",
+    "skill": 4,
+    "domain": 4,
+    "task_form": 2,
+    "overall": 3,
+    "reason": "Tokenizer fails on strings and identifiers with unusual characters; edge-case handling in a real language front end."
+   },
+   {
+    "rank": 5,
+    "task_id": "erikrose__parsimonious.0d3f5f93.func_pm_ctrl_invert_if__ctuc3dwn",
+    "skill": 3,
+    "domain": 5,
+    "task_form": 2,
+    "overall": 3,
+    "reason": "Custom rule callbacks with the wrong arity in a grammar engine; wiring user-supplied functions into the evaluation walk."
+   },
+   {
+    "rank": 6,
+    "task_id": "andialbrecht__sqlparse.e57923b3.lm_rewrite__jby5rkxx",
+    "skill": 3,
+    "domain": 3,
+    "task_form": 2,
+    "overall": 3,
+    "reason": "Recursion error on deeply nested brackets; exactly the failure a naive recursive reader hits, and a metacircular eval nests three deep."
+   },
+   {
+    "rank": 7,
+    "task_id": "erikrose__parsimonious.0d3f5f93.func_basic__7equpx1u",
+    "skill": 3,
+    "domain": 5,
+    "task_form": 2,
+    "overall": 3,
+    "reason": "Grammar.as_rule renders rules incorrectly; round-tripping a grammar back to its source form, a self-description problem."
+   },
+   {
+    "rank": 8,
+    "task_id": "andialbrecht__sqlparse.e57923b3.func_pm_class_rm_funcs__ly91hfu7",
+    "skill": 3,
+    "domain": 3,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Missing Token.is_child_of after a refactor; navigating a parse tree's parent/child structure."
+   },
+   {
+    "rank": 9,
+    "task_id": "hukkin__tomli.443a0c1b.func_basic__lzkt67n9",
+    "skill": 3,
+    "domain": 3,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Bug in a hand-written recursive-descent TOML parser; same class of character-at-a-time parsing code."
+   },
+   {
+    "rank": 10,
+    "task_id": "lepture__mistune.bf54ef67.pr_384",
+    "skill": 3,
+    "domain": 2,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Regex for a tag pattern is missing parentheses, corrupting parse results; grouping errors in a parser's pattern definitions."
+   }
+  ],
+  "SWE-Rebench-Tasks-Clean": [
+   {
+    "rank": 1,
+    "task_id": "d0c-s4vage__pfp-128",
+    "skill": 5,
+    "domain": 4,
+    "task_form": 3,
+    "overall": 4,
+    "reason": "Boolean short-circuiting must lazily resolve variable references so an unresolved name never errors: evaluation-order semantics in an interpreter."
+   },
+   {
+    "rank": 2,
+    "task_id": "d0c-s4vage__pfp-116",
+    "skill": 5,
+    "domain": 4,
+    "task_form": 2,
+    "overall": 4,
+    "reason": "Chained assignment a = b = c unsupported in an interpreter; implementing an assignment form correctly in the evaluator."
+   },
+   {
+    "rank": 3,
+    "task_id": "d0c-s4vage__pfp-109",
+    "skill": 4,
+    "domain": 4,
+    "task_form": 3,
+    "overall": 4,
+    "reason": "Add a missing builtin (Memcmp) to an interpreter so scripts that call it work; extending a primitive set to match a reference implementation."
+   },
+   {
+    "rank": 4,
+    "task_id": "d0c-s4vage__pfp-114",
+    "skill": 4,
+    "domain": 4,
+    "task_form": 2,
+    "overall": 3,
+    "reason": "Enums and the parse hook interact wrongly; getting a language construct's evaluation to match the reference tool's behaviour."
+   },
+   {
+    "rank": 5,
+    "task_id": "d0c-s4vage__pfp-126",
+    "skill": 4,
+    "domain": 4,
+    "task_form": 2,
+    "overall": 3,
+    "reason": "A name lookup takes a different code path that mishandles implicit arrays: environment/lookup semantics inside an interpreter."
+   },
+   {
+    "rank": 6,
+    "task_id": "zopefoundation__restrictedpython-272",
+    "skill": 4,
+    "domain": 4,
+    "task_form": 2,
+    "overall": 3,
+    "reason": "AST transformation governing what a restricted eval permits; direct work on compile-and-evaluate machinery."
+   },
+   {
+    "rank": 7,
+    "task_id": "d0c-s4vage__pfp-112",
+    "skill": 3,
+    "domain": 4,
+    "task_form": 2,
+    "overall": 3,
+    "reason": "Implicit array handling in the same template interpreter; more evaluator-semantics debugging against a reference implementation."
+   },
+   {
+    "rank": 8,
+    "task_id": "pyccel__pyccel-2038",
+    "skill": 4,
+    "domain": 4,
+    "task_form": 2,
+    "overall": 3,
+    "reason": "Assigning a list to another variable must alias, not copy; getting reference vs value semantics right in a language translator."
+   },
+   {
+    "rank": 9,
+    "task_id": "pyccel__pyccel-1837",
+    "skill": 3,
+    "domain": 4,
+    "task_form": 2,
+    "overall": 3,
+    "reason": "Type inference fails on inhomogeneous tuples indexed non-constantly; semantic-analysis stage of a compiler."
+   },
+   {
+    "rank": 10,
+    "task_id": "pyccel__pyccel-2158",
+    "skill": 3,
+    "domain": 4,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Another semantic-stage defect in the same Python-to-C/Fortran translator; compiler-frontend reasoning, different specific construct."
+   }
+  ]
+ },
+ "final_top10": [
+  {
+   "rank": 1,
+   "task_id": "task_001481_3bacc41d",
+   "source": "TMax-15K",
+   "skill": 5,
+   "domain": 4,
+   "task_form": 4,
+   "overall": 5,
+   "reason": "Reverse-engineer a language from its reference implementation and reimplement it so outputs and errors match exactly on random programs."
+  },
+  {
+   "rank": 2,
+   "task_id": "task_006210_e9532fdc",
+   "source": "TMax-15K",
+   "skill": 4,
+   "domain": 4,
+   "task_form": 5,
+   "overall": 4,
+   "reason": "Implement a whole small language from its written spec, including error behaviour, plus the scripts that run and test it."
+  },
+  {
+   "rank": 3,
+   "task_id": "d0c-s4vage__pfp-128",
+   "source": "SWE-Rebench-Tasks-Clean",
+   "skill": 5,
+   "domain": 4,
+   "task_form": 3,
+   "overall": 4,
+   "reason": "Make short-circuit evaluation resolve variables lazily so the interpreter matches the reference tool; evaluation-order semantics."
+  },
+  {
+   "rank": 4,
+   "task_id": "tw_102792",
+   "source": "TerminalWorld-Seeds-Clean",
+   "skill": 3,
+   "domain": 5,
+   "task_form": 3,
+   "overall": 4,
+   "reason": "Exercises a Lisp interpreter over nested s-expressions, head/tail, import and recursion: the exact language shape eval.scm must cover."
+  },
+  {
+   "rank": 5,
+   "task_id": "erikrose__parsimonious.0d3f5f93.combine_file__twkln5sg",
+   "source": "SWE-Smith-Seeds-Clean",
+   "skill": 4,
+   "domain": 5,
+   "task_form": 2,
+   "overall": 4,
+   "reason": "Fix the visit/generic_visit dispatch in a PEG parser: the tree-walking dispatch every evaluator, metacircular or not, is built on."
+  },
+  {
+   "rank": 6,
+   "task_id": "task_001320_249b9329",
+   "source": "TMax-15K",
+   "skill": 4,
+   "domain": 4,
+   "task_form": 4,
+   "overall": 4,
+   "reason": "Write an interpreter that parses a custom mathematical language and evaluates it as part of a larger pipeline."
+  },
+  {
+   "rank": 7,
+   "task_id": "d0c-s4vage__pfp-116",
+   "source": "SWE-Rebench-Tasks-Clean",
+   "skill": 5,
+   "domain": 4,
+   "task_form": 2,
+   "overall": 4,
+   "reason": "Implement chained assignment in an interpreter so a = b = c evaluates like the reference; adding a special form correctly."
+  },
+  {
+   "rank": 8,
+   "task_id": "task_000246_a1b7a5cc",
+   "source": "TMax-15K",
+   "skill": 4,
+   "domain": 4,
+   "task_form": 4,
+   "overall": 4,
+   "reason": "Build a virtual machine in C that evaluates expressions in a custom encoding, working only from the written specification."
+  },
+  {
+   "rank": 9,
+   "task_id": "tw_117921",
+   "source": "TerminalWorld-Seeds-Clean",
+   "skill": 4,
+   "domain": 4,
+   "task_form": 3,
+   "overall": 4,
+   "reason": "Prefix-notation evaluator reading nested expressions one line at a time from stdin: same recursive form and same I/O protocol."
+  },
+  {
+   "rank": 10,
+   "task_id": "rts_task_818c8049c58399477676d052",
+   "source": "Recursive-Task-Synthesis",
+   "skill": 4,
+   "domain": 4,
+   "task_form": 3,
+   "overall": 4,
+   "reason": "Two Brainfuck interpreter implementations and a test program: diff and repair an interpreter until it runs the program correctly."
+  }
+ ],
+ "notes": "Retrieval was badly off here - the shortlist surfaced RPN calculators, GCD-in-ARM64 and tqdm progress bars. Nearly every candidate I kept came from my own searches. The strongest transfer in the whole pool is SWE-Rebench's d0c-s4vage/pfp cluster: pfp is an interpreter for 010-Editor template scripts, and its issues are pure evaluator semantics (chained assignment, lazy short-circuit variable resolution, missing builtins) measured against a reference implementation - which is exactly this task's relationship to interp.py. That is unusual for SWE-Rebench, so its scores here are genuinely high rather than inflated. TMax's stack-machine / bytecode-VM / DSL-interpreter family is deep and I could have filled 20 slots; task_001481_3bacc41d is the single best item in the pool because it also demands byte-exact agreement with the reference. No corpus contains a Scheme or metacircular task - the only true Scheme items are tw_165299 (write an R6RS program) and RTS's Lispy/Clojure families, which give dialect fluency but no interpreter construction. Self-application (an evaluator running itself) has no analogue anywhere in the pool; I did not pretend otherwise. RTS's custom-Lisp-interpreter family has ~10 near-identical variants - dedupe at merge."
+}

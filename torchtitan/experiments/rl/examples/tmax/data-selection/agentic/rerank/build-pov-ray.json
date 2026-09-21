@@ -1,0 +1,98 @@
+{
+  "tb21_id": "build-pov-ray",
+  "tb21_profile": {
+    "skill": "Obtain a legacy C source release and make it compile and install under a modern toolchain: fix Makefiles/configure, resolve headers and libs, install a working binary to a prefix",
+    "domain": "Unix C build toolchain (make/autotools/gcc), vendored third-party source tarballs, /usr/local install prefixes",
+    "task_form": "build/packaging from source: download, extract, repair the build, compile, install, then prove the binary runs"
+  },
+  "searches": [
+    "tools.py search tmax 'compile .{0,40}from source|build .{0,30}from source'",
+    "tools.py search tmax 'K&R|implicit declaration|-std=gnu89|ancient|1990s|legacy C (code|program|source)'",
+    "tools.py search tmax '\\./configure|make install|autoconf|automake|configure --prefix'",
+    "tools.py search tmax 'tar\\.gz|tarball|\\.tar\\.bz2|source archive'",
+    "tools.py search rts 'from source|make install|\\./configure|compile .{0,20}install|build .{0,25}(library|binary|utility|tool) '",
+    "tools.py search tw 'raytrac|render|povray|POV-Ray|image.{0,20}(compare|reference)'",
+    "tools.py search smith 'compil|Makefile|autotools|cmake|gcc|\\bbuild the\\b|C extension'",
+    "tools.py search smith 'autotools|GnuToolchain|MesonToolchain|makefile|\\bmake\\b.{0,20}(target|build)|pkg-config'",
+    "tools.py search rebench 'compil|Makefile|autotools|CMake|gcc|C extension|cross-compil|\\bbuild\\b.{0,30}(fail|error)'",
+    "tools.py search rebench 'setuptools|scikit-build|build backend|sdist|wheel build|cekit|flit'",
+    "tools.py search rebench 'cython|C extension|libhdf5|shared library|\\.so\\b|link(ing|er)|cffi'",
+    "tools.py words rebench setuptools build_ext cmake wheel install prefix source distribution",
+    "tools.py show task_002996_9b750971 task_003853_457136d4 task_002737_29eccf53 task_000423_4dba82f4"
+  ],
+  "per_source": {
+    "TMax-15K": [
+      {"rank": 1, "task_id": "task_003853_457136d4", "skill": 5, "domain": 4, "task_form": 4, "overall": 4, "reason": "Vendored jq-1.6 tree whose ./configure && make is deliberately broken; must diagnose the build regression and produce a working binary."},
+      {"rank": 2, "task_id": "task_002996_9b750971", "skill": 5, "domain": 4, "task_form": 4, "overall": 4, "reason": "Fix typo in datamash-1.8 Makefile.in, then ./configure --prefix=/usr/local, make, make install - same repair-then-install-a-C-package loop."},
+      {"rank": 3, "task_id": "task_000423_4dba82f4", "skill": 5, "domain": 4, "task_form": 4, "overall": 4, "reason": "fping-5.1 autotools build broken (bad Makefile.am, non-executable configure); needs autoreconf -i, configure, make to a working binary."},
+      {"rank": 4, "task_id": "task_002737_29eccf53", "skill": 4, "domain": 4, "task_form": 4, "overall": 4, "reason": "Download FFTW 3.3.10 tarball, extract, compile, install to a prefix, then link against it - same fetch/extract/build/install chain."},
+      {"rank": 5, "task_id": "task_002579_198b9870", "skill": 4, "domain": 4, "task_form": 4, "overall": 4, "reason": "Configure, build and install zlib to a custom prefix after fixing what is missing from the library build."},
+      {"rank": 6, "task_id": "task_003791_3f47fa75", "skill": 4, "domain": 4, "task_form": 4, "overall": 4, "reason": "libseccomp-2.5.4 configure script/Makefile carries an injected flaw; find it and get the C library to build."},
+      {"rank": 7, "task_id": "task_002096_dbcfa500", "skill": 4, "domain": 4, "task_form": 3, "overall": 3, "reason": "Syntax error in jo-1.9 Makefile.in must be found before ./configure && make yields the binary; same autotools debugging."},
+      {"rank": 8, "task_id": "task_003218_708929a5", "skill": 4, "domain": 3, "task_form": 3, "overall": 3, "reason": "Vendored C extension fails to build offline; must read compiler errors and patch the C source to make it compile."},
+      {"rank": 9, "task_id": "task_000956_d4ef2604", "skill": 3, "domain": 4, "task_form": 3, "overall": 3, "reason": "Repair a sabotaged configure script, then ./configure --prefix && make && make install - the install-to-prefix half of POV-Ray."},
+      {"rank": 10, "task_id": "task_001720_063b58e8", "skill": 3, "domain": 3, "task_form": 3, "overall": 3, "reason": "Download, configure and compile aubio from upstream source before using it; same obtain-and-build-a-C-library step."}
+    ],
+    "Recursive-Task-Synthesis": [
+      {"rank": 1, "task_id": "rts_task_a1fb5d219782b2ad9fd0ccbe", "skill": 4, "domain": 4, "task_form": 5, "overall": 4, "reason": "Download the PostgreSQL 16.2 source tarball from a URL, build it and install to a named prefix - structurally the same job."},
+      {"rank": 2, "task_id": "rts_task_afd60c089eb038e4ad5ef336", "skill": 4, "domain": 4, "task_form": 5, "overall": 4, "reason": "Same build-PostgreSQL-from-tarball-to-prefix task; exercises configure/make/make install on a large C codebase."},
+      {"rank": 3, "task_id": "rts_task_998b13cbfecff0408a59658c", "skill": 4, "domain": 4, "task_form": 4, "overall": 4, "reason": "Build Janus 0.10.5 plus its whole chain of C library dependencies from source in order - dependency-resolution-by-building."},
+      {"rank": 4, "task_id": "rts_task_4eb1ae4263a087c33a777db4", "skill": 4, "domain": 4, "task_form": 4, "overall": 4, "reason": "Compile Janus and all required C libraries from source into /opt/janus; same prefix-install and missing-dependency debugging."},
+      {"rank": 5, "task_id": "rts_task_43c0269eab61f4f5fb8cafaf", "skill": 4, "domain": 3, "task_form": 4, "overall": 4, "reason": "Build rar from local source, install to /usr/local/bin/rar, then run it on a real file - identical prove-the-binary-works ending."},
+      {"rank": 6, "task_id": "rts_task_0a6d1ddf1245375a08107edf", "skill": 4, "domain": 3, "task_form": 4, "overall": 4, "reason": "Install from source on CentOS 7 with missing build dependencies; must fetch and verify the source archive first."},
+      {"rank": 7, "task_id": "rts_task_019050a62a845733d539e906", "skill": 3, "domain": 4, "task_form": 4, "overall": 3, "reason": "Build sclite from the old SCTK C toolkit, picking a stable release out of git history - legacy source, awkward build."},
+      {"rank": 8, "task_id": "rts_task_428182b81c791dfa573cf205", "skill": 3, "domain": 3, "task_form": 4, "overall": 3, "reason": "No extractor available: must read instructions for the download location, build the tool from source, then use it."},
+      {"rank": 9, "task_id": "rts_task_ee9d2f5b28222e2eb548eaa1", "skill": 3, "domain": 3, "task_form": 4, "overall": 3, "reason": "Local source archive plus checksum manifest; verify, unpack and build on an old CentOS 7 userland."},
+      {"rank": 10, "task_id": "rts_task_16204eb689ad0a75aa880f70", "skill": 3, "domain": 3, "task_form": 4, "overall": 3, "reason": "Resolve missing Python 3 and build tools on CentOS 7, download the source, then build and install it."}
+    ],
+    "TerminalWorld-Seeds-Clean": [
+      {"rank": 1, "task_id": "tw_8593", "skill": 5, "domain": 4, "task_form": 5, "overall": 5, "reason": "Download the st 0.4.1 tarball from a URL, build an old suckless C program, install system-wide - almost the same task with a different program."},
+      {"rank": 2, "task_id": "tw_17688", "skill": 4, "domain": 4, "task_form": 5, "overall": 4, "reason": "Build VIM from source with a large configure feature set and install to /usr prefix; heavy build-dependency hunting."},
+      {"rank": 3, "task_id": "tw_533008", "skill": 4, "domain": 4, "task_form": 5, "overall": 4, "reason": "Install a pinned nginx version from source and show it starts cleanly - build, install, then sanity-run the binary."},
+      {"rank": 4, "task_id": "tw_417753", "skill": 4, "domain": 4, "task_form": 5, "overall": 4, "reason": "Local v4.2.0.tar.gz of a C library built and installed system-wide on old CentOS 7 - extract, build, install exactly as here."},
+      {"rank": 5, "task_id": "tw_15324", "skill": 4, "domain": 3, "task_form": 4, "overall": 4, "reason": "Resurrect EOL Python 2 software on Debian Buster with archive mirrors; same fight against a dead-toolchain-era package."},
+      {"rank": 6, "task_id": "tw_289380", "skill": 4, "domain": 4, "task_form": 4, "overall": 4, "reason": "Check out a tagged PgBouncer source, apply the pgbouncer-rr patch, configure and build to an installed binary."},
+      {"rank": 7, "task_id": "tw_179356", "skill": 3, "domain": 4, "task_form": 4, "overall": 3, "reason": "Must identify and install the unlisted build dependencies of a C++ Qt project before it will compile from source."},
+      {"rank": 8, "task_id": "tw_129867", "skill": 3, "domain": 3, "task_form": 4, "overall": 3, "reason": "Prepare the build environment and compile a project from source until all build artifacts exist; no install step."},
+      {"rank": 9, "task_id": "tw_423671", "skill": 3, "domain": 3, "task_form": 4, "overall": 3, "reason": "Build with a specific older compiler (GCC 8 via devtoolset) and submodules - same compiler-version wrangling POV-Ray 2.2 needs."},
+      {"rank": 10, "task_id": "tw_504009", "skill": 3, "domain": 3, "task_form": 4, "overall": 3, "reason": "Clone, build and install a C++ library plus its binaries system-wide; ordinary CMake build rather than a broken legacy one."}
+    ],
+    "SWE-Smith-Seeds-Clean": [
+      {"rank": 1, "task_id": "conan-io__conan.86f29e13.pr_11678", "skill": 3, "domain": 4, "task_form": 1, "overall": 3, "reason": "AutotoolsToolchain mishandles compiler flags - exactly the configure/CFLAGS machinery you must reason about to build POV-Ray."},
+      {"rank": 2, "task_id": "conan-io__conan.86f29e13.lm_rewrite__m0121wmw", "skill": 3, "domain": 4, "task_form": 1, "overall": 3, "reason": "GnuToolchain compiler variable resolution bug; teaches how CC/CXX/flags reach an autotools build."},
+      {"rank": 3, "task_id": "conan-io__conan.86f29e13.pr_17566", "skill": 3, "domain": 4, "task_form": 1, "overall": 3, "reason": "Generated CMake and pkg-config files link the wrong library; same native link-resolution reasoning."},
+      {"rank": 4, "task_id": "conan-io__conan.86f29e13.combine_module__ox7m3k6h", "skill": 3, "domain": 4, "task_form": 1, "overall": 3, "reason": "C++ standard flags differ between Clang and GCC - reasoning about which compiler accepts which flag."},
+      {"rank": 5, "task_id": "conan-io__conan.86f29e13.combine_module__0jv2n7d9", "skill": 2, "domain": 4, "task_form": 1, "overall": 2, "reason": "Incorrect C++ standard flags for Clang; narrow flag-table fix but still native-toolchain territory."},
+      {"rank": 6, "task_id": "conan-io__conan.86f29e13.pr_14020", "skill": 2, "domain": 3, "task_form": 2, "overall": 2, "reason": "Backup-sources download/upload in a C/C++ package manager - the obtain-the-source-archive half, in Python."},
+      {"rank": 7, "task_id": "conan-io__conan.86f29e13.pr_12294", "skill": 2, "domain": 3, "task_form": 1, "overall": 2, "reason": "VirtualBuildEnv deactivation scripts: build-environment variable management around a native build."},
+      {"rank": 8, "task_id": "conan-io__conan.86f29e13.pr_13267", "skill": 2, "domain": 3, "task_form": 1, "overall": 2, "reason": "CMakeDeps emits the wrong configuration in a build context; build-graph configuration debugging only."},
+      {"rank": 9, "task_id": "cantools__cantools.0c6a7871.pr_602", "skill": 2, "domain": 3, "task_form": 1, "overall": 2, "reason": "Generated C source and its fuzzer Makefile get wrong paths - makefile path plumbing, but a Python unit fix."},
+      {"rank": 10, "task_id": "conan-io__conan.86f29e13.pr_15422", "skill": 2, "domain": 3, "task_form": 1, "overall": 2, "reason": "Parallel jobs in CMake build presets; touches how a native build is actually invoked, nothing about broken sources."}
+    ],
+    "SWE-Rebench-Tasks-Clean": [
+      {"rank": 1, "task_id": "scikit-build__scikit-build-core-712", "skill": 3, "domain": 3, "task_form": 1, "overall": 3, "reason": "CMake build-backend configuration handling; closest thing here to reasoning about a native build's settings."},
+      {"rank": 2, "task_id": "pypa__setuptools-1554", "skill": 2, "domain": 3, "task_form": 1, "overall": 2, "reason": "build_meta omits setup.py from the sdist - packaging/build-artifact correctness, though pure Python."},
+      {"rank": 3, "task_id": "scikit-build__scikit-build-core-793", "skill": 2, "domain": 3, "task_form": 1, "overall": 2, "reason": "Rename cmake.* build options with deprecation; build-configuration surface of a CMake-driven packager."},
+      {"rank": 4, "task_id": "pypa__setuptools-4676", "skill": 2, "domain": 3, "task_form": 1, "overall": 2, "reason": "Wheel ABI tag wrong for a debug Python build - artifact naming tied to how the interpreter was compiled."},
+      {"rank": 5, "task_id": "h5py__h5py-2433", "skill": 2, "domain": 3, "task_form": 1, "overall": 2, "reason": "Binding built against a specific HDF5 C library version; requires reasoning across the Python/C library boundary."},
+      {"rank": 6, "task_id": "pyca__cryptography-11201", "skill": 2, "domain": 3, "task_form": 1, "overall": 2, "reason": "cffi-backed package whose behaviour depends on the compiled native layer and its build-time versions."},
+      {"rank": 7, "task_id": "pypa__setuptools-1389", "skill": 2, "domain": 2, "task_form": 1, "overall": 2, "reason": "setup.py develop fails installing a script - the install-step-writes-an-executable concern, in Python packaging."},
+      {"rank": 8, "task_id": "pypa__setuptools-1418", "skill": 2, "domain": 2, "task_form": 1, "overall": 2, "reason": "Install-time filesystem error in setuptools; only the install phase overlaps with the TB2.1 task."},
+      {"rank": 9, "task_id": "conda__conda-8184", "skill": 2, "domain": 2, "task_form": 1, "overall": 2, "reason": "Package/environment installation interaction; dependency provisioning, but no compilation at all."},
+      {"rank": 10, "task_id": "takluyver__flit-234", "skill": 1, "domain": 2, "task_form": 1, "overall": 1, "reason": "Better error message when a build input file is missing - build tooling by name only; little transfer."}
+    ]
+  },
+  "final_top10": [
+    {"rank": 1, "task_id": "tw_8593", "source": "TerminalWorld-Seeds-Clean", "skill": 5, "domain": 4, "task_form": 5, "overall": 5, "reason": "Download an old program's source tarball from a URL, compile it and install it system-wide - the same task with a different program."},
+    {"rank": 2, "task_id": "task_003853_457136d4", "source": "TMax-15K", "skill": 5, "domain": 4, "task_form": 4, "overall": 4, "reason": "Vendored jq-1.6 whose ./configure && make is sabotaged; diagnose the build failure until the binary works."},
+    {"rank": 3, "task_id": "rts_task_a1fb5d219782b2ad9fd0ccbe", "source": "Recursive-Task-Synthesis", "skill": 4, "domain": 4, "task_form": 5, "overall": 4, "reason": "Fetch the PostgreSQL source tarball from a URL, build it and install it to a specified prefix."},
+    {"rank": 4, "task_id": "task_002996_9b750971", "source": "TMax-15K", "skill": 5, "domain": 4, "task_form": 4, "overall": 4, "reason": "Repair datamash-1.8 Makefile.in, then configure --prefix=/usr/local, make and make install a correctly named binary."},
+    {"rank": 5, "task_id": "tw_17688", "source": "TerminalWorld-Seeds-Clean", "skill": 4, "domain": 4, "task_form": 5, "overall": 4, "reason": "Build VIM from source with many optional features and install to a prefix; teaches configure-flag and dependency hunting."},
+    {"rank": 6, "task_id": "task_000423_4dba82f4", "source": "TMax-15K", "skill": 5, "domain": 4, "task_form": 4, "overall": 4, "reason": "Broken autotools tree: fix Makefile.am and configure permissions, run autoreconf -i, configure and make to a binary."},
+    {"rank": 7, "task_id": "tw_15324", "source": "TerminalWorld-Seeds-Clean", "skill": 4, "domain": 3, "task_form": 4, "overall": 4, "reason": "Get EOL Python 2 era software running again on an archived distro - same legacy-software-on-modern-host fight."},
+    {"rank": 8, "task_id": "rts_task_43c0269eab61f4f5fb8cafaf", "source": "Recursive-Task-Synthesis", "skill": 4, "domain": 3, "task_form": 4, "overall": 4, "reason": "Build a tool from local source, install it to /usr/local/bin, then exercise the installed binary on real input."},
+    {"rank": 9, "task_id": "task_002737_29eccf53", "source": "TMax-15K", "skill": 4, "domain": 4, "task_form": 4, "overall": 4, "reason": "Download an upstream C library tarball, extract, compile and install to a prefix before anything else can be built."},
+    {"rank": 10, "task_id": "tw_533008", "source": "TerminalWorld-Seeds-Clean", "skill": 4, "domain": 4, "task_form": 5, "overall": 4, "reason": "Install a pinned version of a C server from source and demonstrate the installed binary starts and stops cleanly."}
+  ],
+  "notes": "SWE-Smith and SWE-Rebench have no from-source C build tasks at all; the best available are conan native-toolchain bugs and Python packaging/build-backend issues, hence overall<=3 there - these ten are filler with honest scores. TerminalWorld is unusually strong for this TB2.1 task (dozens of genuine build-from-source seeds); I kept only ten but tw_275968, tw_7921, tw_30439, tw_322195 are comparable. The retrieval shortlist for TMax was dominated by boilerplate 'make install to a non-root prefix' bash-package chores; almost every TMax pick above came from my own ./configure / tarball searches, not from the shortlist."
+}

@@ -1,0 +1,587 @@
+{
+ "tb21_id": "configure-git-webserver",
+ "tb21_profile": {
+  "skill": "Wire a push-to-deploy chain by hand: create a bare repo reachable over SSH, write a post-receive hook that checks the tree out into a webroot, and get an HTTP server serving that directory on a fixed port, verified end to end with curl",
+  "domain": "Git server administration (bare repos, hooks, worktree checkout) plus Unix web-server setup (nginx/apache/http.server) and SSH",
+  "task_form": "configure-a-service: multi-component integration validated by a functional end-to-end request"
+ },
+ "searches": [
+  "tools.py search all 'post-receive|bare repositor|git --bare|git init --bare|git hook|hooks/post' -n 40",
+  "tools.py search all 'post-receive|pre-receive|post-commit|pre-commit hook|hooks/|git hook' -n 40",
+  "tools.py search tmax 'git hook|post-receive|when a new .{0,30} is pushed|whenever .{0,30} pushed|bare repositor|git server' -n 30",
+  "tools.py search all 'serve .{0,40}(static|files|directory)|document root|webroot|DocumentRoot|http\\.server|nginx .{0,30}(8080|static)' -n 30",
+  "tools.py words tmax post-receive checkout worktree 8080 http -n 25",
+  "tools.py search tw 'git (server|daemon|hook)|post-receive|bare repositor|gitolite|gitweb|git http' -n 25",
+  "tools.py search tw 'nginx|apache|listens? on port|serve .{0,30}(HTTP|static|files)|document root|curl http' -n 30",
+  "tools.py show task_001245_ef5510da task_001398_c3476d8e task_000189_231156cd",
+  "tools.py show task_002999_f7a7fdaf task_001955_4ec487fa task_000176_2b846a1b",
+  "tools.py show tw_220186 task_000323_88f28a61",
+  "sqlite: SELECT task_id FROM doc WHERE source='SWE-Rebench-Tasks-Clean' AND task_id LIKE '%dulwich%'/'%gitpython%'/'%waitress%'/'%werkzeug%'",
+  "sqlite: SELECT task_id FROM doc WHERE source='SWE-Smith-Seeds-Clean' AND task_id LIKE '%gunicorn%'/'%daphne%'/'%starlette%'/'%bottle%'"
+ ],
+ "per_source": {
+  "TMax-15K": [
+   {
+    "rank": 1,
+    "task_id": "task_000323_88f28a61",
+    "skill": 5,
+    "domain": 5,
+    "task_form": 5,
+    "overall": 5,
+    "reason": "Bare repo plus post-receive hook that checks the tree out, rebuilds and restarts the backend behind a web server, verified by curl on a fixed port."
+   },
+   {
+    "rank": 2,
+    "task_id": "task_002999_f7a7fdaf",
+    "skill": 5,
+    "domain": 5,
+    "task_form": 5,
+    "overall": 5,
+    "reason": "Write the post-receive hook that checks out into the deploy dir and restarts the app, then curl http://127.0.0.1:8080 to prove the chain works."
+   },
+   {
+    "rank": 3,
+    "task_id": "task_000176_2b846a1b",
+    "skill": 5,
+    "domain": 5,
+    "task_form": 5,
+    "overall": 5,
+    "reason": "Repair an nginx-on-8080 deployment and add git-hook deploy automation, verifying the served response end to end."
+   },
+   {
+    "rank": 4,
+    "task_id": "task_001398_c3476d8e",
+    "skill": 5,
+    "domain": 5,
+    "task_form": 4,
+    "overall": 5,
+    "reason": "post-receive hook in a bare repo checks out the served config and reloads the server on 8080; push-to-deploy over a bare repo."
+   },
+   {
+    "rank": 5,
+    "task_id": "task_001955_4ec487fa",
+    "skill": 5,
+    "domain": 4,
+    "task_form": 5,
+    "overall": 4,
+    "reason": "Create the bare repo, write a post-receive hook that checks out master into a directory and runs a binary, then clone and push to trigger it."
+   },
+   {
+    "rank": 6,
+    "task_id": "task_001245_ef5510da",
+    "skill": 5,
+    "domain": 4,
+    "task_form": 5,
+    "overall": 4,
+    "reason": "Bare repo plus an executable post-receive hook that reads oldrev/newrev from stdin, extracts the tree, builds and deploys on push."
+   },
+   {
+    "rank": 7,
+    "task_id": "task_000189_231156cd",
+    "skill": 4,
+    "domain": 4,
+    "task_form": 4,
+    "overall": 4,
+    "reason": "post-receive hook must check the pushed tree out into a worktree and run a tool against it; the checkout-into-a-served-dir mechanic."
+   },
+   {
+    "rank": 8,
+    "task_id": "task_000834_47d5bfc0",
+    "skill": 4,
+    "domain": 4,
+    "task_form": 4,
+    "overall": 4,
+    "reason": "Local git-based deployment system whose post-receive hook pushes artifacts out and logs success/failure of each deployment."
+   },
+   {
+    "rank": 9,
+    "task_id": "task_002290_2f19b664",
+    "skill": 4,
+    "domain": 4,
+    "task_form": 4,
+    "overall": 4,
+    "reason": "Debug why the automated deployment triggered from a bare git repository fails to complete; same push-to-deploy plumbing, fault-finding framing."
+   },
+   {
+    "rank": 10,
+    "task_id": "task_000636_421439f0",
+    "skill": 4,
+    "domain": 4,
+    "task_form": 4,
+    "overall": 4,
+    "reason": "Stand up the git server and a hook-triggered GitOps processing pipeline; same server-plus-hook construction."
+   }
+  ],
+  "Recursive-Task-Synthesis": [
+   {
+    "rank": 1,
+    "task_id": "rts_task_2d173883079e638aee794622",
+    "skill": 3,
+    "domain": 5,
+    "task_form": 3,
+    "overall": 4,
+    "reason": "Commit index.html and push it to a bare remote repository; literally the client half of the TB2.1 workflow, including the same filename."
+   },
+   {
+    "rank": 2,
+    "task_id": "rts_task_c9e30662e7248b9d83fd511f",
+    "skill": 3,
+    "domain": 5,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Configure a local bare repository as the remote and push a clean tree to it; remote setup and push semantics."
+   },
+   {
+    "rank": 3,
+    "task_id": "rts_task_b9c87bbb14b5d47ed45d40c3",
+    "skill": 3,
+    "domain": 5,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Create the bare repository at a given path and push the working repo into it; the server-side repo creation step."
+   },
+   {
+    "rank": 4,
+    "task_id": "rts_task_a3213dc42d14eb6e79080b36",
+    "skill": 3,
+    "domain": 4,
+    "task_form": 4,
+    "overall": 3,
+    "reason": "Install and start Apache2 and make its document root serve a specific page; the webroot-serves-a-file half of the task."
+   },
+   {
+    "rank": 5,
+    "task_id": "rts_task_5e2ccc6f4d6304bda4cabc38",
+    "skill": 3,
+    "domain": 4,
+    "task_form": 4,
+    "overall": 3,
+    "reason": "Get Apache2 running as a service with its default document root serving an HTML file; service-up plus content-served check."
+   },
+   {
+    "rank": 6,
+    "task_id": "rts_task_00b0aefefd1016c9165da7e3",
+    "skill": 3,
+    "domain": 4,
+    "task_form": 4,
+    "overall": 3,
+    "reason": "Apache with PHP and SSL serving three files out of /var/www/html; multi-component web server configuration."
+   },
+   {
+    "rank": 7,
+    "task_id": "rts_task_b776a2e3fa6fb564f5bef5dc",
+    "skill": 3,
+    "domain": 4,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Install two git hooks into a repository so they actually fire on the right events; hook installation and executability."
+   },
+   {
+    "rank": 8,
+    "task_id": "rts_task_ade8f1eb8d6d543d1b223b92",
+    "skill": 3,
+    "domain": 4,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Set up a repository with an executable hook that runs automatically on commit; same hook-must-actually-run failure modes."
+   },
+   {
+    "rank": 9,
+    "task_id": "rts_task_94573443b417e5a9675d7237",
+    "skill": 2,
+    "domain": 4,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Start an HTTP server with a deliberately chosen document root and record that path; picking what the server serves."
+   },
+   {
+    "rank": 10,
+    "task_id": "rts_task_7de3f4254a4de2a34ac89e4c",
+    "skill": 3,
+    "domain": 3,
+    "task_form": 4,
+    "overall": 3,
+    "reason": "Make a container process serve a static page over a specified network contract; end-to-end serve-and-fetch verification."
+   }
+  ],
+  "TerminalWorld-Seeds-Clean": [
+   {
+    "rank": 1,
+    "task_id": "tw_321921",
+    "skill": 4,
+    "domain": 5,
+    "task_form": 4,
+    "overall": 4,
+    "reason": "Make httpd actually reachable on its port with an index.html in the document root; unblock the port and prove the file is served."
+   },
+   {
+    "rank": 2,
+    "task_id": "tw_220186",
+    "skill": 4,
+    "domain": 5,
+    "task_form": 4,
+    "overall": 4,
+    "reason": "Commit a directory into a git repository, serve it over a local HTTP server and consume it over HTTP; git content published via a web server."
+   },
+   {
+    "rank": 3,
+    "task_id": "tw_313804",
+    "skill": 3,
+    "domain": 5,
+    "task_form": 3,
+    "overall": 4,
+    "reason": "Add a remote pointing at a bare repo, commit index.html and push; the client-side half of the TB2.1 workflow verbatim."
+   },
+   {
+    "rank": 4,
+    "task_id": "tw_587055",
+    "skill": 4,
+    "domain": 4,
+    "task_form": 4,
+    "overall": 4,
+    "reason": "Serve a document root file over HTTP on port 8080 from a hand-written runc bundle; get an HTTP server up on the required port."
+   },
+   {
+    "rank": 5,
+    "task_id": "tw_304629",
+    "skill": 4,
+    "domain": 4,
+    "task_form": 4,
+    "overall": 3,
+    "reason": "Apache is unreachable and will not start; troubleshoot the service until the web server is actually serving."
+   },
+   {
+    "rank": 6,
+    "task_id": "tw_7921",
+    "skill": 3,
+    "domain": 4,
+    "task_form": 4,
+    "overall": 3,
+    "reason": "Build and run a web server on port 8080 and capture the body of an HTTP request to it; same serve-then-curl acceptance test."
+   },
+   {
+    "rank": 7,
+    "task_id": "tw_224221",
+    "skill": 3,
+    "domain": 4,
+    "task_form": 4,
+    "overall": 3,
+    "reason": "Build and start a server listening on a named port that must return the expected HTML over HTTP."
+   },
+   {
+    "rank": 8,
+    "task_id": "tw_306284",
+    "skill": 3,
+    "domain": 4,
+    "task_form": 4,
+    "overall": 3,
+    "reason": "Free the occupied port and make httpd start and keep serving; port-contention and service-enablement work."
+   },
+   {
+    "rank": 9,
+    "task_id": "tw_195942",
+    "skill": 4,
+    "domain": 5,
+    "task_form": 2,
+    "overall": 3,
+    "reason": "Build a commit from blobs and trees with git plumbing only; the object/ref model a bare repo and its hooks operate on."
+   },
+   {
+    "rank": 10,
+    "task_id": "tw_100278",
+    "skill": 2,
+    "domain": 5,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Initialize a repo containing index.html, commit it and configure the origin remote; the client-side setup, minus the server."
+   }
+  ],
+  "SWE-Smith-Seeds-Clean": [
+   {
+    "rank": 1,
+    "task_id": "encode__starlette.db5063c2.combine_file__spx82e31",
+    "skill": 4,
+    "domain": 5,
+    "task_form": 2,
+    "overall": 4,
+    "reason": "StaticFiles returns the wrong status and response structure; serving a file from a directory over HTTP is the goal state here."
+   },
+   {
+    "rank": 2,
+    "task_id": "benoitc__gunicorn.bacbf8aa.func_pm_remove_cond__71ka0l9v",
+    "skill": 4,
+    "domain": 5,
+    "task_form": 2,
+    "overall": 4,
+    "reason": "parse_address broken for most formats; deciding what host:port a server binds to is the crux of getting 8080 answered."
+   },
+   {
+    "rank": 3,
+    "task_id": "benoitc__gunicorn.bacbf8aa.lm_rewrite__x0efmhvb",
+    "skill": 4,
+    "domain": 5,
+    "task_form": 2,
+    "overall": 4,
+    "reason": "Socket creation fails from the address configuration, so the server never listens; the exact failure a misconfigured webserver shows."
+   },
+   {
+    "rank": 4,
+    "task_id": "django__daphne.32ac73e1.func_basic__2cpoddzp",
+    "skill": 4,
+    "domain": 5,
+    "task_form": 2,
+    "overall": 3,
+    "reason": "Server will not start with default settings; diagnosing why an HTTP server fails to come up and listen."
+   },
+   {
+    "rank": 5,
+    "task_id": "django__daphne.32ac73e1.func_pm_remove_cond__l15tmnui",
+    "skill": 3,
+    "domain": 5,
+    "task_form": 2,
+    "overall": 3,
+    "reason": "CLI mishandles host-only or port-only endpoint configuration; listen-address configuration parsing."
+   },
+   {
+    "rank": 6,
+    "task_id": "benoitc__gunicorn.bacbf8aa.lm_rewrite__4twhroug",
+    "skill": 3,
+    "domain": 5,
+    "task_form": 2,
+    "overall": 3,
+    "reason": "Unix socket files not unlinked on close, so a restart cannot rebind; the stale-socket failure a redeploy hook hits."
+   },
+   {
+    "rank": 7,
+    "task_id": "benoitc__gunicorn.bacbf8aa.combine_file__7h3iodye",
+    "skill": 3,
+    "domain": 5,
+    "task_form": 2,
+    "overall": 3,
+    "reason": "Arbiter socket unlinking inverted on shutdown; same stop-then-restart-the-listener problem a deploy hook must handle."
+   },
+   {
+    "rank": 8,
+    "task_id": "benoitc__gunicorn.bacbf8aa.combine_module__ernek77y",
+    "skill": 3,
+    "domain": 4,
+    "task_form": 2,
+    "overall": 3,
+    "reason": "Server configuration loading broken; getting the server to actually apply the config file you wrote."
+   },
+   {
+    "rank": 9,
+    "task_id": "django__daphne.32ac73e1.combine_file__7y9nhxun",
+    "skill": 2,
+    "domain": 4,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "X-Forwarded-For handling broken; reverse-proxy header plumbing between a front server and its backend."
+   },
+   {
+    "rank": 10,
+    "task_id": "encode__starlette.db5063c2.combine_module__85k8h9d6",
+    "skill": 2,
+    "domain": 4,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "GZip middleware not applying to responses; the HTTP response pipeline that delivers served content."
+   }
+  ],
+  "SWE-Rebench-Tasks-Clean": [
+   {
+    "rank": 1,
+    "task_id": "jelmer__dulwich-1073",
+    "skill": 4,
+    "domain": 5,
+    "task_form": 2,
+    "overall": 4,
+    "reason": "Repo.reset_index is broken; materialising a commit's tree into a working directory is exactly what a post-receive checkout does."
+   },
+   {
+    "rank": 2,
+    "task_id": "jelmer__dulwich-1578",
+    "skill": 4,
+    "domain": 5,
+    "task_form": 2,
+    "overall": 4,
+    "reason": "porcelain.add corrupts the branch and status reports nonsense; repository and ref state after a write, the thing a push mutates."
+   },
+   {
+    "rank": 3,
+    "task_id": "jelmer__dulwich-1568",
+    "skill": 3,
+    "domain": 5,
+    "task_form": 2,
+    "overall": 3,
+    "reason": "Config parsing breaks when cloning a local repository by path; clone-from-a-server-path is the client step here."
+   },
+   {
+    "rank": 4,
+    "task_id": "jelmer__dulwich-1020",
+    "skill": 3,
+    "domain": 5,
+    "task_form": 2,
+    "overall": 3,
+    "reason": "Tracking-branch entries in .git/config parsed wrongly; remote and branch configuration semantics behind `git push origin master`."
+   },
+   {
+    "rank": 5,
+    "task_id": "gitpython-developers__gitpython-677",
+    "skill": 3,
+    "domain": 5,
+    "task_form": 2,
+    "overall": 3,
+    "reason": "Environment passed to clone_from is not retained in the resulting repo; remote configuration persistence after a clone."
+   },
+   {
+    "rank": 6,
+    "task_id": "gitpython-developers__gitpython-645",
+    "skill": 3,
+    "domain": 5,
+    "task_form": 2,
+    "overall": 3,
+    "reason": "Cannot pass environment variables to git subprocesses needed for commit/commit-tree; the same env-for-git problem hooks hit."
+   },
+   {
+    "rank": 7,
+    "task_id": "gitpython-developers__gitpython-744",
+    "skill": 3,
+    "domain": 4,
+    "task_form": 2,
+    "overall": 3,
+    "reason": "Adding files breaks for a repo rooted at the filesystem root; absolute-path handling inside a repository."
+   },
+   {
+    "rank": 8,
+    "task_id": "pallets__werkzeug-2161",
+    "skill": 3,
+    "domain": 4,
+    "task_form": 2,
+    "overall": 3,
+    "reason": "send_file silently unpacks gzipped files; serving a file from disk with the bytes the client expected."
+   },
+   {
+    "rank": 9,
+    "task_id": "pylons__waitress-166",
+    "skill": 3,
+    "domain": 4,
+    "task_form": 2,
+    "overall": 3,
+    "reason": "204 response emits a Transfer-Encoding header against RFC 7230; emitting a well-formed HTTP response from a server you run."
+   },
+   {
+    "rank": 10,
+    "task_id": "pylons__waitress-124",
+    "skill": 2,
+    "domain": 4,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Response splitting via status line and header names; HTTP server response hygiene, weakly related to configuring one."
+   }
+  ]
+ },
+ "final_top10": [
+  {
+   "rank": 1,
+   "task_id": "task_000323_88f28a61",
+   "source": "TMax-15K",
+   "skill": 5,
+   "domain": 5,
+   "task_form": 5,
+   "overall": 5,
+   "reason": "Bare repo, post-receive hook that checks out and restarts the backend, web server in front, and a curl on a fixed port as the test."
+  },
+  {
+   "rank": 2,
+   "task_id": "task_002999_f7a7fdaf",
+   "source": "TMax-15K",
+   "skill": 5,
+   "domain": 5,
+   "task_form": 5,
+   "overall": 5,
+   "reason": "Write the post-receive hook, push to trigger it, and curl port 8080 to confirm the deployed content is served."
+  },
+  {
+   "rank": 3,
+   "task_id": "task_000176_2b846a1b",
+   "source": "TMax-15K",
+   "skill": 5,
+   "domain": 5,
+   "task_form": 5,
+   "overall": 5,
+   "reason": "Fix an nginx-on-8080 deployment and automate deploys through git hooks, then verify the response over HTTP."
+  },
+  {
+   "rank": 4,
+   "task_id": "task_001398_c3476d8e",
+   "source": "TMax-15K",
+   "skill": 5,
+   "domain": 5,
+   "task_form": 4,
+   "overall": 5,
+   "reason": "post-receive hook checks the pushed file out to the path the web server reads and reloads it; push-to-serve in one step."
+  },
+  {
+   "rank": 5,
+   "task_id": "task_001955_4ec487fa",
+   "source": "TMax-15K",
+   "skill": 5,
+   "domain": 4,
+   "task_form": 5,
+   "overall": 4,
+   "reason": "Create the bare repo, hook it to check out master into a directory, clone it and push to prove the trigger fires."
+  },
+  {
+   "rank": 6,
+   "task_id": "task_001245_ef5510da",
+   "source": "TMax-15K",
+   "skill": 5,
+   "domain": 4,
+   "task_form": 5,
+   "overall": 4,
+   "reason": "Executable post-receive hook reading oldrev/newrev from stdin, extracting the tree and deploying; the hook mechanics in full."
+  },
+  {
+   "rank": 7,
+   "task_id": "task_000189_231156cd",
+   "source": "TMax-15K",
+   "skill": 4,
+   "domain": 4,
+   "task_form": 4,
+   "overall": 4,
+   "reason": "Hook must check the pushed tree out into a worktree before acting on it, the step that turns a bare repo into served files."
+  },
+  {
+   "rank": 8,
+   "task_id": "tw_321921",
+   "source": "TerminalWorld-Seeds-Clean",
+   "skill": 4,
+   "domain": 5,
+   "task_form": 4,
+   "overall": 4,
+   "reason": "Get the HTTP daemon actually reachable on its port with index.html in the document root; the serving half, unblocked end to end."
+  },
+  {
+   "rank": 9,
+   "task_id": "tw_220186",
+   "source": "TerminalWorld-Seeds-Clean",
+   "skill": 4,
+   "domain": 5,
+   "task_form": 4,
+   "overall": 4,
+   "reason": "Commit content into a git repository and publish that same directory over a local HTTP server that a client then fetches from."
+  },
+  {
+   "rank": 10,
+   "task_id": "tw_313804",
+   "source": "TerminalWorld-Seeds-Clean",
+   "skill": 3,
+   "domain": 5,
+   "task_form": 3,
+   "overall": 4,
+   "reason": "Point a remote at a bare repository, commit index.html and push it there; the client half of the TB2.1 command sequence."
+  }
+ ],
+ "notes": "TMax owns this one: 154 of its instructions set up a bare repo with a post-receive hook, and roughly a dozen combine that with nginx/HTTP on a fixed port and a curl-based acceptance check. Those are near-duplicates of the TB2.1 task and the retrievers surfaced almost none of them (the shortlist was dominated by 'hello world' and generic nginx tasks); I found them with a post-receive/bare-repository regex and a 'post-receive checkout worktree 8080 http' word query. TerminalWorld has no git-server tasks at all but has strong isolated halves: push-index.html-to-a-bare-remote, and make-a-web-server-actually-serve-its-docroot-on-a-port. RTS's git pool is mostly 'mdlr import from a bare repo' boilerplate (~200 near-identical instructions) which I discounted; what survives is push-to-a-bare-remote and Apache-document-root tasks. For the SWE corpora I split the domain: gunicorn/daphne/starlette cover bind-a-server-to-a-port and serve-a-static-file, dulwich/GitPython cover the repository and checkout internals a post-receive hook depends on."
+}

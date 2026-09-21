@@ -1,0 +1,106 @@
+{
+  "tb21_id": "sqlite-with-gcov",
+  "tb21_profile": {
+    "skill": "Build a C project from a vendored source tarball with non-default compiler/configure flags (gcov instrumentation) and install the binary so it resolves on PATH",
+    "domain": "Linux toolchain: autotools/make, gcc coverage instrumentation (.gcno/.gcda), SQLite source distribution, Ubuntu apt build deps",
+    "task_form": "build/packaging + environment configuration from source; few steps but must get the flag plumbing and install location right"
+  },
+  "searches": [
+    "tools.py search all \"gcov\"",
+    "tools.py search all \"fprofile-arcs\"",
+    "tools.py search all \"coverage instrumentation\"",
+    "tools.py search all \"--enable-coverage\"",
+    "tools.py search all \"lcov\"",
+    "tools.py search all \"\\./configure\" -n 20",
+    "tools.py search all \"make install\"",
+    "tools.py search all \"CFLAGS\" -n 25",
+    "tools.py search all \"from source\"",
+    "tools.py search all \"tar\\.gz\"",
+    "tools.py search all \"autoreconf|autogen\\.sh|automake\" -n 25",
+    "tools.py words all compile \"from source\" PATH install make -n 30",
+    "tools.py words tw compile build \"from source\" tarball install system-wide -n 30",
+    "tools.py search all \"debug symbols|AddressSanitizer|-fsanitize|profiling enabled|instrumented build\" -n 20",
+    "tools.py search all \"sqlite.{0,40}(compile|build from source|amalgamation)|amalgamation\" -n 20",
+    "tools.py search smith \"conan\" -n 60",
+    "tools.py search smith \"build_ext|cmake|CMake|sqlite|coverage\" -n 25",
+    "tools.py search rebench \"cmake|CMake|build_ext|compiler flag|--prefix|sqlite3|coverage\" -n 30",
+    "tools.py search rebench \"setuptools|scikit-build|h5py\" -n 60",
+    "tools.py search rebench \"on PATH|\\$PATH|which\\(|shutil.which\" -n 20",
+    "tools.py search rebench \"sqlite\" -n 20"
+  ],
+  "per_source": {
+    "TMax-15K": [
+      {"rank": 1, "task_id": "task_005220_4fbd47df", "skill": 5, "domain": 5, "task_form": 4, "overall": 5, "reason": "Same package: fix sqlite-autoconf build breakage, run ./configure && make, produce working sqlite3 binary."},
+      {"rank": 2, "task_id": "task_004618_d562309e", "skill": 5, "domain": 5, "task_form": 4, "overall": 5, "reason": "Vendored SQLite source whose build config disables features; must repair config and compile sqlite3 with features on."},
+      {"rank": 3, "task_id": "task_003443_adaae044", "skill": 4, "domain": 5, "task_form": 3, "overall": 4, "reason": "Fix Makefile so SQLite amalgamation compiles as static lib with a compile-time feature define enabled; same flag-plumbing skill."},
+      {"rank": 4, "task_id": "task_003681_791f36e3", "skill": 4, "domain": 5, "task_form": 3, "overall": 4, "reason": "Repair missing linker flag in SQLite amalgamation Makefile and build sqlite3 binary; identical compile/link-flag debugging."},
+      {"rank": 5, "task_id": "task_002996_9b750971", "skill": 4, "domain": 4, "task_form": 4, "overall": 4, "reason": "Fix Makefile.in, ./configure --prefix=/usr/local, make install so the built binary is on PATH and usable downstream."},
+      {"rank": 6, "task_id": "task_002579_198b9870", "skill": 4, "domain": 4, "task_form": 4, "overall": 4, "reason": "Vendored zlib: repair build system, configure --prefix, make install, then link against the install prefix."},
+      {"rank": 7, "task_id": "task_003853_457136d4", "skill": 4, "domain": 4, "task_form": 4, "overall": 4, "reason": "Vendored jq-1.6 tarball with injected build regression; diagnose ./configure && make failure and get a working binary."},
+      {"rank": 8, "task_id": "task_000423_4dba82f4", "skill": 4, "domain": 4, "task_form": 4, "overall": 4, "reason": "Autotools chain end-to-end: chmod configure, fix Makefile.am, autoreconf -i, configure, make for vendored fping."},
+      {"rank": 9, "task_id": "task_003791_3f47fa75", "skill": 4, "domain": 4, "task_form": 3, "overall": 4, "reason": "libseccomp configure carries an invalid hardcoded compiler flag; find it, build and install to a local prefix."},
+      {"rank": 10, "task_id": "task_004851_a4156401", "skill": 3, "domain": 5, "task_form": 3, "overall": 3, "reason": "Fix broken Makefile for vendored sqlite-amalgamation to produce sqlite3.o, then link a C tool against it."}
+    ],
+    "Recursive-Task-Synthesis": [
+      {"rank": 1, "task_id": "rts_task_8bc9362364eccd860637ab4f", "skill": 5, "domain": 4, "task_form": 3, "overall": 4, "reason": "Discover required CFLAGS from BUILD.md, rebuild with them, verify the emitted .debug_info section — same flag-to-artifact verification as .gcno/.gcda."},
+      {"rank": 2, "task_id": "rts_task_5a41945f6aee8021462f8a93", "skill": 5, "domain": 4, "task_form": 3, "overall": 4, "reason": "Rebuild massdns with debug symbols by finding the right Makefile target/flags and verifying the binary carries the info."},
+      {"rank": 3, "task_id": "rts_task_afd60c089eb038e4ad5ef336", "skill": 4, "domain": 4, "task_form": 5, "overall": 4, "reason": "Build a database engine (PostgreSQL) from a source tarball into a prefix and make its binaries resolve from PATH."},
+      {"rank": 4, "task_id": "rts_task_3f3664306872177f4ab3d032", "skill": 4, "domain": 4, "task_form": 5, "overall": 4, "reason": "Same PostgreSQL source build, verified by psql --version and pg_config --bindir resolving from the install prefix."},
+      {"rank": 5, "task_id": "rts_task_6a7048f4ef364be52712bbb1", "skill": 4, "domain": 4, "task_form": 4, "overall": 4, "reason": "Install build deps, run autotools bootstrap, and pass an exact plus profile-derived set of ./configure feature flags."},
+      {"rank": 6, "task_id": "rts_task_a8751e39ff6db7c40b9e0f78", "skill": 4, "domain": 4, "task_form": 3, "overall": 3, "reason": "Build with debug symbols and confirm .debug_info present; same compile-flag-produces-section check, plus GDB work that does not transfer."},
+      {"rank": 7, "task_id": "rts_task_7a2b088a83a4232da77a850e", "skill": 4, "domain": 3, "task_form": 4, "overall": 3, "reason": "Full autotools build of an out-of-tree C plugin with a long exact ./configure flag list and dependency installation."},
+      {"rank": 8, "task_id": "rts_task_2f23574288ffee904e518ae7", "skill": 4, "domain": 4, "task_form": 4, "overall": 3, "reason": "Configure Ruby with --disable-* feature flags, build miniruby, install the binary and verify it runs."},
+      {"rank": 9, "task_id": "rts_task_bc2b9eb9fb5126960d625900", "skill": 3, "domain": 4, "task_form": 4, "overall": 3, "reason": "Chain of four C libraries built and installed from source into /opt prefix on Debian; dependency-ordered compilation."},
+      {"rank": 10, "task_id": "rts_task_fefbcc2ba59050e91036cb23", "skill": 4, "domain": 3, "task_form": 3, "overall": 3, "reason": "Build with debug symbols and verify the .debug_info section exists; near-duplicate of the other buggy-png variants."}
+    ],
+    "TerminalWorld-Seeds-Clean": [
+      {"rank": 1, "task_id": "tw_8593", "skill": 4, "domain": 4, "task_form": 5, "overall": 4, "reason": "Compile a small C program (st) from its source tarball, install it system-wide, then uninstall via the make target."},
+      {"rank": 2, "task_id": "tw_17688", "skill": 5, "domain": 4, "task_form": 5, "overall": 4, "reason": "Build VIM with a specific non-default feature set enabled via configure flags and install the binary to a PATH location."},
+      {"rank": 3, "task_id": "tw_417753", "skill": 4, "domain": 4, "task_form": 5, "overall": 4, "reason": "Local source archive already present (no network), build and install libwebsockets system-wide on a bare CentOS image."},
+      {"rank": 4, "task_id": "tw_528959", "skill": 4, "domain": 4, "task_form": 5, "overall": 4, "reason": "Compile CPython 3.9.1 from source on Debian and end with a working python3.9 executable installed on the system."},
+      {"rank": 5, "task_id": "tw_135422", "skill": 4, "domain": 4, "task_form": 4, "overall": 4, "reason": "Configure and build binutils from a local tarball with an exact cross-compile flag set; configure-flag precision is the crux."},
+      {"rank": 6, "task_id": "tw_533008", "skill": 4, "domain": 4, "task_form": 4, "overall": 3, "reason": "nginx 1.23.2 from source: resolve build deps, configure, make install, and prove the installed binary runs."},
+      {"rank": 7, "task_id": "tw_30437", "skill": 3, "domain": 4, "task_form": 4, "overall": 3, "reason": "Fetch aircrack-ng source archive, compile and install so binaries are on PATH; same autotools/make loop."},
+      {"rank": 8, "task_id": "tw_204493", "skill": 3, "domain": 4, "task_form": 4, "overall": 3, "reason": "Install from source on a stripped CentOS image where the missing build toolchain must be discovered and installed first."},
+      {"rank": 9, "task_id": "tw_177860", "skill": 3, "domain": 3, "task_form": 4, "overall": 3, "reason": "Kernel tarball build: configure the build, run a long make, install artifacts; same patience-with-a-C-build genre."},
+      {"rank": 10, "task_id": "tw_504009", "skill": 3, "domain": 3, "task_form": 4, "overall": 3, "reason": "CMake build+install of a C++ library from a cloned source tree; build-system driving but not autotools or flag tuning."}
+    ],
+    "SWE-Smith-Seeds-Clean": [
+      {"rank": 1, "task_id": "conan-io__conan.86f29e13.combine_module__0jv2n7d9", "skill": 3, "domain": 4, "task_form": 2, "overall": 3, "reason": "Bug in how C++ standard compiler flags are emitted per compiler; reasoning about which flag reaches the compiler line."},
+      {"rank": 2, "task_id": "conan-io__conan.86f29e13.pr_11678", "skill": 3, "domain": 4, "task_form": 2, "overall": 3, "reason": "tools.build:cflags/cxxflags from a profile are not applied; exactly the custom-compile-flag plumbing this TB task needs."},
+      {"rank": 3, "task_id": "conan-io__conan.86f29e13.pr_12294", "skill": 3, "domain": 4, "task_form": 2, "overall": 3, "reason": "VirtualBuildEnv activation/deactivation scripts and their naming; build-environment and PATH-style env setup."},
+      {"rank": 4, "task_id": "conan-io__conan.86f29e13.lm_rewrite__m0121wmw", "skill": 3, "domain": 4, "task_form": 2, "overall": 3, "reason": "Build environment variables not set correctly for a package build; same class of toolchain env wiring."},
+      {"rank": 5, "task_id": "conan-io__conan.86f29e13.func_pm_remove_cond__ucg6f79v", "skill": 3, "domain": 4, "task_form": 2, "overall": 3, "reason": "CMakeDeps transitive dependency handling; C/C++ build-graph and generated build-config correctness."},
+      {"rank": 6, "task_id": "conan-io__conan.86f29e13.pr_15422", "skill": 2, "domain": 4, "task_form": 2, "overall": 2, "reason": "Add jobs parameter to generated CMake build presets; touches how the C++ build is actually invoked."},
+      {"rank": 7, "task_id": "conan-io__conan.86f29e13.pr_13267", "skill": 2, "domain": 4, "task_form": 2, "overall": 2, "reason": "Build-type/config mismatch in generated CMakeDeps files; same territory of build configuration correctness."},
+      {"rank": 8, "task_id": "conan-io__conan.86f29e13.pr_17566", "skill": 2, "domain": 4, "task_form": 2, "overall": 2, "reason": "Transitive requires produce wrong component linkage; linking semantics of C libraries, shared with the -l/-L work here."},
+      {"rank": 9, "task_id": "conan-io__conan.86f29e13.pr_12841", "skill": 2, "domain": 4, "task_form": 2, "overall": 2, "reason": "Generated files for a given arch setting are wrong; per-architecture build settings reasoning, weak form match."},
+      {"rank": 10, "task_id": "conan-io__conan.86f29e13.pr_16279", "skill": 2, "domain": 3, "task_form": 2, "overall": 2, "reason": "CMakeDeps emits bad config for multiple versions of a dep; C/C++ packaging domain only, little build-from-source skill."}
+    ],
+    "SWE-Rebench-Tasks-Clean": [
+      {"rank": 1, "task_id": "pypa__setuptools-4676", "skill": 3, "domain": 3, "task_form": 2, "overall": 3, "reason": "Wheel ABI tag wrong for a debug build of CPython; reasoning about how build flags change emitted artifacts."},
+      {"rank": 2, "task_id": "scikit-build__scikit-build-core-712", "skill": 3, "domain": 3, "task_form": 2, "overall": 3, "reason": "CMake-driven build backend mishandles config settings that select build options; closest build-configuration bug here."},
+      {"rank": 3, "task_id": "jazzband__pip-tools-737", "skill": 3, "domain": 2, "task_form": 2, "overall": 2, "reason": "Wrong executable picked because of PATH resolution order; same PATH-visibility reasoning the verifier checks."},
+      {"rank": 4, "task_id": "scikit-build__scikit-build-core-764", "skill": 2, "domain": 3, "task_form": 2, "overall": 2, "reason": "Build failure of a CMake build backend under a distro packaging build; reading a build log back to a cause."},
+      {"rank": 5, "task_id": "scikit-build__scikit-build-core-793", "skill": 2, "domain": 3, "task_form": 2, "overall": 2, "reason": "Reorganising the build-option section of a CMake build backend; build-configuration naming only."},
+      {"rank": 6, "task_id": "pypa__setuptools-1625", "skill": 2, "domain": 3, "task_form": 2, "overall": 2, "reason": "PEP517 build-env failure traced through build_meta; debugging an isolated build invocation."},
+      {"rank": 7, "task_id": "pypa__setuptools-1554", "skill": 2, "domain": 3, "task_form": 2, "overall": 2, "reason": "sdist produced by build_meta omits setup.py; packaging-output completeness, adjacent to build/install correctness."},
+      {"rank": 8, "task_id": "pypa__setuptools-1129", "skill": 2, "domain": 3, "task_form": 2, "overall": 2, "reason": "setup_requires must override system versions; resolving build-time dependencies before a build can run."},
+      {"rank": 9, "task_id": "h5py__h5py-2433", "skill": 2, "domain": 2, "task_form": 2, "overall": 2, "reason": "Python binding over a C library where build/runtime library behaviour leaks through; only loose C-library domain overlap."},
+      {"rank": 10, "task_id": "pypa__pip-10288", "skill": 1, "domain": 2, "task_form": 2, "overall": 2, "reason": "Add a pip flag for credential fetching; installation tooling domain but no compilation skill at all."}
+    ]
+  },
+  "final_top10": [
+    {"rank": 1, "task_id": "task_005220_4fbd47df", "source": "TMax-15K", "skill": 5, "domain": 5, "task_form": 4, "overall": 5, "reason": "Fix sqlite-autoconf build breakage and run ./configure && make to get a working sqlite3 binary; same package, same build system."},
+    {"rank": 2, "task_id": "task_004618_d562309e", "source": "TMax-15K", "skill": 5, "domain": 5, "task_form": 4, "overall": 5, "reason": "Vendored SQLite source with deliberately disabled build features; repair config and compile sqlite3 with them enabled."},
+    {"rank": 3, "task_id": "rts_task_8bc9362364eccd860637ab4f", "source": "Recursive-Task-Synthesis", "skill": 5, "domain": 4, "task_form": 3, "overall": 4, "reason": "Find the required CFLAGS, rebuild, and verify the resulting instrumentation section exists — the exact crux of the gcov check."},
+    {"rank": 4, "task_id": "task_003443_adaae044", "source": "TMax-15K", "skill": 4, "domain": 5, "task_form": 3, "overall": 4, "reason": "Compile the SQLite amalgamation with a specific compile-time feature enabled by fixing its Makefile."},
+    {"rank": 5, "task_id": "rts_task_afd60c089eb038e4ad5ef336", "source": "Recursive-Task-Synthesis", "skill": 4, "domain": 4, "task_form": 5, "overall": 4, "reason": "Build a database engine from a source tarball into a prefix and make its binaries resolve from PATH in a clean shell."},
+    {"rank": 6, "task_id": "tw_8593", "source": "TerminalWorld-Seeds-Clean", "skill": 4, "domain": 4, "task_form": 5, "overall": 4, "reason": "Compile a C program from its source tarball and install it system-wide; same genre and comparable depth."},
+    {"rank": 7, "task_id": "task_002996_9b750971", "source": "TMax-15K", "skill": 4, "domain": 4, "task_form": 4, "overall": 4, "reason": "Fix Makefile.in then ./configure --prefix=/usr/local && make install so the compiled binary is usable from PATH."},
+    {"rank": 8, "task_id": "tw_17688", "source": "TerminalWorld-Seeds-Clean", "skill": 5, "domain": 4, "task_form": 5, "overall": 4, "reason": "Build with a non-default feature set selected through configure flags, then install the binary where PATH finds it."},
+    {"rank": 9, "task_id": "rts_task_5a41945f6aee8021462f8a93", "source": "Recursive-Task-Synthesis", "skill": 5, "domain": 4, "task_form": 3, "overall": 4, "reason": "Rebuild a C tool with debug instrumentation by locating the right Makefile flags and verifying the binary carries it."},
+    {"rank": 10, "task_id": "tw_417753", "source": "TerminalWorld-Seeds-Clean", "skill": 4, "domain": 4, "task_form": 5, "overall": 4, "reason": "Pre-supplied local source archive, no network: build and install a C library system-wide from it."}
+  ],
+  "notes": "No task anywhere in the 56k pool mentions gcov, lcov, -fprofile-arcs or coverage instrumentation (searched all five corpora), so the nearest skill is 'build from a vendored source tree with a non-default compiler/configure flag and verify the emitted artifact'. The retriever shortlists were dominated by SQLite *query* tasks (right word, wrong skill) and, for RTS, by an online-CV LaTeX cluster that is pure boilerplate overlap; almost every candidate I kept for RTS and TW came from my own searches, not the shortlist. SWE-Rebench is genuinely weak: it has no C build-from-source tasks at all, only Python packaging/build-backend issues, so ranks 3-10 there are low-confidence filler. SWE-Smith is carried entirely by conan-io/conan (C/C++ build flags and toolchain generation); everything else in that corpus is unrelated pure-Python bug fixing."
+}

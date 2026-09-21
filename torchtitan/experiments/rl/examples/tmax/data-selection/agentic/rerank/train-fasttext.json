@@ -1,0 +1,101 @@
+{
+  "tb21_id": "train-fasttext",
+  "tb21_profile": {
+    "skill": "Train a text classifier to clear an accuracy floor on a hidden test set while staying under a hard artifact-size cap: format the data for the tool, tune hyperparameters, then compress/quantize to fit the budget",
+    "domain": "fastText CLI/python bindings, supervised text classification of Yelp reviews, NLP preprocessing and n-gram/embedding hyperparameters",
+    "task_form": "optimise-for-a-budget / model-training: iterate against a measured metric with two opposing constraints (accuracy >= 0.62, size < 150MB)"
+  },
+  "searches": [
+    "tools.py search all \"fasttext|fastText\"",
+    "tools.py search all \"word2vec|gensim|word embedding\"",
+    "tools.py search all \"text classification|sentiment\" -n 30",
+    "tools.py search all \"quantiz\" -n 10",
+    "tools.py search all \"accuracy of at least|accuracy >|at least 0\\.[0-9]|achieve.{0,20}accuracy\"",
+    "tools.py search all \"model size|size limit|under .{0,10}MB|budget\"",
+    "tools.py search all \"(accuracy|F1|AUC|R\\^2|R2 score).{0,60}(at least|>=|exceed|greater than).{0,20}0\\.[5-9]\" -n 30",
+    "tools.py words all train model accuracy \"test set\" threshold -n 30",
+    "tools.py search tw \"train|classifier|accuracy|machine learning\" -n 35",
+    "tools.py search rts \"train a|classifier|accuracy|machine learning|scikit|model\" -n 35",
+    "tools.py search smith \"classifier|sklearn|scikit|train the model|accuracy|vectorizer|tokeniz|embedding\" -n 30",
+    "tools.py search smith \"string2string|word_cloud|textdistance|charset_normalizer|chardet\" -n 60",
+    "tools.py search rebench \"train|classifier|accuracy|sklearn|scikit|vectorizer|tokeniz|embedding|fit\\(\" -n 40",
+    "tools.py search rebench \"evalml|scikit-lego|dirty_cat|mlxtend|fuel|nltk|spacy|sdv-dev\" -n 50",
+    "tools.py show task_001191_5d4f858c task_008886_49a94993 task_000802_aa7b130a",
+    "tools.py show task_000644_9d78a6c5 task_002271_c43206b1 task_001001_84c2fe4e"
+  ],
+  "per_source": {
+    "TMax-15K": [
+      {"rank": 1, "task_id": "task_000802_aa7b130a", "skill": 5, "domain": 4, "task_form": 5, "overall": 5, "reason": "Train a text-review classifier with hyperparameter tuning and clear an accuracy floor of 0.85 on a hidden test set — same job."},
+      {"rank": 2, "task_id": "task_001191_5d4f858c", "skill": 3, "domain": 5, "task_form": 3, "overall": 4, "reason": "Same library: build the vendored fastText, load a .bin model, predict __label__ with a confidence threshold via the python bindings."},
+      {"rank": 3, "task_id": "task_000644_9d78a6c5", "skill": 4, "domain": 3, "task_form": 5, "overall": 4, "reason": "Iterate on the data-prep script until an opaque evaluator reports accuracy >= 0.85; the same tune-against-a-metric loop."},
+      {"rank": 4, "task_id": "task_002271_c43206b1", "skill": 4, "domain": 3, "task_form": 5, "overall": 4, "reason": "Hit an oracle accuracy of >= 0.85 while compressing to exactly 10 features: an accuracy floor under a hard size budget."},
+      {"rank": 5, "task_id": "task_008886_49a94993", "skill": 3, "domain": 4, "task_form": 3, "overall": 3, "reason": "TF-IDF plus logistic regression on reviews with a GridSearchCV hyperparameter sweep and a leakage-free evaluation."},
+      {"rank": 6, "task_id": "task_001001_84c2fe4e", "skill": 3, "domain": 3, "task_form": 4, "overall": 3, "reason": "Cross-validated hyperparameter search for k, then predictions scored against hidden labels with an accuracy floor."},
+      {"rank": 7, "task_id": "task_003264_31ca06ba", "skill": 3, "domain": 4, "task_form": 3, "overall": 3, "reason": "Clean the data then train and cross-validate a text-classification pipeline end to end."},
+      {"rank": 8, "task_id": "task_000920_e86c9cd9", "skill": 3, "domain": 4, "task_form": 3, "overall": 3, "reason": "Fix leakage in a text-classification pipeline and build an honest held-out evaluation — how to trust a reported accuracy."},
+      {"rank": 9, "task_id": "task_000510_7f94cbcf", "skill": 3, "domain": 2, "task_form": 4, "overall": 3, "reason": "Compress an artifact as hard as possible while keeping a fidelity metric above threshold; the quality/size tradeoff in another medium."},
+      {"rank": 10, "task_id": "task_000209_cecbee3d", "skill": 2, "domain": 4, "task_form": 3, "overall": 3, "reason": "Build a reproducible text-classification training pipeline; data-to-model plumbing, but no metric target to hit."}
+    ],
+    "Recursive-Task-Synthesis": [
+      {"rank": 1, "task_id": "rts_task_6a81762bd5745f498f36b83e", "skill": 3, "domain": 5, "task_form": 4, "overall": 3, "reason": "Train a compass model plus per-corpus slice embeddings on raw text files — unsupervised text-embedding training, fastText's other mode."},
+      {"rank": 2, "task_id": "rts_task_abd2d2db375ec35a34770513", "skill": 3, "domain": 5, "task_form": 4, "overall": 3, "reason": "Same CADE workflow: train compass and slice models on two corpora and read the resulting vector similarity."},
+      {"rank": 3, "task_id": "rts_task_fe9b38379292388dd5e39009", "skill": 3, "domain": 4, "task_form": 3, "overall": 3, "reason": "Must derive the embedding dimension before training the models — a training hyperparameter that has to be right."},
+      {"rank": 4, "task_id": "rts_task_c07d2623a0a99b18876ccb0b", "skill": 2, "domain": 5, "task_form": 3, "overall": 3, "reason": "Third CADE variant: train text-embedding models on sample corpora and compute the shift score."},
+      {"rank": 5, "task_id": "rts_task_e69fdae3612dcbc49b035654", "skill": 2, "domain": 4, "task_form": 3, "overall": 2, "reason": "Train slice models after recovering a config-derived size setting; embedding training wrapped in service plumbing."},
+      {"rank": 6, "task_id": "rts_task_daeb82d4d721025947ada274", "skill": 2, "domain": 4, "task_form": 3, "overall": 2, "reason": "Train a scikit-learn classification model end to end through a pipeline library and produce predictions."},
+      {"rank": 7, "task_id": "rts_task_0d4c15474074a305ff2be8f2", "skill": 2, "domain": 4, "task_form": 3, "overall": 2, "reason": "Run a scikit-learn training workflow on a tabular dataset; training mechanics without any metric target."},
+      {"rank": 8, "task_id": "rts_task_c830a142e0cd42f3caf7f963", "skill": 2, "domain": 4, "task_form": 3, "overall": 2, "reason": "Select features, drop bad rows, split train/test and fit a classifier — the data-preparation half of this task."},
+      {"rank": 9, "task_id": "rts_task_d50f880e583d83436a7b5796", "skill": 2, "domain": 4, "task_form": 3, "overall": 2, "reason": "Inspect the dataset schema, preprocess, split, and train a classification model; same pipeline shape, no tuning."},
+      {"rank": 10, "task_id": "rts_task_956ea2e372fe004edbe0d44d", "skill": 2, "domain": 3, "task_form": 3, "overall": 2, "reason": "Build a model from a config and report its parameter table — model-size accounting, which the 150MB cap needs."}
+    ],
+    "TerminalWorld-Seeds-Clean": [
+      {"rank": 1, "task_id": "tw_323887", "skill": 3, "domain": 5, "task_form": 4, "overall": 3, "reason": "Train distributional word-embedding models on two raw text corpora and read a similarity off them; text-model training on the CLI."},
+      {"rank": 2, "task_id": "tw_18273", "skill": 3, "domain": 4, "task_form": 4, "overall": 3, "reason": "Train a classifier on an explicit train split and report accuracy on the held-out remainder with a CLI ML tool."},
+      {"rank": 3, "task_id": "tw_18271", "skill": 3, "domain": 4, "task_form": 4, "overall": 3, "reason": "Same libsvm train/validate split exercise; formatting data for a CLI trainer and reading its accuracy output."},
+      {"rank": 4, "task_id": "tw_733941", "skill": 2, "domain": 4, "task_form": 3, "overall": 2, "reason": "Build and run a scikit-learn training pipeline on a tabular dataset and produce predictions."},
+      {"rank": 5, "task_id": "tw_686647", "skill": 2, "domain": 4, "task_form": 3, "overall": 2, "reason": "Run seeded anomaly-detection models and compare them against sklearn baselines; reproducible model runs with scores."},
+      {"rank": 6, "task_id": "tw_326628", "skill": 2, "domain": 4, "task_form": 3, "overall": 2, "reason": "Set up and run an MNIST classification workflow end to end, producing a prediction; classifier plumbing."},
+      {"rank": 7, "task_id": "tw_191493", "skill": 2, "domain": 3, "task_form": 3, "overall": 2, "reason": "Three-stage workflow that trains regression models, then predicts and evaluates; multi-step training pipeline."},
+      {"rank": 8, "task_id": "tw_105368", "skill": 2, "domain": 3, "task_form": 3, "overall": 2, "reason": "Generate an augmented training dataset with a deterministic pipeline; dataset preparation ahead of training."},
+      {"rank": 9, "task_id": "tw_718060", "skill": 2, "domain": 4, "task_form": 3, "overall": 2, "reason": "Report a model's parameter and memory statistics — the accounting behind an artifact-size budget."},
+      {"rank": 10, "task_id": "tw_569867", "skill": 1, "domain": 3, "task_form": 2, "overall": 2, "reason": "Explore a dataset's train/test split interfaces; data-splitting concepts only, no training or metric."}
+    ],
+    "SWE-Smith-Seeds-Clean": [
+      {"rank": 1, "task_id": "chardet__chardet.9630f238.func_pm_remove_cond__vjza6vvb", "skill": 3, "domain": 3, "task_form": 2, "overall": 3, "reason": "A prober stops feeding the n-gram distribution analyzer, wrecking detection accuracy — statistical text classification debugging."},
+      {"rank": 2, "task_id": "jawah__charset_normalizer.1fdd6463.lm_rewrite__3cfpifil", "skill": 3, "domain": 3, "task_form": 2, "overall": 3, "reason": "Language detection accuracy regressed after a change; diagnosing why a text classifier's labels got worse."},
+      {"rank": 3, "task_id": "jawah__charset_normalizer.1fdd6463.func_basic__7t2bal22", "skill": 3, "domain": 3, "task_form": 2, "overall": 2, "reason": "Detected language does not match the expected label on known samples; label-correctness debugging over a text corpus."},
+      {"rank": 4, "task_id": "jawah__charset_normalizer.1fdd6463.lm_rewrite__hyje234i", "skill": 2, "domain": 3, "task_form": 2, "overall": 2, "reason": "Run detection over a multi-language sample corpus and check the predicted labels; corpus-level evaluation."},
+      {"rank": 5, "task_id": "chardet__chardet.9630f238.func_pm_ctrl_invert_if__jfcxc4j9", "skill": 2, "domain": 3, "task_form": 2, "overall": 2, "reason": "Wrong class chosen with low confidence; reasoning about confidence scores, which this task's predictions also expose."},
+      {"rank": 6, "task_id": "jawah__charset_normalizer.1fdd6463.func_pm_remove_loop__hh60khiy", "skill": 2, "domain": 3, "task_form": 2, "overall": 2, "reason": "Classifier returns no label at all instead of the detected one; output-format correctness of a predictor."},
+      {"rank": 7, "task_id": "amueller__word_cloud.ec24191c.func_pm_remove_loop__wukig0fw", "skill": 2, "domain": 3, "task_form": 2, "overall": 2, "reason": "Text-frequency processing returns empty counts; bag-of-words tokenisation, the preprocessing fastText depends on."},
+      {"rank": 8, "task_id": "datamade__usaddress.a42a8f0c.lm_rewrite__qrc0sw5h", "skill": 2, "domain": 3, "task_form": 2, "overall": 2, "reason": "Tokenisation breaks on punctuation and special characters — exactly the preprocessing that decides fastText input quality."},
+      {"rank": 9, "task_id": "stanfordnlp__string2string.c4a72f59.func_pm_remove_assign__os17lckf", "skill": 2, "domain": 3, "task_form": 2, "overall": 2, "reason": "Computing an NLP evaluation metric over candidate/reference sentences; scoring text model output."},
+      {"rank": 10, "task_id": "facebookresearch__fvcore.a491d5b9.lm_rewrite__pcccevul", "skill": 2, "domain": 2, "task_form": 2, "overall": 2, "reason": "Counting a model's parameters correctly; the arithmetic behind predicting whether an artifact fits a size cap."}
+    ],
+    "SWE-Rebench-Tasks-Clean": [
+      {"rank": 1, "task_id": "mila-udem__fuel-192", "skill": 3, "domain": 4, "task_form": 2, "overall": 3, "reason": "An iteration scheme empties after one pass so later training epochs see no data — an epochs bug, the first knob to tune here."},
+      {"rank": 2, "task_id": "alteryx__evalml-1321", "skill": 3, "domain": 4, "task_form": 2, "overall": 3, "reason": "AutoML search does not seed the pipelines it instantiates, making a hyperparameter sweep irreproducible."},
+      {"rank": 3, "task_id": "rasbt__mlxtend-744", "skill": 3, "domain": 3, "task_form": 2, "overall": 2, "reason": "Swapped cells in a classifier-comparison contingency table; getting an evaluation statistic right rather than plausible."},
+      {"rank": 4, "task_id": "koaning__scikit-lego-738", "skill": 2, "domain": 4, "task_form": 2, "overall": 2, "reason": "Cross-validation splitter needs a stride so validation windows do not overlap; honest train/validation splitting."},
+      {"rank": 5, "task_id": "alteryx__evalml-1377", "skill": 2, "domain": 4, "task_form": 2, "overall": 2, "reason": "Data check reports the wrong axis for outliers; training-data quality checks before a model is fit."},
+      {"rank": 6, "task_id": "mila-udem__fuel-217", "skill": 2, "domain": 4, "task_form": 2, "overall": 2, "reason": "Epoch iterator blows up inside the training loop; data-feeding machinery for a text model."},
+      {"rank": 7, "task_id": "alteryx__evalml-1318", "skill": 2, "domain": 4, "task_form": 2, "overall": 2, "reason": "Explaining a fitted classifier's best and worst predictions; post-training evaluation over indexed targets."},
+      {"rank": 8, "task_id": "dirty-cat__dirty_cat-421", "skill": 2, "domain": 3, "task_form": 2, "overall": 2, "reason": "String-similarity encoding of dirty text categories; turning messy text into model features."},
+      {"rank": 9, "task_id": "huggingface__transformers-36497", "skill": 2, "domain": 3, "task_form": 2, "overall": 2, "reason": "Seeding language-model batch construction so training runs reproduce; same reproducibility concern when re-training."},
+      {"rank": 10, "task_id": "keras-team__keras-20609", "skill": 2, "domain": 3, "task_form": 2, "overall": 2, "reason": "evaluate/fit report different numbers depending on the setup; trusting a measured accuracy figure."}
+    ]
+  },
+  "final_top10": [
+    {"rank": 1, "task_id": "task_000802_aa7b130a", "source": "TMax-15K", "skill": 5, "domain": 4, "task_form": 5, "overall": 5, "reason": "Train a review-text classifier with hyperparameter tuning and clear an accuracy floor on a hidden test set — the same task with a different tool."},
+    {"rank": 2, "task_id": "task_001191_5d4f858c", "source": "TMax-15K", "skill": 3, "domain": 5, "task_form": 3, "overall": 4, "reason": "The only other fastText task in the pool: build it, load a .bin model, use __label__ predictions and confidences."},
+    {"rank": 3, "task_id": "task_000644_9d78a6c5", "source": "TMax-15K", "skill": 4, "domain": 3, "task_form": 5, "overall": 4, "reason": "Iterate the pipeline until an opaque evaluator reports accuracy above a fixed floor; identical feedback loop."},
+    {"rank": 4, "task_id": "task_002271_c43206b1", "source": "TMax-15K", "skill": 4, "domain": 3, "task_form": 5, "overall": 4, "reason": "Reach an oracle accuracy floor while compressing the representation to a fixed size — accuracy plus budget, both binding."},
+    {"rank": 5, "task_id": "tw_323887", "source": "TerminalWorld-Seeds-Clean", "skill": 3, "domain": 5, "task_form": 4, "overall": 3, "reason": "Trains word-embedding models directly on raw text corpora from the CLI, the closest analogue to fastText training."},
+    {"rank": 6, "task_id": "task_008886_49a94993", "source": "TMax-15K", "skill": 3, "domain": 4, "task_form": 3, "overall": 3, "reason": "TF-IDF plus logistic regression over reviews with a grid search and a leakage-free CV protocol."},
+    {"rank": 7, "task_id": "tw_18273", "source": "TerminalWorld-Seeds-Clean", "skill": 3, "domain": 4, "task_form": 4, "overall": 3, "reason": "Format data for a CLI trainer, train on a split, and read the accuracy it reports on held-out samples."},
+    {"rank": 8, "task_id": "rts_task_6a81762bd5745f498f36b83e", "source": "Recursive-Task-Synthesis", "skill": 3, "domain": 5, "task_form": 4, "overall": 3, "reason": "Train a compass model and per-corpus slice embeddings on raw text; unsupervised text-model training with a checked output."},
+    {"rank": 9, "task_id": "task_001001_84c2fe4e", "source": "TMax-15K", "skill": 3, "domain": 3, "task_form": 4, "overall": 3, "reason": "Cross-validated hyperparameter search followed by predictions scored against hidden labels with an accuracy floor."},
+    {"rank": 10, "task_id": "chardet__chardet.9630f238.func_pm_remove_cond__vjza6vvb", "source": "SWE-Smith-Seeds-Clean", "skill": 3, "domain": 3, "task_form": 2, "overall": 3, "reason": "Statistical n-gram text classifier loses accuracy because the distribution analyzer is starved; same class of debugging."}
+  ],
+  "notes": "Exactly one task in the whole pool mentions fastText (task_001191_5d4f858c, which builds the vendored library and uses a trained .bin), and nothing anywhere mentions quantization of a model for a size budget, so the size half of this task is essentially unrepresented; the nearest analogues are compress-to-a-budget tasks in other media (task_000510_7f94cbcf) and parameter-counting tasks. TMax is unusually strong here: it has a real cluster of 'iterate until an oracle metric clears a threshold' tasks that match the task_form exactly, which is the main thing worth training on. SWE-Smith has no supervised-learning repos at all; I used the charset/encoding detectors, which are genuine statistical text classifiers scored by accuracy, plus tokenisation tasks — judge those on skill, not form. SWE-Rebench's ML content (evalml, fuel, scikit-lego, mlxtend) is about training machinery rather than hitting a metric, so it stays around overall 2-3."
+}

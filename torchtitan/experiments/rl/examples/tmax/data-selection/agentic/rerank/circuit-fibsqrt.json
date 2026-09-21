@@ -1,0 +1,101 @@
+{
+  "tb21_id": "circuit-fibsqrt",
+  "tb21_profile": {
+    "skill": "Compile an arithmetic algorithm (isqrt then Fibonacci mod 2^32) down to a machine with only NOT/AND/OR/XOR over single bits: build adders, comparators and muxes, sequence them as state over simulation steps, and fit inside a line/step budget",
+    "domain": "Digital logic / gate-level netlists and bit-level 32-bit arithmetic, driven by a small custom simulator whose semantics must be read out of sim.c",
+    "task_form": "implement-from-spec for a restricted target machine, with a hard size budget - almost certainly by writing a generator program that emits the netlist"
+  },
+  "searches": [
+    "tools.py search all 'logic gate|netlist|verilog|VHDL|full adder|ripple|truth table|flip-flop|circuit'",
+    "tools.py search all 'bytecode|virtual machine|instruction set|emulator|opcode|assembler'",
+    "tools.py search tmax 'bitwise|bit-level|XOR|shift register|adder|binary representation|32-bit|two.s complement|simulator'",
+    "tools.py search tmax 'Fibonacci|square root|isqrt|modular arithmetic|integer overflow|2\\^32'",
+    "tools.py search tmax 'stack machine|custom VM|virtual machine|interpreter|instruction set|opcode|bytecode'",
+    "tools.py search tmax 'state machine|finite state|carry|multiplexer|counter that|clock cycle'",
+    "tools.py search tmax 'generate a (file|program|script) .{0,40}(lines|instructions)|fewer than .{0,20}(lines|bytes|instructions)|must not exceed|within the budget|minimi[sz]e the number'",
+    "tools.py search tw 'assembly|brainfuck|esoteric|VM|interpreter|instruction|gate|logic|emulat'",
+    "tools.py search tw 'assembl(y|er)|nasm|x86|aarch64|opcode|bit|binary arithmetic|adder|register'",
+    "tools.py search rts 'assembly|\\.s\\b|aarch64|ARM64'",
+    "tools.py search smith 'bit|encode|integer|binary|state machine|transpil|codegen|generate .{0,15}code'",
+    "tools.py search rebench 'pyccel|qiskit|transpil|code generation|isqrt|integer square|fibonacci|arbitrary precision'",
+    "tools.py show task_000258_60a61045 task_001481_3bacc41d",
+    "tools.py show qiskit__qiskit-terra-7952 pyccel__pyccel-2038 mpmath__mpmath-922 d0c-s4vage__pfp-128",
+    "tools.py show mpmath__mpmath-922 pyccel__pyccel-264",
+    "tools.py show tw_621404 rts_task_7456b58e87defe2142377a5a"
+  ],
+  "per_source": {
+    "TMax-15K": [
+      {"rank": 1, "task_id": "task_000258_60a61045", "skill": 4, "domain": 4, "task_form": 4, "overall": 4, "reason": "Translate a high-level instruction list into the exact binary encoding a small machine executes, then emulate it - authoring a program for a restricted target."},
+      {"rank": 2, "task_id": "task_001481_3bacc41d", "skill": 4, "domain": 4, "task_form": 3, "overall": 4, "reason": "Recover a stack machine's instruction semantics by experimenting with the binary, then reimplement it exactly - the read-sim.c-carefully skill."},
+      {"rank": 3, "task_id": "task_000246_a1b7a5cc", "skill": 4, "domain": 4, "task_form": 4, "overall": 4, "reason": "Implement a bytecode VM in C from a written opcode spec; precise, unforgiving machine semantics with no library to lean on."},
+      {"rank": 4, "task_id": "task_001127_c4f978a7", "skill": 3, "domain": 4, "task_form": 4, "overall": 3, "reason": "Build a custom bytecode emulator from its specification; same low-level execution-model reasoning, in Python."},
+      {"rank": 5, "task_id": "task_000921_f7392e0b", "skill": 3, "domain": 4, "task_form": 3, "overall": 3, "reason": "Stack-based expression VM in C that must evaluate correctly once built - operand ordering and state at the machine level."},
+      {"rank": 6, "task_id": "task_000297_dd740392", "skill": 3, "domain": 4, "task_form": 3, "overall": 3, "reason": "Broken stack-VM C project must be made to build and execute programs correctly; debugging an interpreter's core loop."},
+      {"rank": 7, "task_id": "task_001038_3f8088d2", "skill": 3, "domain": 4, "task_form": 3, "overall": 3, "reason": "Finish a DSP bytecode emulator in C - instruction decode and per-step state update, like the simulator's step loop."},
+      {"rank": 8, "task_id": "task_000386_43121cfd", "skill": 3, "domain": 4, "task_form": 3, "overall": 3, "reason": "Implement a service around a specified assembly instruction set; must honour an instruction semantics table exactly."},
+      {"rank": 9, "task_id": "task_000731_74acb4a0", "skill": 3, "domain": 3, "task_form": 3, "overall": 3, "reason": "Port an interpreter that parses a simple instruction set and computes a result; small-machine semantics preserved across a rewrite."},
+      {"rank": 10, "task_id": "task_000676_2c074110", "skill": 3, "domain": 3, "task_form": 3, "overall": 3, "reason": "Port a mathematical checksum virtual machine, keeping its bit-exact arithmetic behaviour in a minimal container."}
+    ],
+    "Recursive-Task-Synthesis": [
+      {"rank": 1, "task_id": "rts_task_7456b58e87defe2142377a5a", "skill": 4, "domain": 4, "task_form": 4, "overall": 4, "reason": "Fibonacci implemented in raw ARM64 assembly with syscalls only - the same recurrence built out of registers and loops, no language help."},
+      {"rank": 2, "task_id": "rts_task_e22f09d81acdd0f844580eb7", "skill": 4, "domain": 4, "task_form": 4, "overall": 4, "reason": "GCD in ARM64 assembly: an iterative numeric algorithm expressed as compare-branch-subtract, exactly the mindset gates need."},
+      {"rank": 3, "task_id": "rts_task_b6b02584385fd4ad601f40ce", "skill": 4, "domain": 4, "task_form": 4, "overall": 4, "reason": "LCM of two unsigned integers in AArch64 assembly - requires composing GCD, multiply and divide from primitives."},
+      {"rank": 4, "task_id": "rts_task_2607dd8e8b0d78f50ece4d7f", "skill": 3, "domain": 4, "task_form": 4, "overall": 3, "reason": "Primality test in ARM64 assembly: a bounded loop with division and an early exit, hand-built at instruction level."},
+      {"rank": 5, "task_id": "rts_task_174ff1d8db265afd6d667eef", "skill": 3, "domain": 4, "task_form": 3, "overall": 3, "reason": "Assembly that assembles but computes the wrong number; debugging arithmetic at register level with no high-level view."},
+      {"rank": 6, "task_id": "rts_task_79362326714daf061fe79722", "skill": 3, "domain": 4, "task_form": 4, "overall": 3, "reason": "Sort data in memory in ARM64 assembly - nested loops and comparisons written out by hand."},
+      {"rank": 7, "task_id": "rts_task_0b9b2bac6586b91383a541a9", "skill": 3, "domain": 4, "task_form": 4, "overall": 3, "reason": "Read a limit and compute over a loop in ARM64 using only syscalls; no runtime, so every step is explicit."},
+      {"rank": 8, "task_id": "rts_task_9df014cca80801ad5a025cfe", "skill": 3, "domain": 3, "task_form": 3, "overall": 3, "reason": "A generator that is supposed to satisfy the Fibonacci recurrence produces wrong values; fix the recurrence and its seeding."},
+      {"rank": 9, "task_id": "rts_task_b4ae16a1bd41cf61790a1852", "skill": 2, "domain": 3, "task_form": 3, "overall": 2, "reason": "Compute GCD for configured integer pairs and write exact results; the algorithm matters but the language does all the work."},
+      {"rank": 10, "task_id": "rts_task_b5d47f91364d935bba23cc62", "skill": 2, "domain": 3, "task_form": 3, "overall": 2, "reason": "Square roots of 0-9 printed in an exact format; shares the arithmetic subject but none of the low-level difficulty."}
+    ],
+    "TerminalWorld-Seeds-Clean": [
+      {"rank": 1, "task_id": "tw_621404", "skill": 5, "domain": 4, "task_form": 4, "overall": 5, "reason": "Implement integer floor sqrt by Newton's method in Forth, tested on 20000 among others - the isqrt half, written on a bare stack machine."},
+      {"rank": 2, "task_id": "tw_713358", "skill": 4, "domain": 4, "task_form": 4, "overall": 4, "reason": "Fibonacci in ARM64 assembly: the other half of this task, built from registers, adds and a loop."},
+      {"rank": 3, "task_id": "tw_360407", "skill": 3, "domain": 4, "task_form": 3, "overall": 3, "reason": "Gforth program converting an integer to its decimal string - digit extraction by division on a primitive stack machine."},
+      {"rank": 4, "task_id": "tw_134335", "skill": 3, "domain": 4, "task_form": 3, "overall": 3, "reason": "Emulate a custom architecture's execution, writing memory and patching registers at chosen points; machine-level state control."},
+      {"rank": 5, "task_id": "tw_229602", "skill": 3, "domain": 3, "task_form": 3, "overall": 3, "reason": "Symbolic execution over all paths of a binary - reasoning about a machine's semantics rather than running one input."},
+      {"rank": 6, "task_id": "tw_694721", "skill": 3, "domain": 3, "task_form": 3, "overall": 3, "reason": "GCD over integer pairs including negatives; exact integer algorithm with edge cases that bite."},
+      {"rank": 7, "task_id": "tw_125169", "skill": 3, "domain": 3, "task_form": 3, "overall": 3, "reason": "Exact accumulation in a 32-bit posit format via a quire - reasoning about a bit-level numeric representation."},
+      {"rank": 8, "task_id": "tw_533350", "skill": 2, "domain": 3, "task_form": 3, "overall": 2, "reason": "Next-bigger-permutation algorithm implemented and applied; pure algorithm work, no restricted machine."},
+      {"rank": 9, "task_id": "tw_285548", "skill": 2, "domain": 3, "task_form": 3, "overall": 2, "reason": "Compute square roots of 0-9 in C++ with an exact output format; same arithmetic subject, trivial implementation."},
+      {"rank": 10, "task_id": "tw_732042", "skill": 2, "domain": 3, "task_form": 2, "overall": 2, "reason": "Instrument a Fibonacci program without touching its source; observing an evaluation rather than constructing one."}
+    ],
+    "SWE-Smith-Seeds-Clean": [
+      {"rank": 1, "task_id": "cantools__cantools.0c6a7871.func_pm_op_change_const__66td47t4", "skill": 3, "domain": 4, "task_form": 1, "overall": 3, "reason": "Message length computed wrongly for signals ending exactly on byte boundaries - bit-offset arithmetic with off-by-one traps."},
+      {"rank": 2, "task_id": "cantools__cantools.0c6a7871.pr_602", "skill": 3, "domain": 4, "task_form": 2, "overall": 3, "reason": "generate_c_source emits code artefacts from a signal database; a code generator producing a low-level target, like emitting gates.txt."},
+      {"rank": 3, "task_id": "pyasn1__pyasn1.0f07d724.func_pm_remove_cond__skvhyet9", "skill": 3, "domain": 4, "task_form": 1, "overall": 3, "reason": "Binary encoding/decoding of values at the octet level; exact bit-and-byte representation of integers."},
+      {"rank": 4, "task_id": "lincolnloop__python-qrcode.456b01d4.func_pm_remove_assign__jraqjgd5", "skill": 3, "domain": 3, "task_form": 1, "overall": 3, "reason": "create_bytes, the block/error-correction construction of a QR payload - hand-rolled bit and byte arithmetic."},
+      {"rank": 5, "task_id": "python-hyper__h11.bed0dd4a.lm_rewrite__h95g1zuz", "skill": 3, "domain": 3, "task_form": 1, "overall": 3, "reason": "h11 is an explicit state machine; the bug is in its transition logic, the same sequential-state reasoning a multi-step circuit needs."},
+      {"rank": 6, "task_id": "tobymao__sqlglot.036601ba.lm_rewrite__1zefdldo", "skill": 3, "domain": 3, "task_form": 1, "overall": 3, "reason": "Transpiling one dialect's construct into another's - lowering a high-level form into a restricted target's primitives."},
+      {"rank": 7, "task_id": "lincolnloop__python-qrcode.456b01d4.func_pm_ctrl_invert_if__dxlk1rtd", "skill": 2, "domain": 3, "task_form": 1, "overall": 2, "reason": "Another break in the QR encoder pipeline; module/bit construction, narrower than the create_bytes one."},
+      {"rank": 8, "task_id": "python-hyper__h11.bed0dd4a.func_pm_remove_assign__rwaajzkj", "skill": 2, "domain": 3, "task_form": 1, "overall": 2, "reason": "State tracking in the protocol machine loses an assignment; sequential state correctness, small scope."},
+      {"rank": 9, "task_id": "erikrose__parsimonious.0d3f5f93.lm_rewrite__ls3fh182", "skill": 2, "domain": 3, "task_form": 1, "overall": 2, "reason": "Quantifier with an exact repetition count renders wrongly - generating a rule's exact textual form, mildly codegen-like."},
+      {"rank": 10, "task_id": "Mimino666__langdetect.a1598f1a.func_pm_ctrl_invert_if__zrbixrik", "skill": 2, "domain": 2, "task_form": 1, "overall": 2, "reason": "Broken binary search over a boundary table; exact integer interval logic, nothing machine-level."}
+    ],
+    "SWE-Rebench-Tasks-Clean": [
+      {"rank": 1, "task_id": "qiskit__qiskit-terra-7952", "skill": 4, "domain": 4, "task_form": 2, "overall": 4, "reason": "A routing pass reorders gate operations that share a bit, changing results - dependency order in a gate circuit, the exact hazard here."},
+      {"rank": 2, "task_id": "qiskit__qiskit-11181", "skill": 3, "domain": 4, "task_form": 2, "overall": 3, "reason": "Circuit rebuilds its gate list out of order after an append; constructing a gate netlist whose order carries meaning."},
+      {"rank": 3, "task_id": "pyccel__pyccel-264", "skill": 3, "domain": 4, "task_form": 2, "overall": 3, "reason": "Compiler from Python to C/Fortran mishandles a type conversion inside an expression - lowering arithmetic to a typed target."},
+      {"rank": 4, "task_id": "pyccel__pyccel-1837", "skill": 3, "domain": 4, "task_form": 2, "overall": 3, "reason": "Generated code is wrong for a specific construct; debugging a code generator by reading its output, like inspecting emitted gates."},
+      {"rank": 5, "task_id": "d0c-s4vage__pfp-128", "skill": 3, "domain": 3, "task_form": 2, "overall": 3, "reason": "Boolean short-circuit semantics in a template interpreter - exactly the evaluation-order semantics of a boolean expression engine."},
+      {"rank": 6, "task_id": "qiskit__qiskit-10825", "skill": 3, "domain": 4, "task_form": 2, "overall": 3, "reason": "A gate-direction transformation pass rejects valid circuits; rewriting a circuit while preserving its function."},
+      {"rank": 7, "task_id": "qiskit__qiskit-11367", "skill": 3, "domain": 4, "task_form": 2, "overall": 3, "reason": "Gate synthesis plugin selection fails silently; synthesising an operation out of available primitive gates."},
+      {"rank": 8, "task_id": "qiskit-community__ffsim-295", "skill": 3, "domain": 4, "task_form": 2, "overall": 3, "reason": "Implement a new gate primitive against the library's existing gate conventions - building a primitive operation correctly."},
+      {"rank": 9, "task_id": "qiskit__qiskit-11272", "skill": 2, "domain": 4, "task_form": 2, "overall": 2, "reason": "An instruction mishandles its operand set; wiring operands to a gate correctly, but a narrow API fix."},
+      {"rank": 10, "task_id": "mpmath__mpmath-922", "skill": 2, "domain": 3, "task_form": 2, "overall": 2, "reason": "Numeric formatting of arbitrary-precision values diverges from the spec; exact-output discipline, no circuit content."}
+    ]
+  },
+  "final_top10": [
+    {"rank": 1, "task_id": "tw_621404", "source": "TerminalWorld-Seeds-Clean", "skill": 5, "domain": 4, "task_form": 4, "overall": 5, "reason": "Integer floor sqrt by Newton's method implemented on a bare stack machine, checked on inputs including 20000 - half this task, one level up."},
+    {"rank": 2, "task_id": "tw_713358", "source": "TerminalWorld-Seeds-Clean", "skill": 4, "domain": 4, "task_form": 4, "overall": 4, "reason": "Fibonacci built from registers, adds and a loop in raw ARM64 assembly - the other half, at a comparably low level."},
+    {"rank": 3, "task_id": "rts_task_7456b58e87defe2142377a5a", "source": "Recursive-Task-Synthesis", "skill": 4, "domain": 4, "task_form": 4, "overall": 4, "reason": "Standalone ARM64 Fibonacci with syscalls only and an exact required output format; no runtime to hide behind."},
+    {"rank": 4, "task_id": "task_000258_60a61045", "source": "TMax-15K", "skill": 4, "domain": 4, "task_form": 4, "overall": 4, "reason": "Compile a sequence of operations into the exact encoding a small machine runs, then emulate it to predict the result."},
+    {"rank": 5, "task_id": "qiskit__qiskit-terra-7952", "source": "SWE-Rebench-Tasks-Clean", "skill": 4, "domain": 4, "task_form": 2, "overall": 4, "reason": "Gate operations sharing a bit get reordered and change the answer - the data-dependency hazard that dominates netlist design."},
+    {"rank": 6, "task_id": "rts_task_e22f09d81acdd0f844580eb7", "source": "Recursive-Task-Synthesis", "skill": 4, "domain": 4, "task_form": 4, "overall": 4, "reason": "GCD in ARM64 assembly: an iterative numeric algorithm expressed purely as compares, branches and subtractions."},
+    {"rank": 7, "task_id": "task_001481_3bacc41d", "source": "TMax-15K", "skill": 4, "domain": 4, "task_form": 3, "overall": 4, "reason": "Work out an undocumented machine's instruction semantics by experiment, then reproduce them exactly - what reading sim.c demands."},
+    {"rank": 8, "task_id": "task_000246_a1b7a5cc", "source": "TMax-15K", "skill": 4, "domain": 4, "task_form": 4, "overall": 4, "reason": "Implement a bytecode machine in C straight from an opcode spec, with no tolerance for semantic drift."},
+    {"rank": 9, "task_id": "rts_task_b6b02584385fd4ad601f40ce", "source": "Recursive-Task-Synthesis", "skill": 4, "domain": 4, "task_form": 4, "overall": 4, "reason": "LCM in AArch64 assembly: compose GCD, multiplication and division from instruction-level primitives."},
+    {"rank": 10, "task_id": "tw_360407", "source": "TerminalWorld-Seeds-Clean", "skill": 3, "domain": 4, "task_form": 3, "overall": 3, "reason": "Integer-to-decimal conversion in Gforth - repeated division and digit assembly on a machine with only a stack."}
+  ],
+  "notes": "Nothing in the pool is gate-level: searches for netlist, verilog, full adder, truth table and flip-flop returned nothing but quantum circuits. The nearest real transfer is (a) implementing arithmetic algorithms with only machine primitives, and (b) targeting or reverse-engineering a small custom machine. TerminalWorld and RTS turned out strongest because of the Forth isqrt seed (tw_621404, literally integer sqrt by Newton's method on a stack machine) and the large ARM64-assembly family (Fibonacci, GCD, LCM, primality), which the lexical retriever surfaced only partially - I found most of the assembly ones by searching. TMax contributes its bytecode-VM family: authoring a program for a restricted machine and recovering an undocumented machine's semantics. SWE-Rebench's qiskit cluster is the only place in the pool where someone reasons about ordering and synthesis in a gate circuit, so despite being quantum it beats the Python bugfixes; SWE-Smith is the weakest corpus here, offering only bit-packing (cantools, pyasn1, qrcode) and state-machine/codegen analogues, honest 2-3s."
+}

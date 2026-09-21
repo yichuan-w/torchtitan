@@ -1,0 +1,584 @@
+{
+ "tb21_id": "pypi-server",
+ "tb21_profile": {
+  "skill": "End-to-end Python packaging: author a package with correct name/version/__init__ exports, build a distribution, serve it behind a PEP 503 simple index on a port, and install it back with pip --index-url",
+  "domain": "Python packaging ecosystem: setuptools/pyproject, wheel/sdist, pypiserver, pip index resolution, localhost HTTP service",
+  "task_form": "build/packaging plus configure-a-service, built from scratch and verified by a single pip install command succeeding"
+ },
+ "searches": [
+  "tools.py search all \"index-url|pypiserver|devpi|simple index|local (pypi|package) (index|registry)|twine\" -n 30",
+  "tools.py search all \"build a wheel|sdist|bdist_wheel|pyproject.toml|setup.py sdist|pip install -e\" -n 25",
+  "tools.py search tw \"pypi|wheel|setup.py|pyproject|pip install|registry|npm publish|package index\" -n 30",
+  "tools.py search tmax \"pypi|wheel|setup.py|pip install|package index|private registry|npm registry\" -n 30",
+  "tools.py search tmax \"create a (new )?python package|package from scratch|__init__\\.py|entry point|console_scripts|editable install\" -n 25",
+  "tools.py search tmax \"http.server|serve .* on port 8080|static file server|localhost:8080\" -n 20",
+  "tools.py search smith \"pip |pypi|wheel|setuptools|virtualenv|package index|requirements\" -n 20",
+  "tools.py search smith \"conan|pipdeptree|serve|http server|wsgi|bind to port|static files|gunicorn worker\" -n 25",
+  "tools.py search rts \"local PyPI server|pypiserver\" -n 40"
+ ],
+ "per_source": {
+  "TMax-15K": [
+   {
+    "rank": 1,
+    "task_id": "task_002897_90442cbb",
+    "skill": 4,
+    "domain": 5,
+    "task_form": 4,
+    "overall": 4,
+    "reason": "Creates a package directory and setup.py from scratch with dependencies and a console entry point, installs it and serves the API behind a proxy"
+   },
+   {
+    "rank": 2,
+    "task_id": "task_006441_caacf65d",
+    "skill": 4,
+    "domain": 5,
+    "task_form": 3,
+    "overall": 4,
+    "reason": "Repair pyproject.toml so `pip install .` installs the named package plus a versioned dependency: the metadata correctness TB2.1 lives or dies on"
+   },
+   {
+    "rank": 3,
+    "task_id": "task_001253_95ed6713",
+    "skill": 3,
+    "domain": 5,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "setup.py must bundle non-Python assets as package data so `pip install .` yields a working install; deep setuptools packaging work"
+   },
+   {
+    "rank": 4,
+    "task_id": "task_000122_1e68baa1",
+    "skill": 3,
+    "domain": 5,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Fix the Makefile so `make build` produces the Python wheel, then run the tool: wheel building as the gating step"
+   },
+   {
+    "rank": 5,
+    "task_id": "task_000485_af988d1d",
+    "skill": 3,
+    "domain": 5,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Misconfigured setup.py blocks `pip install -e .`; diagnosing build metadata from pip's failure output"
+   },
+   {
+    "rank": 6,
+    "task_id": "task_000471_31a4d67e",
+    "skill": 3,
+    "domain": 5,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Running pip install on the project fails; must repair the build and dependency declarations before the service runs"
+   },
+   {
+    "rank": 7,
+    "task_id": "task_000084_2e6745ad",
+    "skill": 3,
+    "domain": 4,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Vendored package cannot be built or installed with pip; same fix-the-distribution-then-install loop"
+   },
+   {
+    "rank": 8,
+    "task_id": "task_000255_8b213702",
+    "skill": 2,
+    "domain": 4,
+    "task_form": 3,
+    "overall": 2,
+    "reason": "Update requirement pins so pip install succeeds for a migrated service; dependency-specifier literacy"
+   },
+   {
+    "rank": 9,
+    "task_id": "task_003677_f4f9c42a",
+    "skill": 2,
+    "domain": 4,
+    "task_form": 3,
+    "overall": 2,
+    "reason": "Fix an internal Python package used by a pipeline; packaging context but most of the work is data sanitisation"
+   },
+   {
+    "rank": 10,
+    "task_id": "task_008670_018cd1e6",
+    "skill": 2,
+    "domain": 4,
+    "task_form": 3,
+    "overall": 2,
+    "reason": "Port a hybrid Python/Rust tool into a minimal environment: install-and-run plumbing without an index server"
+   }
+  ],
+  "Recursive-Task-Synthesis": [
+   {
+    "rank": 1,
+    "task_id": "rts_task_9173775e4fed0b1b6ea3bb20",
+    "skill": 5,
+    "domain": 5,
+    "task_form": 5,
+    "overall": 5,
+    "reason": "Build the wheel from source, drop it in a served directory, run a local PyPI server on 8080 and pip-install it into a venv: the whole TB2.1 pipeline"
+   },
+   {
+    "rank": 2,
+    "task_id": "rts_task_173dafbc789b2867d531fa17",
+    "skill": 5,
+    "domain": 5,
+    "task_form": 5,
+    "overall": 5,
+    "reason": "Same build-from-source, serve on localhost:8080, install-into-venv chain with the distribution placed in the served directory"
+   },
+   {
+    "rank": 3,
+    "task_id": "rts_task_7f4fd9a04408e198c5f9b6c3",
+    "skill": 5,
+    "domain": 5,
+    "task_form": 5,
+    "overall": 5,
+    "reason": "Builds a wheel from ~/pkg_src, serves that directory on port 8080 and installs the package from the server into the venv"
+   },
+   {
+    "rank": 4,
+    "task_id": "rts_task_9441741653d67b5f195565b5",
+    "skill": 5,
+    "domain": 5,
+    "task_form": 5,
+    "overall": 5,
+    "reason": "Adds fetching the /simple index to confirm the server is serving the package, which is exactly what pip --index-url consumes"
+   },
+   {
+    "rank": 5,
+    "task_id": "rts_task_b23d51aa36108ea870fdb694",
+    "skill": 4,
+    "domain": 5,
+    "task_form": 4,
+    "overall": 4,
+    "reason": "Build the distribution, serve it on 8080 and verify the simple index lists the package; the serving half done carefully"
+   },
+   {
+    "rank": 6,
+    "task_id": "rts_task_65cae1dc6cbeec326b661dbb",
+    "skill": 4,
+    "domain": 5,
+    "task_form": 4,
+    "overall": 4,
+    "reason": "Wheel built from source, served on port 8080, installed into a venv from that server"
+   },
+   {
+    "rank": 7,
+    "task_id": "rts_task_cf23658165d0908f9da78dcc",
+    "skill": 4,
+    "domain": 5,
+    "task_form": 4,
+    "overall": 4,
+    "reason": "Same build-serve-install sequence; repetition of the exact workflow with slightly different paths"
+   },
+   {
+    "rank": 8,
+    "task_id": "rts_task_90cc157b700621a13838a6bc",
+    "skill": 4,
+    "domain": 5,
+    "task_form": 4,
+    "overall": 4,
+    "reason": "Also inspects the built wheel's .dist-info/METADATA for name and version before serving: teaches where the version actually comes from"
+   },
+   {
+    "rank": 9,
+    "task_id": "rts_task_eeb694265a931756370c4d90",
+    "skill": 4,
+    "domain": 5,
+    "task_form": 4,
+    "overall": 4,
+    "reason": "Build into the served directory, run the server on 8080, install into the venv and check the environment index"
+   },
+   {
+    "rank": 10,
+    "task_id": "rts_task_d9b574cc898967173493a396",
+    "skill": 4,
+    "domain": 5,
+    "task_form": 4,
+    "overall": 4,
+    "reason": "Starts the server and verifies http://localhost:8080/simple before installing; the index endpoint is explicitly exercised"
+   }
+  ],
+  "TerminalWorld-Seeds-Clean": [
+   {
+    "rank": 1,
+    "task_id": "tw_485539",
+    "skill": 5,
+    "domain": 5,
+    "task_form": 5,
+    "overall": 5,
+    "reason": "Create a venv and install a package from a local PyPI server on localhost:8080, then import it: TB2.1's consumer half verbatim"
+   },
+   {
+    "rank": 2,
+    "task_id": "tw_432894",
+    "skill": 4,
+    "domain": 5,
+    "task_form": 4,
+    "overall": 4,
+    "reason": "Full lifecycle: lint, build a distributable, publish it to a package registry, then install the published artifact back"
+   },
+   {
+    "rank": 3,
+    "task_id": "tw_677182",
+    "skill": 3,
+    "domain": 5,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Produce a wheel under dist/ that is installable and whose console entry point works: the build-and-install-correctly half"
+   },
+   {
+    "rank": 4,
+    "task_id": "tw_677186",
+    "skill": 3,
+    "domain": 5,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Build a valid .whl into dist/ and install it into the active environment; wheel-building mechanics"
+   },
+   {
+    "rank": 5,
+    "task_id": "tw_137513",
+    "skill": 3,
+    "domain": 5,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Scaffold a package project with a named package directory and pyproject.toml: the authoring step TB2.1 starts from"
+   },
+   {
+    "rank": 6,
+    "task_id": "tw_245865",
+    "skill": 3,
+    "domain": 3,
+    "task_form": 4,
+    "overall": 3,
+    "reason": "Run a local registry on a port, push an artifact, delete it locally and pull it back: same serve-then-install-from-it verification pattern"
+   },
+   {
+    "rank": 7,
+    "task_id": "tw_385269",
+    "skill": 2,
+    "domain": 4,
+    "task_form": 3,
+    "overall": 2,
+    "reason": "Create a venv and pip-install a package into it, then use it; the venv/install step only"
+   },
+   {
+    "rank": 8,
+    "task_id": "tw_435744",
+    "skill": 2,
+    "domain": 3,
+    "task_form": 3,
+    "overall": 2,
+    "reason": "Stand up a local registry at localhost:5000, build and push an image; local artifact-hosting service configuration"
+   },
+   {
+    "rank": 9,
+    "task_id": "tw_17492",
+    "skill": 2,
+    "domain": 3,
+    "task_form": 3,
+    "overall": 2,
+    "reason": "Push to a private registry and confirm via its catalog API; querying an artifact index over HTTP"
+   },
+   {
+    "rank": 10,
+    "task_id": "tw_196685",
+    "skill": 2,
+    "domain": 3,
+    "task_form": 3,
+    "overall": 2,
+    "reason": "Package a file into a minimal image and push it to the local registry; packaging-and-publishing, different ecosystem"
+   }
+  ],
+  "SWE-Smith-Seeds-Clean": [
+   {
+    "rank": 1,
+    "task_id": "tox-dev__pipdeptree.c31b6418.pr_274",
+    "skill": 3,
+    "domain": 4,
+    "task_form": 2,
+    "overall": 3,
+    "reason": "Reasons about packages installed from an index and their dependency graph, including cycles: pip-level dependency semantics"
+   },
+   {
+    "rank": 2,
+    "task_id": "tox-dev__pipdeptree.c31b6418.pr_346",
+    "skill": 2,
+    "domain": 4,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "get_installed_distributions misbehaves inside a virtualenv; how installed packages are discovered in the venv pip installs into"
+   },
+   {
+    "rank": 3,
+    "task_id": "conan-io__conan.86f29e13.lm_rewrite__hv01aovz",
+    "skill": 3,
+    "domain": 3,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Lockfile add logic in a package manager: how a registry client records and resolves package versions"
+   },
+   {
+    "rank": 4,
+    "task_id": "conan-io__conan.86f29e13.pr_10619",
+    "skill": 2,
+    "domain": 3,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Package metadata file not created during export; packaging-manifest handling in a package manager"
+   },
+   {
+    "rank": 5,
+    "task_id": "benoitc__gunicorn.bacbf8aa.lm_rewrite__hq9ua3ps",
+    "skill": 2,
+    "domain": 3,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Socket creation from configuration in an HTTP server; the bind-a-server-to-the-right-address half of TB2.1"
+   },
+   {
+    "rank": 6,
+    "task_id": "benoitc__gunicorn.bacbf8aa.lm_rewrite__4twhroug",
+    "skill": 2,
+    "domain": 3,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Listening sockets not cleaned up on shutdown; lifecycle of a locally served HTTP service"
+   },
+   {
+    "rank": 7,
+    "task_id": "conan-io__conan.86f29e13.lm_rewrite__1eyqewe7",
+    "skill": 2,
+    "domain": 3,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Package-cache migration must complete cleanly; local artifact store maintenance"
+   },
+   {
+    "rank": 8,
+    "task_id": "conan-io__conan.86f29e13.pr_17500",
+    "skill": 2,
+    "domain": 3,
+    "task_form": 2,
+    "overall": 1,
+    "reason": "Spurious deprecation warning about virtualenv configuration; only ecosystem familiarity transfers"
+   },
+   {
+    "rank": 9,
+    "task_id": "encode__starlette.db5063c2.pr_2264",
+    "skill": 2,
+    "domain": 2,
+    "task_form": 2,
+    "overall": 1,
+    "reason": "ASGI server behaviour after install; serving over HTTP, nothing about packaging or indexes"
+   },
+   {
+    "rank": 10,
+    "task_id": "benoitc__gunicorn.bacbf8aa.lm_rewrite__rirs2pou",
+    "skill": 1,
+    "domain": 2,
+    "task_form": 2,
+    "overall": 1,
+    "reason": "Config-file argument parsing in a server launcher; quota filler with minimal transfer"
+   }
+  ],
+  "SWE-Rebench-Tasks-Clean": [
+   {
+    "rank": 1,
+    "task_id": "pypa__bandersnatch-1557",
+    "skill": 4,
+    "domain": 5,
+    "task_form": 2,
+    "overall": 4,
+    "reason": "Implement PEP 700 fields and api-version in a PyPI mirror's simple API: the index protocol TB2.1's server must speak to pip"
+   },
+   {
+    "rank": 2,
+    "task_id": "pypa__packaging-29",
+    "skill": 3,
+    "domain": 5,
+    "task_form": 2,
+    "overall": 3,
+    "reason": "`pip install -i <index>/+simple/ pkg==version` fails sporadically on pre-releases: index-url resolution against an exact pin"
+   },
+   {
+    "rank": 3,
+    "task_id": "pypa__packaging-674",
+    "skill": 3,
+    "domain": 5,
+    "task_form": 2,
+    "overall": 3,
+    "reason": "SpecifierSet.contains semantics changed for pinned versions; decides whether vectorops==0.1.0 matches what the index offers"
+   },
+   {
+    "rank": 4,
+    "task_id": "devpi__devpi-1074",
+    "skill": 3,
+    "domain": 5,
+    "task_form": 2,
+    "overall": 3,
+    "reason": "Client-side handling for a private PyPI server: configuring and talking to a self-hosted index"
+   },
+   {
+    "rank": 5,
+    "task_id": "pypa__setuptools-1554",
+    "skill": 3,
+    "domain": 5,
+    "task_form": 2,
+    "overall": 3,
+    "reason": "build_meta omits setup.py from the built distribution; what actually lands in the artifact pip will install"
+   },
+   {
+    "rank": 6,
+    "task_id": "pypa__setuptools-4647",
+    "skill": 3,
+    "domain": 5,
+    "task_form": 2,
+    "overall": 3,
+    "reason": "build_wheel must honour metadata_directory per PEP 517; the wheel-building contract behind `python -m build`"
+   },
+   {
+    "rank": 7,
+    "task_id": "pypa__setuptools-1650",
+    "skill": 2,
+    "domain": 5,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "pyproject.toml missing from the sdist by default; sdist contents and reproducible installs"
+   },
+   {
+    "rank": 8,
+    "task_id": "pypa__twine-1066",
+    "skill": 2,
+    "domain": 5,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Twine sends a mis-spelled metadata field on upload; publishing a distribution to an index server"
+   },
+   {
+    "rank": 9,
+    "task_id": "pypa__setuptools-4856",
+    "skill": 2,
+    "domain": 5,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Package names of the form package.something get renamed during build; package naming and discovery rules"
+   },
+   {
+    "rank": 10,
+    "task_id": "pypa__pip-10288",
+    "skill": 2,
+    "domain": 5,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "pip fetching credentials for a private index-url; the client side of installing from a non-PyPI index"
+   }
+  ]
+ },
+ "final_top10": [
+  {
+   "rank": 1,
+   "task_id": "rts_task_9173775e4fed0b1b6ea3bb20",
+   "source": "Recursive-Task-Synthesis",
+   "skill": 5,
+   "domain": 5,
+   "task_form": 5,
+   "overall": 5,
+   "reason": "Build wheel from source, serve it with a local PyPI server on 8080, install into a venv from that server: TB2.1 minus authoring the package"
+  },
+  {
+   "rank": 2,
+   "task_id": "tw_485539",
+   "source": "TerminalWorld-Seeds-Clean",
+   "skill": 5,
+   "domain": 5,
+   "task_form": 5,
+   "overall": 5,
+   "reason": "Install a package from a local PyPI server at localhost:8080 into a venv and import it; the exact consumer-side verification"
+  },
+  {
+   "rank": 3,
+   "task_id": "rts_task_9441741653d67b5f195565b5",
+   "source": "Recursive-Task-Synthesis",
+   "skill": 5,
+   "domain": 5,
+   "task_form": 5,
+   "overall": 5,
+   "reason": "Same chain plus fetching the /simple index to confirm the package is listed, which is precisely what pip --index-url reads"
+  },
+  {
+   "rank": 4,
+   "task_id": "rts_task_7f4fd9a04408e198c5f9b6c3",
+   "source": "Recursive-Task-Synthesis",
+   "skill": 5,
+   "domain": 5,
+   "task_form": 5,
+   "overall": 5,
+   "reason": "Builds the wheel, serves the directory on port 8080 and installs from it; end-to-end packaging plus local index hosting"
+  },
+  {
+   "rank": 5,
+   "task_id": "task_002897_90442cbb",
+   "source": "TMax-15K",
+   "skill": 4,
+   "domain": 5,
+   "task_form": 4,
+   "overall": 4,
+   "reason": "Authors a package directory and setup.py from scratch with dependencies and a console entry point, then installs and serves it"
+  },
+  {
+   "rank": 6,
+   "task_id": "rts_task_173dafbc789b2867d531fa17",
+   "source": "Recursive-Task-Synthesis",
+   "skill": 5,
+   "domain": 5,
+   "task_form": 5,
+   "overall": 5,
+   "reason": "Build from source into the served directory, run the index server, install into a fresh venv: the same three-stage workflow"
+  },
+  {
+   "rank": 7,
+   "task_id": "rts_task_90cc157b700621a13838a6bc",
+   "source": "Recursive-Task-Synthesis",
+   "skill": 4,
+   "domain": 5,
+   "task_form": 4,
+   "overall": 4,
+   "reason": "Inspects the wheel's .dist-info/METADATA for name and version before serving, teaching where pip's version match comes from"
+  },
+  {
+   "rank": 8,
+   "task_id": "pypa__bandersnatch-1557",
+   "source": "SWE-Rebench-Tasks-Clean",
+   "skill": 4,
+   "domain": 5,
+   "task_form": 2,
+   "overall": 4,
+   "reason": "Implements the PEP 700 simple-index fields a mirror must expose; the server side of the protocol TB2.1 has to satisfy"
+  },
+  {
+   "rank": 9,
+   "task_id": "tw_432894",
+   "source": "TerminalWorld-Seeds-Clean",
+   "skill": 4,
+   "domain": 5,
+   "task_form": 4,
+   "overall": 4,
+   "reason": "Build a distributable, publish it to a registry and install the published copy back; publish-then-consume round trip"
+  },
+  {
+   "rank": 10,
+   "task_id": "task_006441_caacf65d",
+   "source": "TMax-15K",
+   "skill": 4,
+   "domain": 5,
+   "task_form": 3,
+   "overall": 4,
+   "reason": "Repairs pyproject.toml so `pip install .` installs the correctly named package with its dependency: metadata correctness is the gate"
+  }
+ ],
+ "notes": "This is the best-covered TB2.1 task of the five. Recursive-Task-Synthesis contains roughly 180 near-duplicates of the build-wheel / run-pypiserver-on-8080 / pip-install-into-a-venv workflow; I picked the ten that actually build from source and exercise the /simple index rather than the many variants that only read a version string from an already-running server. TerminalWorld contributes one near-identical task (tw_485539) plus wheel-build and registry round-trip tasks. SWE-Rebench is unusually strong on domain here (setuptools, pip, packaging, twine, devpi, bandersnatch) even though its task_form is always bug-fix, and bandersnatch's PEP 700 simple-index work is the only task in the whole pool about implementing the index protocol itself. SWE-Smith is the weak corpus: no packaging repos beyond pipdeptree and conan, so ranks 5-10 there are gunicorn/conan tasks scored 1-2. Note the boilerplate trap in TMax: hundreds of tasks mention 'HTTP server on port 8080', which is retrieval noise, not transfer; I only kept TMax tasks whose graded work is Python packaging."
+}

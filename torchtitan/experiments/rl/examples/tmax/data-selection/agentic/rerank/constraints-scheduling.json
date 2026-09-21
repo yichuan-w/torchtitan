@@ -1,0 +1,585 @@
+{
+ "tb21_id": "constraints-scheduling",
+ "tb21_profile": {
+  "skill": "Parse a structured calendar format into intervals, encode hard constraints plus ranked soft preferences, search a discrete time space for the earliest feasible solution, and emit a valid artifact in a strict format",
+  "domain": "iCalendar/ICS, datetime and UTC arithmetic, interval overlap, constraint satisfaction / resolver search",
+  "task_form": "implement-from-spec: solve a constraint problem and write the answer out as a format-validated file"
+ },
+ "searches": [
+  "tools.py search all '\\.ics\\b|iCalendar|icalendar|VEVENT|VCALENDAR|RRULE' -n 30",
+  "tools.py search all 'schedul(e|ing) .{0,40}(meeting|shift|room|job|task)|constraint satisfaction|CSP|feasible schedule|no overlap|earliest .{0,20}slot' -n 30",
+  "tools.py search tmax 'overlapping intervals|merge .{0,20}intervals|time slot|scheduling|calendar|availability|earliest|non-overlapping|bin packing|knapsack' -n 40",
+  "tools.py search tmax 'N-Queens|SAT solver|z3|constraint solver|satisfies all|hard constraint|soft constraint|assign .{0,30} subject to|feasib|allocat.{0,20}resources|optimal .{0,20}(assignment|allocation|schedule)' -n 35",
+  "tools.py search all 'meeting|business hours|working hours|time ?zone|timezone|UTC offset|9 AM|availability window|shift schedul' -n 35",
+  "tools.py search rts 'cron|systemd timer|next run|date arithmetic|ISO 8601|timestamp format|duration' -n 25",
+  "tools.py search tw 'cron|calendar|ISO 8601|timestamp|schedul|duration|timezone|date' -n 30",
+  "tools.py search tw 'constraint|solver|satisfi|optimi[sz]|allocat|conflict|feasible|linear program' -n 30",
+  "tools.py search rts 'room|booking|reservation|allocation|priority|time window|overlap|earliest|latest .{0,15}(time|slot)|sort .{0,20}by (time|date)' -n 30",
+  "sqlite: SELECT task_id FROM doc WHERE source IN ('SWE-Rebench-Tasks-Clean','SWE-Smith-Seeds-Clean') AND task_id LIKE '%icalendar%'/'%celery%'/'%pyomo%'/'%arrow%'/'%schedule%'/'%todoman%'/'%networkx%'"
+ ],
+ "per_source": {
+  "TMax-15K": [
+   {
+    "rank": 1,
+    "task_id": "task_002086_c329710c",
+    "skill": 5,
+    "domain": 3,
+    "task_form": 4,
+    "overall": 4,
+    "reason": "Find a package subset satisfying required-inclusion, dependency and conflict rules simultaneously; discrete search under hard constraints, like slot selection."
+   },
+   {
+    "rank": 2,
+    "task_id": "task_004407_3de0d0ba",
+    "skill": 5,
+    "domain": 3,
+    "task_form": 4,
+    "overall": 4,
+    "reason": "Find the single version combination satisfying every stated constraint including an aggregate sum; exactly the exhaustive-search-then-verify pattern."
+   },
+   {
+    "rank": 3,
+    "task_id": "task_000597_e676e1f7",
+    "skill": 5,
+    "domain": 3,
+    "task_form": 4,
+    "overall": 4,
+    "reason": "Must satisfy all constraints from every dependent and then pick the highest valid version; hard constraints plus an extremal tie-break, as with earliest slot."
+   },
+   {
+    "rank": 4,
+    "task_id": "task_004627_4d1d2cb8",
+    "skill": 4,
+    "domain": 3,
+    "task_form": 4,
+    "overall": 4,
+    "reason": "Search a filtered candidate set for a combination meeting all dependency requirements; feasibility search over a restricted domain."
+   },
+   {
+    "rank": 5,
+    "task_id": "task_002869_18f98df5",
+    "skill": 4,
+    "domain": 2,
+    "task_form": 4,
+    "overall": 4,
+    "reason": "Solve simultaneous equations plus an ordering constraint via a solver or brute force; the purest constraint-satisfaction instance in the pool."
+   },
+   {
+    "rank": 6,
+    "task_id": "task_004350_6860d937",
+    "skill": 4,
+    "domain": 3,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Fix a resolver so it returns the highest available version satisfying all constraints; constraint matching plus a deterministic preference rule."
+   },
+   {
+    "rank": 7,
+    "task_id": "task_003405_f49bffaf",
+    "skill": 4,
+    "domain": 3,
+    "task_form": 4,
+    "overall": 3,
+    "reason": "Implement semver range matching yourself and filter an index to the entries satisfying every constraint; hand-rolled constraint evaluation."
+   },
+   {
+    "rank": 8,
+    "task_id": "task_000896_55f40413",
+    "skill": 4,
+    "domain": 3,
+    "task_form": 4,
+    "overall": 3,
+    "reason": "Walk a dependency graph and determine the exact package set that satisfies all version constraints; multi-party constraint reconciliation."
+   },
+   {
+    "rank": 9,
+    "task_id": "task_006700_8f3aa427",
+    "skill": 4,
+    "domain": 3,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Complete a constraint solver that decides whether a manifest satisfies a constraint set; encoding and evaluating constraints correctly."
+   },
+   {
+    "rank": 10,
+    "task_id": "task_003987_c5a53cee",
+    "skill": 4,
+    "domain": 2,
+    "task_form": 4,
+    "overall": 3,
+    "reason": "Search for the optimal resource allocation against a black-box scoring engine; feasible-then-optimal search, same two-stage structure."
+   }
+  ],
+  "Recursive-Task-Synthesis": [
+   {
+    "rank": 1,
+    "task_id": "rts_task_9165c56e0ef085d688924a7a",
+    "skill": 3,
+    "domain": 4,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Build Taskwarrior entries with tags, priorities and a due date computed relative to today; calendar-entry attributes and date arithmetic."
+   },
+   {
+    "rank": 2,
+    "task_id": "rts_task_d959ecc312647c9940121b57",
+    "skill": 3,
+    "domain": 4,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Final task database must match explicit per-task targets including due dates and priorities; constraint-conformant calendar state."
+   },
+   {
+    "rank": 3,
+    "task_id": "rts_task_a198a577469d1dda01c9cb4f",
+    "skill": 3,
+    "domain": 4,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Same task-database targets verified through a native export format; produce dated entries that validate against a strict reader."
+   },
+   {
+    "rank": 4,
+    "task_id": "rts_task_7b0ed4bbbddf494d4ca76fa5",
+    "skill": 4,
+    "domain": 3,
+    "task_form": 4,
+    "overall": 3,
+    "reason": "Generate a record that satisfies both a JSON schema and a separate content-requirements document; synthesise an artifact meeting every constraint."
+   },
+   {
+    "rank": 5,
+    "task_id": "rts_task_e5d6e3aab9231dd169998eb6",
+    "skill": 4,
+    "domain": 3,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Windowed stream-stream left join with an exact window duration and an anti-join filter; interval-overlap semantics over timestamps."
+   },
+   {
+    "rank": 6,
+    "task_id": "rts_task_447debaaa28c1c348fbf9391",
+    "skill": 3,
+    "domain": 3,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Same windowed-join task with the window duration read from a contract file; time-window matching between two event streams."
+   },
+   {
+    "rank": 7,
+    "task_id": "rts_task_a6474094d3d22c0a2b4b51bc",
+    "skill": 3,
+    "domain": 2,
+    "task_form": 3,
+    "overall": 2,
+    "reason": "Install components meeting simultaneous minimum and maximum version constraints; satisfy a conjunction of bounds."
+   },
+   {
+    "rank": 8,
+    "task_id": "rts_task_d38d99a7939bb82af30560aa",
+    "skill": 3,
+    "domain": 2,
+    "task_form": 3,
+    "overall": 2,
+    "reason": "Determine the version constraints from config and confirm the installed version satisfies them; check-a-candidate-against-constraints."
+   },
+   {
+    "rank": 9,
+    "task_id": "rts_task_be038d6f1f6bc2c236409a00",
+    "skill": 2,
+    "domain": 4,
+    "task_form": 3,
+    "overall": 2,
+    "reason": "Drive a todo list to an exact final state with an ordering and a priority assignment; task-and-priority bookkeeping, no search."
+   },
+   {
+    "rank": 10,
+    "task_id": "rts_task_a45fff91226d1b02c4a69c6b",
+    "skill": 2,
+    "domain": 4,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Locate a date and convert it to ISO 8601; date parsing and canonical formatting only, none of the search."
+   }
+  ],
+  "TerminalWorld-Seeds-Clean": [
+   {
+    "rank": 1,
+    "task_id": "tw_125882",
+    "skill": 4,
+    "domain": 2,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Solve the binary's path constraints symbolically to recover the one value satisfying them; genuine constraint solving to a unique answer."
+   },
+   {
+    "rank": 2,
+    "task_id": "tw_112971",
+    "skill": 4,
+    "domain": 4,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Populate a room-allocation system by assigning people to rooms of the right type and capacity; resource allocation under capacity constraints."
+   },
+   {
+    "rank": 3,
+    "task_id": "tw_582696",
+    "skill": 3,
+    "domain": 4,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Convert an NTP-epoch timestamp to Unix epoch and emit an exactly formatted datetime; epoch arithmetic and strict time formatting."
+   },
+   {
+    "rank": 4,
+    "task_id": "tw_561688",
+    "skill": 3,
+    "domain": 3,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Load and solve a bundle-adjustment optimisation problem with a solver package; setting up and running an optimiser over a defined problem."
+   },
+   {
+    "rank": 5,
+    "task_id": "tw_356591",
+    "skill": 3,
+    "domain": 3,
+    "task_form": 3,
+    "overall": 3,
+    "reason": "Install tool versions satisfying simultaneous upper and lower bounds, pinning one explicitly to make the set feasible."
+   },
+   {
+    "rank": 6,
+    "task_id": "tw_305897",
+    "skill": 3,
+    "domain": 2,
+    "task_form": 3,
+    "overall": 2,
+    "reason": "Final firewall chain must contain exactly three rules in a prescribed order; satisfy an ordering constraint on the produced state."
+   },
+   {
+    "rank": 7,
+    "task_id": "tw_144971",
+    "skill": 3,
+    "domain": 3,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Step a constraint puzzle solver forward under a debugger to a specific state; reasoning about how a solver explores its space."
+   },
+   {
+    "rank": 8,
+    "task_id": "tw_152964",
+    "skill": 2,
+    "domain": 3,
+    "task_form": 3,
+    "overall": 2,
+    "reason": "Schedule a pod onto a particular node in a running cluster; placement under scheduling constraints, but the constraints are trivial."
+   },
+   {
+    "rank": 9,
+    "task_id": "tw_12673",
+    "skill": 2,
+    "domain": 2,
+    "task_form": 3,
+    "overall": 2,
+    "reason": "Transform data into an exactly specified row/column artifact; strict output-format conformance with no search component."
+   },
+   {
+    "rank": 10,
+    "task_id": "tw_28790",
+    "skill": 2,
+    "domain": 3,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Set the correct version constraint in a gemspec so the build resolves; writing a constraint rather than solving one."
+   }
+  ],
+  "SWE-Smith-Seeds-Clean": [
+   {
+    "rank": 1,
+    "task_id": "dbader__schedule.82a43db1.func_pm_remove_cond__9tbtqjem",
+    "skill": 4,
+    "domain": 4,
+    "task_form": 2,
+    "overall": 3,
+    "reason": ".at() drops the hour and minute so jobs fire at the wrong time; time-of-day arithmetic is exactly what slot selection depends on."
+   },
+   {
+    "rank": 2,
+    "task_id": "dbader__schedule.82a43db1.func_pm_remove_assign__p3fap6yd",
+    "skill": 3,
+    "domain": 4,
+    "task_form": 2,
+    "overall": 3,
+    "reason": "until() mishandles a string end time; bounding a schedule by a deadline, the same window-endpoint reasoning."
+   },
+   {
+    "rank": 3,
+    "task_id": "arrow-py__arrow.1d70d009.func_basic__p9zbp6c3",
+    "skill": 3,
+    "domain": 4,
+    "task_form": 2,
+    "overall": 3,
+    "reason": "utcnow returns local time instead of UTC; the exact UTC-versus-local confusion that would break the required Z-suffixed output."
+   },
+   {
+    "rank": 4,
+    "task_id": "arrow-py__arrow.1d70d009.combine_file__g5h3d3ro",
+    "skill": 3,
+    "domain": 4,
+    "task_form": 2,
+    "overall": 3,
+    "reason": "Timezone-aware construction is broken; getting a datetime into the right zone before comparing it to a window."
+   },
+   {
+    "rank": 5,
+    "task_id": "arrow-py__arrow.1d70d009.func_pm_op_change_const__uid6bkba",
+    "skill": 3,
+    "domain": 4,
+    "task_form": 2,
+    "overall": 3,
+    "reason": "12-hour tokens render 13:00 wrongly; the AM/PM boundary errors that wreck a 9 AM-6 PM window check."
+   },
+   {
+    "rank": 6,
+    "task_id": "arrow-py__arrow.1d70d009.func_pm_op_break_chains__198tzvtl",
+    "skill": 3,
+    "domain": 4,
+    "task_form": 2,
+    "overall": 3,
+    "reason": "Granularity-based time deltas computed wrongly; duration arithmetic between two instants, as in a one-hour slot."
+   },
+   {
+    "rank": 7,
+    "task_id": "dbader__schedule.82a43db1.func_pm_remove_cond__t9rkf3hs",
+    "skill": 3,
+    "domain": 4,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Scheduler fails to validate the time unit, so bad schedules blow up later; validating a schedule specification up front."
+   },
+   {
+    "rank": 8,
+    "task_id": "arrow-py__arrow.1d70d009.func_pm_ctrl_shuffle__ju0q8oac",
+    "skill": 3,
+    "domain": 4,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Multi-format datetime parsing returns None; parsing timestamps out of text, the DTSTART/DTEND step here."
+   },
+   {
+    "rank": 9,
+    "task_id": "arrow-py__arrow.1d70d009.combine_file__8pbefy25",
+    "skill": 2,
+    "domain": 3,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Range check uses strict instead of inclusive inequality; the inclusive/exclusive boundary bug that makes a slot wrongly valid."
+   },
+   {
+    "rank": 10,
+    "task_id": "arrow-py__arrow.1d70d009.combine_file__0jlnyumj",
+    "skill": 2,
+    "domain": 4,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Datetime addition via __radd__ broken; adding a duration to an instant, the operation that turns a start time into an end time."
+   }
+  ],
+  "SWE-Rebench-Tasks-Clean": [
+   {
+    "rank": 1,
+    "task_id": "collective__icalendar-878",
+    "skill": 4,
+    "domain": 5,
+    "task_form": 3,
+    "overall": 4,
+    "reason": "Missing VTIMEZONE components must be written at the start of the .ics file, not appended; producing a structurally valid iCalendar file is the deliverable here too."
+   },
+   {
+    "rank": 2,
+    "task_id": "celery__celery-9669",
+    "skill": 4,
+    "domain": 4,
+    "task_form": 2,
+    "overall": 3,
+    "reason": "crontab schedule fires an hour late after DST begins; computing the next valid time in a recurring window, a wall-clock-versus-UTC bug."
+   },
+   {
+    "rank": 3,
+    "task_id": "pimutils__todoman-541",
+    "skill": 3,
+    "domain": 4,
+    "task_form": 2,
+    "overall": 3,
+    "reason": "todoman stores todos as iCalendar files; round-tripping non-ASCII fields through .ics without corrupting them."
+   },
+   {
+    "rank": 4,
+    "task_id": "pyomo__pyomo-2567",
+    "skill": 4,
+    "domain": 3,
+    "task_form": 2,
+    "overall": 3,
+    "reason": "A relational expression is accepted as an objective and silently sent to the solver; distinguishing constraints from objectives when modelling."
+   },
+   {
+    "rank": 5,
+    "task_id": "pyomo__pyomo-2765",
+    "skill": 3,
+    "domain": 3,
+    "task_form": 2,
+    "overall": 3,
+    "reason": "Adding an extra constraint to an indexed model errors out; constructing a constraint set correctly over an index space."
+   },
+   {
+    "rank": 6,
+    "task_id": "pyomo__pyomo-3056",
+    "skill": 3,
+    "domain": 3,
+    "task_form": 2,
+    "overall": 3,
+    "reason": "Presolve reports the wrong degrees of freedom; reasoning about how many constraints actually pin a model, i.e. feasibility bookkeeping."
+   },
+   {
+    "rank": 7,
+    "task_id": "pyomo__pyomo-2038",
+    "skill": 3,
+    "domain": 3,
+    "task_form": 2,
+    "overall": 3,
+    "reason": "Bound propagation over squares written as products; interval/bound tightening, the core pruning technique in constraint search."
+   },
+   {
+    "rank": 8,
+    "task_id": "pyomo__pyomo-2852",
+    "skill": 3,
+    "domain": 3,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Indexed SOS1 constraints fail to reach the solver; expressing an at-most-one selection constraint, the shape of a slot choice."
+   },
+   {
+    "rank": 9,
+    "task_id": "pimutils__todoman-299",
+    "skill": 2,
+    "domain": 4,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Cached iCalendar collection metadata is never refreshed; reading a directory of .ics files as the source of truth."
+   },
+   {
+    "rank": 10,
+    "task_id": "celery__celery-9331",
+    "skill": 2,
+    "domain": 3,
+    "task_form": 2,
+    "overall": 2,
+    "reason": "Beat's persistent schedule database gets corrupted; maintaining a schedule's stored state, adjacent rather than central."
+   }
+  ]
+ },
+ "final_top10": [
+  {
+   "rank": 1,
+   "task_id": "task_002086_c329710c",
+   "source": "TMax-15K",
+   "skill": 5,
+   "domain": 3,
+   "task_form": 4,
+   "overall": 4,
+   "reason": "Search a discrete space for a selection satisfying inclusion, dependency and conflict rules at once; the same feasibility hunt as finding a valid slot."
+  },
+  {
+   "rank": 2,
+   "task_id": "task_000597_e676e1f7",
+   "source": "TMax-15K",
+   "skill": 5,
+   "domain": 3,
+   "task_form": 4,
+   "overall": 4,
+   "reason": "Satisfy every constraint from every party, then apply an extremal rule to choose among valid answers, exactly as 'earliest valid slot' does."
+  },
+  {
+   "rank": 3,
+   "task_id": "task_004407_3de0d0ba",
+   "source": "TMax-15K",
+   "skill": 5,
+   "domain": 3,
+   "task_form": 4,
+   "overall": 4,
+   "reason": "Find the one combination meeting all stated constraints including an aggregate condition; exhaustive search plus verification."
+  },
+  {
+   "rank": 4,
+   "task_id": "collective__icalendar-878",
+   "source": "SWE-Rebench-Tasks-Clean",
+   "skill": 4,
+   "domain": 5,
+   "task_form": 3,
+   "overall": 4,
+   "reason": "The only iCalendar task in the pool: emitting a structurally valid .ics with its timezone components in the right place."
+  },
+  {
+   "rank": 5,
+   "task_id": "task_004627_4d1d2cb8",
+   "source": "TMax-15K",
+   "skill": 4,
+   "domain": 3,
+   "task_form": 4,
+   "overall": 4,
+   "reason": "Restrict the candidate set first, then find a combination satisfying every dependency requirement; two-stage constrained search."
+  },
+  {
+   "rank": 6,
+   "task_id": "task_002869_18f98df5",
+   "source": "TMax-15K",
+   "skill": 4,
+   "domain": 2,
+   "task_form": 4,
+   "overall": 4,
+   "reason": "Solve simultaneous constraints with an added ordering condition, by solver or brute force; constraint satisfaction with a disambiguating rule."
+  },
+  {
+   "rank": 7,
+   "task_id": "task_004350_6860d937",
+   "source": "TMax-15K",
+   "skill": 4,
+   "domain": 3,
+   "task_form": 3,
+   "overall": 3,
+   "reason": "Make the resolver return the highest candidate satisfying all constraints; constraint evaluation plus a deterministic preference order."
+  },
+  {
+   "rank": 8,
+   "task_id": "task_003405_f49bffaf",
+   "source": "TMax-15K",
+   "skill": 4,
+   "domain": 3,
+   "task_form": 4,
+   "overall": 3,
+   "reason": "Hand-implement range matching and filter candidates to those satisfying every constraint, rather than calling a library."
+  },
+  {
+   "rank": 9,
+   "task_id": "task_000896_55f40413",
+   "source": "TMax-15K",
+   "skill": 4,
+   "domain": 3,
+   "task_form": 4,
+   "overall": 3,
+   "reason": "Reconcile constraints coming from several parties across a graph and report the exact satisfying set, as three calendars must be reconciled."
+  },
+  {
+   "rank": 10,
+   "task_id": "dbader__schedule.82a43db1.func_pm_remove_cond__9tbtqjem",
+   "source": "SWE-Smith-Seeds-Clean",
+   "skill": 4,
+   "domain": 4,
+   "task_form": 2,
+   "overall": 3,
+   "reason": "Time-of-day handling silently loses hour and minute; the minute-granularity arithmetic this task's slot search is evaluated on."
+  }
+ ],
+ "notes": "The ICS half of this task is essentially absent from the pool: a regex for .ics/VEVENT/VCALENDAR/iCalendar matched exactly one real task pool-wide (collective__icalendar-878), plus the todoman pair which stores todos as iCalendar. I ranked that one high on domain despite its bug-fix form because nothing else touches the format. The constraint-search half is well covered, but only in TMax, and not by the retrievers: TMax has a large cluster of dependency/version resolver tasks that are structurally identical to this problem (enumerate a discrete space, reject candidates violating any hard constraint, then apply a stated preference to pick among survivors), and I found them with a 'satisfies all|constraint solver|feasible' regex rather than from the shortlist. The datetime-arithmetic half maps onto SWE-Smith's arrow and schedule clusters (UTC-vs-local, AM/PM boundaries, inclusive ranges, duration addition), which is why SWE-Smith scores better here than its task_form would suggest. RTS and TerminalWorld are weak: their apparent 'schedule' and 'timezone' matches are cron-job and system-locale boilerplate, which I discounted; what I kept are Taskwarrior due-date entries, windowed stream joins, a room-allocation system and a symbolic constraint solve."
+}

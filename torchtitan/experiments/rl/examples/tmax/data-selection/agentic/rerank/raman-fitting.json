@@ -1,0 +1,106 @@
+{
+  "tb21_id": "raman-fitting",
+  "tb21_profile": {
+    "skill": "Inspect an unknown instrument data file, then run nonlinear least-squares (Lorentzian peak + offset) to recover x0/gamma/amplitude/offset within tight numeric tolerance",
+    "domain": "Scientific Python numerics: numpy/scipy.optimize curve fitting on Raman/optical spectroscopy data",
+    "task_form": "implement-from-spec data-analysis: read data, fit a physical model, emit a fixed-schema JSON of numeric parameters checked against ground truth"
+  },
+  "searches": [
+    "tools.py tb raman-fitting",
+    "tools.py full raman-fitting",
+    "tools.py search tmax \"Lorentzian|curve_fit|Raman|graphene|FWHM|full width at half\" -n 30",
+    "tools.py search rts \"curve_fit|least.squares|Lorentzian|Gaussian fit|peak fit\" -n 25",
+    "tools.py search rts \"scipy\\.optimize|np\\.polyfit|regression\" -n 25",
+    "tools.py search rts \"numpy|scipy|FFT|spectrum|spectra|histogram|interpolat\" -n 40",
+    "tools.py search rts \"standard deviation|compute the mean|statistics of|maximum value|analy[sz]e the data|\\.dat\\b\" -n 25",
+    "tools.py search rts \"physics|astronom|telescope|sensor reading|waveform|amplitude\" -n 25",
+    "tools.py search rebench \"fit\\b|fitting|curve_fit|least.squares|spectr|peak\" -n 40",
+    "tools.py search rebench \"lmfit|minimize\\(|scipy\\.optimize|Gaussian|Lorentz|nonlinear|covariance|chi2|chi-squared\" -n 30",
+    "tools.py search smith \"scipy|Gaussian|spectr|curve|interpolat|numpy\\.|np\\.array|least.squares|optimiz\" -n 30",
+    "tools.py search smith \"sunpy|pydicom|astropy|FITS|wavelength|calibrat|physical unit|matplotlib\" -n 25",
+    "tools.py words smith numpy array float precision mean median percentile interpolat rounding numeric -n 25",
+    "tools.py search tw \"fit |fitting|spectr|scipy|curve|peak|numpy|regression|Gaussian\" -n 30",
+    "tools.py search tw \"ROOT|TTree|astropy|simulation|solve.*equation|eigen|matrix|integrat|physic\" -n 30",
+    "tools.py words tw spectrum spectra fit peak Gaussian wavelength intensity signal noise amplitude dataset numeric -n 25",
+    "tools.py show task_001144_e1380e49 task_005968_01db9842 task_003637_8afed63a",
+    "tools.py show task_003567_2bffa97d task_001259_b3d74bb6 task_003588_e3556b7c",
+    "tools.py show task_004131_aa1a8b75 task_007380_892c66e7 task_000242_341bf3b8",
+    "tools.py show rts_task_e6c55ffb24ccfd0fb185d825 rts_task_a77076a087f8eb4567fb689a rts_task_983a04819fd3e873c489e1c1 rts_task_38b12bbdb7b9e929a2768e7c",
+    "tools.py show simpeg__simpeg-1550 gammapy__gammapy-5389 gammapy__gammapy-5508 rhayes777__pyautofit-876"
+  ],
+  "per_source": {
+    "TMax-15K": [
+      {"rank": 1, "task_id": "task_005968_01db9842", "skill": 5, "domain": 5, "task_form": 5, "overall": 5, "reason": "Fits Lorentzian peak(s) plus baseline to noisy spectroscopy CSV with scipy curve_fit and writes fixed-schema JSON; same crux."},
+      {"rank": 2, "task_id": "task_001144_e1380e49", "skill": 5, "domain": 4, "task_form": 5, "overall": 5, "reason": "Multi-Lorentzian model fit (center, width, amplitude, baseline) to a spectrum, results as JSON floats; identical fitting mechanics."},
+      {"rank": 3, "task_id": "task_003567_2bffa97d", "skill": 5, "domain": 5, "task_form": 4, "overall": 5, "reason": "Raman spectroscopy multi-peak fit with lmfit composite model plus baseline, tolerance-checked output; same domain and fitting skill."},
+      {"rank": 4, "task_id": "task_003588_e3556b7c", "skill": 4, "domain": 5, "task_form": 4, "overall": 4, "reason": "Locates emission-spectrum peak centers by Voigt fitting under noise plus baseline, MAE-checked; same peak-parameter extraction."},
+      {"rank": 5, "task_id": "task_001259_b3d74bb6", "skill": 4, "domain": 4, "task_form": 4, "overall": 4, "reason": "Recovers center frequency and width of a spectral feature from instrument data and writes JSON; same parameter-estimation goal, MCMC instead of curve_fit."},
+      {"rank": 6, "task_id": "task_003637_8afed63a", "skill": 4, "domain": 3, "task_form": 4, "overall": 4, "reason": "scipy.optimize.curve_fit of a Gaussian (A, mu, sigma) on a raw instrument signal segment, JSON output with rounding; core skill matches."},
+      {"rank": 7, "task_id": "task_004935_05677e28", "skill": 4, "domain": 3, "task_form": 4, "overall": 4, "reason": "Extracts amplitude, damping gamma and frequency by fitting a closed-form physical model to raw recorded data; same parameter recovery."},
+      {"rank": 8, "task_id": "task_007380_892c66e7", "skill": 4, "domain": 4, "task_form": 3, "overall": 4, "reason": "Spectral fitting of overlapping Gaussian peak amplitudes under ill-conditioning; teaches initial-guess and identifiability care the 2D/G fit needs."},
+      {"rank": 9, "task_id": "task_004131_aa1a8b75", "skill": 4, "domain": 4, "task_form": 4, "overall": 4, "reason": "Least-squares decomposition of an NMR spectrum into Gaussian peak components, numeric results.json; same spectral-model-fitting skill."},
+      {"rank": 10, "task_id": "task_000242_341bf3b8", "skill": 3, "domain": 4, "task_form": 3, "overall": 3, "reason": "Double-Lorentzian profile with constant baseline fitted to an extracted spectrum; same model family, extra video-decoding step dilutes it."}
+    ],
+    "Recursive-Task-Synthesis": [
+      {"rank": 1, "task_id": "rts_task_e6c55ffb24ccfd0fb185d825", "skill": 3, "domain": 3, "task_form": 3, "overall": 3, "reason": "Reads a CERN ROOT physics data file, computes per-column numeric summaries and writes them as JSON; data-file-to-numeric-JSON shape matches."},
+      {"rank": 2, "task_id": "rts_task_77c7ad444c86ab95c97b82db", "skill": 3, "domain": 3, "task_form": 3, "overall": 3, "reason": "Same ROOT TTree numeric reduction, with a stale index cache to rebuild first; scientific binary format plus computed floats."},
+      {"rank": 3, "task_id": "rts_task_983a04819fd3e873c489e1c1", "skill": 2, "domain": 2, "task_form": 3, "overall": 2, "reason": "Loads tabular data and computes per-column mean and standard deviation to a stats file; numeric-summary discipline only, no model fitting."},
+      {"rank": 4, "task_id": "rts_task_a77076a087f8eb4567fb689a", "skill": 2, "domain": 2, "task_form": 3, "overall": 2, "reason": "Computes per-band mean/std of a scientific raster chunk into a JSON report; schema-exact numeric output, but no optimisation."},
+      {"rank": 5, "task_id": "rts_task_02ef885f0aea4cf4fafb697c", "skill": 2, "domain": 3, "task_form": 2, "overall": 2, "reason": "ROOT TTree branch analysis after invalidating a stale cache; exercises reading a physics data container, not fitting."},
+      {"rank": 6, "task_id": "rts_task_51952af9a70ecc8a6f957b24", "skill": 2, "domain": 3, "task_form": 2, "overall": 2, "reason": "Locates a .root data file and enumerates its branches with types; scientific data-format introspection, the step before any fit."},
+      {"rank": 7, "task_id": "rts_task_5e0de8039a2416b616bf13fb", "skill": 2, "domain": 1, "task_form": 3, "overall": 2, "reason": "Parses numbers out of a text file and computes min/max/mean/median/stddev; only the numeric-extraction half transfers."},
+      {"rank": 8, "task_id": "rts_task_38b12bbdb7b9e929a2768e7c", "skill": 2, "domain": 2, "task_form": 2, "overall": 2, "reason": "Runs a scientific (neuroimaging) pipeline with explicit numeric parameters and CSV outputs; scientific-computing flavour, no curve fitting."},
+      {"rank": 9, "task_id": "rts_task_b0259cede190f1ef494456f5", "skill": 2, "domain": 2, "task_form": 2, "overall": 2, "reason": "NumPy/pandas array cleaning to CSV; only shares the numeric-Python toolchain the Raman fit also uses."},
+      {"rank": 10, "task_id": "rts_task_f3ddeca041c1c7066e935cb1", "skill": 1, "domain": 2, "task_form": 2, "overall": 1, "reason": "Near-duplicate NaN-dropping NumPy chore; listed only because this corpus has no curve-fitting tasks at all."}
+    ],
+    "TerminalWorld-Seeds-Clean": [
+      {"rank": 1, "task_id": "tw_21631", "skill": 3, "domain": 3, "task_form": 3, "overall": 3, "reason": "Reads a .dat dataset with pandas, filters and derives values; closest thing here to loading an instrument file and computing numbers."},
+      {"rank": 2, "task_id": "tw_276570", "skill": 2, "domain": 3, "task_form": 2, "overall": 2, "reason": "Uses CERN ROOT from Python and bridges to a NumPy array view; physics data-analysis stack, no fitting."},
+      {"rank": 3, "task_id": "tw_733941", "skill": 2, "domain": 2, "task_form": 3, "overall": 2, "reason": "Builds a pipeline that fits a scikit-learn model on a dataset and emits predictions; model-fitting shape, statistical not physical."},
+      {"rank": 4, "task_id": "tw_686647", "skill": 2, "domain": 3, "task_form": 2, "overall": 2, "reason": "Runs anomaly detection over the ztf_m31 astronomical dataset; scientific-Python data analysis with numeric results."},
+      {"rank": 5, "task_id": "tw_125967", "skill": 2, "domain": 2, "task_form": 3, "overall": 2, "reason": "Sweeps 1000 resolution values over a matrix and reduces to numeric output; parameter-sweep numeric analysis, no model fit."},
+      {"rank": 6, "task_id": "tw_191493", "skill": 2, "domain": 2, "task_form": 2, "overall": 2, "reason": "Three-stage scientific pipeline with explicit numeric preprocessing parameters and CSV/pkl outputs; scientific-computing discipline only."},
+      {"rank": 7, "task_id": "tw_211906", "skill": 2, "domain": 2, "task_form": 2, "overall": 2, "reason": "Propagates measurement uncertainty through a physics computation; uncertainty-on-fitted-quantity intuition, wrong language and no fit."},
+      {"rank": 8, "task_id": "tw_18271", "skill": 2, "domain": 2, "task_form": 2, "overall": 2, "reason": "Trains and evaluates an SVM on a numeric dataset with a checked accuracy figure; numeric-tolerance output, different mathematics."},
+      {"rank": 9, "task_id": "tw_487175", "skill": 1, "domain": 2, "task_form": 2, "overall": 1, "reason": "Pandas NaN-row removal; shares only the numeric Python toolchain."},
+      {"rank": 10, "task_id": "tw_125964", "skill": 2, "domain": 2, "task_form": 2, "overall": 1, "reason": "Single-resolution Louvain clustering on a CSV matrix; matrix analysis with numeric output, nothing about peak fitting."}
+    ],
+    "SWE-Smith-Seeds-Clean": [
+      {"rank": 1, "task_id": "dask__dask.5f61e423.pr_6749", "skill": 3, "domain": 3, "task_form": 2, "overall": 3, "reason": "Fixes residual computation in a least-squares solver; the residual/lstsq mathematics is exactly what the Raman fit minimises."},
+      {"rank": 2, "task_id": "pydicom__pydicom.7d361b3d.combine_file__n8nc5k8w", "skill": 3, "domain": 3, "task_form": 2, "overall": 3, "reason": "Debugs bits_allocated/bits_stored handling when decoding instrument pixel data; same read-an-unknown-scientific-binary-format skill."},
+      {"rank": 3, "task_id": "pydicom__pydicom.7d361b3d.func_basic__9x07lkr7", "skill": 3, "domain": 3, "task_form": 2, "overall": 3, "reason": "Explicit vs implicit VR parsing of DICOM instrument files; transfers to inferring the layout of graphene.dat before fitting."},
+      {"rank": 4, "task_id": "sunpy__sunpy.f8edfd5c.func_pm_remove_assign__bwwq2e4c", "skill": 2, "domain": 3, "task_form": 2, "overall": 2, "reason": "Solar-physics data library bug; same scientific-Python observational-data ecosystem as spectroscopy analysis."},
+      {"rank": 5, "task_id": "dask__dask.5f61e423.lm_rewrite__ffikl1dk", "skill": 2, "domain": 3, "task_form": 2, "overall": 2, "reason": "Float-index rounding bug in array slicing; numeric-correctness reasoning of the kind tight fit tolerances demand."},
+      {"rank": 6, "task_id": "pydicom__pydicom.7d361b3d.combine_module__v4vz8mow", "skill": 2, "domain": 3, "task_form": 2, "overall": 2, "reason": "Private-tag reading in DICOM files; more binary scientific-format parsing practice, no numerics."},
+      {"rank": 7, "task_id": "facebookresearch__fvcore.a491d5b9.combine_module__uxncj1ip", "skill": 2, "domain": 2, "task_form": 2, "overall": 2, "reason": "to_numpy shape handling bug; array-shape reasoning shared with assembling x/y arrays for a fit."},
+      {"rank": 8, "task_id": "dask__dask.5f61e423.pr_8685", "skill": 2, "domain": 3, "task_form": 2, "overall": 2, "reason": "NumPy dtype-default semantics mismatch; float-dtype correctness matters when fit parameters are compared to 5 percent tolerance."},
+      {"rank": 9, "task_id": "pandas-dev__pandas.95280573.pr_59409", "skill": 2, "domain": 2, "task_form": 2, "overall": 2, "reason": "qcut interval boundary inclusivity bug; careful numeric-boundary reasoning, unrelated to optimisation."},
+      {"rank": 10, "task_id": "dask__dask.5f61e423.func_pm_remove_assign__u7218v2c", "skill": 1, "domain": 2, "task_form": 2, "overall": 1, "reason": "Record-dtype array handling crash; only the numeric-array ecosystem is shared."}
+    ],
+    "SWE-Rebench-Tasks-Clean": [
+      {"rank": 1, "task_id": "rhayes777__pyautofit-876", "skill": 4, "domain": 4, "task_form": 2, "overall": 3, "reason": "Works inside a nonlinear model-fitting framework driving many parameter fits; same statistical-model-fitting territory as the Lorentzian fit."},
+      {"rank": 2, "task_id": "bashtage__arch-741", "skill": 3, "domain": 3, "task_form": 2, "overall": 3, "reason": "Debugs a failing numerical .fit() of a parametric model; same class of optimiser-convergence/parameterisation problem."},
+      {"rank": 3, "task_id": "rhayes777__pyautofit-1096", "skill": 3, "domain": 4, "task_form": 2, "overall": 3, "reason": "Data-fitting results handling in an astronomy model-fitting library; parameter-estimation ecosystem, bug-fix genre."},
+      {"rank": 4, "task_id": "gammapy__gammapy-5366", "skill": 3, "domain": 4, "task_form": 2, "overall": 3, "reason": "Artefacts in filled spectra from a gamma-ray spectral map; reasoning about spectrum shape corruption, the thing a bad fit hides."},
+      {"rank": 5, "task_id": "statsmodels__statsmodels-9311", "skill": 3, "domain": 3, "task_form": 2, "overall": 3, "reason": "Statistical model estimation bug in statsmodels; numerical statistics stack directly adjacent to scipy curve fitting."},
+      {"rank": 6, "task_id": "rhayes777__pyautofit-1053", "skill": 3, "domain": 4, "task_form": 2, "overall": 3, "reason": "Sensitivity mapping over base and perturbed fit models; exercises reasoning about model parameterisation and fit outcomes."},
+      {"rank": 7, "task_id": "sdv-dev__copulas-365", "skill": 2, "domain": 3, "task_form": 2, "overall": 2, "reason": "Handles univariate distribution fit failure gracefully; fit-convergence failure handling, different statistical purpose."},
+      {"rank": 8, "task_id": "gammapy__gammapy-5508", "skill": 2, "domain": 4, "task_form": 2, "overall": 2, "reason": "Weighted-average normalisation error when downsampling a science map; numeric-formula correctness in an astrophysics data stack."},
+      {"rank": 9, "task_id": "onnx__sklearn-onnx-1163", "skill": 2, "domain": 3, "task_form": 2, "overall": 2, "reason": "GaussianProcessRegressor conversion failure; kernel/regression machinery, but the work is export plumbing not fitting."},
+      {"rank": 10, "task_id": "gammapy__gammapy-5389", "skill": 2, "domain": 3, "task_form": 2, "overall": 2, "reason": "Axis labels reordered against data order in a spectral-map library; axis/data alignment care, weak transfer to peak fitting."}
+    ]
+  },
+  "final_top10": [
+    {"rank": 1, "task_id": "task_005968_01db9842", "source": "TMax-15K", "skill": 5, "domain": 5, "task_form": 5, "overall": 5, "reason": "Lorentzian peak plus baseline fit to noisy spectroscopy data via curve_fit, fixed-schema JSON of parameters; the same task."},
+    {"rank": 2, "task_id": "task_003567_2bffa97d", "source": "TMax-15K", "skill": 5, "domain": 5, "task_form": 4, "overall": 5, "reason": "Raman spectroscopy multi-peak composite fit with accuracy-checked output; identical domain and fitting crux."},
+    {"rank": 3, "task_id": "task_001144_e1380e49", "source": "TMax-15K", "skill": 5, "domain": 4, "task_form": 5, "overall": 5, "reason": "Multi-Lorentzian fit recovering centers, widths, amplitudes and a baseline, written to JSON; same model family and output contract."},
+    {"rank": 4, "task_id": "task_003588_e3556b7c", "source": "TMax-15K", "skill": 4, "domain": 5, "task_form": 4, "overall": 4, "reason": "Peak-center extraction from noisy emission spectra with a hard numeric error budget; same precision pressure on fitted parameters."},
+    {"rank": 5, "task_id": "task_003637_8afed63a", "source": "TMax-15K", "skill": 4, "domain": 3, "task_form": 4, "overall": 4, "reason": "curve_fit of Gaussian amplitude/center/width on raw instrument signal with JSON output; core nonlinear-fit mechanics."},
+    {"rank": 6, "task_id": "task_001259_b3d74bb6", "source": "TMax-15K", "skill": 4, "domain": 4, "task_form": 4, "overall": 4, "reason": "Determines center and width of a spectral feature from an instrument file and writes exact JSON keys; same deliverable shape."},
+    {"rank": 7, "task_id": "task_004131_aa1a8b75", "source": "TMax-15K", "skill": 4, "domain": 4, "task_form": 4, "overall": 4, "reason": "Least-squares decomposition of a spectrum into Gaussian components plus residual statistics into results.json."},
+    {"rank": 8, "task_id": "task_004935_05677e28", "source": "TMax-15K", "skill": 4, "domain": 3, "task_form": 4, "overall": 4, "reason": "Fits amplitude, damping gamma and frequency of a physical model to raw recorded data; same parameter-recovery capability."},
+    {"rank": 9, "task_id": "task_007380_892c66e7", "source": "TMax-15K", "skill": 4, "domain": 4, "task_form": 3, "overall": 4, "reason": "Overlapping-Gaussian spectral amplitude estimation under ill-conditioning; teaches initial guesses and identifiability for peak fits."},
+    {"rank": 10, "task_id": "rhayes777__pyautofit-876", "source": "SWE-Rebench-Tasks-Clean", "skill": 4, "domain": 4, "task_form": 2, "overall": 3, "reason": "Nonlinear model-fitting framework internals; best non-TMax exposure to parameter estimation, though it is a bug fix."}
+  ],
+  "notes": "TMax-15K dominates honestly: self-directed regex for 'Lorentzian|curve_fit|Raman' surfaced several strong tasks (task_005968_01db9842, task_001144_e1380e49) the shortlist missed or ranked low. Recursive-Task-Synthesis has zero curve-fitting tasks (search for curve_fit/least-squares/Lorentzian returned 0 hits); its shortlist was pure /app/results.json boilerplate overlap and I replaced it with ROOT-file and numeric-statistics tasks, which are still only overall<=3. TerminalWorld is similarly weak; ranks 9-10 there are filler. SWE-Smith scores are capped by genre plus the absence of any scientific-fitting repo; pydicom entries are picked for binary scientific-format parsing, which is the file-inspection half of the TB2.1 task."
+}
