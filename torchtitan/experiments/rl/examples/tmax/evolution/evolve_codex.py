@@ -45,6 +45,7 @@ import statistics
 import subprocess
 import tempfile
 import time
+import uuid
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -105,6 +106,31 @@ MAX_TOOL_CALLS = int(os.environ.get("CODEX_RETUNE_MAX_CALLS", "25"))
 # next session. It needs the openai-codex SDK, which lives in its own
 # virtualenv (TRL_SDK_PY) rather than the training one.
 CODEX_DRIVER = os.environ.get("EVOLVE_CODEX_DRIVER", "exec")
+# Which CLI runs a session. "codex" is the original and the default. "claude"
+# drives Claude Code headlessly (`claude -p`), which authenticates with the
+# user's own subscription rather than an API key -- the reason it exists: the
+# claude_proxy/ route reaches Claude too, but only through LiteLLM with an
+# Anthropic API key. Both arms share this module's session directory, prompt,
+# stream-to-disk and resume contract; only the argv, the environment and the
+# way the role reaches the model differ.
+def _default_agent() -> str:
+    """Which CLI a run drives, from the environment.
+
+    ``SWE_RETUNE_AGENT=claude`` is the ordinary spelling: one name picks the
+    agentic arm (feedback_loop) and the CLI it runs (here). EVOLVE_AGENT
+    overrides it for a caller that wants the arm named one way and the CLI
+    another.
+    """
+    if agent := os.environ.get("EVOLVE_AGENT"):
+        return agent
+    return "claude" if os.environ.get("SWE_RETUNE_AGENT") == "claude" else "codex"
+
+
+EVOLVE_AGENT = _default_agent()
+# Claude Code's own model selection: an alias ("opus", "sonnet") or a full
+# name. SYNTH_MODEL names an OpenAI model for the codex arm, so this is a
+# separate knob rather than a shared one.
+CLAUDE_MODEL = os.environ.get("EVOLVE_CLAUDE_MODEL", "opus")
 SDK_PY = os.environ.get(
     "TRL_SDK_PY", "/scratch/gpfs/TRIDAO/al9080/terminal-rl/sdkvenv/bin/python"
 )
@@ -126,9 +152,20 @@ def _codex_bin() -> Path:
     return _tool_bin() / "codex"
 
 
+def _claude_bin() -> Path:
+    return _tool_bin() / "claude"
+
+
+def _agent_bin() -> Path:
+    """The CLI this run drives, from the same ``$TRL_BASE/bin`` convention."""
+    return _claude_bin() if EVOLVE_AGENT == "claude" else _codex_bin()
+
+
 def _require_codex() -> None:
-    if not _codex_bin().exists():
-        raise RuntimeError(f"codex binary not found at {_codex_bin()}")
+    if EVOLVE_AGENT not in ("codex", "claude"):
+        raise ValueError(f"EVOLVE_AGENT must be codex or claude, got {EVOLVE_AGENT!r}")
+    if not _agent_bin().exists():
+        raise RuntimeError(f"{EVOLVE_AGENT} binary not found at {_agent_bin()}")
 
 
 # --------------------------------------------------------------------------
@@ -161,7 +198,13 @@ def _prune_private_home(home: Path) -> None:
 
     Each invocation has a private ``CODEX_HOME``. Files outside ``sessions/``
     are caches the client rebuilds; the jsonl is the transcript.
+
+    Claude Code keeps its transcript somewhere else under the config dir, so
+    the same rule would delete the thread a later `--resume` needs. Its home
+    is left alone; it is small, and the whole session directory is the record.
     """
+    if EVOLVE_AGENT == "claude":
+        return
     if not home.is_dir():
         return
     for child in home.iterdir():
@@ -232,12 +275,11 @@ def session(
     sd.codex_home.mkdir(mode=0o700)
     meta = {
         "kind": kind,
-        "model": CODEX_MODEL,
+        "agent": EVOLVE_AGENT,
+        "model": CLAUDE_MODEL if EVOLVE_AGENT == "claude" else CODEX_MODEL,
         "reasoning_effort": CODEX_EFFORT,
-        "driver": CODEX_DRIVER,
-        "authentication": "chatgpt"
-        if os.environ.get("EVOLVE_CODEX_AUTH_FILE")
-        else "api_key",
+        "driver": "claude-print" if EVOLVE_AGENT == "claude" else CODEX_DRIVER,
+        "authentication": _authentication(),
         "started": layout.stamp(),
         "finished": None,
         "status": "running",
@@ -246,9 +288,22 @@ def session(
         "timeout_sec": timeout,
         "filtered": False,
     }
+    if EVOLVE_AGENT == "claude":
+        # Claude Code names the conversation rather than reporting one back:
+        # `--session-id` takes a UUID we choose, so resume does not have to
+        # find a transcript on disk the way `_session_id` does for codex.
+        meta["claude_session_id"] = str(uuid.uuid4())
     if resumes is not None:
         meta["resumed"] = f"sessions/{resumes.path.name}"
-        _link_session_jsonl(resumes, sd)
+        if EVOLVE_AGENT == "claude":
+            # Claude Code looks a conversation up inside CLAUDE_CONFIG_DIR and
+            # keeps its own layout there. Rather than copy internals into a
+            # fresh home the way _link_session_jsonl does for codex, continue
+            # in the home that already holds the thread; this session
+            # directory still gets its own prompt, streams and record.
+            meta["claude_config_dir"] = str(resumes.codex_home)
+        else:
+            _link_session_jsonl(resumes, sd)
     layout.write_json_atomic(sd.meta, meta)
     run = SessionRun(sd, meta)
     try:
@@ -291,6 +346,101 @@ def _harness_env() -> dict:
     # PATH (a systemd unit's) does not carry that directory.
     env["PATH"] = str(_tool_bin()) + os.pathsep + env.get("PATH", "")
     return env
+
+
+def _authentication() -> str:
+    """How this run's sessions authenticate, for the session record."""
+    if EVOLVE_AGENT == "claude":
+        # Claude Code reads its own credentials from CLAUDE_CONFIG_DIR: the
+        # subscription's OAuth login when there is one, ANTHROPIC_API_KEY
+        # otherwise. The CLI decides; the record only says where it looked.
+        if os.environ.get("ANTHROPIC_API_KEY"):
+            return "anthropic_api_key"
+        return "claude_subscription"
+    if os.environ.get("EVOLVE_CODEX_AUTH_FILE"):
+        return "chatgpt"
+    return "api_key"
+
+
+def _claude_account_home() -> Path:
+    """Where Claude Code keeps the login this arm spends.
+
+    ``EVOLVE_CLAUDE_ACCOUNT_HOME`` names it; otherwise the CLI's own default,
+    which is the user's ``CLAUDE_CONFIG_DIR`` when they set one and
+    ``~/.claude`` when they did not. Read from *this* process's environment,
+    which is the human's -- the child's is the private home below.
+    """
+    return Path(
+        os.environ.get("EVOLVE_CLAUDE_ACCOUNT_HOME")
+        or os.environ.get("CLAUDE_CONFIG_DIR")
+        or (Path.home() / ".claude")
+    )
+
+
+def _claude_env(home: Path) -> dict:
+    """The environment for one Claude Code session, run out of ``home``.
+
+    ``CLAUDE_CONFIG_DIR`` is a session's own directory rather than the user's,
+    for the same reason ``CODEX_HOME`` is: a session must not inherit another
+    one's state, and must not write into the home a human is using. A resuming
+    session is the exception and gets the home holding the thread it
+    continues.
+
+    The subscription's login lives *inside* that config directory, so a fresh
+    home has none and the CLI answers "Not logged in" after spending a
+    process. The credential file is linked rather than copied, so a token
+    refresh writes through to the one file every session shares -- the same
+    reason the codex arm links its ``auth.json``.
+    """
+    env = _harness_env()
+    env["CLAUDE_CONFIG_DIR"] = str(home)
+    # The loop's own OpenAI key has no business in a Claude session, and an
+    # ANTHROPIC_API_KEY left in the environment would silently bill the API
+    # instead of the subscription this arm exists to use.
+    env.pop("OPENAI_API_KEY", None)
+    if os.environ.get("EVOLVE_CLAUDE_USE_API_KEY") == "1":
+        return env
+    env.pop("ANTHROPIC_API_KEY", None)
+    creds = _claude_account_home() / ".credentials.json"
+    if not creds.is_file():
+        raise RuntimeError(
+            f"no Claude Code login at {creds}: run `claude` and /login, point "
+            "EVOLVE_CLAUDE_ACCOUNT_HOME at the home that has one, or set "
+            "EVOLVE_CLAUDE_USE_API_KEY=1 with ANTHROPIC_API_KEY to bill the API"
+        )
+    home.mkdir(parents=True, exist_ok=True)
+    link = home / ".credentials.json"
+    if not link.exists():
+        link.symlink_to(creds.resolve())
+    return env
+
+
+def _claude_cmd(cwd: Path, session_id: str, *, resume: bool) -> list[str]:
+    """`claude -p` over the package, with the loop's own settings only.
+
+    ``--setting-sources ''`` keeps a human's user/project settings out of an
+    unattended session, the way ``--ignore-user-config`` does for codex.
+    ``--permission-prompts none`` makes anything the permission mode would
+    still ask about a denial rather than a hang: nobody is at the terminal.
+    """
+    cmd = [
+        str(_claude_bin()),
+        "-p",
+        "--output-format",
+        "json",
+        "--permission-mode",
+        "bypassPermissions",
+        "--permission-prompts",
+        "none",
+        "--setting-sources",
+        "",
+        "--model",
+        CLAUDE_MODEL,
+        "--add-dir",
+        str(cwd),
+    ]
+    cmd += ["--resume", session_id] if resume else ["--session-id", session_id]
+    return cmd
 
 
 def _codex_env(sd: layout.SessionDir) -> dict:
@@ -426,28 +576,50 @@ def _run_codex(
     """
     sd = run.dir
     timeout = int(run.meta["timeout_sec"])
-    prompt += (
-        "\n\nFor local package edits in Codex's *** Begin Patch format, use "
-        "`./sandbox patch` with the patch on standard input or as one argument. "
-        "This invokes the same Codex binary as this session; a host command "
-        "named apply_patch may use a different format. Read back files you "
-        "create, including run/verdict.txt, before reporting that they exist.\n"
-    )
-    if ACCOUNT_HOME and (cwd / "AGENTS.md").is_file():
-        # Automatic document discovery is off; retain the experiment's own role.
+    if EVOLVE_AGENT == "claude":
+        # Claude Code edits files with its own tools, so the patch-format
+        # paragraph below does not apply; the read-back rule does, and for the
+        # same reason (a file reported as written that never landed).
+        prompt += (
+            "\n\nEdit files in this package directly. Read back files you "
+            "create, including run/verdict.txt, before reporting that they "
+            "exist.\n"
+        )
+    else:
+        prompt += (
+            "\n\nFor local package edits in Codex's *** Begin Patch format, use "
+            "`./sandbox patch` with the patch on standard input or as one argument. "
+            "This invokes the same Codex binary as this session; a host command "
+            "named apply_patch may use a different format. Read back files you "
+            "create, including run/verdict.txt, before reporting that they exist.\n"
+        )
+    if (ACCOUNT_HOME or EVOLVE_AGENT == "claude") and (cwd / "AGENTS.md").is_file():
+        # Automatic document discovery is off (codex), or the role file has a
+        # name this CLI does not look for (claude): either way the experiment's
+        # own role has to arrive in the prompt rather than by discovery.
         prompt = (cwd / "AGENTS.md").read_text() + "\n\n" + prompt
     if (cwd / ev.ACTION_PATH).is_file() and not (cwd / "solution/solve.sh").is_file():
         prompt = _recorded_solution_prompt(prompt)
     sd.prompt.write_text(prompt)
-    if ACCOUNT_HOME and CODEX_DRIVER != "exec":
-        raise ValueError("account authentication currently requires the exec driver")
-    env = _codex_env(sd)
-    if CODEX_DRIVER == "sdk":
-        cmd = _session_cmd(run, cwd, resume=resume)
-        env["CODEX_BIN"] = str(_codex_bin())
-        env["EVOLVE_CODEX_OVERRIDES"] = "\n".join(_provider_overrides())
+    if EVOLVE_AGENT == "claude":
+        env = _claude_env(Path(run.meta.get("claude_config_dir") or sd.codex_home))
+        # A resume names the thread the caller wants continued; a fresh
+        # session names the one this record was stamped with.
+        cmd = _claude_cmd(
+            cwd, resume or run.meta["claude_session_id"], resume=bool(resume)
+        )
     else:
-        cmd = _codex_cmd(cwd, resume=resume)
+        if ACCOUNT_HOME and CODEX_DRIVER != "exec":
+            raise ValueError(
+                "account authentication currently requires the exec driver"
+            )
+        env = _codex_env(sd)
+        if CODEX_DRIVER == "sdk":
+            cmd = _session_cmd(run, cwd, resume=resume)
+            env["CODEX_BIN"] = str(_codex_bin())
+            env["EVOLVE_CODEX_OVERRIDES"] = "\n".join(_provider_overrides())
+        else:
+            cmd = _codex_cmd(cwd, resume=resume)
     # Streamed to disk rather than captured in memory. A session runs for tens
     # of minutes and used to write nothing until it ended, so a killed one
     # (SIGKILL leaves no record at all) took its log with it, and there was no
@@ -471,7 +643,7 @@ def _run_codex(
                 proc.communicate()
                 raise
             finally:
-                if ACCOUNT_HOME:
+                if ACCOUNT_HOME and EVOLVE_AGENT != "claude":
                     (sd.codex_home / "auth.json").unlink(missing_ok=True)
     except subprocess.TimeoutExpired as exc:
         run.meta["exit_code"] = proc.returncode
@@ -487,7 +659,21 @@ def _run_codex(
 
 
 def _session_id(sd: layout.SessionDir) -> str:
-    """The id of the thread recorded under this session's CODEX_HOME."""
+    """The id of the thread recorded under this session's private home.
+
+    Codex reports an id only in the transcript it writes, so it is read back
+    from there. Claude Code takes the id as an argument, so the one this
+    session was started with is already in its record -- read that, rather
+    than a transcript whose location is the CLI's business.
+    """
+    if EVOLVE_AGENT == "claude":
+        try:
+            sid = json.loads(sd.meta.read_text()).get("claude_session_id")
+        except (OSError, ValueError) as exc:
+            raise RuntimeError(f"no session record at {sd.meta}") from exc
+        if not sid:
+            raise RuntimeError(f"no claude_session_id in {sd.meta}")
+        return str(sid)
     newest = None
     for f in (sd.codex_home / "sessions").rglob("*.jsonl"):
         if newest is None or f.stat().st_mtime > newest.stat().st_mtime:

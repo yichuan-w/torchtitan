@@ -742,6 +742,11 @@ def process_one(
     # transcript (the no-rollout-info mode). All three feed the SAME
     # downstream leak/dark audit -- only the writing differs.
     arm = os.environ.get("SWE_RETUNE_AGENT", "chat")
+    # "codex" and "claude" are the same arm -- an agent session over the
+    # package under agents/task_evolution.md -- differing only in which CLI
+    # runs it (evolve_codex.EVOLVE_AGENT). The record keeps the name it was
+    # given, so a run says which CLI wrote its rewrites.
+    agentic = arm in ("codex", "claude")
     used_ops, used_fams = history or ({}, {})
     rec: dict = {
         "task": tid,
@@ -763,7 +768,7 @@ def process_one(
                 reason="the signal carries no graded attempt",
             )
         ec = None
-        if arm == "codex":
+        if agentic:
             import evolve_codex as ec  # noqa: PLC0415 -- optional arm, faked in tests
 
         task = ev.load(work)
@@ -799,7 +804,7 @@ def process_one(
             # instructions, and the holdout experiment showed the policy learns
             # hint-following that does not transfer to unhinted tasks.
             hint_lvl = os.environ.get("SWE_SIMPLIFY_HINT", "vague")
-            if arm == "codex":
+            if agentic:
                 try:
                     new = ec.simplify_codex(
                         rewrite, task, solved=solved, attempts=graded, hint=hint_lvl
@@ -861,7 +866,7 @@ def process_one(
             if shortlist:
                 fam, operator, definition = shortlist[0]
                 rec["operator"], rec["family"] = operator, fam
-            if arm == "codex":
+            if agentic:
                 # No chat fallback. Measured over 434 agent sessions, every
                 # fallback followed a timeout or a "verifier weakened" verdict
                 # that was itself wrong (the heuristic counted test functions
@@ -959,7 +964,7 @@ def process_one(
                 break
             age = _rewrite_age(rewrite)
             budget = float(os.environ.get("EVOLVE_REWRITE_BUDGET_SEC", str(6 * 3600)))
-            if arm == "codex":
+            if agentic:
                 import evolve_codex as ec  # noqa: PLC0415 -- optional arm, faked in tests
 
                 if hasattr(ec, "rewrite_budget_sec"):
@@ -992,7 +997,7 @@ def process_one(
             tail = "\n\n".join(s for s in (v.get("why"), v.get("tail")) if s)
             code = int(v["solve_exit"]) if v.get("solve_exit") is not None else 1
             fixed = None
-            if arm == "codex":
+            if agentic:
                 # Back to the session that wrote the files, with the failure it
                 # never saw. A fresh repair session, chat or agentic, has to
                 # rediscover from the files alone why they look the way they
