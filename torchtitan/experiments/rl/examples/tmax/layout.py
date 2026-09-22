@@ -492,6 +492,9 @@ class Evolution:
     def task(self, task_id: str) -> "TaskDir":
         return TaskDir(self.tasks / safe(task_id))
 
+    def run_outcomes(self, run_name: str) -> Path:
+        return self.path / "outcomes" / f"{safe(run_name)}.jsonl"
+
     def task_dirs(self) -> list["TaskDir"]:
         if not self.tasks.exists():
             return []

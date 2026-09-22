@@ -533,6 +533,10 @@ def test_round_materializes_r0_handles_the_signal_and_folds_r1(
     lines = _ledger(root)
     assert len(lines) == 1
     assert lines[0]["signal"] == sid and lines[0]["outcome"] == "handled"
+    outcomes = layout.read_jsonl(root.evolution.run_outcomes(RUN))
+    assert len(outcomes) == 1
+    assert outcomes[0]["status"] == "accepted"
+    assert outcomes[0]["direction"] == "harder"
     assert lines[0]["rewrite"] == f"tasks/tw_a/rewrites/{rw.path.name}"
     assert (
         lines[0]["task"],
@@ -932,6 +936,7 @@ def test_lineage_snapshot_commits_records_and_never_packages_or_sessions(
     ).stdout.splitlines()
     assert set(tracked) == {
         "evolution/ledger.jsonl",
+        f"evolution/outcomes/{RUN}.jsonl",
         "evolution/status.json",
         "evolution/tasks/tw_a/lineage.jsonl",
         f"evolution/tasks/tw_a/rewrites/{rw.path.name}/rewrite.json",

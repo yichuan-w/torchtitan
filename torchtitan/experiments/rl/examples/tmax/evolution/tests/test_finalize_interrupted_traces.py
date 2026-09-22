@@ -21,7 +21,14 @@ def _rewrite(
 ) -> layout.RewriteDir:
     rw = root.evolution.task("tw_a").rewrite("harder", stamp_)
     layout.write_json_atomic(
-        rw.meta, {"task": "tw_a", "status": status, "finished": None}
+        rw.meta,
+        {
+            "task": "tw_a",
+            "status": status,
+            "finished": None,
+            "signal": "run/tw_a--g1",
+            "job": "harder",
+        },
     )
     for kind, st in sessions.items():
         sd = rw.session(kind, stamp_)
@@ -49,6 +56,9 @@ def test_finalize_marks_only_running_sessions_and_rewrites(tmp_path) -> None:
     meta = json.loads(live.meta.read_text())
     assert meta["status"] == "interrupted" and meta["stopped_loop_pid"] == 123
     assert meta["finished"] and "pid 123" in meta["error"]
+    events = layout.read_jsonl(root.evolution.run_outcomes("run"))
+    assert len(events) == 1
+    assert events[0]["status"] == "interrupted"
     by_kind = {
         s.path.name.split("--")[1]: json.loads(s.meta.read_text())
         for s in live.session_dirs()

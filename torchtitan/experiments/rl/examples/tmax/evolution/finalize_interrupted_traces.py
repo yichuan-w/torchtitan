@@ -27,6 +27,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from torchtitan.experiments.rl.examples.tmax import layout  # noqa: E402
+from torchtitan.experiments.rl.examples.tmax.evolution_metrics import record_outcome  # noqa: E402
 
 
 def _mark(path: Path, *, stopped_loop_pid: int, observed: str) -> str:
@@ -77,6 +78,10 @@ def finalize_interrupted(root: layout.Root, *, stopped_loop_pid: int) -> dict[st
                     )
                     continue
                 counts[outcome] += 1
+                if path == rewrite.meta:
+                    meta = json.loads(path.read_text())
+                    if meta.get("status") == "interrupted":
+                        record_outcome(root, rewrite, meta)
                 if outcome == "marked":
                     print(
                         json.dumps(

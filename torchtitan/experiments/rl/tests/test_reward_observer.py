@@ -20,6 +20,19 @@ SCRIPT = Path(__file__).parents[1] / "examples/tmax/evolution/observe_rewards.py
 spec = importlib.util.spec_from_file_location("observe_rewards", SCRIPT)
 observer = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(observer)
+metrics_spec = importlib.util.spec_from_file_location(
+    "evolution_metrics", SCRIPT.parents[1] / "evolution_metrics.py"
+)
+outcome_metrics = importlib.util.module_from_spec(metrics_spec)
+with patch.dict(
+    sys.modules,
+    {
+        "torchtitan.experiments.rl.examples.tmax": SimpleNamespace(
+            layout=observer.layout
+        )
+    },
+):
+    metrics_spec.loader.exec_module(outcome_metrics)
 
 
 def row(task="a", rev=0, epoch=0, group=0, scored=4, solved=2, revision="same"):
@@ -132,7 +145,9 @@ class RewardObserverTest(unittest.TestCase):
             for n in cls.body
             if isinstance(n, ast.FunctionDef) and n.name == "_evolution_metrics"
         )
-        namespace = {"m": SimpleNamespace(Metric=object)}
+        namespace = {
+            "m": SimpleNamespace(Metric=lambda key, value: (key, value), NoReduce=float)
+        }
         exec(
             compile(
                 ast.Module(body=[method], type_ignores=[]), "controller.py", "exec"
@@ -156,6 +171,7 @@ class RewardObserverTest(unittest.TestCase):
                         "torchtitan.experiments.rl.examples.tmax": SimpleNamespace(
                             layout=observer.layout
                         ),
+                        "torchtitan.experiments.rl.examples.tmax.evolution_metrics": outcome_metrics,
                     },
                 ):
                     namespace["_evolution_metrics"](owner)
@@ -167,6 +183,99 @@ class RewardObserverTest(unittest.TestCase):
                     self.assertEqual(
                         summary, {"evolution/observer_url": "https://observer"}
                     )
+                    root = observer.layout.Root(Path(directory))
+                    outcome_metrics.record_outcome(
+                        root,
+                        root.evolution.task("a").rewrite("harder"),
+                        {
+                            "signal": "test/a--g0",
+                            "task": "a",
+                            "job": "harder",
+                            "status": "accepted",
+                        },
+                    )
+                    values = dict(namespace["_evolution_metrics"](owner))
+                    self.assertEqual(values["evolution/step/harder_accepted"], 1)
+                    self.assertEqual(values["evolution/run/accepted_total"], 1)
+                    values = dict(namespace["_evolution_metrics"](owner))
+                    self.assertEqual(values["evolution/step/harder_accepted"], 0)
+                    self.assertEqual(values["evolution/run/accepted_total"], 1)
+
+    def test_step_outcomes_are_run_scoped_and_reset_each_poll(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = observer.layout.Root(Path(directory))
+            metrics = outcome_metrics.EvolutionMetrics(
+                root.evolution.run_outcomes("current")
+            )
+            self.assertTrue(all(value == 0 for value in metrics.poll().values()))
+            for index, (run, status, direction) in enumerate(
+                [
+                    ("old", "accepted", "harder"),
+                    ("current", "accepted", "harder"),
+                    ("current", "accepted", "easier"),
+                    ("current", "failed", "harder"),
+                    ("current", "rejected", "harder"),
+                    ("current", "interrupted", "harder"),
+                    ("current", "kept", "easier"),
+                    ("current", "blocked", "harder"),
+                ]
+            ):
+                rewrite = root.evolution.task("task").rewrite(direction, str(index))
+                outcome_metrics.record_outcome(
+                    root,
+                    rewrite,
+                    {
+                        "signal": f"{run}/task--g{index}",
+                        "task": "task",
+                        "job": direction,
+                        "status": status,
+                        "finished": "20260922-180000Z",
+                    },
+                )
+            first = metrics.poll()
+            self.assertEqual(first["evolution/step/accepted"], 2)
+            self.assertEqual(first["evolution/step/harder_accepted"], 1)
+            self.assertEqual(first["evolution/step/easier_accepted"], 1)
+            self.assertEqual(first["evolution/step/failed"], 2)
+            self.assertEqual(first["evolution/step/interrupted"], 1)
+            self.assertEqual(first["evolution/step/rejected"], 1)
+            self.assertEqual(first["evolution/step/completed"], 7)
+            second = metrics.poll()
+            self.assertEqual(second["evolution/step/accepted"], 0)
+            self.assertEqual(second["evolution/run/accepted_total"], 2)
+            self.assertEqual(
+                outcome_metrics.EvolutionMetrics(metrics.path).poll(), first
+            )
+
+    def test_partial_append_and_duplicate_outcome_are_not_counted_twice(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "events.jsonl"
+            event = json.dumps(
+                {"rewrite": "one", "status": "accepted", "direction": "harder"}
+            )
+            path.write_text(event[:20])
+            metrics = outcome_metrics.EvolutionMetrics(path)
+            self.assertEqual(metrics.poll()["evolution/step/accepted"], 0)
+            with path.open("a") as stream:
+                stream.write(event[20:] + "\n" + event + "\n")
+            self.assertEqual(metrics.poll()["evolution/step/accepted"], 1)
+            self.assertEqual(metrics.poll()["evolution/step/accepted"], 0)
+
+    def test_dry_outcomes_do_not_enter_training_metrics(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = observer.layout.Root(Path(directory))
+            outcome_metrics.record_outcome(
+                root,
+                root.evolution.task("task").rewrite("harder"),
+                {
+                    "signal": "run/task--g0",
+                    "task": "task",
+                    "job": "harder",
+                    "status": "accepted",
+                    "dry": True,
+                },
+            )
+            self.assertFalse(root.evolution.run_outcomes("run").exists())
 
     def test_publishes_three_charts_without_html_or_per_task_metrics(self):
         entries = []

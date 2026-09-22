@@ -55,6 +55,14 @@ The same numbers reach W&B (project `terminal-agent-rl`): the training run carri
 `evolution/mix_version`, which the trainer reads out of `evolution/status.json`, so the
 loop's health sits on the same dashboard as the loss.
 
+Training also logs run-scoped outcome curves at each step:
+`evolution/step/harder_accepted`, `evolution/step/accepted`,
+`evolution/step/failed` and `evolution/step/rejected`, plus cumulative
+`evolution/run/<name>_total` curves. The trainer reads completed outcomes at each
+logged step, without waiting for the round-level status snapshot. See
+[Evolution charts in the training W&B run](../runbook/RUNBOOK.md#evolution-charts-in-the-training-wb-run)
+for count definitions and the automatically launched accuracy/timeline observer.
+
 Two more, when you want detail:
 
 | command | what it tells you |

@@ -74,6 +74,7 @@ import feedback_loop as fb  # noqa: E402
 import pack_to_dataset as pack  # noqa: E402
 import synth_operators as ops  # noqa: E402
 from torchtitan.experiments.rl.examples.tmax import layout  # noqa: E402
+from torchtitan.experiments.rl.examples.tmax.evolution_metrics import record_outcome  # noqa: E402
 
 log = logging.getLogger("evolve")
 
@@ -763,6 +764,7 @@ def _close(root: layout.Root, h: dict, *, dry: bool) -> None:
             "status": meta["status"],
         },
     )
+    record_outcome(root, rewrite, meta)
     _ledger_line(root, h["signal"], "handled", rewrite=_rewrite_ref(root, rewrite))
 
 
@@ -1048,6 +1050,7 @@ def _snapshot_lineage(root: layout.Root, note: str) -> None:
             subprocess.run(base + ["config", "core.worktree", str(root.path)], **run)
         ev = root.evolution.path
         paths = [ev / "ledger.jsonl", ev / "status.json"]
+        paths += ev.glob("outcomes/*.jsonl")
         paths += ev.glob("tasks/*/lineage.jsonl")
         paths += ev.glob("tasks/*/rewrites/*/rewrite.json")
         paths += root.mix.history.glob("*.manifest.json")

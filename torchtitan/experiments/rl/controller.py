@@ -1870,23 +1870,32 @@ class Controller(Configurable):
         logger.info("=" * 60)
 
     def _evolution_metrics(self) -> list[m.Metric]:
-        """Online task-evolution counters for wandb, read from the evolve loop's
-        ``evolution/status.json`` under ``TRL_BASE`` (LAYOUT.md), which the loop
-        rebuilds from its ledger at the end of every round. Empty when no experiment
-        root is set (no loop can be running) or the loop has not written a status
-        yet. NoReduce: these are cumulative gauges, not per-token reductions, so
-        they are exempt from the loss-metric suffix rule."""
+        """Per-step outcomes for this run, plus the experiment's round-level gauges."""
         import json
 
         # Local import: the layout is a tmax convention and this file is shared
         # with every other example; nothing else here depends on it.
         from torchtitan.experiments.rl.examples.tmax import layout
+        from torchtitan.experiments.rl.examples.tmax.evolution_metrics import (
+            EvolutionMetrics,
+        )
 
         try:
-            status_path = layout.Root.from_env().evolution.status
+            evolution = layout.Root.from_env().evolution
+            status_path = evolution.status
         except RuntimeError:
             return []
         run = layout.Run.from_env()
+        metrics = []
+        if run is not None:
+            if not hasattr(self, "_evolution_outcomes"):
+                self._evolution_outcomes = EvolutionMetrics(
+                    evolution.run_outcomes(run.name)
+                )
+            metrics = [
+                m.Metric(key, m.NoReduce(value))
+                for key, value in self._evolution_outcomes.poll().items()
+            ]
         if run is not None and self.config.metrics.enable_wandb:
             import wandb
 
@@ -1904,9 +1913,10 @@ class Controller(Configurable):
         try:
             s = json.loads(status_path.read_text())
         except (OSError, ValueError):
-            return []
+            return metrics
         rejected = s.get("rejected") or {}
         return [
+            *metrics,
             m.Metric(
                 "evolution/pending_signals", m.NoReduce(float(s.get("pending") or 0))
             ),

@@ -8,7 +8,8 @@ those two modules and never spells a path itself.
 
 1. **A process writes only under the directory it owns.** The trainer writes
    only its run directory. The evolve loop writes only `evolution/` and
-   `data/mix/`. The trainer reads `evolution/status.json`; the loop reads
+   `data/mix/`. The trainer reads `evolution/status.json` and its own run's
+   `evolution/outcomes/<run>.jsonl`; the loop reads
    `runs/*/signals/` and `runs/*/rollouts/`. Nothing else crosses.
 2. **One unit of work, one directory, with everything it read and produced
    inside it.** One process lifetime is one run. One handled signal is one
@@ -65,6 +66,7 @@ $TRL_BASE/
 │   ├── loop.log  loop.lock  loop.env
 │   ├── ledger.jsonl              one line per signal seen: when, which rewrite, outcome
 │   ├── status.json               rebuilt every round from ledger + lineage; the trainer reads it
+│   ├── outcomes/<run>.jsonl       completed outcomes; sampled by that run at each training step
 │   └── tasks/<task>/
 │       ├── lineage.jsonl         this task's rewrite and fold events
 │       ├── r0/ r1/ …             accepted revisions, package only; r0 is the seed, copied
@@ -146,6 +148,14 @@ as `<name>.incoming` and renamed into place. `direction` is `harder` for an
 group at or above the harder ratio and `easier` for one at or below the easier
 ratio. Both are thresholds on the solved fraction, so neither depends on what a
 failure scored.
+
+### Outcome events `evolution/outcomes/<run>.jsonl`
+
+The evolve loop appends an outcome after the rewrite and any publication have
+finished; interrupted-rewrite cleanup appends interrupted outcomes. Each record
+contains `rewrite`, `task`, `direction`, `status`, and `finished`. The trainer
+reads only its own run file and deduplicates by `rewrite`. This file records
+observations and never controls whether a signal is retried.
 
 ### Advisory `runs/<run>/advisories/<name>.jsonl`
 

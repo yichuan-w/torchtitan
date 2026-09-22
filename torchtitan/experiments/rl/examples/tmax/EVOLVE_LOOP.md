@@ -260,6 +260,12 @@ sheds exactly the prompts being re-tuned.
 - `evolution/status.json`, rebuilt at the end of every round from the ledger and
   the tasks' lineage; the trainer puts its counters on W&B beside the training
   curves
+- `evolution/outcomes/<run>.jsonl`: completed rewrite outcomes for the source
+  training run. The trainer logs their per-step counts and run totals as ordinary
+  W&B line charts. Accepted harder rewrites, all accepted rewrites, execution
+  failures and validation rejections have separate curves. Counts refer to when
+  the trainer observes completion; they do not attribute asynchronous results to
+  the triggering epoch. See [the metric definitions](runbook/RUNBOOK.md#evolution-charts-in-the-training-wb-run).
 
 Nothing under a run directory is ever moved or deleted.
 

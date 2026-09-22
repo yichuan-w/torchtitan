@@ -974,13 +974,58 @@ rounds carry 8 signals or fewer.
 
 The structured view is `evolution/ledger.jsonl` (one line per signal seen, with
 its outcome and the rewrite it produced), `evolution/status.json` (the counts,
-rebuilt every round; what the trainer puts on W&B as `evolution/*`) and each
+rebuilt every round; the experiment-wide W&B counters) and each
 rewrite's `rewrite.json` under `evolution/tasks/<task>/rewrites/`, with the
 codex sessions beside it.
 
 Cost, derived from the code: an all-fail simplify is 1 model call and no sandbox.
 An all-pass evolve is roughly 9-11 calls at high reasoning effort plus two
 sandbox probes. The codex arm spends considerably more per signal than that.
+
+### Evolution charts in the training W&B run
+
+With the updated trainer and evolve loop deployed, start training and evolution
+using the launch commands above. Evolution counters update in the training run
+at every logged training step; no separate observer command is needed for these
+charts.
+
+The default x-axis is training step. `evolution/step/<name>` counts outcomes
+received since the previous logged step. `evolution/run/<name>_total` is the
+cumulative count for this training run. A completion is assigned to the step
+that observes it, not to the epoch that triggered its rewrite: evolution runs
+asynchronously.
+
+| Name | Count |
+| --- | --- |
+| `harder_accepted` | Harder rewrites that passed validation and were published into the mix. |
+| `accepted` | All rewrites that passed validation and were published, including easier rewrites. |
+| `failed` | Execution failures, including interrupted rewrites. |
+| `rejected` | Rewrites rejected by validation or publication checks. |
+| `easier_accepted` | Easier rewrites that passed validation and were published. |
+| `interrupted` | Attempts interrupted when the evolve loop stopped. |
+| `blocked` | Attempts recorded as blocked. |
+| `kept` | Attempts that kept the original task. |
+| `completed` | All completed attempts, including failed and interrupted attempts. |
+
+Counts are per rewrite attempt, not unique tasks. A task rewritten twice can
+count twice. `harder_accepted` and `easier_accepted` are subsets of `accepted`;
+`interrupted` is a subset of `failed`.
+
+The evolve loop appends each completed outcome to `evolution/outcomes/<run>.jsonl`
+after publication is settled. The trainer reads new records each step, without
+waiting for an entire evolve round. Repeated records for the same rewrite are
+counted once. Counts from other training runs are excluded. The existing
+`evolution/accepted_total` and other top-level counters remain experiment-wide
+snapshots from `status.json`, refreshed at round boundaries.
+
+Both training launchers also start the supplementary accuracy/timeline observer
+by default. Its published page is linked from the training run's
+`evolution/observer_url` summary field. `RL_OBSERVE_REWARDS=0` disables those
+supplementary charts; it does not disable the per-step counters. Scalar counters
+follow the training run's normal offline W&B behavior; the supplementary observer
+requires online W&B. Outcomes completed after the last training step do not
+update the training curves.
+
 Token usage is stamped onto every record, so a round can be priced after the
 fact.
 

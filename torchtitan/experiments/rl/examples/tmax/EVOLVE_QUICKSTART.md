@@ -131,9 +131,11 @@ unit is started.
   manifest.
 - `runs/<run>/trainer/mix_versions.jsonl`: whether the trainer has picked the
   version up.
-- W&B: the training run carries `evolution/pending_signals`,
-  `evolution/accepted_total`, `evolution/mix_version` and the rest of that
-  group, read from `status.json`.
+- W&B: per-step outcomes and cumulative counts appear directly in the training
+  run. See [the training runbook](runbook/RUNBOOK.md#evolution-charts-in-the-training-wb-run)
+  for `evolution/step/*`, `evolution/run/*_total`, and the supplementary observer
+  link. The top-level `evolution/*` counters retain their experiment-wide,
+  round-level meaning.
 - On hip, `python3 evolution/hip/run_health.py <run dir>` prints one line with
   steps done, per-sequence generation speed, the timeout rate and agent seconds
   per turn: the numbers to look at before touching any concurrency setting.
