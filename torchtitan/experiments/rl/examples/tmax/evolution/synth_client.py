@@ -100,9 +100,19 @@ def operator_card(operator: str) -> str:
 # hostname" and names this one.
 API_BASE = os.environ.get("SYNTH_API_BASE", "https://us.api.openai.com/v1")
 MODEL = os.environ.get("SYNTH_MODEL", "gpt-5.6")
-# Reasoning effort for every call. Default high: retune/audit quality is worth
-# more than latency here. Override per-run with SYNTH_EFFORT=medium|low.
-EFFORT = os.environ.get("SYNTH_EFFORT", "high")
+# Reasoning effort for every call. Default medium.
+#
+# This was high, chosen when the tradeoff was quality against latency. It is
+# now quality against cost, and the cost is not linear: an agent session pays
+# to re-read its whole context every turn, so the thinking a turn emits is
+# billed once as output and again on every turn after it. Measured on one
+# rewrite (agent session, 360 turns): thinking was 54k of the 152k context it
+# ended with, the largest single component. Lower effort also consolidates
+# tool calls, and turns are what the quadratic is in.
+#
+# Raise it back per-run with SYNTH_EFFORT=high for work where a rejected
+# result costs more than the tokens saved.
+EFFORT = os.environ.get("SYNTH_EFFORT", "medium")
 ENV_FILE = pathlib.Path(
     os.environ.get("SYNTH_ENV_FILE", str(pathlib.Path.home() / "Projects/MyClaw/.env"))
 )
