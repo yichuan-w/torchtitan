@@ -6,6 +6,7 @@
 
 """CPU-only tests; this file can also run directly without training imports."""
 
+import ast
 import importlib.util
 import json
 import sys
@@ -101,6 +102,7 @@ class RewardObserverTest(unittest.TestCase):
         summary.__setitem__ = Mock()
         api = Mock()
         api.run.return_value.summary = summary
+        api.run.return_value.state = "finished"
         wandb = SimpleNamespace(Api=Mock(return_value=api), init=Mock())
         with patch.dict(sys.modules, {"wandb": wandb}):
             observer.link_from_training("entity/project/run", "https://observer")
@@ -110,6 +112,61 @@ class RewardObserverTest(unittest.TestCase):
         )
         summary.update.assert_called_once_with()
         wandb.init.assert_not_called()
+
+    def test_sidecar_does_not_update_a_live_trainers_summary(self):
+        api = Mock()
+        api.run.return_value.state = "running"
+        with patch.dict(sys.modules, {"wandb": SimpleNamespace(Api=lambda: api)}):
+            observer.link_from_training("entity/project/run", "https://observer")
+        api.run.return_value.summary.update.assert_not_called()
+
+    def test_trainer_links_published_observer_with_its_own_wandb_run(self):
+        controller = ast.parse((SCRIPT.parents[3] / "controller.py").read_text())
+        cls = next(
+            n
+            for n in controller.body
+            if isinstance(n, ast.ClassDef) and n.name == "Controller"
+        )
+        method = next(
+            n
+            for n in cls.body
+            if isinstance(n, ast.FunctionDef) and n.name == "_evolution_metrics"
+        )
+        namespace = {"m": SimpleNamespace(Metric=object)}
+        exec(
+            compile(
+                ast.Module(body=[method], type_ignores=[]), "controller.py", "exec"
+            ),
+            namespace,
+        )
+        summary = {}
+        wandb = SimpleNamespace(run=SimpleNamespace(summary=summary))
+        owner = SimpleNamespace(
+            config=SimpleNamespace(metrics=SimpleNamespace(enable_wandb=True))
+        )
+        with tempfile.TemporaryDirectory() as directory:
+            run = Path(directory) / "runs/test"
+            with patch.dict(
+                observer.os.environ, {"TRL_BASE": directory, "TRL_RUN_DIR": str(run)}
+            ):
+                with patch.dict(
+                    sys.modules,
+                    {
+                        "wandb": wandb,
+                        "torchtitan.experiments.rl.examples.tmax": SimpleNamespace(
+                            layout=observer.layout
+                        ),
+                    },
+                ):
+                    namespace["_evolution_metrics"](owner)
+                    self.assertEqual(summary, {})
+                    observer.layout.write_json_atomic(
+                        run / "observer/wandb.json", {"url": "https://observer"}
+                    )
+                    namespace["_evolution_metrics"](owner)
+                    self.assertEqual(
+                        summary, {"evolution/observer_url": "https://observer"}
+                    )
 
     def test_publishes_three_charts_without_html_or_per_task_metrics(self):
         entries = []

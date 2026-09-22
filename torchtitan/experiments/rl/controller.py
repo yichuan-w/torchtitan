@@ -1886,6 +1886,21 @@ class Controller(Configurable):
             status_path = layout.Root.from_env().evolution.status
         except RuntimeError:
             return []
+        run = layout.Run.from_env()
+        if run is not None and self.config.metrics.enable_wandb:
+            import wandb
+
+            if wandb.run is not None and not wandb.run.summary.get(
+                "evolution/observer_url"
+            ):
+                try:
+                    observer = json.loads(
+                        (run.path / "observer/wandb.json").read_text()
+                    )
+                except FileNotFoundError:
+                    pass
+                else:
+                    wandb.run.summary["evolution/observer_url"] = observer["url"]
         try:
             s = json.loads(status_path.read_text())
         except (OSError, ValueError):

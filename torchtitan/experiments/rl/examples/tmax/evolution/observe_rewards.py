@@ -72,8 +72,10 @@ def wait_for_source(run: layout.Run, source: str | None, timeout: float) -> str:
 def link_from_training(source: str, url: str) -> None:
     import wandb
 
-    # Update summary metadata, without opening a second writer to training history.
     training = wandb.Api().run(source)
+    # The Public API submits the whole summary; a live trainer owns that write.
+    if training.state not in {"finished", "failed", "crashed", "killed"}:
+        return
     training.summary["evolution/observer_url"] = url
     training.summary.update()
 
@@ -343,8 +345,7 @@ def main() -> None:
                 x_save_requirements=False,
             ),
         )
-        layout.write_json_atomic(args.out / "wandb.json", {"url": wb.url, "id": wb.id})
-    linked = False
+    announced = False
     try:
         while True:
             start = time.monotonic()
@@ -384,9 +385,12 @@ def main() -> None:
             )
             if wb is not None:
                 publish(wb, result, snapshot, charts)
-                if not linked:
-                    link_from_training(args.source_wandb, wb.url)
-                    linked = True
+                if not announced:
+                    layout.write_json_atomic(
+                        args.out / "wandb.json", {"url": wb.url, "id": wb.id}
+                    )
+                    announced = True
+                link_from_training(args.source_wandb, wb.url)
             LOG.info(
                 "poll done snapshot=%s groups=%s elapsed=%.3f",
                 snapshot,
