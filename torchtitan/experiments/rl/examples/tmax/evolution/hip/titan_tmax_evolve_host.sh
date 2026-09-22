@@ -121,7 +121,7 @@ SWE_LOSS_CHUNKS=8
 # Live W&B, as on della: the key comes from work/wandb.env (Zhifei 09-18: hip
 # is a trusted environment, every key may live here).
 WANDB_PROJECT=terminal-agent-rl
-RL_OBSERVE_REWARDS=1
+RL_OBSERVE_REWARDS=${RL_OBSERVE_REWARDS:-1}
 HF_HOME=$ROOT/hf-home; PYTHONPATH=$ROOT/torchtitan
 # ~/.cache on this account is a dangling symlink, so every cache root is redirected.
 XDG_CACHE_HOME=$ROOT/work/cache; VLLM_CACHE_ROOT=$ROOT/work/cache/vllm
@@ -164,3 +164,12 @@ setsid nohup $ROOT/venv/bin/python -u -m torchtitan.experiments.rl.train \
     --hf_assets_path $TRL_MODEL --dump_folder $RUN/trainer "$@" \
     > $RUN/stdout.log 2>&1 < /dev/null &
 echo "$! -> $RUN/stdout.log"
+
+if [ "$RL_OBSERVE_REWARDS" = 1 ]; then
+    mkdir -p "$RUN/observer"
+    setsid nohup "$ROOT/venv/bin/python" -u \
+        "$ROOT/torchtitan/torchtitan/experiments/rl/examples/tmax/evolution/observe_rewards.py" \
+        --root "$BASE" --run "$(basename "$RUN")" --out "$RUN/observer" \
+        --watch --upload > "$RUN/observer/stdout.log" 2>&1 < /dev/null &
+    echo "[train] reward observer pid=$! log=$RUN/observer/stdout.log"
+fi

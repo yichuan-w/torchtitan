@@ -358,7 +358,7 @@ fi
 
 start_ckpt_timers
 
-if [ "${RL_OBSERVE_REWARDS:-0}" = 1 ]; then
+if [ "${RL_OBSERVE_REWARDS:-1}" = 1 ]; then
     # A separate W&B run avoids concurrent writers to the trainer's history.
     # Startup can precede the trainer's URL; systemd retries until it is logged.
     systemd-run --user --unit="observe-$(basename "$RUN")" --collect \

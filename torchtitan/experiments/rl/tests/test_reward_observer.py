@@ -13,7 +13,7 @@ import tempfile
 import unittest
 from pathlib import Path
 from types import SimpleNamespace
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 SCRIPT = Path(__file__).parents[1] / "examples/tmax/evolution/observe_rewards.py"
 spec = importlib.util.spec_from_file_location("observe_rewards", SCRIPT)
@@ -38,6 +38,46 @@ def row(task="a", rev=0, epoch=0, group=0, scored=4, solved=2, revision="same"):
 
 
 class RewardObserverTest(unittest.TestCase):
+    def test_waits_for_url_and_lineage_before_starting(self):
+        with tempfile.TemporaryDirectory() as directory:
+            run = observer.layout.Run(Path(directory))
+            source = "entity/project/run"
+
+            def trainer_starts(_):
+                run.stdout_log.write_text(
+                    f"https://wandb.ai/{source.replace('/run', '/runs/run')}\n"
+                )
+                lineage = run.trainer / "training_lineage/events.jsonl"
+                lineage.parent.mkdir(parents=True)
+                lineage.touch()
+
+            with patch.object(
+                observer.time, "sleep", side_effect=trainer_starts
+            ) as sleep:
+                self.assertEqual(observer.wait_for_source(run, None, 30), source)
+            sleep.assert_called_once()
+
+    def test_missing_source_fails_without_watch_wait(self):
+        with tempfile.TemporaryDirectory() as directory:
+            run = observer.layout.Run(Path(directory))
+            with self.assertRaises(FileNotFoundError):
+                observer.wait_for_source(run, "entity/project/run", 0)
+
+    def test_training_link_updates_summary_without_initializing_run(self):
+        summary = Mock()
+        summary.__setitem__ = Mock()
+        api = Mock()
+        api.run.return_value.summary = summary
+        wandb = SimpleNamespace(Api=Mock(return_value=api), init=Mock())
+        with patch.dict(sys.modules, {"wandb": wandb}):
+            observer.link_from_training("entity/project/run", "https://observer")
+        api.run.assert_called_once_with("entity/project/run")
+        summary.__setitem__.assert_called_once_with(
+            "evolution/observer_url", "https://observer"
+        )
+        summary.update.assert_called_once_with()
+        wandb.init.assert_not_called()
+
     def test_publishes_three_charts_without_html_or_per_task_metrics(self):
         entries = []
 

@@ -5,7 +5,7 @@
 # This source code is licensed under the BSD-style license found in the
 # LICENSE file in the root directory of this source tree.
 
-"""Observe task-version rewards without changing the trainer or its W&B run."""
+"""Observe task-version rewards and link the charts from the training W&B run."""
 
 from __future__ import annotations
 
@@ -52,6 +52,30 @@ def read_events(path: Path) -> list[dict]:
         LOG.warning("skip incomplete append path=%s", path)
         data = data[: data.rfind(b"\n") + 1]
     return [json.loads(line) for line in data.splitlines() if line.strip()]
+
+
+def wait_for_source(run: layout.Run, source: str | None, timeout: float) -> str:
+    deadline = time.monotonic() + timeout
+    while True:
+        try:
+            resolved = source or source_wandb(run)
+            if not (run.trainer / "training_lineage/events.jsonl").exists():
+                raise FileNotFoundError("trainer lineage is not available yet")
+            return resolved
+        except FileNotFoundError:
+            if time.monotonic() >= deadline:
+                raise
+            LOG.info("waiting for trainer URL and lineage source=%s", run.path)
+            time.sleep(min(10, max(0, deadline - time.monotonic())))
+
+
+def link_from_training(source: str, url: str) -> None:
+    import wandb
+
+    # Update summary metadata, without opening a second writer to training history.
+    training = wandb.Api().run(source)
+    training.summary["evolution/observer_url"] = url
+    training.summary.update()
 
 
 def collect(
@@ -237,12 +261,15 @@ def main() -> None:
     parser.add_argument("--upload", action="store_true")
     parser.add_argument("--watch", action="store_true")
     parser.add_argument("--interval", type=int, default=300)
+    parser.add_argument("--startup-timeout", type=int, default=1800)
     parser.add_argument("--task", help="one-task local smoke test; cannot upload")
     args = parser.parse_args()
     if args.task and (args.upload or args.watch):
         parser.error("--task is a local smoke test; omit --upload and --watch")
     if args.interval < 10:
         parser.error("--interval must be at least 10 seconds")
+    if args.startup_timeout < 0:
+        parser.error("--startup-timeout must be nonnegative")
     args.out.mkdir(parents=True, exist_ok=True)
     logging.basicConfig(
         level=logging.INFO,
@@ -256,7 +283,9 @@ def main() -> None:
     fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
     root = layout.Root(args.root.resolve())
     run = root.run(args.run)
-    args.source_wandb = args.source_wandb or source_wandb(run)
+    args.source_wandb = wait_for_source(
+        run, args.source_wandb, args.startup_timeout if args.watch else 0
+    )
     config = {
         "source_wandb": args.source_wandb,
         "source_run": str(run.path),
@@ -303,6 +332,7 @@ def main() -> None:
             ),
         )
         layout.write_json_atomic(args.out / "wandb.json", {"url": wb.url, "id": wb.id})
+    linked = False
     try:
         while True:
             start = time.monotonic()
@@ -342,6 +372,9 @@ def main() -> None:
             )
             if wb is not None:
                 publish(wb, result, snapshot, charts)
+                if not linked:
+                    link_from_training(args.source_wandb, wb.url)
+                    linked = True
             LOG.info(
                 "poll done snapshot=%s groups=%s elapsed=%.3f",
                 snapshot,
