@@ -261,3 +261,26 @@ def test_a_case_with_no_script_is_its_own_error(tmp_path):
     (probes / "wrong-9.sh").write_text("exit 9\n")
     with pytest.raises(vp.SemanticProbeContract, match="no case declares: wrong-9"):
         vp.verify_probes(tmp_path, {}, 10)
+
+
+def test_incomplete_case_is_repairable_before_daytona_replay(tmp_path):
+    import verifier_probes as vp
+
+    controls = tmp_path / "run" / "verifier-probes"
+    controls.mkdir(parents=True)
+    (controls / "contract.json").write_text(
+        json.dumps(
+            {
+                "cases": [
+                    {
+                        "requirement": "Keep the inactive profile unchanged",
+                        "wrong_behavior": None,
+                        "expected_failure": None,
+                    }
+                ]
+            }
+        )
+    )
+    with pytest.raises(vp.SemanticProbeContract, match="case 1 missing wrong_behavior"):
+        vp.verify_probes(tmp_path, {}, 10)
+    assert not (tmp_path / "run" / "verifier-probe-results.jsonl").exists()

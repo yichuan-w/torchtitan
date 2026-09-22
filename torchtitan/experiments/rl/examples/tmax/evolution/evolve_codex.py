@@ -1774,13 +1774,14 @@ def _probe_hashes(package: Path, exclude: tuple[str, ...] = ()) -> dict[str, str
     }
 
 
-_PROBE_CONTRACT_JOB = """Your replay controls under `run/verifier-probes/` do not
-match the contract you wrote: {problem}.
+_PROBE_CONTRACT_JOB = """Your replay controls under `run/verifier-probes/` have
+an incomplete contract or do not match the scripts you wrote: {problem}.
 
-The caller replays one script per declared case: `correct.sh` and `wrong-N.sh`
-for N = 1..(number of cases in `contract.json`). Write the missing scripts --
-each one a single-error variant of the correct solution for the case it
-answers -- or remove the cases you did not write, so the two sides agree.
+Every declared case must have nonempty string fields `requirement`,
+`wrong_behavior`, and `expected_failure`. The caller replays `correct.sh` and
+one `wrong-N.sh` per declared case, in contract order. Complete any missing
+fields and scripts -- each wrong script must be a single-error variant of the
+correct solution for its case -- or remove unfinished cases so they agree.
 Change nothing else: the verifier itself, the task and the other controls stay
 as they are."""
 

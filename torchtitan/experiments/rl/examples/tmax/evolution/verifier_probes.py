@@ -27,10 +27,11 @@ class SemanticProbeMisses(RuntimeError):
 
 
 class SemanticProbeContract(RuntimeError):
-    """The contract and the scripts on disk do not match: a case with no
-    script, or a script no case declares. Recoverable -- the session that
-    wrote them is on disk and can be asked for the missing half -- so it is
-    its own type rather than a bare FileNotFoundError out of the reader."""
+    """The author wrote an incomplete contract or mismatched control scripts.
+
+    Recoverable: the session that wrote them is on disk and can be asked to
+    reconcile the contract and scripts before any Daytona replay begins.
+    """
 
 
 class _DaytonaTransportFailure(RuntimeError):
@@ -42,15 +43,17 @@ def verify_probes(pkg: Path, env: dict[str, str], timeout: int) -> None:
     contract = json.loads((probes / "contract.json").read_text())
     cases = contract.get("cases")
     if not isinstance(cases, list) or not cases:
-        raise ValueError("Semantic probe contract requires nonempty cases")
-    for case in cases:
+        raise SemanticProbeContract("Semantic probe contract requires nonempty cases")
+    for index, case in enumerate(cases, 1):
         for key in ("requirement", "wrong_behavior", "expected_failure"):
             if (
                 not isinstance(case, dict)
                 or not isinstance(case.get(key), str)
                 or not case[key].strip()
             ):
-                raise ValueError(f"Semantic probe contract missing {key}")
+                raise SemanticProbeContract(
+                    f"Semantic probe contract case {index} missing {key}"
+                )
     names = ["correct", *(f"wrong-{index}" for index in range(1, len(cases) + 1))]
     missing = [name for name in names if not (probes / f"{name}.sh").is_file()]
     extra = sorted(
