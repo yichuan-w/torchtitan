@@ -88,7 +88,7 @@ class Blocked(Exception):  # noqa: N818 -- existing exception name used by calle
     """
 
 
-CODEX_MODEL = os.environ.get("SYNTH_MODEL", "gpt-5.6")
+CODEX_MODEL = os.environ.get("SYNTH_MODEL", "gpt-5.6-sol")
 # Same knob as the chat calls: high unless SYNTH_EFFORT says otherwise. Left
 # unset, the CLI ran the sessions at its own default, which the session log
 # records as reasoning_effort=null.
@@ -582,23 +582,11 @@ def _run_codex(
     """
     sd = run.dir
     timeout = int(run.meta["timeout_sec"])
-    if EVOLVE_AGENT == "claude":
-        # Claude Code edits files with its own tools, so the patch-format
-        # paragraph below does not apply; the read-back rule does, and for the
-        # same reason (a file reported as written that never landed).
-        prompt += (
-            "\n\nEdit files in this package directly. Read back files you "
-            "create, including run/verdict.txt, before reporting that they "
-            "exist.\n"
-        )
-    else:
-        prompt += (
-            "\n\nFor local package edits in Codex's *** Begin Patch format, use "
-            "`./sandbox patch` with the patch on standard input or as one argument. "
-            "This invokes the same Codex binary as this session; a host command "
-            "named apply_patch may use a different format. Read back files you "
-            "create, including run/verdict.txt, before reporting that they exist.\n"
-        )
+    prompt += (
+        "\n\nEdit files in this package directly. Read back files you "
+        "create, including run/verdict.txt, before reporting that they "
+        "exist.\n"
+    )
     if (ACCOUNT_HOME or EVOLVE_AGENT == "claude") and (cwd / "AGENTS.md").is_file():
         # Automatic document discovery is off (codex), or the role file has a
         # name this CLI does not look for (claude): either way the experiment's

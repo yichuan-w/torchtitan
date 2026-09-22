@@ -267,15 +267,11 @@ def test_role_reaches_the_model_in_the_prompt(claude):
     assert "JOB TEXT" in sent
 
 
-def test_patch_format_paragraph_is_codex_only(claude):
-    """`./sandbox patch` applies a Codex patch format with the Codex binary;
-    Claude Code edits files with its own tools and would be misled by it."""
+def test_prompt_requests_direct_edits_and_readback(claude):
     rw, pkg = _package(layout.Root.from_env(), "task-q")
     with ec.session(rw, "agent", timeout=30) as run:
         ec._run_codex(run, pkg, "JOB TEXT")
         sent = run.dir.prompt.read_text()
-    assert "Begin Patch" not in sent
-    assert "./sandbox patch" not in sent
     assert "Edit files in this package directly" in sent
     assert "Read back files you create" in sent
 

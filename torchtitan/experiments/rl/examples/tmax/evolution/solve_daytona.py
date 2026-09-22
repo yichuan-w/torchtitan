@@ -131,7 +131,7 @@ async def _codex_attempt(sb, md: dict, workdir: str, budget: int) -> dict:
         }
 
     key = os.environ.get("OPENAI_API_KEY") or ""
-    model = os.environ.get("SOLVE_CODEX_MODEL", "gpt-5.6")
+    model = os.environ.get("SOLVE_CODEX_MODEL", "gpt-5.6-sol")
     base = os.environ.get("SYNTH_API_BASE", "https://us.api.openai.com/v1")
     # Prompt via a file to avoid any shell-quoting corruption of the task text.
     await sb.write_file("/tmp/codex_prompt.txt", md["problem_statement"])

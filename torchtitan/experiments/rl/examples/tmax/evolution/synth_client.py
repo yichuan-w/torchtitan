@@ -99,7 +99,7 @@ def operator_card(operator: str) -> str:
 # The key is regional: api.openai.com answers 401 with "incorrect regional
 # hostname" and names this one.
 API_BASE = os.environ.get("SYNTH_API_BASE", "https://us.api.openai.com/v1")
-MODEL = os.environ.get("SYNTH_MODEL", "gpt-5.6")
+MODEL = os.environ.get("SYNTH_MODEL", "gpt-5.6-sol")
 # Reasoning effort for every call. Default medium.
 #
 # This was high, chosen when the tradeoff was quality against latency. It is

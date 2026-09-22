@@ -212,7 +212,7 @@ def main() -> None:
     ap.add_argument("--events", required=True, help="where the protocol events go, one per line")
     ap.add_argument("--prompt-file", required=True)
     ap.add_argument("--timeout", type=int, default=2400)
-    ap.add_argument("--model", default=os.environ.get("SYNTH_MODEL", "gpt-5.6"))
+    ap.add_argument("--model", default=os.environ.get("SYNTH_MODEL", "gpt-5.6-sol"))
     ap.add_argument("--effort", default=os.environ.get("CODEX_EFFORT", "high"))
     ap.add_argument("--resume", default=None, help="continue this thread id")
     args = ap.parse_args()
