@@ -38,6 +38,39 @@ def row(task="a", rev=0, epoch=0, group=0, scored=4, solved=2, revision="same"):
 
 
 class RewardObserverTest(unittest.TestCase):
+    def test_chart_registration_reuses_existing_presets_across_runs(self):
+        api = Mock()
+
+        def already_exists(**kwargs):
+            raise RuntimeError(
+                f"Duplicate entry '123-{kwargs['name']}' for key 'custom_charts.PRIMARY'"
+            )
+
+        api.create_custom_chart.side_effect = already_exists
+        wandb = SimpleNamespace(
+            Api=lambda: api, errors=SimpleNamespace(CommError=RuntimeError)
+        )
+        with tempfile.TemporaryDirectory() as directory:
+            with patch.dict(sys.modules, {"wandb": wandb}):
+                charts = observer.register_charts("entity", Path(directory))
+                self.assertEqual(len(charts), 3)
+                for index, chart in enumerate(charts.values()):
+                    self.assertTrue(chart["id"].startswith("entity/task-observer-"))
+                    self.assertTrue(chart["id"].endswith(f"-{index}"))
+                observer.register_charts("entity", Path(directory))
+                self.assertEqual(api.create_custom_chart.call_count, 3)
+
+    def test_chart_registration_does_not_hide_other_api_errors(self):
+        api = Mock()
+        api.create_custom_chart.side_effect = RuntimeError("permission denied")
+        wandb = SimpleNamespace(
+            Api=lambda: api, errors=SimpleNamespace(CommError=RuntimeError)
+        )
+        with tempfile.TemporaryDirectory() as directory:
+            with patch.dict(sys.modules, {"wandb": wandb}):
+                with self.assertRaisesRegex(RuntimeError, "permission denied"):
+                    observer.register_charts("entity", Path(directory))
+
     def test_waits_for_url_and_lineage_before_starting(self):
         with tempfile.TemporaryDirectory() as directory:
             run = observer.layout.Run(Path(directory))

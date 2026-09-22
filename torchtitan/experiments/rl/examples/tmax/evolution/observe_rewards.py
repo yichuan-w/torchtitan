@@ -233,14 +233,26 @@ def register_charts(entity: str, output: Path) -> dict:
         return json.loads(path.read_text())
     api = wandb.Api()
     for index, (title, chart) in enumerate(definitions.items()):
-        chart["id"] = api.create_custom_chart(
-            entity=entity,
-            name=f"task-observer-{key}-{index}",
-            display_name=title,
-            spec_type="vega2",
-            access="private",
-            spec=chart["spec"],
-        )
+        name = f"task-observer-{key}-{index}"
+        try:
+            chart["id"] = api.create_custom_chart(
+                entity=entity,
+                name=name,
+                display_name=title,
+                spec_type="vega2",
+                access="private",
+                spec=chart["spec"],
+            )
+        except wandb.errors.CommError as error:
+            message = str(error)
+            if not (
+                "Duplicate entry" in message
+                and name in message
+                and "custom_charts.PRIMARY" in message
+            ):
+                raise
+            # The name includes the specification hash, so another run can reuse it.
+            chart["id"] = f"{entity}/{name}"
     layout.write_json_atomic(path, definitions)
     return definitions
 
