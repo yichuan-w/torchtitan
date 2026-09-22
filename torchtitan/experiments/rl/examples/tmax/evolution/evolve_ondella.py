@@ -177,6 +177,40 @@ def row_pretest(md: dict) -> tuple[str, str] | None:
     return str(tm["pre_test_sh"]), str(tm.get("pretest_env_identity") or "")
 
 
+def _attach_student_feedback(
+    signal: dict, task: layout.TaskDir, *, job: str, rev: int
+) -> None:
+    """Give a harder signal the student measurement the agent reads.
+
+    Student-guided hardening is what an agentic arm does unless
+    EVOLVE_HARDER_OPERATORS asks for the fixed menu, and the mode is chosen
+    from fb.agentic_arm() in feedback_loop. The measurement has to be attached
+    under the same condition: a signal that reaches a student-mode rewrite
+    without one sends the agent in with nothing to read.
+
+    A no-op for any other job, arm or already-populated signal.
+    """
+    if (
+        job != "harder"
+        or not fb.agentic_arm()
+        or ops.harder_uses_operators()
+        or signal.get("student_feedback") is not None
+    ):
+        return
+    signal["student_feedback"] = {
+        "measurement": {
+            key: signal[key] for key in ("run", "group", "rev", "solved", "total")
+        },
+        "measurement_scope": "One rollout group from the named training run.",
+    }
+    parent_instruction = task.rev(rev - 1) / "instruction.md"
+    if rev > 0 and parent_instruction.exists():
+        signal["student_feedback"]["previous_revision"] = {
+            "rev": rev - 1,
+            "instruction": parent_instruction.read_text(),
+        }
+
+
 def training_box(tid: str, declared: dict[str, dict] | None) -> dict:
     """The size training gives this task: the row's own values, the fleet
     default where the row declares nothing, None where neither says (the
@@ -615,24 +649,7 @@ def handle(
                     rewrite.traces / "previous-simplify.json"
                 )
                 break
-        if (
-            job == "harder"
-            and os.environ.get("SWE_RETUNE_AGENT", "chat") == "codex"
-            and not ops.harder_uses_operators()
-            and d.get("student_feedback") is None
-        ):
-            d["student_feedback"] = {
-                "measurement": {
-                    key: d[key] for key in ("run", "group", "rev", "solved", "total")
-                },
-                "measurement_scope": "One rollout group from the named training run.",
-            }
-            parent_instruction = task.rev(rev - 1) / "instruction.md"
-            if rev > 0 and parent_instruction.exists():
-                d["student_feedback"]["previous_revision"] = {
-                    "rev": rev - 1,
-                    "instruction": parent_instruction.read_text(),
-                }
+        _attach_student_feedback(d, task, job=job, rev=rev)
         rec = fb.process_one(
             rewrite,
             d,
@@ -811,8 +828,7 @@ def reusable_rewrite(
         if sig.data["direction"] == "harder":
             mode = (
                 "student"
-                if os.environ.get("SWE_RETUNE_AGENT", "chat") == "codex"
-                and not ops.harder_uses_operators()
+                if fb.agentic_arm() and not ops.harder_uses_operators()
                 else "operators"
             )
             if meta.get("harder_mode", "operators") != mode:

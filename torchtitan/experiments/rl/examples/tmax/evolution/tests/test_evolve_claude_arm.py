@@ -302,3 +302,95 @@ def test_meta_lands_on_disk_for_a_reader(claude):
     assert on_disk["agent"] == "claude"
     assert on_disk["status"] == "completed"
     assert on_disk["claude_session_id"]
+
+
+def test_agentic_arm_covers_both_clis(monkeypatch):
+    """The loop's arm-dependent branches follow the arm, not one CLI's name.
+
+    Both agentic CLIs must answer the same here. feedback_loop decides the
+    harder mode from `agentic_arm()` alone, so a branch that asked for
+    "codex" by name put the claude arm into student mode without the student
+    feedback it is supposed to read, and made the loop's resume matcher look
+    for an "operators" record that was never written.
+    """
+    sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+    import feedback_loop as fb
+
+    monkeypatch.delenv("SWE_RETUNE_AGENT", raising=False)
+    assert fb.agentic_arm() is False
+    for arm in ("codex", "claude"):
+        monkeypatch.setenv("SWE_RETUNE_AGENT", arm)
+        assert fb.agentic_arm() is True, arm
+    monkeypatch.setenv("SWE_RETUNE_AGENT", "chat")
+    assert fb.agentic_arm() is False
+
+
+def test_claude_arm_attaches_student_feedback(monkeypatch, tmp_path):
+    """A harder signal on the claude arm carries the student's measurement.
+
+    Student-guided hardening is the default for an agentic arm
+    (EVOLVE_HARDER_OPERATORS=0), and the agent reads the measurement from
+    run/student_feedback.json. The loop is what attaches it to the signal.
+    """
+    sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+    import evolve_ondella as eo
+
+    monkeypatch.setenv("SWE_RETUNE_AGENT", "claude")
+    monkeypatch.setenv("EVOLVE_HARDER_OPERATORS", "0")
+    signal = {
+        "task": "task_x",
+        "run": "run_x",
+        "group": 1,
+        "rev": 0,
+        "solved": 12,
+        "total": 12,
+        "direction": "harder",
+    }
+    task = layout.Root(tmp_path / "root").evolution.task("task_x")
+    eo._attach_student_feedback(signal, task, job="harder", rev=0)
+    assert signal["student_feedback"]["measurement"]["solved"] == 12
+    assert signal["student_feedback"]["measurement"]["total"] == 12
+
+
+def test_claude_usage_read_from_the_result_object(claude, tmp_path):
+    """A session records what it spent, since synth_client never sees it.
+
+    The `usage` on a rewrite comes from the chat client, which an agentic arm
+    does not call, so without this a run cannot say what a rewrite cost.
+    """
+    sd = type("SD", (), {"stdout": tmp_path / "stdout.txt"})()
+    sd.stdout.write_text(
+        json.dumps(
+            {
+                "total_cost_usd": 1.0418358,
+                "num_turns": 19,
+                "duration_ms": 1096995,
+                "usage": {
+                    "input_tokens": 34,
+                    "output_tokens": 19181,
+                    "cache_read_input_tokens": 928959,
+                    "cache_creation_input_tokens": 7213,
+                },
+            }
+        )
+    )
+    u = ec._claude_usage(sd)
+    assert u["cost_usd"] == pytest.approx(1.0418358)
+    assert u["turns"] == 19
+    assert u["output_tokens"] == 19181
+    assert u["cache_read_input_tokens"] == 928959
+
+
+@pytest.mark.parametrize(
+    "body", ["", "not json", "[]", json.dumps({"type": "other"})]
+)
+def test_claude_usage_survives_an_unusable_stream(claude, tmp_path, body):
+    """A session that already ran must not fail over its own accounting."""
+    sd = type("SD", (), {"stdout": tmp_path / "stdout.txt"})()
+    sd.stdout.write_text(body)
+    assert ec._claude_usage(sd) is None
+
+
+def test_claude_usage_absent_stream_is_none(claude, tmp_path):
+    sd = type("SD", (), {"stdout": tmp_path / "missing.txt"})()
+    assert ec._claude_usage(sd) is None

@@ -85,6 +85,19 @@ _INFRA_RE = re.compile(
 
 RESOURCE_KEYS = ("cpu", "mem_gb", "disk_gb")
 
+# The retune arms that run an agent session over the package rather than one
+# chat call. "codex" and "claude" are the same arm -- the session under
+# agents/task_evolution.md -- differing only in which CLI runs it
+# (evolve_codex.EVOLVE_AGENT). Every decision that turns on the arm being
+# agentic asks agentic_arm(), so adding a third CLI is one edit here rather
+# than one per caller; the record still keeps the name the run was given.
+AGENTIC_ARMS = ("codex", "claude")
+
+
+def agentic_arm() -> bool:
+    """Whether this run's retune arm drives an agent session."""
+    return os.environ.get("SWE_RETUNE_AGENT", "chat") in AGENTIC_ARMS
+
 
 def daytona_probe(
     work: Path,
@@ -701,11 +714,9 @@ def process_one(
     # transcript (the no-rollout-info mode). All three feed the SAME
     # downstream leak/dark audit -- only the writing differs.
     arm = os.environ.get("SWE_RETUNE_AGENT", "chat")
-    # "codex" and "claude" are the same arm -- an agent session over the
-    # package under agents/task_evolution.md -- differing only in which CLI
-    # runs it (evolve_codex.EVOLVE_AGENT). The record keeps the name it was
-    # given, so a run says which CLI wrote its rewrites.
-    agentic = arm in ("codex", "claude")
+    # The record keeps the name it was given, so a run says which CLI wrote
+    # its rewrites; the behaviour follows agentic_arm(), not the name.
+    agentic = agentic_arm()
     used_ops, used_fams = history or ({}, {})
     rec: dict = {
         "task": tid,

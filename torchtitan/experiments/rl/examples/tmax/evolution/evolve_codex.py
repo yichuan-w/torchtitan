@@ -246,6 +246,41 @@ def cyber_filtered(session: layout.SessionDir) -> bool:
     return False
 
 
+def _claude_usage(sd: layout.SessionDir) -> dict | None:
+    """What one Claude Code session spent, from the CLI's own result object.
+
+    ``claude -p --output-format json`` prints a single object whose `usage`
+    and `total_cost_usd` describe the whole session. Nothing else records it:
+    the `usage` on a rewrite comes from synth_client, which an agentic arm
+    never calls, so without this a run cannot say what a rewrite cost.
+
+    `cost_usd` is the CLI's own figure. On a subscription it is what the same
+    tokens would have cost at list price, not money billed -- useful for
+    comparing arms, not for an invoice.
+
+    Returns None when the stream is absent, truncated or not the result
+    object: a session that already ran must not fail over its accounting.
+    """
+    try:
+        data = json.loads(sd.stdout.read_text())
+    except (OSError, ValueError):
+        return None
+    if not isinstance(data, dict):
+        return None
+    u = data.get("usage")
+    u = u if isinstance(u, dict) else {}
+    out = {
+        "cost_usd": data.get("total_cost_usd"),
+        "turns": data.get("num_turns"),
+        "duration_ms": data.get("duration_ms"),
+        "input_tokens": u.get("input_tokens"),
+        "output_tokens": u.get("output_tokens"),
+        "cache_read_input_tokens": u.get("cache_read_input_tokens"),
+        "cache_creation_input_tokens": u.get("cache_creation_input_tokens"),
+    }
+    return out if any(v is not None for v in out.values()) else None
+
+
 @contextlib.contextmanager
 def session(
     rewrite: layout.RewriteDir,
@@ -326,6 +361,13 @@ def session(
     finally:
         meta["finished"] = layout.stamp()
         meta["filtered"] = cyber_filtered(sd)
+        if EVOLVE_AGENT == "claude":
+            # After the streams are closed and before the private home is
+            # pruned: the result object is in sd.stdout either way, but this
+            # keeps the record complete for a session that raised.
+            usage = _claude_usage(sd)
+            if usage is not None:
+                meta["usage"] = usage
         try:
             _prune_private_home(sd.codex_home)
         except OSError as exc:
