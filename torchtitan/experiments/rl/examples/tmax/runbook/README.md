@@ -234,14 +234,17 @@ appear on hover instead of overlapping text labels.
   below the diagonal have lower observed accuracy after rewriting. Hover for task,
   revisions, attempt counts and the two model versions. Model updates between
   observations confound the effect of rewriting. A missing new observation
-  produces no point, not zero accuracy.
+  produces no point, not zero accuracy. The observer joins observations within
+  one training run only. If training resumes in a new run, an old observation
+  before the restart and a new observation after it will not appear as a pair.
 - **Task timeline** selects a task through **Edit panel → Chart fields → task**:
   enter the ID in the first text field, leave the data-column dropdown unchanged,
   then click **Apply**. W&B hides Vega's inline input. The chart shows rewrite
   start/end, fold publication, task admission and actual training updates, with
   global epoch boundaries. Hover for revision, epoch, Step and trace-access
   evidence. Admission with the new content revision proves that the new version
-  was taken; publication alone does not.
+  was taken; publication alone does not. With no accuracy pair yet, the panel
+  defaults to a task that has a fold so the task events remain visible.
 
 Trace evidence distinguishes returned rollout-body content, a read command without
 confirmed body output, no matching evidence, and missing session records. It covers
