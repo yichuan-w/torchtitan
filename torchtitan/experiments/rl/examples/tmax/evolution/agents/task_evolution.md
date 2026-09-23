@@ -279,6 +279,13 @@ edit you were confident about but did not verify is worth nothing. Each check
 rebuilds the image and takes minutes; `exec` takes seconds, so do the looking
 there and save `check` for the end.
 
+Run it in the foreground and wait for it to print. Minutes is the expected
+cost and you have hours, so waiting for it costs you nothing. Do not send it
+to the background, do not poll for it and give up, and do not end your turn
+while it is still running: this is one batch turn, nothing will wake you when
+a background job finishes, and a verdict that arrives after you stop is a
+verdict nobody reads. If the wait is long, keep waiting -- that is the job.
+
 When it fails, read the output before editing. It tells you which check failed
 and what the run printed. Editing on an impression of what the code should do is
 what produced most failures here.
@@ -336,4 +343,6 @@ only passes because the solution avoided the environment is not a task.
 ## Finishing
 
 Your edits in place are the entire output. Do not print the files. Stop once
-`./sandbox check` prints `VERDICT: pass`, or once you have written `run/verdict.txt`.
+`./sandbox check` has printed `VERDICT: pass`, or once you have written
+`run/verdict.txt`. Stopping while a check is still in flight discards the
+rewrite however well the work went, so it is never the right way to end.
