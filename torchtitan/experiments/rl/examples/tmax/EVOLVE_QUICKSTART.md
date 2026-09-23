@@ -133,12 +133,11 @@ unit is started.
   version up.
 - W&B: per-step outcomes and cumulative counts appear directly in the training
   run. See [the training runbook](runbook/RUNBOOK.md#evolution-charts-in-the-training-wb-run)
-  for `evolution/step/*`, `evolution/run/*_total`,
-  `evolution/origin_step_chart` (issue and outcome series grouped by the policy
-  step when each rollout group was claimed), and the supplementary observer link.
-  The top-level `evolution/*`
-  counters retain their experiment-wide,
-  round-level meaning.
+  for the observed-step and origin-step outcome curves,
+  `evolution/issues_by_origin`, `evolution/run/*_total`, and the supplementary
+  observer link. The original `evolution/step/*` scalar keys remain available.
+  The top-level `evolution/*` counters retain their experiment-wide, round-level
+  meaning.
 - On hip, `python3 evolution/hip/run_health.py <run dir>` prints one line with
   steps done, per-sequence generation speed, the timeout rate and agent seconds
   per turn: the numbers to look at before touching any concurrency setting.

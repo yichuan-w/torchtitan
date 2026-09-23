@@ -1902,20 +1902,38 @@ class Controller(Configurable):
                     import wandb
 
                     if wandb.run is not None:
-                        xs, ys, keys = self._evolution_outcomes.origin_series(step)
-                        wandb.log(
-                            {
-                                "evolution/origin_step_chart": wandb.plot.line_series(
+                        issue_xs, issue_ys, issue_keys = (
+                            self._evolution_outcomes.issue_series(step)
+                        )
+                        charts = {
+                            "evolution/issues_by_origin": wandb.plot.line_series(
+                                issue_xs,
+                                issue_ys,
+                                keys=issue_keys,
+                                title="Evolution issues by origin step",
+                                xname="Origin policy step at group claim",
+                            )
+                        }
+                        for counter in (
+                            "harder_accepted",
+                            "accepted",
+                            "failed",
+                            "rejected",
+                            "completed",
+                        ):
+                            xs, ys, keys = self._evolution_outcomes.comparison_series(
+                                step, counter
+                            )
+                            charts[f"evolution/step/{counter}_comparison"] = (
+                                wandb.plot.line_series(
                                     xs,
                                     ys,
                                     keys=keys,
-                                    title="Evolution issues and outcomes by origin step",
-                                    xname="Policy step at group claim",
+                                    title=f"evolution/step/{counter}",
+                                    xname="Step (training observation / origin policy)",
                                 )
-                            },
-                            step=step,
-                            commit=False,
-                        )
+                            )
+                        wandb.log(charts, step=step, commit=False)
                 except Exception:
                     logger.exception("failed to log evolution origin-step chart")
         if run is not None and self.config.metrics.enable_wandb:

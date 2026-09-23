@@ -247,7 +247,7 @@ class RewardObserverTest(unittest.TestCase):
                 outcome_metrics.EvolutionMetrics(metrics.path).poll(), first
             )
 
-    def test_origin_chart_backfills_late_outcomes_and_distinguishes_issue_counts(self):
+    def test_original_curves_include_late_outcomes_by_origin_step(self):
         with tempfile.TemporaryDirectory() as directory:
             root = observer.layout.Root(Path(directory))
             run = root.run("current")
@@ -269,7 +269,7 @@ class RewardObserverTest(unittest.TestCase):
                 root.evolution.run_outcomes(run.name), run=run, root=root
             )
             metrics.poll(step=1)
-            xs, ys, _ = metrics.origin_series(1)
+            xs, ys, _ = metrics.issue_series(1)
             self.assertEqual(xs, [0, 1])
             self.assertEqual(ys[0], [2, 1])  # signal attempts
             self.assertEqual(ys[1], [1, 1])  # distinct task issues
@@ -290,11 +290,14 @@ class RewardObserverTest(unittest.TestCase):
                     },
                 )
                 metrics.poll(step=step)
-            xs, ys, _ = metrics.origin_series(3)
+            xs, ys, _ = metrics.comparison_series(3, "accepted")
             self.assertEqual(xs, [0, 1, 2, 3])
-            self.assertEqual(ys[2], [1, 1, 0, 0])  # accepted by origin
-            self.assertEqual(ys[3], [0, 0, 1, 1])  # accepted when observed
-            self.assertEqual(ys[4], [1, 0, 0, 0])  # failed by origin
+            self.assertEqual(ys[0], [0, 0, 1, 1])  # observed
+            self.assertEqual(ys[1], [1, 1, 0, 0])  # origin
+            _, failed, _ = metrics.comparison_series(3, "failed")
+            self.assertEqual(failed[1], [1, 0, 0, 0])
+            _, harder, _ = metrics.comparison_series(3, "harder_accepted")
+            self.assertEqual(harder[1], [1, 1, 0, 0])
 
     def test_partial_append_and_duplicate_outcome_are_not_counted_twice(self):
         with tempfile.TemporaryDirectory() as directory:

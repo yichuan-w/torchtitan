@@ -26,6 +26,13 @@ COUNTERS = (
     "blocked",
     "kept",
 )
+ORIGIN_CHART_COUNTERS = (
+    "harder_accepted",
+    "accepted",
+    "failed",
+    "rejected",
+    "completed",
+)
 
 
 def record_outcome(root: layout.Root, rewrite: layout.RewriteDir, meta: dict) -> None:
@@ -115,31 +122,35 @@ class EvolutionMetrics:
         if origin is None:
             return False
         status = event["status"]
+        self.outcomes_by_origin[origin]["completed"] += 1
         self.outcomes_by_origin[origin][status] += 1
+        if status == "accepted":
+            self.outcomes_by_origin[origin][f"{event['direction']}_accepted"] += 1
         if status == "interrupted":
             self.outcomes_by_origin[origin]["failed"] += 1
         return True
 
-    def origin_series(self, step: int) -> tuple[list[int], list[list[int]], list[str]]:
-        """One W&B chart: issued issues and outcomes on their origin/arrival axes."""
+    def issue_series(self, step: int) -> tuple[list[int], list[list[int]], list[str]]:
+        """Signals and distinct tasks at each group's claim-time policy step."""
         xs = list(range(max([step, *self.issue_signals]) + 1))
         ys = [
             [self.issue_signals[x] for x in xs],
             [len(self.issue_tasks[x]) for x in xs],
-            [self.outcomes_by_origin[x]["accepted"] for x in xs],
-            [self.observed_by_step[x]["accepted"] for x in xs],
-            [self.outcomes_by_origin[x]["failed"] for x in xs],
-            [self.outcomes_by_origin[x]["rejected"] for x in xs],
         ]
-        keys = [
-            "issue signals by origin",
-            "unique tasks by origin",
-            "accepted by origin",
-            "accepted when observed",
-            "failed by origin",
-            "rejected by origin",
+        return xs, ys, ["issue signals", "unique tasks"]
+
+    def comparison_series(
+        self, step: int, counter: str
+    ) -> tuple[list[int], list[list[int]], list[str]]:
+        """Pair an existing per-step outcome curve with its origin-step curve."""
+        if counter not in ORIGIN_CHART_COUNTERS:
+            raise ValueError(f"unsupported evolution counter: {counter}")
+        xs = list(range(max([step, *self.issue_signals]) + 1))
+        ys = [
+            [self.observed_by_step[x][counter] for x in xs],
+            [self.outcomes_by_origin[x][counter] for x in xs],
         ]
-        return xs, ys, keys
+        return xs, ys, ["observed at training step", "origin policy step"]
 
     def poll(self, *, step: int | None = None) -> dict[str, float]:
         self._poll_claims()
