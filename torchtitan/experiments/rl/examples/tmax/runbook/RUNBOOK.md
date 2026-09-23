@@ -989,28 +989,34 @@ using the launch commands above. Evolution counters update in the training run
 at every logged training step; no separate observer command is needed for these
 charts.
 
-The default x-axis is training step. `evolution/step/<name>` counts outcomes
-received since the previous logged step. `evolution/run/<name>_total` is the
-cumulative count for this training run. A completion is assigned to the step
-that observes it, not to the epoch that triggered its rewrite: evolution runs
-asynchronously.
+The default x-axis is training step. `evolution/step/<name>` counts rewrite
+outcomes received since the previous logged step. `evolution/run/<name>_total`
+is the cumulative count for this training run. A rewrite outcome is assigned
+to the step that observes it, not to the epoch that triggered it: evolution
+runs asynchronously.
 
-For `harder_accepted`, `accepted`, `failed`, `rejected`, and `completed`, the
+For `harder_accepted`, `accepted`, `failed`, `rejected`, and `rewrite_outcomes`, the
 training run's chart contains two curves: `observed at training step` is the
-existing count, and `origin policy step` puts the same completed rewrites at the
+existing count, and `origin policy step` puts the same rewrite outcomes at the
 generator policy version when their rollout group was claimed. The two curves
 share numeric x positions but use different meanings of step. A late outcome
 raises an earlier point on the origin curve at the next training log. The
-original `evolution/step/*` scalar keys remain available for export.
+per-step `evolution/step/*` scalar values remain available for export.
 
-The `evolution/run/completed_total` panel overlays three cumulative curves.
-`issued` and `closed` use the policy step when each signal's group was claimed;
-`completed_total` uses the training step when an outcome was observed. A closed
-signal has a ledger decision, including `handled`, `deferred`, `superseded`,
-`reused`, or `junk`. A handled signal's outcome can be accepted, failed,
-rejected, kept, or blocked, and contributes to `completed_total`. At the final
-recorded totals, `issued - closed` is the run's still-open signal count, while
-`closed - completed_total` includes signals closed without a rewrite outcome.
+The `evolution/run/signal_flow` panel overlays three cumulative curves.
+`signal_issued` counts signals emitted by the trainer. `signal_consumed` counts
+distinct signals with a terminal ledger decision: `handled`, `deferred`,
+`superseded`, `reused`, or `junk`. These two curves use the policy step when
+each signal's group was claimed. `rewrite_outcomes` counts handled rewrite
+attempts with a recorded final verdict, including `accepted`, `failed`,
+`rejected`, `kept`, and `blocked`; it uses the training step when that outcome
+was observed. At the final recorded totals, `signal_issued - signal_consumed`
+is the count without a ledger decision. `signal_consumed - rewrite_outcomes`
+includes signals settled without a new rewrite, and may temporarily include
+rewrite outcomes not yet observed by the trainer.
+The same counts are logged as `evolution/run/signal_issued_total`,
+`evolution/run/signal_consumed_total`, and
+`evolution/run/rewrite_outcomes_total`.
 The two step meanings are labeled in the legend and x-axis title; matching
 x positions do not mean the events occurred simultaneously. The origin curves
 do not assert that every turn in a long rollout used the claim-time policy
@@ -1027,13 +1033,13 @@ from that run's chart.
 | `interrupted` | Attempts interrupted when the evolve loop stopped. |
 | `blocked` | Attempts recorded as blocked. |
 | `kept` | Attempts that kept the original task. |
-| `completed` | All completed attempts, including failed and interrupted attempts. |
+| `rewrite_outcomes` | All rewrite attempts with a final verdict, including failed and interrupted attempts. |
 
 Counts are per rewrite attempt, not unique tasks. A task rewritten twice can
 count twice. `harder_accepted` and `easier_accepted` are subsets of `accepted`;
 `interrupted` is a subset of `failed`.
 
-The evolve loop appends each completed outcome to `evolution/outcomes/<run>.jsonl`
+The evolve loop appends each rewrite outcome to `evolution/outcomes/<run>.jsonl`
 after publication is settled. The trainer reads new records each step, without
 waiting for an entire evolve round. Repeated records for the same rewrite are
 counted once. Counts from other training runs are excluded. The existing

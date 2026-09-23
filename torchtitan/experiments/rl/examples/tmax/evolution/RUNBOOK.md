@@ -58,7 +58,7 @@ loop's health sits on the same dashboard as the loss.
 Training also logs run-scoped outcome curves at each step:
 `evolution/step/harder_accepted`, `evolution/step/accepted`,
 `evolution/step/failed` and `evolution/step/rejected`, plus cumulative
-`evolution/run/<name>_total` curves. The trainer reads completed outcomes at each
+`evolution/run/<name>_total` curves. The trainer reads rewrite outcomes at each
 logged step, without waiting for the round-level status snapshot. See
 [Evolution charts in the training W&B run](../runbook/RUNBOOK.md#evolution-charts-in-the-training-wb-run)
 for count definitions and the automatically launched accuracy/timeline observer.
@@ -369,10 +369,11 @@ Where it leaves things, all under `$TRL_BASE` and all specified in
   `jq -r .direction runs/latest/signals/*.json | sort | uniq -c`; the loop's own count is
   `pending` in `status.json`.
 - **The ledger**, `evolution/ledger.jsonl`, is one line per signal seen: `handled`, with
-  the rewrite it produced; `deferred`, its direction switched off, replayed when it is
-  switched on; `superseded`, a signal about a revision the task has moved past, or a
+  the rewrite it produced; `deferred`, its direction switched off and the signal
+  settled without automatic replay; `reused`, an earlier decision for unchanged
+  feedback; `superseded`, a signal about a revision the task has moved past, or a
   sibling of the one signal per task a round takes; or `junk`, unreadable or an unknown
-  task. Handling a deferred signal later appends a new line; the old one stays.
+  task. A deferred signal leaves the pending set.
   `jq -r .outcome evolution/ledger.jsonl | sort | uniq -c` is the loop's history in one
   line.
 - **One handled signal is one rewrite**, `evolution/tasks/<task>/rewrites/<stamp>--<job>/`

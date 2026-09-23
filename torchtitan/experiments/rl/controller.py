@@ -1903,15 +1903,15 @@ class Controller(Configurable):
 
                     if wandb.run is not None:
                         flow_xs, flow_ys, flow_keys = (
-                            self._evolution_outcomes.completion_flow_series(step)
+                            self._evolution_outcomes.signal_flow_series(step)
                         )
                         charts = {
-                            "evolution/run/completed_total_comparison": wandb.plot.line_series(
+                            "evolution/run/signal_flow": wandb.plot.line_series(
                                 flow_xs,
                                 flow_ys,
                                 keys=flow_keys,
-                                title="evolution/run/completed_total",
-                                xname="Step (origin for signals; observation for completed_total)",
+                                title="Evolution signal flow",
+                                xname="Step (origin for signals; observation for rewrite outcomes)",
                             )
                         }
                         for counter in (
@@ -1919,7 +1919,7 @@ class Controller(Configurable):
                             "accepted",
                             "failed",
                             "rejected",
-                            "completed",
+                            "rewrite_outcomes",
                         ):
                             xs, ys, keys = self._evolution_outcomes.comparison_series(
                                 step, counter

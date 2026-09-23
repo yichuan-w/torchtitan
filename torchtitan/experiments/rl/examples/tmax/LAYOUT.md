@@ -174,15 +174,16 @@ verdict: Terminus usually installs it at runtime).
  "direction": "harder", "outcome": "handled", "rewrite": "tasks/tw_380466/rewrites/20260904-183300Z--harder"}
 ```
 
-`outcome` is `handled`, `deferred` (the direction is switched off; replayed
-when it is switched on), `junk` (unreadable, unknown task, a rev the task
-never had), or `superseded` with a `reason`: a second pending signal for the
+`outcome` is `handled`, `deferred` (the direction is switched off; the signal
+is not automatically replayed), `junk` (unreadable, unknown task, a rev the task
+never had), `reused` (an earlier decision for unchanged feedback is reused),
+or `superseded` with a `reason`: a second pending signal for the
 same task and rev, or a signal about a rev the task has already moved past
 (groups still in flight when the mix reloaded). The loop handles one signal
 per task per round, the newest whose `rev` is the task's latest. The loop's
 "pending" set is every file under `runs/*/signals/` whose `signal` id has no
-ledger line. Handling a deferred signal later appends a new line; the old one
-stays. A signal whose handling failed before its rewrite directory existed
+ledger line. A deferred signal remains in the ledger and leaves the pending
+set. A signal whose handling failed before its rewrite directory existed
 (the copy of `r<rev>` or the hardlinks could not be made) gets no ledger
 line and is retried next round; `loop.log` holds the traceback.
 

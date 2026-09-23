@@ -17,7 +17,7 @@ from torchtitan.experiments.rl.examples.tmax import layout
 
 
 COUNTERS = (
-    "completed",
+    "rewrite_outcomes",
     "accepted",
     "harder_accepted",
     "easier_accepted",
@@ -32,7 +32,7 @@ ORIGIN_CHART_COUNTERS = (
     "accepted",
     "failed",
     "rejected",
-    "completed",
+    "rewrite_outcomes",
 )
 
 
@@ -73,10 +73,10 @@ class EvolutionMetrics:
         self.claimed_origin: dict[int, int] = {}
         self.signal_origin: dict[str, int] = {}
         self.issue_signals: Counter[int] = Counter()
-        self.closed_signals: set[str] = set()
+        self.consumed_signals: set[str] = set()
         self.outcomes_by_origin: dict[int, Counter[str]] = defaultdict(Counter)
         self.observed_by_step: dict[int, Counter[str]] = defaultdict(Counter)
-        self.completed_total_by_step: dict[int, int] = {}
+        self.rewrite_outcomes_total_by_step: dict[int, int] = {}
         self.pending_origin: dict[str, dict] = {}
 
     def _poll_claims(self) -> None:
@@ -126,7 +126,7 @@ class EvolutionMetrics:
                     break
                 signal = json.loads(line).get("signal", "")
                 if signal.startswith(f"{self.run.name}/"):
-                    self.closed_signals.add(signal)
+                    self.consumed_signals.add(signal)
                 self.ledger_offset = stream.tell()
 
     def _record_origin(self, event: dict) -> bool:
@@ -140,7 +140,7 @@ class EvolutionMetrics:
         if origin is None:
             return False
         status = event["status"]
-        self.outcomes_by_origin[origin]["completed"] += 1
+        self.outcomes_by_origin[origin]["rewrite_outcomes"] += 1
         self.outcomes_by_origin[origin][status] += 1
         if status == "accepted":
             self.outcomes_by_origin[origin][f"{event['direction']}_accepted"] += 1
@@ -148,28 +148,28 @@ class EvolutionMetrics:
             self.outcomes_by_origin[origin]["failed"] += 1
         return True
 
-    def completion_flow_series(
+    def signal_flow_series(
         self, step: int
     ) -> tuple[list[int], list[list[int]], list[str]]:
-        """Compare origin-attributed signal flow with observed completion totals."""
+        """Compare origin-attributed signals with observed rewrite outcomes."""
         xs = list(range(max([step, *self.issue_signals]) + 1))
-        closed = Counter(
+        consumed = Counter(
             self.signal_origin[signal]
-            for signal in self.closed_signals
+            for signal in self.consumed_signals
             if signal in self.signal_origin
         )
         ys = [
             list(accumulate(self.issue_signals[x] for x in xs)),
-            list(accumulate(closed[x] for x in xs)),
-            [self.completed_total_by_step.get(x, 0) for x in xs],
+            list(accumulate(consumed[x] for x in xs)),
+            [self.rewrite_outcomes_total_by_step.get(x, 0) for x in xs],
         ]
         return (
             xs,
             ys,
             [
-                "issued (origin cumulative)",
-                "closed (origin cumulative)",
-                "completed_total (observed cumulative)",
+                "signal_issued (origin cumulative)",
+                "signal_consumed (origin cumulative)",
+                "rewrite_outcomes (observed cumulative)",
             ],
         )
 
@@ -202,7 +202,7 @@ class EvolutionMetrics:
                     identity = event["rewrite"]
                     if identity not in self.seen:
                         status = event["status"]
-                        keys = ["completed", status]
+                        keys = ["rewrite_outcomes", status]
                         if status == "accepted":
                             keys.append(f"{event['direction']}_accepted")
                         elif status == "interrupted":
@@ -219,13 +219,23 @@ class EvolutionMetrics:
                 del self.pending_origin[identity]
         if step is not None:
             self.observed_by_step[step].update(delta)
-            self.completed_total_by_step[step] = self.totals["completed"]
+            self.rewrite_outcomes_total_by_step[step] = self.totals["rewrite_outcomes"]
         return {
             **{f"evolution/step/{key}": float(value) for key, value in delta.items()},
             **{
                 f"evolution/run/{key}_total": float(value)
                 for key, value in self.totals.items()
             },
+            **(
+                {
+                    "evolution/run/signal_issued_total": float(len(self.seen_signals)),
+                    "evolution/run/signal_consumed_total": float(
+                        len(self.consumed_signals & self.signal_origin.keys())
+                    ),
+                }
+                if self.run is not None
+                else {}
+            ),
             **(
                 {
                     "evolution/origin/unmapped_outcomes_total": float(

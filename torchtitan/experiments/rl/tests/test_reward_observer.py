@@ -239,7 +239,7 @@ class RewardObserverTest(unittest.TestCase):
             self.assertEqual(first["evolution/step/failed"], 2)
             self.assertEqual(first["evolution/step/interrupted"], 1)
             self.assertEqual(first["evolution/step/rejected"], 1)
-            self.assertEqual(first["evolution/step/completed"], 7)
+            self.assertEqual(first["evolution/step/rewrite_outcomes"], 7)
             second = metrics.poll()
             self.assertEqual(second["evolution/step/accepted"], 0)
             self.assertEqual(second["evolution/run/accepted_total"], 2)
@@ -275,10 +275,10 @@ class RewardObserverTest(unittest.TestCase):
                 root.evolution.run_outcomes(run.name), run=run, root=root
             )
             metrics.poll(step=1)
-            xs, ys, _ = metrics.completion_flow_series(1)
+            xs, ys, _ = metrics.signal_flow_series(1)
             self.assertEqual(xs, [0, 1])
             self.assertEqual(ys[0], [2, 5])  # cumulative issues by origin
-            self.assertEqual(ys[1], [0, 0])  # no closed signals yet
+            self.assertEqual(ys[1], [0, 0])  # no consumed signals yet
             self.assertEqual(ys[2], [0, 0])  # no outcomes yet
 
             for task, group, status, step in [
@@ -310,14 +310,17 @@ class RewardObserverTest(unittest.TestCase):
                         "outcome": outcome,
                     },
                 )
-            metrics.poll(step=4)
-            _, flow, keys = metrics.completion_flow_series(4)
+            fourth = metrics.poll(step=4)
+            self.assertEqual(fourth["evolution/run/signal_issued_total"], 5)
+            self.assertEqual(fourth["evolution/run/signal_consumed_total"], 4)
+            self.assertEqual(fourth["evolution/run/rewrite_outcomes_total"], 3)
+            _, flow, keys = metrics.signal_flow_series(4)
             self.assertEqual(
                 keys,
                 [
-                    "issued (origin cumulative)",
-                    "closed (origin cumulative)",
-                    "completed_total (observed cumulative)",
+                    "signal_issued (origin cumulative)",
+                    "signal_consumed (origin cumulative)",
+                    "rewrite_outcomes (observed cumulative)",
                 ],
             )
             self.assertEqual(flow[0], [2, 5, 5, 5, 5])
