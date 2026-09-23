@@ -272,7 +272,7 @@ class RewardObserverTest(unittest.TestCase):
             xs, ys, _ = metrics.issue_series(1)
             self.assertEqual(xs, [0, 1])
             self.assertEqual(ys[0], [2, 1])  # signal attempts
-            self.assertEqual(ys[1], [1, 1])  # distinct task issues
+            self.assertEqual(ys[1], [0, 0])  # no outcomes yet
 
             for task, group, status, step in [
                 ("same", 1, "accepted", 2),
@@ -290,6 +290,10 @@ class RewardObserverTest(unittest.TestCase):
                     },
                 )
                 metrics.poll(step=step)
+            _, issue_and_completed, keys = metrics.issue_series(3)
+            self.assertEqual(keys, ["issue signals", "completed outcomes"])
+            self.assertEqual(issue_and_completed[0], [2, 1, 0, 0])
+            self.assertEqual(issue_and_completed[1], [2, 1, 0, 0])
             xs, ys, _ = metrics.comparison_series(3, "accepted")
             self.assertEqual(xs, [0, 1, 2, 3])
             self.assertEqual(ys[0], [0, 0, 1, 1])  # observed
@@ -356,7 +360,9 @@ class RewardObserverTest(unittest.TestCase):
                     {
                         "unchanged": observer.observe_lineage.unchanged(rows, set()),
                         "comparisons": [],
-                        "timeline": [],
+                        "timeline": [
+                            {"task": "folded-task", "event": "fold"},
+                        ],
                     },
                     Path(directory),
                     charts,
@@ -368,6 +374,10 @@ class RewardObserverTest(unittest.TestCase):
                     "Rewrite accuracy",
                     "Task timeline",
                 },
+            )
+            self.assertEqual(
+                entries[0]["Task timeline"][1]["string_fields"]["task"],
+                "folded-task",
             )
 
     def test_pairs_require_same_task_hash_and_different_epoch(self):

@@ -202,7 +202,10 @@ def publish(wb, result: dict, snapshot: Path, charts: dict) -> None:
         "Task timeline": result["timeline"],
     }
     payload = {}
-    focus = next((r["task"] for r in result["comparisons"]), "")
+    focus = next(
+        (r["task"] for r in result["comparisons"]),
+        next((r["task"] for r in result["timeline"] if r["event"] == "fold"), ""),
+    )
     for title, rows in datasets.items():
         columns = charts[title]["columns"]
         table = wandb.Table(

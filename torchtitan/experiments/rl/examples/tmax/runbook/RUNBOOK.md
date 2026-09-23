@@ -1003,11 +1003,14 @@ share numeric x positions but use different meanings of step. A late outcome
 raises an earlier point on the origin curve at the next training log. The
 original `evolution/step/*` scalar keys remain available for export.
 
-The `evolution/issues_by_origin` chart shows `issue signals` and `unique tasks`
-by the policy step when each group was claimed, starting at 0. Repeated signals
-for one task count separately in `issue signals` and once in `unique tasks`. Issue counts
-can exceed completed outcomes while work is pending or a signal was not
-selected by the evolve loop. The origin curves do not assert that every turn in
+The `evolution/issues_by_origin` chart compares `issue signals` with
+`completed outcomes` by the policy step when each group was claimed, starting
+at 0. Both curves count events per origin step, so their sums can be compared
+with the run's issue count and `evolution/run/completed_total`; the cumulative
+`completed_total` scalar itself uses the training observation step and does not
+belong on this origin-step axis. Issue counts can exceed completed outcomes
+while work is pending or a signal was not selected by the evolve loop. The
+origin curves do not assert that every turn in
 a long rollout used the claim-time policy version. Outcomes finishing after the
 final training log are absent from that run's charts.
 

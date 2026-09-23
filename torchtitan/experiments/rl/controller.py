@@ -1910,7 +1910,7 @@ class Controller(Configurable):
                                 issue_xs,
                                 issue_ys,
                                 keys=issue_keys,
-                                title="Evolution issues by origin step",
+                                title="Evolution issues and completed by origin step",
                                 xname="Origin policy step at group claim",
                             )
                         }

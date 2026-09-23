@@ -71,7 +71,6 @@ class EvolutionMetrics:
         self.claimed_origin: dict[int, int] = {}
         self.signal_origin: dict[str, int] = {}
         self.issue_signals: Counter[int] = Counter()
-        self.issue_tasks: dict[int, set[str]] = defaultdict(set)
         self.outcomes_by_origin: dict[int, Counter[str]] = defaultdict(Counter)
         self.observed_by_step: dict[int, Counter[str]] = defaultdict(Counter)
         self.pending_origin: dict[str, dict] = {}
@@ -108,7 +107,6 @@ class EvolutionMetrics:
             identity = f"{self.run.name}/{path.stem}"
             self.signal_origin[identity] = origin
             self.issue_signals[origin] += 1
-            self.issue_tasks[origin].add(signal["task"])
             self.seen_signals.add(path.name)
 
     def _record_origin(self, event: dict) -> bool:
@@ -131,13 +129,13 @@ class EvolutionMetrics:
         return True
 
     def issue_series(self, step: int) -> tuple[list[int], list[list[int]], list[str]]:
-        """Signals and distinct tasks at each group's claim-time policy step."""
+        """Issued signals and completed outcomes by claim-time policy step."""
         xs = list(range(max([step, *self.issue_signals]) + 1))
         ys = [
             [self.issue_signals[x] for x in xs],
-            [len(self.issue_tasks[x]) for x in xs],
+            [self.outcomes_by_origin[x]["completed"] for x in xs],
         ]
-        return xs, ys, ["issue signals", "unique tasks"]
+        return xs, ys, ["issue signals", "completed outcomes"]
 
     def comparison_series(
         self, step: int, counter: str
