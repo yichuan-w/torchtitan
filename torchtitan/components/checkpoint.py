@@ -507,16 +507,22 @@ class CheckpointManager(Configurable):
 
     def close(self):
         if hasattr(self, "enable") and self.enable:
-            if (
-                hasattr(self, "purge_thread")
-                and self.purge_thread
-                and self.purge_thread.is_alive()
-            ):
-                self.purge_queue.put(Terminate())
-                self.purge_thread.join()
+            try:
+                if self.save_future is not None:
+                    self.maybe_wait_for_saving()
+                    self._purge_stale_checkpoints()
+            finally:
+                self.save_future = None
+                if (
+                    hasattr(self, "purge_thread")
+                    and self.purge_thread
+                    and self.purge_thread.is_alive()
+                ):
+                    self.purge_queue.put(Terminate())
+                    self.purge_thread.join()
 
-            if self.stager is not None:
-                self.stager.close()
+                if self.stager is not None:
+                    self.stager.close()
 
     @torch.no_grad()
     def dcp_save(
@@ -706,6 +712,7 @@ class CheckpointManager(Configurable):
 
         if last_step:
             self._save_last_step(curr_step)
+            self._purge_stale_checkpoints()
             logger.info(
                 f"Last step checkpoint completed in {time.monotonic() - begin:.2f}s"
             )
@@ -757,7 +764,15 @@ class CheckpointManager(Configurable):
                 enable_garbage_collection=True,
             )
 
-        self._purge_stale_checkpoints()
+        if self.save_future is None:
+            self._purge_stale_checkpoints()
+        elif self.keep_latest_k > 0:
+            # The new directory may not exist until the background save finishes.
+            self.save_future.add_done_callback(
+                lambda future: self._purge_stale_checkpoints()
+                if future.exception() is None
+                else None
+            )
 
         logger.info(
             f"Finished {checkpoint_phase} the checkpoint in "

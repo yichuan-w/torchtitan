@@ -254,6 +254,83 @@ class TestCheckpointManager(unittest.TestCase):
         torch.testing.assert_close(sd["optimizer"]["fake_param"], torch.tensor([1.0]))
         manager.close()
 
+    @mock.patch("torch.distributed.get_rank", return_value=0)
+    def test_async_purge_waits_for_completed_checkpoint(self, mock_rank):
+        cfg = self.trainer_config.checkpoint
+        cfg.async_mode = "async"
+        for step in (4, 5):
+            os.makedirs(os.path.join(self.test_folder, f"step-{step}"))
+        manager = CheckpointManager(
+            dataloader=self.data_loader,
+            model_parts=self.model_parts,
+            optimizers=self.optimizers,
+            lr_schedulers=self.lr_schedulers,
+            states=self.states,
+            config=cfg,
+            sd_adapter=None,
+            base_folder=self.trainer_config.dump_folder,
+        )
+        future = Future()
+        with mock.patch.object(manager, "dcp_save", return_value=future):
+            manager.save(curr_step=6)
+        self.assertEqual(sorted(os.listdir(self.test_folder)), ["step-4", "step-5"])
+
+        os.makedirs(os.path.join(self.test_folder, "step-6"))
+        future.set_result(None)
+        deadline = time.time() + 5
+        while sorted(os.listdir(self.test_folder)) != ["step-5", "step-6"]:
+            if time.time() > deadline:
+                self.fail("completed async save did not purge step-4")
+            time.sleep(0.05)
+        manager.close()
+
+    @mock.patch("torch.distributed.get_rank", return_value=0)
+    def test_failed_async_save_does_not_purge(self, mock_rank):
+        cfg = self.trainer_config.checkpoint
+        cfg.async_mode = "async"
+        for step in (4, 5):
+            os.makedirs(os.path.join(self.test_folder, f"step-{step}"))
+        manager = CheckpointManager(
+            dataloader=self.data_loader,
+            model_parts=self.model_parts,
+            optimizers=self.optimizers,
+            lr_schedulers=self.lr_schedulers,
+            states=self.states,
+            config=cfg,
+            sd_adapter=None,
+            base_folder=self.trainer_config.dump_folder,
+        )
+        future = Future()
+        with mock.patch.object(manager, "dcp_save", return_value=future):
+            manager.save(curr_step=6)
+        os.makedirs(os.path.join(self.test_folder, "step-6"))
+        future.set_exception(OSError("checkpoint write failed"))
+        with self.assertRaisesRegex(OSError, "checkpoint write failed"):
+            manager.close()
+        self.assertEqual(
+            sorted(os.listdir(self.test_folder)), ["step-4", "step-5", "step-6"]
+        )
+
+    @mock.patch("torch.distributed.get_rank", return_value=0)
+    @mock.patch("torchtitan.components.checkpoint.dcp.save")
+    def test_last_step_purges_old_checkpoint(self, mock_save, mock_rank):
+        mock_save.side_effect = self.fake_save
+        for step in (4, 5):
+            os.makedirs(os.path.join(self.test_folder, f"step-{step}"))
+        manager = CheckpointManager(
+            dataloader=self.data_loader,
+            model_parts=self.model_parts,
+            optimizers=self.optimizers,
+            lr_schedulers=self.lr_schedulers,
+            states=self.states,
+            config=self.trainer_config.checkpoint,
+            sd_adapter=None,
+            base_folder=self.trainer_config.dump_folder,
+        )
+        manager.save(curr_step=6, last_step=True)
+        manager.close()
+        self.assertEqual(sorted(os.listdir(self.test_folder)), ["step-5", "step-6"])
+
     @mock.patch("torch.distributed.get_rank", return_value=1)
     @mock.patch("torchtitan.components.checkpoint.dcp.save")
     @mock.patch("torchtitan.components.checkpoint.dcp.load")
