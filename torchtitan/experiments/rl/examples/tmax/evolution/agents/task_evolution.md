@@ -233,6 +233,12 @@ worse than the task you started from.
 ./sandbox down           delete it
 ```
 
+Run `up` and `reset` in the foreground. `up` reports when its own container is
+ready or why it failed; if the command tool returns a session ID, poll that
+session until it exits. Do not background the command and wait with fixed
+`sleep` calls or a shared `/tmp` log: another task can replace that log while
+your container is still starting.
+
 This is the task's own environment, built, sized and graded the way the training
 harness does it: the container is the size the task gets in training, so what
 runs out of memory or time here runs out there too. Use `exec` to look around,
