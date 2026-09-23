@@ -99,6 +99,36 @@ def test_independent_author_cannot_see_grader_or_reference_and_is_reused(setup):
     }
 
 
+def test_independent_author_repairs_missing_contract_once(setup, monkeypatch):
+    rewrite, verifier, calls, author = setup
+
+    def repair(run, package, prompt, resume=None):
+        result = author(run, package, prompt, resume)
+        contract = package / "run/verifier-probes/contract.json"
+        if run.meta["kind"] == "probe":
+            contract.unlink()
+        elif run.meta["kind"] == "probe-contract":
+            contract.write_text(
+                json.dumps(
+                    {
+                        "cases": [
+                            {
+                                "requirement": "Preserve input bytes",
+                                "wrong_behavior": "Trim spaces",
+                                "expected_failure": "Padded input must retain its spaces",
+                            }
+                        ]
+                    }
+                )
+            )
+        return result
+
+    monkeypatch.setattr(ec, "_run_codex", repair)
+    ec._independent_verifier(rewrite, verifier)
+    assert [call[0] for call in calls] == ["probe", "probe-contract"]
+    assert (verifier.path / "independent-probes.json").is_file()
+
+
 @pytest.mark.parametrize("case", ["wrong-1", "correct"])
 def test_semantic_failure_gets_one_repair_and_replays_unchanged_controls(
     setup, monkeypatch, case
@@ -236,6 +266,40 @@ def test_original_controls_are_frozen_before_first_replay(setup, monkeypatch):
     assert seen == ["original correct", "original correct"]
 
 
+def test_missing_original_probe_directory_resumes_verifier(setup, monkeypatch):
+    rewrite, verifier, calls, author = setup
+    shutil.rmtree(verifier.path / "original-verifier-probes")
+    shutil.rmtree(verifier.package / "run/verifier-probes")
+
+    def repair(run, package, prompt, resume=None):
+        result = author(run, package, prompt, resume)
+        if run.meta["kind"] == "probe-contract":
+            controls = package / "run/verifier-probes"
+            controls.mkdir()
+            (controls / "contract.json").write_text(
+                json.dumps(
+                    {
+                        "cases": [
+                            {
+                                "requirement": "Preserve input bytes",
+                                "wrong_behavior": "Trim spaces",
+                                "expected_failure": "Padded input must retain its spaces",
+                            }
+                        ]
+                    }
+                )
+            )
+            (controls / "correct.sh").write_text("correct")
+            (controls / "wrong-1.sh").write_text("wrong")
+        return result
+
+    monkeypatch.setattr(ec, "_run_codex", repair)
+    ec._verify_original_probes(verifier, rewrite)
+    assert [call[0] for call in calls] == ["probe-contract"]
+    assert (verifier.path / "original-verifier-probes/contract.json").is_file()
+    ec.load_probe_contract(verifier.package)
+
+
 def test_a_case_with_no_script_is_its_own_error(tmp_path):
     """A contract naming more cases than there are scripts used to raise
     FileNotFoundError out of the reader and discard the whole rewrite."""
@@ -284,3 +348,14 @@ def test_incomplete_case_is_repairable_before_daytona_replay(tmp_path):
     with pytest.raises(vp.SemanticProbeContract, match="case 1 missing wrong_behavior"):
         vp.verify_probes(tmp_path, {}, 10)
     assert not (tmp_path / "run" / "verifier-probe-results.jsonl").exists()
+
+
+def test_missing_contract_is_repairable_before_daytona_replay(tmp_path):
+    import verifier_probes as vp
+
+    (tmp_path / "run/verifier-probes").mkdir(parents=True)
+    with pytest.raises(
+        vp.SemanticProbeContract, match="Missing or invalid probe contract"
+    ):
+        vp.verify_probes(tmp_path, {}, 10)
+    assert not (tmp_path / "run/verifier-probe-results.jsonl").exists()

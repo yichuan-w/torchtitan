@@ -59,6 +59,7 @@ from torchtitan.experiments.rl.examples.tmax import layout, rollout_record
 from verifier_probes import (
     SemanticProbeContract,
     SemanticProbeMisses,
+    load_probe_contract,
     verify_probes,
 )
 
@@ -1844,7 +1845,10 @@ def _verify_original_probes(
     def _replay() -> None:
         original = vsession.path / "original-verifier-probes"
         if not original.exists():
-            shutil.copytree(vsession.package / "run/verifier-probes", original)
+            source = vsession.package / "run/verifier-probes"
+            if not source.is_dir():
+                raise SemanticProbeContract("Missing run/verifier-probes directory")
+            shutil.copytree(source, original)
             package = vsession.package
         else:
             package = Path(
@@ -1918,6 +1922,20 @@ def _independent_verifier(
                     "Independent probe author changed files outside run/: "
                     + ", ".join(changed)
                 )
+            try:
+                load_probe_contract(probe)
+            except SemanticProbeContract as error:
+                if not allow_repair:
+                    raise
+                log.info(
+                    "independent probe contract mismatch, resuming author: %s", error
+                )
+                _repair_probe_contract(rewrite, run.dir, str(error))
+                if _probe_hashes(probe, ("run",)) != before:
+                    raise RuntimeError(
+                        "Independent probe contract repair changed public task files"
+                    )
+                load_probe_contract(probe)
         layout.write_json_atomic(
             pointer,
             {

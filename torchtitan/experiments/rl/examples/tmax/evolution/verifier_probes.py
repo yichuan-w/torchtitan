@@ -38,9 +38,17 @@ class _DaytonaTransportFailure(RuntimeError):
     pass
 
 
-def verify_probes(pkg: Path, env: dict[str, str], timeout: int) -> None:
+def load_probe_contract(pkg: Path) -> tuple[dict, list[str], dict[str, str]]:
+    """Validate replay inputs before starting a Daytona sandbox."""
     probes = pkg / "run" / "verifier-probes"
-    contract = json.loads((probes / "contract.json").read_text())
+    try:
+        contract = json.loads((probes / "contract.json").read_text())
+    except (FileNotFoundError, json.JSONDecodeError) as error:
+        raise SemanticProbeContract(
+            f"Missing or invalid probe contract: {error}"
+        ) from error
+    if not isinstance(contract, dict):
+        raise SemanticProbeContract("Semantic probe contract must be an object")
     cases = contract.get("cases")
     if not isinstance(cases, list) or not cases:
         raise SemanticProbeContract("Semantic probe contract requires nonempty cases")
@@ -57,9 +65,7 @@ def verify_probes(pkg: Path, env: dict[str, str], timeout: int) -> None:
     names = ["correct", *(f"wrong-{index}" for index in range(1, len(cases) + 1))]
     missing = [name for name in names if not (probes / f"{name}.sh").is_file()]
     extra = sorted(
-        p.stem
-        for p in probes.glob("wrong-*.sh")
-        if p.stem not in names and p.is_file()
+        p.stem for p in probes.glob("wrong-*.sh") if p.stem not in names and p.is_file()
     )
     if missing or extra:
         raise SemanticProbeContract(
@@ -72,7 +78,15 @@ def verify_probes(pkg: Path, env: dict[str, str], timeout: int) -> None:
     if any(not script.strip() for script in scripts.values()) or len(
         set(scripts.values())
     ) != len(scripts):
-        raise ValueError("Semantic probes require distinct, nonempty scripts")
+        raise SemanticProbeContract(
+            "Semantic probes require distinct, nonempty scripts"
+        )
+    return contract, names, scripts
+
+
+def verify_probes(pkg: Path, env: dict[str, str], timeout: int) -> None:
+    probes = pkg / "run" / "verifier-probes"
+    contract, names, scripts = load_probe_contract(pkg)
     log_path = pkg / "run" / "verifier-probe-results.jsonl"
     missed = []
     log_lock = threading.Lock()
