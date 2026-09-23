@@ -247,6 +247,55 @@ class RewardObserverTest(unittest.TestCase):
                 outcome_metrics.EvolutionMetrics(metrics.path).poll(), first
             )
 
+    def test_origin_chart_backfills_late_outcomes_and_distinguishes_issue_counts(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = observer.layout.Root(Path(directory))
+            run = root.run("current")
+            claims = run.trainer / "training_lineage/events.jsonl"
+            for group, origin in [(1, 0), (2, 0), (3, 1)]:
+                observer.layout.append_jsonl(
+                    claims,
+                    {
+                        "event": "claimed",
+                        "group_id": group,
+                        "generator_policy_version": origin,
+                    },
+                )
+            for task, group in [("same", 1), ("same", 2), ("other", 3)]:
+                observer.layout.write_json_atomic(
+                    run.signal(task, group), {"task": task, "group": group}
+                )
+            metrics = outcome_metrics.EvolutionMetrics(
+                root.evolution.run_outcomes(run.name), run=run, root=root
+            )
+            metrics.poll(step=1)
+            xs, ys, _ = metrics.origin_series(1)
+            self.assertEqual(xs, [0, 1])
+            self.assertEqual(ys[0], [2, 1])  # signal attempts
+            self.assertEqual(ys[1], [1, 1])  # distinct task issues
+
+            for task, group, status, step in [
+                ("same", 1, "accepted", 2),
+                ("same", 2, "failed", 3),
+                ("other", 3, "accepted", 3),
+            ]:
+                outcome_metrics.record_outcome(
+                    root,
+                    root.evolution.task(task).rewrite("harder", str(group)),
+                    {
+                        "signal": observer.layout.signal_id(run.name, task, group),
+                        "task": task,
+                        "job": "harder",
+                        "status": status,
+                    },
+                )
+                metrics.poll(step=step)
+            xs, ys, _ = metrics.origin_series(3)
+            self.assertEqual(xs, [0, 1, 2, 3])
+            self.assertEqual(ys[2], [1, 1, 0, 0])  # accepted by origin
+            self.assertEqual(ys[3], [0, 0, 1, 1])  # accepted when observed
+            self.assertEqual(ys[4], [1, 0, 0, 0])  # failed by origin
+
     def test_partial_append_and_duplicate_outcome_are_not_counted_twice(self):
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / "events.jsonl"

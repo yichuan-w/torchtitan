@@ -1869,7 +1869,7 @@ class Controller(Configurable):
             )
         logger.info("=" * 60)
 
-    def _evolution_metrics(self) -> list[m.Metric]:
+    def _evolution_metrics(self, step: int | None = None) -> list[m.Metric]:
         """Per-step outcomes for this run, plus the experiment's round-level gauges."""
         import json
 
@@ -1881,7 +1881,8 @@ class Controller(Configurable):
         )
 
         try:
-            evolution = layout.Root.from_env().evolution
+            root = layout.Root.from_env()
+            evolution = root.evolution
             status_path = evolution.status
         except RuntimeError:
             return []
@@ -1890,12 +1891,33 @@ class Controller(Configurable):
         if run is not None:
             if not hasattr(self, "_evolution_outcomes"):
                 self._evolution_outcomes = EvolutionMetrics(
-                    evolution.run_outcomes(run.name)
+                    evolution.run_outcomes(run.name), run=run, root=root
                 )
             metrics = [
                 m.Metric(key, m.NoReduce(value))
-                for key, value in self._evolution_outcomes.poll().items()
+                for key, value in self._evolution_outcomes.poll(step=step).items()
             ]
+            if step is not None and self.config.metrics.enable_wandb:
+                try:
+                    import wandb
+
+                    if wandb.run is not None:
+                        xs, ys, keys = self._evolution_outcomes.origin_series(step)
+                        wandb.log(
+                            {
+                                "evolution/origin_step_chart": wandb.plot.line_series(
+                                    xs,
+                                    ys,
+                                    keys=keys,
+                                    title="Evolution issues and outcomes by origin step",
+                                    xname="Policy step at group claim",
+                                )
+                            },
+                            step=step,
+                            commit=False,
+                        )
+                except Exception:
+                    logger.exception("failed to log evolution origin-step chart")
         if run is not None and self.config.metrics.enable_wandb:
             import wandb
 
@@ -2452,7 +2474,7 @@ class Controller(Configurable):
                         for key, value in optim_result.metrics.items()
                     ],
                     *self._group_buffer.metrics(),
-                    *self._evolution_metrics(),
+                    *self._evolution_metrics(step),
                     *time_metrics,
                     *policy_age_panel,
                     *compute_perf_ratio_metrics(

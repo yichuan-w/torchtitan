@@ -9,6 +9,7 @@
 from __future__ import annotations
 
 import json
+from collections import Counter, defaultdict
 from pathlib import Path
 
 from torchtitan.experiments.rl.examples.tmax import layout
@@ -39,18 +40,110 @@ def record_outcome(root: layout.Root, rewrite: layout.RewriteDir, meta: dict) ->
             "direction": meta["job"],
             "status": meta["status"],
             "finished": meta.get("finished"),
+            "signal": meta["signal"],
         },
     )
 
 
 class EvolutionMetrics:
-    def __init__(self, path: Path) -> None:
+    def __init__(
+        self,
+        path: Path,
+        *,
+        run: layout.Run | None = None,
+        root: layout.Root | None = None,
+    ) -> None:
         self.path = path
+        self.run = run
+        self.root = root
         self.offset = 0
+        self.claim_offset = 0
         self.seen: set[str] = set()
+        self.seen_signals: set[str] = set()
         self.totals = dict.fromkeys(COUNTERS, 0)
+        self.claimed_origin: dict[int, int] = {}
+        self.signal_origin: dict[str, int] = {}
+        self.issue_signals: Counter[int] = Counter()
+        self.issue_tasks: dict[int, set[str]] = defaultdict(set)
+        self.outcomes_by_origin: dict[int, Counter[str]] = defaultdict(Counter)
+        self.observed_by_step: dict[int, Counter[str]] = defaultdict(Counter)
+        self.pending_origin: dict[str, dict] = {}
 
-    def poll(self) -> dict[str, float]:
+    def _poll_claims(self) -> None:
+        if self.run is None:
+            return
+        path = self.run.trainer / "training_lineage/events.jsonl"
+        if not path.exists():
+            return
+        with path.open("rb") as stream:
+            stream.seek(self.claim_offset)
+            while line := stream.readline():
+                if not line.endswith(b"\n"):
+                    break
+                event = json.loads(line)
+                if event["event"] == "claimed":
+                    # The policy version at group claim is the origin of its issue.
+                    self.claimed_origin[event["group_id"]] = event[
+                        "generator_policy_version"
+                    ]
+                self.claim_offset = stream.tell()
+
+    def _poll_signals(self) -> None:
+        if self.run is None:
+            return
+        for path in self.run.signal_files():
+            if path.name in self.seen_signals:
+                continue
+            signal = json.loads(path.read_text())
+            origin = self.claimed_origin.get(signal["group"])
+            if origin is None:
+                continue
+            identity = f"{self.run.name}/{path.stem}"
+            self.signal_origin[identity] = origin
+            self.issue_signals[origin] += 1
+            self.issue_tasks[origin].add(signal["task"])
+            self.seen_signals.add(path.name)
+
+    def _record_origin(self, event: dict) -> bool:
+        signal = event.get("signal")
+        if signal is None and self.root is not None:
+            # Older outcome records did not carry the signal ID; their rewrite does.
+            meta = self.root.path / event["rewrite"] / "rewrite.json"
+            if meta.exists():
+                signal = json.loads(meta.read_text()).get("signal")
+        origin = self.signal_origin.get(signal)
+        if origin is None:
+            return False
+        status = event["status"]
+        self.outcomes_by_origin[origin][status] += 1
+        if status == "interrupted":
+            self.outcomes_by_origin[origin]["failed"] += 1
+        return True
+
+    def origin_series(self, step: int) -> tuple[list[int], list[list[int]], list[str]]:
+        """One W&B chart: issued issues and outcomes on their origin/arrival axes."""
+        xs = list(range(max([step, *self.issue_signals]) + 1))
+        ys = [
+            [self.issue_signals[x] for x in xs],
+            [len(self.issue_tasks[x]) for x in xs],
+            [self.outcomes_by_origin[x]["accepted"] for x in xs],
+            [self.observed_by_step[x]["accepted"] for x in xs],
+            [self.outcomes_by_origin[x]["failed"] for x in xs],
+            [self.outcomes_by_origin[x]["rejected"] for x in xs],
+        ]
+        keys = [
+            "issue signals by origin",
+            "unique tasks by origin",
+            "accepted by origin",
+            "accepted when observed",
+            "failed by origin",
+            "rejected by origin",
+        ]
+        return xs, ys, keys
+
+    def poll(self, *, step: int | None = None) -> dict[str, float]:
+        self._poll_claims()
+        self._poll_signals()
         delta = dict.fromkeys(COUNTERS, 0)
         if self.path.exists():
             with self.path.open("rb") as stream:
@@ -72,11 +165,27 @@ class EvolutionMetrics:
                             delta[key] += 1
                             self.totals[key] += 1
                         self.seen.add(identity)
+                        if not self._record_origin(event):
+                            self.pending_origin[identity] = event
                     self.offset = stream.tell()
+        for identity, event in list(self.pending_origin.items()):
+            if self._record_origin(event):
+                del self.pending_origin[identity]
+        if step is not None:
+            self.observed_by_step[step].update(delta)
         return {
             **{f"evolution/step/{key}": float(value) for key, value in delta.items()},
             **{
                 f"evolution/run/{key}_total": float(value)
                 for key, value in self.totals.items()
             },
+            **(
+                {
+                    "evolution/origin/unmapped_outcomes_total": float(
+                        len(self.pending_origin)
+                    )
+                }
+                if self.run is not None
+                else {}
+            ),
         }

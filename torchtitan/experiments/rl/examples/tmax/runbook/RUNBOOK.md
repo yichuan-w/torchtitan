@@ -995,6 +995,26 @@ cumulative count for this training run. A completion is assigned to the step
 that observes it, not to the epoch that triggered its rewrite: evolution runs
 asynchronously.
 
+The same training run also logs the `evolution/origin_step_chart` custom line
+chart. Its x-axis is the generator policy version when a rollout group was
+claimed (origin step), starting at 0; the ordinary `evolution/step/*` x-axis is
+the training step that first read the outcome. The chart overlays these series:
+
+| Series | Count at x |
+| --- | --- |
+| `issue signals by origin` | Signal files emitted by groups claimed at this policy step; repeated signals for one task count separately. |
+| `unique tasks by origin` | Distinct task IDs among those signals. |
+| `accepted by origin`, `failed by origin`, `rejected by origin` | Completed rewrites grouped by the originating signal's claim-time policy step. |
+| `accepted when observed` | The existing per-training-step accepted count on the same x-axis scale, for comparison. |
+
+Search `evolution/origin_step_chart` in the run's Charts tab. A late outcome
+raises the count at its earlier origin step when the next training step logs a
+new chart snapshot. The issue series can exceed all outcome series while work
+is pending or a signal was not selected by the evolve loop. `failed` includes
+interrupted rewrites. The chart groups by claim-time policy version; it does
+not assert that every turn in a long rollout used that version. Outcomes that
+finish after the final training log are absent from that run's chart.
+
 | Name | Count |
 | --- | --- |
 | `harder_accepted` | Harder rewrites that passed validation and were published into the mix. |
