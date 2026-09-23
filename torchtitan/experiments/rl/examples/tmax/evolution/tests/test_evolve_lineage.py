@@ -1133,3 +1133,91 @@ def test_fold_carries_the_rows_domain_annotation(tmp_path, monkeypatch):
     live = json.loads(root.mix.live.read_text().splitlines()[0])
     assert live["metadata"]["rev"] == 1
     assert live["metadata"]["terminal_domain"] == "data-science"
+
+
+def _add_task(root: layout.Root, tid: str) -> None:
+    """A second seed task and its mix row, so a round has two to choose from."""
+    seed = root.data / "sources" / "tw-extract" / "tasks" / tid
+    for rel, text in SEED.items():
+        (seed / rel).parent.mkdir(parents=True, exist_ok=True)
+        (seed / rel).write_text(text)
+    rows = [line for line in root.mix.live.read_text().splitlines() if line]
+    rows.append(
+        json.dumps(
+            {
+                "prompt": SEED["instruction.md"],
+                "label": tid,
+                "metadata": {
+                    "instance_id": tid,
+                    "rev": 0,
+                    "daytona_cpu": 1,
+                    "daytona_mem_gb": 2,
+                    "daytona_disk_gb": 2,
+                },
+            }
+        )
+    )
+    root.mix.publish(rows)
+
+
+def test_a_signal_arriving_mid_round_starts_without_waiting_for_the_next(
+    tmp_path, monkeypatch
+):
+    """A freed worker takes new work now, not at the next round.
+
+    The batch this replaced fixed its todo when the round opened, so one slow
+    rewrite held every other worker idle however long the queue was.
+    """
+    root = _root(tmp_path, monkeypatch)
+    _add_task(root, "tw_b")
+    _signal(root, task="tw_a")
+
+    seen = _stub(monkeypatch)
+    started = od.fb.process_one
+    written = []
+
+    def arrive(rewrite, signal, **kwargs):
+        # tw_b's signal is written while tw_a's rewrite is still running, so
+        # only a refill can reach it inside this round.
+        if not written:
+            written.append(_signal(root, task="tw_b", group=8))
+        return started(rewrite, signal, **kwargs)
+
+    monkeypatch.setattr(od.fb, "process_one", arrive)
+    result = od.run_round(root, workers=2)
+
+    assert written, "the mid-round signal was never written"
+    assert {s["signal"]["task"] for s in seen} == {"tw_a", "tw_b"}
+    assert result["handled"] == 2
+
+
+def test_a_handler_that_raises_does_not_get_handed_back_forever(
+    tmp_path, monkeypatch
+):
+    """A signal whose rewrite closed no ledger line must not be re-picked.
+
+    run_round swallows an exception raised before a rewrite existed and
+    writes no ledger line for it, so the signal is still pending. A refill
+    that asked only "what is pending?" would hand the same one back on every
+    pass and the round would never end; `taken` is what stops it.
+    """
+    root = _root(tmp_path, monkeypatch)
+    _add_task(root, "tw_b")
+    _signal(root, task="tw_a")
+    _signal(root, task="tw_b", group=8)
+
+    calls = []
+
+    def boom(root_, sig, **kwargs):
+        # handle() itself, not process_one: process_one's own errors are
+        # caught inside and become a record, which the round closes.
+        calls.append(sig.task)
+        raise RuntimeError("no rewrite for you")
+
+    monkeypatch.setattr(od, "handle", boom)
+    result = od.run_round(root, workers=2)
+
+    # Each task attempted once, the round ended, and nothing was handled.
+    assert sorted(calls) == ["tw_a", "tw_b"], calls
+    assert result["handled"] == 0
+    assert not _ledger(root)

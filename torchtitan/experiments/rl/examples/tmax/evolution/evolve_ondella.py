@@ -64,7 +64,7 @@ import subprocess
 import sys
 import threading
 import time
-from concurrent.futures import as_completed, ThreadPoolExecutor
+from concurrent.futures import FIRST_COMPLETED, ThreadPoolExecutor, wait
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -1114,29 +1114,34 @@ def _replay_signal(root: layout.Root, sid: str) -> Signal:
     return Signal(run, path, sid, data, None)
 
 
-def run_round(
+def select_work(
     root: layout.Root,
+    ledger: dict[str, dict],
+    result: dict,
     *,
-    only: str | None = None,
-    limit: int | None = None,
-    workers: int = 8,
-    dry: bool = False,
-    signal: str | None = None,
-) -> dict:
-    ledger = load_ledger(root)
-    # A replay is inspection: it must not fold a rewrite of a revision the
-    # task has moved past, or close a signal the ledger already closed.
-    dry = dry or bool(signal)
-    result: dict = {
-        "handled": 0,
-        "accepted": 0,
-        "deferred": 0,
-        "junk": 0,
-        "superseded": 0,
-        "reused": 0,
-        "counts": {},
-        "mix_version": None,
-    }
+    only: str | None,
+    limit: int | None,
+    dry: bool,
+    signal: str | None,
+    busy: frozenset[str],
+) -> list[Signal] | None:
+    """The signals to start now, and the bookkeeping for the ones not started.
+
+    ``busy`` names the tasks the calling round has already taken. choose()
+    gives one signal per task, so without it a task whose next signal arrived
+    while its rewrite was still going would get a second, concurrent rewrite
+    of the same package -- and a task whose rewrite closed no ledger line
+    would be handed back on every refill, forever. Its signals simply stay
+    pending: nothing closed them, so a later round finds them again.
+
+    Returns None when there was nothing to look at at all (the caller reports
+    "no signals"), and a possibly empty list otherwise -- empty meaning every
+    signal was junk, deferred, reused or superseded rather than started.
+
+    Re-entrant by construction: discover() and choose() only read, and the
+    ledger the caller passes decides what is still pending. Every path that
+    closes a signal writes its ledger line before this is called again.
+    """
     if signal:
         picks, rest = [_replay_signal(root, signal)], []
         found: list[Signal] = []
@@ -1144,6 +1149,8 @@ def run_round(
         found = discover(root, ledger)
         if only:
             found = [s for s in found if s.task == only]
+        if busy:
+            found = [s for s in found if s.task not in busy]
         for s in found:
             if s.junk:
                 log.warning("junk signal %s: %s", s.sid, s.junk)
@@ -1152,7 +1159,7 @@ def run_round(
                     _ledger_line(root, s, "junk", reason=s.junk)
         picks, rest = choose(root, [s for s in found if s.data is not None])
     if not picks and not rest:
-        return {**result, "reason": "no signals"}
+        return None
 
     todo, deferred = [], []
     reused = set()
@@ -1186,76 +1193,156 @@ def run_round(
         result["superseded"] += 1
         if not dry:
             _ledger_line(root, s, "superseded", reason=why)
+    return todo
+
+
+def run_round(
+    root: layout.Root,
+    *,
+    only: str | None = None,
+    limit: int | None = None,
+    workers: int = 8,
+    dry: bool = False,
+    signal: str | None = None,
+) -> dict:
+    ledger = load_ledger(root)
+    # A replay is inspection: it must not fold a rewrite of a revision the
+    # task has moved past, or close a signal the ledger already closed.
+    dry = dry or bool(signal)
+    result: dict = {
+        "handled": 0,
+        "accepted": 0,
+        "deferred": 0,
+        "junk": 0,
+        "superseded": 0,
+        "reused": 0,
+        "counts": {},
+        "mix_version": None,
+    }
+    todo = select_work(
+        root,
+        ledger,
+        result,
+        only=only,
+        limit=limit,
+        dry=dry,
+        signal=signal,
+        busy=frozenset(),
+    )
+    if todo is None:
+        return {**result, "reason": "no signals"}
     if not todo:
         return result
 
     # What box training gives each task and which pin hook it grades under,
     # from the mix the trainer reads, and which axes the accepted rewrites
-    # already used. Read once per round: the mix is 12 MB on GPFS and the
-    # rewrite records are one small file each.
-    declared, pretests, protecteds = read_declared(root.mix.live)
-    history = operator_history(root)
+    # already used. The mix is 12 MB on GPFS, so this is read when work is
+    # about to be submitted rather than per completion -- and re-read then,
+    # because a fold during the round has already moved the mix on.
     handled: list[dict] = []
     with ThreadPoolExecutor(max_workers=workers) as ex:
-        futs = {
-            ex.submit(
-                handle,
-                root,
-                s,
-                declared=declared,
-                history=history,
-                dry=dry,
-                pretests=pretests,
-                protecteds=protecteds,
-            ): s
-            for s in todo
-        }
-        for fut in as_completed(futs):
-            s = futs[fut]
-            try:
-                h = fut.result()
-            except NoSeed as e:
-                log.warning("junk signal %s: %s", s.sid, e)
-                result["junk"] += 1
-                if not dry:
-                    _ledger_line(root, s, "junk", reason=str(e)[:200])
-                continue
-            except Exception as e:  # noqa: BLE001 -- one signal, not the round
-                log.exception(
-                    "%s: handling failed before a rewrite existed: %s", s.sid, e
+        futs: dict = {}
+        # Tasks this round has already taken, kept for the whole round rather
+        # than cleared on completion. Dropping a task when its rewrite ended
+        # would re-pick it forever on the paths that close no ledger line: a
+        # dry round writes none at all, and a handle() that raised before a
+        # rewrite existed writes none either.
+        taken: set[str] = set()
+
+        def fill(batch: list[Signal]) -> None:
+            """Submit up to the free slots, newest mix in hand."""
+            batch = batch[: workers - len(futs)]
+            if not batch:
+                return
+            declared, pretests, protecteds = read_declared(root.mix.live)
+            history = operator_history(root)
+            for s in batch:
+                futs[
+                    ex.submit(
+                        handle,
+                        root,
+                        s,
+                        declared=declared,
+                        history=history,
+                        dry=dry,
+                        pretests=pretests,
+                        protecteds=protecteds,
+                    )
+                ] = s
+                taken.add(s.task)
+
+        fill(todo)
+        while futs:
+            done, _ = wait(list(futs), return_when=FIRST_COMPLETED)
+            for fut in done:
+                s = futs.pop(fut)
+                try:
+                    h = fut.result()
+                except NoSeed as e:
+                    log.warning("junk signal %s: %s", s.sid, e)
+                    result["junk"] += 1
+                    if not dry:
+                        _ledger_line(root, s, "junk", reason=str(e)[:200])
+                    continue
+                except Exception as e:  # noqa: BLE001 -- one signal, not the round
+                    log.exception(
+                        "%s: handling failed before a rewrite existed: %s", s.sid, e
+                    )
+                    continue
+                meta = h["meta"]
+                log.info(
+                    "%s %s r%s %s %s/%s -> %s (%s%s) %s",
+                    meta["task"],
+                    s.sid,
+                    meta["input_rev"],
+                    meta["job"],
+                    s.data.get("solved"),
+                    s.data.get("total"),
+                    h["status"],
+                    meta.get("stage") or "-",
+                    f": {meta['reason'][:200]}" if meta.get("reason") else "",
+                    _rewrite_ref(root, h["rewrite"]),
                 )
-                continue
-            meta = h["meta"]
-            log.info(
-                "%s %s r%s %s %s/%s -> %s (%s%s) %s",
-                meta["task"],
-                s.sid,
-                meta["input_rev"],
-                meta["job"],
-                s.data.get("solved"),
-                s.data.get("total"),
-                h["status"],
-                meta.get("stage") or "-",
-                f": {meta['reason'][:200]}" if meta.get("reason") else "",
-                _rewrite_ref(root, h["rewrite"]),
-            )
-            handled.append(h)
-            if h["status"] == "accepted" and not dry:
-                # Folded the moment it is accepted, one mix version each,
-                # rather than once for the whole round. A round of 64
-                # concurrent rewrites runs for hours, and a loop stopped
-                # inside it (a restart for a config change, a killed unit)
-                # used to leave every accepted package sitting as `running`
-                # with no revision behind it; on 2026-09-14 that was 7
-                # accepted rewrites recovered by hand and 87 more at risk.
-                # fold() settles the rewrite one way or the other (accepted
-                # with a revision, or rejected/failed at the fold); closing
-                # it afterwards keeps the ledger line the last thing written.
-                version = fold(root, [h])
-                if version is not None:
-                    result["mix_version"] = version
-            if h["status"] != "accepted" or not dry:
-                _close(root, h, dry=dry)
+                handled.append(h)
+                if h["status"] == "accepted" and not dry:
+                    # Folded the moment it is accepted, one mix version each,
+                    # rather than once for the whole round. A round of 64
+                    # concurrent rewrites runs for hours, and a loop stopped
+                    # inside it (a restart for a config change, a killed unit)
+                    # used to leave every accepted package sitting as `running`
+                    # with no revision behind it; on 2026-09-14 that was 7
+                    # accepted rewrites recovered by hand and 87 more at risk.
+                    # fold() settles the rewrite one way or the other (accepted
+                    # with a revision, or rejected/failed at the fold); closing
+                    # it afterwards keeps the ledger line the last thing written.
+                    version = fold(root, [h])
+                    if version is not None:
+                        result["mix_version"] = version
+                if h["status"] != "accepted" or not dry:
+                    _close(root, h, dry=dry)
+            # A slot freed here takes the next pending signal now rather
+            # than at the next round: a task that finishes in 6 minutes must
+            # not hold a worker for the 40 the slowest one takes. The ledger
+            # is re-read because _close above has just added to it, and
+            # `taken` keeps this round from starting a second rewrite of a
+            # task it has already rewritten.
+            #
+            # Not for a dry round, which closes no ledger line: the junk,
+            # deferred and superseded signals it reports are still pending on
+            # the next call, and refilling would count each of them once per
+            # refill. A dry round is a snapshot of one moment by design.
+            if not signal and not limit and not dry and len(futs) < workers:
+                more = select_work(
+                    root,
+                    load_ledger(root),
+                    result,
+                    only=only,
+                    limit=limit,
+                    dry=dry,
+                    signal=None,
+                    busy=frozenset(taken),
+                )
+                fill(more or [])
 
     for h in handled:
         result["counts"][h["status"]] = result["counts"].get(h["status"], 0) + 1
