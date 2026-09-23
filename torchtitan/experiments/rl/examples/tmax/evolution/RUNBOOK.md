@@ -56,8 +56,8 @@ The same numbers reach W&B (project `terminal-agent-rl`): the training run carri
 loop's health sits on the same dashboard as the loss.
 
 Training also logs run-scoped outcome curves at each step:
-`evolution/step/harder_accepted`, `evolution/step/accepted`,
-`evolution/step/failed` and `evolution/step/rejected`, plus cumulative
+`evolution/step/rewrite_accepted_harder`, `evolution/step/rewrite_accepted`,
+`evolution/step/rewrite_failed` and `evolution/step/rewrite_rejected`, plus cumulative
 `evolution/run/<name>_total` curves. The trainer reads rewrite outcomes at each
 logged step, without waiting for the round-level status snapshot. See
 [Evolution charts in the training W&B run](../runbook/RUNBOOK.md#evolution-charts-in-the-training-wb-run)

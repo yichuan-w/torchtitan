@@ -195,11 +195,15 @@ class RewardObserverTest(unittest.TestCase):
                         },
                     )
                     values = dict(namespace["_evolution_metrics"](owner))
-                    self.assertEqual(values["evolution/step/harder_accepted"], 1)
-                    self.assertEqual(values["evolution/run/accepted_total"], 1)
+                    self.assertEqual(
+                        values["evolution/step/rewrite_accepted_harder"], 1
+                    )
+                    self.assertEqual(values["evolution/run/rewrite_accepted_total"], 1)
                     values = dict(namespace["_evolution_metrics"](owner))
-                    self.assertEqual(values["evolution/step/harder_accepted"], 0)
-                    self.assertEqual(values["evolution/run/accepted_total"], 1)
+                    self.assertEqual(
+                        values["evolution/step/rewrite_accepted_harder"], 0
+                    )
+                    self.assertEqual(values["evolution/run/rewrite_accepted_total"], 1)
 
     def test_step_outcomes_are_run_scoped_and_reset_each_poll(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -233,16 +237,16 @@ class RewardObserverTest(unittest.TestCase):
                     },
                 )
             first = metrics.poll()
-            self.assertEqual(first["evolution/step/accepted"], 2)
-            self.assertEqual(first["evolution/step/harder_accepted"], 1)
-            self.assertEqual(first["evolution/step/easier_accepted"], 1)
-            self.assertEqual(first["evolution/step/failed"], 2)
-            self.assertEqual(first["evolution/step/interrupted"], 1)
-            self.assertEqual(first["evolution/step/rejected"], 1)
-            self.assertEqual(first["evolution/step/rewrite_outcomes"], 7)
+            self.assertEqual(first["evolution/step/rewrite_accepted"], 2)
+            self.assertEqual(first["evolution/step/rewrite_accepted_harder"], 1)
+            self.assertEqual(first["evolution/step/rewrite_accepted_easier"], 1)
+            self.assertEqual(first["evolution/step/rewrite_failed"], 2)
+            self.assertEqual(first["evolution/step/rewrite_interrupted"], 1)
+            self.assertEqual(first["evolution/step/rewrite_rejected"], 1)
+            self.assertEqual(first["evolution/step/rewrite_finalized"], 7)
             second = metrics.poll()
-            self.assertEqual(second["evolution/step/accepted"], 0)
-            self.assertEqual(second["evolution/run/accepted_total"], 2)
+            self.assertEqual(second["evolution/step/rewrite_accepted"], 0)
+            self.assertEqual(second["evolution/run/rewrite_accepted_total"], 2)
             self.assertEqual(
                 outcome_metrics.EvolutionMetrics(metrics.path).poll(), first
             )
@@ -313,26 +317,26 @@ class RewardObserverTest(unittest.TestCase):
             fourth = metrics.poll(step=4)
             self.assertEqual(fourth["evolution/run/signal_issued_total"], 5)
             self.assertEqual(fourth["evolution/run/signal_consumed_total"], 4)
-            self.assertEqual(fourth["evolution/run/rewrite_outcomes_total"], 3)
+            self.assertEqual(fourth["evolution/run/rewrite_finalized_total"], 3)
             _, flow, keys = metrics.signal_flow_series(4)
             self.assertEqual(
                 keys,
                 [
                     "signal_issued (origin cumulative)",
                     "signal_consumed (origin cumulative)",
-                    "rewrite_outcomes (observed cumulative)",
+                    "rewrite_finalized (observed cumulative)",
                 ],
             )
             self.assertEqual(flow[0], [2, 5, 5, 5, 5])
             self.assertEqual(flow[1], [2, 4, 4, 4, 4])
             self.assertEqual(flow[2], [0, 0, 1, 3, 3])
-            xs, ys, _ = metrics.comparison_series(3, "accepted")
+            xs, ys, _ = metrics.comparison_series(3, "rewrite_accepted")
             self.assertEqual(xs, [0, 1, 2, 3])
             self.assertEqual(ys[0], [0, 0, 1, 1])  # observed
             self.assertEqual(ys[1], [1, 1, 0, 0])  # origin
-            _, failed, _ = metrics.comparison_series(3, "failed")
+            _, failed, _ = metrics.comparison_series(3, "rewrite_failed")
             self.assertEqual(failed[1], [1, 0, 0, 0])
-            _, harder, _ = metrics.comparison_series(3, "harder_accepted")
+            _, harder, _ = metrics.comparison_series(3, "rewrite_accepted_harder")
             self.assertEqual(harder[1], [1, 1, 0, 0])
 
     def test_partial_append_and_duplicate_outcome_are_not_counted_twice(self):
@@ -343,11 +347,11 @@ class RewardObserverTest(unittest.TestCase):
             )
             path.write_text(event[:20])
             metrics = outcome_metrics.EvolutionMetrics(path)
-            self.assertEqual(metrics.poll()["evolution/step/accepted"], 0)
+            self.assertEqual(metrics.poll()["evolution/step/rewrite_accepted"], 0)
             with path.open("a") as stream:
                 stream.write(event[20:] + "\n" + event + "\n")
-            self.assertEqual(metrics.poll()["evolution/step/accepted"], 1)
-            self.assertEqual(metrics.poll()["evolution/step/accepted"], 0)
+            self.assertEqual(metrics.poll()["evolution/step/rewrite_accepted"], 1)
+            self.assertEqual(metrics.poll()["evolution/step/rewrite_accepted"], 0)
 
     def test_dry_outcomes_do_not_enter_training_metrics(self):
         with tempfile.TemporaryDirectory() as directory:

@@ -1915,11 +1915,11 @@ class Controller(Configurable):
                             )
                         }
                         for counter in (
-                            "harder_accepted",
-                            "accepted",
-                            "failed",
-                            "rejected",
-                            "rewrite_outcomes",
+                            "rewrite_accepted_harder",
+                            "rewrite_accepted",
+                            "rewrite_failed",
+                            "rewrite_rejected",
+                            "rewrite_finalized",
                         ):
                             xs, ys, keys = self._evolution_outcomes.comparison_series(
                                 step, counter

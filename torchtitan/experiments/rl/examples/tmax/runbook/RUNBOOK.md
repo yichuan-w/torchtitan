@@ -995,7 +995,8 @@ is the cumulative count for this training run. A rewrite outcome is assigned
 to the step that observes it, not to the epoch that triggered it: evolution
 runs asynchronously.
 
-For `harder_accepted`, `accepted`, `failed`, `rejected`, and `rewrite_outcomes`, the
+For `rewrite_accepted_harder`, `rewrite_accepted`, `rewrite_failed`,
+`rewrite_rejected`, and `rewrite_finalized`, the
 training run's chart contains two curves: `observed at training step` is the
 existing count, and `origin policy step` puts the same rewrite outcomes at the
 generator policy version when their rollout group was claimed. The two curves
@@ -1007,16 +1008,16 @@ The `evolution/run/signal_flow` panel overlays three cumulative curves.
 `signal_issued` counts signals emitted by the trainer. `signal_consumed` counts
 distinct signals with a terminal ledger decision: `handled`, `deferred`,
 `superseded`, `reused`, or `junk`. These two curves use the policy step when
-each signal's group was claimed. `rewrite_outcomes` counts handled rewrite
+each signal's group was claimed. `rewrite_finalized` counts handled rewrite
 attempts with a recorded final verdict, including `accepted`, `failed`,
 `rejected`, `kept`, and `blocked`; it uses the training step when that outcome
 was observed. At the final recorded totals, `signal_issued - signal_consumed`
-is the count without a ledger decision. `signal_consumed - rewrite_outcomes`
+is the count without a ledger decision. `signal_consumed - rewrite_finalized`
 includes signals settled without a new rewrite, and may temporarily include
 rewrite outcomes not yet observed by the trainer.
 The same counts are logged as `evolution/run/signal_issued_total`,
 `evolution/run/signal_consumed_total`, and
-`evolution/run/rewrite_outcomes_total`.
+`evolution/run/rewrite_finalized_total`.
 The two step meanings are labeled in the legend and x-axis title; matching
 x positions do not mean the events occurred simultaneously. The origin curves
 do not assert that every turn in a long rollout used the claim-time policy
@@ -1025,19 +1026,19 @@ from that run's chart.
 
 | Name | Count |
 | --- | --- |
-| `harder_accepted` | Harder rewrites that passed validation and were published into the mix. |
-| `accepted` | All rewrites that passed validation and were published, including easier rewrites. |
-| `failed` | Execution failures, including interrupted rewrites. |
-| `rejected` | Rewrites rejected by validation or publication checks. |
-| `easier_accepted` | Easier rewrites that passed validation and were published. |
-| `interrupted` | Attempts interrupted when the evolve loop stopped. |
-| `blocked` | Attempts recorded as blocked. |
-| `kept` | Attempts that kept the original task. |
-| `rewrite_outcomes` | All rewrite attempts with a final verdict, including failed and interrupted attempts. |
+| `rewrite_accepted_harder` | Harder rewrites that passed validation and were published into the mix. |
+| `rewrite_accepted` | All rewrites that passed validation and were published, including easier rewrites. |
+| `rewrite_failed` | Execution failures, including interrupted rewrites. |
+| `rewrite_rejected` | Rewrites rejected by validation or publication checks. |
+| `rewrite_accepted_easier` | Easier rewrites that passed validation and were published. |
+| `rewrite_interrupted` | Attempts interrupted when the evolve loop stopped. |
+| `rewrite_blocked` | Attempts recorded as blocked. |
+| `rewrite_kept` | Attempts that kept the original task. |
+| `rewrite_finalized` | All rewrite attempts with a final verdict, including failed and interrupted attempts. |
 
 Counts are per rewrite attempt, not unique tasks. A task rewritten twice can
-count twice. `harder_accepted` and `easier_accepted` are subsets of `accepted`;
-`interrupted` is a subset of `failed`.
+count twice. `rewrite_accepted_harder` and `rewrite_accepted_easier` are subsets
+of `rewrite_accepted`; `rewrite_interrupted` is a subset of `rewrite_failed`.
 
 The evolve loop appends each rewrite outcome to `evolution/outcomes/<run>.jsonl`
 after publication is settled. The trainer reads new records each step, without

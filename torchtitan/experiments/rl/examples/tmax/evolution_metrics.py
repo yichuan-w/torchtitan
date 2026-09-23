@@ -17,22 +17,22 @@ from torchtitan.experiments.rl.examples.tmax import layout
 
 
 COUNTERS = (
-    "rewrite_outcomes",
-    "accepted",
-    "harder_accepted",
-    "easier_accepted",
-    "failed",
-    "interrupted",
-    "rejected",
-    "blocked",
-    "kept",
+    "rewrite_finalized",
+    "rewrite_accepted",
+    "rewrite_accepted_harder",
+    "rewrite_accepted_easier",
+    "rewrite_failed",
+    "rewrite_interrupted",
+    "rewrite_rejected",
+    "rewrite_blocked",
+    "rewrite_kept",
 )
 ORIGIN_CHART_COUNTERS = (
-    "harder_accepted",
-    "accepted",
-    "failed",
-    "rejected",
-    "rewrite_outcomes",
+    "rewrite_accepted_harder",
+    "rewrite_accepted",
+    "rewrite_failed",
+    "rewrite_rejected",
+    "rewrite_finalized",
 )
 
 
@@ -76,7 +76,7 @@ class EvolutionMetrics:
         self.consumed_signals: set[str] = set()
         self.outcomes_by_origin: dict[int, Counter[str]] = defaultdict(Counter)
         self.observed_by_step: dict[int, Counter[str]] = defaultdict(Counter)
-        self.rewrite_outcomes_total_by_step: dict[int, int] = {}
+        self.rewrite_finalized_total_by_step: dict[int, int] = {}
         self.pending_origin: dict[str, dict] = {}
 
     def _poll_claims(self) -> None:
@@ -140,12 +140,14 @@ class EvolutionMetrics:
         if origin is None:
             return False
         status = event["status"]
-        self.outcomes_by_origin[origin]["rewrite_outcomes"] += 1
-        self.outcomes_by_origin[origin][status] += 1
+        self.outcomes_by_origin[origin]["rewrite_finalized"] += 1
+        self.outcomes_by_origin[origin][f"rewrite_{status}"] += 1
         if status == "accepted":
-            self.outcomes_by_origin[origin][f"{event['direction']}_accepted"] += 1
+            self.outcomes_by_origin[origin][
+                f"rewrite_accepted_{event['direction']}"
+            ] += 1
         if status == "interrupted":
-            self.outcomes_by_origin[origin]["failed"] += 1
+            self.outcomes_by_origin[origin]["rewrite_failed"] += 1
         return True
 
     def signal_flow_series(
@@ -161,7 +163,7 @@ class EvolutionMetrics:
         ys = [
             list(accumulate(self.issue_signals[x] for x in xs)),
             list(accumulate(consumed[x] for x in xs)),
-            [self.rewrite_outcomes_total_by_step.get(x, 0) for x in xs],
+            [self.rewrite_finalized_total_by_step.get(x, 0) for x in xs],
         ]
         return (
             xs,
@@ -169,7 +171,7 @@ class EvolutionMetrics:
             [
                 "signal_issued (origin cumulative)",
                 "signal_consumed (origin cumulative)",
-                "rewrite_outcomes (observed cumulative)",
+                "rewrite_finalized (observed cumulative)",
             ],
         )
 
@@ -202,11 +204,11 @@ class EvolutionMetrics:
                     identity = event["rewrite"]
                     if identity not in self.seen:
                         status = event["status"]
-                        keys = ["rewrite_outcomes", status]
+                        keys = ["rewrite_finalized", f"rewrite_{status}"]
                         if status == "accepted":
-                            keys.append(f"{event['direction']}_accepted")
+                            keys.append(f"rewrite_accepted_{event['direction']}")
                         elif status == "interrupted":
-                            keys.append("failed")
+                            keys.append("rewrite_failed")
                         for key in keys:
                             delta[key] += 1
                             self.totals[key] += 1
@@ -219,7 +221,9 @@ class EvolutionMetrics:
                 del self.pending_origin[identity]
         if step is not None:
             self.observed_by_step[step].update(delta)
-            self.rewrite_outcomes_total_by_step[step] = self.totals["rewrite_outcomes"]
+            self.rewrite_finalized_total_by_step[step] = self.totals[
+                "rewrite_finalized"
+            ]
         return {
             **{f"evolution/step/{key}": float(value) for key, value in delta.items()},
             **{
