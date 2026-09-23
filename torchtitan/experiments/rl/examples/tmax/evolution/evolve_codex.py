@@ -5,18 +5,13 @@
 # This source code is licensed under the BSD-style license found in the
 # LICENSE file in the root directory of this source tree.
 
-"""Agentic retune: change a task with the Codex CLI instead of one chat call.
+"""Agentic retune: change a task with a Codex or Claude CLI session.
 
-The chat retune (evolve.simplify) crams the failure traces into a single prompt
-truncated to 20k chars, then asks once. This gives Codex the FULL traces as
-files in the package and a role via AGENTS.md, and lets it read, focus, and
-rewrite agentically -- no truncation, and the role/rules live in a maintainable
-file rather than a built string.
+The agent reads the full rollout traces as files in the package and follows
+the role in AGENTS.md. It can inspect the task, test changes and revise them.
 
-Same contract as evolve.simplify / evolve.evolve: takes the task dict, returns
-a new task dict with files rewritten and `_hint` set. The output goes through
-the SAME revalidation downstream -- this only changes HOW the new files are
-written, not the gate they must pass.
+The session takes a task dict and returns the rewritten package as a task dict.
+The loop then revalidates that package before accepting it.
 
 Where it works: the rewrite's own `package/` (LAYOUT.md). The loop copies the
 input revision there and hardlinks the rollout records under `traces/`; the
@@ -54,7 +49,6 @@ import simplify_operators as so
 import synth_client as llm
 import task_size as ts
 import verifier_literals as vl
-from synth_operators import harder_uses_operators
 from torchtitan.experiments.rl.examples.tmax import layout, rollout_record
 from verifier_probes import (
     SemanticProbeContract,
@@ -804,7 +798,7 @@ def _prepare_package(pkg: Path, task: dict) -> dict:
     (pkg / "run").mkdir(exist_ok=True)
     fmap = ev.file_map(task)
     _write_seed_literals(
-        pkg, fmap["test_state_py"], require_growth=task.get("_harder_mode") != "student"
+        pkg, fmap["test_state_py"], require_growth=False
     )
     _write_resources(pkg, task)
     _write_pretest(pkg, task)
@@ -1254,34 +1248,6 @@ def rewrite_budget_sec(root: "layout.Root | None" = None) -> float:
     return sec
 
 
-_OPERATOR_HARDER_GUIDANCE = """Make it one rung harder, along exactly one of these
-axes:
-
-{candidates}
-
-One rung, not a new task. Keep everything the seed asks for and add ONE
-requirement that the agent which solved it never had to meet. The attempts
-are in `traces/`, one file per attempt (format under TRACES at
-the end). Some may have failed; inspect those failures too. What made the
-successful attempts easy is visible there: the guidance the
-instruction handed over, the step the agent never had to work out. Before you
-choose the axis, list the commands of two or three attempts end to end; the
-attempt that solved it in the fewest turns says which step was free.
-
-Pick from that list and nothing else. The list is not a menu of equals — it is
-ordered, and the order was computed against the whole task pool: which
-transformations are under-represented right now, and which ones this task has a
-foothold for. Work down it and take the first axis this package genuinely
-supports, so that substituting whichever is easiest to write cannot quietly
-collapse the pool onto a few kinds of change. Then write that axis's id, alone
-on one line, to `run/operator.txt`, before you start changing anything.
-
-If none of the listed axes fits this task, write
-`GIVE UP: operator-misfit — <why>` and stop. Say which ones you considered
-and what was missing for each.
-"""
-
-
 _STUDENT_HARDER_GUIDANCE = """Choose one change from the student's actual attempts
 in `traces/`. Start by identifying the successful strategy and a task-relevant
 judgment it currently bypasses. Inspect failures as well: distinguish a missing
@@ -1691,25 +1657,6 @@ excluding JSON metadata and completion markers.
 def _budget(timeout: int) -> str:
     deadline = time.strftime("%H:%M %Z", time.localtime(time.time() + timeout))
     return _BUDGET.format(deadline=deadline, budget_min=timeout // 60)
-
-
-def _candidates(operator: list[tuple[str, str, str]] | None) -> str:
-    """The scored shortlist, each entry with its full card.
-
-    The one-line definition is what the pool's scan matches on; the card is
-    what the authors wrote for whoever builds the task: what the seed needs to
-    have, how the harder version is constructed, what the verifier checks and
-    how a shortcut is refused. The agent used to get the line only.
-    """
-    cands = list(operator or [])
-    if not cands:
-        return "    (none)"
-    parts = []
-    for i, (fam, op, defn) in enumerate(cands, 1):
-        card = llm.operator_card(op)
-        card_lines = "\n".join("       " + line for line in card.splitlines())
-        parts.append(f"    {i}. {op} ({fam})\n       {defn}\n{card_lines}")
-    return "\n".join(parts)
 
 
 def _blind_layout(pkg: Path, vpkg: Path) -> None:
@@ -2205,7 +2152,6 @@ def evolve_agentic(
     *,
     observed: str = "",
     exit_code: int = 1,
-    operator: list[tuple[str, str, str]] | None = None,
 ) -> dict:
     """Run one agent session over the rewrite's package, with its container as
     a tool.
@@ -2221,9 +2167,8 @@ def evolve_agentic(
     when the agent declined.
     """
     _require_codex()
-    use_operators = job == "harder" and harder_uses_operators()
     if job == "harder":
-        task = {**task, "_harder_mode": "operators" if use_operators else "student"}
+        task = {**task, "_harder_mode": "student"}
     pkg = rewrite.package
     solved = task.get("_solved", 0)
     attempts_n = task.get(
@@ -2232,7 +2177,6 @@ def evolve_agentic(
     previous = rewrite.traces / "previous-simplify.json"
     calibration = (
         job == "harder"
-        and not use_operators
         and solved == attempts_n
         and attempts_n > 0
         and previous.exists()
@@ -2247,13 +2191,6 @@ def evolve_agentic(
     if observed:
         (pkg / "run" / "failure.txt").write_text(observed)
 
-    # `operator` is the scored shortlist, in score order, each entry
-    # (family, operator_id, definition) -- the same order operator_shortlist
-    # and pick_operator both return.
-    cands = list(operator or []) if use_operators else []
-    if use_operators and not cands:
-        raise ValueError("operator mode requires a nonempty harder shortlist")
-    allowed = {op: fam for fam, op, _ in cands}
     seed_size = ts.size_of(
         task["solve_sh"],
         task["test_state_py"],
@@ -2266,23 +2203,13 @@ def evolve_agentic(
             "harder": (_HARDER_JOB_BLIND if blind else _HARDER_JOB).format(
                 solved=solved,
                 attempts=attempts_n,
-                guidance=(
-                    _OPERATOR_HARDER_GUIDANCE.format(candidates=_candidates(cands))
-                    if use_operators
-                    else _CALIBRATION_GUIDANCE
-                    if calibration
-                    else _STUDENT_HARDER_GUIDANCE
-                ),
+                guidance=_CALIBRATION_GUIDANCE if calibration else _STUDENT_HARDER_GUIDANCE,
                 seed_lines=seed_size["solution_lines"],
                 seed_asserts=seed_size["verifier_asserts"],
                 growth_bound=(
-                    f"The reference solution must grow by {ts.MIN_ADDED} to {ts.MAX_ADDED} non-comment lines."
-                    if use_operators
-                    else (
-                        "The reference solution may stay the same length or shrink, "
-                        f"and may grow by at most {ts.MAX_ADDED} non-comment lines. "
-                        "Do not add code to meet a minimum length."
-                    )
+                    "The reference solution may stay the same length or shrink, "
+                    f"and may grow by at most {ts.MAX_ADDED} non-comment lines. "
+                    "Do not add code to meet a minimum length."
                 ),
                 max_asserts=ts.MAX_ADDED_ASSERTS,
             ),
@@ -2298,11 +2225,7 @@ def evolve_agentic(
         + _budget(AGENT_TIMEOUT)
     )
 
-    if (
-        not use_operators
-        and job in ("harder", "easier")
-        and task.get("_student_feedback")
-    ):
+    if job in ("harder", "easier") and task.get("_student_feedback"):
         feedback = task["_student_feedback"]
         (pkg / "run" / "student_feedback.json").write_text(
             json.dumps(feedback, indent=2) + "\n"
@@ -2358,7 +2281,7 @@ def evolve_agentic(
     out["_agent_validated"] = _agent_checked(pkg)
     out["_session"] = str(run.dir.path)
     if job == "harder":
-        out["_harder_mode"] = "operators" if use_operators else "student"
+        out["_harder_mode"] = "student"
     if job == "easier":
         decision = so.read_decision(pkg, task.get("_simplify_hint", "vague"))
         decision["hint_level"] = task.get("_simplify_hint", "vague")
@@ -2373,26 +2296,6 @@ def evolve_agentic(
     if vsession is not None:
         out["_verifier_author"] = "blind"
         out["_verifier_session"] = str(vsession.path)
-    if cands:
-        # The diversity terms are not a counter -- they are recomputed each
-        # round from the operator every accepted rewrite records. A rewrite
-        # folded without one is invisible to that scan, so the family balance
-        # drifts and nothing reports it. That is why an unreadable
-        # declaration fails the session rather than defaulting to the top
-        # candidate: a wrong operator on a folded task is worse for the
-        # balance than no task, because it is counted.
-        declared = pkg / "run" / "operator.txt"
-        chosen = (
-            declared.read_text().strip().split()[0]
-            if declared.exists() and declared.read_text().strip()
-            else ""
-        )
-        if chosen not in allowed:
-            raise RuntimeError(
-                f"agent did not declare which axis it used "
-                f"(run/operator.txt={chosen!r}, offered={sorted(allowed)})"
-            )
-        out["_operator"], out["_family"] = chosen, allowed[chosen]
     return out
 
 

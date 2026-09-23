@@ -120,8 +120,6 @@ def test_process_one_probes_in_the_agents_box_and_sizes_from_its_own_reading(
                                     CYBER_RETRIES=2)
     monkeypatch.setitem(sys.modules, "evolve_codex", fake_ec)
     monkeypatch.setenv("SWE_RETUNE_AGENT", "codex")
-    monkeypatch.setattr(fb.llm, "operator_shortlist",
-                        lambda _task, _uo, _uf: [("fam", "op", "definition")])
     monkeypatch.setattr(fb, "revalidate", fake_revalidate)
 
     rec = fb.process_one(rw, {"task": "task-a", "rev": 0, "run": "r", "group": 1,

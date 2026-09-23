@@ -235,49 +235,26 @@ def test_blind_mode_runs_two_sessions_and_the_second_never_sees_the_solution(
         assert json.loads(s.meta.read_text())["status"] == "completed"
 
 
-@pytest.mark.parametrize("mode", [None, "0", "1"])
-def test_harder_menu_is_opt_in(tmp_path, monkeypatch, mode):
-    if mode is None:
-        monkeypatch.delenv("EVOLVE_HARDER_OPERATORS", raising=False)
-    else:
-        monkeypatch.setenv("EVOLVE_HARDER_OPERATORS", mode)
+def test_harder_uses_student_feedback_without_operator_menu(tmp_path, monkeypatch):
     rw = _rewrite(tmp_path, monkeypatch)
     sessions, checks = [], []
     _wire(monkeypatch, sessions, checks)
-    if mode == "1":
-        (rw.package / "run").mkdir(exist_ok=True)
-        (rw.package / "run/operator.txt").write_text("test_operator")
-    out = ec.evolve_agentic(
-        rw,
-        dict(SEED),
-        "harder",
-        operator=[("test_family", "test_operator", "test_definition")],
-    )
+    out = ec.evolve_agentic(rw, dict(SEED), "harder")
     prompt = sessions[0]["prompt"]
     size = json.loads((rw.package / "run/seed_size.json").read_text())
-    if mode == "1":
-        assert size.get("require_growth", True)
-        assert "must grow by 3 to 8" in prompt
-        assert "test_definition" in prompt and "Pick from that list" in prompt
-        assert "operator-misfit" in prompt
-        assert out["_operator"] == "test_operator"
-    else:
-        assert size["require_growth"] is False
-        assert "may stay the same length or shrink" in prompt
-        assert "test_definition" not in prompt and "Pick from that list" not in prompt
-        assert "run/hardening.md" in prompt
-        assert "new inference or decision" in prompt
-        assert "listed axes" not in prompt
-        assert "operator-misfit" not in prompt
-        assert "under this axis" not in prompt
-        assert "no-supported-hardening" in prompt
-        assert "_operator" not in out
-        assert out["_harder_mode"] == "student"
+    assert size["require_growth"] is False
+    assert "may stay the same length or shrink" in prompt
+    assert "run/hardening.md" in prompt
+    assert "new inference or decision" in prompt
+    assert "listed axes" not in prompt
+    assert "operator-misfit" not in prompt
+    assert "no-supported-hardening" in prompt
+    assert "_operator" not in out
+    assert out["_harder_mode"] == "student"
 
 
 @pytest.mark.parametrize("job", ["harder", "easier"])
 def test_measured_feedback_reaches_proposer_only(tmp_path, monkeypatch, job):
-    monkeypatch.setenv("EVOLVE_HARDER_OPERATORS", "0")
     rw = _rewrite(tmp_path, monkeypatch)
     sessions, checks = [], []
     _wire(monkeypatch, sessions, checks)
@@ -292,16 +269,6 @@ def test_measured_feedback_reaches_proposer_only(tmp_path, monkeypatch, job):
         json.loads((rw.package / "run/student_feedback.json").read_text()) == feedback
     )
     assert "student_feedback" not in (rw.package / "instruction.md").read_text()
-
-
-def test_operator_mode_still_requires_declaration(tmp_path, monkeypatch):
-    monkeypatch.setenv("EVOLVE_HARDER_OPERATORS", "1")
-    rw = _rewrite(tmp_path, monkeypatch)
-    _wire(monkeypatch, [], [])
-    with pytest.raises(RuntimeError, match="did not declare"):
-        ec.evolve_agentic(
-            rw, dict(SEED), "harder", operator=[("family", "op", "definition")]
-        )
 
 
 def test_failed_semantic_replay_prevents_accepting_verifier(tmp_path, monkeypatch):

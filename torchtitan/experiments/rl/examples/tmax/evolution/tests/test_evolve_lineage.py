@@ -151,7 +151,6 @@ def test_training_signal_supplies_measured_feedback_and_parent_revision(
 ):
     root = _root(tmp_path, monkeypatch)
     monkeypatch.setenv("SWE_RETUNE_AGENT", "codex")
-    monkeypatch.setenv("EVOLVE_HARDER_OPERATORS", "0")
     _signal(root)
     seen = _stub(monkeypatch)
     od.run_round(root, workers=1)
@@ -182,7 +181,6 @@ def test_explicit_feedback_is_preserved_and_changed_feedback_is_not_reused(
 ):
     root = _root(tmp_path, monkeypatch)
     monkeypatch.setenv("SWE_RETUNE_AGENT", "codex")
-    monkeypatch.setenv("EVOLVE_HARDER_OPERATORS", "0")
     seen = _stub(
         monkeypatch, status="kept", harder_mode="student", require_solution_growth=False
     )
@@ -213,7 +211,7 @@ def _stub(monkeypatch, status: str = "accepted", **extra) -> _Seen:
     seen = _Seen()
     seen.rows = []
 
-    def fake(rewrite, signal, *, job, seed_dir, resources=None, history=None):
+    def fake(rewrite, signal, *, job, seed_dir, resources=None):
         seen.append(
             {
                 "rewrite": rewrite,
@@ -221,7 +219,6 @@ def _stub(monkeypatch, status: str = "accepted", **extra) -> _Seen:
                 "job": job,
                 "seed_dir": seed_dir,
                 "resources": resources,
-                "history": history,
                 "previous_simplify": (
                     json.loads((rewrite.traces / "previous-simplify.json").read_text())
                     if (rewrite.traces / "previous-simplify.json").exists()
@@ -490,7 +487,6 @@ def test_round_materializes_r0_handles_the_signal_and_folds_r1(
     call = seen[0]
     assert call["job"] == "harder" and call["seed_dir"] == task.rev(0)
     assert call["resources"] == {"cpu": 1, "mem_gb": 2, "disk_gb": 2, "source": "row"}
-    assert call["history"] == ({}, {})
     # Accepted: the package became r1 without the harness files, and the
     # rewrite directory keeps the record.
     rewrites = task.rewrite_dirs()
@@ -704,7 +700,7 @@ def test_one_signal_per_task_the_newest_at_the_current_rev(
 def test_unchanged_late_signal_reuses_completed_decision(tmp_path, monkeypatch) -> None:
     root = _root(tmp_path, monkeypatch)
     _signal(root)
-    seen = _stub(monkeypatch, status="kept")
+    seen = _stub(monkeypatch, status="kept", harder_mode="student", require_solution_growth=False)
     process = od.fb.process_one
 
     def with_late_signal(*args, **kwargs):
@@ -728,7 +724,7 @@ def test_changed_feedback_runs_again_and_rejection_is_reused(
 ) -> None:
     root = _root(tmp_path, monkeypatch)
     _signal(root)
-    seen = _stub(monkeypatch, status="rejected")
+    seen = _stub(monkeypatch, status="rejected", harder_mode="student", require_solution_growth=False)
     od.run_round(root, workers=1)
     _signal(root, group=8)
     assert od.run_round(root, workers=1)["reused"] == 1
@@ -739,30 +735,17 @@ def test_changed_feedback_runs_again_and_rejection_is_reused(
     assert len(seen) == 3
 
 
-def test_switching_harder_mode_does_not_reuse_the_old_decision(tmp_path, monkeypatch):
+def test_old_operator_decision_is_not_reused(tmp_path, monkeypatch):
     root = _root(tmp_path, monkeypatch)
-    monkeypatch.setenv("SWE_RETUNE_AGENT", "codex")
-    monkeypatch.setenv("EVOLVE_HARDER_OPERATORS", "1")
     _signal(root)
-    seen = _stub(monkeypatch, status="kept")
-    process = od.fb.process_one
-
-    def record_mode(*args, **kwargs):
-        result = process(*args, **kwargs)
-        result["harder_mode"] = (
-            "operators" if od.ops.harder_uses_operators() else "student"
-        )
-        result["require_solution_growth"] = od.ops.harder_uses_operators()
-        return result
-
-    monkeypatch.setattr(od.fb, "process_one", record_mode)
+    old = _stub(monkeypatch, status="kept", harder_mode="operators", require_solution_growth=True)
     od.run_round(root, workers=1)
-    monkeypatch.setenv("EVOLVE_HARDER_OPERATORS", "0")
+    current = _stub(monkeypatch, status="kept", harder_mode="student", require_solution_growth=False)
     _signal(root, group=8)
     assert od.run_round(root, workers=1)["handled"] == 1
     _signal(root, group=9)
     assert od.run_round(root, workers=1)["reused"] == 1
-    assert len(seen) == 2
+    assert len(old) == len(current) == 1
 
 
 def test_failed_execution_can_retry_unchanged_feedback(tmp_path, monkeypatch) -> None:
@@ -778,7 +761,6 @@ def test_failed_execution_can_retry_unchanged_feedback(tmp_path, monkeypatch) ->
 def test_old_student_growth_policy_is_not_reused(tmp_path, monkeypatch):
     root = _root(tmp_path, monkeypatch)
     monkeypatch.setenv("SWE_RETUNE_AGENT", "codex")
-    monkeypatch.setenv("EVOLVE_HARDER_OPERATORS", "0")
     old = _stub(monkeypatch, status="kept", harder_mode="student")
     _signal(root)
     assert od.run_round(root, workers=1)["handled"] == 1
@@ -858,7 +840,6 @@ def test_dry_round_writes_only_the_rewrite_directory(tmp_path, monkeypatch) -> N
     # Dry rewrites are not counted, and the signal is still pending.
     status = od.rebuild_status(root)
     assert status["accepted"] == 0 and status["pending"] == 1
-    assert od.operator_history(root) == ({}, {})
 
 
 def test_replay_handles_a_closed_signal_dry(tmp_path, monkeypatch) -> None:
@@ -879,35 +860,6 @@ def test_replay_handles_a_closed_signal_dry(tmp_path, monkeypatch) -> None:
     )
     assert seen[1]["seed_dir"] == root.evolution.task("tw_a").rev(0)
     assert len(_ledger(root)) == 1 and root.mix.live_version()[0] == 2
-
-
-def test_operator_history_counts_accepted_rewrites_only(tmp_path, monkeypatch) -> None:
-    root = _root(tmp_path, monkeypatch)
-    task = root.evolution.task("tw_a")
-    for stamp_, status, extra in (
-        ("20260904-100000Z", "accepted", {}),
-        ("20260904-110000Z", "rejected", {}),
-        ("20260904-120000Z", "accepted", {"dry": True}),
-        (
-            "20260904-130000Z",
-            "accepted",
-            {"operator": "reduce_scale", "family": "simplify"},
-        ),
-    ):
-        rw = task.rewrite("harder", stamp_)
-        layout.write_json_atomic(
-            rw.meta,
-            {
-                "task": "tw_a",
-                "status": status,
-                "operator": "container_build_alignment",
-                **extra,
-            },
-        )
-    assert od.operator_history(root) == (
-        {"container_build_alignment": 1},
-        {"environment_runtime_substrate": 1},
-    )
 
 
 def test_lineage_snapshot_commits_records_and_never_packages_or_sessions(

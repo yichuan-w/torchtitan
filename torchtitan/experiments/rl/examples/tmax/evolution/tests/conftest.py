@@ -1,9 +1,9 @@
-"""Let this suite run on a host without torch.
+"""Keep this suite independent of the RL training stack.
 
 The modules under test are stdlib (plus pyarrow), but they import from the
 torchtitan package tree, and torchtitan/experiments/rl/__init__.py imports the
-training stack. With torch present nothing here runs. Without it, the package
-levels that would import torch are replaced by empty packages whose __path__
+training stack. The package levels that would import it are replaced by empty
+packages whose __path__
 points at the real directories, so ``from torchtitan.experiments.rl.examples.tmax
 import layout`` still loads the real layout.py; the Daytona agent module, which
 needs the SDK, is replaced by one whose boot raises -- the tests that reach it
@@ -44,12 +44,6 @@ def _torchless() -> None:
     root = str(_PKG.parent)
     if root not in sys.path:
         sys.path.insert(0, root)
-    try:
-        import torch  # noqa: F401
-
-        return
-    except ImportError:
-        pass
     importlib.import_module("torchtitan.experiments")  # the real one: nothing heavy
     _stub("torchtitan.experiments.rl", _PKG / "experiments/rl")
     importlib.import_module("torchtitan.experiments.rl.examples")  # real, empty

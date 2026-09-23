@@ -302,7 +302,6 @@ def test_process_one_returns_a_repairable_verdict_to_the_agents_session(
     monkeypatch.setattr(
         fb.sl, "sh", lambda *a, **k: pytest.fail("rewrite attempted local execution")
     )
-    monkeypatch.setenv("EVOLVE_HARDER_OPERATORS", "1")
     rw, r0 = _rewrite(tmp_path, monkeypatch)
     seen = {}
     reason = (
@@ -325,7 +324,6 @@ def test_process_one_returns_a_repairable_verdict_to_the_agents_session(
 
     def fake_evolve_agentic(rewrite, agent_task, job, **kwargs):
         seen["rewrite"], seen["job"] = rewrite, job
-        seen["shortlist"] = kwargs.get("operator")
         (rewrite.package / "instruction.md").write_text("Write /app/out.json.\n")
         return {
             **agent_task,
@@ -333,8 +331,6 @@ def test_process_one_returns_a_repairable_verdict_to_the_agents_session(
             "test_state_py": 'assert open("/app/out.json").read()\n',
             "_session": str(rewrite.session("agent", "20260904-000000Z").path),
             "_support_changed": [],
-            "_operator": "op",
-            "_family": "fam",
         }
 
     def fake_resume_agentic(rewrite, new, observed, exit_code=1):
@@ -349,21 +345,16 @@ def test_process_one_returns_a_repairable_verdict_to_the_agents_session(
         ),
     )
     monkeypatch.setenv("SWE_RETUNE_AGENT", "codex")
-    monkeypatch.setattr(
-        fb.llm, "operator_shortlist", lambda *_a: [("fam", "op", "def")]
-    )
     monkeypatch.setattr(fb, "revalidate", lambda *a, **k: next(verdicts))
 
-    rec = fb.process_one(
-        rw, SIGNAL, job="harder", seed_dir=r0, history=({"op": 3}, {"fam": 3})
-    )
+    rec = fb.process_one(rw, SIGNAL, job="harder", seed_dir=r0)
 
     assert rec["status"] == "accepted", rec
     assert rec["oracle_repair"]["ok"] is True
     assert seen["rewrite"] is rw and seen["job"] == "harder"
     assert seen["observed"] == reason + "\n\nfailure output"
     assert seen["exit_code"] == 0
-    assert rec["operator"] == "op" and rec["arm"] == "codex" and rec["job"] == "harder"
+    assert rec["arm"] == "codex" and rec["job"] == "harder"
     assert rec["verdicts"]["oracle"] == "pass" and rec["changed"] == [
         "instruction",
         "test_state_py",
@@ -385,17 +376,12 @@ def test_process_one_rejects_on_the_verdict_and_says_which_stage(
             **agent_task,
             "instruction": "harder\n",
             "_support_changed": [],
-            "_operator": "op",
-            "_family": "fam",
         }
 
     monkeypatch.setitem(
         sys.modules, "evolve_codex", _fake_ec(evolve_agentic=fake_evolve_agentic)
     )
     monkeypatch.setenv("SWE_RETUNE_AGENT", "codex")
-    monkeypatch.setattr(
-        fb.llm, "operator_shortlist", lambda *_a: [("fam", "op", "def")]
-    )
     monkeypatch.setattr(
         fb,
         "revalidate",
@@ -414,45 +400,32 @@ def test_process_one_rejects_on_the_verdict_and_says_which_stage(
 
 
 @pytest.mark.parametrize("arm", ["codex", "claude"])
-def test_process_one_keeps_when_the_agent_declines_and_blocks_when_no_axis_fits(
+def test_process_one_keeps_when_the_agent_declines(
     tmp_path, monkeypatch, arm
 ) -> None:
-    monkeypatch.setenv("EVOLVE_HARDER_OPERATORS", "1")
     rw, r0 = _rewrite(tmp_path, monkeypatch)
     ec = _fake_ec()
 
     def declines(rewrite, agent_task, job, **kwargs):
-        raise ec.Blocked("GIVE UP: operator-misfit — the seed has one step")
+        raise ec.Blocked("GIVE UP: no student-relevant change fits")
 
     ec.evolve_agentic = declines
     monkeypatch.setitem(sys.modules, "evolve_codex", ec)
     monkeypatch.setenv("SWE_RETUNE_AGENT", arm)
-    monkeypatch.setattr(
-        fb.llm, "operator_shortlist", lambda *_a: [("fam", "op", "def")]
-    )
 
     rec = fb.process_one(rw, SIGNAL, job="harder", seed_dir=r0)
-    assert rec["status"] == "kept" and "operator-misfit" in rec["reason"]
-
-    def no_axis(*_a):
-        raise fb.llm.Blocked("no operator fits")
-
-    monkeypatch.setattr(fb.llm, "operator_shortlist", no_axis)
-    rec = fb.process_one(rw, SIGNAL, job="harder", seed_dir=r0)
-    assert rec["status"] == "blocked" and rec["stage"] == "operator"
+    assert rec["status"] == "kept" and "student-relevant" in rec["reason"]
 
 
 @pytest.mark.parametrize("arm", ["codex", "claude"])
 def test_student_hardening_never_requests_an_operator(tmp_path, monkeypatch, arm):
     rw, r0 = _rewrite(tmp_path, monkeypatch)
     monkeypatch.setenv("SWE_RETUNE_AGENT", arm)
-    monkeypatch.delenv("EVOLVE_HARDER_OPERATORS", raising=False)
 
     def no_shortlist(*args):
         raise AssertionError("student mode must not request a shortlist")
 
-    def evolve(rewrite, task, job, operator):
-        assert operator is None
+    def evolve(rewrite, task, job):
         return {
             **task,
             "instruction": "A changed core workflow.",
@@ -468,52 +441,16 @@ def test_student_hardening_never_requests_an_operator(tmp_path, monkeypatch, arm
     assert "operator" not in rec and "family" not in rec
 
 
-def test_process_one_easier_reads_the_records_for_the_chat_arm(
+def test_process_one_rejects_the_retired_chat_arm(
     tmp_path, monkeypatch
 ) -> None:
     rw, r0 = _rewrite(tmp_path, monkeypatch)
-    rollout_record.write_record(
-        rw.traces / "attempt-01.jsonl",
-        {
-            "task": "t",
-            "rev": 0,
-            "run": "r",
-            "group": 1,
-            "rollout": 0,
-            "reward": 0.0,
-            "turns": 2,
-        },
-        [
-            {"turn": 1, "keystrokes": ["cat /app/missing\n"], "output": "No such file"},
-            {"turn": 2, "keystrokes": [], "task_complete": True, "output": ""},
-        ],
-    )
-    seen = {}
-
-    def fake_simplify(task, solved, attempts, trajectory, hint):
-        seen.update(solved=solved, attempts=attempts, trajectory=trajectory, hint=hint)
-        return {
-            **task,
-            "instruction": task["instruction"] + "Look in /app.\n",
-            "_hint": hint,
-        }
-
     monkeypatch.setenv("SWE_RETUNE_AGENT", "chat")
-    monkeypatch.setattr(fb.ev, "simplify", fake_simplify)
-
-    rec = fb.process_one(
-        rw, {**SIGNAL, "direction": "easier", "solved": 0}, job="easier", seed_dir=r0
-    )
-
-    assert rec["status"] == "accepted" and rec["stage"] == "instruction_only", rec
-    assert rec["changed"] == ["instruction"] and rec["hint"] == "vague"
-    assert (seen["solved"], seen["attempts"]) == (0, 16)
-    assert (
-        "$ cat /app/missing" in seen["trajectory"]
-        and "No such file" in seen["trajectory"]
-    )
-    assert (rw.package / "instruction.md").read_text().endswith("Look in /app.\n")
-    assert rec["verdicts"]["oracle"] == "skipped"
+    with pytest.raises(ValueError, match="SWE_RETUNE_AGENT must be"):
+        fb.process_one(
+            rw, {**SIGNAL, "direction": "easier", "solved": 0}, job="easier", seed_dir=r0
+        )
+    assert (rw.package / "instruction.md").read_text() == SEED["instruction"]
 
 
 @pytest.mark.parametrize("declaration", ["_simplify", "_spec_repair"])
@@ -542,7 +479,7 @@ def test_easier_uses_full_validation_without_harder_growth(
     verdict = fb.revalidate(
         work, task, orig=SEED, changed=["instruction"]
     )
-    assert not verdict["ok"] and verdict["stage"] == "step_size"
+    assert verdict["ok"] and verdict["fast_path"] == "daytona_oracle"
 
 
 def test_calibration_retains_full_validation_and_the_growth_ceiling(
@@ -833,11 +770,10 @@ def test_spec_defect_keeps_the_input_revision_without_starting_repair(
     assert (rw.traces / "attempt-01.jsonl").read_text() == '{"reward": 0}\n'
 
 
-@pytest.mark.parametrize("mode", ["student", "operators"])
-def test_final_size_gate_uses_callers_mode(tmp_path, monkeypatch, mode):
+def test_final_size_gate_uses_student_mode(tmp_path, monkeypatch):
     work, task = _pkg(tmp_path, SEED["instruction"], SEED["test_state_py"])
     task.update(solve_sh=SEED["solve_sh"], _direction="harder", _harder_mode="student")
-    original = {**SEED, "_harder_mode": mode}
+    original = {**SEED, "_harder_mode": "student"}
     monkeypatch.setattr(
         fb,
         "daytona_probe",
@@ -851,26 +787,7 @@ def test_final_size_gate_uses_callers_mode(tmp_path, monkeypatch, mode):
     result = fb.revalidate(
         work, task, orig=original, changed=["solve_sh"]
     )
-    assert result["ok"] is (mode == "student")
-    if mode == "operators":
-        assert result["stage"] == "step_size"
-
-
-def test_format_trace_prefers_failures() -> None:
-    records = [
-        (
-            {"reward": 1.0, "turns": 1},
-            [{"turn": 1, "keystrokes": ["ok\n"], "output": "fine"}],
-        ),
-        (
-            {"reward": 0.0, "turns": 1},
-            [{"turn": 1, "raw": "no response", "output": "x" * 700}],
-        ),
-    ]
-    text = fb.format_trace(records)
-    assert text.startswith("--- attempt reward=0.0")
-    assert "$ no response" in text and "ok" not in text.split("\n")[1]
-    assert len(text) < 700 + 200  # the chat prompt trims the output
+    assert result["ok"] is True
 
 
 def test_verdicts_of_maps_the_revalidation_stages() -> None:
@@ -1022,7 +939,7 @@ def test_a_filtered_session_is_retried_fresh_then_gives_up(
 
     ec = FakeEC()
     out = fb._evolve_retrying_the_filter(
-        ec, rec, "tw_x", rw, {"instruction": "seed"}, []
+        ec, rec, "tw_x", rw, {"instruction": "seed"}
     )
     assert out["instruction"] == "harder"
     assert len(calls) == 3 and all(c == (rw, "harder") for c in calls)
@@ -1036,5 +953,5 @@ def test_a_filtered_session_is_retried_fresh_then_gives_up(
 
     calls.clear()
     with pytest.raises(AlwaysFiltered.Filtered):
-        fb._evolve_retrying_the_filter(AlwaysFiltered(), rec, "tw_x", rw, {}, [])
+        fb._evolve_retrying_the_filter(AlwaysFiltered(), rec, "tw_x", rw, {})
     assert len(calls) == 3

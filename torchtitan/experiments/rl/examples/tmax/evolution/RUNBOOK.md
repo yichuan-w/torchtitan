@@ -406,11 +406,11 @@ To read one rollout record: `head -n1 <record> | jq '{reward, finish_reason, tur
 is the outcome, and `jq -c 'select(.turn) | {turn, keystrokes, task_complete}' <record>`
 is what the agent typed, turn by turn.
 
-A session that fails (timeout, no axis declared, nothing changed) leaves the task as it
-was and logs `agent_failed` with the reason; its `session.json` carries the exit code and
-error. There is no chat fallback on the codex arm. Revalidation of a structural rewrite is
-the oracle on a fresh build plus a null probe (the verifier alone on an untouched
-workspace, which must fail, or the rewrite is rejected as `null_pass`).
+A session that fails (timeout or nothing changed) leaves the task as it was
+and logs `agent_failed` with the reason; its `session.json` carries the exit
+code and error. Revalidation runs the oracle on a fresh build plus a null
+probe (the verifier alone on an untouched workspace, which must fail, or the
+rewrite is rejected as `null_pass`).
 
 `evolution/tasks/` holds every task's verifier and reference solution and the full
 rollout transcripts the agent worked from. Treat it as private experiment data.

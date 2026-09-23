@@ -72,7 +72,6 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 import evolve_codex as ec  # noqa: E402
 import feedback_loop as fb  # noqa: E402
 import pack_to_dataset as pack  # noqa: E402
-import synth_operators as ops  # noqa: E402
 from torchtitan.experiments.rl.examples.tmax import layout  # noqa: E402
 from torchtitan.experiments.rl.examples.tmax.evolution_metrics import record_outcome  # noqa: E402
 
@@ -182,18 +181,11 @@ def _attach_student_feedback(
 ) -> None:
     """Give a harder signal the student measurement the agent reads.
 
-    Student-guided hardening is what an agentic arm does unless
-    EVOLVE_HARDER_OPERATORS asks for the fixed menu, and the mode is chosen
-    from fb.agentic_arm() in feedback_loop. The measurement has to be attached
-    under the same condition: a signal that reaches a student-mode rewrite
-    without one sends the agent in with nothing to read.
-
-    A no-op for any other job, arm or already-populated signal.
+    Hardening always uses the student's attempts. Attach the measurement
+    before the rewrite starts, unless the signal already carries it.
     """
     if (
         job != "harder"
-        or not fb.agentic_arm()
-        or ops.harder_uses_operators()
         or signal.get("student_feedback") is not None
     ):
         return
@@ -530,7 +522,6 @@ def handle(
     sig: Signal,
     *,
     declared: dict[str, dict],
-    history: tuple[dict, dict],
     dry: bool = False,
     pretests: dict[str, tuple[str, str]] | None = None,
     protecteds: dict | None = None,
@@ -547,6 +538,7 @@ def handle(
     process_one runs: the agent's tool and the loop's probe both grade with
     it, the way training does.
     """
+    arm = fb.retune_arm()
     d = dict(sig.data)
     tid, rev = str(d["task"]), int(d["rev"])
     job = "harder" if d["direction"] == "harder" else "easier"
@@ -568,8 +560,7 @@ def handle(
         "started": layout.stamp(),
         "finished": None,
         "status": "running",
-        "operator": None,
-        "arm": os.environ.get("SWE_RETUNE_AGENT", "chat"),
+        "arm": arm,
         "verdicts": None,
         "resources": None,
         "result_rev": None,
@@ -656,7 +647,6 @@ def handle(
             job=job,
             seed_dir=src,
             resources=training_box(tid, declared),
-            history=history,
         )
         if parent_snapshot is not None:
             current_hashes = {
@@ -826,14 +816,9 @@ def reusable_rewrite(
             (root.evolution.path / reference / "rewrite.json").read_text()
         )
         if sig.data["direction"] == "harder":
-            mode = (
-                "student"
-                if fb.agentic_arm() and not ops.harder_uses_operators()
-                else "operators"
-            )
-            if meta.get("harder_mode", "operators") != mode:
+            if meta.get("harder_mode") != "student":
                 return None
-            if mode == "student" and meta.get("require_solution_growth", True):
+            if meta.get("require_solution_growth", True):
                 return None
         if meta.get("status") in {"accepted", "rejected", "kept", "blocked"}:
             return reference
@@ -974,33 +959,6 @@ def _rewrite_metas(root: layout.Root):
             if meta.get("dry"):
                 continue
             yield task, rw, meta
-
-
-def operator_history(root: layout.Root) -> tuple[dict, dict]:
-    """(used_ops, used_fams) over every accepted rewrite.
-
-    What the diversity terms D(f) and P(o) need is the pool's current
-    composition, not a log of past calls. Each accepted rewrite records the
-    operator it was made with, so the distribution is read back off disk
-    rather than tracked in parallel -- which also means it survives a
-    restart: rescan and the counts are exactly what they were.
-    """
-    fam_of = {op: fam for fam, members in ops.OPERATORS.items() for op in members}
-    used_ops: dict[str, int] = {}
-    used_fams: dict[str, int] = {}
-    for _task, _rw, meta in _rewrite_metas(root):
-        op = meta.get("operator")
-        if (
-            meta.get("status") != "accepted"
-            or not op
-            or meta.get("family") == "simplify"
-        ):
-            continue
-        used_ops[op] = used_ops.get(op, 0) + 1
-        fam = fam_of.get(op)
-        if fam:
-            used_fams[fam] = used_fams.get(fam, 0) + 1
-    return used_ops, used_fams
 
 
 def rebuild_status(root: layout.Root) -> dict:
@@ -1235,8 +1193,7 @@ def run_round(
         return result
 
     # What box training gives each task and which pin hook it grades under,
-    # from the mix the trainer reads, and which axes the accepted rewrites
-    # already used. The mix is 12 MB on GPFS, so this is read when work is
+    # from the mix the trainer reads. The mix is 12 MB on GPFS, so this is read when work is
     # about to be submitted rather than per completion -- and re-read then,
     # because a fold during the round has already moved the mix on.
     handled: list[dict] = []
@@ -1255,7 +1212,6 @@ def run_round(
             if not batch:
                 return
             declared, pretests, protecteds = read_declared(root.mix.live)
-            history = operator_history(root)
             for s in batch:
                 futs[
                     ex.submit(
@@ -1263,7 +1219,6 @@ def run_round(
                         root,
                         s,
                         declared=declared,
-                        history=history,
                         dry=dry,
                         pretests=pretests,
                         protecteds=protecteds,

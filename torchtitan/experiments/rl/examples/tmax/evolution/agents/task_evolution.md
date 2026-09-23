@@ -39,15 +39,12 @@ harness digests them before and after the episode and any change scores 0.
 
 Record the job's evidence and declarations in `run/`:
 
-| `run/operator.txt` | required only when the harder prompt supplies an operator menu; the chosen axis, alone on one line. |
 | `run/hardening.md` | for student-guided hardening: observed strategy, trace evidence, proposed change and the new decision it requires. |
 | `run/simplify.json` | the easier job's operator, retained skill, change, restoration and trace evidence, as specified in its prompt. |
 | `run/verdict.txt` | written only when you stop without finishing — see *Giving up* below. |
 
-When a harder prompt supplies an operator menu, its declaration is required for
-the pool's axis counts. Student-guided hardening has no operator requirement:
-choose the change from the actual attempts and record its rationale in
-`run/hardening.md` before editing.
+For hardening, choose the change from the actual attempts and record its
+rationale in `run/hardening.md` before editing.
 
 ## What each file has to hold
 
@@ -260,13 +257,12 @@ reference solution knows the name of makes the task unsolvable. That list is
 advice too, recorded with the rewrite rather than rejecting it. Editing `sandbox`, or shaping the task around it, costs you the
 whole session and gains nothing.
 
-**A harder task preserves the original goal and changes one bottleneck.** Follow
-the prompt's hardening mode. Student-guided changes must require a new inference
+**A harder task preserves the original goal and changes one bottleneck.**
+Student-guided changes must require a new inference
 or decision in the core workflow; an unrelated deliverable is insufficient.
-In student-guided mode, the reference solution may stay the same length or
-shrink, and may grow by at most 8 non-comment lines. In operator mode it must
-grow by 3 to 8 lines. The verifier may gain at most 5 assertions in either
-mode. `./sandbox check` and the caller enforce these size bounds. Preserve
+The reference solution may stay the same length or shrink, and may grow by at
+most 8 non-comment lines. The verifier may gain at most 5 assertions.
+`./sandbox check` and the caller enforce these size bounds. Preserve
 necessary facts in the instruction or discoverable workspace; remove a
 solution hint only when the task remains unambiguous. Measure difficulty by
 student re-testing, not by added lines.

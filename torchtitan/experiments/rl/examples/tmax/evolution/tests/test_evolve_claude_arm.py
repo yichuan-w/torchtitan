@@ -304,39 +304,30 @@ def test_meta_lands_on_disk_for_a_reader(claude):
     assert on_disk["claude_session_id"]
 
 
-def test_agentic_arm_covers_both_clis(monkeypatch):
-    """The loop's arm-dependent branches follow the arm, not one CLI's name.
-
-    Both agentic CLIs must answer the same here. feedback_loop decides the
-    harder mode from `agentic_arm()` alone, so a branch that asked for
-    "codex" by name put the claude arm into student mode without the student
-    feedback it is supposed to read, and made the loop's resume matcher look
-    for an "operators" record that was never written.
-    """
+def test_retune_arm_accepts_only_agent_clis(monkeypatch):
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
     import feedback_loop as fb
 
     monkeypatch.delenv("SWE_RETUNE_AGENT", raising=False)
-    assert fb.agentic_arm() is False
+    assert fb.retune_arm() == "codex"
     for arm in ("codex", "claude"):
         monkeypatch.setenv("SWE_RETUNE_AGENT", arm)
-        assert fb.agentic_arm() is True, arm
+        assert fb.retune_arm() == arm
     monkeypatch.setenv("SWE_RETUNE_AGENT", "chat")
-    assert fb.agentic_arm() is False
+    with pytest.raises(ValueError, match="SWE_RETUNE_AGENT must be"):
+        fb.retune_arm()
 
 
 def test_claude_arm_attaches_student_feedback(monkeypatch, tmp_path):
     """A harder signal on the claude arm carries the student's measurement.
 
-    Student-guided hardening is the default for an agentic arm
-    (EVOLVE_HARDER_OPERATORS=0), and the agent reads the measurement from
+    The agent reads the measurement from
     run/student_feedback.json. The loop is what attaches it to the signal.
     """
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
     import evolve_ondella as eo
 
     monkeypatch.setenv("SWE_RETUNE_AGENT", "claude")
-    monkeypatch.setenv("EVOLVE_HARDER_OPERATORS", "0")
     signal = {
         "task": "task_x",
         "run": "run_x",

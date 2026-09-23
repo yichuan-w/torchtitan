@@ -12,7 +12,7 @@ read a solver's rollouts and move the task toward the usable band per the
 project algorithm:
 
     0 of k solved   easier, with a hint read off a failing trajectory
-    k of k solved   harder, one operator, the RST way
+    k of k solved   harder, guided by the student's rollouts
     in between      already discriminating; no signal is emitted
 
 It does NOT run rollouts. That is the training side's job — RL produces them on
@@ -48,8 +48,7 @@ import synth_client as llm
 import synth_loop as sl
 import task_size as ts
 import verifier_literals as vl
-from synth_operators import harder_uses_operators
-from torchtitan.experiments.rl.examples.tmax import layout, rollout_record
+from torchtitan.experiments.rl.examples.tmax import layout
 
 
 def _rewrite_age(rewrite: layout.RewriteDir) -> float:
@@ -85,18 +84,15 @@ _INFRA_RE = re.compile(
 
 RESOURCE_KEYS = ("cpu", "mem_gb", "disk_gb")
 
-# The retune arms that run an agent session over the package rather than one
-# chat call. "codex" and "claude" are the same arm -- the session under
-# agents/task_evolution.md -- differing only in which CLI runs it
-# (evolve_codex.EVOLVE_AGENT). Every decision that turns on the arm being
-# agentic asks agentic_arm(), so adding a third CLI is one edit here rather
-# than one per caller; the record still keeps the name the run was given.
 AGENTIC_ARMS = ("codex", "claude")
 
 
-def agentic_arm() -> bool:
-    """Whether this run's retune arm drives an agent session."""
-    return os.environ.get("SWE_RETUNE_AGENT", "chat") in AGENTIC_ARMS
+def retune_arm() -> str:
+    """Choose the agent CLI; retired chat and structural arms are invalid."""
+    arm = os.environ.get("SWE_RETUNE_AGENT", "codex")
+    if arm not in AGENTIC_ARMS:
+        raise ValueError(f"SWE_RETUNE_AGENT must be one of {AGENTIC_ARMS}, got {arm!r}")
+    return arm
 
 
 def daytona_probe(
@@ -201,48 +197,6 @@ def daytona_probe(
         if attempt == 1:
             time.sleep(20)
     return last
-
-
-def read_traces(rewrite: layout.RewriteDir) -> list[tuple[dict, list[dict]]]:
-    """The rollout records the loop hardlinked under the package, in attempt
-    order: (rollout header, turns) each, as rollout_record reads them."""
-    out = []
-    for p in sorted(rewrite.traces.glob("attempt-*.jsonl")):
-        try:
-            out.append(rollout_record.read_record(p))
-        except (OSError, ValueError) as e:
-            log.warning("unreadable trace %s: %s", p, e)
-    return out
-
-
-def format_trace(records: list[tuple[dict, list[dict]]], keep: int = 3) -> str:
-    """Turn rollout records into the text a chat hint is drawn from.
-
-    Prefer failing attempts — a hint aims at where the agent got stuck, and a
-    success shows nothing stuck. Several are kept: one attempt can fail in a way
-    the others do not. The records are whole; the trimming here is for the
-    chat prompt, which has a budget the files do not.
-    """
-
-    def reward(head: dict) -> float | None:
-        try:
-            return float(head.get("reward"))
-        except (TypeError, ValueError):
-            return None
-
-    graded = [r for r in records if reward(r[0]) in (0.0, 1.0)]
-    fails = [r for r in graded if reward(r[0]) == 0.0]
-    picks = (fails or graded or records)[:keep]
-    out = []
-    for head, turns in picks:
-        out.append(
-            f"--- attempt reward={head.get('reward')} " f"turns={head.get('turns')} ---"
-        )
-        for t in turns:
-            typed = "".join(t.get("keystrokes") or [t.get("raw", "")])
-            out.append(f"$ {typed.rstrip()}")
-            out.append(f"  {str(t.get('output', ''))[:600]}")
-    return "\n".join(out)
 
 
 CONTEXT_FILE_MAX = 256 * 1024
@@ -422,8 +376,7 @@ def revalidate(
                 solution_rel=ev.file_map(task)["solve_sh"],
                 **_patches(task, work),
             ),
-            require_growth=orig.get("_harder_mode") != "student"
-            and not task.get("_calibration"),
+            require_growth=False,
         )
         if orig is not None and task.get("_direction") != "easier"
         else []
@@ -619,7 +572,7 @@ def _size_from_probe(rec: dict, verdict: dict, floor: dict | None) -> None:
 
 
 def _evolve_retrying_the_filter(
-    ec, rec: dict, tid: str, rewrite: layout.RewriteDir, agent_task: dict, shortlist
+    ec, rec: dict, tid: str, rewrite: layout.RewriteDir, agent_task: dict
 ) -> dict:
     """One agent session, retried when the provider's classifier stops it.
 
@@ -633,7 +586,7 @@ def _evolve_retrying_the_filter(
     """
     for attempt in range(1, ec.CYBER_RETRIES + 2):
         try:
-            return ec.evolve_agentic(rewrite, agent_task, "harder", operator=shortlist)
+            return ec.evolve_agentic(rewrite, agent_task, "harder")
         except ec.Filtered:
             rec["cyber_filtered"] = attempt
             if attempt > ec.CYBER_RETRIES:
@@ -649,8 +602,7 @@ def _evolve_retrying_the_filter(
 
 def _write_back(work: Path, new: dict) -> None:
     """The four files that round-trip through the task dict, at the paths the
-    rewrite left them. For the agentic arms this rewrites what the agent
-    already wrote; for the chat arm it is the write."""
+    rewrite left them. This preserves unchanged bytes after the agent writes."""
     for key, rel in ev.file_map(new).items():
         dest = work / rel
         dest.parent.mkdir(parents=True, exist_ok=True)
@@ -687,7 +639,6 @@ def process_one(
     job: str,
     seed_dir: Path,
     resources: dict | None = None,
-    history: tuple[dict, dict] | None = None,
 ) -> dict:
     """Retune one task in its rewrite directory, from the signal that asked.
 
@@ -697,9 +648,6 @@ def process_one(
     daytona_* filled out with the fleet default. The agent works in it, the
     reference solution is measured in it, and the rewrite is provisioned from
     that measurement (never below it) and revalidated at the resulting size.
-    `history` is (used_ops, used_fams) over every accepted rewrite, the
-    diversity terms the operator shortlist is scored with.
-
     Returns the record the loop writes into rewrite.json: `status` is
     accepted, rejected, blocked, failed or kept; `stage` and `reason` say
     why; `verdicts` and `resources` are as LAYOUT.md gives them.
@@ -708,16 +656,7 @@ def process_one(
     solved = int(signal.get("solved") or 0)
     graded = int(signal.get("total") or len(signal.get("attempts") or []))
     work = rewrite.package
-    # Retune arm, selectable per run. "chat" (default): one gpt-5.6 call with
-    # the trace in the prompt. "codex": agentic, full traces as files +
-    # AGENTS.md role (evolve_codex). "none": structural only, ignore the
-    # transcript (the no-rollout-info mode). All three feed the SAME
-    # downstream leak/dark audit -- only the writing differs.
-    arm = os.environ.get("SWE_RETUNE_AGENT", "chat")
-    # The record keeps the name it was given, so a run says which CLI wrote
-    # its rewrites; the behaviour follows agentic_arm(), not the name.
-    agentic = agentic_arm()
-    used_ops, used_fams = history or ({}, {})
+    arm = retune_arm()
     rec: dict = {
         "task": tid,
         "job": job,
@@ -737,9 +676,7 @@ def process_one(
                 stage="ungraded",
                 reason="the signal carries no graded attempt",
             )
-        ec = None
-        if agentic:
-            import evolve_codex as ec  # noqa: PLC0415 -- optional arm, faked in tests
+        import evolve_codex as ec  # noqa: PLC0415 -- faked in tests
 
         task = ev.load(work)
         task["_task_id"] = tid
@@ -774,29 +711,19 @@ def process_one(
             # instructions, and the holdout experiment showed the policy learns
             # hint-following that does not transfer to unhinted tasks.
             hint_lvl = os.environ.get("SWE_SIMPLIFY_HINT", "vague")
-            if agentic:
-                try:
-                    new = ec.simplify_codex(
-                        rewrite, task, solved=solved, attempts=graded, hint=hint_lvl
-                    )
-                except ec.Blocked as e:
-                    if not str(e).startswith("BLOCKED: repair_required:"):
-                        return _done(rec, "kept", stage="agent", reason=str(e))
-                    report = (work / "run" / "verdict.txt").read_text()
-                    rec["spec_repair"] = {"reported": report}
-                    return _done(rec, "kept", stage="repair_required", reason=report)
-                except Exception as e:  # noqa: BLE001 -- the task stays as it is
-                    return _done(
-                        rec, "failed", stage="agent", reason=f"{type(e).__name__}: {e}"
-                    )
-            else:
-                trace = "" if arm == "none" else format_trace(read_traces(rewrite))
-                new = ev.simplify(
-                    task,
-                    solved=solved,
-                    attempts=graded,
-                    trajectory=trace,
-                    hint=("none" if arm == "none" else hint_lvl),
+            try:
+                new = ec.simplify_codex(
+                    rewrite, task, solved=solved, attempts=graded, hint=hint_lvl
+                )
+            except ec.Blocked as e:
+                if not str(e).startswith("BLOCKED: repair_required:"):
+                    return _done(rec, "kept", stage="agent", reason=str(e))
+                report = (work / "run" / "verdict.txt").read_text()
+                rec["spec_repair"] = {"reported": report}
+                return _done(rec, "kept", stage="repair_required", reason=report)
+            except Exception as e:  # noqa: BLE001 -- the task stays as it is
+                return _done(
+                    rec, "failed", stage="agent", reason=f"{type(e).__name__}: {e}"
                 )
             rec["hint"] = new.get("_hint")
             if new.get("_simplify"):
@@ -804,72 +731,17 @@ def process_one(
                 rec["operator"], rec["family"] = new["_operator"], new["_family"]
                 rec["agent_validated"] = new.get("_agent_validated")
         else:  # k/k -> harder
-            # Agentic hardening follows the student by default. The fixed menu
-            # remains available for comparison; the legacy chat arm requires it.
-            shortlist = None
-            fam = operator = None
-            use_operators = not agentic or harder_uses_operators()
-            rec["harder_mode"] = "operators" if use_operators else "student"
-            task["_harder_mode"] = rec["harder_mode"]
-            rec["require_solution_growth"] = use_operators
+            rec["harder_mode"] = task["_harder_mode"] = "student"
+            rec["require_solution_growth"] = False
             try:
-                shortlist = (
-                    llm.operator_shortlist(
-                        {
-                            "task_id": tid,
-                            "instruction": task["instruction"],
-                            "dockerfile": task["dockerfile"],
-                            "solution": task["solve_sh"],
-                            "env_files": {},
-                        },
-                        used_ops,
-                        used_fams,
-                    )
-                    if use_operators
-                    else None
-                )
-            except llm.Blocked as e:
-                return _done(rec, "blocked", stage="operator", reason=str(e))
-            # The head of the list is what the chat operator below gets, since
-            # it cannot choose; the agent gets the whole list and reports back
-            # which one it used.
-            if shortlist:
-                fam, operator, definition = shortlist[0]
-                rec["operator"], rec["family"] = operator, fam
-            if agentic:
-                # No chat fallback. Measured over 434 agent sessions, every
-                # fallback followed a timeout or a "verifier weakened" verdict
-                # that was itself wrong (the heuristic counted test functions
-                # while the spec asked for four roles), and neither is a thing
-                # one chat call does better; it only put the weaker method's
-                # output into the fold as if the agent had written it. A
-                # failed session leaves the task as it was, and says why.
-                try:
-                    new = _evolve_retrying_the_filter(
-                        ec, rec, tid, rewrite, task, shortlist
-                    )
-                    rec["hint"] = new.get("_hint")
-                    rec["agent_validated"] = new.get("_agent_validated")
-                except ec.Blocked as e:
-                    # It read the package and said the axis does not fit, or
-                    # that it cannot be made harder honestly. Take the answer:
-                    # falling through to the chat operator asks a weaker method
-                    # the same question, which is what offering the exit was
-                    # meant to avoid.
-                    return _done(rec, "kept", stage="agent", reason=str(e))
-                except Exception as e:  # noqa: BLE001 -- the task stays as it is
-                    return _done(
-                        rec, "failed", stage="agent", reason=f"{type(e).__name__}: {e}"
-                    )
-            else:
-                try:
-                    new = ev.evolve(task, seed_id=tid, operator=operator)
-                except llm.Blocked as e:
-                    return _done(rec, "blocked", stage="operator", reason=str(e))
-            if use_operators:
-                rec["operator"], rec["family"] = (
-                    new.get("_operator", operator),
-                    new.get("_family", fam),
+                new = _evolve_retrying_the_filter(ec, rec, tid, rewrite, task)
+                rec["hint"] = new.get("_hint")
+                rec["agent_validated"] = new.get("_agent_validated")
+            except ec.Blocked as e:
+                return _done(rec, "kept", stage="agent", reason=str(e))
+            except Exception as e:  # noqa: BLE001 -- the task stays as it is
+                return _done(
+                    rec, "failed", stage="agent", reason=f"{type(e).__name__}: {e}"
                 )
 
         if new.get("_calibration"):
@@ -932,11 +804,8 @@ def process_one(
                 break
             age = _rewrite_age(rewrite)
             budget = float(os.environ.get("EVOLVE_REWRITE_BUDGET_SEC", str(6 * 3600)))
-            if agentic:
-                import evolve_codex as ec  # noqa: PLC0415 -- optional arm, faked in tests
-
-                if hasattr(ec, "rewrite_budget_sec"):
-                    budget = ec.rewrite_budget_sec()
+            if hasattr(ec, "rewrite_budget_sec"):
+                budget = ec.rewrite_budget_sec()
             if age > budget:
                 log.info(
                     "%s oracle repair skipped: rewrite open %.1f h, budget one epoch %.1f h",
@@ -965,25 +834,15 @@ def process_one(
             tail = "\n\n".join(s for s in (v.get("why"), v.get("tail")) if s)
             code = int(v["solve_exit"]) if v.get("solve_exit") is not None else 1
             fixed = None
-            if agentic:
-                # Back to the session that wrote the files, with the failure it
-                # never saw. A fresh repair session, chat or agentic, has to
-                # rediscover from the files alone why they look the way they
-                # do; the one that wrote them is on disk and can be resumed.
-                try:
-                    if new.get("_session"):
-                        fixed = ec.resume_agentic(rewrite, new, tail, code)
-                    else:
-                        fixed = ec.repair_oracle_codex(rewrite, new, tail, code)
-                except ec.Blocked as e:
-                    log.info("%s oracle repair declined: %s", tid, str(e)[:200])
-                except Exception as e:  # noqa: BLE001 -- the failed verdict stands
-                    log.warning("%s oracle repair failed: %s", tid, str(e)[:200])
-            else:
-                try:
-                    fixed = ev.repair_oracle(new, tail, code)
-                except Exception:  # noqa: BLE001 -- repair is best-effort
-                    fixed = None
+            try:
+                if new.get("_session"):
+                    fixed = ec.resume_agentic(rewrite, new, tail, code)
+                else:
+                    fixed = ec.repair_oracle_codex(rewrite, new, tail, code)
+            except ec.Blocked as e:
+                log.info("%s oracle repair declined: %s", tid, str(e)[:200])
+            except Exception as e:  # noqa: BLE001 -- the failed verdict stands
+                log.warning("%s oracle repair failed: %s", tid, str(e)[:200])
             if fixed is None:
                 break
             repaired = [k for k in ev.file_map(fixed) if fixed[k] != new[k]]

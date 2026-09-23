@@ -92,8 +92,6 @@ def _agentic(monkeypatch) -> dict:
                                     CYBER_RETRIES=2)
     monkeypatch.setitem(sys.modules, "evolve_codex", fake_ec)
     monkeypatch.setenv("SWE_RETUNE_AGENT", "codex")
-    monkeypatch.setattr(fb.llm, "operator_shortlist",
-                        lambda _task, _uo, _uf: [("fam", "op", "definition")])
     monkeypatch.setattr(fb, "revalidate", fake_revalidate)
     return seen
 

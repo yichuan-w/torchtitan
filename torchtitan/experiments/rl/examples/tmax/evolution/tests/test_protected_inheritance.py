@@ -210,7 +210,7 @@ def _round(tmp_path, monkeypatch, *, parent_tmax: dict, package_file: dict | Non
     graded = {}
 
     def fake_process_one(
-        rewrite, signal, *, job, seed_dir, resources=None, history=None
+        rewrite, signal, *, job, seed_dir, resources=None
     ):
         (rewrite.package / "instruction.md").write_text("harder\n")
         if package_file is not None:

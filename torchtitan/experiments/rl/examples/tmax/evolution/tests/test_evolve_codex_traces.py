@@ -171,7 +171,6 @@ def test_only_all_pass_after_simplify_uses_restoration_guidance(
         return subprocess.CompletedProcess([], 0, stdout="")
 
     monkeypatch.setattr(ec, "_require_codex", lambda: None)
-    monkeypatch.setattr(ec, "harder_uses_operators", lambda: False)
     monkeypatch.setattr(ec, "VERIFIER_AUTHOR", "same")
     monkeypatch.setattr(
         ec,
@@ -666,6 +665,7 @@ def test_prepare_package_records_the_seed_literals_size_and_box(
     assert json.loads((rw.package / "run/seed_size.json").read_text()) == {
         "solution_lines": 2,
         "verifier_asserts": 2,
+        "require_growth": False,
     }
     assert (
         json.loads((rw.package / "run/resources.json").read_text())
@@ -738,7 +738,6 @@ def test_collect_reports_support_files_that_moved_against_the_input_revision(
     (pkg / "AGENTS.md").write_text("rules")
     (pkg / "sandbox").write_text("#!/bin/bash\n")
     (pkg / "run").mkdir()
-    (pkg / "run/operator.txt").write_text("op")
     (pkg / "traces").mkdir()
     (pkg / "traces/attempt-01.jsonl").write_text("{}")
     task = {**TASK, "_seed_dir": str(seed)}
@@ -875,16 +874,6 @@ def test_codex_env_puts_the_roots_bin_first_on_path(tmp_path, monkeypatch) -> No
     assert env["CODEX_HOME"] == str(sd.codex_home)
     assert env["EVOLVE_HARNESS_DIR"] == str(Path(ec.__file__).resolve().parent)
     assert ec._codex_bin() == tmp_path / "root" / "bin" / "codex"
-
-
-def test_candidates_carry_the_full_card(monkeypatch) -> None:
-    monkeypatch.setattr(
-        ec.llm, "operator_card", lambda op: '{\n "intent": "why " + "' + '"' + "\n}"
-    )
-    text = ec._candidates([("fam", "op_a", "one line"), ("fam", "op_b", "other")])
-
-    assert "1. op_a (fam)" in text and "2. op_b (fam)" in text
-    assert text.index("one line") < text.index('"intent"') < text.index("2. op_b")
 
 
 def test_harness_files_are_the_four_the_fold_strips() -> None:

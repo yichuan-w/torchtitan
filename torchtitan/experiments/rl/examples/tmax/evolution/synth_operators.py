@@ -19,17 +19,6 @@ to the operator that was supposed to shape it.
 """
 from __future__ import annotations
 
-import os
-
-
-def harder_uses_operators() -> bool:
-    """Opt in to the fixed menu; student-guided hardening is the default."""
-    value = os.environ.get("EVOLVE_HARDER_OPERATORS", "0")
-    if value not in {"0", "1"}:
-        raise ValueError("EVOLVE_HARDER_OPERATORS must be 0 or 1")
-    return value == "1"
-
-
 OPERATORS: dict[str, dict[str, str]] = {
     "environment_runtime_substrate": {
         "dependency_version_alignment": "Align dependency/runtime versions and verify the toolchain.",
