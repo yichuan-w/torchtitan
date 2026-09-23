@@ -225,6 +225,12 @@ immutability requirement to make the negative control fail.
 ./sandbox down           delete it
 ```
 
+Run `up` and `reset` in the foreground. `up` reports when its own container is
+ready or why it failed; if the command tool returns a session ID, poll that
+session until it exits. Do not background the command and wait with fixed
+`sleep` calls or a shared `/tmp` log: another task can replace that log while
+your container is still starting.
+
 `oracle` and `check` need the solution and are not available to you.
 
 **Do the task yourself, through `exec`, the way the instruction describes it, and
