@@ -58,7 +58,7 @@ import tempfile
 import time
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable
 
 from torchtitan.experiments.rl.harness.agents.spec import (
     AgentRun,
@@ -89,6 +89,12 @@ _PROACTIVE_SUMMARIZE_THRESHOLD = int(
 # wall: the adapter clamps to exactly the remaining budget, so the two sum to
 # max_context on the wall, give or take a rendering token.
 _CONTEXT_TAIL_MARGIN = 64
+# Fraction of the context budget at which the model is told it is running out of
+# context, then told on every later turn how much is left (see
+# _AdapterLLM.context_notice). Below it the observation is unchanged. The model
+# otherwise cannot see its budget, and a trajectory that hits the wall ends before
+# it can submit, which grades as a failure. 0 turns the notice off.
+_CONTEXT_WARN_FRAC = float(os.environ.get("TMAX_CONTEXT_WARN_FRAC", "0.7"))
 
 # Placeholder model name handed to Terminus-2. The real policy is our swapped-in
 # _AdapterLLM, but Terminus-2 still calls litellm's token_counter(model=_MODEL_NAME)
@@ -156,11 +162,18 @@ class _AdapterLLM:
         max_context: int,
         turn_max_tokens: int,
         deadline: float | None = None,
+        context_warn_frac: float = 0.0,
     ) -> None:
         self._adapter = adapter
         self._session_id = session_id
         self._max_context = max_context
         self._turn_max_tokens = turn_max_tokens
+        self._context_warn_frac = context_warn_frac
+        # Tokens in the conversation as of the last reply: that turn's prompt plus
+        # its completion, from the adapter's usage. The next prompt is this plus
+        # the observation about to be appended.
+        self.context_tokens = 0
+        self._context_warned = False
         # Terminus-2's loop lives inside harbor, so this is the one hook we have
         # that runs once per episode -- the same "check between turns" the
         # vanillux loop does with its own deadline.
@@ -185,6 +198,31 @@ class _AdapterLLM:
         # under half the budget it actually has.
         session_max_tokens = self._adapter.session_max_tokens(self._session_id)
         return session_max_tokens or self._turn_max_tokens
+
+    def context_notice(self) -> str:
+        """The context-budget line appended to this turn's observation, or "".
+
+        Nothing below ``context_warn_frac`` of the budget. The first turn at or past
+        it gets a warning with the stakes and what to do; every turn after that
+        gets the remaining budget, so the model can pace the rest of the task.
+        """
+        if self._context_warn_frac <= 0 or self._max_context <= 0:
+            return ""
+        used = self.context_tokens
+        if used < self._context_warn_frac * self._max_context:
+            return ""
+        left = max(0, self._max_context - used)
+        pct = min(100, round(100 * used / self._max_context))
+        if not self._context_warned:
+            self._context_warned = True
+            return (
+                f"WARNING: You have used {pct}% of your context window "
+                f"({used:,} of {self._max_context:,} tokens); about {left:,} tokens "
+                "remain. If it runs out, the episode ends before you can submit and "
+                "the task counts as failed. Avoid commands that print large output, "
+                "finish the essential work, verify it, and mark the task complete."
+            )
+        return f"[Context: {pct}% used, about {left:,} tokens remain]"
 
     async def call(self, prompt: str, message_history=None, **_kwargs):
         from harbor.llms.base import (  # type: ignore
@@ -217,6 +255,10 @@ class _AdapterLLM:
             for block in (reply.get("content") or [])
             if isinstance(block, dict) and block.get("type") == "text"
         )
+        usage = reply.get("usage") or {}
+        self.context_tokens = int(usage.get("input_tokens") or 0) + int(
+            usage.get("output_tokens") or 0
+        )
         # A turn cut off at max_tokens has to be raised, not returned. Terminus-2
         # handles it inside its LLM call -- salvage a complete action out of the
         # truncated text, else re-ask for a shorter one -- and neither step costs an
@@ -242,7 +284,6 @@ class _AdapterLLM:
         # budget. With no context budget configured the adapter does not clamp at
         # all, so there is no wall to hit and a stop can only be the per-turn cap.
         if reply.get("stop_reason") in ("max_tokens", "length"):
-            usage = reply.get("usage") or {}
             in_tok = int(usage.get("input_tokens") or 0)
             out_tok = int(usage.get("output_tokens") or 0)
             at_context_wall = self._max_context > 0 and (
@@ -358,6 +399,9 @@ class _SandboxEnvironment:
         self.pane_path: str | None = None
         self._pane_name = agent_dir.name + ".pane"
         self._observed_once = False
+        # Returns the context-budget line for this turn ("" for none); set to
+        # _AdapterLLM.context_notice once the session's LLM exists.
+        self.context_notice: Callable[[], str] | None = None
         from .terminus_terminal import TerminalLifecycle
 
         self.terminal = TerminalLifecycle(self._terminal_exec)
@@ -489,6 +533,9 @@ class _SandboxEnvironment:
             observation = f"New Terminal Output:\n{new_text}"
         else:
             observation = f"Current Terminal Screen:\n{screen}"
+        notice = self.context_notice() if self.context_notice else ""
+        if notice:
+            observation = f"{observation.rstrip()}\n\n{notice}\n"
         self.exec_trace.append(
             {
                 "t": round(started_at, 3),
@@ -720,8 +767,10 @@ async def terminus_agent(
                 max_context=_MAX_CONTEXT,
                 turn_max_tokens=_TURN_MAX_TOKENS,
                 deadline=deadline,
+                context_warn_frac=_CONTEXT_WARN_FRAC,
             )
             agent._llm = llm
+            env.context_notice = llm.context_notice
             inner_parser = getattr(agent, "_parser", None)
             if inner_parser is None:
                 # Terminus-2 always builds one, so this only trips on an upstream
