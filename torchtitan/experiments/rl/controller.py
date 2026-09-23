@@ -1902,16 +1902,16 @@ class Controller(Configurable):
                     import wandb
 
                     if wandb.run is not None:
-                        issue_xs, issue_ys, issue_keys = (
-                            self._evolution_outcomes.issue_series(step)
+                        flow_xs, flow_ys, flow_keys = (
+                            self._evolution_outcomes.completion_flow_series(step)
                         )
                         charts = {
-                            "evolution/issues_by_origin": wandb.plot.line_series(
-                                issue_xs,
-                                issue_ys,
-                                keys=issue_keys,
-                                title="Evolution issues and completed by origin step",
-                                xname="Origin policy step at group claim",
+                            "evolution/run/completed_total_comparison": wandb.plot.line_series(
+                                flow_xs,
+                                flow_ys,
+                                keys=flow_keys,
+                                title="evolution/run/completed_total",
+                                xname="Step (origin for signals; observation for completed_total)",
                             )
                         }
                         for counter in (

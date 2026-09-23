@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import json
 from collections import Counter, defaultdict
+from itertools import accumulate
 from pathlib import Path
 
 from torchtitan.experiments.rl.examples.tmax import layout
@@ -65,14 +66,17 @@ class EvolutionMetrics:
         self.root = root
         self.offset = 0
         self.claim_offset = 0
+        self.ledger_offset = 0
         self.seen: set[str] = set()
         self.seen_signals: set[str] = set()
         self.totals = dict.fromkeys(COUNTERS, 0)
         self.claimed_origin: dict[int, int] = {}
         self.signal_origin: dict[str, int] = {}
         self.issue_signals: Counter[int] = Counter()
+        self.closed_signals: set[str] = set()
         self.outcomes_by_origin: dict[int, Counter[str]] = defaultdict(Counter)
         self.observed_by_step: dict[int, Counter[str]] = defaultdict(Counter)
+        self.completed_total_by_step: dict[int, int] = {}
         self.pending_origin: dict[str, dict] = {}
 
     def _poll_claims(self) -> None:
@@ -109,6 +113,22 @@ class EvolutionMetrics:
             self.issue_signals[origin] += 1
             self.seen_signals.add(path.name)
 
+    def _poll_ledger(self) -> None:
+        if self.root is None or self.run is None:
+            return
+        path = self.root.evolution.ledger
+        if not path.exists():
+            return
+        with path.open("rb") as stream:
+            stream.seek(self.ledger_offset)
+            while line := stream.readline():
+                if not line.endswith(b"\n"):
+                    break
+                signal = json.loads(line).get("signal", "")
+                if signal.startswith(f"{self.run.name}/"):
+                    self.closed_signals.add(signal)
+                self.ledger_offset = stream.tell()
+
     def _record_origin(self, event: dict) -> bool:
         signal = event.get("signal")
         if signal is None and self.root is not None:
@@ -128,14 +148,30 @@ class EvolutionMetrics:
             self.outcomes_by_origin[origin]["failed"] += 1
         return True
 
-    def issue_series(self, step: int) -> tuple[list[int], list[list[int]], list[str]]:
-        """Issued signals and completed outcomes by claim-time policy step."""
+    def completion_flow_series(
+        self, step: int
+    ) -> tuple[list[int], list[list[int]], list[str]]:
+        """Compare origin-attributed signal flow with observed completion totals."""
         xs = list(range(max([step, *self.issue_signals]) + 1))
+        closed = Counter(
+            self.signal_origin[signal]
+            for signal in self.closed_signals
+            if signal in self.signal_origin
+        )
         ys = [
-            [self.issue_signals[x] for x in xs],
-            [self.outcomes_by_origin[x]["completed"] for x in xs],
+            list(accumulate(self.issue_signals[x] for x in xs)),
+            list(accumulate(closed[x] for x in xs)),
+            [self.completed_total_by_step.get(x, 0) for x in xs],
         ]
-        return xs, ys, ["issue signals", "completed outcomes"]
+        return (
+            xs,
+            ys,
+            [
+                "issued (origin cumulative)",
+                "closed (origin cumulative)",
+                "completed_total (observed cumulative)",
+            ],
+        )
 
     def comparison_series(
         self, step: int, counter: str
@@ -153,6 +189,7 @@ class EvolutionMetrics:
     def poll(self, *, step: int | None = None) -> dict[str, float]:
         self._poll_claims()
         self._poll_signals()
+        self._poll_ledger()
         delta = dict.fromkeys(COUNTERS, 0)
         if self.path.exists():
             with self.path.open("rb") as stream:
@@ -182,6 +219,7 @@ class EvolutionMetrics:
                 del self.pending_origin[identity]
         if step is not None:
             self.observed_by_step[step].update(delta)
+            self.completed_total_by_step[step] = self.totals["completed"]
         return {
             **{f"evolution/step/{key}": float(value) for key, value in delta.items()},
             **{

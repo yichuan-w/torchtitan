@@ -134,7 +134,7 @@ unit is started.
 - W&B: per-step outcomes and cumulative counts appear directly in the training
   run. See [the training runbook](runbook/RUNBOOK.md#evolution-charts-in-the-training-wb-run)
   for the observed-step and origin-step outcome curves,
-  the issue-versus-completed origin chart `evolution/issues_by_origin`,
+  the issued/closed/completed overlay in `evolution/run/completed_total`,
   `evolution/run/*_total`, and the supplementary
   observer link. The original `evolution/step/*` scalar keys remain available.
   The top-level `evolution/*` counters retain their experiment-wide, round-level

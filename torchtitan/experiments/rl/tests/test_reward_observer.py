@@ -252,7 +252,7 @@ class RewardObserverTest(unittest.TestCase):
             root = observer.layout.Root(Path(directory))
             run = root.run("current")
             claims = run.trainer / "training_lineage/events.jsonl"
-            for group, origin in [(1, 0), (2, 0), (3, 1)]:
+            for group, origin in [(1, 0), (2, 0), (3, 1), (4, 1), (5, 1)]:
                 observer.layout.append_jsonl(
                     claims,
                     {
@@ -261,7 +261,13 @@ class RewardObserverTest(unittest.TestCase):
                         "generator_policy_version": origin,
                     },
                 )
-            for task, group in [("same", 1), ("same", 2), ("other", 3)]:
+            for task, group in [
+                ("same", 1),
+                ("same", 2),
+                ("other", 3),
+                ("deferred", 4),
+                ("pending", 5),
+            ]:
                 observer.layout.write_json_atomic(
                     run.signal(task, group), {"task": task, "group": group}
                 )
@@ -269,10 +275,11 @@ class RewardObserverTest(unittest.TestCase):
                 root.evolution.run_outcomes(run.name), run=run, root=root
             )
             metrics.poll(step=1)
-            xs, ys, _ = metrics.issue_series(1)
+            xs, ys, _ = metrics.completion_flow_series(1)
             self.assertEqual(xs, [0, 1])
-            self.assertEqual(ys[0], [2, 1])  # signal attempts
-            self.assertEqual(ys[1], [0, 0])  # no outcomes yet
+            self.assertEqual(ys[0], [2, 5])  # cumulative issues by origin
+            self.assertEqual(ys[1], [0, 0])  # no closed signals yet
+            self.assertEqual(ys[2], [0, 0])  # no outcomes yet
 
             for task, group, status, step in [
                 ("same", 1, "accepted", 2),
@@ -290,10 +297,32 @@ class RewardObserverTest(unittest.TestCase):
                     },
                 )
                 metrics.poll(step=step)
-            _, issue_and_completed, keys = metrics.issue_series(3)
-            self.assertEqual(keys, ["issue signals", "completed outcomes"])
-            self.assertEqual(issue_and_completed[0], [2, 1, 0, 0])
-            self.assertEqual(issue_and_completed[1], [2, 1, 0, 0])
+            for task, group, outcome in [
+                ("same", 1, "handled"),
+                ("same", 2, "handled"),
+                ("other", 3, "handled"),
+                ("deferred", 4, "deferred"),
+            ]:
+                observer.layout.append_jsonl(
+                    root.evolution.ledger,
+                    {
+                        "signal": observer.layout.signal_id(run.name, task, group),
+                        "outcome": outcome,
+                    },
+                )
+            metrics.poll(step=4)
+            _, flow, keys = metrics.completion_flow_series(4)
+            self.assertEqual(
+                keys,
+                [
+                    "issued (origin cumulative)",
+                    "closed (origin cumulative)",
+                    "completed_total (observed cumulative)",
+                ],
+            )
+            self.assertEqual(flow[0], [2, 5, 5, 5, 5])
+            self.assertEqual(flow[1], [2, 4, 4, 4, 4])
+            self.assertEqual(flow[2], [0, 0, 1, 3, 3])
             xs, ys, _ = metrics.comparison_series(3, "accepted")
             self.assertEqual(xs, [0, 1, 2, 3])
             self.assertEqual(ys[0], [0, 0, 1, 1])  # observed

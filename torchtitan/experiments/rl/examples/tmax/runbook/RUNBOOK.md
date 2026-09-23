@@ -1003,16 +1003,19 @@ share numeric x positions but use different meanings of step. A late outcome
 raises an earlier point on the origin curve at the next training log. The
 original `evolution/step/*` scalar keys remain available for export.
 
-The `evolution/issues_by_origin` chart compares `issue signals` with
-`completed outcomes` by the policy step when each group was claimed, starting
-at 0. Both curves count events per origin step, so their sums can be compared
-with the run's issue count and `evolution/run/completed_total`; the cumulative
-`completed_total` scalar itself uses the training observation step and does not
-belong on this origin-step axis. Issue counts can exceed completed outcomes
-while work is pending or a signal was not selected by the evolve loop. The
-origin curves do not assert that every turn in
-a long rollout used the claim-time policy version. Outcomes finishing after the
-final training log are absent from that run's charts.
+The `evolution/run/completed_total` panel overlays three cumulative curves.
+`issued` and `closed` use the policy step when each signal's group was claimed;
+`completed_total` uses the training step when an outcome was observed. A closed
+signal has a ledger decision, including `handled`, `deferred`, `superseded`,
+`reused`, or `junk`. A handled signal's outcome can be accepted, failed,
+rejected, kept, or blocked, and contributes to `completed_total`. At the final
+recorded totals, `issued - closed` is the run's still-open signal count, while
+`closed - completed_total` includes signals closed without a rewrite outcome.
+The two step meanings are labeled in the legend and x-axis title; matching
+x positions do not mean the events occurred simultaneously. The origin curves
+do not assert that every turn in a long rollout used the claim-time policy
+version. Signals and outcomes arriving after the final training log are absent
+from that run's chart.
 
 | Name | Count |
 | --- | --- |
