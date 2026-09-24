@@ -84,7 +84,14 @@ def load_probe_contract(pkg: Path) -> tuple[dict, list[str], dict[str, str]]:
     return contract, names, scripts
 
 
-def verify_probes(pkg: Path, env: dict[str, str], timeout: int) -> None:
+def verify_probes(
+    pkg: Path, env: dict[str, str], timeout: int, *, down_own: bool = True
+) -> None:
+    """Replay every control, each in its own fresh sandbox, all at once.
+
+    ``down_own=False`` leaves ``pkg``'s own container alone: the agent running
+    ``./sandbox probes`` from its workspace keeps the container it works in.
+    """
     probes = pkg / "run" / "verifier-probes"
     contract, names, scripts = load_probe_contract(pkg)
     log_path = pkg / "run" / "verifier-probe-results.jsonl"
@@ -317,4 +324,5 @@ def verify_probes(pkg: Path, env: dict[str, str], timeout: int) -> None:
             raise SemanticProbeMisses(missed, log_path)
         record(status="passed")
     finally:
-        run("cleanup", "down", ["down"], 0)
+        if down_own:
+            run("cleanup", "down", ["down"], 0)

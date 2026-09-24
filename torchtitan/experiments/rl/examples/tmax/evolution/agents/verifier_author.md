@@ -222,6 +222,8 @@ immutability requirement to make the negative control fail.
 ./sandbox exec 'CMD'     run CMD inside it, as root; --timeout N (default 120 s)
 ./sandbox grade          run your verifier against the container as it stands
 ./sandbox reset          a fresh container from the Dockerfile
+./sandbox probes         replay correct.sh and every wrong-N.sh, each in its own
+                         fresh container, all at once; one line per script
 ./sandbox down           delete it
 ```
 
@@ -265,8 +267,11 @@ same order as the numbered scripts. Each entry has string fields `requirement`
 (the public clause being checked), `wrong_behavior` (the specific mistake), and
 `expected_failure` (the observable output that distinguishes it). Run every script
 in a separate fresh container: the correct script must pass and every wrong script
-must fail. Pass script contents as the argument to `./sandbox exec`; stdin is not
-forwarded into the container. Ensure the distinguishing input affects the output:
+must fail. `./sandbox probes` does exactly that for all of them at once, the way
+the caller will replay them, and leaves your own container as it is; use it rather
+than resetting and grading each script in turn. The caller passes each script's
+contents as the argument to `./sandbox exec`; stdin is not forwarded into the
+container. Ensure the distinguishing input affects the output:
 two identities that collapse to the same node cannot test an edge weight.
 When testing rejection of invalid inputs, include a case that violates the
 targeted validity condition while satisfying the others. An input with multiple

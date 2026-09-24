@@ -498,3 +498,63 @@ def test_check_fails_a_rewrite_more_than_one_rung_above_the_seed(
     record = json.loads((pkg / "run" / "checks.jsonl").read_text().strip())
     assert record["stage"] == "step_size" and record["reward"] == 1.0
     assert any("at most 8 more" in v for v in record["step_size"])
+
+
+def _fake_replay(outcomes, raise_with=None):
+    """A verify_probes stand-in: appends the records the real one writes."""
+
+    def replay(pkg, env, timeout, *, down_own=True):
+        assert down_own is False
+        log = pkg / "run" / "verifier-probe-results.jsonl"
+        with log.open("a") as f:
+            for case, (exit_code, reward) in outcomes.items():
+                for rec in (
+                    {"case": case, "phase": "setup", "status": "finished",
+                     "returncode": exit_code},
+                    {"case": case, "phase": "grade_diagnostics",
+                     "status": "finished", "result": {"reward": reward}},
+                ):
+                    f.write(json.dumps(rec) + "\n")
+        if raise_with:
+            raise raise_with
+
+    return replay
+
+
+def test_probes_prints_one_line_per_control(tmp_path, monkeypatch, capsys) -> None:
+    import verifier_probes as vp
+
+    pkg = tmp_path / "pkg"
+    (pkg / "run").mkdir(parents=True)
+    (pkg / "run" / "verifier-probe-results.jsonl").write_text(
+        json.dumps({"case": "correct", "phase": "setup", "status": "finished",
+                    "returncode": 9}) + "\n"
+    )
+    monkeypatch.setattr(
+        vp, "verify_probes",
+        _fake_replay({"wrong-1": (0, 0.0), "correct": (0, 1.0)}),
+    )
+    assert asb.cmd_probes(pkg, 60) == 0
+    out = capsys.readouterr().out.splitlines()
+    # Earlier runs' records are not reported again; correct comes first.
+    assert out[0].split() == ["correct", "exec_exit=0", "reward=1.0", "(want", "1.0)"]
+    assert out[1].startswith("wrong-1    exec_exit=0 reward=0.0")
+    assert out[2].startswith("probes: pass   2 controls")
+
+
+def test_probes_returns_one_on_a_semantic_miss(tmp_path, monkeypatch, capsys) -> None:
+    import verifier_probes as vp
+
+    pkg = tmp_path / "pkg"
+    (pkg / "run").mkdir(parents=True)
+    miss = vp.SemanticProbeMisses(
+        ["Semantic probe wrong-1/grade: expected exit 1, got 0"],
+        pkg / "run" / "verifier-probe-results.jsonl",
+    )
+    monkeypatch.setattr(
+        vp, "verify_probes",
+        _fake_replay({"correct": (0, 1.0), "wrong-1": (0, 1.0)}, raise_with=miss),
+    )
+    assert asb.cmd_probes(pkg, 60) == 1
+    out = capsys.readouterr().out
+    assert "probes: FAIL" in out and "wrong-1    exec_exit=0 reward=1.0" in out

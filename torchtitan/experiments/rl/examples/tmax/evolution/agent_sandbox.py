@@ -45,6 +45,11 @@ of those and timed out. This hands the agent the container itself.
                             reported as such; --max runs the same check at
                             the platform ceiling, where nothing truncates
                             the reading.
+    ./sandbox probes        replay run/verifier-probes (correct.sh and every
+                            wrong-N.sh its contract.json declares) the way the
+                            caller will: each in its own fresh container, all
+                            at once, exec then grade. Prints one line per
+                            script; the agent's own container is left as is
     ./sandbox down          delete the container
     ./sandbox status
 
@@ -616,6 +621,57 @@ def cmd_check(pkg: Path, solve_timeout: int, at_max: bool = False) -> int:
     return 0 if ok else 1  # nonzero on fail so `./sandbox check` reflects it
 
 
+def cmd_probes(pkg: Path, timeout: int) -> int:
+    """The caller's own replay of the saved controls, run by the agent.
+
+    Checking N controls one after another in the agent's container costs N
+    reset/exec/grade rounds in series; this is the same parallel replay the
+    caller runs at the end, so what passes here is what the caller will see.
+    """
+    import verifier_probes as vp  # noqa: PLC0415 -- stdlib-only sibling
+
+    log = pkg / "run" / "verifier-probe-results.jsonl"
+    offset = log.stat().st_size if log.exists() else 0
+    started = time.time()
+    code = 0
+    try:
+        vp.verify_probes(pkg, dict(os.environ), timeout, down_own=False)
+    except vp.SemanticProbeContract as e:
+        print(f"probes: contract problem, nothing replayed: {e}")
+        return 2
+    except vp.SemanticProbeMisses as e:
+        code = 1
+        print(f"probes: FAIL   {e}")
+    except Exception as e:  # noqa: BLE001 -- setup/transport errors abort the replay
+        code = 2
+        print(f"probes: error   {type(e).__name__}: {e}")
+    cases: dict[str, dict] = {}
+    if log.exists():
+        with log.open() as f:
+            f.seek(offset)
+            for line in f:
+                rec = json.loads(line)
+                case = rec.get("case")
+                if not case or case == "cleanup":
+                    continue
+                got = cases.setdefault(case, {})
+                if rec.get("phase") == "setup" and rec.get("status") == "finished":
+                    got["exec_exit"] = rec.get("returncode")
+                elif rec.get("phase") == "grade_diagnostics":
+                    got["reward"] = (rec.get("result") or {}).get("reward")
+    for case in sorted(cases, key=lambda c: (c != "correct", c)):
+        got = cases[case]
+        want = "1.0" if case == "correct" else "< 1.0"
+        print(
+            f"{case:10} exec_exit={got.get('exec_exit', '-')} "
+            f"reward={got.get('reward', '-')} (want {want})"
+        )
+    if code == 0:
+        print(f"probes: pass   {len(cases)} controls in {time.time() - started:.0f}s")
+    print(f"per-step record: {log.relative_to(pkg)}")
+    return code
+
+
 # --------------------------------------------------------------------------
 # server
 # --------------------------------------------------------------------------
@@ -906,6 +962,13 @@ def main() -> None:
     p = sub.add_parser("check")
     p.add_argument("--solve-timeout", type=int, default=SOLVE_TIMEOUT)
     p.add_argument("--max", action="store_true", help=max_help)
+    p = sub.add_parser("probes")
+    p.add_argument(
+        "--timeout",
+        type=int,
+        default=SOLVE_TIMEOUT,
+        help="per step of each replay: reset, exec, grade (default %(default)s s)",
+    )
     p = sub.add_parser("serve")
     p.add_argument("--sock", required=True)
     p.add_argument("--cpu", type=int)
@@ -945,6 +1008,8 @@ def main() -> None:
         sys.exit(cmd_grade(pkg))
     if args.cmd == "check":
         sys.exit(cmd_check(pkg, args.solve_timeout, at_max=args.max))
+    if args.cmd == "probes":
+        sys.exit(cmd_probes(pkg, args.timeout))
 
 
 if __name__ == "__main__":

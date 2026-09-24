@@ -94,8 +94,11 @@ run inside a fresh container. Save container commands directly in each script:
 the caller passes its entire contents to `./sandbox exec`. Do not put sandbox
 commands, host paths, or an outer launcher in a saved script. Each script must
 be self-contained: sibling control files are not copied into the container.
-To validate a saved script from this workspace, run `./sandbox reset`, then
-`./sandbox exec "$(cat run/verifier-probes/correct.sh)"` (or the wrong script).
+To validate the saved scripts, run `./sandbox probes`: it replays `correct.sh` and
+every `wrong-N.sh` the contract declares, each in its own fresh container and all
+at once, the way the caller will, and prints each script's exit code and reward.
+To look into one script, run `./sandbox reset`, then
+`./sandbox exec "$(cat run/verifier-probes/wrong-1.sh)"` and `./sandbox grade`.
 Stdin is not forwarded. Execute student scripts only in that container.
 Edit only files under `run/verifier-probes/`, except for an ambiguity verdict.
 Before finishing, inspect your workspace changes and remove any extra files you

@@ -49,7 +49,7 @@ class SemanticProbeTests(unittest.TestCase):
         (directory / "wrong-1.sh").write_text("write_wrong_weight_graph")
         (directory / "wrong-2.sh").write_text("write_pending_audit_graph")
 
-    def execute(self, failure_phase=None, failure_code=0):
+    def execute(self, failure_phase=None, failure_code=0, **kwargs):
         calls = []
 
         def command(args, **kwargs):
@@ -67,8 +67,13 @@ class SemanticProbeTests(unittest.TestCase):
             return subprocess.CompletedProcess(args, code, "probe output", "")
 
         with patch.object(probes.subprocess, "run", side_effect=command):
-            probes.verify_probes(self.pkg, {}, 60)
+            probes.verify_probes(self.pkg, {}, 60, **kwargs)
         return calls
+
+    def test_down_own_false_leaves_the_callers_container_up(self):
+        calls = self.execute(down_own=False)
+        # One down per replayed case, none for the workspace it was run from.
+        self.assertEqual([call[0] for call in calls].count("down"), 3)
 
     def test_fresh_environments_and_daytona_only_execution(self):
         calls = self.execute()
