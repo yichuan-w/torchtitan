@@ -73,6 +73,27 @@ class Filtered(RuntimeError):
     """
 
 
+class AgentSessionError(RuntimeError):
+    """The agent session ended without satisfying its execution contract."""
+
+    def __init__(
+        self,
+        *,
+        agent: str,
+        failure_type: str,
+        returncode: int,
+        stderr_path: Path,
+    ) -> None:
+        self.agent = agent
+        self.failure_type = failure_type
+        self.returncode = returncode
+        self.stderr_path = stderr_path
+        super().__init__(
+            f"{agent} session failed ({failure_type}, exit {returncode}); "
+            f"see {stderr_path}"
+        )
+
+
 CYBER_FLAG = "flagged for possible cybersecurity risk"
 CYBER_RETRIES = int(os.environ.get("CODEX_CYBER_RETRIES", "2"))
 
@@ -351,6 +372,8 @@ def session(
         else:
             meta["status"] = "failed"
         meta["error"] = f"{type(exc).__name__}: {exc}"[:500]
+        if failure_type := getattr(exc, "failure_type", None):
+            meta["failure_type"] = str(failure_type)
         raise
     else:
         meta["status"] = "completed"
@@ -607,6 +630,32 @@ def _read_stream(path: Path) -> str:
         return ""
 
 
+def _agent_failure_type(stdout: str, stderr: str) -> str:
+    """Classify a nonzero agent exit from the streams retained on disk."""
+    text = f"{stderr}\n{stdout}".lower()
+    if "rate_limit_exceeded" in text or "rate limit exceeded" in text:
+        return "provider_rate_limit"
+    if (
+        "failed to retrieve response from third-party api after" in text
+        and "polling attempts" in text
+    ):
+        return "provider_poll_exhausted"
+    if "server_error" in text or "server error" in text:
+        return "provider_server_error"
+    if any(
+        marker in text
+        for marker in (
+            "transport",
+            "connection error",
+            "connection reset by peer",
+        )
+    ):
+        return "provider_transport_error"
+    if "stream disconnected before completion" in text:
+        return "provider_stream_error"
+    return f"{EVOLVE_AGENT}_exit_nonzero"
+
+
 def _run_codex(
     run: SessionRun, cwd: Path, prompt: str, *, resume: str | None = None
 ) -> subprocess.CompletedProcess:
@@ -702,9 +751,17 @@ Package runtime interface:
             cmd, timeout, output=_read_stream(sd.stdout), stderr=_read_stream(sd.stderr)
         ) from exc
     run.meta["exit_code"] = proc.returncode
-    return subprocess.CompletedProcess(
+    result = subprocess.CompletedProcess(
         cmd, proc.returncode, _read_stream(sd.stdout), _read_stream(sd.stderr)
     )
+    if result.returncode:
+        raise AgentSessionError(
+            agent=EVOLVE_AGENT,
+            failure_type=_agent_failure_type(result.stdout, result.stderr),
+            returncode=result.returncode,
+            stderr_path=sd.stderr,
+        )
+    return result
 
 
 def _session_id(sd: layout.SessionDir) -> str:
@@ -1798,6 +1855,7 @@ def _probe_hashes(package: Path, exclude: tuple[str, ...] = ()) -> dict[str, str
 _PROBE_CONTRACT_JOB = """Your replay controls under `run/verifier-probes/` have
 an incomplete contract or do not match the scripts you wrote: {problem}.
 
+If the directory or `contract.json` is absent, create it now.
 Every declared case must have nonempty string fields `requirement`,
 `wrong_behavior`, and `expected_failure`. The caller replays `correct.sh` and
 one `wrong-N.sh` per declared case, in contract order. Complete any missing
@@ -1809,7 +1867,7 @@ as they are."""
 
 def _repair_probe_contract(
     rewrite: layout.RewriteDir, vsession: layout.SessionDir, problem: str
-) -> None:
+) -> SessionRun:
     """One resume of the verifier's session to reconcile its contract with the
     scripts it wrote. A declared case with no script used to raise
     FileNotFoundError out of the replay reader and discard the whole rewrite:
@@ -1827,6 +1885,7 @@ def _repair_probe_contract(
             raise RuntimeError(
                 f"probe-contract repair exited {result.returncode}; see {run.dir.stdout}"
             )
+    return run
 
 
 def _verify_original_probes(
@@ -1916,12 +1975,20 @@ def _author_independent_probes(
             log.info(
                 "independent probe contract mismatch, resuming author: %s", error
             )
-            _repair_probe_contract(rewrite, run.dir, str(error))
+            repair = _repair_probe_contract(rewrite, run.dir, str(error))
             if _probe_hashes(probe, ("run",)) != before:
                 raise RuntimeError(
                     "Independent probe contract repair changed public task files"
                 ) from error
-            load_probe_contract(probe)
+            try:
+                load_probe_contract(probe)
+            except SemanticProbeContract as repeated:
+                raise AgentSessionError(
+                    agent=EVOLVE_AGENT,
+                    failure_type="agent_missing_output",
+                    returncode=int(repair.meta.get("exit_code") or 0),
+                    stderr_path=repair.dir.stderr,
+                ) from repeated
     layout.write_json_atomic(
         pointer,
         {
@@ -2317,14 +2384,14 @@ def evolve_agentic(
 
     if task.get("_role_files"):
         prompt += _ROLE_PATCH_NOTE
-    with session(rewrite, "agent", timeout=AGENT_TIMEOUT) as run:
-        try:
-            p = _run_codex(run, pkg, prompt)
-        finally:
-            _sandbox_down(pkg)
-
+    run = None
     vsession = None
     try:
+        with session(rewrite, "agent", timeout=AGENT_TIMEOUT) as run:
+            try:
+                p = _run_codex(run, pkg, prompt)
+            finally:
+                _sandbox_down(pkg)
         _check_verdict(pkg)
         _require_checked(pkg)
         if blind:
@@ -2340,7 +2407,7 @@ def evolve_agentic(
         # so every check below it fails for that reason rather than for
         # the rewrite's. Say which it was, so the caller starts a fresh
         # session instead of recording the task as unevolvable.
-        if cyber_filtered(run.dir):
+        if run is not None and cyber_filtered(run.dir):
             raise Filtered(
                 f"the provider's cybersecurity classifier stopped the "
                 f"session ({type(exc).__name__}: {exc})"[:300]

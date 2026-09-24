@@ -453,6 +453,41 @@ def test_run_codex_streams_to_the_session_and_runs_in_the_package(
     ]
 
 
+@pytest.mark.parametrize(
+    ("stderr", "failure_type"),
+    [
+        ("request failed: rate_limit_exceeded", "provider_rate_limit"),
+        (
+            "Failed to retrieve response from third-party API after 60 polling attempts",
+            "provider_poll_exhausted",
+        ),
+        (
+            "provider returned server_error",
+            "provider_server_error",
+        ),
+        ("provider connection reset by peer", "provider_transport_error"),
+        ("stream disconnected before completion", "provider_stream_error"),
+        ("unknown process failure", "codex_exit_nonzero"),
+    ],
+)
+def test_run_codex_records_typed_nonzero_exit(
+    tmp_path, monkeypatch, stderr, failure_type
+) -> None:
+    rw = _rewrite(tmp_path, monkeypatch)
+    _fake_popen(monkeypatch, returncode=1, err=stderr)
+
+    with pytest.raises(ec.AgentSessionError) as raised:
+        with ec.session(rw, "agent", timeout=17) as run:
+            ec._run_codex(run, rw.package, "do the work")
+
+    assert raised.value.failure_type == failure_type
+    assert raised.value.returncode == 1
+    meta = json.loads(run.dir.meta.read_text())
+    assert meta["status"] == "failed"
+    assert meta["exit_code"] == 1
+    assert meta["failure_type"] == failure_type
+
+
 def test_run_codex_resume_continues_in_place_and_links_the_thread(
     tmp_path, monkeypatch
 ) -> None:
