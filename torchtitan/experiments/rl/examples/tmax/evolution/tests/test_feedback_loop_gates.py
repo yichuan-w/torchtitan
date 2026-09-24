@@ -12,6 +12,7 @@ from __future__ import annotations
 import json
 import shutil
 import sys
+import threading
 import types
 from pathlib import Path
 
@@ -157,12 +158,34 @@ def test_revalidate_uses_only_daytona_even_with_docker_installed(
 
     if probe_state == "pass":
         assert verdict["ok"] and verdict["fast_path"] == "daytona_oracle"
-        assert len(calls) == 2 and calls[1]["shortcut"] == ":"
+        assert len(calls) == 2 and any(c.get("shortcut") == ":" for c in calls)
     else:
-        assert not verdict["ok"] and len(calls) == 1
+        assert not verdict["ok"] and len(calls) == 2
         expected = "daytona_unavailable" if probe_state == "unavailable" else "daytona_error"
         assert verdict["stage"] == expected
         assert fb.verdicts_of(verdict)["oracle"] == "error"
+
+
+@pytest.mark.parametrize("oracle_ok", [True, False])
+def test_final_probes_overlap_and_join_before_return(tmp_path, monkeypatch, oracle_ok):
+    work, task = _pkg(tmp_path, SEED["instruction"], SEED["test_state_py"])
+    both_started = threading.Barrier(2)
+    finished = set()
+    box = {"cpu": 1, "mem_gb": 2, "disk_gb": 2}
+    hook = tmp_path / "pretest.json"
+
+    def probe(package, shortcut=None, resources=None, pretest_file=None, **kwargs):
+        assert package == work and resources == box and pretest_file == hook
+        both_started.wait(timeout=2)
+        finished.add("null" if shortcut else "oracle")
+        return {"ok": True, "passed": False} if shortcut else {
+            "ok": oracle_ok, "stage": "daytona_oracle", "reward": int(oracle_ok),
+        }
+
+    monkeypatch.setattr(fb, "daytona_probe", probe)
+    result = fb.revalidate(work, task, resources=box, pretest_file=hook)
+    assert result["ok"] is oracle_ok
+    assert finished == {"oracle", "null"}
 
 
 def test_new_dark_paths_names_only_what_nothing_visible_reveals(tmp_path) -> None:
@@ -254,7 +277,7 @@ def test_revalidate_records_paths_the_untouched_container_lacks(
         resources={"cpu": 1},
     )
 
-    assert calls[0] == (None, ["/app/out.json", "/usr/bin/curl"])
+    assert (None, ["/app/out.json", "/usr/bin/curl"]) in calls
     # Advice, not a verdict: the rewrite passes and the missing path rides
     # along in the record for whoever reads it.
     assert v["ok"] is True and v["fast_path"] == "daytona_oracle"
@@ -474,7 +497,7 @@ def test_easier_uses_full_validation_without_harder_growth(
         work, task, orig=SEED, changed=["instruction"]
     )
     assert verdict["ok"] and verdict["fast_path"] == "daytona_oracle"
-    assert len(calls) == 2 and calls[1]["shortcut"] == ":"
+    assert len(calls) == 2 and any(c.get("shortcut") == ":" for c in calls)
     task["_direction"] = "harder"
     verdict = fb.revalidate(
         work, task, orig=SEED, changed=["instruction"]
@@ -498,7 +521,7 @@ def test_calibration_retains_full_validation_and_the_growth_ceiling(
         work, task, orig=SEED, changed=["instruction"]
     )
     assert verdict["ok"] and verdict["fast_path"] == "daytona_oracle"
-    assert len(calls) == 2 and calls[1]["shortcut"] == ":"
+    assert len(calls) == 2 and any(c.get("shortcut") == ":" for c in calls)
     task["solve_sh"] += "\necho extra\n" * (fb.ts.MAX_ADDED + 1)
     verdict = fb.revalidate(work, task, orig=SEED, changed=["solve_sh"])
     assert not verdict["ok"] and verdict["stage"] == "step_size"

@@ -625,6 +625,21 @@ def _run_codex(
         "create, including run/verdict.txt, before reporting that they "
         "exist.\n"
     )
+    prompt += """
+
+Package runtime interface:
+- The image builds from environment/Dockerfile. Local COPY/ADD sources are
+  relative to environment/, not the package root. A top-level setup.sh is not
+  automatically executed; environment setup must be in the image recipe.
+- Host edits stay on the host unless copied by the Dockerfile or loaded by a
+  sandbox command. oracle reloads solution/; grade reloads tests/. Dockerfile
+  and build-context edits require reset. exec preserves container state.
+- When the reference solution is present, ./sandbox size reports the current
+  size, seed bounds and size violations locally, without booting a container.
+  It does not replace ./sandbox check.
+- Use these interfaces for routine package work. Inspect harness source only
+  when an observed failure cannot be explained by its documented behavior.
+"""
     if (ACCOUNT_HOME or EVOLVE_AGENT == "claude") and (cwd / "AGENTS.md").is_file():
         # Automatic document discovery is off (codex), or the role file has a
         # name this CLI does not look for (claude): either way the experiment's

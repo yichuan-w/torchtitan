@@ -23,7 +23,10 @@ wire module); a new sandbox provider = a new ``sandbox`` backend. R2E (SWE) task
 data + grading live in ``examples/swe_r2e``.
 """
 
-from torchtitan.experiments.rl.harness.adapters import AnthropicAdapter, CapturedTurn
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from torchtitan.experiments.rl.harness.adapters import AnthropicAdapter, CapturedTurn
 from torchtitan.experiments.rl.harness.agents import (
     apply_pre_commands,
     boot_agent_sandbox,
@@ -47,6 +50,17 @@ from torchtitan.experiments.rl.harness.sandbox import (
     SandboxIssueTracker,
     SandboxLogContext,
 )
+
+
+def __getattr__(name: str):
+    # Terminal replay uses a supplied policy and needs no training adapter.
+    if name in ("AnthropicAdapter", "CapturedTurn"):
+        from torchtitan.experiments.rl.harness import adapters
+
+        value = getattr(adapters, name)
+        globals()[name] = value
+        return value
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
 
 __all__ = [
     "AgentFn",
