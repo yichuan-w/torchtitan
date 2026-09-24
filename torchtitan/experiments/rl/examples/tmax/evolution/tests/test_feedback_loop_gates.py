@@ -440,6 +440,49 @@ def test_process_one_keeps_when_the_agent_declines(
     assert rec["status"] == "kept" and "student-relevant" in rec["reason"]
 
 
+def test_process_one_records_typed_agent_failure(tmp_path, monkeypatch) -> None:
+    rw, r0 = _rewrite(tmp_path, monkeypatch)
+    monkeypatch.setenv("SWE_RETUNE_AGENT", "codex")
+    monkeypatch.delenv("EVOLVE_HARDER_OPERATORS", raising=False)
+
+    class SessionFailure(RuntimeError):
+        failure_type = "provider_rate_limit"
+        returncode = 1
+
+    def fail(*_args, **_kwargs):
+        raise SessionFailure("codex exited during a model turn")
+
+    monkeypatch.setitem(sys.modules, "evolve_codex", _fake_ec(evolve_agentic=fail))
+    rec = fb.process_one(rw, SIGNAL, job="harder", seed_dir=r0)
+
+    assert rec["status"] == "failed" and rec["stage"] == "agent"
+    assert rec["agent_failure_type"] == "provider_rate_limit"
+    assert rec["agent_exit_code"] == 1
+
+
+def test_process_one_records_nonfatal_agent_exit(tmp_path, monkeypatch) -> None:
+    rw, r0 = _rewrite(tmp_path, monkeypatch)
+    monkeypatch.setenv("SWE_RETUNE_AGENT", "codex")
+
+    def evolve(rewrite, task, job):
+        return {
+            **task,
+            "instruction": "A changed core workflow.",
+            "_agent_validated": True,
+            "_agent_failure_type": "provider_stream_error",
+            "_agent_exit_code": 1,
+        }
+
+    monkeypatch.setitem(sys.modules, "evolve_codex", _fake_ec(evolve_agentic=evolve))
+    monkeypatch.setattr(fb, "revalidate", lambda *a, **k: {"ok": True, "reward": 1.0})
+
+    rec = fb.process_one(rw, SIGNAL, job="harder", seed_dir=r0)
+
+    assert rec["status"] == "accepted"
+    assert rec["agent_failure_type"] == "provider_stream_error"
+    assert rec["agent_exit_code"] == 1
+
+
 @pytest.mark.parametrize("arm", ["codex", "claude"])
 def test_student_hardening_never_requests_an_operator(tmp_path, monkeypatch, arm):
     rw, r0 = _rewrite(tmp_path, monkeypatch)
