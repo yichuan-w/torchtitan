@@ -648,6 +648,8 @@ Package runtime interface:
     if (cwd / ev.ACTION_PATH).is_file() and not (cwd / "solution/solve.sh").is_file():
         prompt = _recorded_solution_prompt(prompt)
     sd.prompt.write_text(prompt)
+    if (cwd / "sandbox").is_file():
+        _sandbox_boot(cwd)
     if EVOLVE_AGENT == "claude":
         env = _claude_env(Path(run.meta.get("claude_config_dir") or sd.codex_home))
         # A resume names the thread the caller wants continued; a fresh
@@ -957,6 +959,31 @@ def _collect(task: dict, pkg: Path, fmap: dict) -> dict:
         out["_at_max"] = bool(chk.get("at_max"))
     out["_support_changed"] = support_changes(pkg, task.get("_seed_dir"))
     return out
+
+
+def _sandbox_boot(pkg: Path) -> None:
+    """Start the package's container as the session starts.
+
+    The container is the harness's to provide, not the agent's to manage: it
+    comes up while the agent reads the task, and exec, grade and oracle wait
+    for it. Agents that ran `./sandbox up` themselves backgrounded it to keep
+    working, and codex kills a command's background jobs when the command
+    returns, which left them watching a log that had stopped. Best effort: a
+    boot that fails here is retried, and its error shown, by the agent's first
+    command that needs the container.
+    """
+    try:
+        p = subprocess.run(
+            [str(pkg / "sandbox"), "up", "--detach"],
+            cwd=pkg,
+            env=_harness_env(),
+            capture_output=True,
+            text=True,
+            timeout=120,
+        )
+        log.info("sandbox boot for %s: %s", pkg, (p.stdout + p.stderr).strip()[-300:])
+    except Exception as e:  # noqa: BLE001 -- the session runs without a head start
+        log.warning("sandbox boot for %s did not start: %s", pkg, e)
 
 
 def _sandbox_down(pkg: Path) -> None:
@@ -1397,7 +1424,7 @@ the pipeline that built these tasks learned the hard way:
 - **What you add has to fit in the row.** The package is shipped to training as
   one line of JSON: COPY sources together stay under 1 MiB, and files under
   `tests/` are text and together stay under 1 MiB; a binary under `tests/` is
-  refused by name (`./sandbox up` tells you). A binary the environment needs is
+  refused by name (the container's boot says so). A binary the environment needs is
   a COPY source under `environment/` or is produced by a RUN; a large reference
   the verifier needs is checked by hash, not shipped.
 - Preserve the seed's base image and installation style; make the smallest change
@@ -1492,7 +1519,7 @@ the pipeline that built these tasks learned the hard way:
 - **What you add has to fit in the row.** The package is shipped to training as
   one line of JSON: COPY sources together stay under 1 MiB, and files under
   `tests/` are text and together stay under 1 MiB; a binary under `tests/` is
-  refused by name (`./sandbox up` tells you). A binary the environment needs is
+  refused by name (the container's boot says so). A binary the environment needs is
   a COPY source under `environment/` or is produced by a RUN; a large reference
   the verifier needs is checked by hash, not shipped.
 - Preserve the seed's base image and installation style; make the smallest change
@@ -1539,8 +1566,8 @@ the instruction points at), or make the verifier stop depending on them; do
 not weaken what it checks otherwise. If the verdict says the rewrite is more
 than one rung above the seed, take requirements out until it is one: the
 seed's deliverable plus one new thing. Do not rewrite what the run shows is
-already working. The container you had is gone; `./sandbox up` gives you a
-fresh one.
+already working. The container you had is gone; a fresh one is booting, and
+your first command waits for it.
 
 Confirm with `./sandbox check` before you stop."""
 
@@ -1637,7 +1664,7 @@ _BUDGET = """
 
 Budget: this session is ended at {deadline} ({budget_min} minutes from now),
 whatever state the files are in, and a session that ends that way is discarded
-whole. `./sandbox up`, `reset` and `check` build the image and take minutes each;
+whole. `reset` and `check` build the image and take minutes each;
 `./sandbox exec` takes seconds. Plan for two or three checks, not for guessing."""
 
 

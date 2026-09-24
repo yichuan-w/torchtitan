@@ -218,7 +218,7 @@ immutability requirement to make the negative control fail.
 ## The container
 
 ```
-./sandbox up             build the image and boot a container, at the task's size
+./sandbox up             wait until the container is ready (booted at the task's size)
 ./sandbox exec 'CMD'     run CMD inside it, as root; --timeout N (default 120 s)
 ./sandbox grade          run your verifier against the container as it stands
 ./sandbox reset          a fresh container from the Dockerfile
@@ -227,13 +227,12 @@ immutability requirement to make the negative control fail.
 ./sandbox down           delete it
 ```
 
-Run `up` and `reset` in the foreground. `up` reports when its own container is
-ready or why it failed; if the command tool returns a session ID, poll that
-session until it exits. Do not background the command: a background job is
-killed when the command that started it returns, so a log it was writing stops
-changing while the container keeps starting. If an `up` was cut off, run
-`./sandbox up` again: it waits for the boot already in progress rather than
-starting a second container.
+Your container is already booting when the session starts, built from the
+package as it was then. `exec`, `grade` and `oracle` wait for it the first time
+and after a `reset`, so there is nothing to start or poll. After editing the
+Dockerfile or its build context, `reset`: it rebuilds from the current files and
+reports a build error there. Run `./sandbox` commands in the foreground; a
+background job is killed when the command that started it returns.
 
 `oracle` and `check` need the solution and are not available to you.
 

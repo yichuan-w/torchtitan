@@ -936,3 +936,40 @@ def test_rebench_shaped_package_is_measured_on_its_patches(tmp_path):
     (pkg / "tests/test.patch").unlink()
     assert ev.load(pkg)["_role_files"] == {}
     assert ts.size_of_package(pkg, "tests/test.sh")["solution_lines"] == 4
+
+
+
+def test_run_codex_starts_the_package_container_before_the_cli(
+    tmp_path, monkeypatch
+) -> None:
+    """The harness, not the agent, starts the container, so it boots while
+    the agent reads; a package without ./sandbox gets no boot."""
+    rw = _rewrite(tmp_path, monkeypatch)
+    seen = _fake_popen(monkeypatch)
+    order = []
+    monkeypatch.setattr(
+        ec, "_sandbox_boot", lambda pkg: order.append(("boot", pkg, "command" in seen))
+    )
+    with ec.session(rw, "agent", timeout=17) as run:
+        ec._run_codex(run, rw.package, "do the work")
+    assert order == []
+
+    (rw.package / "sandbox").write_text("#!/bin/sh\n")
+    with ec.session(rw, "agent", timeout=17) as run:
+        seen.clear()
+        ec._run_codex(run, rw.package, "do the work")
+    assert order == [("boot", rw.package, False)] and "command" in seen
+
+
+def test_sandbox_boot_detaches_in_the_package(tmp_path, monkeypatch) -> None:
+    monkeypatch.undo()  # the suite-wide guard replaces the function under test
+    monkeypatch.setenv("TRL_BASE", str(tmp_path))  # _harness_env reads it
+    calls = []
+    monkeypatch.setattr(
+        ec.subprocess,
+        "run",
+        lambda argv, **kw: calls.append((argv, kw["cwd"]))
+        or subprocess.CompletedProcess(argv, 0, "sandbox booting", ""),
+    )
+    ec._sandbox_boot(tmp_path)
+    assert calls == [([str(tmp_path / "sandbox"), "up", "--detach"], tmp_path)]

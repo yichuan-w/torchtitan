@@ -63,3 +63,16 @@ def _torchless() -> None:
 
 
 _torchless()
+
+
+import pytest  # noqa: E402
+
+
+@pytest.fixture(autouse=True)
+def _no_container_from_a_session(monkeypatch):
+    """A session starts its package's container (evolve_codex._sandbox_boot).
+    Tests that drive _run_codex never get a real one; the test of the boot
+    itself restores the function it needs."""
+    ec = sys.modules.get("evolve_codex")
+    if ec is not None and hasattr(ec, "_sandbox_boot"):
+        monkeypatch.setattr(ec, "_sandbox_boot", lambda pkg: None)
