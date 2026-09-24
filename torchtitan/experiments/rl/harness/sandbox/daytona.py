@@ -17,7 +17,6 @@ Ported from THUDM/slime ``slime/agent/sandbox.py``.
 from __future__ import annotations
 
 import base64
-import binascii
 import json
 
 import logging
@@ -1298,7 +1297,7 @@ class DaytonaSandbox:
             try:
                 code = int(head.strip())
                 return code, base64.b64decode("".join(rest.split()))
-            except (ValueError, binascii.Error):
+            except ValueError:
                 return None
 
         async def read_status(*, final: bool = False) -> int | None:
