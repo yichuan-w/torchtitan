@@ -26,6 +26,7 @@ COUNTERS = (
     "rewrite_rejected",
     "rewrite_kept",
 )
+SIGNAL_OUTCOMES = ("handled", "deferred", "superseded", "junk")
 ORIGIN_CHART_COUNTERS = (
     "rewrite_accepted_harder",
     "rewrite_accepted",
@@ -72,7 +73,7 @@ class EvolutionMetrics:
         self.claimed_origin: dict[int, int] = {}
         self.signal_origin: dict[str, int] = {}
         self.issue_signals: Counter[int] = Counter()
-        self.consumed_signals: set[str] = set()
+        self.signal_outcomes: dict[str, str] = {}
         self.outcomes_by_origin: dict[int, Counter[str]] = defaultdict(Counter)
         self.observed_by_step: dict[int, Counter[str]] = defaultdict(Counter)
         self.pending_origin: dict[str, dict] = {}
@@ -122,9 +123,10 @@ class EvolutionMetrics:
             while line := stream.readline():
                 if not line.endswith(b"\n"):
                     break
-                signal = json.loads(line).get("signal", "")
+                event = json.loads(line)
+                signal = event.get("signal", "")
                 if signal.startswith(f"{self.run.name}/"):
-                    self.consumed_signals.add(signal)
+                    self.signal_outcomes[signal] = event["outcome"]
                 self.ledger_offset = stream.tell()
 
     def _record_origin(self, event: dict) -> bool:
@@ -155,12 +157,19 @@ class EvolutionMetrics:
         xs = list(range(max([step, *self.issue_signals]) + 1))
         consumed = Counter(
             self.signal_origin[signal]
-            for signal in self.consumed_signals
+            for signal in self.signal_outcomes
+            if signal in self.signal_origin
+        )
+        handled = Counter(
+            self.signal_origin[signal]
+            for signal, outcome in self.signal_outcomes.items()
+            if outcome == "handled"
             if signal in self.signal_origin
         )
         ys = [
             list(accumulate(self.issue_signals[x] for x in xs)),
             list(accumulate(consumed[x] for x in xs)),
+            list(accumulate(handled[x] for x in xs)),
             list(
                 accumulate(self.outcomes_by_origin[x]["rewrite_finalized"] for x in xs)
             ),
@@ -171,6 +180,7 @@ class EvolutionMetrics:
             [
                 "signal_issued (origin cumulative)",
                 "signal_consumed (origin cumulative)",
+                "signal_handled (origin cumulative)",
                 "rewrite_finalized (origin cumulative)",
             ],
         )
@@ -189,6 +199,12 @@ class EvolutionMetrics:
         return xs, ys, ["observed at training step", "origin policy step"]
 
     def poll(self, *, step: int | None = None) -> dict[str, float]:
+        previous_issued = len(self.seen_signals)
+        previous_outcomes = Counter(
+            outcome
+            for signal, outcome in self.signal_outcomes.items()
+            if signal in self.signal_origin
+        )
         self._poll_claims()
         self._poll_signals()
         self._poll_ledger()
@@ -221,6 +237,11 @@ class EvolutionMetrics:
                 del self.pending_origin[identity]
         if step is not None:
             self.observed_by_step[step].update(delta)
+        signal_counts = Counter(
+            outcome
+            for signal, outcome in self.signal_outcomes.items()
+            if signal in self.signal_origin
+        )
         return {
             **{f"evolution/step/{key}": float(value) for key, value in delta.items()},
             **{
@@ -231,8 +252,26 @@ class EvolutionMetrics:
                 {
                     "evolution/run/signal_issued_total": float(len(self.seen_signals)),
                     "evolution/run/signal_consumed_total": float(
-                        len(self.consumed_signals & self.signal_origin.keys())
+                        sum(signal_counts.values())
                     ),
+                    **{
+                        f"evolution/run/signal_{outcome}_total": float(
+                            signal_counts[outcome]
+                        )
+                        for outcome in SIGNAL_OUTCOMES
+                    },
+                    "evolution/step/signal_issued": float(
+                        len(self.seen_signals) - previous_issued
+                    ),
+                    "evolution/step/signal_consumed": float(
+                        sum(signal_counts.values()) - sum(previous_outcomes.values())
+                    ),
+                    **{
+                        f"evolution/step/signal_{outcome}": float(
+                            signal_counts[outcome] - previous_outcomes[outcome]
+                        )
+                        for outcome in SIGNAL_OUTCOMES
+                    },
                 }
                 if self.run is not None
                 else {}

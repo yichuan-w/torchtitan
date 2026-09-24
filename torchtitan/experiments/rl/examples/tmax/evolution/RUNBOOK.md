@@ -49,16 +49,16 @@ No `[trainer_loop] step` line for the first ~45 min after a restart is normal; s
 (by stage), `failed`, `kept` and `mix_version`; it is rebuilt from the ledger
 at the end of every round, so a stale `updated` means the loop is not rounding.
 
-The same numbers reach W&B (project `terminal-agent-rl`): the training run carries
-`evolution/pending_signals`, `evolution/handled_total`, `evolution/accepted_total`,
-`evolution/rejected_total`, `evolution/kept_total` and
-`evolution/mix_version`, which the trainer reads out of `evolution/status.json`, so the
-loop's health sits on the same dashboard as the loss.
+The training W&B run counts its own signals under `evolution/run/signal_*_total`:
+`issued`, `consumed`, `handled`, `deferred`, `superseded`, and `junk`.
+`consumed` is the sum of the four terminal results. The trainer also reads
+`evolution/mix_version` from the root-wide `status.json`.
 
 Training also logs run-scoped outcome curves at each step:
 `evolution/step/rewrite_accepted_harder`, `evolution/step/rewrite_accepted`,
 `evolution/step/rewrite_failed` and `evolution/step/rewrite_rejected`, plus cumulative
-`evolution/run/<name>_total` curves. The trainer reads rewrite outcomes at each
+`evolution/run/rewrite_*_total` curves. Signal outcomes have matching
+`evolution/step/signal_*` increments. The trainer reads rewrite outcomes at each
 logged step, without waiting for the round-level status snapshot. See
 [Evolution charts in the training W&B run](../runbook/RUNBOOK.md#evolution-charts-in-the-training-wb-run)
 for count definitions and the automatically launched accuracy/timeline observer.

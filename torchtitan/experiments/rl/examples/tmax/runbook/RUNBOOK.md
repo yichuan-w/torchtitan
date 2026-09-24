@@ -1004,25 +1004,28 @@ share numeric x positions but use different meanings of step. A late outcome
 raises an earlier point on the origin curve at the next training log. The
 per-step `evolution/step/*` scalar values remain available for export.
 
-The `evolution/run/signal_flow` panel overlays three cumulative curves.
+The `evolution/run/signal_flow` panel overlays four cumulative curves.
 `signal_issued` counts signals emitted by the trainer. `signal_consumed` counts
 distinct signals with a terminal ledger decision: `handled`, `deferred`,
-`superseded`, or `junk`. These two curves use the policy step when
-each signal's group was claimed. `rewrite_finalized` counts handled rewrite
-attempts with a recorded final verdict, including `accepted`, `failed`,
-`rejected`, and `kept`; it uses the training step when that outcome
-was observed. At the final recorded totals, `signal_issued - signal_consumed`
-is the count without a ledger decision. `signal_consumed - rewrite_finalized`
-includes signals settled without a new rewrite, and may temporarily include
-rewrite outcomes not yet observed by the trainer.
-The same counts are logged as `evolution/run/signal_issued_total`,
-`evolution/run/signal_consumed_total`, and
-`evolution/run/rewrite_finalized_total`.
-The two step meanings are labeled in the legend and x-axis title; matching
-x positions do not mean the events occurred simultaneously. The origin curves
-do not assert that every turn in a long rollout used the claim-time policy
-version. Signals and outcomes arriving after the final training log are absent
-from that run's chart.
+`superseded`, or `junk`. `signal_handled` counts the consumed signals that
+started and completed a rewrite. `rewrite_finalized` counts rewrite attempts
+with a recorded final verdict, including interrupted attempts. All four
+curves use the policy step when each signal's group was claimed.
+At the final recorded totals, `signal_issued - signal_consumed` is the count
+without a ledger decision. `signal_consumed - signal_handled` counts signals
+whose terminal decision was deferred, superseded, or junk. A signal retried
+after an interrupted attempt can
+contribute multiple `rewrite_finalized` counts but only one `signal_handled`.
+These counts are logged as `evolution/run/signal_issued_total`,
+`evolution/run/signal_consumed_total`, `evolution/run/signal_handled_total`, and
+`evolution/run/rewrite_finalized_total`. The other terminal signal results are
+`evolution/run/signal_deferred_total`, `evolution/run/signal_superseded_total`,
+and `evolution/run/signal_junk_total`, with matching `evolution/step/signal_*`
+increments.
+For the same run, consumed equals the sum of handled, deferred, superseded,
+and junk. The origin curves do not assert that every turn in a long rollout
+used the claim-time policy version. Signals and outcomes arriving after the
+final training log are absent from that run's chart.
 
 | Name | Count |
 | --- | --- |
@@ -1042,9 +1045,9 @@ of `rewrite_accepted`; `rewrite_interrupted` is a subset of `rewrite_failed`.
 The evolve loop appends each rewrite outcome to `evolution/outcomes/<run>.jsonl`
 after publication is settled. The trainer reads new records each step, without
 waiting for an entire evolve round. Repeated records for the same rewrite are
-counted once. Counts from other training runs are excluded. The existing
-`evolution/accepted_total` and other top-level counters remain experiment-wide
-snapshots from `status.json`, refreshed at round boundaries.
+counted once. Counts from other training runs are excluded. The only remaining
+root-wide W&B gauge from `status.json` is `evolution/mix_version`, refreshed
+at round boundaries.
 
 Both training launchers also start the supplementary accuracy/timeline observer
 by default. Its published page is linked from the training run's

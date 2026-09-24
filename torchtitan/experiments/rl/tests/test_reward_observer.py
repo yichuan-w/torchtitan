@@ -282,7 +282,8 @@ class RewardObserverTest(unittest.TestCase):
             self.assertEqual(xs, [0, 1])
             self.assertEqual(ys[0], [2, 5])  # cumulative issues by origin
             self.assertEqual(ys[1], [0, 0])  # no consumed signals yet
-            self.assertEqual(ys[2], [0, 0])  # no outcomes yet
+            self.assertEqual(ys[2], [0, 0])  # no handled signals yet
+            self.assertEqual(ys[3], [0, 0])  # no rewrites yet
 
             for task, group, status, step in [
                 ("same", 1, "accepted", 2),
@@ -316,6 +317,10 @@ class RewardObserverTest(unittest.TestCase):
             fourth = metrics.poll(step=4)
             self.assertEqual(fourth["evolution/run/signal_issued_total"], 5)
             self.assertEqual(fourth["evolution/run/signal_consumed_total"], 4)
+            self.assertEqual(fourth["evolution/run/signal_handled_total"], 3)
+            self.assertEqual(fourth["evolution/run/signal_deferred_total"], 1)
+            self.assertEqual(fourth["evolution/step/signal_consumed"], 4)
+            self.assertEqual(fourth["evolution/step/signal_handled"], 3)
             self.assertEqual(fourth["evolution/run/rewrite_finalized_total"], 3)
             _, flow, keys = metrics.signal_flow_series(4)
             self.assertEqual(
@@ -323,12 +328,14 @@ class RewardObserverTest(unittest.TestCase):
                 [
                     "signal_issued (origin cumulative)",
                     "signal_consumed (origin cumulative)",
+                    "signal_handled (origin cumulative)",
                     "rewrite_finalized (origin cumulative)",
                 ],
             )
             self.assertEqual(flow[0], [2, 5, 5, 5, 5])
             self.assertEqual(flow[1], [2, 4, 4, 4, 4])
             self.assertEqual(flow[2], [2, 3, 3, 3, 3])
+            self.assertEqual(flow[3], [2, 3, 3, 3, 3])
             xs, ys, _ = metrics.comparison_series(3, "rewrite_accepted")
             self.assertEqual(xs, [0, 1, 2, 3])
             self.assertEqual(ys[0], [0, 0, 1, 1])  # observed
@@ -369,9 +376,61 @@ class RewardObserverTest(unittest.TestCase):
             )
             totals = metrics.poll(step=1)
             self.assertEqual(totals["evolution/run/signal_consumed_total"], 1)
+            self.assertEqual(totals["evolution/run/signal_handled_total"], 1)
             self.assertEqual(totals["evolution/run/rewrite_finalized_total"], 2)
             _, flow, _ = metrics.signal_flow_series(1)
-            self.assertEqual(flow, [[1, 1], [1, 1], [2, 2]])
+            self.assertEqual(flow, [[1, 1], [1, 1], [1, 1], [2, 2]])
+
+    def test_signal_outcomes_are_run_scoped_and_counted_once(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = observer.layout.Root(Path(directory))
+            run = root.run("current")
+            outcomes = ("handled", "deferred", "superseded", "junk")
+            for group, outcome in enumerate(outcomes, 1):
+                observer.layout.append_jsonl(
+                    run.trainer / "training_lineage/events.jsonl",
+                    {
+                        "event": "claimed",
+                        "group_id": group,
+                        "generator_policy_version": 0,
+                    },
+                )
+                observer.layout.write_json_atomic(
+                    run.signal("task", group), {"task": "task", "group": group}
+                )
+                observer.layout.append_jsonl(
+                    root.evolution.ledger,
+                    {
+                        "signal": observer.layout.signal_id(run.name, "task", group),
+                        "outcome": outcome,
+                    },
+                )
+            observer.layout.append_jsonl(
+                root.evolution.ledger,
+                {"signal": "other/task--g1", "outcome": "handled"},
+            )
+            metrics = outcome_metrics.EvolutionMetrics(
+                root.evolution.run_outcomes(run.name), run=run, root=root
+            )
+            first = metrics.poll(step=1)
+            self.assertEqual(first["evolution/run/signal_issued_total"], 4)
+            self.assertEqual(first["evolution/run/signal_consumed_total"], 4)
+            self.assertEqual(first["evolution/step/signal_consumed"], 4)
+            for outcome in outcomes:
+                self.assertEqual(first[f"evolution/run/signal_{outcome}_total"], 1)
+                self.assertEqual(first[f"evolution/step/signal_{outcome}"], 1)
+
+            observer.layout.append_jsonl(
+                root.evolution.ledger,
+                {
+                    "signal": observer.layout.signal_id(run.name, "task", 1),
+                    "outcome": "handled",
+                },
+            )
+            second = metrics.poll(step=2)
+            self.assertEqual(second["evolution/run/signal_consumed_total"], 4)
+            self.assertEqual(second["evolution/step/signal_consumed"], 0)
+            self.assertEqual(second["evolution/step/signal_handled"], 0)
 
     def test_partial_append_and_duplicate_outcome_are_not_counted_twice(self):
         with tempfile.TemporaryDirectory() as directory:

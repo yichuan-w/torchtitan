@@ -87,16 +87,14 @@ as `traces/attempt-NN.jsonl`, so the agent that rewrites a task reads the same
 file the trainer wrote, in the one rollout record format.
 
 The easier branch is off by default on the loop side (`SWE_EVOLVE_SIMPLIFY=0`):
-those signals are ledgered as `deferred` and replayed if the arm is turned on.
+those signals are ledgered as `deferred` and are not replayed if the arm is turned on.
 `EVOLVE_LOOP.md` has the measurement behind that default.
 
-Every signal the loop sees gets one line in `evolution/ledger.jsonl` (`handled`,
-`deferred`, `junk`); `evolution/status.json` is rebuilt from the ledger and the
-tasks' lineage at the end of every round, and the trainer reads it to put
-`evolution/pending_signals`, `evolution/handled_total`,
-`evolution/accepted_total`, `evolution/rejected_total`,
-`evolution/kept_total` and `evolution/mix_version` on
-W&B beside the training curves.
+Every consumed signal has a terminal line in `evolution/ledger.jsonl`:
+`handled`, `deferred`, `superseded`, or `junk`. The trainer counts these by
+training run in W&B as `evolution/run/signal_*_total`, alongside run-scoped
+`rewrite_*_total` counters. It reads only `evolution/mix_version` from the
+root-wide `evolution/status.json` for W&B.
 
 ## Enabling it, and keeping batch size fixed
 

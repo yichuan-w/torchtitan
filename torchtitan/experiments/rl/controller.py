@@ -1870,7 +1870,7 @@ class Controller(Configurable):
         logger.info("=" * 60)
 
     def _evolution_metrics(self, step: int | None = None) -> list[m.Metric]:
-        """Per-step outcomes for this run, plus the experiment's round-level gauges."""
+        """Per-step outcomes for this run, plus the current mix version."""
         import json
 
         # Local import: the layout is a tmax convention and this file is shared
@@ -1954,26 +1954,8 @@ class Controller(Configurable):
             s = json.loads(status_path.read_text())
         except (OSError, ValueError):
             return metrics
-        rejected = s.get("rejected") or {}
         return [
             *metrics,
-            m.Metric(
-                "evolution/pending_signals", m.NoReduce(float(s.get("pending") or 0))
-            ),
-            m.Metric(
-                "evolution/handled_total", m.NoReduce(float(s.get("handled") or 0))
-            ),
-            m.Metric(
-                "evolution/accepted_total", m.NoReduce(float(s.get("accepted") or 0))
-            ),
-            m.Metric(
-                "evolution/rejected_total",
-                m.NoReduce(float(sum(rejected.values()))),
-            ),
-            m.Metric(
-                "evolution/blocked_total", m.NoReduce(float(s.get("blocked") or 0))
-            ),
-            m.Metric("evolution/kept_total", m.NoReduce(float(s.get("kept") or 0))),
             m.Metric(
                 "evolution/mix_version", m.NoReduce(float(s.get("mix_version") or 0))
             ),
