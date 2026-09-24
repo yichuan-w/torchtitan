@@ -1071,6 +1071,12 @@ follow the training run's normal offline W&B behavior; the supplementary observe
 requires online W&B. Outcomes completed after the last training step do not
 update the training curves.
 
+The supplementary `Rewrite accuracy` chart pairs a task's last scored group
+before its revision was folded with its first scored group after the fold in
+the same training run. Its subtitle reports paired folds and missing before/
+after observations. When there are no pairs, the panel displays that coverage
+instead of treating an empty plot as evidence of accuracy change.
+
 Token usage is stamped onto every record, so a round can be priced after the
 fact.
 

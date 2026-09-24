@@ -90,15 +90,29 @@
       "after_n",
       "before_group",
       "after_group",
-      "after_step"
+      "after_step",
+      "note"
     ],
     "spec": {
       "$schema": "https://vega.github.io/schema/vega-lite/v5.json",
       "data": {
         "name": "wandb"
       },
-      "title": {"text": "Accuracy before / after rewrite", "anchor": "start"},
+      "title": {
+        "text": "Accuracy before / after rewrite",
+        "subtitle": "${string:comparison_status}",
+        "anchor": "start"
+      },
       "layer": [
+        {
+          "transform": [{"filter": "isValid(datum['${field:note}'])"}],
+          "mark": {"type": "text", "fontSize": 15, "color": "#555"},
+          "encoding": {
+            "x": {"datum": 0.5, "type": "quantitative"},
+            "y": {"datum": 0.5, "type": "quantitative"},
+            "text": {"field": "${field:note}", "type": "nominal"}
+          }
+        },
         {
           "data": {
             "values": [

@@ -196,9 +196,17 @@ def publish(wb, result: dict, snapshot: Path, charts: dict) -> None:
 
     # The timeline spans the run; the SDK's 10k history default drops later events.
     wandb.Table.MAX_ROWS = wandb.Table.MAX_ARTIFACT_ROWS
+    coverage = result["comparison_coverage"]
+    comparison_status = (
+        f"{len(result['comparisons'])}/{coverage['folds']} folds paired; "
+        f"missing before: {coverage['missing_before']}; "
+        f"missing after: {coverage['missing_after']}"
+    )
     datasets = {
         "Unchanged task accuracy": result["unchanged"]["points"],
-        "Rewrite accuracy": result["comparisons"],
+        # A real table row lets W&B render the explanation when there are no
+        # before/after points; null coordinates cannot appear as a measurement.
+        "Rewrite accuracy": result["comparisons"] or [{"note": comparison_status}],
         "Task timeline": result["timeline"],
     }
     payload = {}
@@ -218,6 +226,7 @@ def publish(wb, result: dict, snapshot: Path, charts: dict) -> None:
             string_fields={
                 "task": focus,
                 "cohort": f"Same {len(result['unchanged']['cohort'])} unchanged tasks at every epoch",
+                "comparison_status": comparison_status,
             },
         )
     wb.log(payload)
