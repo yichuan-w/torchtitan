@@ -6,6 +6,7 @@
 
 import json
 import shutil
+import threading
 from types import SimpleNamespace
 
 import evolve_codex as ec
@@ -13,6 +14,55 @@ import evolve_codex as ec
 import pytest
 
 from test_blind_verifier import _rewrite, _wire, SEED
+
+
+def test_probe_author_runs_while_blind_verifier_is_writing(tmp_path, monkeypatch):
+    rewrite = _rewrite(tmp_path, monkeypatch)
+    probe_started = threading.Event()
+    calls = []
+
+    def author(run, package, prompt, resume=None):
+        kind = run.meta["kind"]
+        calls.append(kind)
+        if kind == "verifier":
+            assert probe_started.wait(2), "probe author did not start concurrently"
+            (package / "tests/test_state.py").write_text(
+                SEED["test_state_py"] + "\n# revised verifier\n"
+            )
+        elif kind == "probe":
+            assert not (package / "solution").exists()
+            assert not (package / "tests/test_state.py").exists()
+            assert "exit 2" in (package / "tests/test.sh").read_text()
+            controls = package / "run/verifier-probes"
+            controls.mkdir()
+            (controls / "contract.json").write_text(
+                json.dumps(
+                    {
+                        "cases": [
+                            {
+                                "requirement": "Preserve input bytes",
+                                "wrong_behavior": "Trim spaces",
+                                "expected_failure": "Padded input loses spaces",
+                            }
+                        ]
+                    }
+                )
+            )
+            (controls / "correct.sh").write_text("correct")
+            (controls / "wrong-1.sh").write_text("wrong")
+            probe_started.set()
+        return SimpleNamespace(returncode=0)
+
+    monkeypatch.setattr(ec, "_run_codex", author)
+    monkeypatch.setattr(ec, "_sandbox_down", lambda package: None)
+    monkeypatch.setattr(ec, "_verify_original_probes", lambda *args: None)
+    monkeypatch.setattr(ec, "verify_probes", lambda *args: None)
+
+    ec._blind_verifier(rewrite, dict(SEED), ec.ev.file_map(SEED))
+    assert set(calls) == {"probe", "verifier"}
+    assert (rewrite.package / "tests/test_state.py").read_text().endswith(
+        "# revised verifier\n"
+    )
 
 
 @pytest.fixture

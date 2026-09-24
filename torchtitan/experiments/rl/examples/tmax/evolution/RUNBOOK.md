@@ -269,6 +269,12 @@ rewrites improve student outcomes. The codex arm runs
 The worker count is not a throughput knob: the loop is signal-starved (89% of rounds carry
 ≤8 signals) and it only drains rare bursts faster.
 
+After the task author finishes, the blind verifier and independent probe authors run
+concurrently in separate packages. The probe author sees only public task files; its
+controls replay against the completed verifier before the rewrite can be accepted.
+This overlaps their authoring time but can double model requests for each rewrite
+during that stage, so check proxy capacity when raising the worker count.
+
 For a ChatGPT login, set `EVOLVE_CODEX_AUTH_FILE` to the project's private Codex
 `auth.json` and set `SYNTH_MODEL` to a model available to that account. The Codex
 arm uses the built-in OpenAI provider and ignores an inherited API key. Each
