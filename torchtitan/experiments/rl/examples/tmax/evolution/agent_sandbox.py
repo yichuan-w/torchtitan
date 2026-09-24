@@ -16,10 +16,13 @@ of those and timed out. This hands the agent the container itself.
 `./sandbox` in the package directory is a shell wrapper over this file:
 
     ./sandbox up            build the image, boot a container, seed the
-                            workspace, start the entrypoint (minutes). The
-                            box is the size training gives this task, from
+                            workspace, start the entrypoint. The box is the
+                            size training gives this task, from
                             run/resources.json; --max opens it at the
-                            platform ceiling instead
+                            platform ceiling instead. The harness runs
+                            `up --detach` as each session starts, and exec,
+                            grade and oracle wait for a boot in progress or
+                            start one, so an agent never has to run it
     ./sandbox exec 'CMD'    run CMD inside, as root, from the image's workdir;
                             --timeout N (default 120 s); exits with CMD's code
     ./sandbox oracle        copy solution/ in, run solve.sh, grade with the
@@ -263,23 +266,17 @@ def _pid_alive(pid) -> bool:
     return True
 
 
-def cmd_up(pkg: Path, at_max: bool = False) -> int:
-    state = _read_state(pkg)
-    if _alive(state):
-        print(
-            f"sandbox already up (id={state.get('sandbox_id')}, "
-            f"box=[{_box_str(state.get('resources') or {})}]); "
-            f"use ./sandbox reset for a fresh one"
-        )
-        return 0
-    # The server outlives the `up` that started it (start_new_session), and
-    # that `up` can die mid-boot: codex-cli 0.149 kills whatever a command
-    # left in the background once the command returns. Running `up` again
-    # then waits for the boot in progress instead of starting a second
-    # container over the first one's state.
-    if state.get("status") == "booting" and _pid_alive(state.get("pid")):
-        print(f"sandbox already booting (server pid {state['pid']}); waiting for it")
-        return _wait_ready(pkg, int(state["pid"]), state.get("resources") or {})
+def _booting(state: dict) -> bool:
+    """A server is still bringing this package's container up."""
+    return state.get("status") == "booting" and _pid_alive(state.get("pid"))
+
+
+def _start(pkg: Path, at_max: bool) -> subprocess.Popen:
+    """Start the server that boots the container, and return without waiting.
+
+    The server runs in its own session, so it outlives whatever started it;
+    run/sandbox.json says how far it got.
+    """
     box = _box(pkg, at_max)
     log = pkg / "run" / "sandbox.log"
     log.parent.mkdir(parents=True, exist_ok=True)
@@ -333,15 +330,69 @@ def cmd_up(pkg: Path, at_max: bool = False) -> int:
     # The server writes its pid too, but only once it has started; recording
     # it here leaves no moment in which a second `up` cannot see the boot.
     _write_state(pkg, {**_read_state(pkg), "pid": proc.pid})
-    return _wait_ready(pkg, proc.pid, box, proc)
+    return proc
+
+
+def cmd_up(pkg: Path, at_max: bool = False, detach: bool = False) -> int:
+    """Boot the container, or wait for the boot already in progress.
+
+    The harness runs ``up --detach`` as a session starts, so the container
+    comes up while the agent reads; the agent never has to run ``up`` itself.
+    """
+    state = _read_state(pkg)
+    if _alive(state):
+        print(
+            f"sandbox already up (id={state.get('sandbox_id')}, "
+            f"box=[{_box_str(state.get('resources') or {})}]); "
+            f"use ./sandbox reset for a fresh one"
+        )
+        return 0
+    if _booting(state):
+        if detach:
+            print(f"sandbox already booting (server pid {state['pid']})")
+            return 0
+        print(f"sandbox already booting (server pid {state['pid']}); waiting for it")
+        return _wait_ready(pkg, int(state["pid"]), state.get("resources") or {})
+    proc = _start(pkg, at_max)
+    if detach:
+        print(f"sandbox booting (server pid {proc.pid}); commands wait for it")
+        return 0
+    return _wait_ready(pkg, proc.pid, _read_state(pkg).get("resources") or {}, proc)
+
+
+def _ready_state(pkg: Path) -> dict | None:
+    """The state of a container that is up, booting one first if need be.
+
+    exec, grade and oracle need a container, so they wait for the one that is
+    booting, or boot one when there is none, rather than asking the agent to.
+    Progress goes to stderr: exec's stdout is the command's own. None if the
+    boot failed; what failed is already printed.
+    """
+    state = _read_state(pkg)
+    if state.get("status") == "ready":
+        return state
+    if _booting(state):
+        code = _wait_ready(pkg, int(state["pid"]), state.get("resources") or {},
+                           out=sys.stderr)
+    else:
+        print("no sandbox up; booting one", file=sys.stderr, flush=True)
+        proc = _start(pkg, bool(state.get("at_max")))
+        code = _wait_ready(pkg, proc.pid, _read_state(pkg).get("resources") or {},
+                           proc, out=sys.stderr)
+    return _read_state(pkg) if code == 0 else None
 
 
 def _wait_ready(
-    pkg: Path, pid: int, box: dict, proc: subprocess.Popen | None = None
+    pkg: Path,
+    pid: int,
+    box: dict,
+    proc: subprocess.Popen | None = None,
+    out=None,
 ) -> int:
     """Wait for the server `pid` to report ready. ``proc`` is given when this
     process started it, so an exited child is seen as such rather than as a
     zombie that still answers kill(pid, 0)."""
+    out = out or sys.stdout
     log = pkg / "run" / "sandbox.log"
     started = time.time()
     last_note = 0.0
@@ -350,13 +401,14 @@ def _wait_ready(
         if state.get("status") == "ready":
             print(
                 f"sandbox up: id={state.get('sandbox_id')} workdir={state.get('workdir')} "
-                f"box=[{_box_str(box)}] in {time.time() - started:.0f}s"
+                f"box=[{_box_str(box)}] in {time.time() - started:.0f}s",
+                file=out,
             )
             return 0
         gone = proc.poll() is not None if proc else not _pid_alive(pid)
         if state.get("status") == "failed" or gone:
-            print("sandbox failed to boot; run/sandbox.log ends with:")
-            print(log.read_text(errors="replace")[-3000:])
+            print("sandbox failed to boot; run/sandbox.log ends with:", file=out)
+            print(log.read_text(errors="replace")[-3000:], file=out)
             return 1
         if time.time() - started > BOOT_TIMEOUT:
             try:
@@ -365,13 +417,15 @@ def _wait_ready(
                 pass
             print(
                 f"sandbox did not come up within {BOOT_TIMEOUT}s; "
-                f"run/sandbox.log ends with:"
+                f"run/sandbox.log ends with:",
+                file=out,
             )
-            print(log.read_text(errors="replace")[-3000:])
+            print(log.read_text(errors="replace")[-3000:], file=out)
             return 1
         if time.time() - last_note > 30:
             last_note = time.time()
-            print(f"  building/booting... {time.time() - started:.0f}s", flush=True)
+            print(f"  building/booting... {time.time() - started:.0f}s", file=out,
+                  flush=True)
         time.sleep(2)
 
 
@@ -403,7 +457,9 @@ def cmd_down(pkg: Path) -> int:
 
 
 def cmd_exec(pkg: Path, cmd: str, timeout: int) -> int:
-    state = _read_state(pkg)
+    state = _ready_state(pkg)
+    if state is None:
+        return 2
     r = _request(state, "exec", wait=timeout, cmd=cmd, timeout=timeout)
     if not r.get("ok"):
         print(f"sandbox error: {r.get('error')}", file=sys.stderr)
@@ -441,7 +497,9 @@ def _print_oracle(r: dict) -> None:
 
 
 def cmd_oracle(pkg: Path, solve_timeout: int) -> int:
-    state = _read_state(pkg)
+    state = _ready_state(pkg)
+    if state is None:
+        return 2
     r = _request(state, "oracle", wait=solve_timeout + 600, solve_timeout=solve_timeout)
     if not r.get("ok"):
         print(f"sandbox error: {r.get('error')}", file=sys.stderr)
@@ -451,7 +509,9 @@ def cmd_oracle(pkg: Path, solve_timeout: int) -> int:
 
 
 def cmd_grade(pkg: Path) -> int:
-    state = _read_state(pkg)
+    state = _ready_state(pkg)
+    if state is None:
+        return 2
     r = _request(state, "grade", wait=900)
     if not r.get("ok"):
         print(f"sandbox error: {r.get('error')}", file=sys.stderr)
@@ -981,6 +1041,11 @@ def main() -> None:
     )
     p = sub.add_parser("up")
     p.add_argument("--max", action="store_true", help=max_help)
+    p.add_argument(
+        "--detach",
+        action="store_true",
+        help="start the boot and return; exec, grade and oracle wait for it",
+    )
     sub.add_parser("down")
     p = sub.add_parser("reset")
     p.add_argument("--max", action="store_true", help=max_help)
@@ -1023,7 +1088,7 @@ def main() -> None:
             )
         )
     if args.cmd == "up":
-        sys.exit(cmd_up(pkg, at_max=args.max))
+        sys.exit(cmd_up(pkg, at_max=args.max, detach=args.detach))
     if args.cmd == "down":
         sys.exit(cmd_down(pkg))
     if args.cmd == "reset":

@@ -30,7 +30,7 @@ package travels back with it, so an axis that needs a fixture, a config or a dat
 file is a normal thing to do rather than something to work around. It travels as
 one line of JSON, so COPY sources together stay under 1 MiB, and files under
 `tests/` are text and together stay under 1 MiB; a binary under `tests/` is
-refused by name, and `./sandbox up` says so. `AGENTS.md`,
+refused by name, and the container's boot says so. `AGENTS.md`,
 `sandbox` and `traces/` are the harness and do not travel. Which files you
 *should* touch depends on the job in your prompt, and that prompt says so. If the
 public instruction requires files or command outputs to remain unchanged, list
@@ -210,15 +210,14 @@ worse than the task you started from.
 ## The container, and verifying your own work
 
 ```
-./sandbox up             build the image and boot a container (minutes), at the
-                         size training gives this task; --max opens the platform
-                         ceiling (4 vCPU / 8 GiB / 10 GiB) instead
+./sandbox up             wait until the container is ready; it is booted at the
+                         size training gives this task
 ./sandbox exec 'CMD'     run CMD inside it, as root; --timeout N (default 120 s)
 ./sandbox oracle         copy solution/ in, run solve.sh, grade it; prints what
                          the run cost (memory peak, cpu seconds, disk)
 ./sandbox grade          grade the current state as it is
-./sandbox reset          a fresh container from the current Dockerfile (--max as
-                         for up)
+./sandbox reset          a fresh container from the current Dockerfile; --max
+                         opens the platform ceiling (4 vCPU / 8 GiB / 10 GiB)
 ./sandbox check          reset; grade the untouched workspace, which must fail;
                          run the oracle, which must pass; compare the size
                          against the seed, which must be within the bounds your
@@ -230,13 +229,12 @@ worse than the task you started from.
 ./sandbox down           delete it
 ```
 
-Run `up` and `reset` in the foreground. `up` reports when its own container is
-ready or why it failed; if the command tool returns a session ID, poll that
-session until it exits. Do not background the command: a background job is
-killed when the command that started it returns, so a log it was writing stops
-changing while the container keeps starting. If an `up` was cut off, run
-`./sandbox up` again: it waits for the boot already in progress rather than
-starting a second container.
+Your container is already booting when the session starts, built from the
+package as it was then. `exec`, `grade` and `oracle` wait for it the first time
+and after a `reset`, so there is nothing to start or poll. After editing the
+Dockerfile or its build context, `reset`: it rebuilds from the current files and
+reports a build error there. Run `./sandbox` commands in the foreground; a
+background job is killed when the command that started it returns.
 
 This is the task's own environment, built, sized and graded the way the training
 harness does it: the container is the size the task gets in training, so what

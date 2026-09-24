@@ -610,3 +610,70 @@ def test_probes_returns_one_on_a_semantic_miss(tmp_path, monkeypatch, capsys) ->
     assert asb.cmd_probes(pkg, 60) == 1
     out = capsys.readouterr().out
     assert "probes: FAIL" in out and "wrong-1    exec_exit=0 reward=1.0" in out
+
+
+def test_exec_waits_for_the_boot_in_progress(tmp_path, monkeypatch, capsys) -> None:
+    pkg = tmp_path / "pkg"
+    pkg.mkdir()
+    server = _FakeServer(lambda req: {"ok": True, "code": 0, "stdout": "hi\n"})
+    try:
+        asb._write_state(pkg, {"status": "booting", "pid": os.getpid(),
+                               "sock": server.path})
+
+        def boot_finishes(_seconds):
+            asb._write_state(pkg, {**asb._read_state(pkg), "status": "ready"})
+
+        monkeypatch.setattr(asb.time, "sleep", boot_finishes)
+        assert asb.cmd_exec(pkg, "echo hi", 10) == 0
+    finally:
+        server.close()
+    out, err = capsys.readouterr()
+    # The command's own stdout stays clean; the wait is reported on stderr.
+    assert out == "hi\n" and "sandbox up:" in err
+
+
+def test_exec_boots_a_container_when_none_is_up(tmp_path, monkeypatch, capsys):
+    pkg = tmp_path / "pkg"
+    pkg.mkdir()
+    server = _FakeServer(lambda req: {"ok": True, "code": 0, "stdout": "hi\n"})
+    started = []
+
+    class FakeProc:
+        pid = 4244
+
+        def __init__(self, argv, **kwargs):
+            started.append(argv)
+            asb._write_state(pkg, {**asb._read_state(pkg), "status": "ready",
+                                   "sock": server.path})
+
+        def poll(self):
+            return None
+
+    monkeypatch.setattr(asb.subprocess, "Popen", FakeProc)
+    try:
+        assert asb.cmd_exec(pkg, "echo hi", 10) == 0
+    finally:
+        server.close()
+    out, err = capsys.readouterr()
+    assert len(started) == 1 and out == "hi\n" and "booting one" in err
+
+
+def test_up_detach_starts_the_server_and_returns(tmp_path, monkeypatch, capsys):
+    pkg = tmp_path / "pkg"
+    pkg.mkdir()
+
+    class FakeProc:
+        pid = 4245
+
+        def __init__(self, argv, **kwargs):
+            pass
+
+        def poll(self):
+            raise AssertionError("a detached up does not wait")
+
+    monkeypatch.setattr(asb.subprocess, "Popen", FakeProc)
+    monkeypatch.setattr(asb, "_alive", lambda _state: False)
+    assert asb.cmd_up(pkg, detach=True) == 0
+    state = asb._read_state(pkg)
+    assert state["status"] == "booting" and state["pid"] == 4245
+    assert "commands wait for it" in capsys.readouterr().out
