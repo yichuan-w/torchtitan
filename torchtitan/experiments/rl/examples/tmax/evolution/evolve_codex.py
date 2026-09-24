@@ -31,6 +31,7 @@ endpoint synth_client uses, and the key injected via env.
 from __future__ import annotations
 
 import contextlib
+from concurrent.futures import ThreadPoolExecutor
 import hashlib
 import json
 import logging
@@ -1816,6 +1817,78 @@ def _verify_original_probes(
         _replay()
 
 
+def _author_independent_probes(
+    rewrite: layout.RewriteDir,
+    public_source: Path,
+    pointer: Path,
+    *,
+    allow_repair: bool = True,
+) -> None:
+    with session(rewrite, "probe", timeout=AGENT_TIMEOUT) as run:
+        probe = run.dir.package
+        _blind_layout(public_source, probe)
+        shutil.rmtree(probe / "tests")
+        (probe / "tests").mkdir()
+        (probe / "tests/test.sh").write_text(
+            "#!/bin/sh\nmkdir -p /logs/verifier\necho 0 > /logs/verifier/reward.txt\nexit 2\n"
+        )
+        for name in ("seed_size.json", "seed_literals.json"):
+            (probe / "run" / name).unlink(missing_ok=True)
+        shutil.copy2(
+            VERIFIER_SPEC.with_name("independent_verifier_probes.md"),
+            probe / "AGENTS.md",
+        )
+
+        before = _probe_hashes(probe, ("run",))
+        run.meta["public_inputs_sha256"] = before
+        try:
+            result = _run_codex(
+                run,
+                probe,
+                "Create independent semantic controls from the public task.\n"
+                + _budget(AGENT_TIMEOUT),
+            )
+            if result.returncode:
+                raise RuntimeError(
+                    f"Independent probe author exited {result.returncode}"
+                )
+        finally:
+            _sandbox_down(probe)
+        _check_verdict(probe)
+        after = _probe_hashes(probe, ("run",))
+        changed = sorted(
+            name
+            for name in before.keys() | after.keys()
+            if before.get(name) != after.get(name)
+        )
+        if changed:
+            raise RuntimeError(
+                "Independent probe author changed files outside run/: "
+                + ", ".join(changed)
+            )
+        try:
+            load_probe_contract(probe)
+        except SemanticProbeContract as error:
+            if not allow_repair:
+                raise
+            log.info(
+                "independent probe contract mismatch, resuming author: %s", error
+            )
+            _repair_probe_contract(rewrite, run.dir, str(error))
+            if _probe_hashes(probe, ("run",)) != before:
+                raise RuntimeError(
+                    "Independent probe contract repair changed public task files"
+                )
+            load_probe_contract(probe)
+    layout.write_json_atomic(
+        pointer,
+        {
+            "package": str(probe),
+            "controls_sha256": _probe_hashes(probe / "run/verifier-probes"),
+        },
+    )
+
+
 def _independent_verifier(
     rewrite: layout.RewriteDir,
     vsession: layout.SessionDir,
@@ -1824,72 +1897,9 @@ def _independent_verifier(
 ) -> None:
     vpkg = vsession.package
     pointer = vsession.path / "independent-probes.json"
-    if pointer.exists():
-        probe = Path(json.loads(pointer.read_text())["package"])
-    else:
-        with session(rewrite, "probe", timeout=AGENT_TIMEOUT) as run:
-            probe = run.dir.package
-            _blind_layout(vpkg, probe)
-            shutil.rmtree(probe / "tests")
-            (probe / "tests").mkdir()
-            (probe / "tests/test.sh").write_text(
-                "#!/bin/sh\nmkdir -p /logs/verifier\necho 0 > /logs/verifier/reward.txt\nexit 2\n"
-            )
-            for name in ("seed_size.json", "seed_literals.json"):
-                (probe / "run" / name).unlink(missing_ok=True)
-            shutil.copy2(
-                VERIFIER_SPEC.with_name("independent_verifier_probes.md"),
-                probe / "AGENTS.md",
-            )
-
-            before = _probe_hashes(probe, ("run",))
-            run.meta["public_inputs_sha256"] = before
-            try:
-                result = _run_codex(
-                    run,
-                    probe,
-                    "Create independent semantic controls from the public task.\n"
-                    + _budget(AGENT_TIMEOUT),
-                )
-                if result.returncode:
-                    raise RuntimeError(
-                        f"Independent probe author exited {result.returncode}"
-                    )
-            finally:
-                _sandbox_down(probe)
-            _check_verdict(probe)
-            after = _probe_hashes(probe, ("run",))
-            changed = sorted(
-                name
-                for name in before.keys() | after.keys()
-                if before.get(name) != after.get(name)
-            )
-            if changed:
-                raise RuntimeError(
-                    "Independent probe author changed files outside run/: "
-                    + ", ".join(changed)
-                )
-            try:
-                load_probe_contract(probe)
-            except SemanticProbeContract as error:
-                if not allow_repair:
-                    raise
-                log.info(
-                    "independent probe contract mismatch, resuming author: %s", error
-                )
-                _repair_probe_contract(rewrite, run.dir, str(error))
-                if _probe_hashes(probe, ("run",)) != before:
-                    raise RuntimeError(
-                        "Independent probe contract repair changed public task files"
-                    )
-                load_probe_contract(probe)
-        layout.write_json_atomic(
-            pointer,
-            {
-                "package": str(probe),
-                "controls_sha256": _probe_hashes(probe / "run/verifier-probes"),
-            },
-        )
+    if not pointer.exists():
+        _author_independent_probes(rewrite, vpkg, pointer, allow_repair=allow_repair)
+    probe = Path(json.loads(pointer.read_text())["package"])
 
     controls_sha256 = json.loads(pointer.read_text())["controls_sha256"]
     public_sha256 = _probe_hashes(vpkg, ("run", "tests"))
@@ -1979,34 +1989,44 @@ def _blind_verifier(
             if key in roles and (seed_pkg / roles[key]).is_file()
         },
     )
-    with session(rewrite, "verifier", timeout=AGENT_TIMEOUT) as run:
-        vpkg = run.dir.package
-        _blind_layout(pkg, vpkg)
-        _restore_seed_tests(vpkg, seed_tests)
-        prompt = _VERIFIER_JOB.format(
-            verifier_rel=seed_rel,
-            seed_asserts=seed_size["verifier_asserts"],
-            max_asserts=ts.MAX_ADDED_ASSERTS,
-        )
-        if task.get("_role_files"):
-            prompt += _ROLE_PATCH_NOTE
-        prompt += _budget(AGENT_TIMEOUT)
-        if task.get("_calibration"):
-            prompt += (
-                "\nThis adjusts a previous simplification. If the existing verifier "
-                "still fully checks the retained goal, keep it unchanged and validate it. "
-                "A change only to guidance does not require a new assertion.\n"
+    with ThreadPoolExecutor(max_workers=1) as pool:
+        with session(rewrite, "verifier", timeout=AGENT_TIMEOUT) as run:
+            vpkg = run.dir.package
+            _blind_layout(pkg, vpkg)
+            _restore_seed_tests(vpkg, seed_tests)
+            prompt = _VERIFIER_JOB.format(
+                verifier_rel=seed_rel,
+                seed_asserts=seed_size["verifier_asserts"],
+                max_asserts=ts.MAX_ADDED_ASSERTS,
             )
-        try:
-            result = _run_codex(run, vpkg, prompt)
-            if result.returncode:
-                raise RuntimeError(
-                    f"Verifier author exited {result.returncode}; see {run.dir.stdout}"
+            if task.get("_role_files"):
+                prompt += _ROLE_PATCH_NOTE
+            prompt += _budget(AGENT_TIMEOUT)
+            if task.get("_calibration"):
+                prompt += (
+                    "\nThis adjusts a previous simplification. If the existing verifier "
+                    "still fully checks the retained goal, keep it unchanged and validate it. "
+                    "A change only to guidance does not require a new assertion.\n"
                 )
-        finally:
-            _sandbox_down(vpkg)
-    _check_verdict(vpkg)
-    _verify_original_probes(run.dir, rewrite)
+            # The probe author sees the public task copy, never the verifier's
+            # changing package. Its controls replay only after both authors finish.
+            probe_future = pool.submit(
+                _author_independent_probes,
+                rewrite,
+                pkg,
+                run.dir.path / "independent-probes.json",
+            )
+            try:
+                result = _run_codex(run, vpkg, prompt)
+                if result.returncode:
+                    raise RuntimeError(
+                        f"Verifier author exited {result.returncode}; see {run.dir.stdout}"
+                    )
+            finally:
+                _sandbox_down(vpkg)
+        _check_verdict(vpkg)
+        _verify_original_probes(run.dir, rewrite)
+        probe_future.result()
     _independent_verifier(rewrite, run.dir)
     rel = _take_verifier(
         vpkg,

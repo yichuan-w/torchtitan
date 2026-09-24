@@ -143,6 +143,7 @@ def _wire(monkeypatch, sessions: list, checks: list, verifier_text=NEW_VERIFIER)
     monkeypatch.setattr(ec, "VERIFIER_AUTHOR", "blind")
     monkeypatch.setattr(ec, "_sandbox_down", lambda _pkg: None)
     # These tests isolate author/reference reconciliation; independent replay has separate tests.
+    monkeypatch.setattr(ec, "_author_independent_probes", lambda *args: None)
     monkeypatch.setattr(ec, "_independent_verifier", lambda *args, **kwargs: None)
 
     def fake_run_codex(run, cwd, prompt, resume=None):
