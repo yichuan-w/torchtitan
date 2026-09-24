@@ -1049,6 +1049,20 @@ counted once. Counts from other training runs are excluded. The only remaining
 root-wide W&B gauge from `status.json` is `evolution/mix_version`, refreshed
 at round boundaries.
 
+For a finished run that logged the older mixed-axis signal-flow chart, inspect
+the reconstructed origin-step counts first:
+
+```bash
+python evolution/backfill_wandb.py --root "$TRL_BASE" --run <run-name> \
+  --wandb <entity/project/run-id> --out "$TRL_BASE/logs/<unique-backfill-name>"
+```
+
+Add `--upload` with a new output directory to replace that run's signal-flow
+panel and cumulative counters. The output directory keeps the previous W&B
+summary values and the source counts. The backfill includes final rewrite
+verdicts recorded after training stopped, so its `rewrite_finalized` total can
+exceed the last live training log.
+
 Both training launchers also start the supplementary accuracy/timeline observer
 by default. Its published page is linked from the training run's
 `evolution/observer_url` summary field. `RL_OBSERVE_REWARDS=0` disables those
