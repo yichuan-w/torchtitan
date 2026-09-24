@@ -163,12 +163,13 @@ def test_output_printed_between_turns_is_the_next_observation(tmp_path):
         asyncio.run(env.observe_turn(obs))  # the first screen
         keys("echo AAA; sleep 2; echo BBB")
         time.sleep(0.8)
-        first = asyncio.run(env.observe_turn(obs))
+        # Output lines only: the echoed command line names both.
+        first = asyncio.run(env.observe_turn(obs)).splitlines()
         assert "AAA" in first and "BBB" not in first
         time.sleep(2.5)  # BBB prints while the model chooses its next keys
         keys("")
         time.sleep(0.3)
-        assert "BBB" in asyncio.run(env.observe_turn(obs))
+        assert "BBB" in asyncio.run(env.observe_turn(obs)).splitlines()
     finally:
         subprocess.run(["tmux", "kill-session", "-t", session])
         Path(f"/dev/shm/.torchtitan_turn_pre.{session}").unlink(missing_ok=True)
