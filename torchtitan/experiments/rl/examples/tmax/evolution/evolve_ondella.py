@@ -70,6 +70,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import evolve_codex as ec  # noqa: E402
 import feedback_loop as fb  # noqa: E402
+from finalize_interrupted_traces import finalize_interrupted  # noqa: E402
 import pack_to_dataset as pack  # noqa: E402
 from torchtitan.experiments.rl.examples.tmax import layout  # noqa: E402
 from torchtitan.experiments.rl.examples.tmax.evolution_metrics import record_outcome  # noqa: E402
@@ -1313,6 +1314,17 @@ def main() -> None:
         # every record to the same file a second time.
         handlers=[logging.FileHandler(root.evolution.loop_log)],
     )
+    if not (args.dry or args.signal):
+        # The singleton lock excludes another live loop before orphaned rewrites
+        # are marked. The earlier loop may have exited before restart_evolve.sh
+        # could stop it and finalize its records.
+        recovered = finalize_interrupted(root)
+        if recovered["failed"]:
+            raise RuntimeError(f"could not finalize orphaned rewrites: {recovered}")
+        if recovered["marked"]:
+            log.warning(
+                "finalized records left running by an earlier loop: %s", recovered
+            )
     # A row declaring no daytona_* is boxed at this size, here and (if the
     # trainer's env agrees) in training. None means the harness default 2/4/6,
     # which is not what the trainer runs at unless its env says so too.

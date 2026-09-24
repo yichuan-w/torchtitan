@@ -1911,7 +1911,7 @@ class Controller(Configurable):
                                 flow_ys,
                                 keys=flow_keys,
                                 title="Evolution signal flow",
-                                xname="Step (origin for signals; observation for rewrite outcomes)",
+                                xname="Origin policy step",
                             )
                         }
                         for counter in (
