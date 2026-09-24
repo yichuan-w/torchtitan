@@ -1070,6 +1070,10 @@ supplementary charts; it does not disable the per-step counters. Scalar counters
 follow the training run's normal offline W&B behavior; the supplementary observer
 requires online W&B. Outcomes completed after the last training step do not
 update the training curves.
+On AMD, the observer runs as `observe-<run-name>` in the user systemd manager.
+Check it with `systemctl --user status observe-<run-name>` and read
+`<run>/observer/stdout.log`; systemd restarts it if it fails. The service reads
+the AMD project's `work/wandb.env` when it starts.
 
 The supplementary `Rewrite accuracy` chart pairs a task's last scored group
 before its revision was folded with its first scored group after the fold in

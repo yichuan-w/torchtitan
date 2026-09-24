@@ -167,9 +167,17 @@ echo "$! -> $RUN/stdout.log"
 
 if [ "$RL_OBSERVE_REWARDS" = 1 ]; then
     mkdir -p "$RUN/observer"
-    setsid nohup "$ROOT/venv/bin/python" -u \
+    systemd-run --user --unit="observe-$(basename "$RUN")" --collect \
+        --working-directory="$ROOT/torchtitan" \
+        --setenv="PYTHONPATH=$ROOT/torchtitan" \
+        --setenv="XDG_CACHE_HOME=$ROOT/work/cache" \
+        -p "EnvironmentFile=$ROOT/work/wandb.env" \
+        -p Restart=on-failure -p RestartSec=30 \
+        -p "StandardOutput=append:$RUN/observer/stdout.log" \
+        -p "StandardError=append:$RUN/observer/stdout.log" \
+        "$ROOT/venv/bin/python" -u \
         "$ROOT/torchtitan/torchtitan/experiments/rl/examples/tmax/evolution/observe_rewards.py" \
         --root "$BASE" --run "$(basename "$RUN")" --out "$RUN/observer" \
-        --watch --upload > "$RUN/observer/stdout.log" 2>&1 < /dev/null &
-    echo "[train] reward observer pid=$! log=$RUN/observer/stdout.log"
+        --watch --upload
+    echo "[train] reward observer unit=observe-$(basename "$RUN") log=$RUN/observer/stdout.log"
 fi
