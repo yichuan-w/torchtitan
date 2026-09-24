@@ -1878,7 +1878,7 @@ def _author_independent_probes(
             if _probe_hashes(probe, ("run",)) != before:
                 raise RuntimeError(
                     "Independent probe contract repair changed public task files"
-                )
+                ) from error
             load_probe_contract(probe)
     layout.write_json_atomic(
         pointer,
