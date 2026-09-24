@@ -18,9 +18,9 @@ write over a run directory that exists.
 
 A signal the ledger already closed is never handled again, so a retry is
 staged under a NEW run-dir name (--name): the signal ids change, and the
-loop's reuse check never reuses a failed decision. --only-failed restages
-the tasks whose newest rewrite ended failed or interrupted (an infrastructure
-loss); kept, rejected and blocked are verdicts and stay. --max-attempts
+loop handles each staged signal. --only-failed restages the tasks whose newest
+rewrite ended failed or interrupted (an infrastructure loss); kept and rejected
+are verdicts and stay. --max-attempts
 counts rewrites stamped at or after --attempts-since, so a task that keeps
 failing on its own merits is not retried forever, while attempts lost to a
 fault you have since fixed are excluded by moving the stamp.

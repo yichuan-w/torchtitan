@@ -176,8 +176,7 @@ verdict: Terminus usually installs it at runtime).
 
 `outcome` is `handled`, `deferred` (the direction is switched off; the signal
 is not automatically replayed), `junk` (unreadable, unknown task, a rev the task
-never had), `reused` (an earlier decision for unchanged feedback is reused),
-or `superseded` with a `reason`: a second pending signal for the
+never had), or `superseded` with a `reason`: a second pending signal for the
 same task and rev, or a signal about a rev the task has already moved past
 (groups still in flight when the mix reloaded). The loop handles one signal
 per task per round, the newest whose `rev` is the task's latest. The loop's
@@ -201,12 +200,12 @@ line and is retried next round; `loop.log` holds the traceback.
 
 `stage` names the check that settled a non-accepted rewrite (`oracle`,
 `dark_literals`, `step`, `setup`, `fold`, …) and `reason` says why in a
-sentence; both are null on an accepted one. `status` is `running`, `accepted`, `rejected`, `blocked`, `failed`,
+sentence; both are null on an accepted one. `status` is `running`, `accepted`, `rejected`, `failed`,
 `interrupted` (the loop died with it running; `finalize_interrupted_traces.py`
 marks it), or `kept`. An accepted rewrite stays `running` until the round's
 fold renames its package, so a loop that dies between the two reads as
 interrupted rather than as accepted with no revision. `kept` is
-the agent's own verdict that none of the offered axes fits the task, so the
+the agent's own verdict that no suitable change fits the task, so the
 task stays as it is: neither a success nor a failure of the pipeline, and
 left out of acceptance rates. A rejected or failed rewrite keeps its `package/`. On `accepted`, `package/` is renamed
 to `r<result_rev>/` after the harness files (`AGENTS.md`, `sandbox`, `run/`,
@@ -263,7 +262,7 @@ mix. Signals are not here; they are in the ledger.
 ```json
 {"updated": "…", "mix_version": 42, "pending": 3, "handled": 478, "deferred": 184,
  "junk": 2, "rewrites_running": 4, "accepted": 120, "rejected": {"oracle": 30, "dark_literals": 8},
- "blocked": 12, "failed": 5, "kept": 9}
+ "failed": 5, "kept": 9}
 ```
 
 Rebuilt from the ledger and every task's lineage and rewrite files at the end

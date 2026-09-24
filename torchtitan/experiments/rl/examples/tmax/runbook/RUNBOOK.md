@@ -1007,10 +1007,10 @@ per-step `evolution/step/*` scalar values remain available for export.
 The `evolution/run/signal_flow` panel overlays three cumulative curves.
 `signal_issued` counts signals emitted by the trainer. `signal_consumed` counts
 distinct signals with a terminal ledger decision: `handled`, `deferred`,
-`superseded`, `reused`, or `junk`. These two curves use the policy step when
+`superseded`, or `junk`. These two curves use the policy step when
 each signal's group was claimed. `rewrite_finalized` counts handled rewrite
 attempts with a recorded final verdict, including `accepted`, `failed`,
-`rejected`, `kept`, and `blocked`; it uses the training step when that outcome
+`rejected`, and `kept`; it uses the training step when that outcome
 was observed. At the final recorded totals, `signal_issued - signal_consumed`
 is the count without a ledger decision. `signal_consumed - rewrite_finalized`
 includes signals settled without a new rewrite, and may temporarily include
@@ -1032,7 +1032,6 @@ from that run's chart.
 | `rewrite_rejected` | Rewrites rejected by validation or publication checks. |
 | `rewrite_accepted_easier` | Easier rewrites that passed validation and were published. |
 | `rewrite_interrupted` | Attempts interrupted when the evolve loop stopped. |
-| `rewrite_blocked` | Attempts recorded as blocked. |
 | `rewrite_kept` | Attempts that kept the original task. |
 | `rewrite_finalized` | All rewrite attempts with a final verdict, including failed and interrupted attempts. |
 

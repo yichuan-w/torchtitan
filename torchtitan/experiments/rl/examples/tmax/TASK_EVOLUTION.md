@@ -95,7 +95,7 @@ Every signal the loop sees gets one line in `evolution/ledger.jsonl` (`handled`,
 tasks' lineage at the end of every round, and the trainer reads it to put
 `evolution/pending_signals`, `evolution/handled_total`,
 `evolution/accepted_total`, `evolution/rejected_total`,
-`evolution/blocked_total`, `evolution/kept_total` and `evolution/mix_version` on
+`evolution/kept_total` and `evolution/mix_version` on
 W&B beside the training curves.
 
 ## Enabling it, and keeping batch size fixed

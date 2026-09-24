@@ -37,7 +37,7 @@ import layout  # noqa: E402
 import rollout_record  # noqa: E402
 
 LOG = logging.getLogger("publish_evolve_analysis")
-REWRITE_STATUSES = ("accepted", "rejected", "blocked", "failed", "kept")
+REWRITE_STATUSES = ("accepted", "rejected", "failed", "kept")
 SIGNAL_OUTCOMES = ("handled", "deferred", "junk")
 
 
@@ -224,7 +224,7 @@ def _rewrite_counts(metas: list[dict]) -> dict:
     for m in metas:
         by_job[str(m.get("job"))][str(m.get("status"))] += 1
     harder = by_job.get("harder", collections.Counter())
-    decided = sum(harder[s] for s in ("accepted", "rejected", "blocked", "failed"))
+    decided = sum(harder[s] for s in ("accepted", "rejected", "failed"))
     return {
         "rewrites": {s: by_status[s] for s in REWRITE_STATUSES},
         "rewrites_by_job": {job: dict(c) for job, c in sorted(by_job.items())},

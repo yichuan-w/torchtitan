@@ -250,12 +250,12 @@ sheds exactly the prompts being re-tuned.
 ### 8. What it leaves behind
 
 - `rewrite.json`: which signal, which input revision, the status (accepted,
-  rejected, blocked, failed or kept), the stage it stopped at, every
+  rejected, failed or kept), the stage it stopped at, every
   revalidation verdict, the resources, and the resulting revision
 - `sessions/<stamp>--<kind>/`: one directory per Codex invocation, holding the
   prompt, stdout, stderr, `session.json`, and the CLI's own session jsonl
 - `lineage.jsonl`: this task's rewrite and fold events
-- one line in `ledger.jsonl`: `handled`, `deferred`, `reused`, `superseded` or
+- one line in `ledger.jsonl`: `handled`, `deferred`, `superseded` or
   `junk`
 - `evolution/status.json`, rebuilt at the end of every round from the ledger and
   the tasks' lineage; the trainer puts its counters on W&B beside the training

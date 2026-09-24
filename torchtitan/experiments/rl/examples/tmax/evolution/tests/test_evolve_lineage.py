@@ -176,7 +176,7 @@ def test_training_signal_supplies_measured_feedback_and_parent_revision(
     assert "student_feedback" not in root.mix.live.read_text()
 
 
-def test_explicit_feedback_is_preserved_and_changed_feedback_is_not_reused(
+def test_each_new_signal_preserves_its_feedback_and_starts_a_rewrite(
     tmp_path, monkeypatch
 ):
     root = _root(tmp_path, monkeypatch)
@@ -191,8 +191,8 @@ def test_explicit_feedback_is_preserved_and_changed_feedback_is_not_reused(
         signal["student_feedback"] = {"independent_measurement": {"solved": solved}}
         layout.write_json_atomic(path, signal)
         result = od.run_round(root, workers=1)
-        assert result["reused" if group == 9 else "handled"] == 1
-    assert len(seen) == 2
+        assert result["handled"] == 1
+    assert len(seen) == 3
     assert seen[1]["signal"]["student_feedback"] == {
         "independent_measurement": {"solved": 13}
     }
@@ -240,7 +240,6 @@ def _stub(monkeypatch, status: str = "accepted", **extra) -> _Seen:
         rec = {
             "status": status,
             "stage": "daytona_oracle",
-            "operator": "container_build_alignment",
             "verdicts": VERDICTS,
             "resources": {
                 "cpu": 2,
@@ -482,8 +481,7 @@ def test_round_materializes_r0_handles_the_signal_and_folds_r1(
     # r0 is the seed, copied once, without the backup the pool stripped.
     assert (task.rev(0) / "instruction.md").read_text() == SEED["instruction.md"]
     assert not (task.rev(0) / "instruction.md.bak-1").exists()
-    # process_one got the rewrite, the input revision, the training box and
-    # the (empty) operator history.
+    # process_one got the rewrite, input revision and training box.
     call = seen[0]
     assert call["job"] == "harder" and call["seed_dir"] == task.rev(0)
     assert call["resources"] == {"cpu": 1, "mem_gb": 2, "disk_gb": 2, "source": "row"}
@@ -499,7 +497,7 @@ def test_round_materializes_r0_handles_the_signal_and_folds_r1(
     meta = json.loads(rw.meta.read_text())
     assert meta["status"] == "accepted" and meta["result_rev"] == 1
     assert meta["input_rev"] == 0 and meta["signal"] == sid and meta["job"] == "harder"
-    assert meta["operator"] == "container_build_alignment"
+    assert "operator" not in meta
     assert meta["resources"]["cpu"] == 2 and meta["verdicts"] == VERDICTS
     assert meta["finished"] >= meta["started"] and meta["sessions"] == []
     # The mix moved to v2 with the row at rev 1, sized from the measurement.
@@ -697,7 +695,7 @@ def test_one_signal_per_task_the_newest_at_the_current_rev(
     assert len(seen) == 1
 
 
-def test_unchanged_late_signal_reuses_completed_decision(tmp_path, monkeypatch) -> None:
+def test_unchanged_late_signal_starts_a_new_rewrite(tmp_path, monkeypatch) -> None:
     root = _root(tmp_path, monkeypatch)
     _signal(root)
     seen = _stub(monkeypatch, status="kept", harder_mode="student", require_solution_growth=False)
@@ -710,16 +708,17 @@ def test_unchanged_late_signal_reuses_completed_decision(tmp_path, monkeypatch) 
     monkeypatch.setattr(od.fb, "process_one", with_late_signal)
     od.run_round(root, workers=1)
     result = od.run_round(root, workers=1)
-    assert result["reused"] == 1 and result["handled"] == 0
-    assert len(seen) == 1
+    assert result["handled"] == 1
+    assert len(seen) == 2
+    assert seen[1]["signal"]["group"] == 8
     lines = _ledger(root)
-    assert lines[-1]["outcome"] == "reused"
-    assert lines[-1]["rewrite"] == lines[0]["rewrite"]
+    assert lines[-1]["outcome"] == "handled"
+    assert lines[-1]["rewrite"] != lines[0]["rewrite"]
     assert od.rebuild_status(root)["pending"] == 0
-    assert od.run_round(root, workers=1)["reused"] == 0
+    assert od.run_round(root, workers=1)["handled"] == 0
 
 
-def test_changed_feedback_runs_again_and_rejection_is_reused(
+def test_rejected_rewrite_does_not_skip_a_new_signal(
     tmp_path, monkeypatch
 ) -> None:
     root = _root(tmp_path, monkeypatch)
@@ -727,25 +726,12 @@ def test_changed_feedback_runs_again_and_rejection_is_reused(
     seen = _stub(monkeypatch, status="rejected", harder_mode="student", require_solution_growth=False)
     od.run_round(root, workers=1)
     _signal(root, group=8)
-    assert od.run_round(root, workers=1)["reused"] == 1
+    assert od.run_round(root, workers=1)["handled"] == 1
     _signal(root, group=9, n=3)
     assert od.run_round(root, workers=1)["handled"] == 1
     _signal(root, group=10, n=3, direction="easier")
     assert od.run_round(root, workers=1)["handled"] == 1
-    assert len(seen) == 3
-
-
-def test_old_operator_decision_is_not_reused(tmp_path, monkeypatch):
-    root = _root(tmp_path, monkeypatch)
-    _signal(root)
-    old = _stub(monkeypatch, status="kept", harder_mode="operators", require_solution_growth=True)
-    od.run_round(root, workers=1)
-    current = _stub(monkeypatch, status="kept", harder_mode="student", require_solution_growth=False)
-    _signal(root, group=8)
-    assert od.run_round(root, workers=1)["handled"] == 1
-    _signal(root, group=9)
-    assert od.run_round(root, workers=1)["reused"] == 1
-    assert len(old) == len(current) == 1
+    assert len(seen) == 4
 
 
 def test_failed_execution_can_retry_unchanged_feedback(tmp_path, monkeypatch) -> None:
@@ -756,22 +742,6 @@ def test_failed_execution_can_retry_unchanged_feedback(tmp_path, monkeypatch) ->
     _signal(root, group=8)
     assert od.run_round(root, workers=1)["handled"] == 1
     assert len(seen) == 2
-
-
-def test_old_student_growth_policy_is_not_reused(tmp_path, monkeypatch):
-    root = _root(tmp_path, monkeypatch)
-    monkeypatch.setenv("SWE_RETUNE_AGENT", "codex")
-    old = _stub(monkeypatch, status="kept", harder_mode="student")
-    _signal(root)
-    assert od.run_round(root, workers=1)["handled"] == 1
-    current = _stub(
-        monkeypatch, status="kept", harder_mode="student", require_solution_growth=False
-    )
-    _signal(root, group=8)
-    assert od.run_round(root, workers=1)["handled"] == 1
-    _signal(root, group=9)
-    assert od.run_round(root, workers=1)["reused"] == 1
-    assert len(old) == len(current) == 1
 
 
 def test_new_revision_starts_a_new_rewrite(tmp_path, monkeypatch) -> None:
@@ -785,7 +755,7 @@ def test_new_revision_starts_a_new_rewrite(tmp_path, monkeypatch) -> None:
     assert root.evolution.task("tw_a").rev(2).exists()
 
 
-def test_explicit_replay_bypasses_reuse(tmp_path, monkeypatch) -> None:
+def test_explicit_replay_runs_a_handled_signal_in_dry_mode(tmp_path, monkeypatch) -> None:
     root = _root(tmp_path, monkeypatch)
     sid = _signal(root)
     seen = _stub(monkeypatch, status="kept")
@@ -805,7 +775,7 @@ def test_limit_leaves_the_rest_pending_rather_than_superseded(
     _signal(root, task="tw_a", group=1)
     _signal(root, task="tw_a", group=2, created="20260904-190000Z")
     _signal(root, task="tw_b", group=3)
-    _stub(monkeypatch, status="kept", stage="agent", reason="operator-misfit")
+    _stub(monkeypatch, status="kept", stage="agent", reason="no suitable hardening")
 
     od.run_round(root, workers=1, limit=1)
 

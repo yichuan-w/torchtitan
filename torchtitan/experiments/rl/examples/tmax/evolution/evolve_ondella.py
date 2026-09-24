@@ -25,8 +25,7 @@ A round:
      siblings racing for the same r<N+1>, and a signal about a revision that
      is no longer the task's measured a policy input that is gone; both get a
      `superseded` line and the reason.
-  3. reuse the last completed decision for unchanged feedback; otherwise
-     handle, concurrently across tasks: copy r<rev> to the rewrite's
+  3. handle, concurrently across tasks: copy r<rev> to the rewrite's
      package/, hardlink the rollout records under package/traces/, snapshot
      the row's pin hook as pretest.json beside rewrite.json, run
      feedback_loop.process_one there, record the verdict in rewrite.json.
@@ -789,43 +788,6 @@ def _finish(h: dict, status: str, *, stage: str, reason: str) -> None:
     h["status"] = status
 
 
-def reusable_rewrite(
-    root: layout.Root, sig: Signal, ledger: dict[str, dict]
-) -> str | None:
-    """Reuse the last decision for unchanged feedback, never an execution failure.
-
-    New rollout paths and timestamps are expected on every draw. They do not
-    change the feedback identity; raw signals remain available for inspection.
-    """
-    keys = ("task", "rev", "direction", "solved", "total", "student_feedback")
-    for previous in reversed(list(ledger.values())):
-        if (
-            previous.get("outcome") != "handled"
-            or previous.get("task") != sig.task
-            or previous.get("rev") != sig.data["rev"]
-        ):
-            continue
-        run, stem = previous["signal"].split("/", 1)
-        data, _ = read_signal(root.run(run).signals / f"{stem}.json")
-        if data is None or any(data.get(key) != sig.data.get(key) for key in keys):
-            return None
-        reference = previous.get("rewrite")
-        if not reference:
-            return None
-        meta = json.loads(
-            (root.evolution.path / reference / "rewrite.json").read_text()
-        )
-        if sig.data["direction"] == "harder":
-            if meta.get("harder_mode") != "student":
-                return None
-            if meta.get("require_solution_growth", True):
-                return None
-        if meta.get("status") in {"accepted", "rejected", "kept", "blocked"}:
-            return reference
-        return None
-    return None
-
-
 def fold(root: layout.Root, accepted: list[dict]) -> int | None:
     """The accepted rewrites given into one new mix version.
 
@@ -970,7 +932,7 @@ def rebuild_status(root: layout.Root) -> dict:
         by_outcome[line.get("outcome", "?")] = (
             by_outcome.get(line.get("outcome", "?"), 0) + 1
         )
-    rewrites = {"running": 0, "accepted": 0, "blocked": 0, "failed": 0, "kept": 0}
+    rewrites = {"running": 0, "accepted": 0, "failed": 0, "kept": 0}
     rejected: dict[str, int] = {}
     for _task, _rw, meta in _rewrite_metas(root):
         st = meta.get("status")
@@ -993,7 +955,6 @@ def rebuild_status(root: layout.Root) -> dict:
         "rewrites_running": rewrites["running"],
         "accepted": rewrites["accepted"],
         "rejected": rejected,
-        "blocked": rewrites["blocked"],
         "failed": rewrites["failed"],
         "kept": rewrites["kept"],
     }
@@ -1094,7 +1055,7 @@ def select_work(
 
     Returns None when there was nothing to look at at all (the caller reports
     "no signals"), and a possibly empty list otherwise -- empty meaning every
-    signal was junk, deferred, reused or superseded rather than started.
+    signal was junk, deferred or superseded rather than started.
 
     Re-entrant by construction: discover() and choose() only read, and the
     ledger the caller passes decides what is still pending. Every path that
@@ -1120,23 +1081,14 @@ def select_work(
         return None
 
     todo, deferred = [], []
-    reused = set()
     for s in picks:
-        reference = reusable_rewrite(root, s, ledger) if not signal else None
-        if reference is not None:
-            log.info("%s %s reused: %s (unchanged feedback)", s.task, s.sid, reference)
-            result["reused"] += 1
-            reused.add(s.sid)
-            if not dry:
-                _ledger_line(root, s, "reused", rewrite=reference)
-            continue
         if s.data["direction"] == "easier" and not SIMPLIFY_ENABLED and not signal:
             deferred.append(s)
         else:
             todo.append(s)
     if limit:
         todo = todo[:limit]
-    closing = {s.sid for s in todo} | {s.sid for s in deferred} | reused
+    closing = {s.sid for s in todo} | {s.sid for s in deferred}
     for s in deferred:
         log.info("%s %s deferred: the easier direction is off", s.task, s.sid)
         result["deferred"] += 1
@@ -1173,7 +1125,6 @@ def run_round(
         "deferred": 0,
         "junk": 0,
         "superseded": 0,
-        "reused": 0,
         "counts": {},
         "mix_version": None,
     }
@@ -1387,7 +1338,7 @@ def main() -> None:
         log.info("round done%s: %s", " (dry)" if dry else "", r)
         if not dry:
             rebuild_status(root)
-            if r.get("handled") or r.get("reused"):
+            if r.get("handled"):
                 _snapshot_lineage(root, f"once: {r}")
         return
     log.info(
@@ -1406,11 +1357,10 @@ def main() -> None:
                 or r.get("junk")
                 or r.get("deferred")
                 or r.get("superseded")
-                or r.get("reused")
             ):
                 log.info("round: %s", r)
             rebuild_status(root)
-            if r.get("handled") or r.get("reused"):
+            if r.get("handled"):
                 _snapshot_lineage(root, f"round: {r}")
         except Exception as e:  # noqa: BLE001
             log.exception("round failed: %s", e)

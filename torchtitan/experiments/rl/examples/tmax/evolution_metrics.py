@@ -24,7 +24,6 @@ COUNTERS = (
     "rewrite_failed",
     "rewrite_interrupted",
     "rewrite_rejected",
-    "rewrite_blocked",
     "rewrite_kept",
 )
 ORIGIN_CHART_COUNTERS = (

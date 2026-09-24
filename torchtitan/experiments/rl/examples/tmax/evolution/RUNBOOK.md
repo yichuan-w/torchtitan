@@ -46,12 +46,12 @@ tail -3 evolution/loop.log
 No `[trainer_loop] step` line for the first ~45 min after a restart is normal; see
 [Restarts cost an hour](#restarts-cost-an-hour). `status.json` carries `pending`,
 `handled`, `deferred`, `junk`, `superseded`, `rewrites_running`, `accepted`, `rejected`
-(by stage), `blocked`, `failed`, `kept` and `mix_version`; it is rebuilt from the ledger
+(by stage), `failed`, `kept` and `mix_version`; it is rebuilt from the ledger
 at the end of every round, so a stale `updated` means the loop is not rounding.
 
 The same numbers reach W&B (project `terminal-agent-rl`): the training run carries
 `evolution/pending_signals`, `evolution/handled_total`, `evolution/accepted_total`,
-`evolution/rejected_total`, `evolution/blocked_total`, `evolution/kept_total` and
+`evolution/rejected_total`, `evolution/kept_total` and
 `evolution/mix_version`, which the trainer reads out of `evolution/status.json`, so the
 loop's health sits on the same dashboard as the loss.
 
@@ -225,12 +225,9 @@ path arguments. It reads `runs/*/signals/` and the rollout records they referenc
 its own state under `evolution/` (`loop.log`, `loop.lock`, `loop.env`, `ledger.jsonl`,
 `status.json`, `tasks/`) and publishes new mix versions under `data/mix/`.
 
-Repeated signals reuse the last completed rewrite decision when task ID, revision,
-direction, solved count, and total count match. Run IDs, timestamps, and rollout
-paths do not make feedback new. The ledger records reused signals with the original
-rewrite reference; training continues normally. Changed feedback starts a new
-attempt. Failed or interrupted executions remain retryable, and explicit `--signal`
-replay bypasses reuse.
+Each new signal for the task's current revision starts a new rewrite, even if
+its solved count matches an earlier group. The agent reads that signal's own
+rollout records. Signals for an older revision are superseded.
 
 One script starts it and restarts it:
 
@@ -370,15 +367,14 @@ Where it leaves things, all under `$TRL_BASE` and all specified in
   `pending` in `status.json`.
 - **The ledger**, `evolution/ledger.jsonl`, is one line per signal seen: `handled`, with
   the rewrite it produced; `deferred`, its direction switched off and the signal
-  settled without automatic replay; `reused`, an earlier decision for unchanged
-  feedback; `superseded`, a signal about a revision the task has moved past, or a
+  settled without automatic replay; `superseded`, a signal about a revision the task has moved past, or a
   sibling of the one signal per task a round takes; or `junk`, unreadable or an unknown
   task. A deferred signal leaves the pending set.
   `jq -r .outcome evolution/ledger.jsonl | sort | uniq -c` is the loop's history in one
   line.
 - **One handled signal is one rewrite**, `evolution/tasks/<task>/rewrites/<stamp>--<job>/`
   with `job` `harder` or `easier`. `rewrite.json` says which signal, which input revision,
-  the status (`accepted`, `rejected`, `blocked`, `failed`, `kept`), the verdicts (oracle,
+  the status (`accepted`, `rejected`, `failed`, `kept`), the verdicts (oracle,
   `dark_paths`, `dark_literals`, `step`), the measured resources and the result revision.
   `pretest.json` beside it is the row's pin hook, when the row carries one: the loop's
   probe and the agent's `./sandbox check` grade with it, as training does.

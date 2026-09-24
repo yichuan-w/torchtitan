@@ -649,7 +649,7 @@ def process_one(
     reference solution is measured in it, and the rewrite is provisioned from
     that measurement (never below it) and revalidated at the resulting size.
     Returns the record the loop writes into rewrite.json: `status` is
-    accepted, rejected, blocked, failed or kept; `stage` and `reason` say
+    accepted, rejected, failed or kept; `stage` and `reason` say
     why; `verdicts` and `resources` are as LAYOUT.md gives them.
     """
     tid = signal["task"]

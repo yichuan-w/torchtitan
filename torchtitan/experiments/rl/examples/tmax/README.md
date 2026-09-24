@@ -337,7 +337,7 @@ Everything below is read from the environment in `config_registry.py` /
   recurrent decoding); a large `max` is what `SWE_DPPO_RATIO_CAP` guards against.
 - `evolution/pending_signals`, `evolution/handled_total`,
   `evolution/accepted_total`, `evolution/rejected_total`,
-  `evolution/blocked_total`, `evolution/kept_total` and `evolution/mix_version`
+  `evolution/kept_total` and `evolution/mix_version`
   are the evolve loop as the trainer sees it, read from
   `$TRL_BASE/evolution/status.json`. `mix_version` is the version the loop last
   published; `trainer/mix_versions.jsonl` in the run directory says which one

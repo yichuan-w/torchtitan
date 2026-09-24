@@ -96,7 +96,7 @@ def test_rounds_are_mix_versions_with_their_folds(tmp_path) -> None:
     assert r["changed_task_ids"] == ["task-a"]
     assert r["task_changes"] == [
         {"task": "task-a", "from_rev": 0, "to_rev": 1, "rewrite": REWRITE}]
-    assert r["rewrites"] == {"accepted": 1, "rejected": 0, "blocked": 0, "failed": 0, "kept": 0}
+    assert r["rewrites"] == {"accepted": 1, "rejected": 0, "failed": 0, "kept": 0}
     assert r["harder_attempted"] == 1 and r["harder_accept_rate"] == 1.0
     assert r["signals"] == {"handled": 1, "deferred": 1, "junk": 0}
     assert r["signals_by_direction"] == {"easier": {"deferred": 1}, "harder": {"handled": 1}}
