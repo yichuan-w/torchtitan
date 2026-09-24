@@ -255,6 +255,14 @@ def cmd_size(pkg: Path) -> int:
     return 0
 
 
+def _pid_alive(pid) -> bool:
+    try:
+        os.kill(int(pid), 0)
+    except (OSError, TypeError, ValueError):
+        return False
+    return True
+
+
 def cmd_up(pkg: Path, at_max: bool = False) -> int:
     state = _read_state(pkg)
     if _alive(state):
@@ -264,6 +272,14 @@ def cmd_up(pkg: Path, at_max: bool = False) -> int:
             f"use ./sandbox reset for a fresh one"
         )
         return 0
+    # The server outlives the `up` that started it (start_new_session), and
+    # that `up` can die mid-boot: codex-cli 0.149 kills whatever a command
+    # left in the background once the command returns. Running `up` again
+    # then waits for the boot in progress instead of starting a second
+    # container over the first one's state.
+    if state.get("status") == "booting" and _pid_alive(state.get("pid")):
+        print(f"sandbox already booting (server pid {state['pid']}); waiting for it")
+        return _wait_ready(pkg, int(state["pid"]), state.get("resources") or {})
     box = _box(pkg, at_max)
     log = pkg / "run" / "sandbox.log"
     log.parent.mkdir(parents=True, exist_ok=True)
@@ -314,6 +330,19 @@ def cmd_up(pkg: Path, at_max: bool = False) -> int:
             start_new_session=True,
             cwd=str(pkg),
         )
+    # The server writes its pid too, but only once it has started; recording
+    # it here leaves no moment in which a second `up` cannot see the boot.
+    _write_state(pkg, {**_read_state(pkg), "pid": proc.pid})
+    return _wait_ready(pkg, proc.pid, box, proc)
+
+
+def _wait_ready(
+    pkg: Path, pid: int, box: dict, proc: subprocess.Popen | None = None
+) -> int:
+    """Wait for the server `pid` to report ready. ``proc`` is given when this
+    process started it, so an exited child is seen as such rather than as a
+    zombie that still answers kill(pid, 0)."""
+    log = pkg / "run" / "sandbox.log"
     started = time.time()
     last_note = 0.0
     while True:
@@ -324,12 +353,16 @@ def cmd_up(pkg: Path, at_max: bool = False) -> int:
                 f"box=[{_box_str(box)}] in {time.time() - started:.0f}s"
             )
             return 0
-        if state.get("status") == "failed" or proc.poll() is not None:
+        gone = proc.poll() is not None if proc else not _pid_alive(pid)
+        if state.get("status") == "failed" or gone:
             print("sandbox failed to boot; run/sandbox.log ends with:")
             print(log.read_text(errors="replace")[-3000:])
             return 1
         if time.time() - started > BOOT_TIMEOUT:
-            proc.kill()
+            try:
+                os.killpg(pid, signal.SIGKILL)
+            except OSError:
+                pass
             print(
                 f"sandbox did not come up within {BOOT_TIMEOUT}s; "
                 f"run/sandbox.log ends with:"

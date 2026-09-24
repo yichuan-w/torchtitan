@@ -99,6 +99,9 @@ every `wrong-N.sh` the contract declares, each in its own fresh container and al
 at once, the way the caller will, and prints each script's exit code and reward.
 To look into one script, run `./sandbox reset`, then
 `./sandbox exec "$(cat run/verifier-probes/wrong-1.sh)"` and `./sandbox grade`.
+Run `reset` in the foreground, never in the background: a background job is
+killed when its command returns. If one was cut off, `./sandbox up` waits for
+the boot already in progress.
 Stdin is not forwarded. Execute student scripts only in that container.
 Edit only files under `run/verifier-probes/`, except for an ambiguity verdict.
 Before finishing, inspect your workspace changes and remove any extra files you

@@ -232,9 +232,11 @@ worse than the task you started from.
 
 Run `up` and `reset` in the foreground. `up` reports when its own container is
 ready or why it failed; if the command tool returns a session ID, poll that
-session until it exits. Do not background the command and wait with fixed
-`sleep` calls or a shared `/tmp` log: another task can replace that log while
-your container is still starting.
+session until it exits. Do not background the command: a background job is
+killed when the command that started it returns, so a log it was writing stops
+changing while the container keeps starting. If an `up` was cut off, run
+`./sandbox up` again: it waits for the boot already in progress rather than
+starting a second container.
 
 This is the task's own environment, built, sized and graded the way the training
 harness does it: the container is the size the task gets in training, so what
