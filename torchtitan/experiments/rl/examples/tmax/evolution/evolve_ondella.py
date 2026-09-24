@@ -112,6 +112,7 @@ SIGNAL_KEYS = (
 # An unreadable signal younger than this may still be being written; LAYOUT
 # has the trainer rename it into place, so this is belt and braces.
 FRESH_SEC = 60
+FREE_SLOT_POLL_SEC = 5.0
 
 
 def _env_int(name: str) -> int | None:
@@ -1149,6 +1150,7 @@ def run_round(
     # about to be submitted rather than per completion -- and re-read then,
     # because a fold during the round has already moved the mix on.
     handled: list[dict] = []
+    refill = not signal and not limit and not dry
     with ThreadPoolExecutor(max_workers=workers) as ex:
         futs: dict = {}
         # Tasks this round has already taken, kept for the whole round rather
@@ -1180,7 +1182,14 @@ def run_round(
 
         fill(todo)
         while futs:
-            done, _ = wait(list(futs), return_when=FIRST_COMPLETED)
+            # A new signal can arrive while the first rewrite is still running.
+            # Poll only when there is an idle worker; otherwise wait for one to
+            # finish as before. The idle loop already watches signals every 5 s.
+            done, _ = wait(
+                list(futs),
+                timeout=FREE_SLOT_POLL_SEC if refill and len(futs) < workers else None,
+                return_when=FIRST_COMPLETED,
+            )
             for fut in done:
                 s = futs.pop(fut)
                 try:
@@ -1227,10 +1236,9 @@ def run_round(
                         result["mix_version"] = version
                 if h["status"] != "accepted" or not dry:
                     _close(root, h, dry=dry)
-            # A slot freed here takes the next pending signal now rather
-            # than at the next round: a task that finishes in 6 minutes must
-            # not hold a worker for the 40 the slowest one takes. The ledger
-            # is re-read because _close above has just added to it, and
+            # A free slot takes the next pending signal now, including one
+            # written while all existing rewrites are still running. The ledger
+            # is re-read because _close above may have just added to it, and
             # `taken` keeps this round from starting a second rewrite of a
             # task it has already rewritten.
             #
@@ -1238,7 +1246,7 @@ def run_round(
             # deferred and superseded signals it reports are still pending on
             # the next call, and refilling would count each of them once per
             # refill. A dry round is a snapshot of one moment by design.
-            if not signal and not limit and not dry and len(futs) < workers:
+            if refill and len(futs) < workers:
                 more = select_work(
                     root,
                     load_ledger(root),

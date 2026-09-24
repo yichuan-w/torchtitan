@@ -249,6 +249,9 @@ attempt has an outcome but does not consume its signal; retrying that signal can
 rewrite attempts exceed handled signals. The W&B signal-flow chart shows issued signals,
 consumed signals, and finalized rewrite attempts for the same training run; each curve
 uses the training policy step that produced the signal as its horizontal coordinate.
+While a round has a free worker, it checks for new signals every 5 seconds, even if
+all running rewrites are still busy. `interval` is the idle-loop fallback, not the
+minimum wait for a newly issued signal.
 The three `TT_DAYTONA_*` are the trainer's fleet defaults and have to match its launch
 env: a row declaring no `daytona_*` of its own is verified at this size, and
 `evolveloop_env.sh` refuses to start without them. It sources `~/.config/daytona/env`

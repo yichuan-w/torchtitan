@@ -17,7 +17,9 @@ import shutil
 import subprocess
 import sys
 import time
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
+from threading import Event
 
 import pytest
 
@@ -1109,6 +1111,39 @@ def test_a_signal_arriving_mid_round_starts_without_waiting_for_the_next(
     result = od.run_round(root, workers=2)
 
     assert written, "the mid-round signal was never written"
+    assert {s["signal"]["task"] for s in seen} == {"tw_a", "tw_b"}
+    assert result["handled"] == 2
+
+
+def test_new_signal_uses_idle_worker_before_current_rewrite_finishes(
+    tmp_path, monkeypatch
+):
+    root = _root(tmp_path, monkeypatch)
+    _add_task(root, "tw_b")
+    _signal(root, task="tw_a")
+    seen = _stub(monkeypatch)
+    original = od.fb.process_one
+    a_started, b_started, release_a = Event(), Event(), Event()
+
+    def hold_first(rewrite, signal, **kwargs):
+        if signal["task"] == "tw_a":
+            a_started.set()
+            assert release_a.wait(5), "test did not release the first rewrite"
+        else:
+            b_started.set()
+        return original(rewrite, signal, **kwargs)
+
+    monkeypatch.setattr(od.fb, "process_one", hold_first)
+    monkeypatch.setattr(od, "FREE_SLOT_POLL_SEC", 0.01, raising=False)
+    with ThreadPoolExecutor(max_workers=1) as runner:
+        future = runner.submit(od.run_round, root, workers=2)
+        assert a_started.wait(2)
+        _signal(root, task="tw_b", group=8)
+        try:
+            assert b_started.wait(2), "the idle worker did not see the new signal"
+        finally:
+            release_a.set()
+        result = future.result(timeout=5)
     assert {s["signal"]["task"] for s in seen} == {"tw_a", "tw_b"}
     assert result["handled"] == 2
 
