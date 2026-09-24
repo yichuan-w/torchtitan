@@ -26,4 +26,4 @@ def test_public_exports_keep_the_original_objects(package, source, names):
         assert getattr(exported, name) is getattr(original, name)
         assert exported.__dict__[name] is getattr(original, name)
     with pytest.raises(AttributeError):
-        getattr(exported, "unknown_public_export")
+        exported.unknown_public_export
