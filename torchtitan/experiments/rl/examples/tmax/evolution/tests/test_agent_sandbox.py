@@ -9,6 +9,7 @@ from __future__ import annotations
 import json
 import os
 import socket
+import subprocess
 import sys
 import tempfile
 import threading
@@ -58,6 +59,8 @@ def test_up_spawns_serve_with_pkg_before_the_subcommand(tmp_path, monkeypatch) -
     seen = {}
 
     class FakeProc:
+        pid = 4242
+
         def __init__(self, argv, **kwargs):
             seen["argv"] = argv
             # The server's first act is to publish its state; do that here so
@@ -85,6 +88,53 @@ def test_up_spawns_serve_with_pkg_before_the_subcommand(tmp_path, monkeypatch) -
     assert argv.index("--pkg") < argv.index("serve")
     assert argv[argv.index("serve") + 1] == "--sock"
     assert (pkg / "run" / "sandbox.log").exists()
+    # Recorded by up itself, so a second up can see the boot from its start.
+    assert asb._read_state(pkg)["pid"] == 4242
+
+
+def test_up_waits_for_a_boot_already_in_progress(tmp_path, monkeypatch, capsys):
+    pkg = tmp_path / "pkg"
+    pkg.mkdir()
+    # The first up died; its server (this live pid) is still booting.
+    asb._write_state(pkg, {"status": "booting", "pid": os.getpid(), "sock": "/tmp/x"})
+
+    def no_second_server(*args, **kwargs):
+        raise AssertionError("up started a second server over a live boot")
+
+    def boot_finishes(_seconds):
+        asb._write_state(pkg, {**asb._read_state(pkg), "status": "ready",
+                               "sandbox_id": "sb-1", "workdir": "/app"})
+
+    monkeypatch.setattr(asb.subprocess, "Popen", no_second_server)
+    monkeypatch.setattr(asb, "_alive", lambda _state: False)
+    monkeypatch.setattr(asb.time, "sleep", boot_finishes)
+    assert asb.cmd_up(pkg) == 0
+    out = capsys.readouterr().out
+    assert "already booting" in out and "sandbox up: id=sb-1" in out
+
+
+def test_up_starts_afresh_when_the_booting_server_is_gone(tmp_path, monkeypatch):
+    pkg = tmp_path / "pkg"
+    pkg.mkdir()
+    dead = subprocess.Popen(["true"])
+    dead.wait()
+    asb._write_state(pkg, {"status": "booting", "pid": dead.pid, "sock": "/tmp/x"})
+    started = []
+
+    class FakeProc:
+        pid = 4243
+
+        def __init__(self, argv, **kwargs):
+            started.append(argv)
+            asb._write_state(pkg, {**asb._read_state(pkg), "status": "ready"})
+
+        def poll(self):
+            return None
+
+    monkeypatch.setattr(asb.subprocess, "Popen", FakeProc)
+    monkeypatch.setattr(asb, "_alive", lambda _state: False)
+    assert asb.cmd_up(pkg) == 0
+    assert len(started) == 1 and asb._read_state(pkg)["pid"] == 4243
 
 
 def test_size_reports_bounds_without_starting_sandbox(tmp_path, monkeypatch, capsys):
@@ -258,6 +308,8 @@ def test_up_opens_the_box_run_resources_json_names(tmp_path, monkeypatch) -> Non
     seen = {}
 
     class FakeProc:
+        pid = 4242
+
         def __init__(self, argv, **kwargs):
             seen["argv"] = argv
             # As the real server does: merge into the state cmd_up published.
