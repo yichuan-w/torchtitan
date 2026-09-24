@@ -598,6 +598,17 @@ def _create_sem():
     return _CREATE_SEM
 
 
+def _deterministic_build_failure(error: Exception) -> bool:
+    # Daytona can retry a transient create failure, but rerunning the same
+    # Dockerfile after one of its commands exited nonzero only repeats that
+    # build. In a live evolve check, five such retries cost minutes.
+    message = str(error)
+    return (
+        "SandboxState.BUILD_FAILED" in message
+        and "did not complete successfully: exit code:" in message
+    )
+
+
 async def _get_shared_client(*, api_key: str | None, api_url, target):
     global _SHARED_CLIENT, _SHARED_CLIENT_LOCK
     import asyncio
@@ -1050,7 +1061,7 @@ class DaytonaSandbox:
                     self._sb = await self._client.create(params, timeout=create_timeout)
                 break
             except Exception as e:
-                terminal = attempt >= retries
+                terminal = attempt >= retries or _deterministic_build_failure(e)
                 self._record_issue(
                     "create_failed" if terminal else "create_retry",
                     phase="create",
@@ -1059,7 +1070,7 @@ class DaytonaSandbox:
                     attempt=attempt + 1,
                     max_attempts=retries + 1,
                 )
-                if attempt >= retries:
+                if terminal:
                     raise
                 await asyncio.sleep(backoff * (0.5 + random.random()))
                 backoff = min(backoff * 2, 60.0)
