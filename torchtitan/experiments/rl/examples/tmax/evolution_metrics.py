@@ -75,7 +75,6 @@ class EvolutionMetrics:
         self.consumed_signals: set[str] = set()
         self.outcomes_by_origin: dict[int, Counter[str]] = defaultdict(Counter)
         self.observed_by_step: dict[int, Counter[str]] = defaultdict(Counter)
-        self.rewrite_finalized_total_by_step: dict[int, int] = {}
         self.pending_origin: dict[str, dict] = {}
 
     def _poll_claims(self) -> None:
@@ -162,7 +161,9 @@ class EvolutionMetrics:
         ys = [
             list(accumulate(self.issue_signals[x] for x in xs)),
             list(accumulate(consumed[x] for x in xs)),
-            [self.rewrite_finalized_total_by_step.get(x, 0) for x in xs],
+            list(
+                accumulate(self.outcomes_by_origin[x]["rewrite_finalized"] for x in xs)
+            ),
         ]
         return (
             xs,
@@ -170,7 +171,7 @@ class EvolutionMetrics:
             [
                 "signal_issued (origin cumulative)",
                 "signal_consumed (origin cumulative)",
-                "rewrite_finalized (observed cumulative)",
+                "rewrite_finalized (origin cumulative)",
             ],
         )
 
@@ -220,9 +221,6 @@ class EvolutionMetrics:
                 del self.pending_origin[identity]
         if step is not None:
             self.observed_by_step[step].update(delta)
-            self.rewrite_finalized_total_by_step[step] = self.totals[
-                "rewrite_finalized"
-            ]
         return {
             **{f"evolution/step/{key}": float(value) for key, value in delta.items()},
             **{

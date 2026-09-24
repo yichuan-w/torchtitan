@@ -57,8 +57,8 @@ def test_finalize_marks_only_running_sessions_and_rewrites(tmp_path) -> None:
     assert meta["status"] == "interrupted" and meta["stopped_loop_pid"] == 123
     assert meta["finished"] and "pid 123" in meta["error"]
     events = layout.read_jsonl(root.evolution.run_outcomes("run"))
-    assert len(events) == 1
-    assert events[0]["status"] == "interrupted"
+    assert len(events) == 2
+    assert {event["status"] for event in events} == {"interrupted", "rejected"}
     by_kind = {
         s.path.name.split("--")[1]: json.loads(s.meta.read_text())
         for s in live.session_dirs()
@@ -77,12 +77,36 @@ def test_finalize_marks_only_running_sessions_and_rewrites(tmp_path) -> None:
         "skipped": 5,
         "failed": 0,
     }
+    assert len(layout.read_jsonl(root.evolution.run_outcomes("run"))) == 2
 
 
 def test_finalize_over_an_empty_root_is_nothing(tmp_path) -> None:
     assert fit.finalize_interrupted(
         layout.Root(tmp_path / "root"), stopped_loop_pid=1
     ) == {"marked": 0, "skipped": 0, "failed": 0}
+
+
+def test_startup_recovery_records_orphaned_rewrite_once(tmp_path) -> None:
+    root = layout.Root(tmp_path / "root")
+    rewrite = _rewrite(root, "20260904-100000Z", status="running", sessions={})
+
+    assert fit.finalize_interrupted(root) == {"marked": 1, "skipped": 0, "failed": 0}
+    assert fit.finalize_interrupted(root) == {"marked": 0, "skipped": 1, "failed": 0}
+    meta = json.loads(rewrite.meta.read_text())
+    assert meta["status"] == "interrupted"
+    assert meta["error"] == "evolve loop exited before this rewrite finished"
+    assert "stopped_loop_pid" not in meta
+    assert len(layout.read_jsonl(root.evolution.run_outcomes("run"))) == 1
+
+
+def test_startup_recovery_repairs_missing_outcome_after_status_write(tmp_path) -> None:
+    root = layout.Root(tmp_path / "root")
+    _rewrite(root, "20260904-100000Z", status="interrupted", sessions={})
+
+    assert fit.finalize_interrupted(root) == {"marked": 0, "skipped": 1, "failed": 0}
+    events = layout.read_jsonl(root.evolution.run_outcomes("run"))
+    assert len(events) == 1
+    assert events[0]["status"] == "interrupted"
 
 
 def test_finalize_removes_stopped_session_auth_link_without_touching_account(

@@ -243,6 +243,12 @@ whole environment; snapshots that environment into `evolution/loop.env`, the uni
 (the loop writes its host and pid there) and, when there is one on this host, stops its
 whole process group and marks the session and rewrite records it interrupted; then starts
 the unit, logging to `evolution/loop.log`. With no loop alive it is simply the launcher.
+After taking the singleton lock, the loop also marks rewrites left `running` by a
+process that has exited as `interrupted` before selecting pending signals. An interrupted
+attempt has an outcome but does not consume its signal; retrying that signal can make
+rewrite attempts exceed handled signals. The W&B signal-flow chart shows issued signals,
+consumed signals, and finalized rewrite attempts for the same training run; each curve
+uses the training policy step that produced the signal as its horizontal coordinate.
 The three `TT_DAYTONA_*` are the trainer's fleet defaults and have to match its launch
 env: a row declaring no `daytona_*` of its own is verified at this size, and
 `evolveloop_env.sh` refuses to start without them. It sources `~/.config/daytona/env`

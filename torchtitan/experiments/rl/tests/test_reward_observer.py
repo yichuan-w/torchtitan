@@ -221,7 +221,6 @@ class RewardObserverTest(unittest.TestCase):
                     ("current", "rejected", "harder"),
                     ("current", "interrupted", "harder"),
                     ("current", "kept", "easier"),
-                    ("current", "blocked", "harder"),
                 ]
             ):
                 rewrite = root.evolution.task("task").rewrite(direction, str(index))
@@ -243,7 +242,7 @@ class RewardObserverTest(unittest.TestCase):
             self.assertEqual(first["evolution/step/rewrite_failed"], 2)
             self.assertEqual(first["evolution/step/rewrite_interrupted"], 1)
             self.assertEqual(first["evolution/step/rewrite_rejected"], 1)
-            self.assertEqual(first["evolution/step/rewrite_finalized"], 7)
+            self.assertEqual(first["evolution/step/rewrite_finalized"], 6)
             second = metrics.poll()
             self.assertEqual(second["evolution/step/rewrite_accepted"], 0)
             self.assertEqual(second["evolution/run/rewrite_accepted_total"], 2)
@@ -324,12 +323,12 @@ class RewardObserverTest(unittest.TestCase):
                 [
                     "signal_issued (origin cumulative)",
                     "signal_consumed (origin cumulative)",
-                    "rewrite_finalized (observed cumulative)",
+                    "rewrite_finalized (origin cumulative)",
                 ],
             )
             self.assertEqual(flow[0], [2, 5, 5, 5, 5])
             self.assertEqual(flow[1], [2, 4, 4, 4, 4])
-            self.assertEqual(flow[2], [0, 0, 1, 3, 3])
+            self.assertEqual(flow[2], [2, 3, 3, 3, 3])
             xs, ys, _ = metrics.comparison_series(3, "rewrite_accepted")
             self.assertEqual(xs, [0, 1, 2, 3])
             self.assertEqual(ys[0], [0, 0, 1, 1])  # observed
@@ -338,6 +337,41 @@ class RewardObserverTest(unittest.TestCase):
             self.assertEqual(failed[1], [1, 0, 0, 0])
             _, harder, _ = metrics.comparison_series(3, "rewrite_accepted_harder")
             self.assertEqual(harder[1], [1, 1, 0, 0])
+
+    def test_retry_counts_two_rewrites_for_one_consumed_signal(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = observer.layout.Root(Path(directory))
+            run = root.run("current")
+            observer.layout.append_jsonl(
+                run.trainer / "training_lineage/events.jsonl",
+                {"event": "claimed", "group_id": 1, "generator_policy_version": 0},
+            )
+            observer.layout.write_json_atomic(
+                run.signal("task", 1), {"task": "task", "group": 1}
+            )
+            signal = observer.layout.signal_id(run.name, "task", 1)
+            for attempt, status in enumerate(("interrupted", "kept"), 1):
+                outcome_metrics.record_outcome(
+                    root,
+                    root.evolution.task("task").rewrite("harder", str(attempt)),
+                    {
+                        "signal": signal,
+                        "task": "task",
+                        "job": "harder",
+                        "status": status,
+                    },
+                )
+            observer.layout.append_jsonl(
+                root.evolution.ledger, {"signal": signal, "outcome": "handled"}
+            )
+            metrics = outcome_metrics.EvolutionMetrics(
+                root.evolution.run_outcomes(run.name), run=run, root=root
+            )
+            totals = metrics.poll(step=1)
+            self.assertEqual(totals["evolution/run/signal_consumed_total"], 1)
+            self.assertEqual(totals["evolution/run/rewrite_finalized_total"], 2)
+            _, flow, _ = metrics.signal_flow_series(1)
+            self.assertEqual(flow, [[1, 1], [1, 1], [2, 2]])
 
     def test_partial_append_and_duplicate_outcome_are_not_counted_twice(self):
         with tempfile.TemporaryDirectory() as directory:
