@@ -14,6 +14,7 @@ from __future__ import annotations
 import asyncio
 
 import re
+import subprocess
 import sys
 from pathlib import Path
 
@@ -32,6 +33,30 @@ def _checkout(monkeypatch):
 
 
 _DR_REF = re.compile(r"\bdr\.([A-Za-z_][A-Za-z0-9_]*)")
+
+
+def test_fresh_revalidator_import_does_not_load_training_models():
+    source = """
+import importlib.abc
+import sys
+class NoTraining(importlib.abc.MetaPathFinder):
+    def find_spec(self, fullname, path=None, target=None):
+        if fullname.split('.')[0] in ('torch', 'vllm', 'triton'):
+            raise AssertionError(f'sandbox imported training dependency {fullname}')
+sys.meta_path.insert(0, NoTraining())
+import daytona_revalidate
+from torchtitan.experiments.rl.harness import boot_agent_sandbox, get_agent
+assert get_agent('claude_code')
+assert callable(boot_agent_sandbox)
+"""
+    result = subprocess.run(
+        [sys.executable, "-c", source],
+        cwd=Path(asb.__file__).parent,
+        capture_output=True,
+        text=True,
+        timeout=30,
+    )
+    assert result.returncode == 0, result.stdout + result.stderr
 
 
 def referenced_names() -> set[str]:

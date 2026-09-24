@@ -238,6 +238,18 @@ def cmd_status(pkg: Path) -> int:
     return 0 if live else 1
 
 
+def cmd_size(pkg: Path) -> int:
+    seed = pkg / "run" / "seed_size.json"
+    print(
+        json.dumps({
+            "current": ts.size_of_package(pkg, _verifier_rel(pkg)),
+            "seed": json.loads(seed.read_text()) if seed.exists() else None,
+            "violations": _step_audit(pkg),
+        })
+    )
+    return 0
+
+
 def cmd_up(pkg: Path, at_max: bool = False) -> int:
     state = _read_state(pkg)
     if _alive(state):
@@ -884,6 +896,7 @@ def main() -> None:
     p = sub.add_parser("reset")
     p.add_argument("--max", action="store_true", help=max_help)
     sub.add_parser("status")
+    sub.add_parser("size", help="report local size bounds without starting a container")
     sub.add_parser("grade")
     p = sub.add_parser("exec")
     p.add_argument("command")
@@ -922,6 +935,8 @@ def main() -> None:
         sys.exit(cmd_up(pkg, at_max=args.max))
     if args.cmd == "status":
         sys.exit(cmd_status(pkg))
+    if args.cmd == "size":
+        sys.exit(cmd_size(pkg))
     if args.cmd == "exec":
         sys.exit(cmd_exec(pkg, args.command, args.timeout))
     if args.cmd == "oracle":

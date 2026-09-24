@@ -87,6 +87,29 @@ def test_up_spawns_serve_with_pkg_before_the_subcommand(tmp_path, monkeypatch) -
     assert (pkg / "run" / "sandbox.log").exists()
 
 
+def test_size_reports_bounds_without_starting_sandbox(tmp_path, monkeypatch, capsys):
+    (tmp_path / "solution").mkdir()
+    (tmp_path / "tests").mkdir()
+    (tmp_path / "run").mkdir()
+    (tmp_path / "solution/solve.sh").write_text("echo done\n" * 10)
+    (tmp_path / "tests/test_state.py").write_text("assert True\n")
+    (tmp_path / "run/seed_size.json").write_text(json.dumps({
+        "solution_lines": 1, "verifier_asserts": 1, "require_growth": False,
+    }))
+
+    def forbidden(*args, **kwargs):
+        raise AssertionError("size must not contact a sandbox")
+
+    monkeypatch.setattr(asb, "_request", forbidden)
+    monkeypatch.setattr(asb.subprocess, "Popen", forbidden)
+    assert asb.cmd_size(tmp_path) == 0
+    result = json.loads(capsys.readouterr().out)
+    assert result["current"] == {"solution_lines": 10, "verifier_asserts": 1}
+    assert result["violations"] == asb._step_audit(tmp_path)
+    assert len(result["violations"]) == 1
+    assert not (tmp_path / "run/checks.jsonl").exists()
+
+
 def test_exec_passes_through_output_and_exit_code(tmp_path, capsys) -> None:
     pkg = tmp_path / "pkg"
     seen = {}

@@ -35,6 +35,7 @@ To register TorchTitan models with vLLM:
 import os
 import sys
 import warnings
+from typing import TYPE_CHECKING
 
 # Avoid memory fragmentation and peak reserved memory increasing over time
 # To overwrite, set PYTORCH_CUDA_ALLOC_CONF=expandable_segments:False
@@ -47,8 +48,25 @@ if "PYTORCH_CUDA_ALLOC_CONF" not in os.environ:
         )
     os.environ["PYTORCH_CUDA_ALLOC_CONF"] = "expandable_segments:True"
 
-from torchtitan.experiments.rl.models.vllm_registry import register_to_vllm
-from torchtitan.experiments.rl.models.vllm_wrapper import VLLMModelWrapper
+if TYPE_CHECKING:
+    from torchtitan.experiments.rl.models.vllm_registry import register_to_vllm
+    from torchtitan.experiments.rl.models.vllm_wrapper import VLLMModelWrapper
+
+
+def __getattr__(name: str):
+    # Sandbox-only processes do not need to initialize the training stack.
+    if name == "register_to_vllm":
+        from torchtitan.experiments.rl.models.vllm_registry import register_to_vllm
+
+        value = register_to_vllm
+    elif name == "VLLMModelWrapper":
+        from torchtitan.experiments.rl.models.vllm_wrapper import VLLMModelWrapper
+
+        value = VLLMModelWrapper
+    else:
+        raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+    globals()[name] = value
+    return value
 
 
 __all__ = [

@@ -39,6 +39,7 @@ import re
 import subprocess
 import sys
 import time
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 import derive_sizing as ds
@@ -381,9 +382,25 @@ def revalidate(
         if orig is not None and task.get("_direction") != "easier"
         else []
     )
-    dv = daytona_probe(
-        work, resources=resources, require_paths=dark, pretest_file=pretest_file
-    )
+    # Both probes read the same package but boot separate fresh containers.
+    # Join both before returning so a repair cannot edit their inputs mid-run.
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        oracle_future = pool.submit(
+            daytona_probe,
+            work,
+            resources=resources,
+            require_paths=dark,
+            pretest_file=pretest_file,
+        )
+        null_future = pool.submit(
+            daytona_probe,
+            work,
+            shortcut=":",
+            resources=resources,
+            pretest_file=pretest_file,
+        )
+        dv = oracle_future.result()
+        null = null_future.result() or {}
     if dv is None:
         return {
             "ok": False,
@@ -439,12 +456,6 @@ def revalidate(
             "measured": dv.get("measured"),
             "resources": dv.get("resources"),
         }
-    null = (
-        daytona_probe(
-            work, shortcut=":", resources=resources, pretest_file=pretest_file
-        )
-        or {}
-    )
     if not null.get("ok") or type(null.get("passed")) is not bool:
         return {
             "ok": False,
