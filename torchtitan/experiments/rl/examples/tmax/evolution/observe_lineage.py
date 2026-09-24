@@ -213,6 +213,7 @@ def build(
             }
         )
     comparisons = []
+    comparison_coverage = {"folds": len(folds), "missing_before": 0, "missing_after": 0}
     rewrite_inputs = []
     for task in root.evolution.task_dirs():
         if task_filter and task.task_id != task_filter:
@@ -310,6 +311,8 @@ def build(
                 }
             )
         else:
+            comparison_coverage["missing_before"] += not bool(before)
+            comparison_coverage["missing_after"] += not bool(after)
             LOG.info(
                 "comparison skip task=%s revision=%s reason=%s",
                 tid,
@@ -321,6 +324,7 @@ def build(
     return {
         "unchanged": unchanged(rows, {f["task"] for f in folds}),
         "comparisons": comparisons,
+        "comparison_coverage": comparison_coverage,
         "timeline": sorted(timeline, key=lambda e: e["time"]),
         "inputs": {"events": events, "rewrites": rewrite_inputs},
     }

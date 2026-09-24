@@ -489,6 +489,11 @@ class RewardObserverTest(unittest.TestCase):
                     {
                         "unchanged": observer.observe_lineage.unchanged(rows, set()),
                         "comparisons": [],
+                        "comparison_coverage": {
+                            "folds": 1,
+                            "missing_before": 0,
+                            "missing_after": 1,
+                        },
                         "timeline": [
                             {"task": "folded-task", "event": "fold"},
                         ],
@@ -507,6 +512,15 @@ class RewardObserverTest(unittest.TestCase):
             self.assertEqual(
                 entries[0]["Task timeline"][1]["string_fields"]["task"],
                 "folded-task",
+            )
+            rewrite_chart = entries[0]["Rewrite accuracy"]
+            self.assertEqual(
+                rewrite_chart[1]["string_fields"]["comparison_status"],
+                "0/1 folds paired; missing before: 0; missing after: 1",
+            )
+            self.assertEqual(
+                rewrite_chart[0][1]["data"][0][-1],
+                "0/1 folds paired; missing before: 0; missing after: 1",
             )
 
     def test_pairs_require_same_task_hash_and_different_epoch(self):
@@ -643,6 +657,10 @@ class RewardObserverTest(unittest.TestCase):
             )
             self.assertEqual(result["comparisons"][0]["after_step"], 11)
             self.assertEqual(result["comparisons"][0]["before"], 0.5)
+            self.assertEqual(
+                result["comparison_coverage"],
+                {"folds": 1, "missing_before": 0, "missing_after": 0},
+            )
             trained = [e for e in result["timeline"] if e["event"] == "trained"]
             self.assertEqual(
                 [(e["revision"], e["step"]) for e in trained], [(0, 10), (1, 11)]
@@ -653,6 +671,10 @@ class RewardObserverTest(unittest.TestCase):
             self.assertEqual(
                 result["comparisons"], []
             )  # Never invent an after=0 point.
+            self.assertEqual(
+                result["comparison_coverage"],
+                {"folds": 1, "missing_before": 0, "missing_after": 1},
+            )
 
     def test_partial_append_is_deferred_but_corruption_raises(self):
         with tempfile.TemporaryDirectory() as directory:
