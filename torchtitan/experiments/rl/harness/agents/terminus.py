@@ -438,8 +438,9 @@ class _SandboxEnvironment:
     # screen, a full-screen program) it shows the visible screen instead. With
     # docker exec the whole history is free to move every turn; through
     # Daytona it is not, and any cap on it breaks that search. The same answer
-    # comes from tmux itself: the history size and cursor row noted when the
-    # turn's keys go in say exactly which line the new output starts on.
+    # comes from tmux itself: the history size and cursor row noted as each
+    # observation is taken say exactly which line the next one starts on. The
+    # first key delivery notes them only when no observation has yet.
     # ``#{alternate_on}`` marks a full-screen program and a shrunken history
     # marks a cleared screen, the two cases where the original showed the
     # screen. Both readings ride in the commands the turn issues anyway, so
@@ -490,6 +491,12 @@ class _SandboxEnvironment:
             'if [ "$alt1" = 0 ] && [ "$alt2" = 0 ] && [ "$h2" -ge "$h1" ]; then '
             "start=$((cy1 - (h2 - h1))); mode=new; fi; fi; "
             'printf "%s|%s\n" "$mode" "$start"; '
+            # The next turn's new output starts where this observation ends,
+            # as Terminus-2's previous-buffer search does. Taken from the key
+            # delivery instead, whatever printed while the model chose its
+            # next keys was never shown.
+            'h=${post%%|*}; rest=${post#*|}; cy=${rest%%|*}; rest=${rest#*|}; '
+            f'printf "%s|%s|%s" "$h" "$cy" "${{rest%%|*}}" > {pre}; '
             'if [ "$mode" = new ]; then tmux capture-pane -p -t '
             f'{target} -S "$start"; fi; '
             f"printf '\n{sep}\n'; tmux capture-pane -p -t {target}"

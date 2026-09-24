@@ -17,6 +17,11 @@ did when its search failed.
 from __future__ import annotations
 
 import asyncio
+import os
+import shlex
+import shutil
+import subprocess
+import time
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import AsyncMock
@@ -126,3 +131,45 @@ def test_exec_trace_carries_the_sandbox_backend_timings(tmp_path):
     entry = env.exec_trace[-1]
     assert entry["inline"] is True and entry["launch_s"] == 0.073
     assert entry["output_bytes"] == 12 and "total_s" not in entry
+
+
+@pytest.mark.skipif(
+    shutil.which("tmux") is None or not Path("/dev/shm").is_dir(),
+    reason="needs tmux and /dev/shm, as the sandbox has",
+)
+def test_output_printed_between_turns_is_the_next_observation(tmp_path):
+    """Against a real tmux: what a command prints after one observation and
+    before the next turn's keys (the model is choosing them) is in the next
+    observation, as Terminus-2's previous-buffer search has it."""
+    session = f"obs-test-{os.getpid()}"
+    subprocess.run(["tmux", "new-session", "-d", "-s", session, "-x", "160", "-y", "40",
+                    "bash --norc --noprofile"], check=True)
+    try:
+        env = _env(tmp_path)
+        env.terminal.session = session
+        env.terminal.server_pid = env.terminal.pane_pid = None
+
+        async def exec_raw(script, **kwargs):
+            p = subprocess.run(["bash", "-c", script], capture_output=True, text=True)
+            return _result(p.stdout, p.returncode)
+
+        env._exec_raw = exec_raw
+        obs = SimpleNamespace(_session_name=session)
+
+        def keys(text):
+            cmd = env._record_turn_start(f"tmux send-keys -t {session} {shlex.quote(text)} Enter")
+            subprocess.run(["bash", "-c", cmd], check=True)
+
+        asyncio.run(env.observe_turn(obs))  # the first screen
+        keys("echo AAA; sleep 2; echo BBB")
+        time.sleep(0.8)
+        # Output lines only: the echoed command line names both.
+        first = asyncio.run(env.observe_turn(obs)).splitlines()
+        assert "AAA" in first and "BBB" not in first
+        time.sleep(2.5)  # BBB prints while the model chooses its next keys
+        keys("")
+        time.sleep(0.3)
+        assert "BBB" in asyncio.run(env.observe_turn(obs)).splitlines()
+    finally:
+        subprocess.run(["tmux", "kill-session", "-t", session])
+        Path(f"/dev/shm/.torchtitan_turn_pre.{session}").unlink(missing_ok=True)
