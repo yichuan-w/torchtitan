@@ -330,8 +330,8 @@ Editing the files is not the whole job. The evidence goes under `run/`:
   change proposed, and the new decision the change requires. Two candidate
   changes must be compared there first, each citing attempt filenames and
   concrete actions, and only one implemented
-- `run/simplify.json` (easier): which simplification operator, what skill the
-  task retains, what changed, what was restored, and the trace evidence
+- `run/simplify.json` (easier): what skill the task retains, the bottleneck,
+  what changed, how to restore it, and the trace evidence
 - `run/verdict.txt`: only when it stops without finishing, saying why
 
 A missing or unreadable declaration fails the session rather than defaulting to
@@ -478,25 +478,25 @@ to compare. All four are lower bounds; the logs mark them
 
 ### Simplification
 
-Read the failing trajectories, apply one simplification operator, and record
-which one and what skill the task retains.
+Read the failing trajectories and choose the change from them, as hardening
+does: there is no menu of intervention kinds. If the task's history shows an
+earlier hardening, undoing part of it is the first candidate; otherwise the
+change supplies what the attempts show is missing at their first unresolved
+obstacle. `run/simplify.json` records what skill the task retains, the
+bottleneck, the change, how to restore it and the trace evidence.
 
 How much guidance may go into the instruction is a knob (`SWE_SIMPLIFY_HINT`,
 default `vague`). At `specific` it bakes where-to-look hints into hundreds of
 instructions, and a holdout experiment showed the policy learning hint-following
 that does not transfer to unhinted tasks.
 
-Operators have scopes: `add_scaffold` may change only the instruction and
-`provide_initial_state` must preserve the verifier files. A change outside its
-scope is rejected at `simplify_scope`.
-
 Worth knowing what this direction is missing: the size rule does not apply to
 it on either side. `_step_audit` returns empty when it cannot read
 `run/seed_size.json`, and that file is deliberately deleted for an easier job;
 the caller's own check is likewise `_direction != "easier"`. So what can
-actually stop a simplification is the oracle, the null probe, and the operator
-scopes above, and the oracle asks whether the reference solution still scores,
-which editing an instruction cannot break. That is why `SWE_EVOLVE_SIMPLIFY` is
+actually stop a simplification is the oracle, the null probe, the blind
+verifier and the independent probes, and the oracle asks whether the reference
+solution still scores, which editing an instruction cannot break. That is why `SWE_EVOLVE_SIMPLIFY` is
 off by default, and what to settle before raising
 `SWE_EVOLUTION_EASIER_RATIO`.
 
@@ -550,7 +550,7 @@ under "Offline evolution of a signal subset".
 | [`evolution/agents/task_evolution.md`](evolution/agents/task_evolution.md) | the author agent's role and rules, as the prompt it reads |
 | [`evolution/agents/verifier_author.md`](evolution/agents/verifier_author.md) | the same for the blind verifier |
 | [`evolution/agent_sandbox.py`](evolution/agent_sandbox.py) | the container commands in the table above |
-| [`evolution/simplify_operators.py`](evolution/simplify_operators.py) | the simplification operators and their hint levels |
+| [`evolution/simplify_operators.py`](evolution/simplify_operators.py) | how a simplification is chosen, its declaration and hint levels |
 | [`LAYOUT.md`](LAYOUT.md) | the exact format of every path and record named here |
 | [`evolution/RUNBOOK.md`](evolution/RUNBOOK.md) | running the loop, restarting it, replaying one signal dry, and the offline chain |
 | [`TASK_EVOLUTION.md`](TASK_EVOLUTION.md) | why the emit site sits in the rollouter |

@@ -4,7 +4,7 @@
 # This source code is licensed under the BSD-style license found in the
 # LICENSE file in the root directory of this source tree.
 
-"""A simplify choice must refer to real attempts and respect the hint mode."""
+"""A simplify declaration must cite real attempts; the prompt offers no menu."""
 
 import json
 import sys
@@ -23,7 +23,6 @@ def decision(pkg, **updates):
         '{"reward":0}\n{"turn":2,"output":"invalid input"}\n'
     )
     row = dict(
-        operator="enhance_feedback",
         retained_skill="use tool",
         bottleneck="cannot interpret error",
         change="explain input type",
@@ -62,7 +61,6 @@ def test_unicode_output_does_not_split_json_records(tmp_path, separator):
 @pytest.mark.parametrize(
     "field,value",
     [
-        ("operator", "invented"),
         ("retained_skill", ""),
         ("prediction", ""),
         ("prediction", None),
@@ -77,10 +75,11 @@ def test_invalid_declaration_rejected(tmp_path, field, value):
         so.read_decision(tmp_path, "vague")
 
 
-def test_none_excludes_guidance(tmp_path):
-    decision(tmp_path)
-    with pytest.raises(ValueError, match="not allowed"):
-        so.read_decision(tmp_path, "none")
-    assert "enhance_feedback:" not in so.prompt("none")
-    assert "add_scaffold:" not in so.prompt("none")
-    assert "Hint level: vague" in so.prompt("vague")
+def test_prompt_has_no_menu_and_keeps_the_hint_levels():
+    for hint in ("none", "vague", "specific"):
+        text = so.prompt(hint)
+        assert f"Hint level: {hint}" in text
+        assert "Choose the change from the attempts" in text
+        assert "add_scaffold" not in text and "operator" not in text
+    with pytest.raises(ValueError):
+        so.prompt("loud")

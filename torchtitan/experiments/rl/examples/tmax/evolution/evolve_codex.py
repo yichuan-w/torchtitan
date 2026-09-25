@@ -1549,7 +1549,7 @@ Aim for a task a capable agent lands about half the time."""
 
 _EASIER_JOB = """This task was solved {solved} of {attempts} attempts.
 Diagnose the attempts and reduce one obstacle while retaining a stated skill.
-{cards}"""
+{guidance}"""
 
 _REPAIR_JOB = """Your rewrite did not survive the caller's check. It rebuilt the
 package from scratch, ran `solution/solve.sh` against the verifier (exit
@@ -2278,7 +2278,7 @@ def evolve_agentic(
             "easier": _EASIER_JOB.format(
                 solved=solved,
                 attempts=attempts_n,
-                cards=so.prompt(task.get("_simplify_hint", "vague")),
+                guidance=so.prompt(task.get("_simplify_hint", "vague")),
             ),
             "repair": _REPAIR_JOB.format(exit_code=exit_code),
             "repair_spec": _SPEC_REPAIR_JOB,
@@ -2361,7 +2361,7 @@ def evolve_agentic(
         decision = so.read_decision(pkg, task.get("_simplify_hint", "vague"))
         decision["hint_level"] = task.get("_simplify_hint", "vague")
         out["_simplify"] = decision
-        out["_operator"], out["_family"] = decision["operator"], "simplify"
+        out["_family"] = "simplify"
     if job == "repair_spec":
         repair = json.loads((pkg / "run" / "repair.json").read_text())
         for key in ("diagnosis", "evidence", "change", "retained_skill", "validation"):

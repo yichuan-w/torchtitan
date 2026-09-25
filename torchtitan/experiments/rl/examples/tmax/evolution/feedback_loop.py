@@ -739,7 +739,7 @@ def process_one(
             rec["hint"] = new.get("_hint")
             if new.get("_simplify"):
                 rec["simplify"] = new["_simplify"]
-                rec["operator"], rec["family"] = new["_operator"], new["_family"]
+                rec["family"] = new["_family"]
                 rec["agent_validated"] = new.get("_agent_validated")
         else:  # k/k -> harder
             rec["harder_mode"] = task["_harder_mode"] = "student"
@@ -759,36 +759,6 @@ def process_one(
             rec["calibration"] = True
         _write_back(work, new)
         changed = _changed(task, new)
-        simplify_op = new.get("_simplify", {}).get("operator")
-        if rec["action"] == "simplify" and simplify_op in (
-            "add_scaffold",
-            "provide_initial_state",
-        ):
-            if simplify_op == "add_scaffold":
-                scope_changes = [name for name in changed if name != "instruction"]
-                scope_rule = "add_scaffold may change only instruction.md"
-            else:
-                scope_changes = [
-                    name
-                    for name in changed
-                    if name == "test_state_py" or name.startswith("tests/")
-                ]
-                scope_rule = "provide_initial_state must preserve verifier files"
-            # The collector omits alternate verifier entrypoints from support files.
-            for rel in ev.VERIFIER_CANDIDATES:
-                before, after = seed_dir / rel, work / rel
-                old = before.read_bytes() if before.exists() else None
-                current = after.read_bytes() if after.exists() else None
-                if old != current and rel not in scope_changes:
-                    scope_changes.append(rel)
-            if scope_changes:
-                rec["changed"] = list(dict.fromkeys([*changed, *scope_changes]))
-                return _done(
-                    rec,
-                    "rejected",
-                    stage="simplify_scope",
-                    reason=scope_rule + ": " + ", ".join(scope_changes),
-                )
         box = _probe_box(new, resources)
         rec["resources"] = box
         v = revalidate(
