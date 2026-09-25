@@ -1216,13 +1216,9 @@ def test_a_rewrite_sees_every_earlier_rewrite_of_its_task(tmp_path):
     now = layout.RewriteDir(task.rewrites / "20260903-000000Z--easier")
     now.traces.mkdir(parents=True)
 
-    layout.append_jsonl(task.lineage, {"event": "fold", "from_rev": 0, "to_rev": 1,
-                                       "rewrite": f"rewrites/{first.path.name}"})
-    assert od._write_history(root, task, now, rev=1) == 3  # two attempts, one step
+    assert od._write_history(root, task, now) == 2
     history = now.traces / "history"
-    [step] = [json.loads(line) for line in (history / "revisions.jsonl").read_text().splitlines()]
-    assert step["from_rev"] == 0 and step["to_rev"] == 1 and step["by_rewrite"] == first.path.name
-    assert "+Write the report to /app/report.txt, sorted." in (history / step["diff"]).read_text()
+    assert not (history / "revisions.jsonl").exists()
     index = [json.loads(line) for line in (history / "index.jsonl").read_text().splitlines()]
     assert [e["rewrite"] for e in index] == [first.path.name, second.path.name]
     assert index[0]["status"] == "accepted" and index[0]["measured_on_input"]["solved"] == 16
@@ -1235,11 +1231,12 @@ def test_a_rewrite_sees_every_earlier_rewrite_of_its_task(tmp_path):
     assert "Require sorting." in (history / index[0]["notes"]).read_text()
     assert "reward 0" in (history / index[1]["notes"]).read_text()
     summary = (history / "summary.md").read_text()
-    assert "### r0 -> r1" in summary and f"rewrite {first.path.name} (harder)" in summary
+    assert f"## {first.path.name}: harder r0 -> r1, accepted" in summary
     assert "Training on r0 before it: 16/16 attempts solved" in summary
     assert "instruction.md (+1 -1)" in summary
-    assert f"### {second.path.name}: easier from r1, rejected at oracle" in summary
+    assert f"## {second.path.name}: easier r1, rejected at oracle" in summary
     assert "Reason: reference failed" in summary and "solution/solve.sh (+1 -0)" in summary
+    assert summary.index(first.path.name) < summary.index(second.path.name)
 
 
 def test_a_task_without_earlier_rewrites_gets_no_history(tmp_path):
@@ -1247,6 +1244,5 @@ def test_a_task_without_earlier_rewrites_gets_no_history(tmp_path):
     task = root.evolution.task("tw_a")
     now = layout.RewriteDir(task.rewrites / "20260903-000000Z--harder")
     now.traces.mkdir(parents=True)
-    _package(task.rev(0), SEED)
-    assert od._write_history(root, task, now, rev=0) == 0
+    assert od._write_history(root, task, now) == 0
     assert not (now.traces / "history").exists()
