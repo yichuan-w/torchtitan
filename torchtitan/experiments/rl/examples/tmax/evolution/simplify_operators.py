@@ -4,63 +4,19 @@
 # This source code is licensed under the BSD-style license found in the
 # LICENSE file in the root directory of this source tree.
 
-"""Trace-based choices for reducing one obstacle in a terminal task."""
+"""How a simplification is chosen from the attempts, and what it must declare.
+
+The change comes from the attempts (and the task's earlier rewrites in
+traces/history), as hardening's does; there is no menu of intervention kinds
+to pick from, and the declaration names no operator. The rules every kind of
+change is held to -- no final answer or recipe, correctness checks kept for
+the retained goals -- are stated once, below.
+"""
 
 from __future__ import annotations
 
 import json
 from pathlib import Path
-
-CARDS = {
-    "reduce_scale": (
-        "Reduce one input dimension that causes the observed failures: object count, nesting depth, "
-        "numeric range, or supported format cases. State the smaller input domain in the instruction "
-        "and generate tests within it; preserve correctness and shortcut checks throughout that domain. "
-        "Retain a nontrivial operation, not only a constant or empty case. Restore the removed "
-        "dimension to increase difficulty."
-    ),
-    "relax_constraint": (
-        "Use when the basic result is correct but a resource, compatibility or implementation "
-        "restriction blocks success. Remove one stated restriction and its corresponding checks, "
-        "preserving correctness checks. Do not remove the capability chosen for training. Restore that "
-        "restriction to increase difficulty; do not change fleet resources or episode budgets."
-    ),
-    "provide_initial_state": (
-        "Use when prerequisites consume the attempts before the intended skill is reached. Materialize "
-        "one valid prerequisite in the environment; keep the remaining goal and its checks. "
-        "Keep all verifier files unchanged. Do not "
-        "precompute the output of the retained skill. Remove the supplied state to restore difficulty."
-    ),
-    "extract_subtask": (
-        "Keep a meaningful component of the original task with realistic inputs and independently "
-        "checkable output. It may be a prerequisite or a simpler component of the skill the student "
-        "cannot yet perform. Remove other goals and only their checks, supplying prerequisite state "
-        "where the retained component needs it. Name the original capability it prepares the student "
-        "for. Do not replace the task with an unrelated exercise or a trivial output. Reattach the "
-        "removed stages to restore difficulty."
-    ),
-    "reduce_distractors": (
-        "Use when the agent repeatedly confuses irrelevant files or similar records with relevant "
-        "evidence. Remove one source of irrelevant material while retaining all evidence and the core "
-        "inference. Missing evidence is a task defect, not a distractor. Restore the removed material "
-        "to increase difficulty."
-    ),
-    "add_scaffold": (
-        "Use when the agent has the evidence and can use the tools but cannot organize the next step. "
-        "Add one directional hint or intermediate goal; specific guidance is allowed only at the "
-        "configured hint level. Never provide the final answer, exact patch or full command recipe. "
-        "Change instruction.md only; keep the environment, reference solution and verifier unchanged. "
-        "If the intervention requires supplying starting state, choose provide_initial_state instead. "
-        "Remove the hint to restore difficulty."
-    ),
-    "enhance_feedback": (
-        "Use when repeated execution errors show the agent cannot interpret the tool response. Improve "
-        "one task-local error message to identify the violated input or precondition, without supplying "
-        "the solution. Preserve tool semantics and private grading. Restore the original message to "
-        "increase difficulty; do not modify the shared harness."
-    ),
-}
-
 
 CALIBRATION_GUIDANCE = """Compare two intervention strengths by the observed decisions
 they remove and the decisions left along the complete path to submission.
@@ -89,7 +45,7 @@ may become true while the actual requirement remains unmet. Replace such a
 misleading cue or choose a different intervention. If students follow the cue
 but stop after local success, target the next missing required transition.
 Preserve the successful tool output contract; additional diagnostics must not
-contaminate it. Keep the existing operator scope and hint limits.
+contaminate it. Keep the hint limits.
 
 For supplied state, identify how the student discovers and uses the actual
 target resource. Check that the retained verifier distinguishes success there
@@ -103,16 +59,8 @@ oracle and untouched-state checks establish only candidate validity.
 def prompt(hint: str) -> str:
     if hint not in ("none", "vague", "specific"):
         raise ValueError(f"unknown simplify hint level: {hint}")
-    cards = {
-        k: v
-        for k, v in CARDS.items()
-        if hint != "none" or k not in ("add_scaffold", "enhance_feedback")
-    }
     return (
-        "\n\n".join(f"{key}: {rule}" for key, rule in cards.items())
-        + f"""
-
-Hint level: {hint}. none permits structural changes only; vague permits a
+        f"""Hint level: {hint}. none permits structural changes only; vague permits a
 direction or subgoal, not concrete solution steps; specific permits one
 trace-supported step, never the complete solution or private verifier details.
 
@@ -130,7 +78,7 @@ Identify a recurring obstacle, then state the skill this variant retains. Aim fo
 and some unsuccessful student attempts, rather than preserving every difficult
 part of a task that the student cannot yet solve. A timeout or 0/k alone
 does not identify that obstacle. Compare the failed check with the submitted
-artifact and the visible requirement before choosing a card. A reasonable
+artifact and the visible requirement before choosing the change. A reasonable
 interpretation rejected by an unstated exact-string or formatting requirement
 is a specification defect, even when a hint could make the test pass.
 Use verifier diagnostics when present. A student's success claim or local
@@ -147,11 +95,17 @@ If the work is already correct but the agent fails to submit, do not remove
 unrelated task requirements. With insufficient evidence, write GIVE UP with
 the reason and keep the task unchanged.
 
-Choose one primary card and one difficulty dimension. Supporting edits needed
-to make that intervention coherent belong to the same change; for example,
+Choose the change from the attempts. If traces/history shows an earlier
+rewrite that made this task harder, what it changed is the first candidate:
+restore part of what it removed or added, within the task's requirements.
+Otherwise supply what the attempts show is missing at their first unresolved
+obstacle. Whatever the change, never give the final answer, an exact patch or
+a full command recipe; do not precompute the output of the retained skill;
+keep correctness and shortcut checks for every retained goal; do not modify
+the shared harness. Make one change along one difficulty dimension; supporting
+edits needed to make it coherent belong to the same change, for example,
 extracting a stage can require supplying its input. Before editing, write
-run/simplify.json containing:
-operator (one card id), retained_skill, bottleneck, change, restore, and
+run/simplify.json containing: retained_skill, bottleneck, change, restore and
 prediction, plus evidence (a nonempty list of objects with attempt, turn,
 observation).
 attempt is a basename from traces/, turn is an integer turn in that file,
@@ -179,7 +133,7 @@ a smaller input domain or a prerequisite subskill instead of another generic
 hint. Explain what work remains for the student and which visible variation
 would make a copied constant or no-op fail. If attempts already solve the
 retained component, extraction alone is likely to overshoot to all-solved;
-prefer removing only part of the barrier. Choose a different card or GIVE UP
+prefer removing only part of the barrier. Choose a different change or GIVE UP
 if the same failed method would remain unchanged on the retained goal.
 
 {CALIBRATION_GUIDANCE}
@@ -214,7 +168,6 @@ rollouts measure difficulty; their scores do not resolve a grading defect.
 def read_decision(pkg: Path, hint: str) -> dict:
     decision = json.loads((pkg / "run/simplify.json").read_text())
     for field in (
-        "operator",
         "retained_skill",
         "bottleneck",
         "change",
@@ -223,11 +176,6 @@ def read_decision(pkg: Path, hint: str) -> dict:
     ):
         if not isinstance(decision.get(field), str) or not decision[field].strip():
             raise ValueError(f"simplify decision requires {field}")
-    op = decision["operator"]
-    if op not in CARDS or (
-        hint == "none" and op in ("add_scaffold", "enhance_feedback")
-    ):
-        raise ValueError(f"simplify operator not allowed: {op}")
     evidence = decision.get("evidence")
     if not isinstance(evidence, list) or not evidence:
         raise ValueError("simplify decision requires trace evidence")

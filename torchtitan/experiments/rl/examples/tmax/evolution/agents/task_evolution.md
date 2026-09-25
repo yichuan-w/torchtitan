@@ -97,9 +97,7 @@ it was produced by a different method.
 
 For easier jobs, a removed goal or relaxed constraint may lose its corresponding
 checks only when declared in `run/simplify.json`. Preserve semantic correctness
-and checks for every remaining public requirement. `add_scaffold` changes only
-`instruction.md`; its environment, reference and verifier stay unchanged.
-`provide_initial_state` supplies prerequisites and leaves verifier files unchanged.
+and checks for every remaining public requirement.
 
 When assigned to write or repair the verifier, map each retained or added requirement
 to a check of the behavior or result it promises, naming the source of its expected

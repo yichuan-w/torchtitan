@@ -584,144 +584,10 @@ def test_feedback_keeps_task_when_simplify_has_no_failed_execution(
     assert all((r0 / rel).read_bytes() == content for rel, content in before.items())
 
 
-@pytest.mark.parametrize(
-    "extra",
-    [
-        None,
-        "dockerfile",
-        "solve_sh",
-        "test_state_py",
-        "tests/helper.py",
-        "environment/input.txt",
-    ],
-)
-@pytest.mark.parametrize("operator", ["add_scaffold", "provide_initial_state"])
-def test_simplify_preserves_operator_scope_before_validation(
-    tmp_path, monkeypatch, extra, operator
-):
-    rw, r0 = _rewrite(tmp_path, monkeypatch)
-    ec = _fake_ec()
-    calls = []
-
-    def simplify(rewrite, task, **kwargs):
-        new = {
-            **task,
-            "instruction": task["instruction"] + "Inspect the input format first.\n",
-            "_simplify": {"operator": operator},
-            "_operator": operator,
-            "_family": "simplify",
-        }
-        if extra in ("dockerfile", "solve_sh", "test_state_py"):
-            new[extra] += "\n# additional edit\n"
-        elif extra:
-            path = rewrite.package / extra
-            path.parent.mkdir(parents=True, exist_ok=True)
-            path.write_text("additional content\n")
-            new["_support_changed"] = [extra]
-        return new
-
-    def revalidate(*args, **kwargs):
-        calls.append("validate")
-        return {"ok": True}
-
-    ec.simplify_codex = simplify
-    monkeypatch.setitem(sys.modules, "evolve_codex", ec)
-    monkeypatch.setenv("SWE_RETUNE_AGENT", "codex")
-    monkeypatch.setattr(fb, "revalidate", revalidate)
-    rec = fb.process_one(rw, {**SIGNAL, "solved": 0}, job="easier", seed_dir=r0)
-    rejected = extra and (
-        operator == "add_scaffold" or extra in ("test_state_py", "tests/helper.py")
-    )
-    if rejected:
-        assert rec["status"] == "rejected" and rec["stage"] == "simplify_scope"
-        assert extra in rec["changed"] and extra in rec["reason"]
-        assert calls == []
-    else:
-        assert rec["status"] == "accepted" and calls == ["validate"]
-    assert (r0 / "instruction.md").read_text() == SEED["instruction"]
-
-
-@pytest.mark.parametrize("alternate", fb.ev.VERIFIER_CANDIDATES)
-@pytest.mark.parametrize("operation", ["add", "remove", "change"])
-@pytest.mark.parametrize("operator", ["add_scaffold", "provide_initial_state"])
-def test_simplify_checks_verifier_entries_omitted_by_the_collector(
-    tmp_path, monkeypatch, alternate, operation, operator
-):
-    import evolve_codex as real_ec
-
-    primary = next(rel for rel in fb.ev.VERIFIER_CANDIDATES if rel != alternate)
-    rw, r0 = _rewrite(tmp_path, monkeypatch, {**SEED, "_verifier_rel": primary})
-    if operation != "add":
-        for root in (r0, rw.package):
-            (root / alternate).write_text(SEED["test_state_py"])
-    ec = _fake_ec()
-
-    def simplify(rewrite, task, **kwargs):
-        path = rewrite.package / alternate
-        if operation == "remove":
-            path.unlink()
-        else:
-            path.write_text("# another verifier entrypoint\n")
-        (rewrite.package / "instruction.md").write_text(
-            task["instruction"] + "Inspect the input format first.\n"
-        )
-        new = real_ec._collect(task, rewrite.package, fb.ev.file_map(task))
-        assert not new["_support_changed"]
-        return {
-            **new,
-            "_simplify": {"operator": operator},
-            "_operator": operator,
-            "_family": "simplify",
-        }
-
-    ec.simplify_codex = simplify
-    monkeypatch.setitem(sys.modules, "evolve_codex", ec)
-    monkeypatch.setenv("SWE_RETUNE_AGENT", "codex")
-    monkeypatch.setattr(
-        fb,
-        "revalidate",
-        lambda *a, **k: pytest.fail("scope violation reached validation"),
-    )
-    rec = fb.process_one(rw, {**SIGNAL, "solved": 0}, job="easier", seed_dir=r0)
-    assert rec["status"] == "rejected" and rec["stage"] == "simplify_scope", rec
-    assert alternate in rec["reason"]
-
-
-@pytest.mark.parametrize("operator", ["add_scaffold", "provide_initial_state"])
-def test_simplify_preserves_unchanged_crlf_verifier(tmp_path, monkeypatch, operator):
-    rw, r0 = _rewrite(tmp_path, monkeypatch)
-    verifier = fb.ev.FILES["test_state_py"]
-    original = SEED["test_state_py"].replace("\n", "\r\n").encode()
-    for root in (r0, rw.package):
-        (root / verifier).write_bytes(original)
-    ec = _fake_ec()
-
-    def simplify(rewrite, task, **kwargs):
-        return {
-            **task,
-            "instruction": task["instruction"] + "Inspect the input format first.\n",
-            "_simplify": {"operator": operator},
-            "_operator": operator,
-            "_family": "simplify",
-        }
-
-    def revalidate(work, *args, **kwargs):
-        assert (work / verifier).read_bytes() == original
-        return {"ok": True}
-
-    ec.simplify_codex = simplify
-    monkeypatch.setitem(sys.modules, "evolve_codex", ec)
-    monkeypatch.setenv("SWE_RETUNE_AGENT", "codex")
-    monkeypatch.setattr(fb, "revalidate", revalidate)
-    rec = fb.process_one(rw, {**SIGNAL, "solved": 0}, job="easier", seed_dir=r0)
-    assert rec["status"] == "accepted", rec
-    assert (r0 / verifier).read_bytes() == original
-
-
 def test_easier_records_decision_and_can_decline(tmp_path, monkeypatch):
     rw, r0 = _rewrite(tmp_path, monkeypatch)
     ec = _fake_ec()
-    choice = {"operator": "reduce_scale", "retained_skill": "convert"}
+    choice = {"retained_skill": "convert", "change": "one file"}
 
     def simplify(rewrite, task, **kwargs):
         assert task["_direction"] == "easier"
@@ -729,7 +595,6 @@ def test_easier_records_decision_and_can_decline(tmp_path, monkeypatch):
             **task,
             "instruction": "Convert one file.",
             "_simplify": choice,
-            "_operator": "reduce_scale",
             "_family": "simplify",
             "_agent_validated": True,
         }
@@ -740,7 +605,8 @@ def test_easier_records_decision_and_can_decline(tmp_path, monkeypatch):
     monkeypatch.setattr(fb, "revalidate", lambda *a, **k: {"ok": True})
     rec = fb.process_one(rw, {**SIGNAL, "solved": 0}, job="easier", seed_dir=r0)
     assert rec["status"] == "accepted" and rec["simplify"] == choice
-    assert rec["operator"] == "reduce_scale" and rec["agent_validated"]
+    # The declaration names no intervention kind: the change comes from the attempts.
+    assert "operator" not in rec and rec["family"] == "simplify" and rec["agent_validated"]
 
     def decline(*args, **kwargs):
         raise ec.Blocked("repair_required: invalid task")
