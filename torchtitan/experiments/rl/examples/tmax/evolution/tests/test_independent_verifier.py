@@ -179,6 +179,23 @@ def test_independent_author_repairs_missing_contract_once(setup, monkeypatch):
     assert (verifier.path / "independent-probes.json").is_file()
 
 
+def test_persistently_missing_independent_outputs_are_typed(setup, monkeypatch):
+    rewrite, verifier, calls, author = setup
+
+    def omit_contract(run, package, prompt, resume=None):
+        result = author(run, package, prompt, resume)
+        (package / "run/verifier-probes/contract.json").unlink(missing_ok=True)
+        return result
+
+    monkeypatch.setattr(ec, "_run_codex", omit_contract)
+    with pytest.raises(ec.AgentSessionError) as raised:
+        ec._independent_verifier(rewrite, verifier)
+
+    assert raised.value.failure_type == "agent_missing_output"
+    assert raised.value.returncode == 0
+    assert [call[0] for call in calls] == ["probe", "probe-contract"]
+
+
 @pytest.mark.parametrize("case", ["wrong-1", "correct"])
 def test_semantic_failure_gets_one_repair_and_replays_unchanged_controls(
     setup, monkeypatch, case

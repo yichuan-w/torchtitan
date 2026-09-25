@@ -73,6 +73,29 @@ class Filtered(RuntimeError):
     """
 
 
+class AgentSessionError(RuntimeError):
+    """The agent session ended without satisfying its execution contract."""
+
+    def __init__(
+        self,
+        *,
+        agent: str,
+        failure_type: str,
+        returncode: int,
+        stderr_path: Path,
+        result: subprocess.CompletedProcess | None = None,
+    ) -> None:
+        self.agent = agent
+        self.failure_type = failure_type
+        self.returncode = returncode
+        self.stderr_path = stderr_path
+        self.result = result
+        super().__init__(
+            f"{agent} session failed ({failure_type}, exit {returncode}); "
+            f"see {stderr_path}"
+        )
+
+
 CYBER_FLAG = "flagged for possible cybersecurity risk"
 CYBER_RETRIES = int(os.environ.get("CODEX_CYBER_RETRIES", "2"))
 
@@ -351,6 +374,8 @@ def session(
         else:
             meta["status"] = "failed"
         meta["error"] = f"{type(exc).__name__}: {exc}"[:500]
+        if failure_type := getattr(exc, "failure_type", None):
+            meta["failure_type"] = str(failure_type)
         raise
     else:
         meta["status"] = "completed"
@@ -607,6 +632,32 @@ def _read_stream(path: Path) -> str:
         return ""
 
 
+def _agent_failure_type(stdout: str, stderr: str) -> str:
+    """Classify a nonzero agent exit from the streams retained on disk."""
+    text = f"{stderr}\n{stdout}".lower()
+    if "rate_limit_exceeded" in text or "rate limit exceeded" in text:
+        return "provider_rate_limit"
+    if (
+        "failed to retrieve response from third-party api after" in text
+        and "polling attempts" in text
+    ):
+        return "provider_poll_exhausted"
+    if "server_error" in text or "server error" in text:
+        return "provider_server_error"
+    if any(
+        marker in text
+        for marker in (
+            "transport",
+            "connection error",
+            "connection reset by peer",
+        )
+    ):
+        return "provider_transport_error"
+    if "stream disconnected before completion" in text:
+        return "provider_stream_error"
+    return f"{EVOLVE_AGENT}_exit_nonzero"
+
+
 def _run_codex(
     run: SessionRun, cwd: Path, prompt: str, *, resume: str | None = None
 ) -> subprocess.CompletedProcess:
@@ -702,9 +753,33 @@ Package runtime interface:
             cmd, timeout, output=_read_stream(sd.stdout), stderr=_read_stream(sd.stderr)
         ) from exc
     run.meta["exit_code"] = proc.returncode
-    return subprocess.CompletedProcess(
+    result = subprocess.CompletedProcess(
         cmd, proc.returncode, _read_stream(sd.stdout), _read_stream(sd.stderr)
     )
+    if result.returncode:
+        failure_type = _agent_failure_type(result.stdout, result.stderr)
+        run.meta["failure_type"] = failure_type
+        raise AgentSessionError(
+            agent=EVOLVE_AGENT,
+            failure_type=failure_type,
+            returncode=result.returncode,
+            stderr_path=sd.stderr,
+            result=result,
+        )
+    return result
+
+
+@contextlib.contextmanager
+def _checked_output(agent_error: AgentSessionError | None):
+    """Restore a deferred process failure only when output validation fails."""
+    try:
+        yield
+    except Blocked:
+        raise
+    except Exception as output_error:
+        if agent_error is not None:
+            raise agent_error from output_error
+        raise
 
 
 def _session_id(sd: layout.SessionDir) -> str:
@@ -1181,16 +1256,25 @@ def repair_oracle_codex(
     if fmap["solve_sh"] == ev.ACTION_PATH:
         role = pkg / "AGENTS.md"
         role.write_text(_recorded_solution_prompt(role.read_text()))
-    with session(rewrite, "oracle", timeout=TIMEOUT_SEC) as run:
-        p = _run_codex(run, pkg, _ORACLE_PROMPT)
-    _check_verdict(pkg)
-    out = {**task, **{key: (pkg / rel).read_text() for key, rel in fmap.items()}}
+    agent_error = None
+    try:
+        with session(rewrite, "oracle", timeout=TIMEOUT_SEC) as run:
+            p = _run_codex(run, pkg, _ORACLE_PROMPT)
+    except AgentSessionError as error:
+        assert error.result is not None
+        p, agent_error = error.result, error
+    with _checked_output(agent_error):
+        _check_verdict(pkg)
+        out = {**task, **{key: (pkg / rel).read_text() for key, rel in fmap.items()}}
     if all(out[key] == task[key] for key in fmap):
         raise RuntimeError(
             f"codex changed nothing (exit {p.returncode}): " f"{p.stdout[-200:]}"
         )
     out["_repaired"] = "codex_oracle_observed"
     out["_session"] = str(run.dir.path)
+    if agent_error is not None:
+        out["_agent_failure_type"] = agent_error.failure_type
+        out["_agent_exit_code"] = agent_error.returncode
     return out
 
 
@@ -1798,6 +1882,7 @@ def _probe_hashes(package: Path, exclude: tuple[str, ...] = ()) -> dict[str, str
 _PROBE_CONTRACT_JOB = """Your replay controls under `run/verifier-probes/` have
 an incomplete contract or do not match the scripts you wrote: {problem}.
 
+If the directory or `contract.json` is absent, create it now.
 Every declared case must have nonempty string fields `requirement`,
 `wrong_behavior`, and `expected_failure`. The caller replays `correct.sh` and
 one `wrong-N.sh` per declared case, in contract order. Complete any missing
@@ -1809,7 +1894,7 @@ as they are."""
 
 def _repair_probe_contract(
     rewrite: layout.RewriteDir, vsession: layout.SessionDir, problem: str
-) -> None:
+) -> SessionRun:
     """One resume of the verifier's session to reconcile its contract with the
     scripts it wrote. A declared case with no script used to raise
     FileNotFoundError out of the replay reader and discard the whole rewrite:
@@ -1817,16 +1902,13 @@ def _repair_probe_contract(
     is asking the session that wrote the other six."""
     sid = _session_id(vsession)
     with session(rewrite, "probe-contract", timeout=AGENT_TIMEOUT, resumes=vsession) as run:
-        result = _run_codex(
+        _run_codex(
             run,
             vsession.package,
             _PROBE_CONTRACT_JOB.format(problem=problem) + _budget(AGENT_TIMEOUT),
             resume=sid,
         )
-        if result.returncode:
-            raise RuntimeError(
-                f"probe-contract repair exited {result.returncode}; see {run.dir.stdout}"
-            )
+    return run
 
 
 def _verify_original_probes(
@@ -1884,16 +1966,12 @@ def _author_independent_probes(
         before = _probe_hashes(probe, ("run",))
         run.meta["public_inputs_sha256"] = before
         try:
-            result = _run_codex(
+            _run_codex(
                 run,
                 probe,
                 "Create independent semantic controls from the public task.\n"
                 + _budget(AGENT_TIMEOUT),
             )
-            if result.returncode:
-                raise RuntimeError(
-                    f"Independent probe author exited {result.returncode}"
-                )
         finally:
             _sandbox_down(probe)
         _check_verdict(probe)
@@ -1916,12 +1994,20 @@ def _author_independent_probes(
             log.info(
                 "independent probe contract mismatch, resuming author: %s", error
             )
-            _repair_probe_contract(rewrite, run.dir, str(error))
+            repair = _repair_probe_contract(rewrite, run.dir, str(error))
             if _probe_hashes(probe, ("run",)) != before:
                 raise RuntimeError(
                     "Independent probe contract repair changed public task files"
                 ) from error
-            load_probe_contract(probe)
+            try:
+                load_probe_contract(probe)
+            except SemanticProbeContract as repeated:
+                raise AgentSessionError(
+                    agent=EVOLVE_AGENT,
+                    failure_type="agent_missing_output",
+                    returncode=int(repair.meta.get("exit_code") or 0),
+                    stderr_path=repair.dir.stderr,
+                ) from repeated
     layout.write_json_atomic(
         pointer,
         {
@@ -1964,7 +2050,7 @@ def _independent_verifier(
                 rewrite, "probe-repair", timeout=AGENT_TIMEOUT, resumes=vsession
             ) as run:
                 try:
-                    result = _run_codex(
+                    _run_codex(
                         run,
                         vpkg,
                         "Independent controls received grades inconsistent with their declared expectations. "
@@ -1983,10 +2069,6 @@ def _independent_verifier(
                         + _budget(AGENT_TIMEOUT),
                         resume=_session_id(vsession),
                     )
-                    if result.returncode:
-                        raise RuntimeError(
-                            f"Verifier probe repair exited {result.returncode}"
-                        ) from error
                 finally:
                     _sandbox_down(vpkg)
             _check_verdict(vpkg)
@@ -2059,11 +2141,7 @@ def _blind_verifier(
                 run.dir.path / "independent-probes.json",
             )
             try:
-                result = _run_codex(run, vpkg, prompt)
-                if result.returncode:
-                    raise RuntimeError(
-                        f"Verifier author exited {result.returncode}; see {run.dir.stdout}"
-                    )
+                _run_codex(run, vpkg, prompt)
             finally:
                 _sandbox_down(vpkg)
         _check_verdict(vpkg)
@@ -2101,11 +2179,7 @@ def _blind_repair(
             AGENT_TIMEOUT
         )
         try:
-            result = _run_codex(run, vpkg, prompt, resume=sid)
-            if result.returncode:
-                raise RuntimeError(
-                    f"Verifier repair exited {result.returncode}; see {run.dir.stdout}"
-                )
+            _run_codex(run, vpkg, prompt, resume=sid)
         finally:
             _sandbox_down(vpkg)
     _check_verdict(vpkg)
@@ -2317,16 +2391,22 @@ def evolve_agentic(
 
     if task.get("_role_files"):
         prompt += _ROLE_PATCH_NOTE
-    with session(rewrite, "agent", timeout=AGENT_TIMEOUT) as run:
-        try:
-            p = _run_codex(run, pkg, prompt)
-        finally:
-            _sandbox_down(pkg)
-
+    run = None
+    agent_error = None
     vsession = None
     try:
-        _check_verdict(pkg)
-        _require_checked(pkg)
+        try:
+            with session(rewrite, "agent", timeout=AGENT_TIMEOUT) as run:
+                try:
+                    p = _run_codex(run, pkg, prompt)
+                finally:
+                    _sandbox_down(pkg)
+        except AgentSessionError as error:
+            assert error.result is not None
+            p, agent_error = error.result, error
+        with _checked_output(agent_error):
+            _check_verdict(pkg)
+            _require_checked(pkg)
         if blind:
             vsession, fmap["test_state_py"] = _blind_verifier(rewrite, task, fmap)
             _reconcile_blind(
@@ -2340,7 +2420,7 @@ def evolve_agentic(
         # so every check below it fails for that reason rather than for
         # the rewrite's. Say which it was, so the caller starts a fresh
         # session instead of recording the task as unevolvable.
-        if cyber_filtered(run.dir):
+        if run is not None and cyber_filtered(run.dir):
             raise Filtered(
                 f"the provider's cybersecurity classifier stopped the "
                 f"session ({type(exc).__name__}: {exc})"[:300]
@@ -2355,6 +2435,9 @@ def evolve_agentic(
     out["_hint"] = f"agent_{job}"
     out["_agent_validated"] = _agent_checked(pkg)
     out["_session"] = str(run.dir.path)
+    if agent_error is not None:
+        out["_agent_failure_type"] = agent_error.failure_type
+        out["_agent_exit_code"] = agent_error.returncode
     if job == "harder":
         out["_harder_mode"] = "student"
     if job == "easier":
@@ -2401,13 +2484,11 @@ def _resume_author_blind(
             + _budget(AGENT_TIMEOUT)
         )
         try:
-            p = _run_codex(run, pkg, prompt, resume=sid)
+            _run_codex(run, pkg, prompt, resume=sid)
         finally:
             _sandbox_down(pkg)
     _check_verdict(pkg)
     _require_checked(pkg)
-    if p.returncode:
-        raise RuntimeError(f"author repair exited {p.returncode}; see {run.dir.stdout}")
     return {**task, "_session": str(run.dir.path)}
 
 
@@ -2469,15 +2550,21 @@ def resume_agentic(
     (pkg / "run" / "failure.txt").write_text(observed or "(no output captured)")
     for stale in ("verdict.txt", "checks.jsonl"):
         (pkg / "run" / stale).unlink(missing_ok=True)
-    with session(rewrite, "repair", timeout=AGENT_TIMEOUT, resumes=prior) as run:
-        prompt = _REPAIR_JOB.format(exit_code=exit_code) + _budget(AGENT_TIMEOUT)
-        try:
-            p = _run_codex(run, pkg, prompt, resume=sid)
-        finally:
-            _sandbox_down(pkg)
-    _check_verdict(pkg)
-    _require_checked(pkg)
-    out = _collect(task, pkg, fmap)
+    agent_error = None
+    try:
+        with session(rewrite, "repair", timeout=AGENT_TIMEOUT, resumes=prior) as run:
+            prompt = _REPAIR_JOB.format(exit_code=exit_code) + _budget(AGENT_TIMEOUT)
+            try:
+                p = _run_codex(run, pkg, prompt, resume=sid)
+            finally:
+                _sandbox_down(pkg)
+    except AgentSessionError as error:
+        assert error.result is not None
+        p, agent_error = error.result, error
+    with _checked_output(agent_error):
+        _check_verdict(pkg)
+        _require_checked(pkg)
+        out = _collect(task, pkg, fmap)
     if all(out[key] == task[key] for key in fmap) and not out["_support_changed"]:
         raise RuntimeError(
             f"agent changed nothing on resume "
@@ -2488,4 +2575,7 @@ def resume_agentic(
     # The repair's codex/ shares the thread's jsonl with the agent's, so a
     # later resume from either finds the same session id.
     out["_session"] = str(run.dir.path)
+    if agent_error is not None:
+        out["_agent_failure_type"] = agent_error.failure_type
+        out["_agent_exit_code"] = agent_error.returncode
     return out

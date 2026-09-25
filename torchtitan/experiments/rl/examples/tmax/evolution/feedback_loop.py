@@ -643,6 +643,28 @@ def _done(
     return rec
 
 
+def _failed(rec: dict, *, stage: str, error: Exception) -> dict:
+    """Record structured agent-process details when an exception carries them."""
+    if failure_type := getattr(error, "failure_type", None):
+        rec["agent_failure_type"] = str(failure_type)
+    returncode = getattr(error, "returncode", None)
+    if returncode is not None:
+        rec["agent_exit_code"] = int(returncode)
+    return _done(
+        rec,
+        "failed",
+        stage=stage,
+        reason=f"{type(error).__name__}: {error}",
+    )
+
+
+def _record_agent_diagnostics(rec: dict, result: dict) -> None:
+    """Carry a tolerated process exit from an accepted agent result."""
+    for key in ("agent_failure_type", "agent_exit_code"):
+        if f"_{key}" in result:
+            rec[key] = result[f"_{key}"]
+
+
 def process_one(
     rewrite: layout.RewriteDir,
     signal: dict,
@@ -733,9 +755,7 @@ def process_one(
                 rec["spec_repair"] = {"reported": report}
                 return _done(rec, "kept", stage="repair_required", reason=report)
             except Exception as e:  # noqa: BLE001 -- the task stays as it is
-                return _done(
-                    rec, "failed", stage="agent", reason=f"{type(e).__name__}: {e}"
-                )
+                return _failed(rec, stage="agent", error=e)
             rec["hint"] = new.get("_hint")
             if new.get("_simplify"):
                 rec["simplify"] = new["_simplify"]
@@ -751,10 +771,9 @@ def process_one(
             except ec.Blocked as e:
                 return _done(rec, "kept", stage="agent", reason=str(e))
             except Exception as e:  # noqa: BLE001 -- the task stays as it is
-                return _done(
-                    rec, "failed", stage="agent", reason=f"{type(e).__name__}: {e}"
-                )
+                return _failed(rec, stage="agent", error=e)
 
+        _record_agent_diagnostics(rec, new)
         if new.get("_calibration"):
             rec["calibration"] = True
         _write_back(work, new)
@@ -831,6 +850,7 @@ def process_one(
             if not repaired and set(support) == set(new.get("_support_changed") or []):
                 break
             new = fixed
+            _record_agent_diagnostics(rec, fixed)
             _write_back(work, fixed)
             box = _probe_box(fixed, resources)
             rec["resources"] = box
@@ -862,7 +882,7 @@ def process_one(
             )
         return _done(rec, "accepted", stage=v.get("fast_path", "ok"))
     except Exception as e:  # noqa: BLE001
-        return _done(rec, "failed", stage="error", reason=f"{type(e).__name__}: {e}")
+        return _failed(rec, stage="error", error=e)
     finally:
         rec["usage"] = llm.usage_since(mark)
         rec["t_end"] = time.time()

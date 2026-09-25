@@ -326,11 +326,16 @@ def test_failed_verifier_process_is_recorded_before_replay(
     def failed_process(run, cwd, prompt, resume=None):
         run.meta["exit_code"] = 1
         run.dir.stdout.write_text("usage limit exceeded\n")
-        return type("P", (), {"returncode": 1})()
+        raise ec.AgentSessionError(
+            agent="codex",
+            failure_type="codex_exit_nonzero",
+            returncode=1,
+            stderr_path=run.dir.stderr,
+        )
 
     monkeypatch.setattr(ec, "_run_codex", failed_process)
     fmap = ec.ev.file_map(SEED)
-    with pytest.raises(RuntimeError, match="Verifier .* exited 1; see"):
+    with pytest.raises(ec.AgentSessionError, match="codex_exit_nonzero, exit 1"):
         if repair:
             with ec.session(rw, "verifier", timeout=ec.AGENT_TIMEOUT) as previous:
                 ec._blind_layout(rw.package, previous.dir.package)
@@ -346,7 +351,8 @@ def test_failed_verifier_process_is_recorded_before_replay(
     assert len(failed) == 1
     meta = json.loads(failed[0].meta.read_text())
     assert meta["exit_code"] == 1
-    assert "exited 1" in meta["error"]
+    assert meta["failure_type"] == "codex_exit_nonzero"
+    assert "exit 1" in meta["error"]
     assert failed[0].stdout.read_text() == "usage limit exceeded\n"
     assert len(cleanups) == 1 and replays == []
     assert (rw.package / "tests/test_state.py").read_text() == SEED["test_state_py"]
