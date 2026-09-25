@@ -53,6 +53,7 @@ Usage:
 from __future__ import annotations
 
 import argparse
+import difflib
 import fcntl
 import json
 import logging
@@ -202,6 +203,102 @@ def _attach_student_feedback(
             "rev": rev - 1,
             "instruction": parent_instruction.read_text(),
         }
+
+
+def _public_files(pkg: Path) -> dict[str, Path]:
+    """A package's own files, without the harness's (ec.HARNESS)."""
+    return {
+        str(p.relative_to(pkg)): p
+        for p in sorted(pkg.rglob("*"))
+        if p.is_file()
+        and p.relative_to(pkg).parts[0] not in ec.HARNESS
+        and "__pycache__" not in p.parts
+    }
+
+
+def _package_diff(before: Path, after: Path) -> str:
+    """Unified diff of two packages' own files; a binary change is named."""
+    old, new = _public_files(before), _public_files(after)
+    out = []
+    for rel in sorted(old.keys() | new.keys()):
+        a = old[rel].read_bytes() if rel in old else b""
+        b = new[rel].read_bytes() if rel in new else b""
+        if a == b:
+            continue
+        try:
+            a_text, b_text = a.decode(), b.decode()
+        except UnicodeDecodeError:
+            out.append(f"Binary file {rel} {'added' if not a else 'removed' if not b else 'changed'}\n")
+            continue
+        out.extend(difflib.unified_diff(
+            a_text.splitlines(keepends=True), b_text.splitlines(keepends=True),
+            f"a/{rel}" if rel in old else "/dev/null",
+            f"b/{rel}" if rel in new else "/dev/null",
+        ))
+    return "".join(out)
+
+
+def _write_history(root: layout.Root, task: layout.TaskDir, rewrite: layout.RewriteDir) -> int:
+    """Every earlier rewrite of this task, for the agent rewriting it now.
+
+    traces/history/index.jsonl has one line per earlier rewrite, oldest first:
+    its direction, the revision it started from and the one it produced, how
+    it ended and why, and what training measured on its input. Beside it,
+    <rewrite>.diff is what that rewrite changed -- against its result when it
+    was accepted, against the package it left otherwise, so an attempt that
+    failed shows what was tried -- and <rewrite>.notes.md the author's own
+    notes and failure record. Under traces/, so the blind verifier and the
+    probe never see it and nothing of it travels with the task. Returns the
+    number of rewrites recorded.
+    """
+    out = rewrite.traces / "history"
+    lines = []
+    for earlier in task.rewrite_dirs():
+        if earlier.path == rewrite.path:
+            continue
+        try:
+            meta = json.loads(earlier.meta.read_text())
+        except (OSError, ValueError):
+            log.warning("%s unreadable earlier rewrite: %s", task.task_id, earlier.meta)
+            continue
+        name = earlier.path.name
+        entry = {
+            key: meta.get(key)
+            for key in ("job", "started", "finished", "input_rev", "result_rev",
+                        "status", "stage", "reason", "changed", "harder_mode")
+        }
+        entry["rewrite"] = name
+        measured = (meta.get("student_feedback") or {}).get("measurement")
+        if measured is None and meta.get("signal"):
+            run_name, stem = meta["signal"].split("/", 1)
+            try:
+                s = json.loads((root.run(run_name).signals / f"{stem}.json").read_text())
+                measured = {k: s.get(k) for k in ("run", "group", "rev", "solved", "total")}
+            except (OSError, ValueError):
+                measured = None
+        entry["measured_on_input"] = measured
+        base = task.rev(meta["input_rev"]) if meta.get("input_rev") is not None else None
+        result = (
+            task.rev(meta["result_rev"])
+            if meta.get("status") == "accepted" and meta.get("result_rev") is not None
+            else earlier.package
+        )
+        out.mkdir(parents=True, exist_ok=True)
+        if base is not None and base.is_dir() and result.is_dir():
+            (out / f"{name}.diff").write_text(_package_diff(base, result))
+            entry["diff"] = f"{name}.diff"
+        notes = [
+            f"## {rel}\n\n{(earlier.package / rel).read_text(errors='replace')}\n"
+            for rel in ("run/hardening.md", "run/failure.txt")
+            if (earlier.package / rel).is_file()
+        ]
+        if notes:
+            (out / f"{name}.notes.md").write_text("\n".join(notes))
+            entry["notes"] = f"{name}.notes.md"
+        lines.append(entry)
+    if lines:
+        (out / "index.jsonl").write_text("".join(json.dumps(e) + "\n" for e in lines))
+    return len(lines)
 
 
 def training_box(tid: str, declared: dict[str, dict] | None) -> dict:
@@ -589,6 +686,9 @@ def handle(
             layout.link_or_copy(
                 run_dir / rel, rewrite.traces / f"attempt-{i:02d}.jsonl"
             )
+        n_history = _write_history(root, task, rewrite)
+        if n_history:
+            log.info("%s history: %d earlier rewrites in traces/history", tid, n_history)
         parent_snapshot = None
         parent_hashes = {}
         previous_context = None

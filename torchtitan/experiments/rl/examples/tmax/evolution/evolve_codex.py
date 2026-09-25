@@ -2287,6 +2287,20 @@ def evolve_agentic(
         + _budget(AGENT_TIMEOUT)
     )
 
+    if job in ("harder", "easier") and (rewrite.traces / "history" / "index.jsonl").is_file():
+        prompt += (
+            "\n\nEARLIER REWRITES OF THIS TASK\n"
+            "traces/history/index.jsonl lists every earlier rewrite of this task, "
+            "oldest first: its direction (job), the revision it started from and "
+            "the one it produced, how it ended (status, stage, reason) and what "
+            "training measured on its input (solved of total). <rewrite>.diff "
+            "beside it is what that rewrite changed, and <rewrite>.notes.md holds "
+            "its author's notes and failure record where they exist. Read them "
+            "before editing: they show which changes already moved this task and "
+            "how far, and which attempts failed and why. Do not copy any of it "
+            "into the task.\n"
+        )
+
     if job in ("harder", "easier") and task.get("_student_feedback"):
         feedback = task["_student_feedback"]
         (pkg / "run" / "student_feedback.json").write_text(

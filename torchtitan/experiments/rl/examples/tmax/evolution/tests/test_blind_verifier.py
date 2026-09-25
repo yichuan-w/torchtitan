@@ -272,6 +272,34 @@ def test_measured_feedback_reaches_proposer_only(tmp_path, monkeypatch, job):
     assert "student_feedback" not in (rw.package / "instruction.md").read_text()
 
 
+@pytest.mark.parametrize("job", ["harder", "easier"])
+def test_task_history_reaches_the_author_only(tmp_path, monkeypatch, job):
+    """traces/history (written by the loop) is named in the author's prompt;
+    the blind verifier and the probe neither read about it nor get it."""
+    rw = _rewrite(tmp_path, monkeypatch)
+    sessions, checks = [], []
+    _wire(monkeypatch, sessions, checks)
+    if job == "easier":
+        monkeypatch.setattr(
+            ec.so, "read_decision", lambda *_: {"operator": "add_scaffold"}
+        )
+    (rw.traces / "history").mkdir(parents=True)
+    (rw.traces / "history" / "index.jsonl").write_text('{"rewrite": "r"}\n')
+    ec.evolve_agentic(rw, dict(SEED), job)
+    assert "traces/history/index.jsonl" in sessions[0]["prompt"]
+    for later in sessions[1:]:
+        assert "traces/history" not in later["prompt"]
+        assert not (Path(later["cwd"]) / "traces").exists()
+
+
+def test_no_history_no_history_paragraph(tmp_path, monkeypatch):
+    rw = _rewrite(tmp_path, monkeypatch)
+    sessions, checks = [], []
+    _wire(monkeypatch, sessions, checks)
+    ec.evolve_agentic(rw, dict(SEED), "harder")
+    assert "EARLIER REWRITES" not in sessions[0]["prompt"]
+
+
 def test_failed_semantic_replay_prevents_accepting_verifier(tmp_path, monkeypatch):
     rw = _rewrite(tmp_path, monkeypatch)
     _wire(monkeypatch, [], [])

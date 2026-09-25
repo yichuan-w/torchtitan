@@ -1178,3 +1178,63 @@ def test_a_handler_that_raises_does_not_get_handed_back_forever(
     assert sorted(calls) == ["tw_a", "tw_b"], calls
     assert result["handled"] == 0
     assert not _ledger(root)
+
+
+def _package(path: Path, files: dict[str, str]) -> None:
+    for rel, text in files.items():
+        (path / rel).parent.mkdir(parents=True, exist_ok=True)
+        (path / rel).write_text(text)
+
+
+def test_a_rewrite_sees_every_earlier_rewrite_of_its_task(tmp_path):
+    """traces/history: an accepted rewrite diffed against its result, a
+    rejected one against the package it left, notes and the measurement that
+    triggered each; harness files and the rewrite itself are not history."""
+    root = layout.Root(tmp_path / "root")
+    task = root.evolution.task("tw_a")
+    r1 = {**SEED, "instruction.md": "Write the report to /app/report.txt, sorted.\n"}
+    _package(task.rev(0), SEED)
+    _package(task.rev(1), r1)
+    signals = root.run(RUN).signals
+    signals.mkdir(parents=True)
+    (signals / "tw_a--g3.json").write_text(json.dumps(
+        {"run": RUN, "group": 3, "rev": 0, "solved": 16, "total": 16}))
+
+    first = layout.RewriteDir(task.rewrites / "20260901-000000Z--harder")
+    _package(first.package, {**r1, "run/hardening.md": "Require sorting.\n",
+                             "AGENTS.md": "role\n"})
+    layout.write_json_atomic(first.meta, {
+        "job": "harder", "input_rev": 0, "result_rev": 1, "status": "accepted",
+        "signal": f"{RUN}/tw_a--g3", "changed": ["instruction"]})
+    second = layout.RewriteDir(task.rewrites / "20260902-000000Z--easier")
+    _package(second.package, {**r1, "solution/solve.sh": "#!/bin/sh\nsort\n",
+                               "run/failure.txt": "oracle failed: reward 0\n"})
+    layout.write_json_atomic(second.meta, {
+        "job": "easier", "input_rev": 1, "result_rev": None, "status": "rejected",
+        "stage": "oracle", "reason": "reference failed",
+        "student_feedback": {"measurement": {"solved": 0, "total": 16}}})
+    now = layout.RewriteDir(task.rewrites / "20260903-000000Z--easier")
+    now.traces.mkdir(parents=True)
+
+    assert od._write_history(root, task, now) == 2
+    history = now.traces / "history"
+    index = [json.loads(line) for line in (history / "index.jsonl").read_text().splitlines()]
+    assert [e["rewrite"] for e in index] == [first.path.name, second.path.name]
+    assert index[0]["status"] == "accepted" and index[0]["measured_on_input"]["solved"] == 16
+    assert index[1]["reason"] == "reference failed" and index[1]["measured_on_input"]["solved"] == 0
+    accepted = (history / index[0]["diff"]).read_text()
+    assert "+Write the report to /app/report.txt, sorted." in accepted
+    assert "AGENTS.md" not in accepted and "hardening" not in accepted
+    tried = (history / index[1]["diff"]).read_text()
+    assert "+sort" in tried and "instruction.md" not in tried
+    assert "Require sorting." in (history / index[0]["notes"]).read_text()
+    assert "reward 0" in (history / index[1]["notes"]).read_text()
+
+
+def test_a_task_without_earlier_rewrites_gets_no_history(tmp_path):
+    root = layout.Root(tmp_path / "root")
+    task = root.evolution.task("tw_a")
+    now = layout.RewriteDir(task.rewrites / "20260903-000000Z--harder")
+    now.traces.mkdir(parents=True)
+    assert od._write_history(root, task, now) == 0
+    assert not (now.traces / "history").exists()
