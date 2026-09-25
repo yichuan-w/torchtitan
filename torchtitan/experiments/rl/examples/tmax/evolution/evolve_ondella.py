@@ -259,6 +259,7 @@ def _write_history(
     """
     out = rewrite.traces / "history"
     lines = []
+    texts: dict[str, str] = {}
     for earlier in task.rewrite_dirs():
         if earlier.path == rewrite.path:
             continue
@@ -290,8 +291,10 @@ def _write_history(
             else earlier.package
         )
         out.mkdir(parents=True, exist_ok=True)
+        diff_text = ""
         if base is not None and base.is_dir() and result.is_dir():
-            (out / f"{name}.diff").write_text(_package_diff(base, result))
+            diff_text = _package_diff(base, result)
+            (out / f"{name}.diff").write_text(diff_text)
             entry["diff"] = f"{name}.diff"
         notes = [
             f"## {rel}\n\n{(earlier.package / rel).read_text(errors='replace')}\n"
@@ -302,6 +305,7 @@ def _write_history(
             (out / f"{name}.notes.md").write_text("\n".join(notes))
             entry["notes"] = f"{name}.notes.md"
         lines.append(entry)
+        texts[name] = diff_text
     if lines:
         (out / "index.jsonl").write_text("".join(json.dumps(e) + "\n" for e in lines))
     folded = {
@@ -314,11 +318,79 @@ def _write_history(
     for a, b in zip(chain, chain[1:]):
         (out / "revisions").mkdir(parents=True, exist_ok=True)
         diff = f"revisions/r{a}-r{b}.diff"
-        (out / diff).write_text(_package_diff(task.rev(a), task.rev(b)))
+        texts[diff] = _package_diff(task.rev(a), task.rev(b))
+        (out / diff).write_text(texts[diff])
         steps.append({"from_rev": a, "to_rev": b, "diff": diff, "by_rewrite": folded.get(b)})
     if steps:
         (out / "revisions.jsonl").write_text("".join(json.dumps(e) + "\n" for e in steps))
+    if lines or steps:
+        (out / "summary.md").write_text(_history_summary(task.task_id, rev, steps, lines, texts))
     return len(lines) + len(steps)
+
+
+def _diff_stat(diff: str) -> str:
+    """"path (+added -removed), ..." for a _package_diff."""
+    stat: dict[str, list[int]] = {}
+    path = prev = None
+    for line in diff.splitlines():
+        if line.startswith("+++ "):
+            path = line[4:].removeprefix("b/")
+            if path == "/dev/null":
+                path = prev
+        elif line.startswith("--- "):
+            prev = line[4:].removeprefix("a/")
+        elif line.startswith("Binary file "):
+            stat[line.split()[2]] = [0, 0]
+        elif path and line.startswith("+"):
+            stat.setdefault(path, [0, 0])[0] += 1
+        elif path and line.startswith("-"):
+            stat.setdefault(path, [0, 0])[1] += 1
+    return ", ".join(f"{p} (+{a} -{r})" for p, (a, r) in stat.items()) or "nothing"
+
+
+def _history_summary(
+    task_id: str, rev: int, steps: list[dict], attempts: list[dict], texts: dict[str, str]
+) -> str:
+    """The history as one page to read first: each step of the revision chain
+    with what training measured before it and what it changed, then every
+    attempt that did not produce a revision and why."""
+
+    def measured(entry: dict | None) -> str:
+        m = (entry or {}).get("measured_on_input") or {}
+        if m.get("solved") is None:
+            return "not recorded"
+        return f"{m['solved']}/{m['total']} attempts solved (run {m.get('run')}, group {m.get('group')})"
+
+    by_name = {e["rewrite"]: e for e in attempts}
+    out = [f"# History of {task_id}\n\nYou are rewriting r{rev}. Diffs and notes named "
+           "below are files beside this one.\n"]
+    if steps:
+        out.append(f"\n## How the task reached r{rev}\n")
+    for st in steps:
+        a, b = st["from_rev"], st["to_rev"]
+        maker = by_name.get(st["by_rewrite"] or "")
+        before = maker or next((e for e in attempts if e.get("input_rev") == a), None)
+        out.append(
+            f"\n### r{a} -> r{b}\n"
+            f"- Made by: {'rewrite ' + st['by_rewrite'] + ' (' + str(maker.get('job') if maker else '?') + ')' if st['by_rewrite'] else 'unknown (before this root recorded rewrites)'}\n"
+            f"- Training on r{a} before it: {measured(before)}\n"
+            f"- Changed: {_diff_stat(texts[st['diff']])}\n"
+            f"- Diff: {st['diff']}\n"
+            + (f"- Author notes: {maker['notes']}\n" if maker and maker.get("notes") else "")
+        )
+    failed = [e for e in attempts if e.get("status") != "accepted"]
+    if failed:
+        out.append("\n## Attempts that did not produce a revision\n")
+    for e in failed:
+        out.append(
+            f"\n### {e['rewrite']}: {e.get('job')} from r{e.get('input_rev')}, "
+            f"{e.get('status')}{' at ' + e['stage'] if e.get('stage') else ''}\n"
+            f"- Reason: {e.get('reason') or 'not recorded'}\n"
+            f"- Training on r{e.get('input_rev')} before it: {measured(e)}\n"
+            + (f"- Changed: {_diff_stat(texts.get(e['rewrite'], ''))}\n- Diff: {e['diff']}\n" if e.get("diff") else "- Changed: no package left to compare\n")
+            + (f"- Author notes: {e['notes']}\n" if e.get("notes") else "")
+        )
+    return "".join(out)
 
 
 def training_box(tid: str, declared: dict[str, dict] | None) -> dict:

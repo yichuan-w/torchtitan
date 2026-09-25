@@ -1234,6 +1234,12 @@ def test_a_rewrite_sees_every_earlier_rewrite_of_its_task(tmp_path):
     assert "+sort" in tried and "instruction.md" not in tried
     assert "Require sorting." in (history / index[0]["notes"]).read_text()
     assert "reward 0" in (history / index[1]["notes"]).read_text()
+    summary = (history / "summary.md").read_text()
+    assert "### r0 -> r1" in summary and f"rewrite {first.path.name} (harder)" in summary
+    assert "Training on r0 before it: 16/16 attempts solved" in summary
+    assert "instruction.md (+1 -1)" in summary
+    assert f"### {second.path.name}: easier from r1, rejected at oracle" in summary
+    assert "Reason: reference failed" in summary and "solution/solve.sh (+1 -0)" in summary
 
 
 def test_a_task_without_earlier_rewrites_gets_no_history(tmp_path):

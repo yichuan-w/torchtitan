@@ -286,7 +286,7 @@ def test_task_history_reaches_the_author_only(tmp_path, monkeypatch, job):
     (rw.traces / "history").mkdir(parents=True)
     (rw.traces / "history" / "index.jsonl").write_text('{"rewrite": "r"}\n')
     ec.evolve_agentic(rw, dict(SEED), job)
-    assert "traces/history/revisions.jsonl" in sessions[0]["prompt"]
+    assert "traces/history/summary.md" in sessions[0]["prompt"]
     for later in sessions[1:]:
         assert "traces/history" not in later["prompt"]
         assert not (Path(later["cwd"]) / "traces").exists()
