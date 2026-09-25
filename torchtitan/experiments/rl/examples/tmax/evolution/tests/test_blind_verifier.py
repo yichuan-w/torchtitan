@@ -286,7 +286,7 @@ def test_task_history_reaches_the_author_only(tmp_path, monkeypatch, job):
     (rw.traces / "history").mkdir(parents=True)
     (rw.traces / "history" / "index.jsonl").write_text('{"rewrite": "r"}\n')
     ec.evolve_agentic(rw, dict(SEED), job)
-    assert "traces/history/index.jsonl" in sessions[0]["prompt"]
+    assert "traces/history/revisions.jsonl" in sessions[0]["prompt"]
     for later in sessions[1:]:
         assert "traces/history" not in later["prompt"]
         assert not (Path(later["cwd"]) / "traces").exists()
@@ -297,7 +297,7 @@ def test_no_history_no_history_paragraph(tmp_path, monkeypatch):
     sessions, checks = [], []
     _wire(monkeypatch, sessions, checks)
     ec.evolve_agentic(rw, dict(SEED), "harder")
-    assert "EARLIER REWRITES" not in sessions[0]["prompt"]
+    assert "THIS TASK'S HISTORY" not in sessions[0]["prompt"]
 
 
 def test_failed_semantic_replay_prevents_accepting_verifier(tmp_path, monkeypatch):

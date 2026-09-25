@@ -238,10 +238,16 @@ def _package_diff(before: Path, after: Path) -> str:
     return "".join(out)
 
 
-def _write_history(root: layout.Root, task: layout.TaskDir, rewrite: layout.RewriteDir) -> int:
-    """Every earlier rewrite of this task, for the agent rewriting it now.
+def _write_history(
+    root: layout.Root, task: layout.TaskDir, rewrite: layout.RewriteDir, rev: int
+) -> int:
+    """This task's history, for the agent rewriting revision ``rev`` now.
 
-    traces/history/index.jsonl has one line per earlier rewrite, oldest first:
+    traces/history/revisions.jsonl is the chain that led to ``rev``: one line
+    per step r(n-1) -> r(n), its diff under revisions/, and the rewrite that
+    folded it where the lineage records one (a root forked from another holds
+    revisions its own lineage never saw). traces/history/index.jsonl has one
+    line per earlier rewrite attempt here, oldest first:
     its direction, the revision it started from and the one it produced, how
     it ended and why, and what training measured on its input. Beside it,
     <rewrite>.diff is what that rewrite changed -- against its result when it
@@ -249,7 +255,7 @@ def _write_history(root: layout.Root, task: layout.TaskDir, rewrite: layout.Rewr
     failed shows what was tried -- and <rewrite>.notes.md the author's own
     notes and failure record. Under traces/, so the blind verifier and the
     probe never see it and nothing of it travels with the task. Returns the
-    number of rewrites recorded.
+    number of steps and attempts recorded.
     """
     out = rewrite.traces / "history"
     lines = []
@@ -298,7 +304,21 @@ def _write_history(root: layout.Root, task: layout.TaskDir, rewrite: layout.Rewr
         lines.append(entry)
     if lines:
         (out / "index.jsonl").write_text("".join(json.dumps(e) + "\n" for e in lines))
-    return len(lines)
+    folded = {
+        e.get("to_rev"): e.get("rewrite", "").removeprefix("rewrites/")
+        for e in layout.read_jsonl(task.lineage)
+        if e.get("event") == "fold"
+    }
+    chain = [n for n in task.revs() if n <= rev]
+    steps = []
+    for a, b in zip(chain, chain[1:]):
+        (out / "revisions").mkdir(parents=True, exist_ok=True)
+        diff = f"revisions/r{a}-r{b}.diff"
+        (out / diff).write_text(_package_diff(task.rev(a), task.rev(b)))
+        steps.append({"from_rev": a, "to_rev": b, "diff": diff, "by_rewrite": folded.get(b)})
+    if steps:
+        (out / "revisions.jsonl").write_text("".join(json.dumps(e) + "\n" for e in steps))
+    return len(lines) + len(steps)
 
 
 def training_box(tid: str, declared: dict[str, dict] | None) -> dict:
@@ -686,9 +706,9 @@ def handle(
             layout.link_or_copy(
                 run_dir / rel, rewrite.traces / f"attempt-{i:02d}.jsonl"
             )
-        n_history = _write_history(root, task, rewrite)
+        n_history = _write_history(root, task, rewrite, rev)
         if n_history:
-            log.info("%s history: %d earlier rewrites in traces/history", tid, n_history)
+            log.info("%s history: %d revisions and attempts in traces/history", tid, n_history)
         parent_snapshot = None
         parent_hashes = {}
         previous_context = None
