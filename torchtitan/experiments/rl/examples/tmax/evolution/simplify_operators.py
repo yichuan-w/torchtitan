@@ -108,11 +108,36 @@ extracting a stage can require supplying its input. Before editing, write
 run/simplify.json containing: retained_skill, bottleneck, change, restore and
 prediction, plus evidence (a nonempty list of objects with attempt, turn,
 observation).
+
 attempt is a basename from traces/, turn is an integer turn in that file,
 and observation explains what the command and output show. Each other field
 is a nonempty string. Describe the concrete size of the change in change.
 The caller checks the declaration and evidence locations, not the truth of
 your diagnosis; ground the diagnosis in what actually happened.
+
+Guidance you add, in the instruction or in a file you supply, must name the
+operation the reference solution actually performs, in terms a student can
+apply as written. A domain description of the same fact can lead to a
+different computation: "the times are local" invites a time-zone conversion
+the reference never performs, where "subtract 5 hours" does not. At the vague
+level, point to that operation without spelling out every step, but leave no
+reading of a supplied file under which a careful student computes something
+else. Before finishing, apply your guidance literally to the task's own data
+in the sandbox and confirm it reproduces the reference's intermediate result;
+describe that check in change.
+
+List the choices the reference solution makes that the instruction does not
+fix: a fitting window, a threshold, a seed, an ordering, a starting guess. For
+each, run the reference in the sandbox with another choice a competent solver
+could reasonably make, and grade it. A verifier that rejects a reasonable
+choice depends on something the student cannot discover from the task, which
+is an obstacle no attempt can get past however well it works. Stating that
+choice in the instruction leaves the grading unchanged and is an allowed
+simplification, which may accompany the change you choose since it adds no
+difficulty dimension; describe the alternative you tried and its grade in
+change.
+This is distinct from a check whose logic is wrong, which still goes
+to repair as described below.
 
 In prediction, name the observed failing action or decision and explain how
 the proposed change enables a different next action. State an observable
