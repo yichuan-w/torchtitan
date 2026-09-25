@@ -658,6 +658,13 @@ def _failed(rec: dict, *, stage: str, error: Exception) -> dict:
     )
 
 
+def _record_agent_diagnostics(rec: dict, result: dict) -> None:
+    """Carry a tolerated process exit from an accepted agent result."""
+    for key in ("agent_failure_type", "agent_exit_code"):
+        if f"_{key}" in result:
+            rec[key] = result[f"_{key}"]
+
+
 def process_one(
     rewrite: layout.RewriteDir,
     signal: dict,
@@ -766,6 +773,7 @@ def process_one(
             except Exception as e:  # noqa: BLE001 -- the task stays as it is
                 return _failed(rec, stage="agent", error=e)
 
+        _record_agent_diagnostics(rec, new)
         if new.get("_calibration"):
             rec["calibration"] = True
         _write_back(work, new)
@@ -842,6 +850,7 @@ def process_one(
             if not repaired and set(support) == set(new.get("_support_changed") or []):
                 break
             new = fixed
+            _record_agent_diagnostics(rec, fixed)
             _write_back(work, fixed)
             box = _probe_box(fixed, resources)
             rec["resources"] = box

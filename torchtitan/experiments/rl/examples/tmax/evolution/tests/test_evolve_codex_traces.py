@@ -190,6 +190,160 @@ def test_only_all_pass_after_simplify_uses_restoration_guidance(
     assert bool(result.get("_calibration")) == calibration
 
 
+def test_evolve_accepts_checked_output_after_nonzero_agent_exit(
+    tmp_path, monkeypatch
+) -> None:
+    rw = _rewrite(tmp_path, monkeypatch)
+
+    def run_codex(run, pkg, prompt):
+        (pkg / "instruction.md").write_text("harder instruction\n")
+        run.meta["exit_code"] = 1
+        result = subprocess.CompletedProcess(
+            [], 1, stdout="", stderr="provider error"
+        )
+        raise ec.AgentSessionError(
+            agent="codex",
+            failure_type="provider_server_error",
+            returncode=1,
+            stderr_path=run.dir.stderr,
+            result=result,
+        )
+
+    monkeypatch.setattr(ec, "_require_codex", lambda: None)
+    monkeypatch.setattr(ec, "VERIFIER_AUTHOR", "same")
+    monkeypatch.setattr(ec, "_run_codex", run_codex)
+    monkeypatch.setattr(ec, "_sandbox_down", lambda pkg: None)
+    monkeypatch.setattr(ec, "_check_verdict", lambda pkg: None)
+    monkeypatch.setattr(ec, "_require_checked", lambda pkg: None)
+    monkeypatch.setattr(ec, "_agent_checked", lambda pkg: True)
+
+    result = ec.evolve_agentic(
+        rw, {**TASK, "_solved": 8, "_attempts": 8}, "harder"
+    )
+
+    assert result["instruction"] == "harder instruction\n"
+    assert result["_agent_validated"] is True
+    assert result["_agent_failure_type"] == "provider_server_error"
+    assert result["_agent_exit_code"] == 1
+    meta = json.loads(layout.SessionDir(Path(result["_session"])).meta.read_text())
+    assert meta["status"] == "failed"
+    assert meta["failure_type"] == "provider_server_error"
+    assert meta["exit_code"] == 1
+
+
+def test_evolve_classifies_nonzero_exit_after_output_check_fails(
+    tmp_path, monkeypatch
+) -> None:
+    rw = _rewrite(tmp_path, monkeypatch)
+    run = SimpleNamespace(
+        dir=SimpleNamespace(
+            path=tmp_path / "session",
+            stdout=tmp_path / "stdout.log",
+            stderr=tmp_path / "stderr.log",
+        ),
+        meta={"exit_code": 1, "failure_type": "provider_rate_limit"},
+    )
+
+    def reject_output(pkg):
+        raise ValueError("missing verdict")
+
+    def run_codex(*args, **kwargs):
+        result = subprocess.CompletedProcess([], 1, stdout="", stderr="")
+        raise ec.AgentSessionError(
+            agent="codex",
+            failure_type="provider_rate_limit",
+            returncode=1,
+            stderr_path=run.dir.stderr,
+            result=result,
+        )
+
+    monkeypatch.setattr(ec, "_require_codex", lambda: None)
+    monkeypatch.setattr(ec, "VERIFIER_AUTHOR", "same")
+    monkeypatch.setattr(ec, "session", lambda *a, **k: nullcontext(run))
+    monkeypatch.setattr(ec, "_run_codex", run_codex)
+    monkeypatch.setattr(ec, "_sandbox_down", lambda pkg: None)
+    monkeypatch.setattr(ec, "_check_verdict", reject_output)
+
+    with pytest.raises(ec.AgentSessionError) as raised:
+        ec.evolve_agentic(rw, {**TASK, "_solved": 8, "_attempts": 8}, "harder")
+
+    assert raised.value.failure_type == "provider_rate_limit"
+    assert raised.value.returncode == 1
+    assert isinstance(raised.value.__cause__, ValueError)
+    assert str(raised.value.__cause__) == "missing verdict"
+
+
+def test_oracle_repair_accepts_checked_output_after_nonzero_agent_exit(
+    tmp_path, monkeypatch
+) -> None:
+    rw = _rewrite(tmp_path, monkeypatch)
+    run = SimpleNamespace(
+        dir=SimpleNamespace(path=tmp_path / "oracle", stderr=tmp_path / "stderr.log")
+    )
+
+    def run_codex(session_run, pkg, prompt):
+        (pkg / "solution/solve.sh").write_text("#!/bin/sh\necho repaired\n")
+        result = subprocess.CompletedProcess([], 1, stdout="", stderr="provider error")
+        raise ec.AgentSessionError(
+            agent="codex",
+            failure_type="provider_server_error",
+            returncode=1,
+            stderr_path=session_run.dir.stderr,
+            result=result,
+        )
+
+    monkeypatch.setattr(ec, "_require_codex", lambda: None)
+    monkeypatch.setattr(ec, "session", lambda *a, **k: nullcontext(run))
+    monkeypatch.setattr(ec, "_run_codex", run_codex)
+    monkeypatch.setattr(ec, "_check_verdict", lambda pkg: None)
+
+    result = ec.repair_oracle_codex(rw, TASK, "reference failed")
+
+    assert result["solve_sh"] == "#!/bin/sh\necho repaired\n"
+    assert result["_agent_failure_type"] == "provider_server_error"
+    assert result["_agent_exit_code"] == 1
+
+
+def test_resume_accepts_checked_output_after_nonzero_agent_exit(
+    tmp_path, monkeypatch
+) -> None:
+    rw = _rewrite(tmp_path, monkeypatch)
+    prior = layout.SessionDir(tmp_path / "prior")
+    prior.codex_home.mkdir(parents=True)
+    run = SimpleNamespace(
+        dir=SimpleNamespace(path=tmp_path / "repair", stderr=tmp_path / "stderr.log")
+    )
+
+    def run_codex(session_run, pkg, prompt, *, resume=None):
+        assert resume == "session-id"
+        (pkg / "instruction.md").write_text("repaired instruction\n")
+        result = subprocess.CompletedProcess([], 1, stdout="", stderr="provider error")
+        raise ec.AgentSessionError(
+            agent="codex",
+            failure_type="provider_stream_error",
+            returncode=1,
+            stderr_path=session_run.dir.stderr,
+            result=result,
+        )
+
+    monkeypatch.setattr(ec, "_require_codex", lambda: None)
+    monkeypatch.setattr(ec, "_session_id", lambda session_dir: "session-id")
+    monkeypatch.setattr(ec, "session", lambda *a, **k: nullcontext(run))
+    monkeypatch.setattr(ec, "_run_codex", run_codex)
+    monkeypatch.setattr(ec, "_sandbox_down", lambda pkg: None)
+    monkeypatch.setattr(ec, "_check_verdict", lambda pkg: None)
+    monkeypatch.setattr(ec, "_require_checked", lambda pkg: None)
+    monkeypatch.setattr(ec, "_agent_checked", lambda pkg: True)
+
+    result = ec.resume_agentic(
+        rw, {**TASK, "_session": str(prior.path)}, "reference failed"
+    )
+
+    assert result["instruction"] == "repaired instruction\n"
+    assert result["_agent_failure_type"] == "provider_stream_error"
+    assert result["_agent_exit_code"] == 1
+
+
 def test_calibration_can_retain_a_blind_verifier_but_requires_a_fresh_check(tmp_path):
     pkg, vpkg = tmp_path / "author", tmp_path / "verifier"
     rel, text = "tests/test_state.py", "assert result == expected\n"
@@ -482,6 +636,8 @@ def test_run_codex_records_typed_nonzero_exit(
 
     assert raised.value.failure_type == failure_type
     assert raised.value.returncode == 1
+    assert raised.value.result is not None
+    assert raised.value.result.returncode == 1
     meta = json.loads(run.dir.meta.read_text())
     assert meta["status"] == "failed"
     assert meta["exit_code"] == 1
