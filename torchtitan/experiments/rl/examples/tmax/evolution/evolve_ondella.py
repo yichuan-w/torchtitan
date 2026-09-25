@@ -53,6 +53,7 @@ Usage:
 from __future__ import annotations
 
 import argparse
+import difflib
 import fcntl
 import json
 import logging
@@ -202,6 +203,194 @@ def _attach_student_feedback(
             "rev": rev - 1,
             "instruction": parent_instruction.read_text(),
         }
+
+
+def _public_files(pkg: Path) -> dict[str, Path]:
+    """A package's own files, without the harness's (ec.HARNESS)."""
+    return {
+        str(p.relative_to(pkg)): p
+        for p in sorted(pkg.rglob("*"))
+        if p.is_file()
+        and p.relative_to(pkg).parts[0] not in ec.HARNESS
+        and "__pycache__" not in p.parts
+    }
+
+
+def _package_diff(before: Path, after: Path) -> str:
+    """Unified diff of two packages' own files; a binary change is named."""
+    old, new = _public_files(before), _public_files(after)
+    out = []
+    for rel in sorted(old.keys() | new.keys()):
+        a = old[rel].read_bytes() if rel in old else b""
+        b = new[rel].read_bytes() if rel in new else b""
+        if a == b:
+            continue
+        try:
+            a_text, b_text = a.decode(), b.decode()
+        except UnicodeDecodeError:
+            out.append(f"Binary file {rel} {'added' if not a else 'removed' if not b else 'changed'}\n")
+            continue
+        out.extend(difflib.unified_diff(
+            a_text.splitlines(keepends=True), b_text.splitlines(keepends=True),
+            f"a/{rel}" if rel in old else "/dev/null",
+            f"b/{rel}" if rel in new else "/dev/null",
+        ))
+    return "".join(out)
+
+
+def _write_history(
+    root: layout.Root, task: layout.TaskDir, rewrite: layout.RewriteDir, rev: int
+) -> int:
+    """This task's history, for the agent rewriting revision ``rev`` now.
+
+    traces/history/revisions.jsonl is the chain that led to ``rev``: one line
+    per step r(n-1) -> r(n), its diff under revisions/, and the rewrite that
+    folded it where the lineage records one (a root forked from another holds
+    revisions its own lineage never saw). traces/history/index.jsonl has one
+    line per earlier rewrite attempt here, oldest first:
+    its direction, the revision it started from and the one it produced, how
+    it ended and why, and what training measured on its input. Beside it,
+    <rewrite>.diff is what that rewrite changed -- against its result when it
+    was accepted, against the package it left otherwise, so an attempt that
+    failed shows what was tried -- and <rewrite>.notes.md the author's own
+    notes and failure record. Under traces/, so the blind verifier and the
+    probe never see it and nothing of it travels with the task. Returns the
+    number of steps and attempts recorded.
+    """
+    out = rewrite.traces / "history"
+    lines = []
+    texts: dict[str, str] = {}
+    for earlier in task.rewrite_dirs():
+        if earlier.path == rewrite.path:
+            continue
+        try:
+            meta = json.loads(earlier.meta.read_text())
+        except (OSError, ValueError):
+            log.warning("%s unreadable earlier rewrite: %s", task.task_id, earlier.meta)
+            continue
+        name = earlier.path.name
+        entry = {
+            key: meta.get(key)
+            for key in ("job", "started", "finished", "input_rev", "result_rev",
+                        "status", "stage", "reason", "changed", "harder_mode")
+        }
+        entry["rewrite"] = name
+        measured = (meta.get("student_feedback") or {}).get("measurement")
+        if measured is None and meta.get("signal"):
+            run_name, stem = meta["signal"].split("/", 1)
+            try:
+                s = json.loads((root.run(run_name).signals / f"{stem}.json").read_text())
+                measured = {k: s.get(k) for k in ("run", "group", "rev", "solved", "total")}
+            except (OSError, ValueError):
+                measured = None
+        entry["measured_on_input"] = measured
+        base = task.rev(meta["input_rev"]) if meta.get("input_rev") is not None else None
+        result = (
+            task.rev(meta["result_rev"])
+            if meta.get("status") == "accepted" and meta.get("result_rev") is not None
+            else earlier.package
+        )
+        out.mkdir(parents=True, exist_ok=True)
+        diff_text = ""
+        if base is not None and base.is_dir() and result.is_dir():
+            diff_text = _package_diff(base, result)
+            (out / f"{name}.diff").write_text(diff_text)
+            entry["diff"] = f"{name}.diff"
+        notes = [
+            f"## {rel}\n\n{(earlier.package / rel).read_text(errors='replace')}\n"
+            for rel in ("run/hardening.md", "run/failure.txt")
+            if (earlier.package / rel).is_file()
+        ]
+        if notes:
+            (out / f"{name}.notes.md").write_text("\n".join(notes))
+            entry["notes"] = f"{name}.notes.md"
+        lines.append(entry)
+        texts[name] = diff_text
+    if lines:
+        (out / "index.jsonl").write_text("".join(json.dumps(e) + "\n" for e in lines))
+    folded = {
+        e.get("to_rev"): e.get("rewrite", "").removeprefix("rewrites/")
+        for e in layout.read_jsonl(task.lineage)
+        if e.get("event") == "fold"
+    }
+    chain = [n for n in task.revs() if n <= rev]
+    steps = []
+    for a, b in zip(chain, chain[1:]):
+        (out / "revisions").mkdir(parents=True, exist_ok=True)
+        diff = f"revisions/r{a}-r{b}.diff"
+        texts[diff] = _package_diff(task.rev(a), task.rev(b))
+        (out / diff).write_text(texts[diff])
+        steps.append({"from_rev": a, "to_rev": b, "diff": diff, "by_rewrite": folded.get(b)})
+    if steps:
+        (out / "revisions.jsonl").write_text("".join(json.dumps(e) + "\n" for e in steps))
+    if lines or steps:
+        (out / "summary.md").write_text(_history_summary(task.task_id, rev, steps, lines, texts))
+    return len(lines) + len(steps)
+
+
+def _diff_stat(diff: str) -> str:
+    """"path (+added -removed), ..." for a _package_diff."""
+    stat: dict[str, list[int]] = {}
+    path = prev = None
+    for line in diff.splitlines():
+        if line.startswith("+++ "):
+            path = line[4:].removeprefix("b/")
+            if path == "/dev/null":
+                path = prev
+        elif line.startswith("--- "):
+            prev = line[4:].removeprefix("a/")
+        elif line.startswith("Binary file "):
+            stat[line.split()[2]] = [0, 0]
+        elif path and line.startswith("+"):
+            stat.setdefault(path, [0, 0])[0] += 1
+        elif path and line.startswith("-"):
+            stat.setdefault(path, [0, 0])[1] += 1
+    return ", ".join(f"{p} (+{a} -{r})" for p, (a, r) in stat.items()) or "nothing"
+
+
+def _history_summary(
+    task_id: str, rev: int, steps: list[dict], attempts: list[dict], texts: dict[str, str]
+) -> str:
+    """The history as one page to read first: each step of the revision chain
+    with what training measured before it and what it changed, then every
+    attempt that did not produce a revision and why."""
+
+    def measured(entry: dict | None) -> str:
+        m = (entry or {}).get("measured_on_input") or {}
+        if m.get("solved") is None:
+            return "not recorded"
+        return f"{m['solved']}/{m['total']} attempts solved (run {m.get('run')}, group {m.get('group')})"
+
+    by_name = {e["rewrite"]: e for e in attempts}
+    out = [f"# History of {task_id}\n\nYou are rewriting r{rev}. Diffs and notes named "
+           "below are files beside this one.\n"]
+    if steps:
+        out.append(f"\n## How the task reached r{rev}\n")
+    for st in steps:
+        a, b = st["from_rev"], st["to_rev"]
+        maker = by_name.get(st["by_rewrite"] or "")
+        before = maker or next((e for e in attempts if e.get("input_rev") == a), None)
+        out.append(
+            f"\n### r{a} -> r{b}\n"
+            f"- Made by: {'rewrite ' + st['by_rewrite'] + ' (' + str(maker.get('job') if maker else '?') + ')' if st['by_rewrite'] else 'unknown (before this root recorded rewrites)'}\n"
+            f"- Training on r{a} before it: {measured(before)}\n"
+            f"- Changed: {_diff_stat(texts[st['diff']])}\n"
+            f"- Diff: {st['diff']}\n"
+            + (f"- Author notes: {maker['notes']}\n" if maker and maker.get("notes") else "")
+        )
+    failed = [e for e in attempts if e.get("status") != "accepted"]
+    if failed:
+        out.append("\n## Attempts that did not produce a revision\n")
+    for e in failed:
+        out.append(
+            f"\n### {e['rewrite']}: {e.get('job')} from r{e.get('input_rev')}, "
+            f"{e.get('status')}{' at ' + e['stage'] if e.get('stage') else ''}\n"
+            f"- Reason: {e.get('reason') or 'not recorded'}\n"
+            f"- Training on r{e.get('input_rev')} before it: {measured(e)}\n"
+            + (f"- Changed: {_diff_stat(texts.get(e['rewrite'], ''))}\n- Diff: {e['diff']}\n" if e.get("diff") else "- Changed: no package left to compare\n")
+            + (f"- Author notes: {e['notes']}\n" if e.get("notes") else "")
+        )
+    return "".join(out)
 
 
 def training_box(tid: str, declared: dict[str, dict] | None) -> dict:
@@ -589,6 +778,9 @@ def handle(
             layout.link_or_copy(
                 run_dir / rel, rewrite.traces / f"attempt-{i:02d}.jsonl"
             )
+        n_history = _write_history(root, task, rewrite, rev)
+        if n_history:
+            log.info("%s history: %d revisions and attempts in traces/history", tid, n_history)
         parent_snapshot = None
         parent_hashes = {}
         previous_context = None
