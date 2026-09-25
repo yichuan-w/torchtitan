@@ -764,7 +764,7 @@ these are the variables that touch them.
 | `SWE_TIME_BUDGET_SEC` | `2400` | `2400` | agent wall clock per rollout. |
 | `TMAX_EXEC_TIMEOUT_SEC` | `120` | `120` | per-command timeout inside the sandbox. |
 | `TMAX_TERMINUS_MAX_TURNS` | `120` | `64` | turn ceiling. |
-| `TMAX_TURN_MAX_TOKENS` | `32768` | `16384` (terminus) | per-turn generation cap. |
+| `TMAX_TURN_MAX_TOKENS` | `16384` | `16384` (terminus) | per-turn generation cap. 32768 lets one turn overrun the context warning into the wall. |
 | `SWE_CKPT_INTERVAL` | `5` | `20` | steps between saves. |
 | `SWE_CKPT_KEEP` | `3` | `3` | checkpoints retained, at ~98 GiB each. |
 | `SWE_LMHEAD_TF32` | `1` | `0` | TF32 tensor cores for the fp32 lm_head matmuls (loss). Measured 08-30 (B300, 65536-token rows): with `SWE_LOSS_CHUNKS=8`, loss_fn 6.60 -> 0.82 s/mb, whole fwd_bwd 14.10 -> ~5.9 s/mb; grad_norm unchanged. |
