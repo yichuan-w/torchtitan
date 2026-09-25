@@ -100,8 +100,11 @@ class PerHostProvisioner:
                 offset = int(os.environ.get("RL_GPU_OFFSET", "0"))
                 visible = [str(g + offset) for g in gpu_ids]
             os.environ["CUDA_VISIBLE_DEVICES"] = ",".join(visible)
-            # TODO: Remove once Monarch/PyTorch fixes concurrent import during unpickling.
+            # TODO: Remove once Monarch/PyTorch fixes concurrent import during
+            # unpickling. Messages can reference torch and TorchStore's storage
+            # volume, so load both here, before concurrent unpickling starts.
             import torch  # noqa: F401
+            import torchstore.storage_volume  # noqa: F401
 
         return _bootstrap
 
