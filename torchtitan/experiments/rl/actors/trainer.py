@@ -511,7 +511,7 @@ class PolicyTrainer(Actor, Configurable):
     async def forward_backward(
         self,
         training_data: list[TrainingMicrobatch],
-        num_global_valid_tokens: int,
+        num_loss_denominator_tokens: int,
         num_packed_valid_tokens: int | None = None,
     ) -> dict[str, float]:
         """Run forward pass, compute loss, call backward, and reduce metrics.
@@ -519,13 +519,14 @@ class PolicyTrainer(Actor, Configurable):
         Args:
             training_data: List of TrainingMicrobatch, one per DP rank. Local rank
                 picks training_data[self.dp_rank].
-            num_global_valid_tokens: Total response tokens across all DP
-                ranks for this step. The controller computes this before
-                sharding training_samples. Loss scale denominator.
+            num_loss_denominator_tokens: Loss scale denominator, summed across all
+                DP ranks for this step before sharding (TrainingBatch.
+                num_loss_denominator_tokens): every valid response token by
+                default, or only those of nonzero-advantage samples.
             num_packed_valid_tokens: Total ACTUALLY-packed valid tokens (excludes
                 zero-advantage samples shed by skip_zero_advantage_samples). Used as
                 the per-trained-token metric denominator; None falls back to
-                num_global_valid_tokens.
+                num_loss_denominator_tokens.
 
         Returns:
             dict[str, float]: Globally-reduced metrics.
@@ -578,7 +579,7 @@ class PolicyTrainer(Actor, Configurable):
                 loss, loss_metrics = self.loss_fn(
                     pred,
                     labels,
-                    num_global_valid_tokens,
+                    num_loss_denominator_tokens,
                     generator_logprobs=generator_logprobs,
                     advantages=advantages,
                     loss_mask=loss_mask,
@@ -587,7 +588,8 @@ class PolicyTrainer(Actor, Configurable):
                     # reset to 0 at each packed-sample boundary).
                     positions=positions,
                     # Per-trained-token metric denominator (excludes zero-advantage
-                    # tokens the batch shed); the loss scale still uses global tokens.
+                    # tokens the batch shed); the loss scale uses
+                    # num_loss_denominator_tokens.
                     metric_denominator=num_packed_valid_tokens,
                 )
             logger.info(f"[trainer] dp_rank={self.dp_rank}: loss done")

@@ -100,6 +100,24 @@ class Batcher(Configurable):
         every group in the batch already has reward variance.
         """
 
+        zero_advantage_tokens_in_loss_denominator: bool = True
+        """Count the tokens of zero-advantage samples in the loss denominator.
+
+        True (the default) normalizes the summed ``-advantage * ratio`` by every
+        valid token the batch consumed, which is what ``skip_zero_advantage_samples``
+        preserves. With ``drop_zero_std_reward_groups=False`` those tokens are often
+        half the batch or more, and their share moves step to step with how many
+        all-solved and all-failed groups land in it, so the gradient scale shrinks
+        and fluctuates with the data mix rather than with the learning signal.
+
+        False divides by the valid tokens of samples that carry a nonzero advantage
+        only, the tokens the gradient actually comes from. The effective step size
+        then no longer depends on the zero-variance share; expect it to be larger
+        than under the default by roughly 1 / (1 - zero-advantage token share).
+        Independent of ``skip_zero_advantage_samples``, which only decides whether
+        those samples are packed.
+        """
+
     def __init__(
         self,
         config: Config,
@@ -114,6 +132,9 @@ class Batcher(Configurable):
         self.pad_id = pad_id
         self._per_sample_pad_multiple = config.per_sample_pad_multiple
         self._skip_zero_advantage_samples = config.skip_zero_advantage_samples
+        self._zero_advantage_tokens_in_loss_denominator = (
+            config.zero_advantage_tokens_in_loss_denominator
+        )
         self._num_groups_per_train_step = num_groups_per_train_step
         self._dp_degree = dp_degree
         self._next_batch_policy_version = initial_policy_version
@@ -183,12 +204,23 @@ class Batcher(Configurable):
         num_packed_valid_tokens = sum(
             sum(training_sample.loss_mask[1:]) for training_sample in samples_to_pack
         )
+        num_nonzero_advantage_tokens = sum(
+            sum(training_sample.loss_mask[1:])
+            for training_sample in training_samples
+            if any(training_sample.advantage[1:])
+        )
+        num_loss_denominator_tokens = (
+            num_global_valid_tokens
+            if self._zero_advantage_tokens_in_loss_denominator
+            else num_nonzero_advantage_tokens
+        )
         # Next-fit all taken training_samples into rows.
         rows = self._assign_training_samples_to_rows(samples_to_pack)
         packed_rows = [self._pack_training_sample_row(row) for row in rows]
         return TrainingBatch(
             microbatches=self._build_microbatch_grid(packed_rows),
             num_global_valid_tokens=num_global_valid_tokens,
+            num_loss_denominator_tokens=num_loss_denominator_tokens,
             num_packed_valid_tokens=num_packed_valid_tokens,
             metrics=[
                 *metrics,
@@ -202,6 +234,13 @@ class Batcher(Configurable):
                 m.Metric(
                     "train_batch/num_zero_advantage_samples_skipped",
                     m.NoReduce(float(len(training_samples) - len(samples_to_pack))),
+                ),
+                m.Metric(
+                    "train_batch/zero_advantage_token_frac",
+                    m.NoReduce(
+                        1.0
+                        - num_nonzero_advantage_tokens / max(num_global_valid_tokens, 1)
+                    ),
                 ),
             ],
             target_policy_version=target_policy_version,

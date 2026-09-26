@@ -663,6 +663,15 @@ def rl_grpo_qwen3_5_9b_tmax(
             # the forward pass leaves the gradient and the loss denominator alone.
             # Pointless with the drop on, where every group already has variance.
             skip_zero_advantage_samples=not drop_zero_std_reward_groups,
+            # SWE_LOSS_EXCLUDE_ZERO_ADV=1 divides the loss by the tokens that carry a
+            # nonzero advantage only. With the drop off, zero-advantage samples were
+            # 31-81% of a batch (mean 52%) over the first 81 steps of the 581-row
+            # agentpick mix, so under the default the effective step size shrank to
+            # about half and moved with that share every step. Expect a larger
+            # effective step than the default at the same SWE_LR.
+            zero_advantage_tokens_in_loss_denominator=(
+                os.environ.get("SWE_LOSS_EXCLUDE_ZERO_ADV", "0") != "1"
+            ),
         ),
         # Periodic held-out eval every 20 steps (+ start/end): the trained-batch reward is
         # locked near ~0.5 by drop_zero_std, so it is NOT a learning signal; a greedy

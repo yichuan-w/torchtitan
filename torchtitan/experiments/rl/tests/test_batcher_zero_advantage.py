@@ -175,3 +175,99 @@ def test_an_all_zero_advantage_batch_degrades_to_a_zero_gradient_step():
         for row in batch.microbatches
         for microbatch in row
     )
+
+
+def _batch_with_denominator(
+    *, skip: bool, exclude: bool, samples: list[TrainingSample]
+):
+    batcher = Batcher.Config(
+        batch=BatchConfig(local_batch_size=2, seq_len=_SEQ_LEN),
+        skip_zero_advantage_samples=skip,
+        zero_advantage_tokens_in_loss_denominator=not exclude,
+    ).build(
+        num_groups_per_train_step=1,
+        dp_degree=1,
+        pad_id=_PAD_ID,
+        initial_policy_version=0,
+    )
+    return batcher.add_training_samples(
+        training_sample_group=TrainingSampleGroup(
+            group_id=0, training_samples=samples, metrics=[]
+        )
+    )
+
+
+def test_default_loss_denominator_counts_every_valid_token():
+    """The default keeps the loss scale this file defends above."""
+    batch = _batch(skip=True, samples=_mixed_samples())
+    assert batch.num_loss_denominator_tokens == batch.num_global_valid_tokens
+
+
+def test_excluding_zero_advantage_tokens_counts_only_signal_tokens():
+    """Two of eight samples carry advantage, 4 completion tokens each."""
+    for skip in (True, False):
+        batch = _batch_with_denominator(
+            skip=skip, exclude=True, samples=_mixed_samples()
+        )
+        assert batch.num_loss_denominator_tokens == 2 * 4
+        # Metrics and logs still see every consumed token.
+        assert batch.num_global_valid_tokens == 8 * 4
+
+
+def test_zero_advantage_token_frac_metric():
+    batch = _batch_with_denominator(
+        skip=True, exclude=True, samples=_mixed_samples()
+    )
+    (frac,) = [
+        metric.value.value
+        for metric in batch.metrics
+        if metric.key == "train_batch/zero_advantage_token_frac"
+    ]
+    assert frac == 0.75
+
+
+def test_excluding_zero_advantage_tokens_matches_a_batch_without_them():
+    """The point of the switch: the zero-variance share stops scaling the update.
+
+    Dividing by signal tokens only must give the same loss and gradient as a batch
+    that never contained the zero-advantage samples at all, i.e. as if those groups
+    had been dropped, whatever share of the batch they were.
+    """
+    vocab_size = 32
+    loss_fn = DPPOLoss.Config().build()
+    signal = [
+        _sample(advantage=0.875, token=11),
+        _sample(advantage=-0.125, token=12),
+    ]
+
+    def loss_and_grad(batch) -> tuple[float, torch.Tensor]:
+        weight = torch.full((vocab_size, vocab_size), 0.1)
+        weight.requires_grad_(True)
+        total_loss = torch.zeros(())
+        for row in batch.microbatches:
+            for microbatch in row:
+                loss, _ = loss_fn(
+                    weight[microbatch.token_ids],
+                    microbatch.labels,
+                    batch.num_loss_denominator_tokens,
+                    generator_logprobs=microbatch.generator_logprobs,
+                    advantages=microbatch.advantages,
+                    loss_mask=microbatch.loss_mask,
+                )
+                loss.backward()
+                total_loss += loss.detach()
+        return float(total_loss), weight.grad
+
+    diluted_loss, diluted_grad = loss_and_grad(
+        _batch_with_denominator(skip=True, exclude=True, samples=_mixed_samples())
+    )
+    clean_loss, clean_grad = loss_and_grad(
+        _batch_with_denominator(skip=False, exclude=False, samples=signal)
+    )
+    torch.testing.assert_close(diluted_loss, clean_loss, rtol=1e-6, atol=1e-8)
+    torch.testing.assert_close(diluted_grad, clean_grad, rtol=1e-6, atol=1e-8)
+    assert clean_grad.abs().sum() > 0.0
+
+    # And under the default the same batch is scaled down by the zero share (2 of 8).
+    _, default_grad = loss_and_grad(_batch(skip=True, samples=_mixed_samples()))
+    torch.testing.assert_close(default_grad * 4, clean_grad, rtol=1e-6, atol=1e-8)

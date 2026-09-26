@@ -169,9 +169,13 @@ class TrainingBatch:
     """Trainer policy version this batch is reserved for."""
     # one per packed training_sample; trainer computes policy_age at consume time
     min_policy_versions: list[int]
+    # Loss scale denominator. num_global_valid_tokens by default; the valid tokens of
+    # nonzero-advantage samples only under
+    # Batcher.Config.zero_advantage_tokens_in_loss_denominator=False.
+    num_loss_denominator_tokens: int
     # Count of valid tokens ACTUALLY packed (excludes zero-advantage samples the
     # batch shed under skip_zero_advantage_samples). num_global_valid_tokens keeps
-    # counting those (for the loss scale); this is the denominator for per-trained-
+    # counting those (the default loss scale); this is the denominator for per-trained-
     # token METRICS so they are not diluted by the skipped tokens. None = no skipping,
     # metrics fall back to num_global_valid_tokens.
     num_packed_valid_tokens: int | None = None
