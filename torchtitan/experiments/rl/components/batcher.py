@@ -8,8 +8,10 @@
 `Batcher` packs a `TrainingBatch` of `[num_microbatches][dp_degree]` `TrainingMicrobatch`es;
 """
 
+import dataclasses
 import logging
 import math
+from collections import defaultdict
 from dataclasses import dataclass, field
 
 import torch
@@ -24,6 +26,8 @@ from torchtitan.experiments.rl.types import (
 )
 
 logger = logging.getLogger(__name__)
+
+_LOSS_AGGREGATIONS = frozenset({"token_mean", "prompt_mean"})
 
 # Per-field pad values + tensor dtypes for a packed row.
 _PAD_VALUES: dict[str, int | float | bool] = {
@@ -118,6 +122,24 @@ class Batcher(Configurable):
         those samples are packed.
         """
 
+        loss_aggregation: str = "token_mean"
+        """How the policy loss is averaged over the batch.
+
+        ``token_mean`` (default): one global pool, every trained token weighs the
+        same, so a group whose trajectories are 4x longer carries 4x the gradient.
+        ``prompt_mean`` (DAPO's objective, the ScaleRL setting): every rollout group
+        with a nonzero advantage weighs the same, and tokens weigh the same within
+        their group, so long-trajectory sources no longer outweigh short ones.
+
+        prompt_mean is applied by scaling each group's advantages by
+        ``D / (G * T_g)``, with ``D`` the loss denominator this batch is divided by,
+        ``G`` the number of groups with a nonzero advantage and ``T_g`` the group's
+        valid tokens on its nonzero-advantage samples; the summed
+        ``-advantage * ratio / D`` is then exactly the prompt mean. The scale is
+        positive, so the sign-based DPPO trust-region mask is unchanged. Advantage
+        metrics are computed before the batcher and read the unscaled values.
+        """
+
     def __init__(
         self,
         config: Config,
@@ -135,6 +157,12 @@ class Batcher(Configurable):
         self._zero_advantage_tokens_in_loss_denominator = (
             config.zero_advantage_tokens_in_loss_denominator
         )
+        if config.loss_aggregation not in _LOSS_AGGREGATIONS:
+            raise ValueError(
+                f"loss_aggregation must be one of {sorted(_LOSS_AGGREGATIONS)}, "
+                f"got {config.loss_aggregation!r}"
+            )
+        self._loss_aggregation = config.loss_aggregation
         self._num_groups_per_train_step = num_groups_per_train_step
         self._dp_degree = dp_degree
         self._next_batch_policy_version = initial_policy_version
@@ -214,6 +242,11 @@ class Batcher(Configurable):
             if self._zero_advantage_tokens_in_loss_denominator
             else num_nonzero_advantage_tokens
         )
+        prompt_mean_metrics: list[m.Metric] = []
+        if self._loss_aggregation == "prompt_mean":
+            samples_to_pack, prompt_mean_metrics = self._scale_to_prompt_mean(
+                samples_to_pack, num_loss_denominator_tokens
+            )
         # Next-fit all taken training_samples into rows.
         rows = self._assign_training_samples_to_rows(samples_to_pack)
         packed_rows = [self._pack_training_sample_row(row) for row in rows]
@@ -235,6 +268,7 @@ class Batcher(Configurable):
                     "train_batch/num_zero_advantage_samples_skipped",
                     m.NoReduce(float(len(training_samples) - len(samples_to_pack))),
                 ),
+                *prompt_mean_metrics,
                 m.Metric(
                     "train_batch/zero_advantage_token_frac",
                     m.NoReduce(
@@ -315,6 +349,57 @@ class Batcher(Configurable):
                 ]
             )
         return metrics
+
+    @staticmethod
+    def _scale_to_prompt_mean(
+        training_samples: list[TrainingSample], num_loss_denominator_tokens: int
+    ) -> tuple[list[TrainingSample], list[m.Metric]]:
+        """Rescale advantages so ``sum(-A * ratio) / D`` equals the prompt mean.
+
+        Groups are keyed by ``rollout_id.group_id``; a rollout that became several
+        training samples counts all of them. Only nonzero-advantage samples count
+        toward a group's tokens, and a group with none of them is left out of ``G``.
+        Returns new samples; the inputs are not mutated.
+        """
+        group_tokens: dict[int, int] = defaultdict(int)
+        for training_sample in training_samples:
+            if any(training_sample.advantage[1:]):
+                group_tokens[training_sample.rollout_id.group_id] += sum(
+                    training_sample.loss_mask[1:]
+                )
+        group_tokens = {g: t for g, t in group_tokens.items() if t > 0}
+        if not group_tokens or num_loss_denominator_tokens <= 0:
+            return training_samples, []
+        num_groups = len(group_tokens)
+        scales = {
+            group_id: num_loss_denominator_tokens / (num_groups * tokens)
+            for group_id, tokens in group_tokens.items()
+        }
+        scaled = [
+            dataclasses.replace(
+                training_sample,
+                advantage=[
+                    a * scales[training_sample.rollout_id.group_id]
+                    for a in training_sample.advantage
+                ],
+            )
+            if training_sample.rollout_id.group_id in scales
+            else training_sample
+            for training_sample in training_samples
+        ]
+        return scaled, [
+            m.Metric(
+                "train_batch/prompt_mean_num_groups", m.NoReduce(float(num_groups))
+            ),
+            m.Metric(
+                "train_batch/prompt_mean_scale_max",
+                m.NoReduce(max(scales.values())),
+            ),
+            m.Metric(
+                "train_batch/prompt_mean_scale_min",
+                m.NoReduce(min(scales.values())),
+            ),
+        ]
 
     def _take_groups_for_train_step(
         self,

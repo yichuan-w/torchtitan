@@ -672,6 +672,12 @@ def rl_grpo_qwen3_5_9b_tmax(
             zero_advantage_tokens_in_loss_denominator=(
                 os.environ.get("SWE_LOSS_EXCLUDE_ZERO_ADV", "0") != "1"
             ),
+            # SWE_LOSS_AGG=prompt_mean weighs every rollout group equally instead of
+            # every token (Batcher.Config.loss_aggregation). The agentpick mix runs
+            # from ~15K-token TMAX solves to ~60K-token SWE and CalibForge
+            # trajectories, so under token_mean a long-trajectory group carries
+            # several times the gradient of a short one.
+            loss_aggregation=os.environ.get("SWE_LOSS_AGG", "token_mean"),
         ),
         # Periodic held-out eval every 20 steps (+ start/end): the trained-batch reward is
         # locked near ~0.5 by drop_zero_std, so it is NOT a learning signal; a greedy
