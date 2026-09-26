@@ -122,7 +122,7 @@ def test_spec_repair_requires_a_declaration_and_has_no_growth_floor(
     )
     monkeypatch.setattr(ec, "_run_codex", run_codex)
     monkeypatch.setattr(ec, "_sandbox_down", lambda pkg: None)
-    monkeypatch.setattr(ec, "_require_checked", lambda pkg: None)
+    monkeypatch.setattr(ec, "_require_checked", lambda pkg, result=None: None)
     monkeypatch.setattr(ec, "_agent_checked", lambda pkg: True)
     if has_evidence:
         result = ec.evolve_agentic(
@@ -182,7 +182,7 @@ def test_only_all_pass_after_simplify_uses_restoration_guidance(
     monkeypatch.setattr(ec, "_run_codex", run_codex)
     monkeypatch.setattr(ec, "_sandbox_down", lambda pkg: None)
     monkeypatch.setattr(ec, "_check_verdict", lambda pkg: None)
-    monkeypatch.setattr(ec, "_require_checked", lambda pkg: None)
+    monkeypatch.setattr(ec, "_require_checked", lambda pkg, result=None: None)
     monkeypatch.setattr(ec, "_agent_checked", lambda pkg: True)
     result = ec.evolve_agentic(
         rw, {**TASK, "_solved": solved, "_attempts": 8}, "harder"
@@ -481,6 +481,55 @@ def test_run_codex_resume_continues_in_place_and_links_the_thread(
         meta["resumed"] == f"sessions/{first.dir.path.name}"
         and meta["kind"] == "repair"
     )
+
+
+@pytest.mark.parametrize("kind", ["agent", "repair", "verifier", "probe"])
+def test_nonzero_exit_preserves_provider_error_and_marks_session_failed(
+    tmp_path, monkeypatch, kind
+) -> None:
+    rw = _rewrite(tmp_path, monkeypatch)
+    error = 'ERROR: {"error":{"message":"Your credit balance is too low"}}'
+    stderr = f"model output\n{error}\ntokens used\n123\n"
+    _fake_popen(monkeypatch, out="partial response", err=stderr, returncode=1)
+
+    with pytest.raises(RuntimeError, match="credit balance is too low"):
+        with ec.session(rw, kind, timeout=9) as run:
+            ec._run_codex(run, rw.package, "do the work")
+
+    meta = json.loads(run.dir.meta.read_text())
+    assert meta["status"] == "failed"
+    assert meta["exit_code"] == 1
+    assert "credit balance is too low" in meta["error"]
+    assert run.dir.stdout.read_text() == "partial response"
+    assert run.dir.stderr.read_text() == stderr
+
+
+def test_failed_author_does_not_reach_checks_or_blind_verifier(
+    tmp_path, monkeypatch
+) -> None:
+    rw = _rewrite(tmp_path, monkeypatch)
+    monkeypatch.setattr(ec, "_require_codex", lambda: None)
+    monkeypatch.setattr(ec, "_sandbox_down", lambda pkg: None)
+    monkeypatch.setattr(
+        ec, "_require_checked", lambda *a: pytest.fail("masked the process failure")
+    )
+    monkeypatch.setattr(
+        ec, "_blind_verifier", lambda *a: pytest.fail("started verifier after failure")
+    )
+    _fake_popen(monkeypatch, err="ERROR: account unavailable\n", returncode=1)
+    with pytest.raises(RuntimeError, match="account unavailable"):
+        ec.evolve_agentic(rw, TASK, "easier")
+
+
+def test_signal_exit_records_the_exit_code_and_log_path(tmp_path, monkeypatch):
+    rw = _rewrite(tmp_path, monkeypatch)
+    _fake_popen(monkeypatch, err="partial output", returncode=-15)
+    with pytest.raises(RuntimeError, match="exited -15") as exc:
+        with ec.session(rw, "agent", timeout=9) as run:
+            ec._run_codex(run, rw.package, "do the work")
+    assert str(run.dir.stderr) in str(exc.value)
+    meta = json.loads(run.dir.meta.read_text())
+    assert meta["status"] == "failed" and meta["exit_code"] == -15
 
 
 def test_run_codex_preserves_partial_output_on_timeout(tmp_path, monkeypatch) -> None:
@@ -847,6 +896,22 @@ def test_check_verdict_raises_blocked_on_give_up(tmp_path) -> None:
     (tmp_path / "run/verdict.txt").write_text("GIVE UP: operator-misfit — nothing fits")
     with pytest.raises(ec.Blocked, match="operator-misfit"):
         ec._check_verdict(tmp_path)
+
+
+@pytest.mark.parametrize(
+    "final",
+    ["", "\n", "[System: Empty message content sanitised to satisfy protocol]\n"],
+)
+def test_empty_response_is_identified_without_waiving_checks(tmp_path, final):
+    result = subprocess.CompletedProcess([], 0, stdout=final)
+    with pytest.raises(RuntimeError, match="(?:empty|placeholder) final response"):
+        ec._require_checked(tmp_path, result)
+    (tmp_path / "run").mkdir()
+    (tmp_path / "run/checks.jsonl").write_text('{"verdict": "fail"}\n')
+    with pytest.raises(RuntimeError, match="(?:empty|placeholder) final response"):
+        ec._require_checked(tmp_path, result)
+    (tmp_path / "run/checks.jsonl").write_text('{"verdict": "pass"}\n')
+    ec._require_checked(tmp_path, result)
 
 
 def test_cyber_filtered_reads_the_sessions_streams(tmp_path, monkeypatch) -> None:

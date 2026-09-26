@@ -702,8 +702,13 @@ Package runtime interface:
             cmd, timeout, output=_read_stream(sd.stdout), stderr=_read_stream(sd.stderr)
         ) from exc
     run.meta["exit_code"] = proc.returncode
+    stdout, stderr = _read_stream(sd.stdout), _read_stream(sd.stderr)
+    if proc.returncode:
+        errors = [line for line in stderr.splitlines() if line.startswith("ERROR:")]
+        detail = errors[-1][:350] if errors else f"see {sd.stderr}"
+        raise RuntimeError(f"{EVOLVE_AGENT} exited {proc.returncode}: {detail}")
     return subprocess.CompletedProcess(
-        cmd, proc.returncode, _read_stream(sd.stdout), _read_stream(sd.stderr)
+        cmd, proc.returncode, stdout, stderr
     )
 
 
@@ -891,15 +896,22 @@ def _agent_checked(pkg: Path) -> bool:
     return (_last_check(pkg) or {}).get("verdict") == "pass"
 
 
-def _require_checked(pkg: Path) -> None:
+def _require_checked(
+    pkg: Path, result: subprocess.CompletedProcess | None = None
+) -> None:
     """AGENTS.md promises that a rewrite which never passed `./sandbox check`
     is discarded whole. Until this, nothing enforced it: the caller's probe
     would find out at its own expense. Measured on wd-20260903b, 298 of 299
     folded sessions had the record anyway, so this bites rarely and keeps the
     promise true."""
     if not _agent_checked(pkg):
+        final = (result.stdout or "").strip() if result is not None else None
+        ending = "empty final response; " if final == "" else ""
+        if final == "[System: Empty message content sanitised to satisfy protocol]":
+            ending = "placeholder final response; "
         raise RuntimeError(
-            "agent finished without a passing ./sandbox check "
+            ending
+            + "agent finished without a passing ./sandbox check "
             "(run/checks.jsonl); the rewrite is discarded"
         )
 
@@ -1817,16 +1829,12 @@ def _repair_probe_contract(
     is asking the session that wrote the other six."""
     sid = _session_id(vsession)
     with session(rewrite, "probe-contract", timeout=AGENT_TIMEOUT, resumes=vsession) as run:
-        result = _run_codex(
+        _run_codex(
             run,
             vsession.package,
             _PROBE_CONTRACT_JOB.format(problem=problem) + _budget(AGENT_TIMEOUT),
             resume=sid,
         )
-        if result.returncode:
-            raise RuntimeError(
-                f"probe-contract repair exited {result.returncode}; see {run.dir.stdout}"
-            )
 
 
 def _verify_original_probes(
@@ -1884,16 +1892,12 @@ def _author_independent_probes(
         before = _probe_hashes(probe, ("run",))
         run.meta["public_inputs_sha256"] = before
         try:
-            result = _run_codex(
+            _run_codex(
                 run,
                 probe,
                 "Create independent semantic controls from the public task.\n"
                 + _budget(AGENT_TIMEOUT),
             )
-            if result.returncode:
-                raise RuntimeError(
-                    f"Independent probe author exited {result.returncode}"
-                )
         finally:
             _sandbox_down(probe)
         _check_verdict(probe)
@@ -1964,7 +1968,7 @@ def _independent_verifier(
                 rewrite, "probe-repair", timeout=AGENT_TIMEOUT, resumes=vsession
             ) as run:
                 try:
-                    result = _run_codex(
+                    _run_codex(
                         run,
                         vpkg,
                         "Independent controls received grades inconsistent with their declared expectations. "
@@ -1983,10 +1987,6 @@ def _independent_verifier(
                         + _budget(AGENT_TIMEOUT),
                         resume=_session_id(vsession),
                     )
-                    if result.returncode:
-                        raise RuntimeError(
-                            f"Verifier probe repair exited {result.returncode}"
-                        ) from error
                 finally:
                     _sandbox_down(vpkg)
             _check_verdict(vpkg)
@@ -2059,11 +2059,7 @@ def _blind_verifier(
                 run.dir.path / "independent-probes.json",
             )
             try:
-                result = _run_codex(run, vpkg, prompt)
-                if result.returncode:
-                    raise RuntimeError(
-                        f"Verifier author exited {result.returncode}; see {run.dir.stdout}"
-                    )
+                _run_codex(run, vpkg, prompt)
             finally:
                 _sandbox_down(vpkg)
         _check_verdict(vpkg)
@@ -2101,11 +2097,7 @@ def _blind_repair(
             AGENT_TIMEOUT
         )
         try:
-            result = _run_codex(run, vpkg, prompt, resume=sid)
-            if result.returncode:
-                raise RuntimeError(
-                    f"Verifier repair exited {result.returncode}; see {run.dir.stdout}"
-                )
+            _run_codex(run, vpkg, prompt, resume=sid)
         finally:
             _sandbox_down(vpkg)
     _check_verdict(vpkg)
@@ -2326,7 +2318,7 @@ def evolve_agentic(
     vsession = None
     try:
         _check_verdict(pkg)
-        _require_checked(pkg)
+        _require_checked(pkg, p)
         if blind:
             vsession, fmap["test_state_py"] = _blind_verifier(rewrite, task, fmap)
             _reconcile_blind(
@@ -2405,9 +2397,7 @@ def _resume_author_blind(
         finally:
             _sandbox_down(pkg)
     _check_verdict(pkg)
-    _require_checked(pkg)
-    if p.returncode:
-        raise RuntimeError(f"author repair exited {p.returncode}; see {run.dir.stdout}")
+    _require_checked(pkg, p)
     return {**task, "_session": str(run.dir.path)}
 
 
@@ -2476,7 +2466,7 @@ def resume_agentic(
         finally:
             _sandbox_down(pkg)
     _check_verdict(pkg)
-    _require_checked(pkg)
+    _require_checked(pkg, p)
     out = _collect(task, pkg, fmap)
     if all(out[key] == task[key] for key in fmap) and not out["_support_changed"]:
         raise RuntimeError(

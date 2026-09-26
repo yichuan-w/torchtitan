@@ -326,11 +326,11 @@ def test_failed_verifier_process_is_recorded_before_replay(
     def failed_process(run, cwd, prompt, resume=None):
         run.meta["exit_code"] = 1
         run.dir.stdout.write_text("usage limit exceeded\n")
-        return type("P", (), {"returncode": 1})()
+        raise RuntimeError("codex exited 1: usage limit exceeded")
 
     monkeypatch.setattr(ec, "_run_codex", failed_process)
     fmap = ec.ev.file_map(SEED)
-    with pytest.raises(RuntimeError, match="Verifier .* exited 1; see"):
+    with pytest.raises(RuntimeError, match="codex exited 1: usage limit exceeded"):
         if repair:
             with ec.session(rw, "verifier", timeout=ec.AGENT_TIMEOUT) as previous:
                 ec._blind_layout(rw.package, previous.dir.package)
