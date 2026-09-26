@@ -195,6 +195,26 @@ def _tmax_rollouter(*, validation_from_caller: bool = False) -> TMaxRollouter.Co
         reward_mode=(
             "dense" if os.environ.get("SWE_REWARD_DENSE", "0") == "1" else "sparse"
         ),
+        # MiMo-style in-group length penalty on solves (TMaxRollouter.Config.
+        # length_penalty*), off unless SWE_LENGTH_PENALTY=1. Defaults are MiMo's
+        # general recipe. Over a 150-step agentpick run the median turns per rollout
+        # rose from 30 to 39-47, and on tasks still being solved the trajectories grew
+        # up to 4x until they hit the context wall; nothing in the binary reward
+        # preferred a short solve.
+        length_penalty=os.environ.get("SWE_LENGTH_PENALTY", "0") == "1",
+        length_penalty_max=float(os.environ.get("SWE_LENGTH_PENALTY_MAX", "0.1")),
+        length_penalty_deadzone=float(
+            os.environ.get("SWE_LENGTH_PENALTY_DEADZONE", "0.3")
+        ),
+        length_penalty_saturate=float(
+            os.environ.get("SWE_LENGTH_PENALTY_SATURATE", "1.0")
+        ),
+        length_penalty_exponent=float(
+            os.environ.get("SWE_LENGTH_PENALTY_EXPONENT", "1.5")
+        ),
+        length_penalty_min_pass_rate=float(
+            os.environ.get("SWE_LENGTH_PENALTY_MIN_PASS_RATE", "0.5")
+        ),
     )
 
 

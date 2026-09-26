@@ -938,6 +938,40 @@ class TMaxRollouter(Rollouter):
         max_context_tokens: int = 32768
         """Model context budget for the adapter session."""
 
+        length_penalty: bool = False
+        """In-group length penalty on solved training rollouts (off by default).
+
+        A port of MiMo's ``compute_group_length_penalty`` (XiaomiMiMo/verl,
+        ``verl/utils/length_penalty.py``). In a training group whose solved fraction
+        exceeds ``length_penalty_min_pass_rate``, each solve's length is compared
+        with the median of the group's solves on two signals, turns and the
+        policy's own generated tokens (tool and terminal output excluded); the
+        larger relative excess ``(value - median) / median`` counts. Nothing is
+        taken below ``length_penalty_deadzone``; above it the penalty ramps
+        convexly (``max * t**exponent``) and reaches ``length_penalty_max`` at
+        ``length_penalty_saturate``. Failed rollouts and validation are never
+        shaped. All-solved groups are shaped too, so a task still solved at 90
+        turns by some siblings and 20 by others is pulled toward the short solves.
+
+        A solve is a full reward of 1; the penalty never exceeds 1 - a solve still
+        outranks every failure and still counts as solved (reward > 0).
+        """
+
+        length_penalty_max: float = 0.1
+        """Largest amount taken from a solve's reward (MiMo general: 0.1)."""
+
+        length_penalty_deadzone: float = 0.3
+        """Relative excess over the group median at or below which nothing is taken."""
+
+        length_penalty_saturate: float = 1.0
+        """Relative excess at which the full ``length_penalty_max`` is taken (2x median)."""
+
+        length_penalty_exponent: float = 1.5
+        """Convexity of the ramp between deadzone and saturate; must be >= 1."""
+
+        length_penalty_min_pass_rate: float = 0.5
+        """Skip a group unless its solved fraction is strictly greater than this."""
+
     def __init__(self, config: Config) -> None:
         # Before super(), which builds the datasets: a typo in a knob that changes
         # what reward means should fail on the spot, not behind a data error.
@@ -955,6 +989,16 @@ class TMaxRollouter(Rollouter):
             raise ValueError(
                 "evolution_easier_ratio must be in [0, evolution_harder_ratio)"
             )
+        if not 0 <= config.length_penalty_max < 1:
+            raise ValueError("length_penalty_max must be in [0, 1)")
+        if not 0 <= config.length_penalty_deadzone < config.length_penalty_saturate:
+            raise ValueError(
+                "length_penalty_deadzone must be in [0, length_penalty_saturate)"
+            )
+        if config.length_penalty_exponent < 1:
+            raise ValueError("length_penalty_exponent must be >= 1")
+        if not 0 <= config.length_penalty_min_pass_rate <= 1:
+            raise ValueError("length_penalty_min_pass_rate must be in [0, 1]")
         super().__init__(config)
         # Training and evaluation share Terminus unless a run explicitly selects
         # another scaffold with its corresponding action format.
@@ -970,6 +1014,12 @@ class TMaxRollouter(Rollouter):
         self._reward_mode = config.reward_mode
         self._evolution_harder_ratio = config.evolution_harder_ratio
         self._evolution_easier_ratio = config.evolution_easier_ratio
+        self._length_penalty = config.length_penalty
+        self._length_penalty_max = config.length_penalty_max
+        self._length_penalty_deadzone = config.length_penalty_deadzone
+        self._length_penalty_saturate = config.length_penalty_saturate
+        self._length_penalty_exponent = config.length_penalty_exponent
+        self._length_penalty_min_pass_rate = config.length_penalty_min_pass_rate
         # The CTRF read is one extra sandbox exec per graded rollout, and the Daytona
         # API rate limit is the throughput ceiling at high rollout concurrency -- so
         # it is opt-in for metrics, and mandatory when it feeds the reward.
@@ -1146,6 +1196,9 @@ class TMaxRollouter(Rollouter):
                 f"unscored failures excluded from the advantage baseline"
             )
 
+        if group_id >= 0 and self._length_penalty:
+            group_metrics += self._apply_length_penalty(rollouts)
+
         # Group reward-shape metrics. With evolution_harder_ratio < 1, evolution
         # additionally hardens high-success mixed groups; these metrics retain
         # their zero-variance meaning rather than counting every evolution trigger.
@@ -1185,6 +1238,51 @@ class TMaxRollouter(Rollouter):
         if verifier_sec is None:
             verifier_sec = self._eval_timeout_sec
         return budget_sec + verifier_sec + 300
+
+    def _apply_length_penalty(self, rollouts: list[Rollout]) -> list[m.Metric]:
+        """Shape a training group's solves by length relative to the group median.
+
+        See ``Config.length_penalty``. Runs after the infra-failure NaN pass and
+        before the group metrics and the advantage, so both see shaped rewards.
+        """
+        scored = [rollout for rollout in rollouts if is_scored(rollout)]
+        solved = [rollout for rollout in scored if rollout.reward >= 1.0]
+        if not solved or len(solved) / len(scored) <= self._length_penalty_min_pass_rate:
+            return []
+        signals = [
+            (
+                float(len(rollout.turns)),
+                float(sum(len(turn.completion_token_ids) for turn in rollout.turns)),
+            )
+            for rollout in solved
+        ]
+        anchors = [statistics.median(values) for values in zip(*signals)]
+        span = self._length_penalty_saturate - self._length_penalty_deadzone
+        penalties = []
+        for rollout, values in zip(solved, signals, strict=True):
+            excess = max(
+                (
+                    max(0.0, (value - anchor) / anchor)
+                    for value, anchor in zip(values, anchors, strict=True)
+                    if anchor > 0
+                ),
+                default=0.0,
+            )
+            penalty = 0.0
+            if excess > self._length_penalty_deadzone:
+                t = min((excess - self._length_penalty_deadzone) / span, 1.0)
+                penalty = self._length_penalty_max * t**self._length_penalty_exponent
+            rollout.diagnostics["length_penalty"] = penalty
+            rollout.diagnostics["generated_tokens"] = int(values[1])
+            rollout.reward = 1.0 - penalty
+            penalties.append(penalty)
+        return [
+            m.Metric("rollout/length_penalty_mean", m.Mean.from_list(penalties)),
+            m.Metric(
+                "rollout/length_penalty_applied_frac",
+                m.Mean.from_list([float(p > 0) for p in penalties]),
+            ),
+        ]
 
     # Extra initial guard headroom for the sandbox-creation queue. After a restart
     # every rollout boots a sandbox at once and the creation queue runs tens of
