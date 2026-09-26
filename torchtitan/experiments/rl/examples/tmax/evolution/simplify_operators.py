@@ -115,16 +115,21 @@ is a nonempty string. Describe the concrete size of the change in change.
 The caller checks the declaration and evidence locations, not the truth of
 your diagnosis; ground the diagnosis in what actually happened.
 
-Guidance you add, in the instruction or in a file you supply, must name the
-operation the reference solution actually performs, in terms a student can
-apply as written. A domain description of the same fact can lead to a
-different computation: "the times are local" invites a time-zone conversion
-the reference never performs, where "subtract 5 hours" does not. At the vague
-level, point to that operation without spelling out every step, but leave no
-reading of a supplied file under which a careful student computes something
-else. Before finishing, apply your guidance literally to the task's own data
-in the sandbox and confirm it reproduces the reference's intermediate result;
-describe that check in change.
+Guidance you add, in the instruction or in a file you supply, must be true to
+the operation the reference solution actually performs. A domain description
+of the same fact can lead to a different computation: "the times are local"
+invites a time-zone conversion the reference never performs. How much of the
+operation to state depends on the hint level. At the specific level, state it
+as the reference performs it ("subtract 5 hours"). At the vague level, state
+what kind of operation it is ("the times are off by a whole number of hours")
+and leave its parameters to the student, but only a parameter the student can
+check from the task itself: a known reference value, a sample input with its
+output, an invariant the result must satisfy. Test that in the sandbox: apply
+your guidance with a wrong value for each parameter you leave out and confirm
+the task visibly shows the result is wrong. A parameter whose wrong value the
+task cannot expose must be stated. Then apply it with the right values and
+confirm it reproduces the reference's intermediate result. Describe both
+checks in change.
 
 List the choices the reference solution makes that the instruction does not
 fix: a fitting window, a threshold, a seed, an ordering, a starting guess. For
