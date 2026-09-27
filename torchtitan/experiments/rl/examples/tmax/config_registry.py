@@ -195,6 +195,26 @@ def _tmax_rollouter(*, validation_from_caller: bool = False) -> TMaxRollouter.Co
         reward_mode=(
             "dense" if os.environ.get("SWE_REWARD_DENSE", "0") == "1" else "sparse"
         ),
+        # MiMo-style in-group length penalty on solves (TMaxRollouter.Config.
+        # length_penalty*), off unless SWE_LENGTH_PENALTY=1. Defaults are MiMo's
+        # general recipe. Over a 150-step agentpick run the median turns per rollout
+        # rose from 30 to 39-47, and on tasks still being solved the trajectories grew
+        # up to 4x until they hit the context wall; nothing in the binary reward
+        # preferred a short solve.
+        length_penalty=os.environ.get("SWE_LENGTH_PENALTY", "0") == "1",
+        length_penalty_max=float(os.environ.get("SWE_LENGTH_PENALTY_MAX", "0.1")),
+        length_penalty_deadzone=float(
+            os.environ.get("SWE_LENGTH_PENALTY_DEADZONE", "0.3")
+        ),
+        length_penalty_saturate=float(
+            os.environ.get("SWE_LENGTH_PENALTY_SATURATE", "1.0")
+        ),
+        length_penalty_exponent=float(
+            os.environ.get("SWE_LENGTH_PENALTY_EXPONENT", "1.5")
+        ),
+        length_penalty_min_pass_rate=float(
+            os.environ.get("SWE_LENGTH_PENALTY_MIN_PASS_RATE", "0.5")
+        ),
     )
 
 
@@ -663,6 +683,21 @@ def rl_grpo_qwen3_5_9b_tmax(
             # the forward pass leaves the gradient and the loss denominator alone.
             # Pointless with the drop on, where every group already has variance.
             skip_zero_advantage_samples=not drop_zero_std_reward_groups,
+            # SWE_LOSS_EXCLUDE_ZERO_ADV=1 divides the loss by the tokens that carry a
+            # nonzero advantage only. With the drop off, zero-advantage samples were
+            # 31-81% of a batch (mean 52%) over the first 81 steps of the 581-row
+            # agentpick mix, so under the default the effective step size shrank to
+            # about half and moved with that share every step. Expect a larger
+            # effective step than the default at the same SWE_LR.
+            zero_advantage_tokens_in_loss_denominator=(
+                os.environ.get("SWE_LOSS_EXCLUDE_ZERO_ADV", "0") != "1"
+            ),
+            # SWE_LOSS_AGG=prompt_mean weighs every rollout group equally instead of
+            # every token (Batcher.Config.loss_aggregation). The agentpick mix runs
+            # from ~15K-token TMAX solves to ~60K-token SWE and CalibForge
+            # trajectories, so under token_mean a long-trajectory group carries
+            # several times the gradient of a short one.
+            loss_aggregation=os.environ.get("SWE_LOSS_AGG", "token_mean"),
         ),
         # Periodic held-out eval every 20 steps (+ start/end): the trained-batch reward is
         # locked near ~0.5 by drop_zero_std, so it is NOT a learning signal; a greedy

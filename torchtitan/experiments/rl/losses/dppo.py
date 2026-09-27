@@ -184,10 +184,11 @@ class DPPOLoss(BaseLoss):
         )
         loss = masked_loss.sum() / loss_denominator
         # Denominator for the per-trained-token METRICS below (ratio/kept_frac/divergence
-        # etc.). With skip_zero_advantage_samples, global_valid_tokens counts the
-        # zero-advantage tokens the batch shed (so the LOSS scale stays identical to
-        # not-skipping -- do NOT change loss_denominator), but those tokens are never
-        # packed, so dividing a "fraction of TRAINED tokens" metric by it undercounts:
+        # etc.). With skip_zero_advantage_samples, global_valid_tokens can count the
+        # zero-advantage tokens the batch shed (the default, so the LOSS scale stays
+        # identical to not-skipping; Batcher.Config.zero_advantage_tokens_in_loss_denominator
+        # decides that, not this function), but those tokens are never packed, so
+        # dividing a "fraction of TRAINED tokens" metric by it undercounts:
         # e.g. dppo_mask_kept_frac reads (kept / all-incl-skipped) instead of
         # (kept / actually-trained), making it look like the trust region masked tokens
         # it never touched. metric_denominator is the global count of ACTUALLY-PACKED
