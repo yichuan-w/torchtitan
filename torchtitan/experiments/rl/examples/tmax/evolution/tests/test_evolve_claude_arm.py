@@ -151,16 +151,17 @@ def test_env_is_private_and_spends_the_subscription(monkeypatch, claude, tmp_pat
     assert "ANTHROPIC_API_KEY" not in env
 
 
-def test_login_is_linked_into_the_private_home(monkeypatch, claude, tmp_path):
-    """The login lives inside the config directory, so a private home without
-    it answers "Not logged in" after spending a process. It is linked, not
-    copied, so a token refresh writes through to the one file."""
+def test_sessions_share_the_account_credential_store(monkeypatch, claude, tmp_path):
+    """Every session's credential store is the account home, so concurrent
+    sessions refresh one file under the CLI's locks; no copy or link of the
+    login lands in the private home, where a refresh would fork it."""
     monkeypatch.delenv("EVOLVE_CLAUDE_USE_API_KEY", raising=False)
     home = tmp_path / "home"
-    ec._claude_env(home)
-    link = home / ".credentials.json"
-    assert link.is_symlink()
-    assert json.loads(link.read_text()) == {"token": "test"}
+    env = ec._claude_env(home)
+    account = ec._claude_account_home().resolve()
+    assert env["CLAUDE_SECURESTORAGE_CONFIG_DIR"] == str(account)
+    assert json.loads((account / ".credentials.json").read_text()) == {"token": "test"}
+    assert not (home / ".credentials.json").exists()
 
 
 def test_a_missing_login_fails_before_spending_a_process(monkeypatch, claude, tmp_path):
