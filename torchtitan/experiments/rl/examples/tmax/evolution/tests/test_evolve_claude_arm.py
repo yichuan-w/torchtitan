@@ -76,7 +76,7 @@ def test_missing_binary_names_the_arm(monkeypatch, tmp_path):
 
 def test_fresh_session_names_its_thread(claude):
     sid = str(uuid.uuid4())
-    cmd = ec._claude_cmd(Path("/pkg"), sid, resume=False)
+    cmd = ec._claude_cmd(Path("/pkg"), sid, resume=False, model="opus")
     assert cmd[0].endswith("/claude")
     assert "--session-id" in cmd and sid in cmd
     assert "--resume" not in cmd
@@ -84,14 +84,14 @@ def test_fresh_session_names_its_thread(claude):
 
 def test_resume_continues_the_named_thread(claude):
     sid = str(uuid.uuid4())
-    cmd = ec._claude_cmd(Path("/pkg"), sid, resume=True)
+    cmd = ec._claude_cmd(Path("/pkg"), sid, resume=True, model="opus")
     assert cmd[cmd.index("--resume") + 1] == sid
     assert "--session-id" not in cmd
 
 
 def test_session_runs_unattended_and_unconfigured(claude):
     """Nobody is at the terminal and no human's settings may leak in."""
-    cmd = ec._claude_cmd(Path("/pkg"), str(uuid.uuid4()), resume=False)
+    cmd = ec._claude_cmd(Path("/pkg"), str(uuid.uuid4()), resume=False, model="opus")
     assert cmd[cmd.index("--permission-mode") + 1] == "bypassPermissions"
     assert cmd[cmd.index("--permission-prompts") + 1] == "none"
     assert cmd[cmd.index("--setting-sources") + 1] == ""
@@ -102,8 +102,27 @@ def test_session_runs_unattended_and_unconfigured(claude):
 def test_model_is_its_own_knob(monkeypatch, claude):
     """SYNTH_MODEL names an OpenAI model; the claude arm must not read it."""
     monkeypatch.setattr(ec, "CLAUDE_MODEL", "sonnet")
-    cmd = ec._claude_cmd(Path("/pkg"), str(uuid.uuid4()), resume=False)
+    rw = layout.Root.from_env().evolution.task("model").rewrite("harder")
+    with ec.session(rw, "agent", timeout=10) as run:
+        cmd = ec._claude_cmd(
+            Path("/pkg"), run.meta["claude_session_id"], resume=False, model=run.meta["model"]
+        )
     assert cmd[cmd.index("--model") + 1] == "sonnet"
+
+
+def test_model_by_kind_and_resume_keeps_the_thread_model(monkeypatch, claude):
+    """A kind named in EVOLVE_MODEL_BY_KIND runs that model; one not named runs
+    the default; a resumed session stays on the model its thread started on."""
+    monkeypatch.setattr(ec, "CLAUDE_MODEL", "opus")
+    monkeypatch.setattr(ec, "MODEL_BY_KIND", {"verifier": "sonnet"})
+    rw = layout.Root.from_env().evolution.task("bykind").rewrite("harder")
+    with ec.session(rw, "agent", timeout=10) as run:
+        assert run.meta["model"] == "opus"
+    with ec.session(rw, "verifier", timeout=10) as run:
+        assert run.meta["model"] == "sonnet"
+        verifier = run.dir
+    with ec.session(rw, "repair", timeout=10, resumes=verifier) as run:
+        assert run.meta["model"] == "sonnet"
 
 
 @pytest.mark.parametrize("effort", ["low", "medium", "high", "xhigh", "max"])
@@ -111,10 +130,12 @@ def test_effort_reaches_both_clis_and_the_session_record(monkeypatch, claude, ef
     monkeypatch.setattr(ec, "CODEX_EFFORT", effort)
     rw = layout.Root.from_env().evolution.task("effort").rewrite("harder")
     with ec.session(rw, "agent", timeout=10) as run:
-        cmd = ec._claude_cmd(Path("/pkg"), run.meta["claude_session_id"], resume=False)
+        cmd = ec._claude_cmd(
+            Path("/pkg"), run.meta["claude_session_id"], resume=False, model=run.meta["model"]
+        )
         assert cmd[cmd.index("--effort") + 1] == effort
         assert run.meta["reasoning_effort"] == effort
-    assert f"model_reasoning_effort={effort}" in ec._codex_cmd(Path("/pkg"))
+    assert f"model_reasoning_effort={effort}" in ec._codex_cmd(Path("/pkg"), "gpt")
 
 
 def test_env_is_private_and_spends_the_subscription(monkeypatch, claude, tmp_path):

@@ -35,7 +35,7 @@ def subscription_driver(module, settings):
         env.pop("OPENAI_BASE_URL", None)
         return env
 
-    def command(cwd, resume=None):
+    def command(cwd, model, resume=None):
         args = [str(binary), "exec"]
         if resume:
             args += ["resume", resume]
@@ -54,7 +54,7 @@ def subscription_driver(module, settings):
         ]
         if not resume:
             args += ["-C", str(cwd)]
-        return args + ["-m", module.CODEX_MODEL, "-"]
+        return args + ["-m", model, "-"]
 
     original = module._run_codex
 

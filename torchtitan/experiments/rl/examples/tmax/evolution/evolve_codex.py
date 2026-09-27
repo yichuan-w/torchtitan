@@ -127,6 +127,15 @@ EVOLVE_AGENT = _default_agent()
 # name. SYNTH_MODEL names an OpenAI model for the codex arm, so this is a
 # separate knob rather than a shared one.
 CLAUDE_MODEL = os.environ.get("EVOLVE_CLAUDE_MODEL", "opus")
+# A model per session kind, over the arm's default above:
+# "verifier=claude-sonnet-5,probe=claude-sonnet-5". Unset, every kind runs the
+# default. A session that resumes another keeps that session's model, so a
+# repair continues its thread on the model that started it.
+MODEL_BY_KIND = dict(
+    kv.split("=", 1)
+    for kv in os.environ.get("EVOLVE_MODEL_BY_KIND", "").split(",")
+    if kv.strip()
+)
 SDK_PY = os.environ.get(
     "TRL_SDK_PY", "/scratch/gpfs/TRIDAO/al9080/terminal-rl/sdkvenv/bin/python"
 )
@@ -298,6 +307,11 @@ def session(
     the rewrite's record, not the session's.
     """
     sd = _new_session_dir(rewrite, kind)
+    default_model = CLAUDE_MODEL if EVOLVE_AGENT == "claude" else CODEX_MODEL
+    if resumes is not None:
+        model = json.loads(resumes.meta.read_text()).get("model") or default_model
+    else:
+        model = MODEL_BY_KIND.get(kind, default_model)
     sd.path.mkdir(parents=True, mode=0o700)
     # GPFS default ACLs can widen the requested mode. These directories hold
     # the prompt (with the verifier in the package it describes) and the
@@ -307,7 +321,7 @@ def session(
     meta = {
         "kind": kind,
         "agent": EVOLVE_AGENT,
-        "model": CLAUDE_MODEL if EVOLVE_AGENT == "claude" else CODEX_MODEL,
+        "model": model,
         "reasoning_effort": CODEX_EFFORT,
         "driver": "claude-print" if EVOLVE_AGENT == "claude" else CODEX_DRIVER,
         "authentication": _authentication(),
@@ -457,7 +471,7 @@ def _claude_env(home: Path) -> dict:
     return env
 
 
-def _claude_cmd(cwd: Path, session_id: str, *, resume: bool) -> list[str]:
+def _claude_cmd(cwd: Path, session_id: str, *, resume: bool, model: str) -> list[str]:
     """`claude -p` over the package, with the loop's own settings only.
 
     ``--setting-sources ''`` keeps a human's user/project settings out of an
@@ -477,7 +491,7 @@ def _claude_cmd(cwd: Path, session_id: str, *, resume: bool) -> list[str]:
         "--setting-sources",
         "",
         "--model",
-        CLAUDE_MODEL,
+        model,
         "--effort",
         str(CODEX_EFFORT),
         "--add-dir",
@@ -554,7 +568,7 @@ def _session_cmd(run: SessionRun, cwd: Path, *, resume: str | None) -> list[str]
         "--timeout",
         str(run.meta["timeout_sec"]),
         "--model",
-        CODEX_MODEL,
+        run.meta["model"],
         "--effort",
         str(CODEX_EFFORT),
     ]
@@ -563,7 +577,7 @@ def _session_cmd(run: SessionRun, cwd: Path, *, resume: str | None) -> list[str]
     return cmd
 
 
-def _codex_cmd(cwd: Path, resume: str | None = None) -> list[str]:
+def _codex_cmd(cwd: Path, model: str, resume: str | None = None) -> list[str]:
     cmd = [str(_codex_bin()), "exec"]
     if resume:
         cmd += ["resume", resume]
@@ -596,7 +610,7 @@ def _codex_cmd(cwd: Path, resume: str | None = None) -> list[str]:
     # either way.
     if not resume:
         cmd += ["-C", str(cwd)]
-    cmd += ["-m", CODEX_MODEL, "-"]
+    cmd += ["-m", model, "-"]
     return cmd
 
 
@@ -655,7 +669,10 @@ Package runtime interface:
         # A resume names the thread the caller wants continued; a fresh
         # session names the one this record was stamped with.
         cmd = _claude_cmd(
-            cwd, resume or run.meta["claude_session_id"], resume=bool(resume)
+            cwd,
+            resume or run.meta["claude_session_id"],
+            resume=bool(resume),
+            model=run.meta["model"],
         )
     else:
         if ACCOUNT_HOME and CODEX_DRIVER != "exec":
@@ -668,7 +685,7 @@ Package runtime interface:
             env["CODEX_BIN"] = str(_codex_bin())
             env["EVOLVE_CODEX_OVERRIDES"] = "\n".join(_provider_overrides())
         else:
-            cmd = _codex_cmd(cwd, resume=resume)
+            cmd = _codex_cmd(cwd, run.meta["model"], resume=resume)
     # Streamed to disk rather than captured in memory. A session runs for tens
     # of minutes and used to write nothing until it ended, so a killed one
     # (SIGKILL leaves no record at all) took its log with it, and there was no
