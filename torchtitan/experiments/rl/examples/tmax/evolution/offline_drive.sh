@@ -70,6 +70,14 @@ if [ "$LINGER" != yes ] && [ -n "${INVOCATION_ID:-}" ]; then
   L "refusing: $(hostname) has no linger, so this systemd unit dies with the session that started it; start it under setsid nohup"
   echo "offline_drive: no linger on $(hostname); start it under setsid nohup, not as a unit" >&2; exit 2
 fi
+# Every rewrite boots its sandbox on Daytona, and the key reaches the sandbox
+# tool only if it is exported: an env file of bare KEY=VALUE lines sourced
+# without `export` leaves every session unable to boot, and the agents give up
+# with BLOCKED, a verdict the drive never restages (2026-09-27, flow-matic).
+if ! env | grep -q '^DAYTONA_API_KEY=.'; then
+  L "refusing: DAYTONA_API_KEY is not exported to the loop's children (the Daytona env file needs export lines)"
+  echo "offline_drive: DAYTONA_API_KEY is not exported; sandboxes cannot boot" >&2; exit 2
+fi
 # One tiny request with the credential, endpoint and model the round's sessions
 # will use, before each round is staged. A dead key, an empty balance or a dead
 # proxy then stops the drive with the provider's own error instead of failing a
