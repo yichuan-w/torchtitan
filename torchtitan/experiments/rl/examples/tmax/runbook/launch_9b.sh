@@ -412,6 +412,15 @@ fi
 # A compute node here resolves only its own name, so every Monarch process runs
 # under its node's pod DNS name via monarch_ns.sh (see there). Only the control
 # plane rides these names; the weight transfer between nodes is torchstore/RDMA.
+#
+# TODO(two-node): not yet validated end to end. Verified on CoreWeave B300
+# (jobs 51-54, 2026-09-27): both workers attach, 7 generators + 1 eval take
+# disjoint GPUs on node 2, the initial trainer->generator weight load resolves
+# to TorchComms RDMA (12-13 s per engine), and rollouts and the eval pass
+# generate. Not yet seen: a completed train step, the post-step weight sync
+# across nodes, a checkpoint save/resume, a full eval pass, or a run past a few
+# minutes of steady state (job 54 was cancelled by an admin at ~5 min, before
+# step 1 finished). Run a 3-step smoke before trusting a long two-node run.
 _monarch_ns=()
 if [ "$_nodes" -eq 2 ]; then
     _port=${RL_MONARCH_PORT:-22222}
