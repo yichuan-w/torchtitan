@@ -107,6 +107,13 @@ class RolloutWorker(Actor):
         self, config: "Controller.Config", *, rollout_concurrency: int
     ) -> None:
         _enable_worker_info_logging()
+        # aiohttp with trust_env=True (the Daytona SDK) reads $NETRC, else ~/.netrc,
+        # on every request. With HOME on NFS and no such file, ~1000+ concurrent
+        # sessions turn that one negative lookup into kernel lock contention: 89%
+        # system CPU and 16.8 s per sandbox exec on a CoreWeave B300 node. Nothing a
+        # rollout calls authenticates through netrc, and W&B logs from the
+        # controller, not here. An explicit NETRC still wins.
+        os.environ.setdefault("NETRC", os.devnull)
         self.config = config
         self.renderer = config.renderer.build(tokenizer_path=config.hf_assets_path)
         # Same sampling config the controller builds (seed + renderer stop tokens);
