@@ -52,7 +52,7 @@ def test_account_auth_never_loads_api_key(tmp_path, monkeypatch) -> None:
     assert (tmp_path / "private/auth.json").is_symlink()
     assert (tmp_path / "private/auth.json").samefile(tmp_path / "account/auth.json")
     assert "OPENAI_API_KEY" not in env
-    cmd = ec._codex_cmd(tmp_path)
+    cmd = ec._codex_cmd(tmp_path, "gpt")
     assert "--ignore-user-config" in cmd and "--json" in cmd
     assert "model_provider=openai" in cmd
     assert not any("env_key" in part or "base_url" in part for part in cmd)

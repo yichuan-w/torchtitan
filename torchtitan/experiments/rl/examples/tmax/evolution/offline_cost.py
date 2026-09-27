@@ -13,7 +13,10 @@ the fate of the rewrite the session belonged to, and the per-turn shape
         [--price in=5 cw=6.25 cr=0.5 out=25]
 
 Prices are USD per million tokens: uncached input, cache write, cache read,
-output (thinking included). The defaults are Claude Opus 5 list prices.
+output (thinking included). Each session is priced at the list price of the
+model its session.json names (MODEL_PRICES); a model not in that table, or
+every session when --price is given, uses the --price figures, whose defaults
+are Claude Opus 5's.
 """
 from __future__ import annotations
 
@@ -22,6 +25,14 @@ import collections
 import glob
 import json
 import os
+
+
+# platform.claude.com/docs/en/about-claude/pricing, 2026-09-27; 5-minute cache writes.
+MODEL_PRICES = {
+    "claude-opus-5": {"in": 5.0, "cw": 6.25, "cr": 0.50, "out": 25.0},
+    "claude-opus-5-5": {"in": 4.0, "cw": 5.0, "cr": 0.20, "out": 20.0},
+    "claude-sonnet-5": {"in": 2.0, "cw": 2.50, "cr": 0.20, "out": 10.0},
+}
 
 
 def main() -> None:
@@ -37,8 +48,17 @@ def main() -> None:
         k, v = kv.split("=")
         price[k] = float(v)
 
+    def session_price(session_dir: str) -> dict:
+        if a.price:
+            return price
+        try:
+            model = json.load(open(os.path.join(session_dir, "session.json")))["model"]
+        except Exception:  # noqa: BLE001
+            return price
+        return MODEL_PRICES.get(model, price)
+
     def usd(c: dict) -> float:
-        return sum(c[k] / 1e6 * price[k] for k in price)
+        return c["usd"]
 
     tot: collections.Counter = collections.Counter()
     by_kind: dict = collections.defaultdict(collections.Counter)
@@ -109,6 +129,10 @@ def main() -> None:
             "cr": last.get("cached_input_tokens", 0),
             "out": last["output_tokens"],
         }
+        p = session_price(j.split("/codex/sessions/")[0])
+        for k in price:
+            c["usd_" + k] = c[k] / 1e6 * p[k]
+        c["usd"] = sum(c["usd_" + k] for k in price)
         thinking += last.get("reasoning_output_tokens", 0)
         out_total += last["output_tokens"]
         turns_total += t
@@ -125,7 +149,7 @@ def main() -> None:
     print(
         "by token class: "
         + ", ".join(
-            f"{k}={tot[k] / 1e6:,.1f}M ${tot[k] / 1e6 * price[k]:,.0f}" for k in price
+            f"{k}={tot[k] / 1e6:,.1f}M ${tot['usd_' + k]:,.0f}" for k in price
         )
     )
     print(
