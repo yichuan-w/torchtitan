@@ -75,11 +75,24 @@ fi
 # proxy then stops the drive with the provider's own error instead of failing a
 # round's worth of sessions and burning their MAX_ATTEMPTS (2026-09-27: the
 # Anthropic balance ran out mid-run; OpenAI scopes, a revoked ChatGPT login and
-# a Gemini tier drop did the same before it). Login-based auth (Claude Code, a
-# ChatGPT auth file) has no endpoint to ask, and is logged as not probed.
+# a Gemini tier drop did the same before it). The Claude Code arm is asked
+# through the CLI itself, on the sessions' model and the shared credential
+# store, so a subscription at its usage limit stops the drive too. A ChatGPT
+# auth file has no endpoint to ask, and is logged as not probed.
 probe_provider() {
-  if [ "${SWE_RETUNE_AGENT:-}" = claude ] || [ "${EVOLVE_AGENT:-}" = claude ] || [ -n "${EVOLVE_CODEX_AUTH_FILE:-}" ]; then
-    echo "not probed (login-based auth)"; return 0
+  if [ "${SWE_RETUNE_AGENT:-}" = claude ] || [ "${EVOLVE_AGENT:-}" = claude ]; then
+    local home=$TRL_BASE/tmp/provider-probe-claude out
+    mkdir -p "$home"
+    out=$(cd "$TRL_BASE/tmp" && CLAUDE_CONFIG_DIR=$home \
+      CLAUDE_SECURESTORAGE_CONFIG_DIR=${EVOLVE_CLAUDE_ACCOUNT_HOME:-$HOME/.claude} \
+      timeout 300 "$TRL_BASE/bin/claude" -p "Reply with exactly: ok" \
+      --model "${EVOLVE_CLAUDE_MODEL:-opus}" --output-format json --setting-sources "" < /dev/null 2>&1)
+    echo "claude: $(printf '%s' "$out" | head -c 300 | tr '\n' ' ')"
+    printf '%s' "$out" | grep -q '"is_error":false'
+    return
+  fi
+  if [ -n "${EVOLVE_CODEX_AUTH_FILE:-}" ]; then
+    echo "not probed (ChatGPT login)"; return 0
   fi
   local key=${OPENAI_API_KEY:-$(sed -n 's/^OPENAI_API_KEY=//p' "${SYNTH_ENV_FILE:-/dev/null}" 2>/dev/null)}
   local body=$TRL_BASE/tmp/provider-probe.json code
