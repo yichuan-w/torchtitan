@@ -16,7 +16,13 @@
 #   TRL_PROFILE=andy TRL_BASE=<root> TT_DAYTONA_CPU=1 TT_DAYTONA_MEM_GB=2 TT_DAYTONA_DISK_GB=2 \
 #   SOURCE_RUN=<run dir the signals came from> SELECTED=<root>/scripts/selected.json \
 #   WORKERS=64 MAX_ROUNDS=6 MAX_ATTEMPTS=2 ATTEMPTS_SINCE=$(date -u +%Y%m%d-%H%M) \
-#   [CLAUDE_PROXY=1] [EVOLVE_AGENT_TIMEOUT=7200] bash offline_drive.sh
+#   [CLAUDE_PROXY=1] [LOOP_ENV=<file>] [EVOLVE_AGENT_TIMEOUT=7200] bash offline_drive.sh
+#
+# LOOP_ENV names a file sourced last, after evolveloop_env.sh and claude_env.sh,
+# for a provider neither of them knows (OPENAI_API_KEY / SYNTH_API_BASE /
+# SYNTH_MODEL for another OpenAI-compatible endpoint). It has to come last:
+# evolveloop_env.sh sources ~/.config/daytona/env, which exports its own
+# OPENAI_API_KEY over whatever the caller set.
 #
 # Run it as a systemd user unit (a process tied to an ssh session dies with
 # it), with EVOLVE_SOCK_DIR and TMPDIR off a shared /tmp:
@@ -41,6 +47,12 @@ L() { echo "[$(date -u +%FT%TZ)] $*" >> "$DLOG"; }
 if [ "${CLAUDE_PROXY:-0}" = 1 ]; then
   # shellcheck disable=SC1091
   . "$DRIVE_DIR/claude_proxy/claude_env.sh"
+fi
+if [ -n "${LOOP_ENV:-}" ]; then
+  set -a
+  # shellcheck disable=SC1090
+  . "$LOOP_ENV"
+  set +a
 fi
 L "start workers=$WORKERS max_rounds=$MAX_ROUNDS max_attempts=$MAX_ATTEMPTS since=$ATTEMPTS_SINCE checkout=$TT@$(git -C "$TT" rev-parse --short HEAD) model=${SYNTH_MODEL:-gpt-5.6-sol} api_base=${SYNTH_API_BASE:-openai} agent_timeout=${EVOLVE_AGENT_TIMEOUT:-2400} sock_dir=${EVOLVE_SOCK_DIR:-/tmp} tmpdir=${TMPDIR:-/tmp}"
 for k in $(seq 1 "$MAX_ROUNDS"); do
