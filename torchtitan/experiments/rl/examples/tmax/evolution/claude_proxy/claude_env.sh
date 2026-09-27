@@ -7,11 +7,14 @@
 # Source AFTER della/evolveloop_env.sh: routes every model call of the loop
 # (Codex sessions and synth_client chat calls) through the local LiteLLM
 # proxy to Claude, replacing the OpenAI key evolveloop_env.sh exported.
-#   PROXY_ENV=<the proxy's env file> [PROXY_PORT=4000] [SYNTH_MODEL=claude-opus-5]
+#   PROXY_ENV=<the proxy's env file> [PROXY_PORT=4000] [SYNTH_MODEL=claude-opus-5-5]
 : "${PROXY_ENV:?the proxy env file, holding LITELLM_MASTER_KEY=}"
 export OPENAI_API_KEY=$(sed -n 's/^LITELLM_MASTER_KEY=//p' "$PROXY_ENV")
 export SYNTH_API_BASE=http://127.0.0.1:${PROXY_PORT:-4000}/v1
-export SYNTH_MODEL=${SYNTH_MODEL:-claude-opus-5}
+# Opus 5.5: on the 139 TMax harder signals (2026-09-27) it cost $3.65 per accepted
+# rewrite against Opus 5's $8.54 at the same effort and code; list prices are 0.8x
+# Opus 5's and 0.4x on cache reads, and it spends fewer turns and less thinking.
+export SYNTH_MODEL=${SYNTH_MODEL:-claude-opus-5-5}
 unset EVOLVE_CODEX_AUTH_FILE
 # A Claude turn can think silently for minutes and a busy proxy can stall
 # longer than the CLI's default five reconnects a few seconds apart (a stall

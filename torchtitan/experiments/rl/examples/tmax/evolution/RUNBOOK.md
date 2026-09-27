@@ -504,8 +504,9 @@ PROXY_VENV=<venv> PROXY_ENV=<root>/litellm.env bash $EVO/claude_proxy/proxy.sh s
 # the loop: source claude_proxy/claude_env.sh after evolveloop_env.sh, or CLAUDE_PROXY=1 for offline_drive.sh
 ```
 
-What `claude_env.sh` sets and why, each one paid for on 2026-09-14:
-`SYNTH_MODEL=claude-opus-5`; `EVOLVE_CODEX_EXTRA_CONFIG` raising the CLI's
+What `claude_env.sh` sets and why:
+`SYNTH_MODEL=claude-opus-5-5` (on the same 139 signals and code, $3.65 per
+accepted rewrite against Opus 5's $8.54); `EVOLVE_CODEX_EXTRA_CONFIG` raising the CLI's
 stream and request retries and its idle timeout (a Claude turn can think
 silently for minutes; the default five reconnects a few seconds apart ended
 33% of one batch's sessions); `EVOLVE_AGENT_TIMEOUT=7200` (Claude runs about
