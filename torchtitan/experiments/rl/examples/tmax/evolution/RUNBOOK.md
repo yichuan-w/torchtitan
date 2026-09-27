@@ -482,6 +482,27 @@ older loop, which folded once per round, is caught up by
 own `fold()`). After a stop, `finalize_interrupted_traces.py --stopped-loop-pid
 <pid>` marks what was in flight before the next round restages it.
 
+Before launching a batch, and the reasons each was paid for:
+
+- **Where it runs.** One della node's GPFS client carries about 64 concurrent
+  sessions of this loop; 320 on the login node on 2026-09-27 stalled GPFS for
+  every user there. Spread larger batches over the login node, della-vis1 and
+  della-vis2, not della-tridao while someone trains on it.
+- **How it runs.** A systemd user unit on the login node, setsid on vis1/2
+  (no linger there); the drive checks this and refuses the wrong one. The
+  Claude proxy follows the same rule: two setsid'd proxies on the login node
+  died about 20 minutes in.
+- **Do not stop or restart mid-round.** Neither the drive nor the proxy: every
+  stop costs the round's in-flight sessions ($911 on 2026-09-14, about $900 again
+  on 2026-09-27). Change settings between rounds.
+- **The provider answers.** The drive sends one request before each round and
+  stops on an error, so an exhausted balance, a revoked login or a dropped
+  quota tier (each has happened once) costs at most the round in flight. Check
+  the balance before a large batch anyway.
+- **Pilot first.** Run a new model or setting on about 40 signals before the
+  full set. On 2026-09-27 the full runs of Opus 5 and Opus 5.5 were already
+  apart on a 40-task subset (12 against 21 tasks with mixed outcomes).
+
 Three things measured on the 2026-09-14 run of 139 TMax tasks (136 accepted,
 $2,796 on Claude Opus 5): the login node's shared `/tmp` filled with other
 users' files and every sandbox boot failed at bind() until `EVOLVE_SOCK_DIR`
