@@ -142,9 +142,15 @@ def _spawn_proc_mesh(
     gpus_per_node: int,
     *,
     role: str,
+    provisioners: dict[int, PerHostProvisioner],
 ) -> ProcMesh:
     """Spawn one role's proc mesh on ``host_mesh``, splitting ``role_world_size``
     evenly across the mesh's hosts.
+
+    ``provisioners`` holds one GPU allocator per host mesh object, shared by every
+    role spawned on it, so several roles placed on the same hosts (e.g. seven
+    generators and an eval generator on one remote node) take disjoint GPUs
+    instead of each starting again at GPU 0.
     """
     nodes = len(host_mesh)
     assert role_world_size % nodes == 0, (
@@ -152,7 +158,9 @@ def _spawn_proc_mesh(
         f"host count ({nodes})"
     )
     role_gpus_per_node = role_world_size // nodes
-    provisioner = PerHostProvisioner(total_gpus=gpus_per_node)
+    if id(host_mesh) not in provisioners:
+        provisioners[id(host_mesh)] = PerHostProvisioner(total_gpus=gpus_per_node)
+    provisioner = provisioners[id(host_mesh)]
     return host_mesh.spawn_procs(
         per_host={"gpus": role_gpus_per_node},
         bootstrap=provisioner.allocate(role_gpus_per_node),
@@ -218,8 +226,13 @@ def spawn_proc_mesh(
             f"got {len(eval_generator_host_meshes)}"
         )
 
+        provisioners: dict[int, PerHostProvisioner] = {}
         trainer_mesh = _spawn_proc_mesh(
-            trainer_host_mesh, trainer_world_size, gpus_per_node, role="trainer"
+            trainer_host_mesh,
+            trainer_world_size,
+            gpus_per_node,
+            role="trainer",
+            provisioners=provisioners,
         )
         generator_meshes = [
             _spawn_proc_mesh(
@@ -227,6 +240,7 @@ def spawn_proc_mesh(
                 per_generator_world_size,
                 gpus_per_node,
                 role="generator",
+                provisioners=provisioners,
             )
             for gen_host_mesh in generator_host_meshes
         ]
@@ -236,6 +250,7 @@ def spawn_proc_mesh(
                 per_eval_generator_world_size,
                 gpus_per_node,
                 role="eval_generator",
+                provisioners=provisioners,
             )
             for gen_host_mesh in eval_generator_host_meshes
         ]
@@ -264,6 +279,55 @@ def spawn_proc_mesh(
         ]
 
     return trainer_mesh, generator_meshes, eval_generator_meshes
+
+
+def _attached_host_meshes(
+    *, num_generators: int, num_eval_generators: int
+) -> HostMeshes | None:
+    """Two-node placement: the trainer on one host, every generator on another.
+
+    Off unless ``RL_TRAINER_HOST_ADDR`` and ``RL_GENERATOR_HOST_ADDR`` are set,
+    each the address of a Monarch worker already serving on that node
+    (``run_worker_loop_forever``, e.g. ``tcp://gpu-node-1:22222``); the launcher
+    starts both inside one multi-node allocation. Unset, every role is spawned on
+    ``this_host()`` as before. The generators and eval generators all share the
+    generator host, so they draw disjoint GPUs from one allocator (see
+    ``_spawn_proc_mesh``); ``RL_GPUS_PER_NODE`` (default 8) is each host's count.
+    """
+    trainer_addr = os.environ.get("RL_TRAINER_HOST_ADDR", "")
+    generator_addr = os.environ.get("RL_GENERATOR_HOST_ADDR", "")
+    if not trainer_addr and not generator_addr:
+        return None
+    if not (trainer_addr and generator_addr):
+        raise ValueError(
+            "set both RL_TRAINER_HOST_ADDR and RL_GENERATOR_HOST_ADDR, or neither"
+        )
+    from monarch.actor import attach_to_workers, ChannelTransport
+    from monarch.config import configure
+
+    # Remote workers must be able to dial back to this client, which an abstract
+    # unix socket (the local default) cannot offer across nodes.
+    configure(default_transport=ChannelTransport.TcpWithHostname)
+    trainer_host = attach_to_workers(
+        name="trainer_host", ca="trust_all_connections", workers=[trainer_addr]
+    )
+    generator_host = attach_to_workers(
+        name="generator_host", ca="trust_all_connections", workers=[generator_addr]
+    )
+    logger.info(
+        "Two-node placement: trainer on %s, %d generator(s) + %d eval "
+        "generator(s) on %s",
+        trainer_addr,
+        num_generators,
+        num_eval_generators,
+        generator_addr,
+    )
+    return HostMeshes(
+        trainer=trainer_host,
+        generators=[generator_host] * num_generators,
+        gpus_per_node=int(os.environ.get("RL_GPUS_PER_NODE", "8")),
+        eval_generators=[generator_host] * num_eval_generators,
+    )
 
 
 def _configure_monarch_runtime() -> None:
@@ -397,7 +461,10 @@ async def main():
         trainer_mesh, generator_meshes, eval_generator_meshes = spawn_proc_mesh(
             trainer_world_size,
             per_generator_world_size,
-            host_meshes=None,
+            host_meshes=_attached_host_meshes(
+                num_generators=config.num_generators,
+                num_eval_generators=config.num_eval_generators,
+            ),
             num_generators=config.num_generators,
             num_eval_generators=config.num_eval_generators,
             per_eval_generator_world_size=_compute_generator_world_size(

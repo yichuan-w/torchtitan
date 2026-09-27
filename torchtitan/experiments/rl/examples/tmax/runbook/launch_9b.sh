@@ -122,10 +122,30 @@ if ! [[ "$_gen_n" =~ ^[1-9][0-9]*$ ]]; then
 fi
 [ "$_eval_dp" -eq 0 ] && _eval_dp=${SWE_GEN_DP:-3}
 _want=$(( ${SWE_DP_SHARD:-2} + _gen_n * ${SWE_GEN_DP:-3} + _eval_n * _eval_dp ))
-if [ "$_want" -ne "$_n" ]; then
-    echo "[launch] SWE_DP_SHARD(${SWE_DP_SHARD:-2}) + $_gen_n generator(s) x SWE_GEN_DP(${SWE_GEN_DP:-3})" >&2
-    echo "[launch]   + $_eval_n eval generator(s) x $_eval_dp GPU = $_want" >&2
-    echo "[launch] but RL_GPUS lists $_n GPUs. They must match." >&2
+# RL_NUM_NODES=2 (inside a two-node Slurm allocation) puts the trainer alone on
+# the first node and every generator and eval generator on the second; RL_GPUS
+# then lists one node's GPUs, and each side must fill its node exactly.
+_nodes=${RL_NUM_NODES:-1}
+if [ "$_nodes" -eq 1 ]; then
+    if [ "$_want" -ne "$_n" ]; then
+        echo "[launch] SWE_DP_SHARD(${SWE_DP_SHARD:-2}) + $_gen_n generator(s) x SWE_GEN_DP(${SWE_GEN_DP:-3})" >&2
+        echo "[launch]   + $_eval_n eval generator(s) x $_eval_dp GPU = $_want" >&2
+        echo "[launch] but RL_GPUS lists $_n GPUs. They must match." >&2
+        exit 2
+    fi
+elif [ "$_nodes" -eq 2 ]; then
+    _gen_side=$(( _gen_n * ${SWE_GEN_DP:-3} + _eval_n * _eval_dp ))
+    if [ "${SWE_DP_SHARD:-2}" -ne "$_n" ] || [ "$_gen_side" -ne "$_n" ]; then
+        echo "[launch] RL_NUM_NODES=2 wants the trainer to fill one node and the generators the other:" >&2
+        echo "[launch]   SWE_DP_SHARD=${SWE_DP_SHARD:-2}, generators + eval = $_gen_side, RL_GPUS per node = $_n." >&2
+        exit 2
+    fi
+    if [ -z "${SLURM_JOB_NODELIST:-}" ]; then
+        echo "[launch] RL_NUM_NODES=2 needs a two-node Slurm allocation (SLURM_JOB_NODELIST unset)." >&2
+        exit 2
+    fi
+else
+    echo "[launch] RL_NUM_NODES must be 1 or 2, got $_nodes." >&2
     exit 2
 fi
 export CUDA_VISIBLE_DEVICES=$RL_GPUS
@@ -381,6 +401,42 @@ if [ "${RL_TRACE_ROLLOUTS:-1}" = 1 ]; then
         "$TRL_VENV/bin/python" "$HERE/../rollout_wandb_trace.py" \
         --run-dir "$RUN" --watch --limit "${RL_TRACE_LIMIT:-4}"
     echo "[launch] rollout traces: systemctl --user status trace-$(basename "$RUN")"
+fi
+
+# Two nodes: one Monarch worker per node, started here so the processes the
+# controller spawns on them inherit this run's complete environment. The first
+# node of the allocation hosts the trainer (and this controller), the second
+# every generator. The worker step overlaps the batch step, which keeps the CPUs
+# the controller and its rollout workers run on.
+if [ "$_nodes" -eq 2 ]; then
+    _port=${RL_MONARCH_PORT:-22222}
+    mapfile -t _hosts < <(scontrol show hostnames "$SLURM_JOB_NODELIST")
+    if [ "${#_hosts[@]}" -ne 2 ]; then
+        echo "[launch] RL_NUM_NODES=2 but the allocation has ${#_hosts[@]} node(s): ${_hosts[*]}" >&2
+        exit 2
+    fi
+    _addr() { echo "tcp://$(getent hosts "$1" | awk '{print $2}'):$_port"; }
+    export RL_TRAINER_HOST_ADDR=$(_addr "${_hosts[0]}")
+    export RL_GENERATOR_HOST_ADDR=$(_addr "${_hosts[1]}")
+    srun --overlap --nodes=2 --ntasks-per-node=1 --kill-on-bad-exit=1 \
+        bash -c "exec python '$HERE/monarch_worker.py' tcp://\$(hostname -f):$_port" \
+        > "$RUN/monarch_workers.log" 2>&1 &
+    python - "$RL_TRAINER_HOST_ADDR" "$RL_GENERATOR_HOST_ADDR" <<'PY'
+import socket, sys, time
+for addr in sys.argv[1:]:
+    host, port = addr.removeprefix("tcp://").rsplit(":", 1)
+    deadline = time.time() + 180
+    while True:
+        try:
+            socket.create_connection((host, int(port)), timeout=5).close()
+            break
+        except OSError:
+            if time.time() > deadline:
+                sys.exit(f"[launch] Monarch worker at {addr} did not come up in 180 s")
+            time.sleep(2)
+print("[launch] Monarch workers up:", " ".join(sys.argv[1:]))
+PY
+    echo "[launch] two nodes: trainer on ${_hosts[0]}, generators on ${_hosts[1]}"
 fi
 
 # W&B writes wandb/ under the CWD, so run from the run directory. The trainer's
