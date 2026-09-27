@@ -517,3 +517,69 @@ def test_resume_of_a_blind_rewrite_goes_to_the_author_first(
     assert fixed["solve_sh"] == NEW_SOLVE
     assert fixed["_repaired"] == "codex_resume_author_then_verifier"
     assert Path(fixed["_session"]).name.endswith("--repair-author")
+
+
+GAP = (
+    "BLOCKED: the public task does not fix the width convention behind gamma, "
+    "so the negative control wrong-2 is a legal deliverable.\n\n" + "Evidence. " * 40
+)
+
+
+def _blocking_verifier(monkeypatch, blocks: int, seen: dict):
+    """The first `blocks` verifier sessions stop with GAP; record what each
+    resumed author was shown."""
+    real = ec._run_codex
+    count = {"verifier": 0}
+
+    def run_codex(run, cwd, prompt, resume=None):
+        if resume and (cwd / "solution").exists():
+            seen.setdefault("failures", []).append((cwd / "run/failure.txt").read_text())
+        p = real(run, cwd, prompt, resume)
+        if not (cwd / "solution").exists():
+            count["verifier"] += 1
+            if count["verifier"] <= blocks:
+                (cwd / "run/verdict.txt").write_text(GAP)
+        return p
+
+    monkeypatch.setattr(ec, "_run_codex", run_codex)
+    monkeypatch.setattr(ec, "_session_id", lambda _sd: "sid")
+
+
+def test_a_blocked_verifier_goes_back_to_the_author_then_a_fresh_verifier(
+    tmp_path, monkeypatch
+) -> None:
+    rw = _rewrite(tmp_path, monkeypatch)
+    sessions, checks, seen = [], [], {}
+    _wire(monkeypatch, sessions, checks)
+    monkeypatch.setattr(ec, "REPAIR_ROUNDS", 3)
+    _blocking_verifier(monkeypatch, 1, seen)
+
+    out = ec.evolve_agentic(rw, dict(SEED), "harder")
+
+    assert [s["role"] for s in sessions] == ["author", "verifier", "author", "verifier"]
+    # The author is shown the whole report, not the 200-character message.
+    assert seen["failures"] == [GAP.strip()]
+    assert "could not tell whether some deliverable is right" in sessions[2]["prompt"]
+    assert sessions[2]["resume"] == "sid"
+    # The second verifier is a new session over the corrected task.
+    assert sessions[3]["resume"] is None
+    assert sessions[3]["session"].path != sessions[1]["session"].path
+    assert checks == ["check.blind1"]
+    assert Path(out["_verifier_session"]) == sessions[3]["session"].path
+    assert out["_verifier_author"] == "blind"
+
+
+def test_a_verifier_still_blocked_after_the_rounds_leaves_the_task(
+    tmp_path, monkeypatch
+) -> None:
+    rw = _rewrite(tmp_path, monkeypatch)
+    sessions, checks, seen = [], [], {}
+    _wire(monkeypatch, sessions, checks)
+    monkeypatch.setattr(ec, "REPAIR_ROUNDS", 1)
+    _blocking_verifier(monkeypatch, 2, seen)
+
+    with pytest.raises(ec.Blocked, match="width convention"):
+        ec.evolve_agentic(rw, dict(SEED), "harder")
+    assert [s["role"] for s in sessions] == ["author", "verifier", "author", "verifier"]
+    assert checks == []
+    assert (rw.package / "tests/test_state.py").read_text() == SEED["test_state_py"]

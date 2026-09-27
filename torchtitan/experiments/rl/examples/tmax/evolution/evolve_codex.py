@@ -81,7 +81,10 @@ class Blocked(Exception):  # noqa: N818 -- existing exception name used by calle
     """The agent declined the job rather than forcing a pass.
 
     Distinct from a crash: nothing went wrong, the task simply stays as it is.
+    `report` is the whole verdict; the message keeps its first 200 characters.
     """
+
+    report = ""
 
 
 CODEX_MODEL = os.environ.get("SYNTH_MODEL", "gpt-5.6-sol")
@@ -943,7 +946,9 @@ def _check_verdict(pkg: Path) -> None:
         # easy as passing, or the only way to finish is to make the check
         # weaker until it passes.
         if head.startswith("BLOCKED") or head.startswith("GIVE UP"):
-            raise Blocked(text[:200])
+            blocked = Blocked(text[:200])
+            blocked.report = text
+            raise blocked
 
 
 def _verifier_on_disk(pkg: Path, preferred: str) -> str:
@@ -1609,6 +1614,26 @@ next. Fix the solution, the instruction or the environment. Where
 `run/failure.txt` shows the verifier looking for something an agent could not
 have known, state it in the instruction; you cannot edit that verifier."""
 
+_VERIFIER_BLOCKED_JOB = """The sessions that write this task's verifier and its
+independent controls, which never see your reference solution, stopped: from
+the public task they could not tell whether some deliverable is right or
+wrong. Their report is in `run/failure.txt`; it is a claim to check against the
+instruction and the environment, not an established fact.
+
+If the public task does leave that choice open, state the choice your
+reference solution makes where an agent will read it (the instruction, or a
+file in the image the instruction points at). Stating a choice the grading
+already depends on does not change what the task asks for; change nothing
+else. If the report is wrong, or the gap cannot be closed without changing
+what the task asks for, write `GIVE UP: <reason>` to `run/verdict.txt` and stop.
+
+`tests/` here is the previous revision's checker again, a scratch copy for
+your own `./sandbox check`. New verifier sessions are written against the
+corrected task next. The container you had is gone; a fresh one is booting,
+and your first command waits for it.
+
+Confirm with `./sandbox check` before you stop."""
+
 _SPEC_REPAIR_JOB = """A simplification attempt reported a possible task defect.
 The report is in `run/failure.txt`; it is a claim to check, not an established
 fact. Read the public instruction, environment, verifier and actual attempts.
@@ -2197,6 +2222,40 @@ def _repair_iterations(
     )
 
 
+def _blind_verifier_answered(
+    rewrite: layout.RewriteDir, task: dict, fmap: dict
+) -> tuple[layout.SessionDir, str, dict]:
+    """_blind_verifier, with the author answering a verifier side that stopped.
+
+    The verifier and probe sessions write BLOCKED when the public task leaves
+    open something the grading depends on (which width convention a fitted
+    `gamma` reports, which class the value 0 belongs to). Only the author can
+    close that, since only the author may edit the task, so the report goes
+    back to the author's session and fresh verifier sessions are written
+    against the corrected task. Bounded like _repair_iterations: REPAIR_ROUNDS
+    answers, none started past rewrite_budget_sec(). Returns the verifier
+    session, the verifier's path, and the task with the author's latest
+    session recorded."""
+    answers = 0
+    while True:
+        try:
+            vsession, rel = _blind_verifier(rewrite, task, fmap)
+            return vsession, rel, task
+        except Blocked as blocked:
+            if answers == REPAIR_ROUNDS or _rewrite_age(rewrite) > rewrite_budget_sec():
+                raise
+            answers += 1
+            log.info("blind verifier stopped, answering from the author: %s", blocked)
+            task = _resume_author_blind(
+                rewrite,
+                task,
+                blocked.report or str(blocked),
+                0,
+                seq=answers,
+                job=_VERIFIER_BLOCKED_JOB,
+            )
+
+
 def _reconcile_blind(
     rewrite: layout.RewriteDir, vsession: layout.SessionDir, fmap: dict, task: dict
 ) -> None:
@@ -2337,10 +2396,10 @@ def evolve_agentic(
         _check_verdict(pkg)
         _require_checked(pkg, p)
         if blind:
-            vsession, fmap["test_state_py"] = _blind_verifier(rewrite, task, fmap)
-            _reconcile_blind(
-                rewrite, vsession, fmap, {**task, "_session": str(run.dir.path)}
+            vsession, fmap["test_state_py"], answered = _blind_verifier_answered(
+                rewrite, {**task, "_session": str(run.dir.path)}, fmap
             )
+            _reconcile_blind(rewrite, vsession, fmap, answered)
         out = _collect(task, pkg, fmap)
     except Blocked:
         raise
@@ -2384,7 +2443,13 @@ def evolve_agentic(
 
 
 def _resume_author_blind(
-    rewrite: layout.RewriteDir, task: dict, observed: str, exit_code: int, *, seq: int
+    rewrite: layout.RewriteDir,
+    task: dict,
+    observed: str,
+    exit_code: int,
+    *,
+    seq: int,
+    job: str | None = None,
 ) -> dict:
     """Resume the author's session with a failure, in blind mode: the blind
     verifier is taken out of ``tests/`` first and the previous revision's
@@ -2405,10 +2470,8 @@ def _resume_author_blind(
         (pkg / "run" / stale).unlink(missing_ok=True)
     with session(rewrite, "repair-author", timeout=AGENT_TIMEOUT, resumes=prior) as run:
         prompt = (
-            _REPAIR_JOB.format(exit_code=exit_code)
-            + _REPAIR_BLIND_NOTE
-            + _budget(AGENT_TIMEOUT)
-        )
+            job or _REPAIR_JOB.format(exit_code=exit_code) + _REPAIR_BLIND_NOTE
+        ) + _budget(AGENT_TIMEOUT)
         try:
             p = _run_codex(run, pkg, prompt, resume=sid)
         finally:
