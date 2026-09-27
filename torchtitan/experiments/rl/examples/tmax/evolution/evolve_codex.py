@@ -442,11 +442,17 @@ def _claude_env(home: Path) -> dict:
     session is the exception and gets the home holding the thread it
     continues.
 
-    The subscription's login lives *inside* that config directory, so a fresh
-    home has none and the CLI answers "Not logged in" after spending a
-    process. The credential file is linked rather than copied, so a token
-    refresh writes through to the one file every session shares -- the same
-    reason the codex arm links its ``auth.json``.
+    The subscription's login does not move into that directory:
+    ``CLAUDE_SECURESTORAGE_CONFIG_DIR`` points every session's credential store
+    at the account home, so all of them read and refresh one file under the
+    CLI's own refresh and write locks, and N concurrent sessions make one
+    refresh. A symlinked ``.credentials.json`` does not do that: the CLI writes
+    a refresh by temp file and rename, which replaces the link with a private
+    file, and the next session's refresh then spends a refresh token the
+    server has already rotated away -- which can log the account itself out.
+    Verified on Claude Code 2.1.283 (2026-09-27): a session with a private
+    ``CLAUDE_CONFIG_DIR`` and this variable refreshed the account's own file
+    and left no credential in its home.
     """
     env = _harness_env()
     env["CLAUDE_CONFIG_DIR"] = str(home)
@@ -465,9 +471,7 @@ def _claude_env(home: Path) -> dict:
             "EVOLVE_CLAUDE_USE_API_KEY=1 with ANTHROPIC_API_KEY to bill the API"
         )
     home.mkdir(parents=True, exist_ok=True)
-    link = home / ".credentials.json"
-    if not link.exists():
-        link.symlink_to(creds.resolve())
+    env["CLAUDE_SECURESTORAGE_CONFIG_DIR"] = str(creds.parent.resolve())
     return env
 
 
