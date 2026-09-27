@@ -408,19 +408,34 @@ fi
 # node of the allocation hosts the trainer (and this controller), the second
 # every generator. The worker step overlaps the batch step, which keeps the CPUs
 # the controller and its rollout workers run on.
+#
+# A compute node here resolves only its own name, so every Monarch process runs
+# under its node's pod DNS name via monarch_ns.sh (see there). Only the control
+# plane rides these names; the weight transfer between nodes is torchstore/RDMA.
+_monarch_ns=()
 if [ "$_nodes" -eq 2 ]; then
     _port=${RL_MONARCH_PORT:-22222}
+    _pod_domain=${RL_POD_DNS_DOMAIN:-tenant-slurm.pod.cluster.local}
     mapfile -t _hosts < <(scontrol show hostnames "$SLURM_JOB_NODELIST")
     if [ "${#_hosts[@]}" -ne 2 ]; then
         echo "[launch] RL_NUM_NODES=2 but the allocation has ${#_hosts[@]} node(s): ${_hosts[*]}" >&2
         exit 2
     fi
-    _addr() { echo "tcp://$(getent hosts "$1" | awk '{print $2}'):$_port"; }
+    _addr() {
+        local ip
+        ip=$(srun --overlap -N1 -w "$1" hostname -I 2>/dev/null | grep -oE '^[0-9]+(\.[0-9]+){3}' | head -1)
+        if [ -z "$ip" ]; then
+            echo "[launch] no IPv4 address for $1" >&2
+            exit 2
+        fi
+        echo "tcp://${ip//./-}.$_pod_domain:$_port"
+    }
     export RL_TRAINER_HOST_ADDR=$(_addr "${_hosts[0]}")
     export RL_GENERATOR_HOST_ADDR=$(_addr "${_hosts[1]}")
     srun --overlap --nodes=2 --ntasks-per-node=1 --kill-on-bad-exit=1 \
-        bash -c "exec python '$HERE/monarch_worker.py' tcp://\$(hostname -f):$_port" \
+        bash "$HERE/monarch_ns.sh" python "$HERE/monarch_worker.py" "tcp://{host}:$_port" \
         > "$RUN/monarch_workers.log" 2>&1 &
+    _monarch_ns=(bash "$HERE/monarch_ns.sh")
     python - "$RL_TRAINER_HOST_ADDR" "$RL_GENERATOR_HOST_ADDR" <<'PY'
 import socket, sys, time
 for addr in sys.argv[1:]:
@@ -444,7 +459,7 @@ fi
 # where to go explicitly: --dump_folder is Controller.Config.dump_folder, whose
 # code default is the CWD-relative outputs/rl.
 cd "$RUN"
-exec python -m torchtitan.experiments.rl.train \
+exec "${_monarch_ns[@]}" python -m torchtitan.experiments.rl.train \
     --module torchtitan.experiments.rl.examples.tmax \
     --config rl_grpo_qwen3_5_9b_tmax \
     --num-generators "$_gen_n" \
