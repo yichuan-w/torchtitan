@@ -74,8 +74,7 @@ fi
 # tool only if it is exported: an env file of bare KEY=VALUE lines sourced
 # without `export` leaves every session unable to boot, and the agents give up
 # with BLOCKED, a verdict the drive never restages (2026-09-27, flow-matic).
-# printenv sees exported variables only; `env | grep -q` would fail under
-# pipefail whenever grep exits before env finishes writing.
+# printenv reports exported variables only, which is the property checked.
 if [ -z "$(printenv DAYTONA_API_KEY)" ]; then
   L "refusing: DAYTONA_API_KEY is not exported to the loop's children (the Daytona env file needs export lines)"
   echo "offline_drive: DAYTONA_API_KEY is not exported; sandboxes cannot boot" >&2; exit 2
