@@ -21,4 +21,12 @@ args=()
 for a in "$@"; do
     args+=("${a//\{host\}/$name}")
 done
+# torchstore decides "same host as the storage volume" by comparing the HOSTNAME
+# environment variable (then gethostname), and picks POSIX shared memory when they
+# match. A Kubernetes container exports HOSTNAME, and sbatch --export=ALL carries
+# the submitting pod's value to every node, so without this a generator on the
+# second node matched the trainer's volume on the first, chose shared memory,
+# and failed with "Shared memory storage not found ... on a different host".
+# Per-node names make cross-node transfers resolve to RDMA.
+export HOSTNAME="$name"
 exec unshare --user --map-root-user --uts sh -c 'hostname "$0" && exec "$@"' "$name" "${args[@]}"
