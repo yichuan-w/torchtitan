@@ -200,7 +200,7 @@ class _AdapterLLM:
         return session_max_tokens or self._turn_max_tokens
 
     def context_notice(self) -> str:
-        """The context-budget line appended to this turn's observation, or "".
+        """The context-budget notice preceding this turn's observation, or "".
 
         Nothing below ``context_warn_frac`` of the budget. The first turn at or past
         it gets a warning with the stakes and what to do; every turn after that
@@ -212,17 +212,22 @@ class _AdapterLLM:
         if used < self._context_warn_frac * self._max_context:
             return ""
         left = max(0, self._max_context - used)
-        pct = min(100, round(100 * used / self._max_context))
+        notice = (
+            "[MODEL CONTEXT BUDGET — harness notice, not terminal output]\n"
+            f"About {left:,} conversation tokens remain out of a "
+            f"{self._max_context:,}-token context window. "
+            "This is your remaining conversation capacity, not task or command progress. "
+            "Estimate as of your last reply; the new observation below also uses tokens."
+        )
         if not self._context_warned:
             self._context_warned = True
-            return (
-                f"WARNING: You have used {pct}% of your context window "
-                f"({used:,} of {self._max_context:,} tokens); about {left:,} tokens "
-                "remain. If it runs out, the episode ends before you can submit and "
-                "the task counts as failed. Avoid commands that print large output, "
-                "finish the essential work, verify it, and mark the task complete."
+            notice += (
+                "\nReaching the context limit can end this attempt before submission. "
+                "Keep reasoning and command output concise, finish and verify the "
+                "essential work, then use the task-completion protocol. "
+                "This notice does not mean a running command has finished."
             )
-        return f"[Context: {pct}% used, about {left:,} tokens remain]"
+        return notice + "\n[END MODEL CONTEXT BUDGET]"
 
     async def call(self, prompt: str, message_history=None, **_kwargs):
         from harbor.llms.base import (  # type: ignore
@@ -540,16 +545,17 @@ class _SandboxEnvironment:
             observation = f"New Terminal Output:\n{new_text}"
         else:
             observation = f"Current Terminal Screen:\n{screen}"
+        shown = "new" if observation.startswith("New") else "screen"
         notice = self.context_notice() if self.context_notice else ""
         if notice:
-            observation = f"{observation.rstrip()}\n\n{notice}\n"
+            observation = f"{notice}\n\n{observation}"
         self.exec_trace.append(
             {
                 "t": round(started_at, 3),
                 "secs": round(time.time() - started_at, 3),
                 "kind": "observation",
                 "mode": mode if mode in ("new", "first") else "screen",
-                "shown": "new" if observation.startswith("New") else "screen",
+                "shown": shown,
                 "history_size": history,
                 "cursor_y": cursor,
                 "alternate_on": alternate,

@@ -67,15 +67,21 @@ def test_a_warning_once_then_the_remaining_budget_every_turn():
     llm = _llm()
     llm.context_tokens = 7000
     first = llm.context_notice()
-    assert first.startswith("WARNING: You have used 70% of your context window")
-    assert "(7,000 of 10,000 tokens); about 3,000 tokens remain" in first
-    assert "the task counts as failed" in first
-    assert "mark the task complete" in first
+    assert first.startswith("[MODEL CONTEXT BUDGET")
+    assert "3,000 conversation tokens remain" in first
+    assert "10,000-token context window" in first
+    assert "not task or command progress" in first
+    assert "new observation below also uses tokens" in first
+    assert "task-completion protocol" in first
+    assert "%" not in first
 
     llm.context_tokens = 8500
-    assert llm.context_notice() == "[Context: 85% used, about 1,500 tokens remain]"
+    later = llm.context_notice()
+    assert "1,500 conversation tokens remain" in later
+    assert "not terminal output" in later
+    assert "task-completion protocol" not in later
     llm.context_tokens = 10400
-    assert llm.context_notice() == "[Context: 100% used, about 0 tokens remain]"
+    assert "0 conversation tokens remain" in llm.context_notice()
 
 
 def test_zero_turns_the_notice_off():
@@ -89,12 +95,13 @@ def test_the_notice_rides_on_the_turns_observation(tmp_path: Path):
     env.terminal.session = "terminus-1"
     env.terminal.server_pid = "100"
     env.terminal.pane_pid = "200"
-    notices = ["", "[Context: 80% used, about 2,000 tokens remain]"]
+    notices = ["", "[MODEL CONTEXT BUDGET]", "[MODEL CONTEXT BUDGET]"]
     env.context_notice = lambda: notices.pop(0)
     stdouts = [
         "62|39|0|100|200|none\nscreen|0\n\n__torchtitan_screen__\nprompt$ \n",
         "68|39|0|100|200|62|39|0\nnew|33\nprompt$ ls\nfile\nprompt$ \n"
         "__torchtitan_screen__\nprompt$ \n",
+        "68|39|0|100|200|none\nscreen|0\n\n__torchtitan_screen__\nprompt$ \n",
     ]
 
     async def exec_raw(_script, **_kwargs):
@@ -108,6 +115,11 @@ def test_the_notice_rides_on_the_turns_observation(tmp_path: Path):
         "Current Terminal Screen:\nprompt$ \n"
     )
     assert asyncio.run(env.observe_turn(session)) == (
-        "New Terminal Output:\nprompt$ ls\nfile\nprompt$\n\n"
-        "[Context: 80% used, about 2,000 tokens remain]\n"
+        "[MODEL CONTEXT BUDGET]\n\n"
+        "New Terminal Output:\nprompt$ ls\nfile\nprompt$ "
     )
+    assert env.exec_trace[-1]["shown"] == "new"
+    assert asyncio.run(env.observe_turn(session)) == (
+        "[MODEL CONTEXT BUDGET]\n\nCurrent Terminal Screen:\nprompt$ \n"
+    )
+    assert env.exec_trace[-1]["shown"] == "screen"
