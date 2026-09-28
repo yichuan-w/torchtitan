@@ -110,7 +110,13 @@ def main() -> None:
                 continue
         sig = f"{tid}--g{v['group']}.json"
         data = json.load(open(os.path.join(src, "signals", sig)))
-        assert data["task"] == tid and data["direction"] == "harder", (tid, data)
+        # A harder signal (all attempts solved) or an easier one (none solved):
+        # the loop picks the job from the signal, and simplify runs only when
+        # SWE_EVOLVE_SIMPLIFY is on.
+        assert data["task"] == tid and data["direction"] in ("harder", "easier"), (
+            tid,
+            data,
+        )
         for rel in data["attempts"]:
             s, d = os.path.join(src, rel), os.path.join(dst, rel)
             os.makedirs(os.path.dirname(d), exist_ok=True)

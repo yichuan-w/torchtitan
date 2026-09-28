@@ -9,10 +9,12 @@ import subprocess
 import sys
 from pathlib import Path
 
+import pytest
+
 STAGE = Path(__file__).resolve().parent.parent / "offline_stage.py"
 
 
-def _source_run(base: Path) -> Path:
+def _source_run(base: Path, direction: str = "harder") -> Path:
     run = base / "runs" / "tmax-9b--20260911-000700Z"
     (run / "signals").mkdir(parents=True)
     (run / "rollouts" / "task_a").mkdir(parents=True)
@@ -22,11 +24,11 @@ def _source_run(base: Path) -> Path:
         json.dumps(
             {
                 "task": "task_a",
-                "direction": "harder",
+                "direction": direction,
                 "run": run.name,
                 "group": 7,
                 "rev": 0,
-                "solved": 12,
+                "solved": 12 if direction == "harder" else 0,
                 "total": 12,
                 "attempts": ["rollouts/task_a/g7-r0.jsonl"],
             }
@@ -35,11 +37,12 @@ def _source_run(base: Path) -> Path:
     return run
 
 
-def test_staged_signal_names_the_staged_copy(tmp_path):
+@pytest.mark.parametrize("direction", ["harder", "easier"])
+def test_staged_signal_names_the_staged_copy(tmp_path, direction):
     """The loop resolves a signal's attempts under runs/<signal.run>/, so a
     signal staged under a new name has to point at that copy, not at the run
     it was cut from (which the root need not hold)."""
-    run = _source_run(tmp_path / "src")
+    run = _source_run(tmp_path / "src", direction)
     root = tmp_path / "root"
     root.mkdir()
     selected = tmp_path / "selected.json"
