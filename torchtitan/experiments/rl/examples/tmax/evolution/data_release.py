@@ -21,6 +21,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 import pack_to_dataset as pack
+from recorded_solution import ACTION_PATH, SHELL_PATH, parse_actions
 
 
 def encoded(value):
@@ -86,8 +87,13 @@ def check_config(config):
             "archives",
             "count",
         }
-        if set(source) != required:
-            raise ValueError(f"source keys must be {sorted(required)}")
+        optional = {"skip_unsolved"}
+        if not required <= set(source) <= required | optional:
+            raise ValueError(
+                f"source keys must be {sorted(required)}, optionally {sorted(optional)}"
+            )
+        if type(source.get("skip_unsolved", False)) is not bool:
+            raise ValueError("skip_unsolved must be a boolean")
         if not re.fullmatch(r"[a-z0-9_-]+", source["name"]) or source["name"] in names:
             raise ValueError("source names must be unique path components")
         names.add(source["name"])
@@ -188,6 +194,28 @@ def resources(source, record):
     return result
 
 
+def materialize_solution(task, record):
+    """Write a row's action-list solution into a package that ships none, and
+    say whether the package now has a reference solution.
+
+    Evolution reads the reference solution from the package, never from the
+    metadata row, so a split carrying it only in its `solution` column reaches
+    the loop with no oracle. The file is the one longlongcheck packages ship."""
+    if (task / SHELL_PATH).is_file() or (task / ACTION_PATH).is_file():
+        return True
+    text = record.get("solution") or ""
+    if not text:
+        return False
+    if record.get("solution_format") != "terminus_tmux_actions_v1":
+        raise ValueError(
+            f"{task.name}: unsupported solution_format {record.get('solution_format')!r}"
+        )
+    parse_actions(text)
+    (task / ACTION_PATH).parent.mkdir(parents=True, exist_ok=True)
+    (task / ACTION_PATH).write_bytes(text.encode())
+    return True
+
+
 def prepare_source(source, files, stage, checkpoints, log):
     import pyarrow.parquet as pq
 
@@ -205,6 +233,21 @@ def prepare_source(source, files, stage, checkpoints, log):
     actual_ids = {p.name for p in (home / "tasks").iterdir() if p.is_dir()}
     if actual_ids != set(ids):
         raise ValueError(f"{source['name']}: package and metadata membership differ")
+    if source["adapter"] == "tmax_reaudit":
+        solved = []
+        for record in metadata:
+            task = home / "tasks" / record[id_key]
+            if materialize_solution(task, record) or not source.get("skip_unsolved"):
+                solved.append(record)
+            else:
+                shutil.rmtree(task)
+                log(
+                    source=source["name"],
+                    task=record[id_key],
+                    status="skipped",
+                    reason="no reference solution",
+                )
+        metadata = solved
     shutil.copyfile(files[source["metadata"]]["path"], home / "metadata.parquet")
     caches = {}
     cache_manifest = files.get("metadata/cache_manifest.jsonl")
