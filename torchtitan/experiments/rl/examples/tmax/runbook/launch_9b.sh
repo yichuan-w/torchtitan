@@ -275,7 +275,7 @@ else:
     shutil.copy2(data, run.inputs_mix)
     how = f"copy of {data} (not a served mix version)"
 
-prefixes = ("SWE_", "TMAX_", "TT_DAYTONA", "RL_", "TRL_", "CUDA_VISIBLE", "WANDB_PROJECT")
+prefixes = ("SWE_", "TMAX_", "TT_DAYTONA", "RL_", "TRL_", "CUDA_VISIBLE", "WANDB_PROJECT", "OMP_NUM_THREADS", "MKL_NUM_THREADS")
 layout.write_json_atomic(run.launch_json, {
     "run": run.name,
     "started": started,
