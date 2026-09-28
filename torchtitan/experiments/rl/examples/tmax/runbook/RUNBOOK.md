@@ -787,6 +787,50 @@ these are the variables that touch them.
 | `TT_DAYTONA_EPHEMERAL` | `1` | `0` | ephemeral create flag. |
 | `SWE_BRIDGE_POLL_INTERVAL` | unset | `0.2` | **do not lower.** At 64 bridges, 0.05 gives 1280 req/s, past the platform's ~833 req/s cap. |
 
+### Weight synchronization CPU threads (2026-09-28)
+
+`rltrain.env` now exports `OMP_NUM_THREADS=1` and `MKL_NUM_THREADS=1`;
+`launch.json` records both. Set them before launching the actor processes.
+This is a change from the historical launch used by the table above.
+Monarch uses vLLM's `external_launcher`, which does not run the thread-limit
+setup in vLLM's multiprocessing executor.
+
+On the della B300 run
+[`he1dnwbh`](https://wandb.ai/yichuan_wang-uc-berkeley-electrical-engineering-computer/terminal-agent-rl/runs/he1dnwbh),
+the generator OpenMP task settings were 128 threads each, while the shared
+user cgroup had a 128-CPU quota. During a 44.8-second sample of step 119's
+weight pull, all 448 cgroup periods were throttled. Python/native stacks
+showed CPU tensor cloning and assembly, including OpenMP spin waits.
+TorchStore resolved to same-host `SharedMemory`; the expensive work was in
+the CPU-staged copies. This reproduces the oversubscription diagnosis in
+[the SWE-R2E recipe](../../swe_r2e/RECIPE.md), rather than establishing a
+general B300 hardware limitation.
+
+The fresh run
+[`csk4gby2`](https://wandb.ai/yichuan_wang-uc-berkeley-electrical-engineering-computer/terminal-agent-rl/runs/csk4gby2)
+uses commit `882db3e0`, five training generators, one dedicated eval
+generator, two trainer GPUs, and rollout concurrency 1000. Both thread
+variables were verified as `1` in the controller, trainers, and generators.
+Startup pull took 24.67–25.57 seconds across all six generators. After the
+first optimizer update, the five training generators took 12.32–13.85 seconds
+each; after step 2, they took 11.07–12.58 seconds (`[pull-timing] total`,
+including weight application). These are per-generator pull timings, not the
+entire controller push/pull interval. A 100-ms log poll measured 14.04 seconds
+from step 2's `optim done` to `weights pulled`: the shared user cgroup averaged
+6.26 CPU cores and had **0 of 140 periods throttled** during that interval.
+This is an early two-update validation, not a whole-run timing guarantee.
+
+At 03:12 EDT, each training generator's last 60 vLLM samples had Waiting=0
+in 59 or 60 samples, with maxima of 0–5 requests. Mean Running was 125–139
+per training generator; the dedicated eval generator had no Waiting in its
+60 samples. A preceding GPU-utilization snapshot ranged from 89% to 100%.
+
+Waiting requests must be interpreted together with throughput and GPU
+utilization: zero Waiting alone does not establish spare compute capacity.
+Keep concurrency fixed while checking the thread-limit change. The restart
+also switches evaluation to prepared TB2.1 rows, so reward changes are not
+a controlled test of the thread settings or of `prompt_mean`.
+
 ### One trap
 
 `SWE_GDN=1` appears in our launcher and in the in-repo READMEs. **No Python code
