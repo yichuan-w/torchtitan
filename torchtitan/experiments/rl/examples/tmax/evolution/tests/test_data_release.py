@@ -189,3 +189,100 @@ def test_offline_cache_and_validated_grader_budget_survive_preparation(
         in (output / "sources/swe/tasks/task_a/environment/Dockerfile").read_text()
     )
     assert release.build(config, tmp_path / "out") == output
+
+
+def action_fixture(tmp_path, monkeypatch, skip_unsolved):
+    actions = json.dumps(
+        [
+            {
+                "step_id": 1,
+                "offset_sec": 0.0,
+                "duration": 1.0,
+                "kind": "terminal_action",
+                "keystrokes": "touch /app/result\n",
+            },
+            {
+                "step_id": 2,
+                "offset_sec": 1.0,
+                "duration": 0.0,
+                "kind": "completion_marker",
+                "keystrokes": "",
+            },
+            {
+                "step_id": 3,
+                "offset_sec": 1.0,
+                "duration": 0.0,
+                "kind": "completion_marker",
+                "keystrokes": "",
+            },
+        ]
+    )
+    archive = tmp_path / "tasks.tar"
+    with tarfile.open(archive, "w") as bundle:
+        for tid in ("task_a", "task_b"):
+            for name, content in {
+                "instruction.md": "Create /app/result.\n",
+                "environment/Dockerfile": "FROM ubuntu:24.04\nWORKDIR /app\n",
+                "tests/test.sh": "echo 1 > /logs/verifier/reward.txt\n",
+            }.items():
+                member = tarfile.TarInfo(f"tasks/{tid}/{name}")
+                member.size = len(content.encode())
+                bundle.addfile(member, io.BytesIO(content.encode()))
+    metadata = tmp_path / "split.parquet"
+    pq.write_table(
+        pa.table(
+            {
+                "task_id": ["task_a", "task_b"],
+                "solution": [actions, ""],
+                "solution_format": ["terminus_tmux_actions_v1", ""],
+                "req_cpus": [1, 1],
+                "req_memory_mb": [2048, 2048],
+                "est_disk_mb": [2048, 2048],
+            }
+        ),
+        metadata,
+    )
+    monkeypatch.setattr(
+        release,
+        "fetch_source",
+        lambda *_: {
+            "split.parquet": {"path": metadata, "sha256": release.digest(metadata)},
+            "tasks.tar": {"path": archive, "sha256": release.digest(archive)},
+        },
+    )
+    monkeypatch.setattr(
+        release.subprocess,
+        "check_output",
+        lambda args, **_: "" if "status" in args else "b" * 40,
+    )
+    source = {
+        "name": "agentpick",
+        "repo": "example/tasks",
+        "revision": "a" * 40,
+        "adapter": "tmax_reaudit",
+        "metadata": "split.parquet",
+        "archives": ["tasks.tar"],
+        "count": None,
+        "skip_unsolved": skip_unsolved,
+    }
+    return {"seed": 7, "sources": [source]}, actions
+
+
+def test_column_solution_reaches_the_package(tmp_path, monkeypatch):
+    config, actions = action_fixture(tmp_path, monkeypatch, skip_unsolved=True)
+    output = release.build(config, tmp_path / "out")
+    labels = [
+        json.loads(line)["label"]
+        for line in (output / "mix.jsonl").read_text().splitlines()
+    ]
+    assert labels == ["task_a"]
+    tasks = output / "sources/agentpick/tasks"
+    assert (tasks / "task_a/solution/gpt6_actions.json").read_text() == actions
+    assert not (tasks / "task_b").exists()
+
+
+def test_unsolved_rows_stay_without_the_switch(tmp_path, monkeypatch):
+    config, _ = action_fixture(tmp_path, monkeypatch, skip_unsolved=False)
+    output = release.build(config, tmp_path / "out")
+    assert len((output / "mix.jsonl").read_text().splitlines()) == 2
+    assert not (output / "sources/agentpick/tasks/task_b/solution").exists()
