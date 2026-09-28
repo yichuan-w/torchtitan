@@ -173,7 +173,6 @@ class _AdapterLLM:
         # its completion, from the adapter's usage. The next prompt is this plus
         # the observation about to be appended.
         self.context_tokens = 0
-        self._context_warned = False
         # Terminus-2's loop lives inside harbor, so this is the one hook we have
         # that runs once per episode -- the same "check between turns" the
         # vanillux loop does with its own deadline.
@@ -202,9 +201,8 @@ class _AdapterLLM:
     def context_notice(self) -> str:
         """The context-budget notice preceding this turn's observation, or "".
 
-        Nothing below ``context_warn_frac`` of the budget. The first turn at or past
-        it gets a warning with the stakes and what to do; every turn after that
-        gets the remaining budget, so the model can pace the rest of the task.
+        Nothing below ``context_warn_frac``; afterwards show the estimated
+        remaining tokens, based on the last reply, before the terminal output.
         """
         if self._context_warn_frac <= 0 or self._max_context <= 0:
             return ""
@@ -212,22 +210,7 @@ class _AdapterLLM:
         if used < self._context_warn_frac * self._max_context:
             return ""
         left = max(0, self._max_context - used)
-        notice = (
-            "[MODEL CONTEXT BUDGET — harness notice, not terminal output]\n"
-            f"About {left:,} conversation tokens remain out of a "
-            f"{self._max_context:,}-token context window. "
-            "This is your remaining conversation capacity, not task or command progress. "
-            "Estimate as of your last reply; the new observation below also uses tokens."
-        )
-        if not self._context_warned:
-            self._context_warned = True
-            notice += (
-                "\nReaching the context limit can end this attempt before submission. "
-                "Keep reasoning and command output concise, finish and verify the "
-                "essential work, then use the task-completion protocol. "
-                "This notice does not mean a running command has finished."
-            )
-        return notice + "\n[END MODEL CONTEXT BUDGET]"
+        return f"[Model context budget: ~{left:,} tokens remaining]"
 
     async def call(self, prompt: str, message_history=None, **_kwargs):
         from harbor.llms.base import (  # type: ignore

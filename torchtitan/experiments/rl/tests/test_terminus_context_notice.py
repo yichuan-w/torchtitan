@@ -6,10 +6,9 @@
 
 """The model is told when its context is running out, and how much is left.
 
-Nothing is added below the warning fraction. The first turn at or past it gets a
-warning that says what running out costs; every turn after that gets the
-remaining budget. The count is the last reply's prompt plus completion, as the
-adapter reports it.
+Nothing is added below the warning fraction. Afterwards each turn gets a brief
+remaining-context notice before terminal output. The count is the last reply's
+prompt plus completion, as the adapter reports it.
 """
 
 from __future__ import annotations
@@ -63,25 +62,14 @@ def test_nothing_below_the_warning_fraction():
     assert llm.context_notice() == ""
 
 
-def test_a_warning_once_then_the_remaining_budget_every_turn():
+def test_remaining_context_tokens_are_explicit_and_clamped():
     llm = _llm()
     llm.context_tokens = 7000
-    first = llm.context_notice()
-    assert first.startswith("[MODEL CONTEXT BUDGET")
-    assert "3,000 conversation tokens remain" in first
-    assert "10,000-token context window" in first
-    assert "not task or command progress" in first
-    assert "new observation below also uses tokens" in first
-    assert "task-completion protocol" in first
-    assert "%" not in first
-
+    assert llm.context_notice() == "[Model context budget: ~3,000 tokens remaining]"
     llm.context_tokens = 8500
-    later = llm.context_notice()
-    assert "1,500 conversation tokens remain" in later
-    assert "not terminal output" in later
-    assert "task-completion protocol" not in later
+    assert llm.context_notice() == "[Model context budget: ~1,500 tokens remaining]"
     llm.context_tokens = 10400
-    assert "0 conversation tokens remain" in llm.context_notice()
+    assert llm.context_notice() == "[Model context budget: ~0 tokens remaining]"
 
 
 def test_zero_turns_the_notice_off():
