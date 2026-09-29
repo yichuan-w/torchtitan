@@ -1215,3 +1215,42 @@ admits a gap.
   performed during this work.
 - **Evolution cost figures are derived from the code paths**, not from a billing
   statement.
+
+### Failure evidence on local systemd launches
+
+`launch_9b.sh` starts an independent `forensics-<run>.service` by default
+(`RL_RECORD_FORENSICS=0` disables it). Its files live in `<run>/forensics/`:
+
+- `samples.jsonl`: process identity/state and service/ancestor cgroup memory,
+  OOM and CPU counters every 5 seconds; GPU memory, utilization and GPU process
+  identities every 10 seconds. Shorter-lived events can be missed.
+- `events.jsonl`: observed process disappearance and controller exit. Polling
+  cannot recover an already-reaped child's exit status or signal sender.
+- `stalled-*.json`: best-effort `py-spy` stacks after 120 seconds without trainer
+  progress, at most once per 5 minutes. Requires py-spy and ptrace access.
+- `monarch-shared-window.log`: appended Monarch log during the run; this file is
+  shared by same-account jobs, so match actor/proc IDs before attributing events.
+- `nccl_trace_rank_*`: NCCL flight recorder dumps on timeout. The launcher enables
+  `TORCH_NCCL_TRACE_BUFFER_SIZE=2000`, `TORCH_NCCL_DUMP_ON_TIMEOUT=1`, and Python
+  faulthandler. Explicit environment values for the first two remain respected.
+- `failure-summary.json`, `kernel-at-exit.json`: host failure lines, core paths,
+  and the readable kernel ring buffer, collected after controller exit.
+
+The recorder runs outside the training service's cgroup; stopping/killing the
+training service does not remove it. Killing the whole user slice can still kill
+both. The recorder never restarts training or changes another user's processes.
+It remains alive for 20 seconds after controller exit to collect shutdown logs.
+
+For an existing run, extract host error evidence with:
+
+```bash
+python3 torchtitan/experiments/rl/examples/tmax/runbook/record_failure.py \
+  --run /absolute/path/to/run --summarize-only
+```
+
+**SIGKILL sender attribution needs a separate kernel audit/eBPF recorder enabled
+before the event by an administrator.** Request signal-generation records scoped
+to the controller and trainer/generator descendants, including sender PID/UID,
+target PID, signal and timestamp. `SIGKILL` cannot be caught with a Python signal
+handler; its presence alone does not prove an external user sent it. No such
+privileged tracing is silently enabled by this launcher.

@@ -225,6 +225,15 @@ else
     echo "[launch] fresh start: initial weights from $TRL_MODEL (no step-* under $SWE_CKPT_FOLDER)"
 fi
 
+# Record diagnostics configuration in launch.json as well as the child environment.
+if [ "${RL_RECORD_FORENSICS:-1}" = 1 ]; then
+    export RL_RECORD_FORENSICS=1
+    export PYTHONFAULTHANDLER=${PYTHONFAULTHANDLER:-1}
+    export TORCH_NCCL_TRACE_BUFFER_SIZE=${TORCH_NCCL_TRACE_BUFFER_SIZE:-2000}
+    export TORCH_NCCL_DUMP_ON_TIMEOUT=${TORCH_NCCL_DUMP_ON_TIMEOUT:-1}
+    export TORCH_NCCL_DEBUG_INFO_TEMP_FILE="$RUN/forensics/nccl_trace_rank_"
+fi
+
 # ---- the record --------------------------------------------------------------
 # launch.json says what this run was given; inputs/mix.jsonl IS what it read
 # (the same inode as the served version, so a later publish cannot change it);
@@ -275,7 +284,7 @@ else:
     shutil.copy2(data, run.inputs_mix)
     how = f"copy of {data} (not a served mix version)"
 
-prefixes = ("SWE_", "TMAX_", "TT_DAYTONA", "RL_", "TRL_", "CUDA_VISIBLE", "WANDB_PROJECT", "OMP_NUM_THREADS", "MKL_NUM_THREADS")
+prefixes = ("SWE_", "TMAX_", "TT_DAYTONA", "RL_", "TRL_", "CUDA_VISIBLE", "WANDB_PROJECT", "OMP_NUM_THREADS", "MKL_NUM_THREADS", "TORCH_NCCL_", "PYTHONFAULTHANDLER")
 layout.write_json_atomic(run.launch_json, {
     "run": run.name,
     "started": started,
@@ -374,6 +383,14 @@ if [ "$DRY_RUN" = 1 ]; then
     echo "[launch] dry run: would start ckpt-mirror-$(basename "$TRL_BASE") and ckpt-export-$(basename "$TRL_BASE")"
     echo "$RUN"
     exit 0
+fi
+
+# Independent service survives a controller or training-cgroup kill.
+if [ "${RL_RECORD_FORENSICS:-1}" = 1 ]; then
+    mkdir -p "$RUN/forensics"
+    systemd-run --user --unit="forensics-$(basename "$RUN")" --collect \
+        --working-directory="$TRL_TT" -p Restart=no \
+        /usr/bin/python3 "$HERE/record_failure.py" --run "$RUN" --pid "$$"
 fi
 
 start_ckpt_timers
