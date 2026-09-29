@@ -5,7 +5,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from recorded_solution import ACTION_PATH, parse_actions, solution_path
+from recorded_solution import ACTION_PATH, SHELL_PATH, parse_actions, solution_path
 
 
 FILES = {
@@ -39,14 +39,23 @@ def load(task_dir: str | Path) -> dict:
         (candidate for candidate in VERIFIER_CANDIDATES if (directory / candidate).exists()),
         FILES["test_state_py"],
     )
-    solution = solution_path(directory)
-    paths = {**FILES, "test_state_py": verifier, "solve_sh": solution}
+    try:
+        solution = solution_path(directory)
+    except FileNotFoundError:
+        # A task nobody has solved yet: the easier rewrite writes its
+        # solve.sh (_unsolved), and no other job may run on it.
+        solution = None
+    paths = {**FILES, "test_state_py": verifier, "solve_sh": solution or SHELL_PATH}
     task = {
         key: (directory / path).read_text(errors="replace")
         for key, path in paths.items()
+        if not (key == "solve_sh" and solution is None)
     }
+    if solution is None:
+        task["solve_sh"] = ""
+        task["_unsolved"] = True
     task["_verifier_rel"] = verifier
-    task["_solution_rel"] = solution
+    task["_solution_rel"] = solution or SHELL_PATH
     if solution == ACTION_PATH:
         parse_actions(task["solve_sh"])
     task["_role_files"] = {
