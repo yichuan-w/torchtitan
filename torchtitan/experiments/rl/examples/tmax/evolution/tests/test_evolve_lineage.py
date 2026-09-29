@@ -687,6 +687,72 @@ def test_rejected_rewrite_keeps_its_package_and_its_hardlinked_traces(
     assert status["rejected"] == {"step_size": 1} and status["accepted"] == 0
 
 
+def test_status_can_report_active_node_local_rewrites(tmp_path, monkeypatch) -> None:
+    root = _root(tmp_path, monkeypatch)
+
+    status = od.rebuild_status(root, num_active_rewrites=3)
+
+    assert status["rewrites_running"] == 3
+    assert json.loads(root.evolution.status.read_text()) == status
+
+
+def test_long_round_refreshes_status_while_a_rewrite_is_active(
+    tmp_path, monkeypatch
+) -> None:
+    root = _root(tmp_path, monkeypatch)
+    _signal(root)
+    _stub(monkeypatch)
+    process_one = od.fb.process_one
+    started, refreshed, release = Event(), Event(), Event()
+
+    def hold(rewrite, signal, **kwargs):
+        started.set()
+        assert release.wait(5), "test did not release the rewrite"
+        return process_one(rewrite, signal, **kwargs)
+
+    real_rebuild = od.rebuild_status
+    active_counts = []
+
+    def observe(root_, *, num_active_rewrites=None):
+        active_counts.append(num_active_rewrites)
+        status = real_rebuild(
+            root_, num_active_rewrites=num_active_rewrites
+        )
+        refreshed.set()
+        return status
+
+    monkeypatch.setattr(od.fb, "process_one", hold)
+    monkeypatch.setattr(od, "rebuild_status", observe)
+    monkeypatch.setattr(od, "STATUS_REFRESH_SEC", 0.01)
+    with ThreadPoolExecutor(max_workers=1) as runner:
+        future = runner.submit(od.run_round, root, workers=1)
+        assert started.wait(2)
+        try:
+            assert refreshed.wait(2), "status was not refreshed during the round"
+            status = json.loads(root.evolution.status.read_text())
+            assert status["rewrites_running"] == 1
+        finally:
+            release.set()
+        result = future.result(timeout=5)
+
+    assert result["handled"] == 1
+    assert 1 in active_counts
+
+
+def test_in_round_status_failure_does_not_abort_rewrites(
+    tmp_path, monkeypatch, caplog
+) -> None:
+    root = _root(tmp_path, monkeypatch)
+
+    def fail(*args, **kwargs):
+        raise OSError("status storage unavailable")
+
+    monkeypatch.setattr(od, "rebuild_status", fail)
+    od._refresh_status_during_round(root, num_active_rewrites=2)
+
+    assert "status storage unavailable" in caplog.text
+
+
 def test_an_unreadable_signal_is_junk_once_it_is_old_enough(
     tmp_path, monkeypatch
 ) -> None:

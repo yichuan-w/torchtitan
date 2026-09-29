@@ -129,6 +129,7 @@ own is revalidated at that size.
 | `EVOLVE_REPAIR_ROUNDS` | `3` (default) | When the reference solution and the verifier disagree, or the caller's revalidation fails, the author's session repairs first and the verifier's session second; that pair is one iteration, and this is how many are tried before the rewrite is discarded. |
 | `EVOLVE_REWRITE_BUDGET_SEC` | unset (default) | The end-to-end deadline for one rewrite, measured from the rewrite directory's timestamp. By default it is one training epoch: rows in the mix over groups per step, times the median step interval (`rewrite budget ...` in `loop.log` shows the number). Set this to a number of seconds to use a fixed budget instead. Every author, verifier, probe, and repair stage shares this same deadline. |
 | `EVOLVE_FINAL_VALIDATION_RESERVE_SEC` | `2400` (default) | Seconds held back from authoring, verifier work, and repairs for the final Daytona oracle and null probes. Those probes may use the reserve but are themselves capped by the end-to-end rewrite deadline. |
+| `EVOLVE_STATUS_REFRESH_SEC` | `60` (default) | Maximum age, in seconds, of `evolution/status.json` while a long round is active. Refresh failure is logged and does not interrupt rewrite work. |
 | `EVOLVE_WORK_ROOT` | unset (in-place execution) | An absolute node-local directory for active rewrites. When set, the loop copies the input revision, rollout records, and pinned CLI tools there; Codex, hooks, sandbox commands, probes, and session logging stay local. A completed rewrite is copied to a hidden incoming directory under `TRL_BASE` and renamed into place before its signal can be closed. Use this when `TRL_BASE` is on FUSE or other remote storage. Do not point it inside `TRL_BASE`; allow enough space for `--workers` simultaneous task copies. |
 | `--workers` | `16` (default `8`) | Concurrent rewrites in a round. The loop is signal-starved most of the time; workers only drain a burst faster. |
 | `--interval` | `120` | Seconds between rounds. |
@@ -156,8 +157,8 @@ workspace is retained at the path printed in `loop.log`.
 
 - `<root>/evolution/loop.log`: one line per verdict, `-> accepted`, `-> kept`
   or `-> failed` with the reason, and a `round:` summary per round.
-- `<root>/evolution/status.json`: the ledger's counts, rebuilt at the end of
-  every round.
+- `<root>/evolution/status.json`: the ledger, rewrite, and mix counts, refreshed
+  every 60 seconds during a long round and rebuilt when the round ends.
 - `<root>/data/mix/history/`: one file per published version, with its
   manifest.
 - `runs/<run>/trainer/mix_versions.jsonl`: whether the trainer has picked the

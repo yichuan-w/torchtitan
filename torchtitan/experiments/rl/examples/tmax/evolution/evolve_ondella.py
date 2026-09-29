@@ -35,8 +35,8 @@ A round:
      then the ledger line, last. A round of many concurrent rewrites runs for
      hours; folding each one on acceptance means a loop stopped mid-round
      loses only the rewrites still in flight.
-  5. rebuild status.json from the ledger and every task's files, and commit
-     the records (never packages, sessions or traces) to the audit repo.
+  5. refresh status.json during the round and rebuild it when the round ends;
+     commit the records (never packages, sessions or traces) to the audit repo.
 
 Observable (one log line per signal, one per fold), resumable (a signal with
 no ledger line is handled again; a rewrite the loop died inside is marked by
@@ -116,6 +116,9 @@ SIGNAL_KEYS = (
 # has the trainer rename it into place, so this is belt and braces.
 FRESH_SEC = 60
 FREE_SLOT_POLL_SEC = 5.0
+STATUS_REFRESH_SEC = float(os.environ.get("EVOLVE_STATUS_REFRESH_SEC", "60"))
+if STATUS_REFRESH_SEC <= 0:
+    raise ValueError("EVOLVE_STATUS_REFRESH_SEC must be positive")
 
 
 def _env_int(name: str) -> int | None:
@@ -1149,9 +1152,16 @@ def _rewrite_metas(root: layout.Root):
             yield task, rw, meta
 
 
-def rebuild_status(root: layout.Root) -> dict:
+def rebuild_status(
+    root: layout.Root, *, num_active_rewrites: int | None = None
+) -> dict:
     """status.json from the ledger and every task's rewrite files. No counter
-    is carried over; losing the file loses nothing."""
+    is carried over; losing the file loses nothing.
+
+    During a round, ``num_active_rewrites`` is the coordinator's live future
+    count. It overrides the on-disk count because node-local workspaces are not
+    visible under the durable root until they finish publishing.
+    """
     ledger = load_ledger(root)
     by_outcome: dict[str, int] = {}
     for line in ledger.values():
@@ -1178,7 +1188,11 @@ def rebuild_status(root: layout.Root) -> dict:
         "deferred": by_outcome.get("deferred", 0),
         "junk": by_outcome.get("junk", 0),
         "superseded": by_outcome.get("superseded", 0),
-        "rewrites_running": rewrites["running"],
+        "rewrites_running": (
+            rewrites["running"]
+            if num_active_rewrites is None
+            else num_active_rewrites
+        ),
         "accepted": rewrites["accepted"],
         "rejected": rejected,
         "failed": rewrites["failed"],
@@ -1186,6 +1200,20 @@ def rebuild_status(root: layout.Root) -> dict:
     }
     layout.write_json_atomic(root.evolution.status, status)
     return status
+
+
+def _refresh_status_during_round(
+    root: layout.Root, *, num_active_rewrites: int
+) -> None:
+    """Refresh observability without making it a dependency of rewrite work."""
+    try:
+        rebuild_status(root, num_active_rewrites=num_active_rewrites)
+    except Exception as error:  # noqa: BLE001 -- status is a derived snapshot
+        log.warning(
+            "in-round status refresh failed; rewrite work continues: %s: %s",
+            type(error).__name__,
+            error,
+        )
 
 
 def _snapshot_lineage(root: layout.Root, note: str) -> None:
@@ -1386,6 +1414,7 @@ def run_round(
     # because a fold during the round has already moved the mix on.
     handled: list[dict] = []
     refill = not signal and not limit and not dry
+    last_status_refresh = time.monotonic()
     with ThreadPoolExecutor(max_workers=workers) as ex:
         futs: dict = {}
         # Tasks this round has already taken, kept for the whole round rather
@@ -1420,9 +1449,23 @@ def run_round(
             # A new signal can arrive while the first rewrite is still running.
             # Poll only when there is an idle worker; otherwise wait for one to
             # finish as before. The idle loop already watches signals every 5 s.
+            wait_timeout = (
+                FREE_SLOT_POLL_SEC if refill and len(futs) < workers else None
+            )
+            if not dry:
+                until_status_refresh = max(
+                    0.0,
+                    STATUS_REFRESH_SEC
+                    - (time.monotonic() - last_status_refresh),
+                )
+                wait_timeout = (
+                    until_status_refresh
+                    if wait_timeout is None
+                    else min(wait_timeout, until_status_refresh)
+                )
             done, _ = wait(
                 list(futs),
-                timeout=FREE_SLOT_POLL_SEC if refill and len(futs) < workers else None,
+                timeout=wait_timeout,
                 return_when=FIRST_COMPLETED,
             )
             for fut in done:
@@ -1493,6 +1536,14 @@ def run_round(
                     busy=frozenset(taken),
                 )
                 fill(more or [])
+            if (
+                not dry
+                and time.monotonic() - last_status_refresh >= STATUS_REFRESH_SEC
+            ):
+                _refresh_status_during_round(
+                    root, num_active_rewrites=len(futs)
+                )
+                last_status_refresh = time.monotonic()
 
     for h in handled:
         result["counts"][h["status"]] = result["counts"].get(h["status"], 0) + 1
