@@ -149,6 +149,10 @@ def main():
                     pyspy = shutil.which('py-spy') or str(Path.home() / '.local/bin/py-spy')
                     dump = command([pyspy, 'dump', '--pid', str(pid)])
                     (out / f'stalled-{int(time.time())}-{pid}.json').write_text(json.dumps(dump, indent=2))
+                    # Python alone cannot distinguish a CUDA allocation wait
+                    # from a collective wait inside the same extension call.
+                    native = command([pyspy, 'dump', '--native', '--pid', str(pid)], timeout=15)
+                    (out / f'stalled-native-{int(time.time())}-{pid}.json').write_text(json.dumps(native, indent=2))
                 event('trainer_stall', seconds=time.monotonic() - last_progress)
             chunk = monarch.read()
             if chunk:
