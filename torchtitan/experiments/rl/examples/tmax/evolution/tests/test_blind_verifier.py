@@ -143,7 +143,9 @@ def _wire(monkeypatch, sessions: list, checks: list, verifier_text=NEW_VERIFIER)
     monkeypatch.setattr(ec, "VERIFIER_AUTHOR", "blind")
     monkeypatch.setattr(ec, "_sandbox_down", lambda _pkg: None)
     # These tests isolate author/reference reconciliation; independent replay has separate tests.
-    monkeypatch.setattr(ec, "_author_independent_probes", lambda *args: None)
+    monkeypatch.setattr(
+        ec, "_author_independent_probes", lambda *args, **kwargs: None
+    )
     monkeypatch.setattr(ec, "_independent_verifier", lambda *args, **kwargs: None)
 
     def fake_run_codex(run, cwd, prompt, resume=None):
@@ -175,7 +177,7 @@ def _wire(monkeypatch, sessions: list, checks: list, verifier_text=NEW_VERIFIER)
         run.meta["exit_code"] = 0
         return type("P", (), {"returncode": 0, "stdout": "", "stderr": ""})()
 
-    def fake_harness_check(pkg, name="check"):
+    def fake_harness_check(pkg, name="check", **kwargs):
         checks.append(name)
         assert (pkg / "solution" / "solve.sh").read_text() == NEW_SOLVE
         assert (pkg / "tests" / "test_state.py").read_text().startswith(verifier_text)
@@ -186,7 +188,7 @@ def _wire(monkeypatch, sessions: list, checks: list, verifier_text=NEW_VERIFIER)
     monkeypatch.setattr(ec, "_harness_check", fake_harness_check)
     replays = []
     monkeypatch.setattr(
-        ec, "verify_probes", lambda pkg, env, timeout: replays.append(pkg)
+        ec, "verify_probes", lambda pkg, env, timeout, **kwargs: replays.append(pkg)
     )
     return replays
 
@@ -304,7 +306,7 @@ def test_failed_semantic_replay_prevents_accepting_verifier(tmp_path, monkeypatc
     rw = _rewrite(tmp_path, monkeypatch)
     _wire(monkeypatch, [], [])
 
-    def reject(pkg, env, timeout):
+    def reject(pkg, env, timeout, **kwargs):
         raise RuntimeError("Semantic probe wrong-2/grade passed unexpectedly")
 
     monkeypatch.setattr(ec, "verify_probes", reject)
@@ -383,7 +385,7 @@ def test_same_mode_runs_one_session_that_writes_everything(
 
 
 def _failing_check(checks, verdicts):
-    def failing_check(pkg, name="check"):
+    def failing_check(pkg, name="check", **kwargs):
         checks.append(name)
         (pkg / "run").mkdir(exist_ok=True)
         with (pkg / "run" / "checks.jsonl").open("a") as fh:
@@ -436,10 +438,10 @@ def test_a_disagreement_resolved_by_the_authors_repair_needs_no_verifier_repair(
     passing = ec._harness_check
     verdicts = iter(["fail"])
 
-    def check(pkg, name="check"):
+    def check(pkg, name="check", **kwargs):
         if name == "check.blind1":
-            return _failing_check(checks, verdicts)(pkg, name)
-        return passing(pkg, name)
+            return _failing_check(checks, verdicts)(pkg, name, **kwargs)
+        return passing(pkg, name, **kwargs)
 
     monkeypatch.setattr(ec, "_harness_check", check)
     out = ec.evolve_agentic(rw, dict(SEED), "harder")
@@ -471,9 +473,11 @@ def test_author_repair_never_sees_the_blind_verifier(tmp_path, monkeypatch) -> N
     monkeypatch.setattr(
         ec,
         "_harness_check",
-        lambda pkg, name="check": _failing_check(checks, verdicts)(pkg, name)
+        lambda pkg, name="check", **kwargs: _failing_check(checks, verdicts)(
+            pkg, name, **kwargs
+        )
         if name == "check.blind1"
-        else passing(pkg, name),
+        else passing(pkg, name, **kwargs),
     )
     ec.evolve_agentic(rw, {**SEED, "_seed_dir": str(seed)}, "harder")
     assert seen["tests"] == SEED["test_state_py"]
@@ -503,7 +507,7 @@ def test_resume_of_a_blind_rewrite_goes_to_the_author_first(
         _pass(cwd)  # the author's own check against its scratch tests/
         return type("P", (), {"returncode": 0, "stdout": "", "stderr": ""})()
 
-    def check_after_repair(pkg, name="check"):
+    def check_after_repair(pkg, name="check", **kwargs):
         checks.append(name)
         _pass(pkg, stage="oracle")
         return "VERDICT: pass"

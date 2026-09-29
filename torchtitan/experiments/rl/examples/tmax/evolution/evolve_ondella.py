@@ -922,6 +922,9 @@ def handle(
         "oracle_repair",
         "agent_validated",
         "cyber_filtered",
+        "rewrite_budget_sec",
+        "rewrite_deadline_at",
+        "final_validation_reserve_sec",
         "usage",
     ):
         if key in rec:

@@ -158,13 +158,17 @@ with the failure, its `tests/` holding the previous revision's checker again
 so it still never sees the verifier, and fixes the solution, the instruction
 or the environment; if the pair still disagrees, the verifier's author gets
 the new failure and one chance to fix its side. Up to `EVOLVE_REPAIR_ROUNDS`
-iterations (3), and none starts once the rewrite has been open longer than
-one training epoch, measured from the run as rows in the mix over groups per
-step times the median step interval (about 14 h on hip, a few hours on B300s;
-`EVOLVE_REWRITE_BUDGET_SEC` replaces it with a fixed number). A rewrite that
-outlives an epoch lands after the task has been sampled again against the old
-revision, so its measurement is already stale. Past the budget the rewrite is
-discarded and the task goes back to training unchanged.
+iterations (3) fit inside one end-to-end deadline measured from the rewrite's
+timestamp. By default that deadline is one training epoch, measured from the
+run as rows in the mix over groups per step times the median step interval;
+`EVOLVE_REWRITE_BUDGET_SEC` replaces it with a fixed number. Every author,
+verifier, probe, and repair timeout is capped by the time remaining before that
+deadline, with `EVOLVE_FINAL_VALIDATION_RESERVE_SEC` (2400 seconds by default)
+held back for the final Daytona oracle and null probes. The final probes may use
+that reserve but cannot run past the same deadline. A rewrite that outlives an
+epoch lands after the task has been sampled again against the old revision, so
+its measurement is already stale. Past the deadline the rewrite is discarded
+and the task goes back to training unchanged.
 
 ### 6. Revalidation
 
@@ -206,9 +210,9 @@ A structural rewrite that fails its oracle here gets the same repair
 iterations, with the thing the sessions never saw, the real exit code and
 output tail, fed back and the package revalidated after each: the author
 first, then the verifier's author, up to `EVOLVE_REPAIR_ROUNDS` times inside
-the rewrite's budget. About 60% of TerminalWorld hardening rewrites used to
-die at this seam, where the instruction, the solution and the verifier have to
-agree.
+the rewrite's shared deadline and without consuming its final-validation
+reserve. This seam requires the instruction, solution and verifier to agree,
+so failures here are handled as bounded repair attempts.
 
 ### 7. It is folded back into the mix
 

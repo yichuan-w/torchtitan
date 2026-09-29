@@ -475,7 +475,12 @@ def test_round_materializes_r0_handles_the_signal_and_folds_r1(
     if corpus != "tw-extract":
         (root.data / "sources/tw-extract").rename(root.data / "sources" / corpus)
     sid = _signal(root)
-    seen = _stub(monkeypatch)
+    seen = _stub(
+        monkeypatch,
+        rewrite_budget_sec=7200,
+        rewrite_deadline_at=1790000000,
+        final_validation_reserve_sec=2400,
+    )
 
     r = od.run_round(root, workers=1)
 
@@ -502,6 +507,9 @@ def test_round_materializes_r0_handles_the_signal_and_folds_r1(
     assert meta["input_rev"] == 0 and meta["signal"] == sid and meta["job"] == "harder"
     assert "operator" not in meta
     assert meta["resources"]["cpu"] == 2 and meta["verdicts"] == VERDICTS
+    assert meta["rewrite_budget_sec"] == 7200
+    assert meta["rewrite_deadline_at"] == 1790000000
+    assert meta["final_validation_reserve_sec"] == 2400
     assert meta["finished"] >= meta["started"] and meta["sessions"] == []
     # The mix moved to v2 with the row at rev 1, sized from the measurement.
     version, path = root.mix.live_version()

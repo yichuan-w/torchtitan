@@ -539,8 +539,12 @@ What `claude_env.sh` sets and why:
 accepted rewrite against Opus 5's $8.54); `EVOLVE_CODEX_EXTRA_CONFIG` raising the CLI's
 stream and request retries and its idle timeout (a Claude turn can think
 silently for minutes; the default five reconnects a few seconds apart ended
-33% of one batch's sessions); `EVOLVE_AGENT_TIMEOUT=7200` (Claude runs about
-1.8 turns a minute, and the verifier and repair stages take 50-80 turns). The
+33% of one batch's sessions); `EVOLVE_AGENT_TIMEOUT=7200`. This
+is only a per-session ceiling: every author, verifier, and repair shares the
+rewrite's end-to-end `EVOLVE_REWRITE_BUDGET_SEC` deadline, with
+`EVOLVE_FINAL_VALIDATION_RESERVE_SEC` held back for Daytona revalidation. A
+7200-second session therefore needs a rewrite budget large enough to contain
+the session plus that reserve. The
 proxy config caps output at 32,000 tokens (LiteLLM's 4,096 default was eaten
 by thinking on 14% of turns, ending sessions on an empty message), runs one
 worker (uvicorn's multi-worker health check SIGKILLs a worker whose pong

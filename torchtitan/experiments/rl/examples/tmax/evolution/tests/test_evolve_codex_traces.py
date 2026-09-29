@@ -23,6 +23,7 @@ import pytest
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 import evolve_codex as ec
+import rewrite_deadline as rd
 from torchtitan.experiments.rl.examples.tmax import layout, rollout_record
 
 FILES = {
@@ -145,6 +146,47 @@ def _rewrite(tmp_path, monkeypatch, job: str = "harder") -> layout.RewriteDir:
         (rw.package / rel).parent.mkdir(parents=True, exist_ok=True)
         (rw.package / rel).write_text(text)
     return rw
+
+
+def test_author_session_is_capped_before_final_validation_reserve(
+    tmp_path, monkeypatch
+) -> None:
+    rw = _rewrite(tmp_path, monkeypatch)
+    seen = {}
+
+    def fake_session(*args, **kwargs):
+        seen["timeout"] = kwargs["timeout"]
+        return nullcontext(
+            SimpleNamespace(
+                dir=SimpleNamespace(path=tmp_path / "session"),
+                meta={"timeout_sec": kwargs["timeout"]},
+            )
+        )
+
+    def run_codex(run, pkg, prompt):
+        seen["prompt"] = prompt
+        (pkg / "instruction.md").write_text("harder instruction\n")
+        return subprocess.CompletedProcess([], 0, stdout="", stderr="")
+
+    monkeypatch.setattr(rd.time, "time", lambda: 400.0)
+    monkeypatch.setattr(ec, "_require_codex", lambda: None)
+    monkeypatch.setattr(ec, "VERIFIER_AUTHOR", "same")
+    monkeypatch.setattr(ec, "session", fake_session)
+    monkeypatch.setattr(ec, "_run_codex", run_codex)
+    monkeypatch.setattr(ec, "_sandbox_down", lambda pkg: None)
+    monkeypatch.setattr(ec, "_check_verdict", lambda pkg: None)
+    monkeypatch.setattr(ec, "_require_checked", lambda pkg, result=None: None)
+    monkeypatch.setattr(ec, "_agent_checked", lambda pkg: True)
+
+    deadline = rd.RewriteDeadline(
+        started_at=100.0,
+        expires_at=1000.0,
+        final_validation_reserve_sec=200,
+    )
+    ec.evolve_agentic(rw, TASK, "harder", deadline=deadline)
+
+    assert seen["timeout"] == 400
+    assert "6 minutes from now" in seen["prompt"]
 
 
 @pytest.mark.parametrize("has_previous,solved", [(True, 8), (False, 8), (True, 4)])
