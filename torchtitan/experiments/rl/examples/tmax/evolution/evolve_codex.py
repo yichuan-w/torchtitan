@@ -84,16 +84,28 @@ class AgentSessionError(RuntimeError):
         returncode: int,
         stderr_path: Path,
         result: subprocess.CompletedProcess | None = None,
+        detail: str | None = None,
     ) -> None:
         self.agent = agent
         self.failure_type = failure_type
         self.returncode = returncode
         self.stderr_path = stderr_path
         self.result = result
+        self.detail = detail
+        detail_text = f": {detail}" if detail else ""
         super().__init__(
             f"{agent} session failed ({failure_type}, exit {returncode}); "
-            f"see {stderr_path}"
+            f"{agent} exited {returncode}{detail_text}; see {stderr_path}"
         )
+
+
+class AgentValidationError(RuntimeError):
+    """The agent stopped without a usable passing self-check."""
+
+    def __init__(self, failure_type: str, detail: str, *, returncode: int = 0) -> None:
+        self.failure_type = failure_type
+        self.returncode = returncode
+        super().__init__(detail)
 
 
 CYBER_FLAG = "flagged for possible cybersecurity risk"
@@ -784,12 +796,16 @@ Package runtime interface:
     if result.returncode:
         failure_type = _agent_failure_type(result.stdout, result.stderr)
         run.meta["failure_type"] = failure_type
+        errors = [
+            line for line in result.stderr.splitlines() if line.startswith("ERROR:")
+        ]
         raise AgentSessionError(
             agent=EVOLVE_AGENT,
             failure_type=failure_type,
             returncode=result.returncode,
             stderr_path=sd.stderr,
             result=result,
+            detail=errors[-1][:350] if errors else None,
         )
     return result
 
@@ -981,9 +997,10 @@ def _last_check(pkg: Path) -> dict | None:
     if not last:
         return None
     try:
-        return json.loads(last)
+        record = json.loads(last)
     except ValueError:
         return None
+    return record if isinstance(record, dict) else None
 
 
 def _agent_checked(pkg: Path) -> bool:
@@ -994,20 +1011,27 @@ def _agent_checked(pkg: Path) -> bool:
 def _require_checked(
     pkg: Path, result: subprocess.CompletedProcess | None = None
 ) -> None:
-    """AGENTS.md promises that a rewrite which never passed `./sandbox check`
-    is discarded whole. Until this, nothing enforced it: the caller's probe
-    would find out at its own expense. Measured on wd-20260903b, 298 of 299
-    folded sessions had the record anyway, so this bites rarely and keeps the
-    promise true."""
-    if not _agent_checked(pkg):
-        final = (result.stdout or "").strip() if result is not None else None
-        ending = "empty final response; " if final == "" else ""
-        if final == "[System: Empty message content sanitised to satisfy protocol]":
-            ending = "placeholder final response; "
-        raise RuntimeError(
-            ending
-            + "agent finished without a passing ./sandbox check "
-            "(run/checks.jsonl); the rewrite is discarded"
+    """Raise a typed error unless the newest sandbox-check record passes.
+
+    The initial author gets one bounded resume for this error. Other callers
+    are already repair attempts, so they propagate it instead of looping.
+    """
+    check = _last_check(pkg)
+    final = (result.stdout or "").strip() if result is not None else None
+    ending = "empty final response; " if final == "" else ""
+    if final == "[System: Empty message content sanitised to satisfy protocol]":
+        ending = "placeholder final response; "
+    if check is None or "verdict" not in check:
+        raise AgentValidationError(
+            "agent_missing_validation",
+            ending + "agent finished without a readable ./sandbox check result "
+            "in run/checks.jsonl",
+        )
+    if check.get("verdict") != "pass":
+        raise AgentValidationError(
+            "agent_check_failed",
+            ending + "agent's last ./sandbox check did not pass "
+            f"(verdict={check.get('verdict')!r})",
         )
 
 
@@ -1703,6 +1727,18 @@ your first command waits for it.
 
 Confirm with `./sandbox check` before you stop."""
 
+_AGENT_VALIDATION_REPAIR_JOB = """Your previous session stopped without leaving
+a usable passing `./sandbox check` record. The harness observed:
+
+{failure_type}: {problem}
+
+Continue the same rewrite; do not introduce another difficulty change. Inspect
+the files already present, run `./sandbox check`, and repair the existing
+rewrite if that check fails. Do not write `run/checks.jsonl` yourself; the
+sandbox command records the result. Finish only after its newest record has
+`verdict: pass`. If the rewrite cannot satisfy its contract, write
+`GIVE UP: validation failed -- <why>` to `run/verdict.txt` and stop."""
+
 _REPAIR_BLIND_NOTE = """
 
 `tests/` here is the previous revision's checker again, a scratch copy for
@@ -2383,6 +2419,53 @@ def _reconcile_blind(
     )
 
 
+def _repair_agent_validation(
+    rewrite: layout.RewriteDir,
+    prior: layout.SessionDir,
+    pkg: Path,
+    problem: AgentValidationError,
+) -> tuple[SessionRun, subprocess.CompletedProcess, AgentSessionError | None]:
+    """Resume one author once to produce a passing sandbox-check record."""
+    try:
+        sid = _session_id(prior)
+    except RuntimeError as error:
+        raise problem from error
+
+    agent_error = None
+    run = None
+    try:
+        with session(
+            rewrite, "agent-validation", timeout=AGENT_TIMEOUT, resumes=prior
+        ) as run:
+            try:
+                result = _run_codex(
+                    run,
+                    pkg,
+                    _AGENT_VALIDATION_REPAIR_JOB.format(
+                        failure_type=problem.failure_type, problem=problem
+                    )
+                    + _budget(AGENT_TIMEOUT),
+                    resume=sid,
+                )
+            finally:
+                _sandbox_down(pkg)
+    except AgentSessionError as error:
+        assert error.result is not None
+        result, agent_error = error.result, error
+
+    with _checked_output(agent_error):
+        _check_verdict(pkg)
+    try:
+        _require_checked(pkg)
+    except AgentValidationError as error:
+        error.returncode = result.returncode
+        if agent_error is not None:
+            raise error from agent_error
+        raise
+    assert run is not None
+    return run, result, agent_error
+
+
 def evolve_agentic(
     rewrite: layout.RewriteDir,
     task: dict,
@@ -2507,9 +2590,20 @@ def evolve_agentic(
         except AgentSessionError as error:
             assert error.result is not None
             p, agent_error = error.result, error
+        assert run is not None
         with _checked_output(agent_error):
             _check_verdict(pkg)
+        if agent_error is not None and not _agent_checked(pkg):
+            raise agent_error
+        try:
             _require_checked(pkg, p)
+        except AgentValidationError as error:
+            error.returncode = p.returncode
+            run, p, repair_error = _repair_agent_validation(
+                rewrite, run.dir, pkg, error
+            )
+            if repair_error is not None:
+                agent_error = repair_error
         if blind:
             vsession, fmap["test_state_py"], answered = _blind_verifier_answered(
                 rewrite, {**task, "_session": str(run.dir.path)}, fmap

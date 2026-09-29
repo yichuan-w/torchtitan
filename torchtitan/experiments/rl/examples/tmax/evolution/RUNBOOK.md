@@ -405,8 +405,10 @@ Where it leaves things, all under `$TRL_BASE` and all specified in
   container's log and the agent's own verdicts; on `accepted` it is renamed to `r<N+1>/`
   with the harness files removed, so an accepted rewrite has no `package/` and a rejected
   or failed one keeps it. `sessions/<stamp>--<kind>/` is one codex invocation each
-  (`agent`, `repair`, `verifier`, `oracle`): `session.json`, `prompt.md`, `stdout.txt`,
-  `stderr.txt`, and the CLI's own session jsonl under `codex/`.
+  (`agent`, `agent-validation`, `repair`, `verifier`, `oracle`): `session.json`,
+  `prompt.md`, `stdout.txt`, `stderr.txt`, and the CLI's own session jsonl under
+  `codex/`. `agent-validation` is the one bounded resume used when the initial
+  author stops without a passing `./sandbox check` record.
 - **A task's whole history** is its directory: `lineage.jsonl` (`rewrite` and `fold`
   events; the `fold` line is the only record of a revision entering the mix, keyed by
   `mix_version`) and the accepted revisions `r0/` (the seed, copied from
