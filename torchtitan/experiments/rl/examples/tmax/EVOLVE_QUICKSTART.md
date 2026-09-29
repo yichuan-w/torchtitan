@@ -11,7 +11,7 @@ What happens to one task between signal and fold is in
 [`EVOLVE_LOOP.md`](EVOLVE_LOOP.md); the on-disk contract is
 [`LAYOUT.md`](LAYOUT.md).
 
-## 1. Data: the published TMax release
+## 1. Data: the published agentpick release
 
 Seed a new root from the published release. It carries the mix rows and the
 source package of every task, and the loop needs both: a task's first rewrite
@@ -21,36 +21,57 @@ its sources stops every rewrite at `NoSeed`.
 ```bash
 python torchtitan/experiments/rl/examples/tmax/evolution/data_release.py fetch \
     --repo andylizf/TerminalWorld-Seeds-Clean \
-    --revision ef0a100cd93cd2ecd316adb30eb3819ec3f37201 \
-    --release-sha256 3d0f1eedc6e68c15e67b67cd8a59c2d763de0c8efa19d4f002083ff7cc17c328 \
+    --revision 05ae8e94386dacbda45d94c876c4510e1b34fe3b \
+    --release-sha256 3c67194ede7c8a88dee4e21b42ad39c9b5365bcf70868c60f599e32d717c8876 \
     --out ./release
+python torchtitan/experiments/rl/examples/tmax/new_root.py \
+    --base <root> --data-release ./release \
+    --bin <dir holding codex and jq> --purpose "<one line>"
 ```
 
-`release/mix.jsonl` holds 1,748 rows: 431 TMax tasks from the `longlongcheck`
-split (the repaired reaudit tasks published 2026-09-14) and 1,317 SWE-Rebench
-tasks. For a TMax-only run, keep the rows whose `metadata.corpus` is `tmax`
-and link only that source:
+The release is all of `Fzz1/tb-training-mix-agentpick` at `6e3e6c8a`, built by
+`evolution/data_agentpick.json`: 802 rows in four sources, one per split.
+
+| source | rows | reference solution |
+|---|---:|---|
+| `agentpick-clean` | 341 | all |
+| `agentpick-repair` | 170 | 84; 86 TMax tasks have none |
+| `agentpick-calibforge-clean` | 240 | all |
+| `agentpick-calibforge-repair` | 51 | 33; 18 have none |
+
+The 104 tasks without one are tasks no model has solved. They train like any
+other row, and the loop's first easier rewrite of each writes its
+`solution/solve.sh` (`EVOLVE_LOOP.md`, step 2).
+
+To train on a subset, filter the mix and link every source; the loop looks a
+task up in whichever source holds it. Dropping SWE-Smith, for example, leaves
+765 rows:
 
 ```bash
 python - <<'EOF'
 import json
-rows = [l for l in open("release/mix.jsonl") if json.loads(l)["metadata"]["corpus"] == "tmax"]
-open("release/mix_tmax.jsonl", "w").writelines(rows)
+import pyarrow.parquet as pq
+drop = {
+    r["task_id"]
+    for r in pq.read_table("release/sources/agentpick-clean/metadata.parquet").to_pylist()
+    if r["corpus"] == "swe_smith"
+}
+rows = [l for l in open("release/mix.jsonl") if json.loads(l)["label"] not in drop]
+open("release/mix_noswesmith.jsonl", "w").writelines(rows)
 print(len(rows))
 EOF
 python torchtitan/experiments/rl/examples/tmax/new_root.py \
-    --base <root> --mix release/mix_tmax.jsonl --sources release/sources/tmax \
+    --base <root> --mix release/mix_noswesmith.jsonl --sources release/sources/* \
     --bin <dir holding codex and jq> --purpose "<one line>"
 ```
 
-For both corpora, `new_root.py --base <root> --data-release ./release` does the
-same in one step. Keep `./release` where it is: the root links its source
-directories rather than copying them. The TMax images in this release have not
-been built before, so probe a few packages with `daytona_revalidate.py` before
-committing a run to them ([`README_SEED_DATA.md`](README_SEED_DATA.md),
-section 4).
+Keep `./release` where it is: the root links its source directories rather
+than copying them. On della it is already fetched at
+`/scratch/gpfs/TRIDAO/al9080/terminal-rl/data/agentpick-release/releases/3c67194ede7c8a88dee4e21b42ad39c9b5365bcf70868c60f599e32d717c8876`.
+The SWE-Rebench + TMax `longlongcheck` release is under "Short path" in
+[`README_SEED_DATA.md`](README_SEED_DATA.md) section 4.
 
-TMax longlongcheck packages carry `solution/gpt6_actions.json` instead of
+TMax and CalibForge packages carry `solution/gpt6_actions.json` instead of
 `solution/solve.sh`. Evolution reads and edits that action list, and both
 `./sandbox oracle` and `daytona_revalidate.py` replay it through Terminus in one
 persistent terminal. Replay preserves recorded turn offsets, keystrokes, waits
