@@ -107,12 +107,19 @@ uv pip install --python "$TRL_VENV/bin/python" \
     --index-strategy unsafe-best-match \
     --extra-index-url https://download.pytorch.org/whl/nightly/cu130
 
-# 3. Model and data. The root is created from the seed mix, which becomes
-#    data/mix/history/v0001--<stamp>.jsonl with live.jsonl a hardlink to it.
+# 3. Model and data. The data is the published agentpick release: 802 tasks
+#    with their source packages (EVOLVE_QUICKSTART.md section 1 has subsets;
+#    section 4 below builds a mix of your own). The root is created from its
+#    mix, which becomes data/mix/history/v0001--<stamp>.jsonl with live.jsonl a
+#    hardlink to it. The root links the release's sources: keep the release.
 hf download Qwen/Qwen3.5-9B --local-dir "$TRL_MODEL"
-# ... build the task JSONL, see section 4 ...
+"$TRL_VENV/bin/python" "$TRL_TT/torchtitan/experiments/rl/examples/tmax/evolution/data_release.py" fetch \
+    --repo andylizf/TerminalWorld-Seeds-Clean \
+    --revision 05ae8e94386dacbda45d94c876c4510e1b34fe3b \
+    --release-sha256 3c67194ede7c8a88dee4e21b42ad39c9b5365bcf70868c60f599e32d717c8876 \
+    --out "$TRL_BASE.release"
 "$TRL_VENV/bin/python" "$TRL_TT/torchtitan/experiments/rl/examples/tmax/new_root.py" \
-    --base "$TRL_BASE" --mix /path/to/mix.jsonl --sources /path/to/tw-extract \
+    --base "$TRL_BASE" --data-release "$TRL_BASE.release" \
     --bin /path/to/bin --purpose "..."          # bin holds codex and jq
 
 # 4. Credentials, then launch.
