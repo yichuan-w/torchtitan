@@ -46,7 +46,9 @@ solution is the row's `solution` column, a recorded action list. The
 file longlongcheck packages carry, because evolution reads the solution from the
 package only. The training row does not change. A source with
 `"skip_unsolved": true` leaves out every task that ends up with no reference
-solution; the two repair splits set it, which drops 104 of their 221 rows.
+solution. `data_agentpick.json` does not set it: its 104 unsolved repair rows
+are imported without one, and the evolution loop's first easier rewrite of each
+writes it (`EVOLVE_LOOP.md`, step 2).
 
 When an upstream snapshot includes `metadata/cache_manifest.jsonl`, preparation
 downloads and verifies the listed offline cache archives at the same commit. Tasks

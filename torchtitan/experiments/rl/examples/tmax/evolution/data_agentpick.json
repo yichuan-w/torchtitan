@@ -21,8 +21,7 @@
       "archives": [
         "data/tasks-repair.tar"
       ],
-      "count": null,
-      "skip_unsolved": true
+      "count": null
     },
     {
       "name": "agentpick-calibforge-clean",
@@ -44,8 +43,7 @@
       "archives": [
         "data/tasks-calibforge_repair.tar"
       ],
-      "count": null,
-      "skip_unsolved": true
+      "count": null
     }
   ]
 }

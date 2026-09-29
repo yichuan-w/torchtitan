@@ -690,6 +690,13 @@ def process_one(
         import evolve_codex as ec  # noqa: PLC0415 -- faked in tests
 
         task = ev.load(work)
+        if task.get("_unsolved") and job != "easier":
+            return _done(
+                rec,
+                "failed",
+                stage="unsolved",
+                reason="no reference solution; only an easier rewrite writes one",
+            )
         task["_task_id"] = tid
         task["_seed_dir"] = str(seed_dir)
         task["_solved"], task["_attempts"] = solved, graded

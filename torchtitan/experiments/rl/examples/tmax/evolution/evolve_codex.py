@@ -1589,6 +1589,13 @@ _EASIER_JOB = """This task was solved {solved} of {attempts} attempts.
 Diagnose the attempts and reduce one obstacle while retaining a stated skill.
 {guidance}"""
 
+_UNSOLVED_NOTE = """
+
+This task has no reference solution: no model has solved it yet. Write
+`solution/solve.sh` first, a script that does the work the instruction asks for
+in this environment, and get `./sandbox oracle` to pass with it before you
+simplify anything. The simplified task must still pass with it."""
+
 _REPAIR_JOB = """Your rewrite did not survive the caller's check. It rebuilt the
 package from scratch, ran `solution/solve.sh` against the verifier (exit
 {exit_code}) and audited what the verifier demands against what an agent can
@@ -2351,7 +2358,8 @@ def evolve_agentic(
                 solved=solved,
                 attempts=attempts_n,
                 guidance=so.prompt(task.get("_simplify_hint", "vague")),
-            ),
+            )
+            + (_UNSOLVED_NOTE if task.get("_unsolved") else ""),
             "repair": _REPAIR_JOB.format(exit_code=exit_code),
             "repair_spec": _SPEC_REPAIR_JOB,
         }[job]

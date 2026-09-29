@@ -91,6 +91,18 @@ def test_shell_solution_keeps_precedence(tmp_path):
     assert task_size.size_of_package(src, "tests/test.sh")["solution_lines"] == 1
 
 
+def test_unsolved_package_loads_with_an_empty_shell_solution(tmp_path):
+    src = package(tmp_path / "src")
+    (src / ACTION_PATH).unlink()
+    task = evolve.load(src)
+    assert task["_unsolved"] and task["solve_sh"] == ""
+    assert evolve.file_map(task)["solve_sh"] == "solution/solve.sh"
+    assert task_size.size_of_package(src, "tests/test.sh")["solution_lines"] == 0
+    task["solve_sh"] = "echo answer > /answer\n"
+    dest = evolve.save(task, tmp_path / "rewritten")
+    assert not evolve.load(dest).get("_unsolved")
+
+
 def test_replay_preserves_turns_keys_waits_and_two_submissions(monkeypatch):
     from harbor.agents.terminus_2.terminus_json_plain_parser import (
         TerminusJSONPlainParser,

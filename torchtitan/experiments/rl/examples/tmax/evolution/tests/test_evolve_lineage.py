@@ -670,6 +670,34 @@ def test_a_deferred_signal_stays_deferred_when_the_switch_is_turned_on(
     assert r["handled"] == 1 and seen[0]["job"] == "easier"
 
 
+def test_an_unsolved_task_is_simplified_with_the_switch_off(
+    tmp_path, monkeypatch
+) -> None:
+    """A task nobody has solved has no reference solution; its easier rewrite
+    writes one, so its signal is not deferred."""
+    root = _root(tmp_path, monkeypatch)
+    (root.data / "sources/tw-extract/tasks/tw_a/solution/solve.sh").unlink()
+    _signal(root, direction="easier")
+    seen = _stub(monkeypatch)
+    monkeypatch.setattr(od, "SIMPLIFY_ENABLED", False)
+
+    r = od.run_round(root, workers=1)
+    assert r["handled"] == 1 and r["deferred"] == 0
+    assert seen[0]["job"] == "easier"
+
+
+def test_an_unsolved_task_is_not_hardened(tmp_path, monkeypatch) -> None:
+    root = _root(tmp_path, monkeypatch)
+    (root.data / "sources/tw-extract/tasks/tw_a/solution/solve.sh").unlink()
+    _signal(root, direction="harder")
+
+    assert od.run_round(root, workers=1)["handled"] == 1
+    (rewrite,) = root.evolution.task("tw_a").path.glob("rewrites/*/rewrite.json")
+    record = json.loads(rewrite.read_text())
+    assert record["status"] == "failed" and record["stage"] == "unsolved"
+    assert not root.evolution.task("tw_a").rev(1).exists()
+
+
 def test_one_signal_per_task_the_newest_at_the_current_rev(
     tmp_path, monkeypatch
 ) -> None:

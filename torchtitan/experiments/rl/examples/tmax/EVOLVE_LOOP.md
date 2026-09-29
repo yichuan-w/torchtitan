@@ -90,6 +90,12 @@ produces from then on and not the backlog: those signals measured revisions the
 pool has since moved past, and the revision check would supersede most of them
 anyway.
 
+The exception is a task with no reference solution, which some corpora ship
+because no model solved it. Its easier signal runs whatever the switch says:
+the easier rewrite is the one that writes its `solution/solve.sh`, told so in
+its prompt, and the oracle gate then holds that solution to the task. Such a
+task never takes a harder rewrite; that one fails with stage `unsolved`.
+
 ### 3. It gets a working directory
 
 Everything after this happens inside that directory. Nothing already on disk is

@@ -73,6 +73,7 @@ import evolve_codex as ec  # noqa: E402
 import feedback_loop as fb  # noqa: E402
 from finalize_interrupted_traces import finalize_interrupted  # noqa: E402
 import pack_to_dataset as pack  # noqa: E402
+from recorded_solution import solution_path  # noqa: E402
 from torchtitan.experiments.rl.examples.tmax import layout  # noqa: E402
 from torchtitan.experiments.rl.examples.tmax.evolution_metrics import record_outcome  # noqa: E402
 
@@ -595,6 +596,29 @@ def choose(
 # --------------------------------------------------------------------------
 # Handling one signal
 # --------------------------------------------------------------------------
+
+
+def unsolved(root: layout.Root, tid: str, rev: int) -> bool:
+    """Whether the revision a signal measured has no reference solution. Its
+    easier rewrite is what writes one, so that signal runs with the easier
+    direction off too."""
+    src = root.evolution.task(tid).rev(rev)
+    if not src.exists() and rev == 0:
+        sources = root.data / "sources"
+        seeds = (
+            [corpus / "tasks" / tid for corpus in sources.iterdir()]
+            if sources.is_dir()
+            else []
+        )
+        seeds = [p for p in seeds if (p / "instruction.md").is_file()]
+        if len(seeds) != 1:
+            return False  # materialize_r0 reports it
+        src = seeds[0]
+    try:
+        solution_path(src)
+    except FileNotFoundError:
+        return True
+    return False
 
 
 def materialize_r0(root: layout.Root, task: layout.TaskDir, tid: str) -> Path:
@@ -1237,7 +1261,12 @@ def select_work(
 
     todo, deferred = [], []
     for s in picks:
-        if s.data["direction"] == "easier" and not SIMPLIFY_ENABLED and not signal:
+        if (
+            s.data["direction"] == "easier"
+            and not SIMPLIFY_ENABLED
+            and not signal
+            and not unsolved(root, s.task, int(s.data["rev"]))
+        ):
             deferred.append(s)
         else:
             todo.append(s)

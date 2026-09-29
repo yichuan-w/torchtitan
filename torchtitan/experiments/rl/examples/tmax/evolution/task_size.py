@@ -51,7 +51,7 @@ import ast
 import re
 from pathlib import Path
 
-from recorded_solution import ACTION_PATH, action_lines, solution_path
+from recorded_solution import ACTION_PATH, SHELL_PATH, action_lines, solution_path
 
 MIN_ADDED = 3
 MAX_ADDED = 8
@@ -133,7 +133,10 @@ def size_of(
 
 def size_of_package(pkg: Path, verifier_rel: str) -> dict:
     kind = "python" if verifier_rel.endswith(".py") else "shell"
-    srel = solution_path(pkg)
+    try:
+        srel = solution_path(pkg)
+    except FileNotFoundError:
+        srel = SHELL_PATH  # not solved yet: an empty solution
     return size_of(
         _read(pkg / srel),
         _read(pkg / verifier_rel),
