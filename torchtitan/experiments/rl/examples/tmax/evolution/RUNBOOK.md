@@ -266,6 +266,13 @@ to `0`: 0/k signals are ledgered as `deferred`. Export `SWE_EVOLVE_SIMPLIFY=1` b
 in `evolution/loop.env` after launch. Enabling the arm does not establish that its
 rewrites improve student outcomes. The codex arm runs
 `$TRL_BASE/bin/codex`, with `jq` beside it on the agent's PATH for reading the records.
+When the root is remote storage, set `EVOLVE_WORK_ROOT` to an absolute node-local
+directory. The loop then copies the input, rollout records, active rewrite tree,
+session homes, and pinned tools there. Only a completed rewrite is copied back,
+through a hidden incoming directory followed by one rename. A failed publication
+does not close the signal and leaves the local workspace for recovery. Confirm the
+path is on the intended mount with `findmnt -T "$EVOLVE_WORK_ROOT"`; a different
+pathname on the same FUSE mount provides no isolation.
 The worker count is not a throughput knob: the loop is signal-starved (89% of rounds carry
 ≤8 signals) and it only drains rare bursts faster.
 

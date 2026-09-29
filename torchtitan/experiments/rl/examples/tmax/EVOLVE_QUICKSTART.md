@@ -127,6 +127,7 @@ own is revalidated at that size.
 | `SWE_RETUNE_AGENT` | `codex` | The rewrite runs as a Codex CLI session over the package and the group's rollout records. `claude` runs the same session with Claude Code; `EVOLVE_CLAUDE_MODEL` (default `opus`) selects its model. Only `codex` and `claude` are supported. |
 | `EVOLVE_REPAIR_ROUNDS` | `3` (default) | When the reference solution and the verifier disagree, or the caller's revalidation fails, the author's session repairs first and the verifier's session second; that pair is one iteration, and this is how many are tried before the rewrite is discarded. |
 | `EVOLVE_REWRITE_BUDGET_SEC` | unset (default) | No repair iteration starts once the rewrite has been open longer than one training epoch, which the loop measures from the run: rows in the mix over groups per step, times the median step interval (`rewrite budget …` in `loop.log` shows the number). Set this to a number of seconds to use a fixed budget instead. |
+| `EVOLVE_WORK_ROOT` | unset (in-place execution) | An absolute node-local directory for active rewrites. When set, the loop copies the input revision, rollout records, and pinned CLI tools there; Codex, hooks, sandbox commands, probes, and session logging stay local. A completed rewrite is copied to a hidden incoming directory under `TRL_BASE` and renamed into place before its signal can be closed. Use this when `TRL_BASE` is on FUSE or other remote storage. Do not point it inside `TRL_BASE`; allow enough space for `--workers` simultaneous task copies. |
 | `--workers` | `16` (default `8`) | Concurrent rewrites in a round. The loop is signal-starved most of the time; workers only drain a burst faster. |
 | `--interval` | `120` | Seconds between rounds. |
 
@@ -140,6 +141,14 @@ of a run, when the first group finishes alone.
 `evolve_hip.sh dry` on hip, runs one round that handles and publishes nothing,
 and is the check that the paths, the key and the model all resolve before the
 unit is started.
+
+For a durable root on a FUSE-backed remote filesystem, set a genuinely
+node-local path before starting the loop, for example
+`EVOLVE_WORK_ROOT=/tmp/$USER/tmax-evolution`.
+Confirm its mount with `findmnt -T "$EVOLVE_WORK_ROOT"`; using another path on
+the same remote filesystem does not isolate the agent. If the final copy back
+to `TRL_BASE` fails, the signal remains pending and the completed local
+workspace is retained at the path printed in `loop.log`.
 
 ## 4. Readouts while it runs
 

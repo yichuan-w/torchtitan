@@ -74,6 +74,7 @@ import feedback_loop as fb  # noqa: E402
 from finalize_interrupted_traces import finalize_interrupted  # noqa: E402
 import pack_to_dataset as pack  # noqa: E402
 from recorded_solution import solution_path  # noqa: E402
+import rewrite_workspace as rw_workspace  # noqa: E402
 from torchtitan.experiments.rl.examples.tmax import layout  # noqa: E402
 from torchtitan.experiments.rl.examples.tmax.evolution_metrics import record_outcome  # noqa: E402
 
@@ -239,7 +240,13 @@ def _package_diff(before: Path, after: Path) -> str:
     return "".join(out)
 
 
-def _write_history(root: layout.Root, task: layout.TaskDir, rewrite: layout.RewriteDir) -> int:
+def _write_history(
+    root: layout.Root,
+    task: layout.TaskDir,
+    rewrite: layout.RewriteDir,
+    *,
+    strict_storage: bool = False,
+) -> int:
     """Every earlier rewrite of this task, for the agent rewriting it now.
 
     traces/history/summary.md is the page to read first: each earlier rewrite,
@@ -260,7 +267,12 @@ def _write_history(root: layout.Root, task: layout.TaskDir, rewrite: layout.Rewr
             continue
         try:
             meta = json.loads(earlier.meta.read_text())
-        except (OSError, ValueError):
+        except OSError:
+            if strict_storage:
+                raise
+            log.warning("%s unreadable earlier rewrite: %s", task.task_id, earlier.meta)
+            continue
+        except ValueError:
             log.warning("%s unreadable earlier rewrite: %s", task.task_id, earlier.meta)
             continue
         name = earlier.path.name
@@ -725,8 +737,11 @@ def handle(
                 f"r{rev} does not exist under {task.path.relative_to(root.path)}"
             )
         src = materialize_r0(root, task, tid)
-    rewrite = _new_rewrite_dir(task, job)
-    rewrite.path.mkdir(parents=True)
+    durable_rewrite = _new_rewrite_dir(task, job)
+    workspace = rw_workspace.prepare_rewrite(root, durable_rewrite, src)
+    rewrite = workspace.active
+    if workspace.is_local:
+        log.info("%s active rewrite workspace: %s", tid, rewrite.path)
     meta = {
         "task": tid,
         "job": job,
@@ -740,6 +755,7 @@ def handle(
         "resources": None,
         "result_rev": None,
         "sessions": [],
+        "execution_storage": "node_local" if workspace.is_local else "durable",
     }
     if dry:
         meta["dry"] = True
@@ -756,14 +772,17 @@ def handle(
             protected_paths=lists.paths if lists else None,
             protected_cmds=lists.cmds if lists else None,
         )
+    processing_started = False
     try:
-        shutil.copytree(src, rewrite.package)
+        workspace.stage_source(src, ignore=SEED_IGNORE)
         run_dir = root.run(str(d["run"])).path
         for i, rel in enumerate(d["attempts"], 1):
-            layout.link_or_copy(
+            workspace.copy_input(
                 run_dir / rel, rewrite.traces / f"attempt-{i:02d}.jsonl"
             )
-        n_history = _write_history(root, task, rewrite)
+        n_history = _write_history(
+            root, task, rewrite, strict_storage=workspace.is_local
+        )
         if n_history:
             log.info("%s history: %d earlier rewrites in traces/history", tid, n_history)
         parent_snapshot = None
@@ -773,7 +792,12 @@ def handle(
         for previous in task.rewrite_dirs():
             try:
                 previous_meta = json.loads(previous.meta.read_text())
-            except (OSError, ValueError):
+            except OSError:
+                if workspace.is_local:
+                    raise
+                log.warning("%s unreadable prior rewrite: %s", tid, previous.meta)
+                continue
+            except ValueError:
                 # An interrupted historical rewrite must not stop this signal.
                 log.warning("%s unreadable prior rewrite: %s", tid, previous.meta)
                 continue
@@ -794,7 +818,9 @@ def handle(
             ):
                 parent_snapshot = rewrite.traces / "previous-simplify-parent"
                 # A hardlink would let edits to the reference change the original revision.
-                shutil.copytree(task.rev(context["input_rev"]), parent_snapshot)
+                workspace.copy_input_tree(
+                    task.rev(context["input_rev"]), parent_snapshot
+                )
                 parent_hashes = {
                     str(path.relative_to(parent_snapshot)): layout.sha256_file(path)
                     for path in sorted(parent_snapshot.rglob("*"))
@@ -819,11 +845,12 @@ def handle(
                 )
                 break
         _attach_student_feedback(d, task, job=job, rev=rev)
+        processing_started = True
         rec = fb.process_one(
             rewrite,
             d,
             job=job,
-            seed_dir=src,
+            seed_dir=workspace.seed_dir,
             resources=training_box(tid, declared),
         )
         if parent_snapshot is not None:
@@ -855,6 +882,21 @@ def handle(
                 }
             )
             rec["simplify_context"] = context
+    except rw_workspace.WorkspaceTransferError:
+        # A storage outage is retryable infrastructure failure. Do not publish
+        # a failed rewrite or close the signal; retain the local workspace.
+        raise
+    except OSError as e:
+        if workspace.is_local and not processing_started:
+            raise rw_workspace.WorkspaceTransferError(
+                f"could not stage durable inputs for {tid}; local rewrite left "
+                f"at {rewrite.path}: {e}"
+            ) from e
+        rec = {
+            "status": "failed",
+            "stage": "setup",
+            "reason": f"{type(e).__name__}: {e}"[:300],
+        }
     except Exception as e:  # noqa: BLE001 -- the rewrite records its own failure
         rec = {
             "status": "failed",
@@ -893,6 +935,8 @@ def handle(
         meta["status"] = status
         meta["finished"] = layout.stamp()
     layout.write_json_atomic(rewrite.meta, meta)
+    rewrite = workspace.publish()
+    workspace.cleanup()
     return {"signal": sig, "rewrite": rewrite, "meta": meta, "status": status}
 
 
@@ -1327,6 +1371,12 @@ def run_round(
     if not todo:
         return result
 
+    # Freeze the epoch-derived repair budget for this round before its workers
+    # enter node-local workspaces. The repair loops can then consult the cache
+    # without reading the remote mix or trainer logs mid-session.
+    if rw_workspace.configured_root(root) is not None:
+        ec.rewrite_budget_sec(root, refresh=True)
+
     # What box training gives each task and which pin hook it grades under,
     # from the mix the trainer reads. The mix is 12 MB on GPFS, so this is read when work is
     # about to be submitted rather than per completion -- and re-read then,
@@ -1490,6 +1540,9 @@ def main() -> None:
     )
     args = ap.parse_args()
     root = layout.Root.from_env()
+    tool_bin = rw_workspace.prepare_tool_bin(root)
+    if tool_bin != root.bin:
+        os.environ[rw_workspace.TOOL_BIN_ENV] = str(tool_bin)
     # Before the log file is even opened: a refused second instance must not
     # write "loop up" into the log the first one owns.
     _lock_fd = acquire_singleton(
@@ -1504,6 +1557,14 @@ def main() -> None:
         # every record to the same file a second time.
         handlers=[logging.FileHandler(root.evolution.loop_log)],
     )
+    if work_root := rw_workspace.configured_root(root):
+        log.info(
+            "active rewrites use node-local storage at %s; completed records "
+            "publish to %s",
+            work_root,
+            root.evolution.path,
+        )
+        log.info("agent tools staged at %s", tool_bin)
     if not (args.dry or args.signal):
         # The singleton lock excludes another live loop before orphaned rewrites
         # are marked. The earlier loop may have exited before restart_evolve.sh

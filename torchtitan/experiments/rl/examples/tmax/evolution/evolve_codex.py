@@ -175,8 +175,9 @@ SCAFFOLD = {"AGENTS.md", "sandbox"}
 
 
 def _tool_bin() -> Path:
-    """``$TRL_BASE/bin``: codex and jq. A path is a convention, not a setting."""
-    return layout.Root.from_env().bin
+    """The pinned codex and jq directory, staged locally when configured."""
+    override = os.environ.get("EVOLVE_TOOL_BIN")
+    return Path(override) if override else layout.Root.from_env().bin
 
 
 def _codex_bin() -> Path:
@@ -1378,7 +1379,9 @@ def _step_starts(run_dir: Path) -> list[float]:
     return [first[k] for k in sorted(first)]
 
 
-def rewrite_budget_sec(root: "layout.Root | None" = None) -> float:
+def rewrite_budget_sec(
+    root: "layout.Root | None" = None, *, refresh: bool = False
+) -> float:
     """Seconds a rewrite may stay open before no further repair iteration
     starts: one epoch of the run this root is training, recomputed every ten
     minutes from the newest run's step cadence."""
@@ -1386,7 +1389,12 @@ def rewrite_budget_sec(root: "layout.Root | None" = None) -> float:
     if fixed:
         return float(fixed)
     now = time.monotonic()
-    if now - _budget_cache["at"] < 600 and _budget_cache["sec"]:
+    # A node-local round snapshots this with an explicit root before it starts
+    # workers. Calls from an active rewrite pass no root and must use that
+    # snapshot rather than returning to remote storage mid-session.
+    if not refresh and _budget_cache["sec"] and (
+        root is None or now - _budget_cache["at"] < 600
+    ):
         return _budget_cache["sec"]
     root = root or layout.Root.from_env()
     rows = sum(1 for line in root.mix.live.open() if line.strip()) if root.mix.live.exists() else 0

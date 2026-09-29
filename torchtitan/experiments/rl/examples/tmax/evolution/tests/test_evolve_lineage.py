@@ -26,6 +26,7 @@ import pytest
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 import evolve_ondella as od
+import rewrite_workspace as rw_workspace
 from torchtitan.experiments.rl.examples.tmax import layout, rollout_record
 
 SEED = {
@@ -552,6 +553,100 @@ def test_round_materializes_r0_handles_the_signal_and_folds_r1(
     # A second round finds nothing: the ledger closed the signal.
     assert od.run_round(root, workers=1)["reason"] == "no signals"
     assert len(seen) == 1
+
+
+def test_node_local_rewrite_is_published_only_after_processing(
+    tmp_path, monkeypatch
+) -> None:
+    root = _root(tmp_path, monkeypatch)
+    _signal(root)
+    work_root = tmp_path / "node-local"
+    monkeypatch.setenv("EVOLVE_WORK_ROOT", str(work_root))
+    seen = _stub(monkeypatch)
+    process_one = od.fb.process_one
+    active_paths = {}
+
+    def check_local(rewrite, signal, *, job, seed_dir, resources=None):
+        assert rewrite.path.is_relative_to(work_root)
+        assert seed_dir.is_relative_to(work_root)
+        trace = rewrite.traces / "attempt-01.jsonl"
+        source = root.run(RUN).rollout_record("tw_a", 7, 0)
+        assert trace.read_bytes() == source.read_bytes()
+        assert trace.stat().st_ino != source.stat().st_ino
+        session = rewrite.session("agent", "20260904-190000Z")
+        session.path.mkdir(parents=True)
+        session.stderr.write_text("local session log\n")
+        active_paths.update(rewrite=rewrite.path, seed=seed_dir)
+        return process_one(
+            rewrite, signal, job=job, seed_dir=seed_dir, resources=resources
+        )
+
+    monkeypatch.setattr(od.fb, "process_one", check_local)
+
+    result = od.run_round(root, workers=1)
+
+    assert result["accepted"] == 1
+    durable = root.evolution.task("tw_a").rewrite_dirs()[0]
+    meta = json.loads(durable.meta.read_text())
+    assert meta["status"] == "accepted"
+    assert meta["execution_storage"] == "node_local"
+    assert meta["sessions"] == ["sessions/20260904-190000Z--agent"]
+    assert (
+        durable.session("agent", "20260904-190000Z").stderr.read_text()
+        == "local session log\n"
+    )
+    assert not active_paths["rewrite"].exists()
+    assert not active_paths["seed"].exists()
+    assert seen[0]["seed_dir"] == active_paths["seed"]
+
+
+def test_publish_failure_preserves_local_rewrite_and_leaves_signal_pending(
+    tmp_path, monkeypatch
+) -> None:
+    root = _root(tmp_path, monkeypatch)
+    sid = _signal(root)
+    work_root = tmp_path / "node-local"
+    monkeypatch.setenv("EVOLVE_WORK_ROOT", str(work_root))
+    _stub(monkeypatch)
+
+    def fail_publish(workspace):
+        raise rw_workspace.WorkspaceTransferError("durable storage unavailable")
+
+    monkeypatch.setattr(rw_workspace.RewriteWorkspace, "publish", fail_publish)
+
+    result = od.run_round(root, workers=1)
+
+    assert result["handled"] == 0
+    assert root.mix.live_version()[0] == 1
+    assert _ledger(root) == []
+    assert root.evolution.task("tw_a").rewrite_dirs() == []
+    records = list(work_root.rglob("rewrite.json"))
+    assert len(records) == 1
+    assert json.loads(records[0].read_text())["execution_storage"] == "node_local"
+    assert sid in {signal.sid for signal in od.discover(root, od.load_ledger(root))}
+
+
+def test_node_local_tool_copy_is_content_addressed(tmp_path, monkeypatch) -> None:
+    root = _root(tmp_path, monkeypatch)
+    monkeypatch.setenv("EVOLVE_WORK_ROOT", str(tmp_path / "node-local"))
+    monkeypatch.delenv("EVOLVE_TOOL_BIN", raising=False)
+    root.bin.mkdir()
+    for name, content in (("codex", "codex-v1\n"), ("jq", "jq-v1\n")):
+        tool = root.bin / name
+        tool.write_text(content)
+        tool.chmod(0o755)
+
+    first = rw_workspace.prepare_tool_bin(root)
+    again = rw_workspace.prepare_tool_bin(root)
+
+    assert first == again
+    assert first.is_relative_to(tmp_path / "node-local")
+    assert (first / "codex").read_text() == "codex-v1\n"
+    assert (first / "codex").stat().st_ino != (root.bin / "codex").stat().st_ino
+    (root.bin / "codex").write_text("codex-v2\n")
+    second = rw_workspace.prepare_tool_bin(root)
+    assert second != first
+    assert (second / "codex").read_text() == "codex-v2\n"
 
 
 def test_rejected_rewrite_keeps_its_package_and_its_hardlinked_traces(
