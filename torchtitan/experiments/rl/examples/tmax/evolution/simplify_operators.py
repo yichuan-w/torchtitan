@@ -220,8 +220,15 @@ def read_decision(pkg: Path, hint: str) -> dict:
             or not observation.strip()
         ):
             raise ValueError("evidence requires a turn and observation")
-        with (pkg / "traces" / name).open() as stream:
+        path = pkg / "traces" / name
+        if not path.is_file() and (pkg / "traces" / f"{name}.jsonl").is_file():
+            # "attempt-01" names attempt-01.jsonl and nothing else.
+            path = pkg / "traces" / f"{name}.jsonl"
+            item["attempt"] = path.name
+        if not path.is_file():
+            raise ValueError(f"evidence names no file in traces/: {name}")
+        with path.open() as stream:
             records = [json.loads(line) for line in stream if line.strip()]
         if not any(record.get("turn") == turn for record in records):
-            raise ValueError(f"evidence turn absent: {name}:{turn}")
+            raise ValueError(f"evidence turn absent: {path.name}:{turn}")
     return decision
