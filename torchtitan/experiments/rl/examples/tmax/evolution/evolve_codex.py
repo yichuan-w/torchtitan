@@ -1872,6 +1872,46 @@ Change nothing else: the verifier itself, the task and the other controls stay
 as they are."""
 
 
+_DECLARATION_JOB = """The caller cannot accept `run/simplify.json`: {problem}.
+
+Each evidence item names an attempt file in `traces/` by its basename (for
+example `attempt-03.jsonl`) and a turn that file records; turns start at 1,
+and the first line of a file is the attempt's summary, not a turn. Correct the
+declaration so every field and every evidence location is valid, keeping the
+diagnosis it states. Change nothing else: the task, the reference solution and
+the environment stay as they are, and your last `./sandbox check` still stands."""
+
+
+def _require_declaration(
+    rewrite: layout.RewriteDir, author: layout.SessionDir, hint: str
+) -> None:
+    """Check a simplify author's declaration while its session can still fix it.
+
+    read_decision used to run only after the blind verifier, the probes and the
+    reconciling check, so a declaration naming `attempt-01` or a turn the file
+    does not hold discarded a rewrite that had passed all of them: 47 of 128
+    simplify rewrites on 2026-09-29 (Kimi K3). One resume of the author with the
+    problem, as _repair_probe_contract does for the probe author's contract."""
+    pkg = rewrite.package
+    try:
+        so.read_decision(pkg, hint)
+        return
+    except (OSError, ValueError) as error:
+        problem = f"{type(error).__name__}: {error}"
+    before = _probe_hashes(pkg, ("run", "traces"))
+    with session(rewrite, "declaration", timeout=AGENT_TIMEOUT, resumes=author) as run:
+        _run_codex(
+            run,
+            pkg,
+            _DECLARATION_JOB.format(problem=problem) + _budget(AGENT_TIMEOUT),
+            resume=_session_id(author),
+        )
+    _check_verdict(pkg)
+    if _probe_hashes(pkg, ("run", "traces")) != before:
+        raise RuntimeError("declaration repair changed task files")
+    so.read_decision(pkg, hint)
+
+
 def _repair_probe_contract(
     rewrite: layout.RewriteDir, vsession: layout.SessionDir, problem: str
 ) -> None:
@@ -2407,6 +2447,8 @@ def evolve_agentic(
     try:
         _check_verdict(pkg)
         _require_checked(pkg, p)
+        if job == "easier":
+            _require_declaration(rewrite, run.dir, task.get("_simplify_hint", "vague"))
         if blind:
             vsession, fmap["test_state_py"], answered = _blind_verifier_answered(
                 rewrite, {**task, "_session": str(run.dir.path)}, fmap
