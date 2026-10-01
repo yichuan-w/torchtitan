@@ -39,7 +39,7 @@ systemctl --user is-active rltrain.service
 jq -c '{run, started, resumed_from, checkpoint_step, mix_version, gpus}' runs/latest/launch.json
 grep -a 'trainer_loop\] step' runs/latest/stdout.log | tail -1    # no line yet = warmup
 ls runs/latest/checkpoints/                                        # step-* on the local disk
-jq -c . evolution/status.json                                      # the loop, as of its last round
+jq -c . evolution/status.json                                      # refreshed while the loop runs
 tail -3 evolution/loop.log
 ```
 
@@ -47,7 +47,9 @@ No `[trainer_loop] step` line for the first ~45 min after a restart is normal; s
 [Restarts cost an hour](#restarts-cost-an-hour). `status.json` carries `pending`,
 `handled`, `deferred`, `junk`, `superseded`, `rewrites_running`, `accepted`, `rejected`
 (by stage), `failed`, `kept` and `mix_version`; it is rebuilt from the ledger
-at the end of every round, so a stale `updated` means the loop is not rounding.
+and rewrite records every `EVOLVE_STATUS_REFRESH_SEC` seconds while a round is
+active, and once more when the round ends. A stale `updated` beyond that interval
+means the refresh is failing or the loop is not running.
 
 The training W&B run counts its own signals under `evolution/run/signal_*_total`:
 `issued`, `consumed`, `handled`, `deferred`, `superseded`, and `junk`.

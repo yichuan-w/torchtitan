@@ -267,9 +267,9 @@ sheds exactly the prompts being re-tuned.
 - `lineage.jsonl`: this task's rewrite and fold events
 - one line in `ledger.jsonl`: `handled`, `deferred`, `superseded` or
   `junk`
-- `evolution/status.json`, rebuilt at the end of every round from the ledger and
-  the tasks' lineage; the trainer puts its counters on W&B beside the training
-  curves
+- `evolution/status.json`, refreshed every 60 seconds during a long round and
+  rebuilt when the round ends from the ledger and task rewrite records; the
+  trainer puts its counters on W&B beside the training curves
 - `evolution/outcomes/<run>.jsonl`: completed rewrite outcomes for the source
   training run. The trainer logs their per-step counts and run totals as ordinary
   W&B line charts. Accepted harder rewrites, all accepted rewrites, execution
