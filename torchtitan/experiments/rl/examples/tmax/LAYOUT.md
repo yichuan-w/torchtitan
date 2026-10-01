@@ -65,7 +65,7 @@ $TRL_BASE/
 ├── evolution/                    only the loop writes here
 │   ├── loop.log  loop.lock  loop.env
 │   ├── ledger.jsonl              one line per signal seen: when, which rewrite, outcome
-│   ├── status.json               rebuilt every round from ledger + lineage; the trainer reads it
+│   ├── status.json               refreshed during and after rounds; the trainer reads it
 │   ├── outcomes/<run>.jsonl       completed outcomes; sampled by that run at each training step
 │   └── tasks/<task>/
 │       ├── lineage.jsonl         this task's rewrite and fold events
@@ -193,6 +193,8 @@ line and is retried next round; `loop.log` holds the traceback.
  "input_rev": 2, "started": "…", "finished": "…", "status": "accepted",
  "stage": null, "reason": null,
  "operator": "container_build_alignment", "arm": "codex",
+ "rewrite_budget_sec": 21600, "rewrite_deadline_at": 1790000000,
+ "final_validation_reserve_sec": 2400,
  "verdicts": {"oracle": "pass", "dark_paths": [], "dark_literals": [], "step": []},
  "resources": {"cpu": 2, "mem_gb": 4, "disk_gb": 6, "source": "measured"},
  "result_rev": 3, "sessions": ["sessions/20260904-183301Z--agent", "sessions/20260904-184010Z--repair"]}
@@ -200,7 +202,9 @@ line and is retried next round; `loop.log` holds the traceback.
 
 `stage` names the check that settled a non-accepted rewrite (`oracle`,
 `dark_literals`, `step`, `setup`, `fold`, …) and `reason` says why in a
-sentence; both are null on an accepted one. `status` is `running`, `accepted`, `rejected`, `failed`,
+sentence; both are null on an accepted one. The three deadline fields record
+the frozen end-to-end budget, its Unix expiration time, and the portion held
+back from authoring and repair for final validation. `status` is `running`, `accepted`, `rejected`, `failed`,
 `interrupted` (the loop died with it running; `finalize_interrupted_traces.py`
 marks it), or `kept`. An accepted rewrite stays `running` until the round's
 fold renames its package, so a loop that dies between the two reads as
@@ -265,10 +269,13 @@ mix. Signals are not here; they are in the ledger.
  "failed": 5, "kept": 9}
 ```
 
-Rebuilt from the ledger and every task's lineage and rewrite files at the end
-of each round, written atomically. Losing it loses nothing. `rejected` is
-keyed by the stage that rejected; `interrupted` rewrites count under `failed`;
-`superseded` counts the ledger lines with that outcome.
+Rebuilt from the ledger and every task's lineage and rewrite files every 60
+seconds while a round is active and again when it ends, written atomically.
+The live coordinator supplies `rewrites_running` because node-local active
+workspaces are not visible under this durable tree until publication. Losing
+the file loses nothing. `rejected` is keyed by the stage that rejected;
+`interrupted` rewrites count under `failed`; `superseded` counts the ledger
+lines with that outcome.
 
 ### Mix manifest `data/mix/history/v<N>--<stamp>.manifest.json`
 
