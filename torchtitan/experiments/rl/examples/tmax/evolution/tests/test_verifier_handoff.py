@@ -103,3 +103,19 @@ def test_rewrite_budget_is_one_measured_epoch(tmp_path, monkeypatch):
     assert ec.rewrite_budget_sec(root) == 448 / 32 * 3000
     monkeypatch.setenv("EVOLVE_REWRITE_BUDGET_SEC", "42")
     assert ec.rewrite_budget_sec(root) == 42.0
+
+
+def test_rewrite_deadline_is_anchored_to_the_rewrite_stamp(
+    tmp_path, monkeypatch
+) -> None:
+    from torchtitan.experiments.rl.examples.tmax import layout
+
+    rewrite = layout.RewriteDir(tmp_path / "20260919-010203Z--harder")
+    monkeypatch.setattr(ec, "rewrite_budget_sec", lambda: 7200.0)
+    monkeypatch.setattr(ec, "FINAL_VALIDATION_RESERVE_SEC", 2400)
+
+    deadline = ec.rewrite_deadline(rewrite)
+
+    assert deadline.started_at == layout.parse_stamp("20260919-010203Z")
+    assert deadline.expires_at == deadline.started_at + 7200
+    assert deadline.final_validation_reserve_sec == 2400

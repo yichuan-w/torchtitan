@@ -1,0 +1,363 @@
+{
+  "async_loop": {
+    "batcher": {
+      "batch": {
+        "local_batch_size": 1,
+        "seq_len": 65536
+      },
+      "loss_aggregation": "prompt_mean",
+      "per_sample_pad_multiple": null,
+      "skip_zero_advantage_samples": true,
+      "zero_advantage_tokens_in_loss_denominator": true
+    },
+    "generator_max_num_seqs": 512,
+    "group_buffer": {
+      "max_bypass_groups": null,
+      "num_groups_in_selection_window": null,
+      "strict_fifo": false
+    },
+    "group_size": 12,
+    "initial_active_rollout_groups": 64,
+    "max_active_rollout_groups": 160,
+    "max_offpolicy_steps": 4,
+    "num_groups_per_train_step": 32,
+    "num_training_steps": 150,
+    "training_sample_builder": {
+      "drop_groups_with_untrainable_rollouts": false,
+      "drop_zero_std_reward_groups": false
+    },
+    "validation": {
+      "group_size": 5,
+      "interval": 20,
+      "max_tokens": null,
+      "num_samples": 89,
+      "run_async": true,
+      "temperature": 0.7,
+      "top_p": 0.95,
+      "trace": {
+        "dirname": "validation_traces",
+        "enable": true,
+        "max_chars_per_trace": 4000000
+      }
+    }
+  },
+  "compile": {
+    "backend": "aot_eager",
+    "components": [
+      "model",
+      "loss"
+    ],
+    "enable": false
+  },
+  "dump_folder": "/scratch/gpfs/TRIDAO/al9080/andy-rl-tb/terminal-rl/runs/tmax-9b--20260928-062907Z/trainer",
+  "eval_generator_data_parallel_degree": 1,
+  "eval_rollout_concurrency": 64,
+  "generator": {
+    "backend": "vllm_native",
+    "cache_cast_linear_weights": true,
+    "checkpoint": {
+      "async_mode": "disabled",
+      "create_seed_checkpoint": false,
+      "enable": false,
+      "enable_first_step_checkpoint": false,
+      "exclude_from_loading": [],
+      "export_dtype": "float32",
+      "folder": "checkpoint",
+      "initial_load_in_hf": false,
+      "initial_load_in_hf_quantized": false,
+      "initial_load_model_only": true,
+      "initial_load_path": null,
+      "interval": 500,
+      "keep_latest_k": 10,
+      "last_save_in_hf": false,
+      "last_save_model_only": true,
+      "load_only": false,
+      "load_step": -1
+    },
+    "cudagraph": {
+      "enable": true,
+      "mode": "FULL_DECODE_ONLY"
+    },
+    "debug": {
+      "batch_invariant": false,
+      "detect_anomaly": false,
+      "deterministic": false,
+      "deterministic_warn_only": false,
+      "enable_structured_logging": true,
+      "moe_force_load_balance": false,
+      "print_config": false,
+      "save_config_file": null,
+      "seed": null,
+      "spmd_typechecking": false
+    },
+    "enable_dp_weight_broadcast": false,
+    "enable_prefix_caching": true,
+    "gdn_trainer_parity": false,
+    "gpu_memory_limit": 0.92,
+    "intra_generator_router": {
+      "strategy": {
+        "max_sessions": 16384,
+        "rebalance_load_ratio": 0,
+        "rebalance_min_gap": 8
+      }
+    },
+    "mamba_cache_dtype": "auto",
+    "mamba_ssm_cache_dtype": "float32",
+    "max_engine_steps_between_decisions": 16,
+    "model_dtype": "bfloat16",
+    "overlap_weight_fetch": false,
+    "override": {
+      "imports": []
+    },
+    "parallelism": {
+      "data_parallel_degree": 1,
+      "expert_parallel_degree": 1,
+      "spmd_backend": "default",
+      "tensor_parallel_degree": 1
+    },
+    "reset_prefix_cache_on_weight_sync": false,
+    "reset_running_requests_on_weight_sync": false,
+    "salt_prefix_cache_on_weight_sync": true,
+    "sampling": {
+      "max_tokens": 16384,
+      "seed": null,
+      "stop_token_ids": null,
+      "temperature": 1,
+      "top_p": 1
+    },
+    "vllm_additional_config": {
+      "gdn_prefill_backend": "triton"
+    }
+  },
+  "generator_router": {
+    "hot_swap": true,
+    "strategy": {
+      "max_sessions": 16384,
+      "rebalance_load_ratio": 0,
+      "rebalance_min_gap": 8
+    }
+  },
+  "hf_assets_path": "/scratch/gpfs/TRIDAO/al9080/models/Qwen3.5-9B",
+  "metrics": {
+    "console_log_keys_train": [
+      "perf/",
+      "generator/inflight_requests_at_completion/max",
+      "generator/inter_token_latency_ms/mean",
+      "generator/queue_time_ms/mean",
+      "generator/decode_time_ms/mean",
+      "generator/num_cached_tokens/mean",
+      "loss/mean",
+      "policy/entropy_avg",
+      "rollout_reward/_mean",
+      "train/grad_norm/mean",
+      "train/lr"
+    ],
+    "console_log_keys_validation": [
+      "validation_reward/_mean",
+      "validation_reward/_max",
+      "validation/pass_at_k/mean",
+      "validation/policy_version",
+      "validation/response_length/mean",
+      "timing/validate"
+    ],
+    "enable_tensorboard": false,
+    "enable_wandb": true,
+    "wandb_project": "titan_rl"
+  },
+  "num_eval_generators": 1,
+  "num_eval_rollout_workers": 4,
+  "num_generators": 5,
+  "num_rollout_workers": 16,
+  "renderer": {
+    "enable_thinking": null,
+    "name": "qwen3.5",
+    "preserve_all_thinking": null,
+    "preserve_thinking_between_tool_calls": null,
+    "reasoning_parser": null,
+    "thinking_retention": "all",
+    "tool_parser": null
+  },
+  "rollout_recorder": {
+    "filename": "rollout_samples.jsonl",
+    "filter": {
+      "k": 1
+    },
+    "log_logprobs": false,
+    "log_tensors": false
+  },
+  "rollouter": {
+    "advantage": {
+      "should_std_normalize": false
+    },
+    "agent_budget_floor_sec": 7200,
+    "eval_timeout_sec": 600,
+    "evolution_easier_ratio": 0,
+    "evolution_harder_ratio": 0.9,
+    "length_penalty": false,
+    "length_penalty_deadzone": 0.3,
+    "length_penalty_exponent": 1.5,
+    "length_penalty_max": 0.1,
+    "length_penalty_min_pass_rate": 0.5,
+    "length_penalty_saturate": 1,
+    "max_context_tokens": 63488,
+    "reward_mode": "sparse",
+    "rollout_concurrency": 1000,
+    "rubric": {
+      "error_reward": null,
+      "reward_fns": [
+        {
+          "weight": 1
+        }
+      ],
+      "truncation_reward": null
+    },
+    "time_budget_sec": 2400,
+    "token_env": {
+      "max_num_turns": null,
+      "max_rollout_tokens": null,
+      "step_timeout_s": 1800
+    },
+    "train_dataset": {
+      "data_path": "/scratch/gpfs/TRIDAO/al9080/andy-rl-tb/terminal-rl/data/mix/live.jsonl",
+      "holdout_n": 0,
+      "include_ids_path": "",
+      "initial_skip_samples": 0,
+      "seed": 42,
+      "shuffle": true,
+      "skip_ids_path": "",
+      "split": "train"
+    },
+    "validation_dataset": {
+      "data_path": "/scratch/gpfs/TRIDAO/al9080/terminal-rl/data/evalsets/tb2_1_tmux_f1640f428d48.jsonl",
+      "holdout_n": 0,
+      "include_ids_path": "",
+      "initial_skip_samples": 0,
+      "seed": 99,
+      "shuffle": false,
+      "skip_ids_path": "",
+      "split": "train"
+    }
+  },
+  "torchstore_reset_interval": 0,
+  "torchstore_volume_placement": "trainer",
+  "trainer": {
+    "ac_config": {
+      "debug": false,
+      "determinism_check": "default",
+      "force_recompute_mm_shapes_by_fqns": [
+        "moe.router.gate"
+      ],
+      "preserve_rng_state": true
+    },
+    "checkpoint": {
+      "async_mode": "async",
+      "create_seed_checkpoint": false,
+      "enable": true,
+      "enable_first_step_checkpoint": false,
+      "exclude_from_loading": [],
+      "export_dtype": "float32",
+      "folder": "/scratch/al9080/terminal-rl/ckpt/tmax-9b--20260928-062907Z",
+      "initial_load_in_hf": true,
+      "initial_load_in_hf_quantized": false,
+      "initial_load_model_only": true,
+      "initial_load_path": null,
+      "interval": 5,
+      "keep_latest_k": 3,
+      "last_save_in_hf": false,
+      "last_save_model_only": true,
+      "load_only": false,
+      "load_step": -1
+    },
+    "comm": {
+      "init_timeout_seconds": 300,
+      "mode": "default",
+      "save_traces_file_prefix": "rank_",
+      "save_traces_folder": "comm_traces",
+      "trace_buf_size": 20000,
+      "train_timeout_seconds": 100
+    },
+    "debug": {
+      "batch_invariant": false,
+      "detect_anomaly": false,
+      "deterministic": false,
+      "deterministic_warn_only": false,
+      "enable_structured_logging": true,
+      "moe_force_load_balance": false,
+      "print_config": false,
+      "save_config_file": null,
+      "seed": null,
+      "spmd_typechecking": false
+    },
+    "dump_folder": "",
+    "loss": {
+      "loss_fn": {
+        "divergence_threshold": 0.1,
+        "divergence_type": "tv",
+        "ratio_cap": 0
+      },
+      "num_chunks": 8
+    },
+    "lr_scheduler": {
+      "decay_ratio": null,
+      "decay_type": "linear",
+      "min_lr_factor": 1,
+      "total_steps": null,
+      "warmup_steps": 1
+    },
+    "optimizer": {
+      "implementation": "fused",
+      "param_groups": [
+        {
+          "optimizer_kwargs": {
+            "betas": [
+              0.9,
+              0.999
+            ],
+            "eps": "1e-08",
+            "lr": "3e-06",
+            "weight_decay": 0
+          },
+          "optimizer_name": "AdamW",
+          "pattern": ".*"
+        }
+      ]
+    },
+    "override": {
+      "imports": []
+    },
+    "parallelism": {
+      "context_parallel_degree": 1,
+      "context_parallel_load_balancer": "headtail",
+      "data_parallel_replicate_degree": 1,
+      "data_parallel_shard_degree": 2,
+      "enable_async_tensor_parallel": false,
+      "enable_fsdp_symm_mem": false,
+      "enable_sequence_parallel": true,
+      "expert_parallel_degree": 1,
+      "fsdp_reshard_after_forward": "default",
+      "module_fqns_per_model_part": null,
+      "pipeline_parallel_degree": 1,
+      "pipeline_parallel_first_stage_less_layers": 1,
+      "pipeline_parallel_last_stage_less_layers": 1,
+      "pipeline_parallel_layers_per_stage": null,
+      "pipeline_parallel_microbatch_size": 1,
+      "pipeline_parallel_schedule": "1F1B",
+      "pipeline_parallel_schedule_csv": "",
+      "spmd_backend": "default",
+      "tensor_parallel_degree": 1
+    },
+    "training": {
+      "dtype": "float32",
+      "enable_cpu_offload": false,
+      "gc_debug": false,
+      "gc_freq": 50,
+      "global_batch_size": -1,
+      "local_batch_size": 8,
+      "max_norm": 1,
+      "mixed_precision_param": "bfloat16",
+      "mixed_precision_reduce": "float32",
+      "seq_len": 65536,
+      "steps": 10000
+    }
+  }
+}

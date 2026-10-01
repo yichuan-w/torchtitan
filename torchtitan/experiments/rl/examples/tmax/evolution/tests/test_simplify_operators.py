@@ -46,6 +46,15 @@ def test_record_round_trips_real_evidence(tmp_path):
     assert so.read_decision(tmp_path, "vague") == row
 
 
+def test_attempt_named_without_its_suffix_is_that_file(tmp_path):
+    row = decision(
+        tmp_path, evidence=[dict(attempt="attempt-01", turn=2, observation="x")]
+    )
+    out = so.read_decision(tmp_path, "vague")
+    assert out["evidence"][0]["attempt"] == "attempt-01.jsonl"
+    assert out["retained_skill"] == row["retained_skill"]
+
+
 @pytest.mark.parametrize("separator", ["\u0085", "\u2028", "\u2029"])
 def test_unicode_output_does_not_split_json_records(tmp_path, separator):
     row = decision(tmp_path)
@@ -67,6 +76,7 @@ def test_unicode_output_does_not_split_json_records(tmp_path, separator):
         ("evidence", []),
         ("evidence", [dict(attempt="../secret", turn=2, observation="x")]),
         ("evidence", [dict(attempt="attempt-01.jsonl", turn=99, observation="x")]),
+        ("evidence", [dict(attempt="attempt-02.jsonl", turn=2, observation="x")]),
     ],
 )
 def test_invalid_declaration_rejected(tmp_path, field, value):

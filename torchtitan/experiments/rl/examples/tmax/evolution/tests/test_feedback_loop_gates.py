@@ -21,6 +21,7 @@ import pytest
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 import feedback_loop as fb
+from rewrite_deadline import RewriteDeadline
 from torchtitan.experiments.rl.examples.tmax import layout, rollout_record
 
 
@@ -121,12 +122,14 @@ def _rewrite(
 
 
 def _fake_ec(**overrides):
-    return types.SimpleNamespace(
+    values = dict(
         Blocked=type("Blocked", (Exception,), {}),
         Filtered=type("Filtered", (RuntimeError,), {}),
         CYBER_RETRIES=2,
-        **overrides,
+        rewrite_deadline=lambda _rewrite: RewriteDeadline(0, 10**12, 0),
     )
+    values.update(overrides)
+    return types.SimpleNamespace(**values)
 
 
 @pytest.mark.parametrize("probe_state", ["pass", "unavailable", "error"])
@@ -251,7 +254,12 @@ def test_revalidate_records_paths_the_untouched_container_lacks(
     calls = []
 
     def fake_probe(
-        w, shortcut=None, resources=None, require_paths=None, pretest_file=None
+        w,
+        shortcut=None,
+        resources=None,
+        require_paths=None,
+        pretest_file=None,
+        deadline=None,
     ):
         calls.append((shortcut, list(require_paths or [])))
         if shortcut is None:
@@ -297,7 +305,12 @@ def test_revalidate_passes_when_every_unseen_path_is_a_precondition(
     work, task = _pkg(tmp_path, "Do the thing.", 'assert open("/usr/bin/curl")\n')
 
     def fake_probe(
-        w, shortcut=None, resources=None, require_paths=None, pretest_file=None
+        w,
+        shortcut=None,
+        resources=None,
+        require_paths=None,
+        pretest_file=None,
+        deadline=None,
     ):
         if shortcut is None:
             return {
@@ -347,6 +360,7 @@ def test_process_one_returns_a_repairable_verdict_to_the_agents_session(
 
     def fake_evolve_agentic(rewrite, agent_task, job, **kwargs):
         seen["rewrite"], seen["job"] = rewrite, job
+        seen.setdefault("deadlines", []).append(kwargs["deadline"])
         (rewrite.package / "instruction.md").write_text("Write /app/out.json.\n")
         return {
             **agent_task,
@@ -356,8 +370,9 @@ def test_process_one_returns_a_repairable_verdict_to_the_agents_session(
             "_support_changed": [],
         }
 
-    def fake_resume_agentic(rewrite, new, observed, exit_code=1):
+    def fake_resume_agentic(rewrite, new, observed, exit_code=1, **kwargs):
         seen["observed"], seen["exit_code"] = observed, exit_code
+        seen["deadlines"].append(kwargs["deadline"])
         return {**new, "instruction": "Write the audit to /app/out.json.\n"}
 
     monkeypatch.setitem(
@@ -368,7 +383,11 @@ def test_process_one_returns_a_repairable_verdict_to_the_agents_session(
         ),
     )
     monkeypatch.setenv("SWE_RETUNE_AGENT", "codex")
-    monkeypatch.setattr(fb, "revalidate", lambda *a, **k: next(verdicts))
+    def fake_revalidate(*args, **kwargs):
+        seen["deadlines"].append(kwargs["deadline"])
+        return next(verdicts)
+
+    monkeypatch.setattr(fb, "revalidate", fake_revalidate)
 
     rec = fb.process_one(rw, SIGNAL, job="harder", seed_dir=r0)
 
@@ -377,6 +396,8 @@ def test_process_one_returns_a_repairable_verdict_to_the_agents_session(
     assert seen["rewrite"] is rw and seen["job"] == "harder"
     assert seen["observed"] == reason + "\n\nfailure output"
     assert seen["exit_code"] == 0
+    assert len(seen["deadlines"]) == 4
+    assert all(deadline is seen["deadlines"][0] for deadline in seen["deadlines"])
     assert rec["arm"] == "codex" and rec["job"] == "harder"
     assert rec["verdicts"]["oracle"] == "pass" and rec["changed"] == [
         "instruction",
@@ -464,7 +485,7 @@ def test_process_one_records_nonfatal_agent_exit(tmp_path, monkeypatch) -> None:
     rw, r0 = _rewrite(tmp_path, monkeypatch)
     monkeypatch.setenv("SWE_RETUNE_AGENT", "codex")
 
-    def evolve(rewrite, task, job):
+    def evolve(rewrite, task, job, **kwargs):
         return {
             **task,
             "instruction": "A changed core workflow.",
@@ -491,7 +512,7 @@ def test_student_hardening_never_requests_an_operator(tmp_path, monkeypatch, arm
     def no_shortlist(*args):
         raise AssertionError("student mode must not request a shortlist")
 
-    def evolve(rewrite, task, job):
+    def evolve(rewrite, task, job, **kwargs):
         return {
             **task,
             "instruction": "A changed core workflow.",
@@ -749,7 +770,12 @@ def test_revalidate_records_names_the_task_never_states(tmp_path, monkeypatch) -
     )
 
     def fake_probe(
-        w, shortcut=None, resources=None, require_paths=None, pretest_file=None
+        w,
+        shortcut=None,
+        resources=None,
+        require_paths=None,
+        pretest_file=None,
+        deadline=None,
     ):
         if shortcut is None:
             return {
@@ -823,7 +849,12 @@ def test_revalidate_sends_back_a_rewrite_that_jumped_too_far(
     task["solve_sh"] = "\n".join(f"step {i}" for i in range(30)) + "\n"  # seed: 1 line
 
     def fake_probe(
-        w, shortcut=None, resources=None, require_paths=None, pretest_file=None
+        w,
+        shortcut=None,
+        resources=None,
+        require_paths=None,
+        pretest_file=None,
+        deadline=None,
     ):
         if shortcut is None:
             return {
@@ -870,8 +901,9 @@ def test_a_filtered_session_is_retried_fresh_then_gives_up(
             return {"instruction": "harder", "_support_changed": []}
 
     ec = FakeEC()
+    deadline = RewriteDeadline(0, 10**12, 0)
     out = fb._evolve_retrying_the_filter(
-        ec, rec, "tw_x", rw, {"instruction": "seed"}
+        ec, rec, "tw_x", rw, {"instruction": "seed"}, deadline
     )
     assert out["instruction"] == "harder"
     assert len(calls) == 3 and all(c == (rw, "harder") for c in calls)
@@ -885,5 +917,7 @@ def test_a_filtered_session_is_retried_fresh_then_gives_up(
 
     calls.clear()
     with pytest.raises(AlwaysFiltered.Filtered):
-        fb._evolve_retrying_the_filter(AlwaysFiltered(), rec, "tw_x", rw, {})
+        fb._evolve_retrying_the_filter(
+            AlwaysFiltered(), rec, "tw_x", rw, {}, deadline
+        )
     assert len(calls) == 3

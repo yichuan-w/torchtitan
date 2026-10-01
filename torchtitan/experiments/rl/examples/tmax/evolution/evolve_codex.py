@@ -50,6 +50,7 @@ import simplify_operators as so
 import synth_client as llm
 import task_size as ts
 import verifier_literals as vl
+from rewrite_deadline import RewriteDeadline
 from torchtitan.experiments.rl.examples.tmax import layout, rollout_record
 from verifier_probes import (
     SemanticProbeContract,
@@ -84,16 +85,28 @@ class AgentSessionError(RuntimeError):
         returncode: int,
         stderr_path: Path,
         result: subprocess.CompletedProcess | None = None,
+        detail: str | None = None,
     ) -> None:
         self.agent = agent
         self.failure_type = failure_type
         self.returncode = returncode
         self.stderr_path = stderr_path
         self.result = result
+        self.detail = detail
+        detail_text = f": {detail}" if detail else ""
         super().__init__(
             f"{agent} session failed ({failure_type}, exit {returncode}); "
-            f"see {stderr_path}"
+            f"{agent} exited {returncode}{detail_text}; see {stderr_path}"
         )
+
+
+class AgentValidationError(RuntimeError):
+    """The agent stopped without a usable passing self-check."""
+
+    def __init__(self, failure_type: str, detail: str, *, returncode: int = 0) -> None:
+        self.failure_type = failure_type
+        self.returncode = returncode
+        super().__init__(detail)
 
 
 CYBER_FLAG = "flagged for possible cybersecurity risk"
@@ -175,8 +188,9 @@ SCAFFOLD = {"AGENTS.md", "sandbox"}
 
 
 def _tool_bin() -> Path:
-    """``$TRL_BASE/bin``: codex and jq. A path is a convention, not a setting."""
-    return layout.Root.from_env().bin
+    """The pinned codex and jq directory, staged locally when configured."""
+    override = os.environ.get("EVOLVE_TOOL_BIN")
+    return Path(override) if override else layout.Root.from_env().bin
 
 
 def _codex_bin() -> Path:
@@ -783,12 +797,16 @@ Package runtime interface:
     if result.returncode:
         failure_type = _agent_failure_type(result.stdout, result.stderr)
         run.meta["failure_type"] = failure_type
+        errors = [
+            line for line in result.stderr.splitlines() if line.startswith("ERROR:")
+        ]
         raise AgentSessionError(
             agent=EVOLVE_AGENT,
             failure_type=failure_type,
             returncode=result.returncode,
             stderr_path=sd.stderr,
             result=result,
+            detail=errors[-1][:350] if errors else None,
         )
     return result
 
@@ -980,9 +998,10 @@ def _last_check(pkg: Path) -> dict | None:
     if not last:
         return None
     try:
-        return json.loads(last)
+        record = json.loads(last)
     except ValueError:
         return None
+    return record if isinstance(record, dict) else None
 
 
 def _agent_checked(pkg: Path) -> bool:
@@ -993,20 +1012,27 @@ def _agent_checked(pkg: Path) -> bool:
 def _require_checked(
     pkg: Path, result: subprocess.CompletedProcess | None = None
 ) -> None:
-    """AGENTS.md promises that a rewrite which never passed `./sandbox check`
-    is discarded whole. Until this, nothing enforced it: the caller's probe
-    would find out at its own expense. Measured on wd-20260903b, 298 of 299
-    folded sessions had the record anyway, so this bites rarely and keeps the
-    promise true."""
-    if not _agent_checked(pkg):
-        final = (result.stdout or "").strip() if result is not None else None
-        ending = "empty final response; " if final == "" else ""
-        if final == "[System: Empty message content sanitised to satisfy protocol]":
-            ending = "placeholder final response; "
-        raise RuntimeError(
-            ending
-            + "agent finished without a passing ./sandbox check "
-            "(run/checks.jsonl); the rewrite is discarded"
+    """Raise a typed error unless the newest sandbox-check record passes.
+
+    The initial author gets one bounded resume for this error. Other callers
+    are already repair attempts, so they propagate it instead of looping.
+    """
+    check = _last_check(pkg)
+    final = (result.stdout or "").strip() if result is not None else None
+    ending = "empty final response; " if final == "" else ""
+    if final == "[System: Empty message content sanitised to satisfy protocol]":
+        ending = "placeholder final response; "
+    if check is None or "verdict" not in check:
+        raise AgentValidationError(
+            "agent_missing_validation",
+            ending + "agent finished without a readable ./sandbox check result "
+            "in run/checks.jsonl",
+        )
+    if check.get("verdict") != "pass":
+        raise AgentValidationError(
+            "agent_check_failed",
+            ending + "agent's last ./sandbox check did not pass "
+            f"(verdict={check.get('verdict')!r})",
         )
 
 
@@ -1117,12 +1143,15 @@ def _sandbox_down(pkg: Path) -> None:
         pass
 
 
-def _harness_check(pkg: Path, name: str = "check") -> str:
+def _harness_check(
+    pkg: Path, name: str = "check", *, timeout: int | None = None
+) -> str:
     """Run `./sandbox check` in the author's package from the harness rather
     than from a session, and return what it printed. Used when the verifier
     was written elsewhere: the record it appends to run/checks.jsonl is the
     same one _require_checked reads, and the text is kept as run/<name>.txt
     for whoever reads a rejected rewrite."""
+    timeout = AGENT_TIMEOUT if timeout is None else timeout
     try:
         p = subprocess.run(
             [str(pkg / "sandbox"), "check"],
@@ -1130,11 +1159,11 @@ def _harness_check(pkg: Path, name: str = "check") -> str:
             env=_harness_env(),
             capture_output=True,
             text=True,
-            timeout=AGENT_TIMEOUT,
+            timeout=timeout,
         )
         text = (p.stdout or "") + (("\n" + p.stderr) if p.stderr else "")
     except subprocess.TimeoutExpired as exc:
-        text = f"./sandbox check timed out after {AGENT_TIMEOUT}s\n{exc.stdout or ''}"
+        text = f"./sandbox check timed out after {timeout}s\n{exc.stdout or ''}"
     finally:
         _sandbox_down(pkg)
     (pkg / "run").mkdir(exist_ok=True)
@@ -1233,6 +1262,8 @@ def simplify_codex(
     solved: int = 0,
     attempts: int = 16,
     hint: str = "vague",
+    *,
+    deadline: RewriteDeadline | None = None,
 ) -> dict:
     """Choose one trace-supported operator and validate the resulting package."""
     so.prompt(hint)
@@ -1258,11 +1289,17 @@ def simplify_codex(
         rewrite,
         {**task, "_solved": solved, "_attempts": attempts, "_simplify_hint": hint},
         "easier",
+        deadline=deadline,
     )
 
 
 def repair_oracle_codex(
-    rewrite: layout.RewriteDir, task: dict, observed: str, exit_code: int = 1
+    rewrite: layout.RewriteDir,
+    task: dict,
+    observed: str,
+    exit_code: int = 1,
+    *,
+    deadline: RewriteDeadline | None = None,
 ) -> dict:
     """Fresh-session repair of a task whose reference solution failed the run.
 
@@ -1274,6 +1311,7 @@ def repair_oracle_codex(
     when it is not. Raises on failure.
     """
     _require_codex()
+    deadline = deadline or rewrite_deadline(rewrite)
     pkg = rewrite.package
     fmap = ev.file_map(task)
     (pkg / "run").mkdir(exist_ok=True)
@@ -1290,8 +1328,9 @@ def repair_oracle_codex(
         role = pkg / "AGENTS.md"
         role.write_text(_recorded_solution_prompt(role.read_text()))
     agent_error = None
+    timeout = _session_timeout(deadline, "oracle repair", TIMEOUT_SEC)
     try:
-        with session(rewrite, "oracle", timeout=TIMEOUT_SEC) as run:
+        with session(rewrite, "oracle", timeout=timeout) as run:
             p = _run_codex(run, pkg, _ORACLE_PROMPT)
     except AgentSessionError as error:
         assert error.result is not None
@@ -1344,10 +1383,14 @@ AGENT_TIMEOUT = int(os.environ.get("EVOLVE_AGENT_TIMEOUT", "2400"))
 # When a check fails after the author and the blind verifier have both
 # written, the two sides repair in turn -- the author first, with the failure
 # and without the verifier, then the verifier's author -- and that pair is one
-# iteration. Up to this many iterations, and none starts once the rewrite has
-# been open for longer than the budget: three iterations of two sessions each
-# is the most a task is worth, and a session can run two hours.
+# iteration. Up to this many iterations fit inside the shared rewrite deadline:
+# three iterations of two sessions each is the most a task is worth.
 REPAIR_ROUNDS = int(os.environ.get("EVOLVE_REPAIR_ROUNDS", "3"))
+# Keep one full Daytona revalidation attempt available after authoring and
+# repair sessions. The final probe itself is capped by the shared deadline.
+FINAL_VALIDATION_RESERVE_SEC = int(
+    os.environ.get("EVOLVE_FINAL_VALIDATION_RESERVE_SEC", "2400")
+)
 # The budget is one training epoch: a rewrite that outlives one pass over the
 # mix lands after the task has been sampled again against the old revision,
 # so the group that is measuring it is already stale. Measured from the run
@@ -1378,15 +1421,21 @@ def _step_starts(run_dir: Path) -> list[float]:
     return [first[k] for k in sorted(first)]
 
 
-def rewrite_budget_sec(root: "layout.Root | None" = None) -> float:
-    """Seconds a rewrite may stay open before no further repair iteration
-    starts: one epoch of the run this root is training, recomputed every ten
-    minutes from the newest run's step cadence."""
+def rewrite_budget_sec(
+    root: "layout.Root | None" = None, *, refresh: bool = False
+) -> float:
+    """End-to-end seconds for one rewrite: one epoch of the run this root is
+    training, recomputed every ten minutes from the newest run's step cadence."""
     fixed = os.environ.get("EVOLVE_REWRITE_BUDGET_SEC")
     if fixed:
         return float(fixed)
     now = time.monotonic()
-    if now - _budget_cache["at"] < 600 and _budget_cache["sec"]:
+    # A node-local round snapshots this with an explicit root before it starts
+    # workers. Calls from an active rewrite pass no root and must use that
+    # snapshot rather than returning to remote storage mid-session.
+    if not refresh and _budget_cache["sec"] and (
+        root is None or now - _budget_cache["at"] < 600
+    ):
         return _budget_cache["sec"]
     root = root or layout.Root.from_env()
     rows = sum(1 for line in root.mix.live.open() if line.strip()) if root.mix.live.exists() else 0
@@ -1406,6 +1455,27 @@ def rewrite_budget_sec(root: "layout.Root | None" = None) -> float:
         log.info("rewrite budget %s", why)
     _budget_cache.update(at=now, sec=sec, why=why)
     return sec
+
+
+def rewrite_deadline(rewrite: layout.RewriteDir) -> RewriteDeadline:
+    """Freeze this rewrite's one-epoch budget into one absolute deadline."""
+    try:
+        started_at = layout.parse_stamp(rewrite.path.name.split("--")[0])
+    except (ValueError, IndexError) as error:
+        raise ValueError(f"rewrite path has no valid timestamp: {rewrite.path}") from error
+    budget_sec = rewrite_budget_sec()
+    return RewriteDeadline(
+        started_at=started_at,
+        expires_at=started_at + budget_sec,
+        final_validation_reserve_sec=FINAL_VALIDATION_RESERVE_SEC,
+    )
+
+
+def _session_timeout(
+    deadline: RewriteDeadline, stage: str, maximum_sec: int = AGENT_TIMEOUT
+) -> int:
+    """Cap one model session without spending final-validation time."""
+    return deadline.timeout(stage, maximum_sec, reserve_final_validation=True)
 
 
 _STUDENT_HARDER_GUIDANCE = """Choose one change from the student's actual attempts
@@ -1695,6 +1765,18 @@ your first command waits for it.
 
 Confirm with `./sandbox check` before you stop."""
 
+_AGENT_VALIDATION_REPAIR_JOB = """Your previous session stopped without leaving
+a usable passing `./sandbox check` record. The harness observed:
+
+{failure_type}: {problem}
+
+Continue the same rewrite; do not introduce another difficulty change. Inspect
+the files already present, run `./sandbox check`, and repair the existing
+rewrite if that check fails. Do not write `run/checks.jsonl` yourself; the
+sandbox command records the result. Finish only after its newest record has
+`verdict: pass`. If the rewrite cannot satisfy its contract, write
+`GIVE UP: validation failed -- <why>` to `run/verdict.txt` and stop."""
+
 _REPAIR_BLIND_NOTE = """
 
 `tests/` here is the previous revision's checker again, a scratch copy for
@@ -1952,8 +2034,55 @@ Change nothing else: the verifier itself, the task and the other controls stay
 as they are."""
 
 
+_DECLARATION_JOB = """The caller cannot accept `run/simplify.json`: {problem}.
+
+Each evidence item names an attempt file in `traces/` by its basename (for
+example `attempt-03.jsonl`) and a turn that file records; turns start at 1,
+and the first line of a file is the attempt's summary, not a turn. Correct the
+declaration so every field and every evidence location is valid, keeping the
+diagnosis it states. Change nothing else: the task, the reference solution and
+the environment stay as they are, and your last `./sandbox check` still stands."""
+
+
+def _require_declaration(
+    rewrite: layout.RewriteDir,
+    author: layout.SessionDir,
+    hint: str,
+    deadline: RewriteDeadline,
+) -> None:
+    """Check a simplify author's declaration while its session can still fix it.
+
+    read_decision used to run only after the blind verifier, the probes and the
+    reconciling check, so a declaration naming `attempt-01` or a turn the file
+    does not hold discarded a rewrite that had passed all of them: 47 of 128
+    simplify rewrites on 2026-09-29 (Kimi K3). One resume of the author with the
+    problem, as _repair_probe_contract does for the probe author's contract."""
+    pkg = rewrite.package
+    try:
+        so.read_decision(pkg, hint)
+        return
+    except (OSError, ValueError) as error:
+        problem = f"{type(error).__name__}: {error}"
+    before = _probe_hashes(pkg, ("run", "traces"))
+    timeout = _session_timeout(deadline, "simplify declaration repair")
+    with session(rewrite, "declaration", timeout=timeout, resumes=author) as run:
+        _run_codex(
+            run,
+            pkg,
+            _DECLARATION_JOB.format(problem=problem) + _budget(timeout),
+            resume=_session_id(author),
+        )
+    _check_verdict(pkg)
+    if _probe_hashes(pkg, ("run", "traces")) != before:
+        raise RuntimeError("declaration repair changed task files")
+    so.read_decision(pkg, hint)
+
+
 def _repair_probe_contract(
-    rewrite: layout.RewriteDir, vsession: layout.SessionDir, problem: str
+    rewrite: layout.RewriteDir,
+    vsession: layout.SessionDir,
+    problem: str,
+    deadline: RewriteDeadline,
 ) -> SessionRun:
     """One resume of the verifier's session to reconcile its contract with the
     scripts it wrote. A declared case with no script used to raise
@@ -1961,18 +2090,23 @@ def _repair_probe_contract(
     8 of 17 failures in the first day on hip, and the cheapest possible fix
     is asking the session that wrote the other six."""
     sid = _session_id(vsession)
-    with session(rewrite, "probe-contract", timeout=AGENT_TIMEOUT, resumes=vsession) as run:
+    timeout = _session_timeout(deadline, "probe contract repair")
+    with session(
+        rewrite, "probe-contract", timeout=timeout, resumes=vsession
+    ) as run:
         _run_codex(
             run,
             vsession.package,
-            _PROBE_CONTRACT_JOB.format(problem=problem) + _budget(AGENT_TIMEOUT),
+            _PROBE_CONTRACT_JOB.format(problem=problem) + _budget(timeout),
             resume=sid,
         )
     return run
 
 
 def _verify_original_probes(
-    vsession: layout.SessionDir, rewrite: layout.RewriteDir | None = None
+    vsession: layout.SessionDir,
+    rewrite: layout.RewriteDir | None = None,
+    deadline: RewriteDeadline | None = None,
 ) -> None:
     def _replay() -> None:
         original = vsession.path / "original-verifier-probes"
@@ -1988,16 +2122,27 @@ def _verify_original_probes(
             )
             _blind_layout(vsession.package, package)
             shutil.copytree(original, package / "run/verifier-probes")
-        verify_probes(package, _harness_env(), AGENT_TIMEOUT)
+        timeout = (
+            _session_timeout(deadline, "verifier probe replay")
+            if deadline is not None
+            else AGENT_TIMEOUT
+        )
+        verify_probes(
+            package,
+            _harness_env(),
+            timeout,
+            deadline=deadline,
+        )
 
     try:
         _replay()
     except SemanticProbeContract as error:
         if rewrite is None:
             raise
+        deadline = deadline or rewrite_deadline(rewrite)
         log.info("probe contract mismatch, asking the verifier session: %s", error)
         shutil.rmtree(vsession.path / "original-verifier-probes", ignore_errors=True)
-        _repair_probe_contract(rewrite, vsession, str(error))
+        _repair_probe_contract(rewrite, vsession, str(error), deadline)
         _replay()
 
 
@@ -2007,8 +2152,11 @@ def _author_independent_probes(
     pointer: Path,
     *,
     allow_repair: bool = True,
+    deadline: RewriteDeadline | None = None,
 ) -> None:
-    with session(rewrite, "probe", timeout=AGENT_TIMEOUT) as run:
+    deadline = deadline or rewrite_deadline(rewrite)
+    timeout = _session_timeout(deadline, "independent probe author")
+    with session(rewrite, "probe", timeout=timeout) as run:
         probe = run.dir.package
         _blind_layout(public_source, probe)
         shutil.rmtree(probe / "tests")
@@ -2030,7 +2178,7 @@ def _author_independent_probes(
                 run,
                 probe,
                 "Create independent semantic controls from the public task.\n"
-                + _budget(AGENT_TIMEOUT),
+                + _budget(timeout),
             )
         finally:
             _sandbox_down(probe)
@@ -2054,7 +2202,9 @@ def _author_independent_probes(
             log.info(
                 "independent probe contract mismatch, resuming author: %s", error
             )
-            repair = _repair_probe_contract(rewrite, run.dir, str(error))
+            repair = _repair_probe_contract(
+                rewrite, run.dir, str(error), deadline
+            )
             if _probe_hashes(probe, ("run",)) != before:
                 raise RuntimeError(
                     "Independent probe contract repair changed public task files"
@@ -2082,11 +2232,19 @@ def _independent_verifier(
     vsession: layout.SessionDir,
     *,
     allow_repair: bool = True,
+    deadline: RewriteDeadline | None = None,
 ) -> None:
+    deadline = deadline or rewrite_deadline(rewrite)
     vpkg = vsession.package
     pointer = vsession.path / "independent-probes.json"
     if not pointer.exists():
-        _author_independent_probes(rewrite, vpkg, pointer, allow_repair=allow_repair)
+        _author_independent_probes(
+            rewrite,
+            vpkg,
+            pointer,
+            allow_repair=allow_repair,
+            deadline=deadline,
+        )
     probe = Path(json.loads(pointer.read_text())["package"])
 
     controls_sha256 = json.loads(pointer.read_text())["controls_sha256"]
@@ -2098,7 +2256,13 @@ def _independent_verifier(
         _blind_layout(vpkg, replay)
         shutil.copytree(probe / "run/verifier-probes", replay / "run/verifier-probes")
         try:
-            verify_probes(replay, _harness_env(), AGENT_TIMEOUT)
+            timeout = _session_timeout(deadline, "independent probe replay")
+            verify_probes(
+                replay,
+                _harness_env(),
+                timeout,
+                deadline=deadline,
+            )
         except SemanticProbeMisses as error:
             if not allow_repair or attempt:
                 raise
@@ -2106,8 +2270,9 @@ def _independent_verifier(
                 error.log_path.read_text()
             )
             (vpkg / "run/verdict.txt").unlink(missing_ok=True)
+            timeout = _session_timeout(deadline, "independent probe repair")
             with session(
-                rewrite, "probe-repair", timeout=AGENT_TIMEOUT, resumes=vsession
+                rewrite, "probe-repair", timeout=timeout, resumes=vsession
             ) as run:
                 try:
                     _run_codex(
@@ -2126,7 +2291,7 @@ def _independent_verifier(
                         "The caller also replays your original pre-repair controls unchanged; replacing a saved control does not remove that regression check. "
                         "Do not impose a representation or implementation restriction absent from the public task. "
                         "Preserve the public task and follow AGENTS.md, including your own replay controls.\n"
-                        + _budget(AGENT_TIMEOUT),
+                        + _budget(timeout),
                         resume=_session_id(vsession),
                     )
                 finally:
@@ -2136,13 +2301,17 @@ def _independent_verifier(
                 raise RuntimeError(
                     "Verifier repair changed public task files"
                 ) from error
-            _verify_original_probes(vsession, rewrite)
+            _verify_original_probes(vsession, rewrite, deadline)
         else:
             return
 
 
 def _blind_verifier(
-    rewrite: layout.RewriteDir, task: dict, fmap: dict
+    rewrite: layout.RewriteDir,
+    task: dict,
+    fmap: dict,
+    *,
+    deadline: RewriteDeadline | None = None,
 ) -> tuple[layout.SessionDir, str]:
     """Second session: write the verifier without seeing the solution.
 
@@ -2153,6 +2322,7 @@ def _blind_verifier(
     verifier's path. The caller then runs the check that the two sessions
     never could: the hidden solution against the blind verifier.
     """
+    deadline = deadline or rewrite_deadline(rewrite)
     pkg = rewrite.package
     seed_rel = fmap["test_state_py"]
     seed_text = task["test_state_py"]
@@ -2174,7 +2344,8 @@ def _blind_verifier(
         },
     )
     with ThreadPoolExecutor(max_workers=1) as pool:
-        with session(rewrite, "verifier", timeout=AGENT_TIMEOUT) as run:
+        timeout = _session_timeout(deadline, "blind verifier author")
+        with session(rewrite, "verifier", timeout=timeout) as run:
             vpkg = run.dir.package
             _blind_layout(pkg, vpkg)
             _restore_seed_tests(vpkg, seed_tests)
@@ -2185,7 +2356,7 @@ def _blind_verifier(
             )
             if task.get("_role_files"):
                 prompt += _ROLE_PATCH_NOTE
-            prompt += _budget(AGENT_TIMEOUT)
+            prompt += _budget(timeout)
             if task.get("_calibration"):
                 prompt += (
                     "\nThis adjusts a previous simplification. If the existing verifier "
@@ -2199,15 +2370,16 @@ def _blind_verifier(
                 rewrite,
                 pkg,
                 run.dir.path / "independent-probes.json",
+                deadline=deadline,
             )
             try:
                 _run_codex(run, vpkg, prompt)
             finally:
                 _sandbox_down(vpkg)
         _check_verdict(vpkg)
-        _verify_original_probes(run.dir, rewrite)
+        _verify_original_probes(run.dir, rewrite, deadline)
         probe_future.result()
-    _independent_verifier(rewrite, run.dir)
+    _independent_verifier(rewrite, run.dir, deadline=deadline)
     rel = _take_verifier(
         vpkg,
         pkg,
@@ -2225,36 +2397,32 @@ def _blind_repair(
     fmap: dict,
     observed: str,
     exit_code: int,
+    *,
+    deadline: RewriteDeadline | None = None,
 ) -> str:
     """Resume the verifier's session with the failure the hidden solution
     produced against its verifier, and take the repaired verifier back."""
+    deadline = deadline or rewrite_deadline(rewrite)
     pkg, vpkg = rewrite.package, vsession.package
     seed_rel = fmap["test_state_py"]
     sid = _session_id(vsession)
     (vpkg / "run").mkdir(exist_ok=True)
     (vpkg / "run" / "failure.txt").write_text(observed or "(no output captured)")
     (vpkg / "run" / "verdict.txt").unlink(missing_ok=True)
-    with session(rewrite, "repair", timeout=AGENT_TIMEOUT, resumes=vsession) as run:
-        prompt = _VERIFIER_REPAIR_JOB.format(exit_code=exit_code) + _budget(
-            AGENT_TIMEOUT
-        )
+    timeout = _session_timeout(deadline, "blind verifier repair")
+    with session(rewrite, "repair", timeout=timeout, resumes=vsession) as run:
+        prompt = _VERIFIER_REPAIR_JOB.format(exit_code=exit_code) + _budget(timeout)
         try:
             _run_codex(run, vpkg, prompt, resume=sid)
         finally:
             _sandbox_down(vpkg)
     _check_verdict(vpkg)
-    _verify_original_probes(vsession, rewrite)
-    _independent_verifier(rewrite, vsession, allow_repair=False)
+    _verify_original_probes(vsession, rewrite, deadline)
+    _independent_verifier(
+        rewrite, vsession, allow_repair=False, deadline=deadline
+    )
     before = (pkg / _verifier_on_disk(pkg, seed_rel)).read_text()
     return _take_verifier(vpkg, pkg, _verifier_on_disk(pkg, seed_rel), before)
-
-
-def _rewrite_age(rewrite: layout.RewriteDir) -> float:
-    """Seconds since the rewrite directory was stamped."""
-    try:
-        return time.time() - layout.parse_stamp(rewrite.path.name.split("--")[0])
-    except (ValueError, IndexError):
-        return 0.0
 
 
 def _exit_code(pkg: Path) -> int:
@@ -2281,9 +2449,10 @@ def _repair_iterations(
     *,
     check_name: str,
     rounds: int | None = None,
+    deadline: RewriteDeadline,
 ) -> str:
     """The hidden solution and the blind verifier disagree. Repair in turns,
-    up to REPAIR_ROUNDS iterations inside rewrite_budget_sec(): first the
+    up to REPAIR_ROUNDS iterations inside one rewrite deadline: first the
     author's session, resumed with the failure and with the previous
     revision's checker in ``tests/`` rather than the verifier it was kept
     away from; then, if the pair still disagrees, the verifier's session.
@@ -2295,24 +2464,40 @@ def _repair_iterations(
     text = observed
     rounds = REPAIR_ROUNDS if rounds is None else rounds
     for i in range(1, rounds + 1):
-        age, budget = _rewrite_age(rewrite), rewrite_budget_sec()
-        if age > budget:
-            raise RuntimeError(
-                f"blind verifier and reference solution still disagree, and the "
-                f"rewrite has been open {age / 3600:.1f} h (budget one epoch, "
-                f"{budget / 3600:.1f} h): " + text[-300:].replace("\n", " | ")
-            )
+        _session_timeout(deadline, "blind author repair")
         # 1. the author, without the blind verifier
-        task = _resume_author_blind(rewrite, task, text[-4000:], code, seq=i)
+        task = _resume_author_blind(
+            rewrite,
+            task,
+            text[-4000:],
+            code,
+            seq=i,
+            deadline=deadline,
+        )
         _reinstall_blind_verifier(vsession, pkg)
-        text = _harness_check(pkg, name=f"{check_name}.author{i}")
+        text = _harness_check(
+            pkg,
+            name=f"{check_name}.author{i}",
+            timeout=_session_timeout(deadline, "blind author check"),
+        )
         if _agent_checked(pkg):
             return rel
         code = _exit_code(pkg)
         # 2. the verifier's author, with the run against the repaired solution
-        rel = _blind_repair(rewrite, vsession, fmap, text[-4000:], code)
+        rel = _blind_repair(
+            rewrite,
+            vsession,
+            fmap,
+            text[-4000:],
+            code,
+            deadline=deadline,
+        )
         fmap["test_state_py"] = rel
-        text = _harness_check(pkg, name=f"{check_name}.verifier{i}")
+        text = _harness_check(
+            pkg,
+            name=f"{check_name}.verifier{i}",
+            timeout=_session_timeout(deadline, "blind verifier check"),
+        )
         if _agent_checked(pkg):
             return rel
         code = _exit_code(pkg)
@@ -2323,7 +2508,11 @@ def _repair_iterations(
 
 
 def _blind_verifier_answered(
-    rewrite: layout.RewriteDir, task: dict, fmap: dict
+    rewrite: layout.RewriteDir,
+    task: dict,
+    fmap: dict,
+    *,
+    deadline: RewriteDeadline,
 ) -> tuple[layout.SessionDir, str, dict]:
     """_blind_verifier, with the author answering a verifier side that stopped.
 
@@ -2333,16 +2522,18 @@ def _blind_verifier_answered(
     close that, since only the author may edit the task, so the report goes
     back to the author's session and fresh verifier sessions are written
     against the corrected task. Bounded like _repair_iterations: REPAIR_ROUNDS
-    answers, none started past rewrite_budget_sec(). Returns the verifier
+    answers, all inside the shared rewrite deadline. Returns the verifier
     session, the verifier's path, and the task with the author's latest
     session recorded."""
     answers = 0
     while True:
         try:
-            vsession, rel = _blind_verifier(rewrite, task, fmap)
+            vsession, rel = _blind_verifier(
+                rewrite, task, fmap, deadline=deadline
+            )
             return vsession, rel, task
         except Blocked as blocked:
-            if answers == REPAIR_ROUNDS or _rewrite_age(rewrite) > rewrite_budget_sec():
+            if answers == REPAIR_ROUNDS:
                 raise
             answers += 1
             log.info("blind verifier stopped, answering from the author: %s", blocked)
@@ -2352,12 +2543,17 @@ def _blind_verifier_answered(
                 blocked.report or str(blocked),
                 0,
                 seq=answers,
+                deadline=deadline,
                 job=_VERIFIER_BLOCKED_JOB,
             )
 
 
 def _reconcile_blind(
-    rewrite: layout.RewriteDir, vsession: layout.SessionDir, fmap: dict, task: dict
+    rewrite: layout.RewriteDir,
+    vsession: layout.SessionDir,
+    fmap: dict,
+    task: dict,
+    deadline: RewriteDeadline,
 ) -> None:
     """Hidden solution against blind verifier, with bounded repair.
 
@@ -2367,12 +2563,72 @@ def _reconcile_blind(
     _repair_iterations lets each side answer in turn.
     """
     pkg = rewrite.package
-    text = _harness_check(pkg, name="check.blind1")
+    text = _harness_check(
+        pkg,
+        name="check.blind1",
+        timeout=_session_timeout(deadline, "blind handoff check"),
+    )
     if _agent_checked(pkg):
         return
     fmap["test_state_py"] = _repair_iterations(
-        rewrite, task, vsession, fmap, text, _exit_code(pkg), check_name="check.blind"
+        rewrite,
+        task,
+        vsession,
+        fmap,
+        text,
+        _exit_code(pkg),
+        check_name="check.blind",
+        deadline=deadline,
     )
+
+
+def _repair_agent_validation(
+    rewrite: layout.RewriteDir,
+    prior: layout.SessionDir,
+    pkg: Path,
+    problem: AgentValidationError,
+    deadline: RewriteDeadline,
+) -> tuple[SessionRun, subprocess.CompletedProcess, AgentSessionError | None]:
+    """Resume one author once to produce a passing sandbox-check record."""
+    try:
+        sid = _session_id(prior)
+    except RuntimeError as error:
+        raise problem from error
+
+    agent_error = None
+    run = None
+    timeout = _session_timeout(deadline, "agent validation repair")
+    try:
+        with session(
+            rewrite, "agent-validation", timeout=timeout, resumes=prior
+        ) as run:
+            try:
+                result = _run_codex(
+                    run,
+                    pkg,
+                    _AGENT_VALIDATION_REPAIR_JOB.format(
+                        failure_type=problem.failure_type, problem=problem
+                    )
+                    + _budget(timeout),
+                    resume=sid,
+                )
+            finally:
+                _sandbox_down(pkg)
+    except AgentSessionError as error:
+        assert error.result is not None
+        result, agent_error = error.result, error
+
+    with _checked_output(agent_error):
+        _check_verdict(pkg)
+    try:
+        _require_checked(pkg)
+    except AgentValidationError as error:
+        error.returncode = result.returncode
+        if agent_error is not None:
+            raise error from agent_error
+        raise
+    assert run is not None
+    return run, result, agent_error
 
 
 def evolve_agentic(
@@ -2382,6 +2638,7 @@ def evolve_agentic(
     *,
     observed: str = "",
     exit_code: int = 1,
+    deadline: RewriteDeadline | None = None,
 ) -> dict:
     """Run one agent session over the rewrite's package, with its container as
     a tool.
@@ -2397,6 +2654,8 @@ def evolve_agentic(
     when the agent declined.
     """
     _require_codex()
+    deadline = deadline or rewrite_deadline(rewrite)
+    author_timeout = _session_timeout(deadline, f"{job} author")
     if job == "harder":
         task = {**task, "_harder_mode": "student"}
     pkg = rewrite.package
@@ -2453,7 +2712,7 @@ def evolve_agentic(
             "repair_spec": _SPEC_REPAIR_JOB,
         }[job]
         + _traces_spec(rewrite.traces)
-        + _budget(AGENT_TIMEOUT)
+        + _budget(author_timeout)
     )
 
     history = rewrite.traces / "history"
@@ -2491,7 +2750,7 @@ def evolve_agentic(
     vsession = None
     try:
         try:
-            with session(rewrite, "agent", timeout=AGENT_TIMEOUT) as run:
+            with session(rewrite, "agent", timeout=author_timeout) as run:
                 try:
                     p = _run_codex(run, pkg, prompt)
                 finally:
@@ -2499,14 +2758,32 @@ def evolve_agentic(
         except AgentSessionError as error:
             assert error.result is not None
             p, agent_error = error.result, error
+        assert run is not None
         with _checked_output(agent_error):
             _check_verdict(pkg)
+        if agent_error is not None and not _agent_checked(pkg):
+            raise agent_error
+        try:
             _require_checked(pkg, p)
+        except AgentValidationError as error:
+            error.returncode = p.returncode
+            run, p, repair_error = _repair_agent_validation(
+                rewrite, run.dir, pkg, error, deadline
+            )
+            if repair_error is not None:
+                agent_error = repair_error
+        if job == "easier":
+            _require_declaration(
+                rewrite, run.dir, task.get("_simplify_hint", "vague"), deadline
+            )
         if blind:
             vsession, fmap["test_state_py"], answered = _blind_verifier_answered(
-                rewrite, {**task, "_session": str(run.dir.path)}, fmap
+                rewrite,
+                {**task, "_session": str(run.dir.path)},
+                fmap,
+                deadline=deadline,
             )
-            _reconcile_blind(rewrite, vsession, fmap, answered)
+            _reconcile_blind(rewrite, vsession, fmap, answered, deadline)
         out = _collect(task, pkg, fmap)
     except Blocked:
         raise
@@ -2559,6 +2836,7 @@ def _resume_author_blind(
     exit_code: int,
     *,
     seq: int,
+    deadline: RewriteDeadline,
     job: str | None = None,
 ) -> dict:
     """Resume the author's session with a failure, in blind mode: the blind
@@ -2578,12 +2856,13 @@ def _resume_author_blind(
     (pkg / "run" / "failure.txt").write_text(observed or "(no output captured)")
     for stale in ("verdict.txt", "checks.jsonl"):
         (pkg / "run" / stale).unlink(missing_ok=True)
-    with session(rewrite, "repair-author", timeout=AGENT_TIMEOUT, resumes=prior) as run:
+    timeout = _session_timeout(deadline, "blind author repair")
+    with session(rewrite, "repair-author", timeout=timeout, resumes=prior) as run:
         prompt = (
-            job or _REPAIR_JOB.format(exit_code=exit_code) + _REPAIR_BLIND_NOTE
-        ) + _budget(AGENT_TIMEOUT)
+            job or (_REPAIR_JOB.format(exit_code=exit_code) + _REPAIR_BLIND_NOTE)
+        ) + _budget(timeout)
         try:
-            _run_codex(run, pkg, prompt, resume=sid)
+            p = _run_codex(run, pkg, prompt, resume=sid)
         finally:
             _sandbox_down(pkg)
     _check_verdict(pkg)
@@ -2592,7 +2871,11 @@ def _resume_author_blind(
 
 
 def _resume_blind(
-    rewrite: layout.RewriteDir, task: dict, observed: str, exit_code: int
+    rewrite: layout.RewriteDir,
+    task: dict,
+    observed: str,
+    exit_code: int,
+    deadline: RewriteDeadline,
 ) -> dict:
     """The caller's revalidation failed on a blind rewrite: one repair
     iteration (author, then verifier), then the caller revalidates again."""
@@ -2612,6 +2895,7 @@ def _resume_blind(
         exit_code,
         check_name=f"check.resume{time.time_ns() % 100000}",
         rounds=1,
+        deadline=deadline,
     )
     out = _collect(task, pkg, fmap)
     out["_repaired"] = "codex_resume_author_then_verifier"
@@ -2621,7 +2905,12 @@ def _resume_blind(
 
 
 def resume_agentic(
-    rewrite: layout.RewriteDir, task: dict, observed: str, exit_code: int = 1
+    rewrite: layout.RewriteDir,
+    task: dict,
+    observed: str,
+    exit_code: int = 1,
+    *,
+    deadline: RewriteDeadline | None = None,
 ) -> dict:
     """Continue the session that wrote this task, with the caller's failure.
 
@@ -2632,12 +2921,13 @@ def resume_agentic(
     failure instead. Raises on failure; raises Blocked when the agent declined.
     """
     _require_codex()
+    deadline = deadline or rewrite_deadline(rewrite)
     pkg = rewrite.package
     if task.get("_verifier_author") == "blind":
         # The caller's oracle failed at the row's size. The session that can
         # answer without seeing the solution is the verifier's; resuming the
         # author instead would hand it the verifier it was kept away from.
-        return _resume_blind(rewrite, task, observed, exit_code)
+        return _resume_blind(rewrite, task, observed, exit_code, deadline)
     prior = layout.SessionDir(Path(task.get("_session") or ""))
     if not prior.codex_home.is_dir():
         raise RuntimeError(f"no agent session to resume at {prior.path}")
@@ -2650,9 +2940,10 @@ def resume_agentic(
     for stale in ("verdict.txt", "checks.jsonl"):
         (pkg / "run" / stale).unlink(missing_ok=True)
     agent_error = None
+    timeout = _session_timeout(deadline, "author repair")
     try:
-        with session(rewrite, "repair", timeout=AGENT_TIMEOUT, resumes=prior) as run:
-            prompt = _REPAIR_JOB.format(exit_code=exit_code) + _budget(AGENT_TIMEOUT)
+        with session(rewrite, "repair", timeout=timeout, resumes=prior) as run:
+            prompt = _REPAIR_JOB.format(exit_code=exit_code) + _budget(timeout)
             try:
                 p = _run_codex(run, pkg, prompt, resume=sid)
             finally:
