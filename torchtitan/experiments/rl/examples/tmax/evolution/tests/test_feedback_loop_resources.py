@@ -12,6 +12,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 import feedback_loop as fb
+from rewrite_deadline import RewriteDeadline
 from torchtitan.experiments.rl.examples.tmax import layout
 
 
@@ -107,7 +108,7 @@ def test_process_one_probes_in_the_agents_box_and_sizes_from_its_own_reading(
                 "_support_changed": [], "_operator": "op", "_family": "fam"}
 
     def fake_revalidate(work, new, orig=None, changed=None, resources=None,
-                        baseline=None, pretest_file=None):
+                        baseline=None, pretest_file=None, deadline=None):
         seen["probe_box"] = resources
         # The loop's own probe, in that 4 GiB box, read 1200 MB.
         return {"ok": True, "fast_path": "daytona_oracle", "reward": 1.0,
@@ -117,7 +118,9 @@ def test_process_one_probes_in_the_agents_box_and_sizes_from_its_own_reading(
     fake_ec = types.SimpleNamespace(evolve_agentic=fake_evolve_agentic,
                                     Blocked=type("Blocked", (Exception,), {}),
                                     Filtered=type("Filtered", (RuntimeError,), {}),
-                                    CYBER_RETRIES=2)
+                                    CYBER_RETRIES=2,
+                                    rewrite_deadline=lambda _rewrite:
+                                    RewriteDeadline(0, 10**12, 0))
     monkeypatch.setitem(sys.modules, "evolve_codex", fake_ec)
     monkeypatch.setenv("SWE_RETUNE_AGENT", "codex")
     monkeypatch.setattr(fb, "revalidate", fake_revalidate)

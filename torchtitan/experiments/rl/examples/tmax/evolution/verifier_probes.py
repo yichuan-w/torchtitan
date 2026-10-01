@@ -19,6 +19,8 @@ import threading
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
+from rewrite_deadline import RewriteDeadline, RewriteDeadlineExceeded
+
 
 class SemanticProbeMisses(RuntimeError):
     def __init__(self, messages: list[str], log_path: Path):
@@ -85,7 +87,12 @@ def load_probe_contract(pkg: Path) -> tuple[dict, list[str], dict[str, str]]:
 
 
 def verify_probes(
-    pkg: Path, env: dict[str, str], timeout: int, *, down_own: bool = True
+    pkg: Path,
+    env: dict[str, str],
+    timeout: int,
+    *,
+    down_own: bool = True,
+    deadline: RewriteDeadline | None = None,
 ) -> None:
     """Replay every control, each in its own fresh sandbox, all at once.
 
@@ -155,14 +162,26 @@ def verify_probes(
         if phase == "grade":
             (workspace / "run" / "last-grade.json").unlink(missing_ok=True)
         try:
+            command_timeout = (
+                deadline.timeout(
+                    f"semantic probe {case}/{phase}",
+                    timeout,
+                    reserve_final_validation=True,
+                )
+                if deadline is not None and phase != "down"
+                else timeout
+            )
             result = subprocess.run(
                 [str(workspace / "sandbox"), *args],
                 cwd=workspace,
                 env=env,
                 capture_output=True,
                 text=True,
-                timeout=timeout,
+                timeout=command_timeout,
             )
+        except RewriteDeadlineExceeded:
+            record(case=case, phase=phase, status="deadline", attempt=attempt)
+            raise
         except subprocess.TimeoutExpired:
             record(case=case, phase=phase, status="timeout", attempt=attempt)
             raise
@@ -199,6 +218,15 @@ def verify_probes(
                 )
             # Some graders provide only a reward; preserve details where available.
             record(case=case, phase="grade_details", status="start", attempt=attempt)
+            details_timeout = (
+                deadline.timeout(
+                    f"semantic probe {case}/grade details",
+                    timeout,
+                    reserve_final_validation=True,
+                )
+                if deadline is not None
+                else timeout
+            )
             details = subprocess.run(
                 [
                     str(workspace / "sandbox"),
@@ -209,7 +237,7 @@ def verify_probes(
                 env=env,
                 capture_output=True,
                 text=True,
-                timeout=timeout,
+                timeout=details_timeout,
             )
             record(
                 case=case,

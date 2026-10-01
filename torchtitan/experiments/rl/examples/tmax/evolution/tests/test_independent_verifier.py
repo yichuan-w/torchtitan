@@ -13,7 +13,14 @@ import evolve_codex as ec
 
 import pytest
 
+from rewrite_deadline import RewriteDeadline
 from test_blind_verifier import _rewrite, _wire, SEED
+
+
+@pytest.fixture(autouse=True)
+def stable_rewrite_deadline(monkeypatch):
+    deadline = RewriteDeadline(0, 10**12, 0)
+    monkeypatch.setattr(ec, "rewrite_deadline", lambda _rewrite: deadline)
 
 
 def test_probe_author_runs_while_blind_verifier_is_writing(tmp_path, monkeypatch):
@@ -56,7 +63,7 @@ def test_probe_author_runs_while_blind_verifier_is_writing(tmp_path, monkeypatch
     monkeypatch.setattr(ec, "_run_codex", author)
     monkeypatch.setattr(ec, "_sandbox_down", lambda package: None)
     monkeypatch.setattr(ec, "_verify_original_probes", lambda *args: None)
-    monkeypatch.setattr(ec, "verify_probes", lambda *args: None)
+    monkeypatch.setattr(ec, "verify_probes", lambda *args, **kwargs: None)
 
     ec._blind_verifier(rewrite, dict(SEED), ec.ev.file_map(SEED))
     assert set(calls) == {"probe", "verifier"}
@@ -109,7 +116,7 @@ def setup(tmp_path, monkeypatch):
         return SimpleNamespace(returncode=0)
 
     monkeypatch.setattr(ec, "_run_codex", author)
-    monkeypatch.setattr(ec, "verify_probes", lambda *args: None)
+    monkeypatch.setattr(ec, "verify_probes", lambda *args, **kwargs: None)
     return rewrite, verifier, calls, author
 
 
@@ -179,6 +186,23 @@ def test_independent_author_repairs_missing_contract_once(setup, monkeypatch):
     assert (verifier.path / "independent-probes.json").is_file()
 
 
+def test_persistently_missing_independent_outputs_are_typed(setup, monkeypatch):
+    rewrite, verifier, calls, author = setup
+
+    def omit_contract(run, package, prompt, resume=None):
+        result = author(run, package, prompt, resume)
+        (package / "run/verifier-probes/contract.json").unlink(missing_ok=True)
+        return result
+
+    monkeypatch.setattr(ec, "_run_codex", omit_contract)
+    with pytest.raises(ec.AgentSessionError) as raised:
+        ec._independent_verifier(rewrite, verifier)
+
+    assert raised.value.failure_type == "agent_missing_output"
+    assert raised.value.returncode == 0
+    assert [call[0] for call in calls] == ["probe", "probe-contract"]
+
+
 @pytest.mark.parametrize("case", ["wrong-1", "correct"])
 def test_semantic_failure_gets_one_repair_and_replays_unchanged_controls(
     setup, monkeypatch, case
@@ -186,7 +210,7 @@ def test_semantic_failure_gets_one_repair_and_replays_unchanged_controls(
     rewrite, verifier, calls, _ = setup
     replays = []
 
-    def grade(package, env, timeout):
+    def grade(package, env, timeout, **kwargs):
         if package.name.startswith("original-replay-"):
             return
         replays.append(ec._probe_hashes(package / "run/verifier-probes"))
@@ -203,7 +227,7 @@ def test_semantic_failure_gets_one_repair_and_replays_unchanged_controls(
 def test_persistent_semantic_failure_stops_after_one_repair(setup, monkeypatch):
     rewrite, verifier, calls, _ = setup
 
-    def grade(package, env, timeout):
+    def grade(package, env, timeout, **kwargs):
         if not package.name.startswith("original-replay-"):
             miss(package)
 
@@ -216,7 +240,7 @@ def test_persistent_semantic_failure_stops_after_one_repair(setup, monkeypatch):
 def test_infrastructure_failure_does_not_trigger_repair(setup, monkeypatch):
     rewrite, verifier, calls, _ = setup
 
-    def grade(*args):
+    def grade(*args, **kwargs):
         raise RuntimeError("sandbox creation failed")
 
     monkeypatch.setattr(ec, "verify_probes", grade)
@@ -228,7 +252,9 @@ def test_infrastructure_failure_does_not_trigger_repair(setup, monkeypatch):
 def test_reference_repair_recheck_does_not_add_another_probe_repair(setup, monkeypatch):
     rewrite, verifier, calls, _ = setup
     ec._independent_verifier(rewrite, verifier)
-    monkeypatch.setattr(ec, "verify_probes", lambda package, *args: miss(package))
+    monkeypatch.setattr(
+        ec, "verify_probes", lambda package, *args, **kwargs: miss(package)
+    )
     with pytest.raises(ec.SemanticProbeMisses):
         ec._independent_verifier(rewrite, verifier, allow_repair=False)
     assert [call[0] for call in calls] == ["probe"]
@@ -255,7 +281,7 @@ def test_repair_cannot_change_public_task_or_independent_controls(
     monkeypatch.setattr(
         ec,
         "verify_probes",
-        lambda package, *args: (
+        lambda package, *args, **kwargs: (
             None if package.name.startswith("original-replay-") else miss(package)
         ),
     )
@@ -288,7 +314,7 @@ def test_replacing_own_negative_cannot_hide_a_repair_regression(setup, monkeypat
             (package / "run/verifier-probes/wrong-1.sh").write_text("replacement")
         return result
 
-    def grade(package, *args):
+    def grade(package, *args, **kwargs):
         if (package / "tests/test_state.py").read_text() != "weakened verifier":
             miss(package, "correct")
         if (package / "run/verifier-probes/wrong-1.sh").read_text() == "original wrong":
@@ -306,7 +332,7 @@ def test_original_controls_are_frozen_before_first_replay(setup, monkeypatch):
     shutil.rmtree(verifier.path / "original-verifier-probes")
     seen = []
 
-    def grade(package, *args):
+    def grade(package, *args, **kwargs):
         seen.append((package / "run/verifier-probes/correct.sh").read_text())
 
     monkeypatch.setattr(ec, "verify_probes", grade)

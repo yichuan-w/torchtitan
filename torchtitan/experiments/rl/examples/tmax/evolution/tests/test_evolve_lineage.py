@@ -26,6 +26,7 @@ import pytest
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 import evolve_ondella as od
+import rewrite_workspace as rw_workspace
 from torchtitan.experiments.rl.examples.tmax import layout, rollout_record
 
 SEED = {
@@ -474,7 +475,12 @@ def test_round_materializes_r0_handles_the_signal_and_folds_r1(
     if corpus != "tw-extract":
         (root.data / "sources/tw-extract").rename(root.data / "sources" / corpus)
     sid = _signal(root)
-    seen = _stub(monkeypatch)
+    seen = _stub(
+        monkeypatch,
+        rewrite_budget_sec=7200,
+        rewrite_deadline_at=1790000000,
+        final_validation_reserve_sec=2400,
+    )
 
     r = od.run_round(root, workers=1)
 
@@ -501,6 +507,9 @@ def test_round_materializes_r0_handles_the_signal_and_folds_r1(
     assert meta["input_rev"] == 0 and meta["signal"] == sid and meta["job"] == "harder"
     assert "operator" not in meta
     assert meta["resources"]["cpu"] == 2 and meta["verdicts"] == VERDICTS
+    assert meta["rewrite_budget_sec"] == 7200
+    assert meta["rewrite_deadline_at"] == 1790000000
+    assert meta["final_validation_reserve_sec"] == 2400
     assert meta["finished"] >= meta["started"] and meta["sessions"] == []
     # The mix moved to v2 with the row at rev 1, sized from the measurement.
     version, path = root.mix.live_version()
@@ -554,6 +563,100 @@ def test_round_materializes_r0_handles_the_signal_and_folds_r1(
     assert len(seen) == 1
 
 
+def test_node_local_rewrite_is_published_only_after_processing(
+    tmp_path, monkeypatch
+) -> None:
+    root = _root(tmp_path, monkeypatch)
+    _signal(root)
+    work_root = tmp_path / "node-local"
+    monkeypatch.setenv("EVOLVE_WORK_ROOT", str(work_root))
+    seen = _stub(monkeypatch)
+    process_one = od.fb.process_one
+    active_paths = {}
+
+    def check_local(rewrite, signal, *, job, seed_dir, resources=None):
+        assert rewrite.path.is_relative_to(work_root)
+        assert seed_dir.is_relative_to(work_root)
+        trace = rewrite.traces / "attempt-01.jsonl"
+        source = root.run(RUN).rollout_record("tw_a", 7, 0)
+        assert trace.read_bytes() == source.read_bytes()
+        assert trace.stat().st_ino != source.stat().st_ino
+        session = rewrite.session("agent", "20260904-190000Z")
+        session.path.mkdir(parents=True)
+        session.stderr.write_text("local session log\n")
+        active_paths.update(rewrite=rewrite.path, seed=seed_dir)
+        return process_one(
+            rewrite, signal, job=job, seed_dir=seed_dir, resources=resources
+        )
+
+    monkeypatch.setattr(od.fb, "process_one", check_local)
+
+    result = od.run_round(root, workers=1)
+
+    assert result["accepted"] == 1
+    durable = root.evolution.task("tw_a").rewrite_dirs()[0]
+    meta = json.loads(durable.meta.read_text())
+    assert meta["status"] == "accepted"
+    assert meta["execution_storage"] == "node_local"
+    assert meta["sessions"] == ["sessions/20260904-190000Z--agent"]
+    assert (
+        durable.session("agent", "20260904-190000Z").stderr.read_text()
+        == "local session log\n"
+    )
+    assert not active_paths["rewrite"].exists()
+    assert not active_paths["seed"].exists()
+    assert seen[0]["seed_dir"] == active_paths["seed"]
+
+
+def test_publish_failure_preserves_local_rewrite_and_leaves_signal_pending(
+    tmp_path, monkeypatch
+) -> None:
+    root = _root(tmp_path, monkeypatch)
+    sid = _signal(root)
+    work_root = tmp_path / "node-local"
+    monkeypatch.setenv("EVOLVE_WORK_ROOT", str(work_root))
+    _stub(monkeypatch)
+
+    def fail_publish(workspace):
+        raise rw_workspace.WorkspaceTransferError("durable storage unavailable")
+
+    monkeypatch.setattr(rw_workspace.RewriteWorkspace, "publish", fail_publish)
+
+    result = od.run_round(root, workers=1)
+
+    assert result["handled"] == 0
+    assert root.mix.live_version()[0] == 1
+    assert _ledger(root) == []
+    assert root.evolution.task("tw_a").rewrite_dirs() == []
+    records = list(work_root.rglob("rewrite.json"))
+    assert len(records) == 1
+    assert json.loads(records[0].read_text())["execution_storage"] == "node_local"
+    assert sid in {signal.sid for signal in od.discover(root, od.load_ledger(root))}
+
+
+def test_node_local_tool_copy_is_content_addressed(tmp_path, monkeypatch) -> None:
+    root = _root(tmp_path, monkeypatch)
+    monkeypatch.setenv("EVOLVE_WORK_ROOT", str(tmp_path / "node-local"))
+    monkeypatch.delenv("EVOLVE_TOOL_BIN", raising=False)
+    root.bin.mkdir()
+    for name, content in (("codex", "codex-v1\n"), ("jq", "jq-v1\n")):
+        tool = root.bin / name
+        tool.write_text(content)
+        tool.chmod(0o755)
+
+    first = rw_workspace.prepare_tool_bin(root)
+    again = rw_workspace.prepare_tool_bin(root)
+
+    assert first == again
+    assert first.is_relative_to(tmp_path / "node-local")
+    assert (first / "codex").read_text() == "codex-v1\n"
+    assert (first / "codex").stat().st_ino != (root.bin / "codex").stat().st_ino
+    (root.bin / "codex").write_text("codex-v2\n")
+    second = rw_workspace.prepare_tool_bin(root)
+    assert second != first
+    assert (second / "codex").read_text() == "codex-v2\n"
+
+
 def test_rejected_rewrite_keeps_its_package_and_its_hardlinked_traces(
     tmp_path, monkeypatch
 ) -> None:
@@ -582,6 +685,72 @@ def test_rejected_rewrite_keeps_its_package_and_its_hardlinked_traces(
     assert root.mix.live_version()[0] == 1
     status = od.rebuild_status(root)
     assert status["rejected"] == {"step_size": 1} and status["accepted"] == 0
+
+
+def test_status_can_report_active_node_local_rewrites(tmp_path, monkeypatch) -> None:
+    root = _root(tmp_path, monkeypatch)
+
+    status = od.rebuild_status(root, num_active_rewrites=3)
+
+    assert status["rewrites_running"] == 3
+    assert json.loads(root.evolution.status.read_text()) == status
+
+
+def test_long_round_refreshes_status_while_a_rewrite_is_active(
+    tmp_path, monkeypatch
+) -> None:
+    root = _root(tmp_path, monkeypatch)
+    _signal(root)
+    _stub(monkeypatch)
+    process_one = od.fb.process_one
+    started, refreshed, release = Event(), Event(), Event()
+
+    def hold(rewrite, signal, **kwargs):
+        started.set()
+        assert release.wait(5), "test did not release the rewrite"
+        return process_one(rewrite, signal, **kwargs)
+
+    real_rebuild = od.rebuild_status
+    active_counts = []
+
+    def observe(root_, *, num_active_rewrites=None):
+        active_counts.append(num_active_rewrites)
+        status = real_rebuild(
+            root_, num_active_rewrites=num_active_rewrites
+        )
+        refreshed.set()
+        return status
+
+    monkeypatch.setattr(od.fb, "process_one", hold)
+    monkeypatch.setattr(od, "rebuild_status", observe)
+    monkeypatch.setattr(od, "STATUS_REFRESH_SEC", 0.01)
+    with ThreadPoolExecutor(max_workers=1) as runner:
+        future = runner.submit(od.run_round, root, workers=1)
+        assert started.wait(2)
+        try:
+            assert refreshed.wait(2), "status was not refreshed during the round"
+            status = json.loads(root.evolution.status.read_text())
+            assert status["rewrites_running"] == 1
+        finally:
+            release.set()
+        result = future.result(timeout=5)
+
+    assert result["handled"] == 1
+    assert 1 in active_counts
+
+
+def test_in_round_status_failure_does_not_abort_rewrites(
+    tmp_path, monkeypatch, caplog
+) -> None:
+    root = _root(tmp_path, monkeypatch)
+
+    def fail(*args, **kwargs):
+        raise OSError("status storage unavailable")
+
+    monkeypatch.setattr(od, "rebuild_status", fail)
+    od._refresh_status_during_round(root, num_active_rewrites=2)
+
+    assert "status storage unavailable" in caplog.text
 
 
 def test_an_unreadable_signal_is_junk_once_it_is_old_enough(
