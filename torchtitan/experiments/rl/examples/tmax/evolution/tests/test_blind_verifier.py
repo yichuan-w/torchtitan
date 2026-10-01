@@ -593,3 +593,64 @@ def test_a_verifier_still_blocked_after_the_rounds_leaves_the_task(
     assert [s["role"] for s in sessions] == ["author", "verifier", "author", "verifier"]
     assert checks == []
     assert (rw.package / "tests/test_state.py").read_text() == SEED["test_state_py"]
+
+
+def _declaring_author(monkeypatch, bad: dict, change_task_on_repair=False):
+    """The easier author writes a declaration whose evidence is `bad`; resumed
+    with the problem, it corrects the evidence (and, if asked, edits the task)."""
+    real = ec._run_codex
+    seen = []
+
+    def run_codex(run, cwd, prompt, resume=None):
+        p = real(run, cwd, prompt, resume)
+        if (cwd / "solution").exists():
+            seen.append(prompt)
+            (cwd / "traces").mkdir(exist_ok=True)
+            (cwd / "traces/attempt-01.jsonl").write_text('{"reward":0}\n{"turn":2}\n')
+            good = dict(attempt="attempt-01.jsonl", turn=2, observation="stuck here")
+            evidence = bad if not resume else good
+            (cwd / "run/simplify.json").write_text(json.dumps(dict(
+                retained_skill="compare", bottleneck="b", change="c", restore="r",
+                prediction="p", evidence=[evidence])))
+            if resume and change_task_on_repair:
+                (cwd / "instruction.md").write_text("something else\n")
+        return p
+
+    monkeypatch.setattr(ec, "_run_codex", run_codex)
+    monkeypatch.setattr(ec, "_session_id", lambda _sd: "sid")
+    return seen
+
+
+def test_a_bad_simplify_declaration_goes_back_to_the_author_before_verifying(
+    tmp_path, monkeypatch
+) -> None:
+    rw = _rewrite(tmp_path, monkeypatch)
+    sessions, checks = [], []
+    _wire(monkeypatch, sessions, checks)
+    seen = _declaring_author(monkeypatch, dict(attempt="attempt-01", turn=9, observation="x"))
+
+    out = ec.evolve_agentic(rw, dict(SEED), "easier")
+
+    # author, its declaration repair, then the blind verifier -- the verifier
+    # only runs once the declaration is valid.
+    assert [s["role"] for s in sessions] == ["author", "author", "verifier"]
+    assert sessions[1]["resume"] == "sid"
+    assert "evidence turn absent: attempt-01.jsonl:9" in seen[1]
+    kinds = [s.path.name.split("--")[1] for s in rw.session_dirs()]
+    assert kinds == ["agent", "declaration", "verifier"]
+    assert out["_simplify"]["evidence"][0]["turn"] == 2
+
+
+def test_a_declaration_repair_that_edits_the_task_discards_the_rewrite(
+    tmp_path, monkeypatch
+) -> None:
+    rw = _rewrite(tmp_path, monkeypatch)
+    sessions, checks = [], []
+    _wire(monkeypatch, sessions, checks)
+    _declaring_author(
+        monkeypatch, dict(attempt="attempt-09.jsonl", turn=2, observation="x"),
+        change_task_on_repair=True,
+    )
+    with pytest.raises(RuntimeError, match="declaration repair changed task files"):
+        ec.evolve_agentic(rw, dict(SEED), "easier")
+    assert [s["role"] for s in sessions] == ["author", "author"]
