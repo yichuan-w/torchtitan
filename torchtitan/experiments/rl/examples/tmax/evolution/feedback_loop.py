@@ -49,15 +49,8 @@ import synth_client as llm
 import synth_loop as sl
 import task_size as ts
 import verifier_literals as vl
+from rewrite_deadline import RewriteDeadline, RewriteDeadlineExceeded
 from torchtitan.experiments.rl.examples.tmax import layout
-
-
-def _rewrite_age(rewrite: layout.RewriteDir) -> float:
-    """Seconds since the rewrite directory was stamped."""
-    try:
-        return time.time() - layout.parse_stamp(rewrite.path.name.split("--")[0])
-    except (ValueError, IndexError):
-        return 0.0
 
 
 log = logging.getLogger("feedback")
@@ -84,6 +77,7 @@ _INFRA_RE = re.compile(
 
 
 RESOURCE_KEYS = ("cpu", "mem_gb", "disk_gb")
+DAYTONA_PROBE_TIMEOUT_SEC = 2400
 
 AGENTIC_ARMS = ("codex", "claude")
 
@@ -102,6 +96,7 @@ def daytona_probe(
     resources: dict | None = None,
     require_paths: list[str] | None = None,
     pretest_file: Path | None = None,
+    deadline: RewriteDeadline | None = None,
 ) -> dict | None:
     """Run daytona_revalidate.py on this package; None when unconfigured.
 
@@ -171,8 +166,15 @@ def daytona_probe(
     # match the pattern and still fails fast.
     last: dict = {"ok": False, "stage": "daytona_error", "why": "not run"}
     for attempt in (1, 2):
+        timeout = DAYTONA_PROBE_TIMEOUT_SEC
         try:
-            p = subprocess.run(cmd, capture_output=True, text=True, timeout=2400)
+            if deadline is not None:
+                timeout = deadline.timeout(
+                    "final Daytona validation",
+                    DAYTONA_PROBE_TIMEOUT_SEC,
+                    reserve_final_validation=False,
+                )
+            p = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout)
             lines = p.stdout.strip().splitlines()
             if not lines:
                 # The script died before its JSON verdict; splitlines()[-1]
@@ -187,6 +189,18 @@ def daytona_probe(
                 }
             else:
                 last = json.loads(lines[-1])
+        except RewriteDeadlineExceeded:
+            raise
+        except subprocess.TimeoutExpired as error:
+            if deadline is not None and timeout < DAYTONA_PROBE_TIMEOUT_SEC:
+                raise RewriteDeadlineExceeded(
+                    "rewrite deadline expired during final Daytona validation"
+                ) from error
+            last = {
+                "ok": False,
+                "stage": "daytona_error",
+                "why": f"TimeoutExpired: {error}"[:200],
+            }
         except Exception as e:  # noqa: BLE001
             last = {
                 "ok": False,
@@ -196,7 +210,16 @@ def daytona_probe(
         if last.get("ok") or not _INFRA_RE.search(str(last.get("why", ""))):
             return last
         if attempt == 1:
-            time.sleep(20)
+            delay = (
+                deadline.timeout(
+                    "Daytona validation retry backoff",
+                    20,
+                    reserve_final_validation=False,
+                )
+                if deadline is not None
+                else 20
+            )
+            time.sleep(delay)
     return last
 
 
@@ -300,6 +323,7 @@ def revalidate(
     resources: dict | None = None,
     baseline=None,
     pretest_file: Path | None = None,
+    deadline: RewriteDeadline | None = None,
 ) -> dict:
     """Validate the adjusted task on Daytona: the reference solution passes,
     and the verifier fails an untouched workspace.
@@ -323,6 +347,10 @@ def revalidate(
     verifier path, or a path the instruction stopped revealing that the verifier
     still needs. Judged before/after, so an SWE test.sh that always references
     repo internals is not mistaken for a fresh dark path."""
+    if deadline is not None:
+        deadline.timeout(
+            "final validation", 1, reserve_final_validation=False
+        )
     if (
         changed == ["instruction"]
         and orig is not None
@@ -391,6 +419,7 @@ def revalidate(
             resources=resources,
             require_paths=dark,
             pretest_file=pretest_file,
+            deadline=deadline,
         )
         null_future = pool.submit(
             daytona_probe,
@@ -398,6 +427,7 @@ def revalidate(
             shortcut=":",
             resources=resources,
             pretest_file=pretest_file,
+            deadline=deadline,
         )
         dv = oracle_future.result()
         null = null_future.result() or {}
@@ -583,7 +613,12 @@ def _size_from_probe(rec: dict, verdict: dict, floor: dict | None) -> None:
 
 
 def _evolve_retrying_the_filter(
-    ec, rec: dict, tid: str, rewrite: layout.RewriteDir, agent_task: dict
+    ec,
+    rec: dict,
+    tid: str,
+    rewrite: layout.RewriteDir,
+    agent_task: dict,
+    deadline: RewriteDeadline,
 ) -> dict:
     """One agent session, retried when the provider's classifier stops it.
 
@@ -597,7 +632,9 @@ def _evolve_retrying_the_filter(
     """
     for attempt in range(1, ec.CYBER_RETRIES + 2):
         try:
-            return ec.evolve_agentic(rewrite, agent_task, "harder")
+            return ec.evolve_agentic(
+                rewrite, agent_task, "harder", deadline=deadline
+            )
         except ec.Filtered:
             rec["cyber_filtered"] = attempt
             if attempt > ec.CYBER_RETRIES:
@@ -711,6 +748,12 @@ def process_one(
             )
         import evolve_codex as ec  # noqa: PLC0415 -- faked in tests
 
+        deadline = ec.rewrite_deadline(rewrite)
+        rec["rewrite_budget_sec"] = deadline.budget_sec
+        rec["rewrite_deadline_at"] = deadline.expires_at
+        rec["final_validation_reserve_sec"] = (
+            deadline.final_validation_reserve_sec
+        )
         task = ev.load(work)
         if task.get("_unsolved") and job != "easier":
             return _done(
@@ -753,7 +796,12 @@ def process_one(
             hint_lvl = os.environ.get("SWE_SIMPLIFY_HINT", "vague")
             try:
                 new = ec.simplify_codex(
-                    rewrite, task, solved=solved, attempts=graded, hint=hint_lvl
+                    rewrite,
+                    task,
+                    solved=solved,
+                    attempts=graded,
+                    hint=hint_lvl,
+                    deadline=deadline,
                 )
             except ec.Blocked as e:
                 if not str(e).startswith("BLOCKED: repair_required:"):
@@ -772,7 +820,9 @@ def process_one(
             rec["harder_mode"] = task["_harder_mode"] = "student"
             rec["require_solution_growth"] = False
             try:
-                new = _evolve_retrying_the_filter(ec, rec, tid, rewrite, task)
+                new = _evolve_retrying_the_filter(
+                    ec, rec, tid, rewrite, task, deadline
+                )
                 rec["hint"] = new.get("_hint")
                 rec["agent_validated"] = new.get("_agent_validated")
             except ec.Blocked as e:
@@ -795,6 +845,7 @@ def process_one(
             resources=box,
             baseline=baseline,
             pretest_file=pretest_file,
+            deadline=deadline,
         )
         rec["revalidate"] = v
         _size_from_probe(rec, v, resources)
@@ -809,16 +860,13 @@ def process_one(
                 break
             if v.get("stage") not in ("daytona_oracle", "step_size"):
                 break
-            age = _rewrite_age(rewrite)
-            budget = float(os.environ.get("EVOLVE_REWRITE_BUDGET_SEC", str(6 * 3600)))
-            if hasattr(ec, "rewrite_budget_sec"):
-                budget = ec.rewrite_budget_sec()
-            if age > budget:
+            try:
+                deadline.timeout("oracle repair", 1)
+            except RewriteDeadlineExceeded as error:
                 log.info(
-                    "%s oracle repair skipped: rewrite open %.1f h, budget one epoch %.1f h",
+                    "%s oracle repair skipped: %s",
                     tid,
-                    age / 3600,
-                    budget / 3600,
+                    error,
                 )
                 break
             # The structural operator regenerates instruction, solution and
@@ -843,9 +891,13 @@ def process_one(
             fixed = None
             try:
                 if new.get("_session"):
-                    fixed = ec.resume_agentic(rewrite, new, tail, code)
+                    fixed = ec.resume_agentic(
+                        rewrite, new, tail, code, deadline=deadline
+                    )
                 else:
-                    fixed = ec.repair_oracle_codex(rewrite, new, tail, code)
+                    fixed = ec.repair_oracle_codex(
+                        rewrite, new, tail, code, deadline=deadline
+                    )
             except ec.Blocked as e:
                 log.info("%s oracle repair declined: %s", tid, str(e)[:200])
             except Exception as e:  # noqa: BLE001 -- the failed verdict stands
@@ -870,6 +922,7 @@ def process_one(
                 resources=box,
                 baseline=baseline,
                 pretest_file=pretest_file,
+                deadline=deadline,
             )
             _size_from_probe(rec, v2, resources)
             rec.setdefault("oracle_repairs", []).append(

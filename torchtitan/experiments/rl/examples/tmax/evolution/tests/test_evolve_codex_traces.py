@@ -23,6 +23,7 @@ import pytest
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 import evolve_codex as ec
+import rewrite_deadline as rd
 from torchtitan.experiments.rl.examples.tmax import layout, rollout_record
 
 FILES = {
@@ -147,6 +148,47 @@ def _rewrite(tmp_path, monkeypatch, job: str = "harder") -> layout.RewriteDir:
     return rw
 
 
+def test_author_session_is_capped_before_final_validation_reserve(
+    tmp_path, monkeypatch
+) -> None:
+    rw = _rewrite(tmp_path, monkeypatch)
+    seen = {}
+
+    def fake_session(*args, **kwargs):
+        seen["timeout"] = kwargs["timeout"]
+        return nullcontext(
+            SimpleNamespace(
+                dir=SimpleNamespace(path=tmp_path / "session"),
+                meta={"timeout_sec": kwargs["timeout"]},
+            )
+        )
+
+    def run_codex(run, pkg, prompt):
+        seen["prompt"] = prompt
+        (pkg / "instruction.md").write_text("harder instruction\n")
+        return subprocess.CompletedProcess([], 0, stdout="", stderr="")
+
+    monkeypatch.setattr(rd.time, "time", lambda: 400.0)
+    monkeypatch.setattr(ec, "_require_codex", lambda: None)
+    monkeypatch.setattr(ec, "VERIFIER_AUTHOR", "same")
+    monkeypatch.setattr(ec, "session", fake_session)
+    monkeypatch.setattr(ec, "_run_codex", run_codex)
+    monkeypatch.setattr(ec, "_sandbox_down", lambda pkg: None)
+    monkeypatch.setattr(ec, "_check_verdict", lambda pkg: None)
+    monkeypatch.setattr(ec, "_require_checked", lambda pkg, result=None: None)
+    monkeypatch.setattr(ec, "_agent_checked", lambda pkg: True)
+
+    deadline = rd.RewriteDeadline(
+        started_at=100.0,
+        expires_at=1000.0,
+        final_validation_reserve_sec=200,
+    )
+    ec.evolve_agentic(rw, TASK, "harder", deadline=deadline)
+
+    assert seen["timeout"] == 400
+    assert "6 minutes from now" in seen["prompt"]
+
+
 @pytest.mark.parametrize("has_previous,solved", [(True, 8), (False, 8), (True, 4)])
 def test_only_all_pass_after_simplify_uses_restoration_guidance(
     tmp_path, monkeypatch, has_previous, solved
@@ -190,6 +232,85 @@ def test_only_all_pass_after_simplify_uses_restoration_guidance(
     assert bool(result.get("_calibration")) == calibration
 
 
+@pytest.mark.parametrize(
+    ("initial_verdict", "failure_type"),
+    [
+        (None, "agent_missing_validation"),
+        ("fail", "agent_check_failed"),
+    ],
+)
+def test_evolve_repairs_agent_validation_once(
+    tmp_path, monkeypatch, initial_verdict, failure_type
+) -> None:
+    rw = _rewrite(tmp_path, monkeypatch)
+    calls = []
+
+    def run_codex(run, pkg, prompt, *, resume=None):
+        calls.append((run, prompt, resume))
+        run.meta["exit_code"] = 0
+        (pkg / "instruction.md").write_text("harder instruction\n")
+        checks = pkg / "run/checks.jsonl"
+        if resume is None and initial_verdict is not None:
+            checks.write_text(json.dumps({"verdict": initial_verdict}) + "\n")
+        if resume is not None:
+            assert "Do not write `run/checks.jsonl` yourself" in prompt
+            with checks.open("a") as stream:
+                stream.write('{"verdict":"pass"}\n')
+        return subprocess.CompletedProcess([], 0, stdout="", stderr="")
+
+    monkeypatch.setattr(ec, "_require_codex", lambda: None)
+    monkeypatch.setattr(ec, "VERIFIER_AUTHOR", "same")
+    monkeypatch.setattr(ec, "_session_id", lambda session_dir: "session-id")
+    monkeypatch.setattr(ec, "_run_codex", run_codex)
+    monkeypatch.setattr(ec, "_sandbox_down", lambda pkg: None)
+
+    result = ec.evolve_agentic(
+        rw, {**TASK, "_solved": 8, "_attempts": 8}, "harder"
+    )
+
+    assert len(calls) == 2
+    assert calls[0][2] is None and calls[1][2] == "session-id"
+    assert failure_type in calls[1][1]
+    assert result["_agent_validated"] is True
+    assert Path(result["_session"]).name.endswith("--agent-validation")
+
+
+@pytest.mark.parametrize(
+    ("verdict", "failure_type"),
+    [
+        (None, "agent_missing_validation"),
+        ("fail", "agent_check_failed"),
+    ],
+)
+def test_evolve_classifies_validation_missing_after_one_repair(
+    tmp_path, monkeypatch, verdict, failure_type
+) -> None:
+    rw = _rewrite(tmp_path, monkeypatch)
+    calls = []
+
+    def run_codex(run, pkg, prompt, *, resume=None):
+        calls.append(resume)
+        run.meta["exit_code"] = 0
+        (pkg / "instruction.md").write_text("harder instruction\n")
+        if verdict is not None:
+            with (pkg / "run/checks.jsonl").open("a") as stream:
+                stream.write(json.dumps({"verdict": verdict}) + "\n")
+        return subprocess.CompletedProcess([], 0, stdout="", stderr="")
+
+    monkeypatch.setattr(ec, "_require_codex", lambda: None)
+    monkeypatch.setattr(ec, "VERIFIER_AUTHOR", "same")
+    monkeypatch.setattr(ec, "_session_id", lambda session_dir: "session-id")
+    monkeypatch.setattr(ec, "_run_codex", run_codex)
+    monkeypatch.setattr(ec, "_sandbox_down", lambda pkg: None)
+
+    with pytest.raises(ec.AgentValidationError) as raised:
+        ec.evolve_agentic(rw, {**TASK, "_solved": 8, "_attempts": 8}, "harder")
+
+    assert calls == [None, "session-id"]
+    assert raised.value.failure_type == failure_type
+    assert raised.value.returncode == 0
+
+
 def test_evolve_accepts_checked_output_after_nonzero_agent_exit(
     tmp_path, monkeypatch
 ) -> None:
@@ -214,7 +335,7 @@ def test_evolve_accepts_checked_output_after_nonzero_agent_exit(
     monkeypatch.setattr(ec, "_run_codex", run_codex)
     monkeypatch.setattr(ec, "_sandbox_down", lambda pkg: None)
     monkeypatch.setattr(ec, "_check_verdict", lambda pkg: None)
-    monkeypatch.setattr(ec, "_require_checked", lambda pkg: None)
+    monkeypatch.setattr(ec, "_require_checked", lambda pkg, result=None: None)
     monkeypatch.setattr(ec, "_agent_checked", lambda pkg: True)
 
     result = ec.evolve_agentic(
@@ -332,7 +453,7 @@ def test_resume_accepts_checked_output_after_nonzero_agent_exit(
     monkeypatch.setattr(ec, "_run_codex", run_codex)
     monkeypatch.setattr(ec, "_sandbox_down", lambda pkg: None)
     monkeypatch.setattr(ec, "_check_verdict", lambda pkg: None)
-    monkeypatch.setattr(ec, "_require_checked", lambda pkg: None)
+    monkeypatch.setattr(ec, "_require_checked", lambda pkg, result=None: None)
     monkeypatch.setattr(ec, "_agent_checked", lambda pkg: True)
 
     result = ec.resume_agentic(
@@ -1071,11 +1192,13 @@ def test_agent_checked_reads_the_last_check(tmp_path) -> None:
 
 def test_require_checked_discards_a_session_without_a_passing_check(tmp_path) -> None:
     (tmp_path / "run").mkdir()
-    with pytest.raises(RuntimeError, match="without a passing"):
+    with pytest.raises(ec.AgentValidationError) as missing:
         ec._require_checked(tmp_path)
+    assert missing.value.failure_type == "agent_missing_validation"
     (tmp_path / "run/checks.jsonl").write_text('{"verdict": "fail"}\n')
-    with pytest.raises(RuntimeError, match="without a passing"):
+    with pytest.raises(ec.AgentValidationError) as failed:
         ec._require_checked(tmp_path)
+    assert failed.value.failure_type == "agent_check_failed"
     (tmp_path / "run/checks.jsonl").write_text(
         '{"verdict": "fail"}\n{"verdict": "pass"}\n'
     )

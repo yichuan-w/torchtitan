@@ -39,7 +39,7 @@ systemctl --user is-active rltrain.service
 jq -c '{run, started, resumed_from, checkpoint_step, mix_version, gpus}' runs/latest/launch.json
 grep -a 'trainer_loop\] step' runs/latest/stdout.log | tail -1    # no line yet = warmup
 ls runs/latest/checkpoints/                                        # step-* on the local disk
-jq -c . evolution/status.json                                      # the loop, as of its last round
+jq -c . evolution/status.json                                      # refreshed while the loop runs
 tail -3 evolution/loop.log
 ```
 
@@ -47,7 +47,9 @@ No `[trainer_loop] step` line for the first ~45 min after a restart is normal; s
 [Restarts cost an hour](#restarts-cost-an-hour). `status.json` carries `pending`,
 `handled`, `deferred`, `junk`, `superseded`, `rewrites_running`, `accepted`, `rejected`
 (by stage), `failed`, `kept` and `mix_version`; it is rebuilt from the ledger
-at the end of every round, so a stale `updated` means the loop is not rounding.
+and rewrite records every `EVOLVE_STATUS_REFRESH_SEC` seconds while a round is
+active, and once more when the round ends. A stale `updated` beyond that interval
+means the refresh is failing or the loop is not running.
 
 The training W&B run counts its own signals under `evolution/run/signal_*_total`:
 `issued`, `consumed`, `handled`, `deferred`, `superseded`, and `junk`.
@@ -405,8 +407,10 @@ Where it leaves things, all under `$TRL_BASE` and all specified in
   container's log and the agent's own verdicts; on `accepted` it is renamed to `r<N+1>/`
   with the harness files removed, so an accepted rewrite has no `package/` and a rejected
   or failed one keeps it. `sessions/<stamp>--<kind>/` is one codex invocation each
-  (`agent`, `repair`, `verifier`, `oracle`): `session.json`, `prompt.md`, `stdout.txt`,
-  `stderr.txt`, and the CLI's own session jsonl under `codex/`.
+  (`agent`, `agent-validation`, `repair`, `verifier`, `oracle`): `session.json`,
+  `prompt.md`, `stdout.txt`, `stderr.txt`, and the CLI's own session jsonl under
+  `codex/`. `agent-validation` is the one bounded resume used when the initial
+  author stops without a passing `./sandbox check` record.
 - **A task's whole history** is its directory: `lineage.jsonl` (`rewrite` and `fold`
   events; the `fold` line is the only record of a revision entering the mix, keyed by
   `mix_version`) and the accepted revisions `r0/` (the seed, copied from
@@ -537,8 +541,12 @@ What `claude_env.sh` sets and why:
 accepted rewrite against Opus 5's $8.54); `EVOLVE_CODEX_EXTRA_CONFIG` raising the CLI's
 stream and request retries and its idle timeout (a Claude turn can think
 silently for minutes; the default five reconnects a few seconds apart ended
-33% of one batch's sessions); `EVOLVE_AGENT_TIMEOUT=7200` (Claude runs about
-1.8 turns a minute, and the verifier and repair stages take 50-80 turns). The
+33% of one batch's sessions); `EVOLVE_AGENT_TIMEOUT=7200`. This
+is only a per-session ceiling: every author, verifier, and repair shares the
+rewrite's end-to-end `EVOLVE_REWRITE_BUDGET_SEC` deadline, with
+`EVOLVE_FINAL_VALIDATION_RESERVE_SEC` held back for Daytona revalidation. A
+7200-second session therefore needs a rewrite budget large enough to contain
+the session plus that reserve. The
 proxy config caps output at 32,000 tokens (LiteLLM's 4,096 default was eaten
 by thinking on 14% of turns, ending sessions on an empty message), runs one
 worker (uvicorn's multi-worker health check SIGKILLs a worker whose pong

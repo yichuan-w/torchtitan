@@ -12,6 +12,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 import feedback_loop as fb
+from rewrite_deadline import RewriteDeadline
 from torchtitan.experiments.rl.examples.tmax import layout
 
 HOOK = "set -u\nexit 0\n"
@@ -82,14 +83,16 @@ def _agentic(monkeypatch) -> dict:
                 "_operator": "op", "_family": "fam"}
 
     def fake_revalidate(work, new, orig=None, changed=None, resources=None,
-                        baseline=None, pretest_file=None):
+                        baseline=None, pretest_file=None, deadline=None):
         seen["pretest_file"] = pretest_file
         return {"ok": True, "fast_path": "daytona_oracle", "reward": 1.0}
 
     fake_ec = types.SimpleNamespace(evolve_agentic=fake_evolve_agentic,
                                     Blocked=type("Blocked", (Exception,), {}),
                                     Filtered=type("Filtered", (RuntimeError,), {}),
-                                    CYBER_RETRIES=2)
+                                    CYBER_RETRIES=2,
+                                    rewrite_deadline=lambda _rewrite:
+                                    RewriteDeadline(0, 10**12, 0))
     monkeypatch.setitem(sys.modules, "evolve_codex", fake_ec)
     monkeypatch.setenv("SWE_RETUNE_AGENT", "codex")
     monkeypatch.setattr(fb, "revalidate", fake_revalidate)

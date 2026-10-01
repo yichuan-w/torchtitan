@@ -1,0 +1,11 @@
+{
+  "seed": 20260912,
+  "sources": [
+    {"name": "agentpick-clean", "repo": "Fzz1/tb-training-mix-agentpick",
+     "revision": "6e3e6c8a01d84f06b9f18f61782170f4801d5330", "adapter": "tmax_reaudit",
+     "metadata": "data/clean.parquet", "archives": ["data/tasks-clean.tar"], "count": null},
+    {"name": "agentpick-calibforge-clean", "repo": "Fzz1/tb-training-mix-agentpick",
+     "revision": "6e3e6c8a01d84f06b9f18f61782170f4801d5330", "adapter": "tmax_reaudit",
+     "metadata": "data/calibforge_clean.parquet", "archives": ["data/tasks-calibforge_clean.tar"], "count": null}
+  ]
+}
