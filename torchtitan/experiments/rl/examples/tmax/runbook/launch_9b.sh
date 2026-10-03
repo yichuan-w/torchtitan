@@ -386,7 +386,11 @@ if [ "$DRY_RUN" = 1 ]; then
 fi
 
 # Independent service survives a controller or training-cgroup kill.
-if [ "${RL_RECORD_FORENSICS:-1}" = 1 ]; then
+# Inside a Slurm job there is no systemd --user session; skip the recorder
+# rather than let set -e end the launch (CoreWeave job 64 died here).
+if [ "${RL_RECORD_FORENSICS:-1}" = 1 ] && ! command -v systemd-run >/dev/null 2>&1; then
+    echo "[launch] WARNING: no systemd-run here; failure recorder not started" >&2
+elif [ "${RL_RECORD_FORENSICS:-1}" = 1 ]; then
     mkdir -p "$RUN/forensics"
     systemd-run --user --unit="forensics-$(basename "$RUN")" --collect \
         --working-directory="$TRL_TT" -p Restart=no \
