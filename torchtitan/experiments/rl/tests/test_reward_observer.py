@@ -195,24 +195,53 @@ class RewardObserverTest(unittest.TestCase):
                         },
                     )
                     values = dict(namespace["_evolution_metrics"](owner))
-                    self.assertEqual(
-                        values["evolution/step/rewrite_accepted_harder"], 1
+                    self.assertEqual(values["evolution/rewrites/accepted_harder"], 1)
+                    self.assertEqual(values["evolution/flow/rewrites_merged"], 1)
+                    observer.layout.write_json_atomic(
+                        root.evolution.status,
+                        {
+                            "mix_version": 4,
+                            "queue": {
+                                "waiting_tasks": 7,
+                                "blocked_tasks": 2,
+                                "running": 3,
+                            },
+                        },
                     )
-                    self.assertEqual(values["evolution/run/rewrite_accepted_total"], 1)
                     values = dict(namespace["_evolution_metrics"](owner))
-                    self.assertEqual(
-                        values["evolution/step/rewrite_accepted_harder"], 0
-                    )
-                    self.assertEqual(values["evolution/run/rewrite_accepted_total"], 1)
+                    self.assertEqual(values["evolution/flow/rewrites_merged"], 1)
+                    self.assertEqual(values["evolution/mix_version"], 4)
+                    self.assertEqual(values["evolution/queue/waiting_tasks"], 7)
+                    self.assertEqual(values["evolution/queue/blocked_tasks"], 2)
+                    self.assertEqual(values["evolution/queue/running"], 3)
 
-    def test_step_outcomes_are_run_scoped_and_reset_each_poll(self):
+    def _claim(self, run, group, origin):
+        observer.layout.append_jsonl(
+            run.trainer / "training_lineage/events.jsonl",
+            {"event": "claimed", "group_id": group, "generator_policy_version": origin},
+        )
+
+    def _issue(self, run, task, group, origin):
+        self._claim(run, group, origin)
+        observer.layout.write_json_atomic(
+            run.signal(task, group), {"task": task, "group": group}
+        )
+        return observer.layout.signal_id(run.name, task, group)
+
+    def _record_outcome(self, root, signal, task, status, direction="harder", name="0"):
+        outcome_metrics.record_outcome(
+            root,
+            root.evolution.task(task).rewrite(direction, name),
+            {"signal": signal, "task": task, "job": direction, "status": status},
+        )
+
+    def test_rewrite_outcomes_are_run_scoped_cumulative_counts(self):
         with tempfile.TemporaryDirectory() as directory:
             root = observer.layout.Root(Path(directory))
-            metrics = outcome_metrics.EvolutionMetrics(
-                root.evolution.run_outcomes("current")
-            )
+            run = root.run("current")
+            metrics = outcome_metrics.EvolutionMetrics(run, root)
             self.assertTrue(all(value == 0 for value in metrics.poll().values()))
-            for index, (run, status, direction) in enumerate(
+            for index, (run_name, status, direction) in enumerate(
                 [
                     ("old", "accepted", "harder"),
                     ("current", "accepted", "harder"),
@@ -223,228 +252,93 @@ class RewardObserverTest(unittest.TestCase):
                     ("current", "kept", "easier"),
                 ]
             ):
-                rewrite = root.evolution.task("task").rewrite(direction, str(index))
-                outcome_metrics.record_outcome(
-                    root,
-                    rewrite,
-                    {
-                        "signal": f"{run}/task--g{index}",
-                        "task": "task",
-                        "job": direction,
-                        "status": status,
-                        "finished": "20260922-180000Z",
-                    },
+                self._record_outcome(
+                    root, f"{run_name}/task--g{index}", "task", status, direction,
+                    str(index),
                 )
             first = metrics.poll()
-            self.assertEqual(first["evolution/step/rewrite_accepted"], 2)
-            self.assertEqual(first["evolution/step/rewrite_accepted_harder"], 1)
-            self.assertEqual(first["evolution/step/rewrite_accepted_easier"], 1)
-            self.assertEqual(first["evolution/step/rewrite_failed"], 2)
-            self.assertEqual(first["evolution/step/rewrite_interrupted"], 1)
-            self.assertEqual(first["evolution/step/rewrite_rejected"], 1)
-            self.assertEqual(first["evolution/step/rewrite_finalized"], 6)
-            second = metrics.poll()
-            self.assertEqual(second["evolution/step/rewrite_accepted"], 0)
-            self.assertEqual(second["evolution/run/rewrite_accepted_total"], 2)
-            self.assertEqual(
-                outcome_metrics.EvolutionMetrics(metrics.path).poll(), first
-            )
+            self.assertEqual(first["evolution/rewrites/accepted_harder"], 1)
+            self.assertEqual(first["evolution/rewrites/accepted_easier"], 1)
+            self.assertEqual(first["evolution/rewrites/failed"], 2)  # + interrupted
+            self.assertEqual(first["evolution/rewrites/rejected"], 1)
+            self.assertEqual(first["evolution/rewrites/kept"], 1)
+            self.assertEqual(first["evolution/flow/rewrites_merged"], 2)
+            self.assertEqual(metrics.poll(), first)
+            self.assertEqual(outcome_metrics.EvolutionMetrics(run, root).poll(), first)
 
-    def test_original_curves_include_late_outcomes_by_origin_step(self):
+    def test_flow_counts_issue_close_and_merge_with_latency(self):
         with tempfile.TemporaryDirectory() as directory:
             root = observer.layout.Root(Path(directory))
             run = root.run("current")
-            claims = run.trainer / "training_lineage/events.jsonl"
-            for group, origin in [(1, 0), (2, 0), (3, 1), (4, 1), (5, 1)]:
-                observer.layout.append_jsonl(
-                    claims,
-                    {
-                        "event": "claimed",
-                        "group_id": group,
-                        "generator_policy_version": origin,
-                    },
-                )
-            for task, group in [
-                ("same", 1),
-                ("same", 2),
-                ("other", 3),
-                ("deferred", 4),
-                ("pending", 5),
-            ]:
-                observer.layout.write_json_atomic(
-                    run.signal(task, group), {"task": task, "group": group}
-                )
-            metrics = outcome_metrics.EvolutionMetrics(
-                root.evolution.run_outcomes(run.name), run=run, root=root
-            )
-            metrics.poll(step=1)
-            xs, ys, _ = metrics.signal_flow_series(1)
-            self.assertEqual(xs, [0, 1])
-            self.assertEqual(ys[0], [2, 5])  # cumulative issues by origin
-            self.assertEqual(ys[1], [0, 0])  # no consumed signals yet
-            self.assertEqual(ys[2], [0, 0])  # no handled signals yet
-            self.assertEqual(ys[3], [0, 0])  # no rewrites yet
-
-            for task, group, status, step in [
-                ("same", 1, "accepted", 2),
-                ("same", 2, "failed", 3),
-                ("other", 3, "accepted", 3),
-            ]:
-                outcome_metrics.record_outcome(
-                    root,
-                    root.evolution.task(task).rewrite("harder", str(group)),
-                    {
-                        "signal": observer.layout.signal_id(run.name, task, group),
-                        "task": task,
-                        "job": "harder",
-                        "status": status,
-                    },
-                )
-                metrics.poll(step=step)
-            for task, group, outcome in [
-                ("same", 1, "handled"),
-                ("same", 2, "handled"),
-                ("other", 3, "handled"),
-                ("deferred", 4, "deferred"),
-            ]:
-                observer.layout.append_jsonl(
-                    root.evolution.ledger,
-                    {
-                        "signal": observer.layout.signal_id(run.name, task, group),
-                        "outcome": outcome,
-                    },
-                )
-            fourth = metrics.poll(step=4)
-            self.assertEqual(fourth["evolution/run/signal_issued_total"], 5)
-            self.assertEqual(fourth["evolution/run/signal_consumed_total"], 4)
-            self.assertEqual(fourth["evolution/run/signal_handled_total"], 3)
-            self.assertEqual(fourth["evolution/run/signal_deferred_total"], 1)
-            self.assertEqual(fourth["evolution/step/signal_consumed"], 4)
-            self.assertEqual(fourth["evolution/step/signal_handled"], 3)
-            self.assertEqual(fourth["evolution/run/rewrite_finalized_total"], 3)
-            _, flow, keys = metrics.signal_flow_series(4)
-            self.assertEqual(
-                keys,
-                [
-                    "signal_issued (origin cumulative)",
-                    "signal_consumed (origin cumulative)",
-                    "signal_handled (origin cumulative)",
-                    "rewrite_finalized (origin cumulative)",
-                ],
-            )
-            self.assertEqual(flow[0], [2, 5, 5, 5, 5])
-            self.assertEqual(flow[1], [2, 4, 4, 4, 4])
-            self.assertEqual(flow[2], [2, 3, 3, 3, 3])
-            self.assertEqual(flow[3], [2, 3, 3, 3, 3])
-            xs, ys, _ = metrics.comparison_series(3, "rewrite_accepted")
-            self.assertEqual(xs, [0, 1, 2, 3])
-            self.assertEqual(ys[0], [0, 0, 1, 1])  # observed
-            self.assertEqual(ys[1], [1, 1, 0, 0])  # origin
-            _, failed, _ = metrics.comparison_series(3, "rewrite_failed")
-            self.assertEqual(failed[1], [1, 0, 0, 0])
-            _, harder, _ = metrics.comparison_series(3, "rewrite_accepted_harder")
-            self.assertEqual(harder[1], [1, 1, 0, 0])
-
-    def test_retry_counts_two_rewrites_for_one_consumed_signal(self):
-        with tempfile.TemporaryDirectory() as directory:
-            root = observer.layout.Root(Path(directory))
-            run = root.run("current")
-            observer.layout.append_jsonl(
-                run.trainer / "training_lineage/events.jsonl",
-                {"event": "claimed", "group_id": 1, "generator_policy_version": 0},
-            )
+            metrics = outcome_metrics.EvolutionMetrics(run, root)
+            a = self._issue(run, "a", 1, origin=0)
+            b = self._issue(run, "b", 2, origin=0)
+            c = self._issue(run, "c", 3, origin=1)
+            # A signal whose claim is not visible yet waits to be counted.
             observer.layout.write_json_atomic(
-                run.signal("task", 1), {"task": "task", "group": 1}
-            )
-            signal = observer.layout.signal_id(run.name, "task", 1)
-            for attempt, status in enumerate(("interrupted", "kept"), 1):
-                outcome_metrics.record_outcome(
-                    root,
-                    root.evolution.task("task").rewrite("harder", str(attempt)),
-                    {
-                        "signal": signal,
-                        "task": "task",
-                        "job": "harder",
-                        "status": status,
-                    },
-                )
-            observer.layout.append_jsonl(
-                root.evolution.ledger, {"signal": signal, "outcome": "handled"}
-            )
-            metrics = outcome_metrics.EvolutionMetrics(
-                root.evolution.run_outcomes(run.name), run=run, root=root
-            )
-            totals = metrics.poll(step=1)
-            self.assertEqual(totals["evolution/run/signal_consumed_total"], 1)
-            self.assertEqual(totals["evolution/run/signal_handled_total"], 1)
-            self.assertEqual(totals["evolution/run/rewrite_finalized_total"], 2)
-            _, flow, _ = metrics.signal_flow_series(1)
-            self.assertEqual(flow, [[1, 1], [1, 1], [1, 1], [2, 2]])
-
-    def test_signal_outcomes_are_run_scoped_and_counted_once(self):
-        with tempfile.TemporaryDirectory() as directory:
-            root = observer.layout.Root(Path(directory))
-            run = root.run("current")
-            outcomes = ("handled", "deferred", "superseded", "junk")
-            for group, outcome in enumerate(outcomes, 1):
-                observer.layout.append_jsonl(
-                    run.trainer / "training_lineage/events.jsonl",
-                    {
-                        "event": "claimed",
-                        "group_id": group,
-                        "generator_policy_version": 0,
-                    },
-                )
-                observer.layout.write_json_atomic(
-                    run.signal("task", group), {"task": "task", "group": group}
-                )
-                observer.layout.append_jsonl(
-                    root.evolution.ledger,
-                    {
-                        "signal": observer.layout.signal_id(run.name, "task", group),
-                        "outcome": outcome,
-                    },
-                )
-            observer.layout.append_jsonl(
-                root.evolution.ledger,
-                {"signal": "other/task--g1", "outcome": "handled"},
-            )
-            metrics = outcome_metrics.EvolutionMetrics(
-                root.evolution.run_outcomes(run.name), run=run, root=root
+                run.signal("d", 4), {"task": "d", "group": 4}
             )
             first = metrics.poll(step=1)
-            self.assertEqual(first["evolution/run/signal_issued_total"], 4)
-            self.assertEqual(first["evolution/run/signal_consumed_total"], 4)
-            self.assertEqual(first["evolution/step/signal_consumed"], 4)
-            for outcome in outcomes:
-                self.assertEqual(first[f"evolution/run/signal_{outcome}_total"], 1)
-                self.assertEqual(first[f"evolution/step/signal_{outcome}"], 1)
+            self.assertEqual(first["evolution/flow/signals_issued"], 3)
+            self.assertEqual(first["evolution/flow/signals_closed"], 0)
+            self.assertNotIn("evolution/flow/merge_latency_steps", first)
 
+            self._claim(run, 4, 2)
+            for signal, outcome in [(a, "handled"), (b, "superseded"), (c, "handled")]:
+                observer.layout.append_jsonl(
+                    root.evolution.ledger, {"signal": signal, "outcome": outcome}
+                )
             observer.layout.append_jsonl(
-                root.evolution.ledger,
-                {
-                    "signal": observer.layout.signal_id(run.name, "task", 1),
-                    "outcome": "handled",
-                },
+                root.evolution.ledger, {"signal": "other/a--g1", "outcome": "handled"}
             )
-            second = metrics.poll(step=2)
-            self.assertEqual(second["evolution/run/signal_consumed_total"], 4)
-            self.assertEqual(second["evolution/step/signal_consumed"], 0)
-            self.assertEqual(second["evolution/step/signal_handled"], 0)
+            self._record_outcome(root, a, "a", "accepted", name="1")
+            self._record_outcome(root, c, "c", "kept", name="3")
+            fourth = metrics.poll(step=4)
+            self.assertEqual(fourth["evolution/flow/signals_issued"], 4)
+            self.assertEqual(fourth["evolution/flow/signals_closed"], 3)
+            self.assertEqual(fourth["evolution/flow/rewrites_merged"], 1)
+            self.assertEqual(fourth["evolution/signals/handled"], 2)
+            self.assertEqual(fourth["evolution/signals/superseded"], 1)
+            self.assertEqual(fourth["evolution/flow/merge_latency_steps"], 4)
+
+            xs, ys, keys = metrics.flow_series()
+            self.assertEqual(xs, [1, 4])
+            self.assertEqual(keys, ["signals_issued", "signals_closed", "rewrites_merged"])
+            self.assertEqual(ys, [[3, 4], [0, 3], [0, 1]])
+
+    def test_retried_signal_closes_once_and_counts_each_attempt(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = observer.layout.Root(Path(directory))
+            run = root.run("current")
+            signal = self._issue(run, "task", 1, origin=0)
+            for attempt, status in enumerate(("interrupted", "kept"), 1):
+                self._record_outcome(root, signal, "task", status, name=str(attempt))
+            for _ in range(2):
+                observer.layout.append_jsonl(
+                    root.evolution.ledger, {"signal": signal, "outcome": "handled"}
+                )
+            totals = outcome_metrics.EvolutionMetrics(run, root).poll(step=1)
+            self.assertEqual(totals["evolution/flow/signals_closed"], 1)
+            self.assertEqual(totals["evolution/rewrites/failed"], 1)
+            self.assertEqual(totals["evolution/rewrites/kept"], 1)
 
     def test_partial_append_and_duplicate_outcome_are_not_counted_twice(self):
         with tempfile.TemporaryDirectory() as directory:
-            path = Path(directory) / "events.jsonl"
+            root = observer.layout.Root(Path(directory))
+            run = root.run("current")
+            path = root.evolution.run_outcomes(run.name)
+            path.parent.mkdir(parents=True)
             event = json.dumps(
                 {"rewrite": "one", "status": "accepted", "direction": "harder"}
             )
             path.write_text(event[:20])
-            metrics = outcome_metrics.EvolutionMetrics(path)
-            self.assertEqual(metrics.poll()["evolution/step/rewrite_accepted"], 0)
+            metrics = outcome_metrics.EvolutionMetrics(run, root)
+            key = "evolution/rewrites/accepted_harder"
+            self.assertEqual(metrics.poll()[key], 0)
             with path.open("a") as stream:
                 stream.write(event[20:] + "\n" + event + "\n")
-            self.assertEqual(metrics.poll()["evolution/step/rewrite_accepted"], 1)
-            self.assertEqual(metrics.poll()["evolution/step/rewrite_accepted"], 0)
+            self.assertEqual(metrics.poll()[key], 1)
+            self.assertEqual(metrics.poll()[key], 1)
 
     def test_dry_outcomes_do_not_enter_training_metrics(self):
         with tempfile.TemporaryDirectory() as directory:

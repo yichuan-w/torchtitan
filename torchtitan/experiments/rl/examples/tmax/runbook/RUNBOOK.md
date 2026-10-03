@@ -1036,83 +1036,52 @@ sandbox probes. The codex arm spends considerably more per signal than that.
 ### Evolution charts in the training W&B run
 
 With the updated trainer and evolve loop deployed, start training and evolution
-using the launch commands above. Evolution counters update in the training run
-at every logged training step; no separate observer command is needed for these
-charts.
+using the launch commands above. The training run logs these at every training
+step; no separate observer command is needed. Every count is cumulative for
+this training run and taken when the trainer observes it, so a rate is the
+slope of its curve.
 
-The default x-axis is training step. `evolution/step/<name>` counts rewrite
-outcomes received since the previous logged step. `evolution/run/<name>_total`
-is the cumulative count for this training run. A rewrite outcome is assigned
-to the step that observes it, not to the epoch that triggered it: evolution
-runs asynchronously.
+`evolution/flow/chart` overlays the three flow counts as a cumulative flow
+diagram over training steps:
 
-For `rewrite_accepted_harder`, `rewrite_accepted`, `rewrite_failed`,
-`rewrite_rejected`, and `rewrite_finalized`, the
-training run's chart contains two curves: `observed at training step` is the
-existing count, and `origin policy step` puts the same rewrite outcomes at the
-generator policy version when their rollout group was claimed. The two curves
-share numeric x positions but use different meanings of step. A late outcome
-raises an earlier point on the origin curve at the next training log. The
-per-step `evolution/step/*` scalar values remain available for export.
+- `signals_issued`: signals this run wrote, counted once the group's claim is
+  visible.
+- `signals_closed`: those signals with a ledger decision (`handled`,
+  `deferred`, `superseded` or `junk`). A signal whose rewrite is still running
+  is not closed.
+- `rewrites_merged`: accepted rewrites from this run's signals that were
+  published into the mix.
 
-The `evolution/run/signal_flow` panel overlays four cumulative curves.
-`signal_issued` counts signals emitted by the trainer. `signal_consumed` counts
-distinct signals with a terminal ledger decision: `handled`, `deferred`,
-`superseded`, or `junk`. `signal_handled` counts the consumed signals that
-started and completed a rewrite. `rewrite_finalized` counts rewrite attempts
-with a recorded final verdict, including interrupted attempts. All four
-curves use the policy step when each signal's group was claimed.
-At the final recorded totals, `signal_issued - signal_consumed` is the count
-without a ledger decision. `signal_consumed - signal_handled` counts signals
-whose terminal decision was deferred, superseded, or junk. A signal retried
-after an interrupted attempt can
-contribute multiple `rewrite_finalized` counts but only one `signal_handled`.
-These counts are logged as `evolution/run/signal_issued_total`,
-`evolution/run/signal_consumed_total`, `evolution/run/signal_handled_total`, and
-`evolution/run/rewrite_finalized_total`. The other terminal signal results are
-`evolution/run/signal_deferred_total`, `evolution/run/signal_superseded_total`,
-and `evolution/run/signal_junk_total`, with matching `evolution/step/signal_*`
-increments.
-For the same run, consumed equals the sum of handled, deferred, superseded,
-and junk. The origin curves do not assert that every turn in a long rollout
-used the claim-time policy version. Signals and outcomes arriving after the
-final training log are absent from that run's chart.
+At a given step, the vertical gap between `signals_issued` and
+`signals_closed` is the number of signals still open; at a given count, the
+horizontal gap is how many steps a signal waited. `rewrites_merged` stays
+below `signals_closed` by the signals that closed without a merge.
+`evolution/flow/merge_latency_steps` is the median, over the last 20 merges,
+of the steps from a signal's issue (the policy version that claimed its group)
+to the step that observed its merge.
 
-| Name | Count |
+| Key | Count |
 | --- | --- |
-| `rewrite_accepted_harder` | Harder rewrites that passed validation and were published into the mix. |
-| `rewrite_accepted` | All rewrites that passed validation and were published, including easier rewrites. |
-| `rewrite_failed` | Execution failures, including interrupted rewrites. |
-| `rewrite_rejected` | Rewrites rejected by validation or publication checks. |
-| `rewrite_accepted_easier` | Easier rewrites that passed validation and were published. |
-| `rewrite_interrupted` | Attempts interrupted when the evolve loop stopped. |
-| `rewrite_kept` | Attempts that kept the original task. |
-| `rewrite_finalized` | All rewrite attempts with a final verdict, including failed and interrupted attempts. |
+| `evolution/flow/signals_issued`, `signals_closed`, `rewrites_merged` | The three curves above, also logged as scalars. |
+| `evolution/signals/<outcome>` | Closed signals by ledger decision: `handled`, `deferred`, `superseded`, `junk`. They sum to `signals_closed`. |
+| `evolution/rewrites/<outcome>` | Rewrite attempts by verdict: `accepted_harder`, `accepted_easier`, `kept`, `rejected`, `failed` (interrupted attempts included). |
+| `evolution/queue/waiting_tasks` | Tasks a free worker could start now, one per task: pending signals after the loop's one-signal-per-task choice and its deferral rule, minus tasks already running. |
+| `evolution/queue/blocked_tasks` | The waiting tasks the current round already rewrote once. A round starts at most one rewrite per task, so these wait for the round to end. |
+| `evolution/queue/running` | Rewrites in progress. |
+| `evolution/mix_version` | The live mix version. |
 
-Counts are per rewrite attempt, not unique tasks. A task rewritten twice can
-count twice. `rewrite_accepted_harder` and `rewrite_accepted_easier` are subsets
-of `rewrite_accepted`; `rewrite_interrupted` is a subset of `rewrite_failed`.
+Rewrite counts are per attempt: a signal retried after an interrupted attempt
+closes once and can count two verdicts. The queue and mix version come from
+`$TRL_BASE/evolution/status.json`, which the loop rebuilds every
+`EVOLVE_STATUS_REFRESH_SEC` (60 s) during a round and at its end; they cover
+the whole root rather than one run. `status.json`'s `pending` is the raw count
+of signal files without a ledger line and overstates the backlog: it includes
+several signals per task and the running rewrites' own signals.
 
 The evolve loop appends each rewrite outcome to `evolution/outcomes/<run>.jsonl`
 after publication is settled. The trainer reads new records each step, without
 waiting for an entire evolve round. Repeated records for the same rewrite are
-counted once. Counts from other training runs are excluded. The only remaining
-root-wide W&B gauge from `status.json` is `evolution/mix_version`, refreshed
-at round boundaries.
-
-For a finished run that logged the older mixed-axis signal-flow chart, inspect
-the reconstructed origin-step counts first:
-
-```bash
-python evolution/backfill_wandb.py --root "$TRL_BASE" --run <run-name> \
-  --wandb <entity/project/run-id> --out "$TRL_BASE/logs/<unique-backfill-name>"
-```
-
-Add `--upload` with a new output directory to replace that run's signal-flow
-panel and cumulative counters. The output directory keeps the previous W&B
-summary values and the source counts. The backfill includes final rewrite
-verdicts recorded after training stopped, so its `rewrite_finalized` total can
-exceed the last live training log.
+counted once. Counts from other training runs are excluded.
 
 Both training launchers also start the supplementary accuracy/timeline observer
 by default. Its published page is linked from the training run's
