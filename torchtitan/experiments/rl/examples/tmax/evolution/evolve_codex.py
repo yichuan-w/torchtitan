@@ -1380,6 +1380,9 @@ HIDDEN_FROM_VERIFIER = (
     "sandbox",
 )
 AGENT_TIMEOUT = int(os.environ.get("EVOLVE_AGENT_TIMEOUT", "2400"))
+# The resume that asks an author with no check record to run `./sandbox check`
+# once: a check plus a container boot, not another authoring session.
+AGENT_VALIDATION_TIMEOUT = int(os.environ.get("EVOLVE_AGENT_VALIDATION_TIMEOUT", "900"))
 # When a check fails after the author and the blind verifier have both
 # written, the two sides repair in turn -- the author first, with the failure
 # and without the verifier, then the verifier's author -- and that pair is one
@@ -1469,6 +1472,11 @@ def rewrite_deadline(rewrite: layout.RewriteDir) -> RewriteDeadline:
         expires_at=started_at + budget_sec,
         final_validation_reserve_sec=FINAL_VALIDATION_RESERVE_SEC,
     )
+
+
+def rewrite_budget_why() -> str:
+    """How the last rewrite_budget_sec value was derived, for the loop's log."""
+    return _budget_cache["why"] or "EVOLVE_REWRITE_BUDGET_SEC"
 
 
 def _session_timeout(
@@ -1766,16 +1774,14 @@ your first command waits for it.
 Confirm with `./sandbox check` before you stop."""
 
 _AGENT_VALIDATION_REPAIR_JOB = """Your previous session stopped without leaving
-a usable passing `./sandbox check` record. The harness observed:
+a readable `./sandbox check` record. The harness observed:
 
-{failure_type}: {problem}
+{problem}
 
-Continue the same rewrite; do not introduce another difficulty change. Inspect
-the files already present, run `./sandbox check`, and repair the existing
-rewrite if that check fails. Do not write `run/checks.jsonl` yourself; the
-sandbox command records the result. Finish only after its newest record has
-`verdict: pass`. If the rewrite cannot satisfy its contract, write
-`GIVE UP: validation failed -- <why>` to `run/verdict.txt` and stop."""
+Run `./sandbox check` once, as the rewrite stands, and stop. Change no file:
+this session only records the check the rewrite needed before it ended.
+Do not write `run/checks.jsonl` yourself; the sandbox command records the
+result, and a check that does not pass discards the rewrite."""
 
 _REPAIR_BLIND_NOTE = """
 
@@ -2589,7 +2595,10 @@ def _repair_agent_validation(
     problem: AgentValidationError,
     deadline: RewriteDeadline,
 ) -> tuple[SessionRun, subprocess.CompletedProcess, AgentSessionError | None]:
-    """Resume one author once to produce a passing sandbox-check record."""
+    """Resume an author that left no check record, once, to run the check.
+
+    Only for a missing record. A last check that did not pass is not repaired
+    here: AGENTS.md discards a rewrite that never passed `./sandbox check`."""
     try:
         sid = _session_id(prior)
     except RuntimeError as error:
@@ -2597,7 +2606,7 @@ def _repair_agent_validation(
 
     agent_error = None
     run = None
-    timeout = _session_timeout(deadline, "agent validation repair")
+    timeout = _session_timeout(deadline, "agent validation", AGENT_VALIDATION_TIMEOUT)
     try:
         with session(
             rewrite, "agent-validation", timeout=timeout, resumes=prior
@@ -2606,9 +2615,7 @@ def _repair_agent_validation(
                 result = _run_codex(
                     run,
                     pkg,
-                    _AGENT_VALIDATION_REPAIR_JOB.format(
-                        failure_type=problem.failure_type, problem=problem
-                    )
+                    _AGENT_VALIDATION_REPAIR_JOB.format(problem=problem)
                     + _budget(timeout),
                     resume=sid,
                 )
@@ -2767,6 +2774,8 @@ def evolve_agentic(
             _require_checked(pkg, p)
         except AgentValidationError as error:
             error.returncode = p.returncode
+            if error.failure_type != "agent_missing_validation":
+                raise
             run, p, repair_error = _repair_agent_validation(
                 rewrite, run.dir, pkg, error, deadline
             )

@@ -11,8 +11,15 @@ records, and completed revisions, but it is a poor working directory for an
 agent that creates and reads thousands of small files over several hours.
 When ``EVOLVE_WORK_ROOT`` is set, this module stages the input revision and the
 tool binaries below that node-local directory, keeps the whole active rewrite
-there, and atomically publishes the completed rewrite back to the experiment
-root.
+there, and publishes the completed rewrite back to the experiment root.
+
+The durable rewrite directory exists from the start, holding only a claim
+``rewrite.json`` (status ``running``, the local path, the host), so the root
+alone still says which rewrites are in flight and finalize_interrupted_traces
+sees one a killed loop left behind. Publication moves the local entries in and
+replaces ``rewrite.json`` last, which is the commit point. A workspace whose
+publication did not happen -- a storage error, or a loop that died -- is
+published by ``recover`` when the next loop starts and before every round.
 
 With the setting unset, callers retain the original in-place behavior.
 """
@@ -24,6 +31,7 @@ import json
 import logging
 import os
 import shutil
+import socket
 import stat
 import uuid
 from dataclasses import dataclass
@@ -124,27 +132,58 @@ class RewriteWorkspace:
             return
         _copytree(src, dst)
 
+    def claim(self, meta: dict) -> None:
+        """Write the durable record of an active local rewrite."""
+        if not self.is_local:
+            return
+        layout.write_json_atomic(
+            self.durable.meta,
+            {
+                **meta,
+                "active_path": str(self.active.path),
+                "host": socket.gethostname(),
+            },
+        )
+
     def publish(self) -> layout.RewriteDir:
-        """Publish a completed local record with one durable rename."""
+        """Move the local record into its durable directory, rewrite.json last."""
         if not self.is_local:
             return self.durable
         target = self.durable.path
-        if target.exists():
-            raise RuntimeError(f"refusing to overwrite rewrite record {target}")
+        if target.exists() and self.durable.meta.exists():
+            try:
+                claimed = json.loads(self.durable.meta.read_text()).get("active_path")
+            except (OSError, ValueError) as exc:
+                raise WorkspaceTransferError(
+                    f"could not read the claim at {self.durable.meta}: {exc}"
+                ) from exc
+            if claimed != str(self.active.path):
+                raise RuntimeError(f"refusing to overwrite rewrite record {target}")
         incoming = target.with_name(
             f".{target.name}.incoming-{os.getpid()}-{uuid.uuid4().hex}"
         )
         try:
-            target.parent.mkdir(parents=True, exist_ok=True)
+            target.mkdir(parents=True, exist_ok=True)
             # Preserve links as links. Following a CLI credential link here
             # would copy private authentication into the durable record.
             shutil.copytree(self.active.path, incoming, symlinks=True)
             # A complete record always has readable metadata. Validate it
-            # before making the directory visible under its final name.
+            # before anything replaces the claim.
             metadata = json.loads((incoming / "rewrite.json").read_text())
             if not isinstance(metadata, dict):
                 raise ValueError("rewrite.json is not an object")
-            os.replace(incoming, target)
+            for entry in sorted(incoming.iterdir()):
+                if entry.name == "rewrite.json":
+                    continue
+                dst = target / entry.name
+                # Left by an earlier publication that failed part way.
+                if dst.is_dir() and not dst.is_symlink():
+                    shutil.rmtree(dst)
+                os.replace(entry, dst)
+            # The commit point: until this rename the durable record still
+            # reads as the running claim.
+            os.replace(incoming / "rewrite.json", self.durable.meta)
+            incoming.rmdir()
         except (OSError, shutil.Error, ValueError) as exc:
             raise WorkspaceTransferError(
                 f"could not publish {self.active.path} to {target}; the local "
@@ -179,17 +218,72 @@ def prepare_rewrite(
         durable.path.mkdir(parents=True)
         return RewriteWorkspace(durable, durable, source)
 
-    relative = durable.path.relative_to(root.evolution.path)
-    active = layout.RewriteDir(work_root / "active" / relative)
-    local_seed = work_root / "inputs" / relative
-    if active.path.exists() or local_seed.exists():
+    workspace = _workspace(root, work_root, durable)
+    assert workspace.local_seed_dir is not None
+    if workspace.active.path.exists() or workspace.local_seed_dir.exists():
         raise WorkspaceTransferError(
-            f"local rewrite workspace already exists: {active.path} or {local_seed}"
+            f"local rewrite workspace already exists: {workspace.active.path} "
+            f"or {workspace.local_seed_dir}"
         )
-    active.path.parent.mkdir(parents=True, exist_ok=True)
-    local_seed.parent.mkdir(parents=True, exist_ok=True)
-    active.path.mkdir()
-    return RewriteWorkspace(durable, active, local_seed, local_seed)
+    durable.path.mkdir(parents=True)
+    workspace.active.path.parent.mkdir(parents=True, exist_ok=True)
+    workspace.local_seed_dir.parent.mkdir(parents=True, exist_ok=True)
+    workspace.active.path.mkdir()
+    return workspace
+
+
+def _workspace(
+    root: layout.Root, work_root: Path, durable: layout.RewriteDir
+) -> RewriteWorkspace:
+    relative = durable.path.relative_to(root.evolution.path)
+    local_seed = work_root / "inputs" / relative
+    return RewriteWorkspace(
+        durable,
+        layout.RewriteDir(work_root / "active" / relative),
+        local_seed,
+        local_seed,
+    )
+
+
+def recover(root: layout.Root) -> list[layout.RewriteDir]:
+    """Publish every local rewrite a stopped loop or a failed publication left.
+
+    Only safe while no rewrite of this root is running: at loop start under
+    the singleton lock, and between rounds. Returns the durable records
+    published; a record still ``running`` afterwards was cut short, and
+    finalize_interrupted_traces marks it. A publication that fails again is
+    logged and left for the next call.
+    """
+    work_root = configured_root(root)
+    if work_root is None:
+        return []
+    published = []
+    active_root = work_root / "active"
+    for active in sorted(active_root.glob("tasks/*/rewrites/*")):
+        if not active.is_dir():
+            continue
+        durable = layout.RewriteDir(
+            root.evolution.path / active.relative_to(active_root)
+        )
+        workspace = _workspace(root, work_root, durable)
+        if not workspace.active.meta.exists():
+            # Stopped before its first record: nothing ran, nothing to keep.
+            log.warning("removing local rewrite with no record: %s", active)
+            workspace.cleanup()
+            try:
+                durable.path.rmdir()
+            except OSError:
+                pass
+            continue
+        try:
+            workspace.publish()
+        except (WorkspaceTransferError, RuntimeError) as exc:
+            log.warning("could not recover local rewrite %s: %s", active, exc)
+            continue
+        workspace.cleanup()
+        log.warning("recovered local rewrite %s into %s", active, durable.path)
+        published.append(durable)
+    return published
 
 
 def _tool_digest(path: Path) -> str:

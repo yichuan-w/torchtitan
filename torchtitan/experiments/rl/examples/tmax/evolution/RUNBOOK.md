@@ -269,9 +269,12 @@ rewrites improve student outcomes. The codex arm runs
 `$TRL_BASE/bin/codex`, with `jq` beside it on the agent's PATH for reading the records.
 When the root is remote storage, set `EVOLVE_WORK_ROOT` to an absolute node-local
 directory. The loop then copies the input, rollout records, active rewrite tree,
-session homes, and pinned tools there. Only a completed rewrite is copied back,
-through a hidden incoming directory followed by one rename. A failed publication
-does not close the signal and leaves the local workspace for recovery. Confirm the
+session homes, and pinned tools there. The durable rewrite directory exists from
+the start with a `running` claim in `rewrite.json` naming the host and local path;
+a finished rewrite is moved in and `rewrite.json` replaced last. A publication that
+fails, or a loop that dies mid-rewrite, leaves the local workspace, which the next
+loop start and every later round publish into the durable record before
+`finalize_interrupted` marks what was cut short; its signal stays open. Confirm the
 path is on the intended mount with `findmnt -T "$EVOLVE_WORK_ROOT"`; a different
 pathname on the same FUSE mount provides no isolation.
 The worker count is not a throughput knob: the loop is signal-starved (89% of rounds carry
@@ -408,8 +411,10 @@ Where it leaves things, all under `$TRL_BASE` and all specified in
   or failed one keeps it. `sessions/<stamp>--<kind>/` is one codex invocation each
   (`agent`, `agent-validation`, `repair`, `verifier`, `oracle`): `session.json`,
   `prompt.md`, `stdout.txt`, `stderr.txt`, and the CLI's own session jsonl under
-  `codex/`. `agent-validation` is the one bounded resume used when the initial
-  author stops without a passing `./sandbox check` record.
+  `codex/`. `agent-validation` is the one resume, capped at
+  `EVOLVE_AGENT_VALIDATION_TIMEOUT` (900 s), given an initial author that stopped
+  with no `./sandbox check` record: it runs the check once and changes nothing. A
+  last check that did not pass is not resumed; the rewrite is discarded.
 - **A task's whole history** is its directory: `lineage.jsonl` (`rewrite` and `fold`
   events; the `fold` line is the only record of a revision entering the mix, keyed by
   `mix_version`) and the accepted revisions `r0/` (the seed, copied from
@@ -545,7 +550,9 @@ is only a per-session ceiling: every author, verifier, and repair shares the
 rewrite's end-to-end `EVOLVE_REWRITE_BUDGET_SEC` deadline, with
 `EVOLVE_FINAL_VALIDATION_RESERVE_SEC` held back for Daytona revalidation. A
 7200-second session therefore needs a rewrite budget large enough to contain
-the session plus that reserve. The
+the session plus that reserve. The loop logs the budget and its derivation as
+`rewrite budget at start` and refuses to start when it does not exceed the
+reserve, as on a root whose epoch is a few minutes. The
 proxy config caps output at 32,000 tokens (LiteLLM's 4,096 default was eaten
 by thinking on 14% of turns, ending sessions on an empty message), runs one
 worker (uvicorn's multi-worker health check SIGKILLs a worker whose pong
