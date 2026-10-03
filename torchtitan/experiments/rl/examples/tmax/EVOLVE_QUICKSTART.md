@@ -164,14 +164,11 @@ starts, and `loop.log` has one `recovered local rewrite` line for each.
   manifest.
 - `runs/<run>/trainer/mix_versions.jsonl`: whether the trainer has picked the
   version up.
-- W&B: per-step outcomes and cumulative counts appear directly in the training
-  run. See [the training runbook](runbook/RUNBOOK.md#evolution-charts-in-the-training-wb-run)
-  for the observed-step and origin-step outcome curves,
-  the signal-issued/signal-consumed/rewrite-finalized overlay in `evolution/run/signal_flow`,
-  `evolution/run/*_total`, and the supplementary
-  observer link. The original `evolution/step/*` scalar keys remain available.
-  The top-level `evolution/*` counters retain their experiment-wide, round-level
-  meaning.
+- W&B: the training run logs the evolution flow (`evolution/flow/*`, with the
+  issued/closed/merged overlay in `evolution/flow/chart`), outcome counts
+  (`evolution/signals/*`, `evolution/rewrites/*`) and the loop's queue
+  (`evolution/queue/*`). See [the training runbook](runbook/RUNBOOK.md#evolution-charts-in-the-training-wb-run)
+  for what each one counts and for the supplementary observer link.
 - On hip, `python3 evolution/hip/run_health.py <run dir>` prints one line with
   steps done, per-sequence generation speed, the timeout rate and agent seconds
   per turn: the numbers to look at before touching any concurrency setting.

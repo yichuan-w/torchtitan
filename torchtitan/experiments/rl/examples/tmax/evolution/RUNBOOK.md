@@ -51,17 +51,16 @@ and rewrite records every `EVOLVE_STATUS_REFRESH_SEC` seconds while a round is
 active, and once more when the round ends. A stale `updated` beyond that interval
 means the refresh is failing or the loop is not running.
 
-The training W&B run counts its own signals under `evolution/run/signal_*_total`:
-`issued`, `consumed`, `handled`, `deferred`, `superseded`, and `junk`.
-`consumed` is the sum of the four terminal results. The trainer also reads
-`evolution/mix_version` from the root-wide `status.json`.
+`status.json` also carries `queue`: `waiting_tasks` (tasks a free worker could
+start now, one per task), `blocked_tasks` (waiting tasks this round already
+rewrote once, which wait for the round to end) and `running`. Its `pending` is
+the raw count of signal files without a ledger line, several per task and the
+running rewrites' own included, so it overstates the backlog.
 
-Training also logs run-scoped outcome curves at each step:
-`evolution/step/rewrite_accepted_harder`, `evolution/step/rewrite_accepted`,
-`evolution/step/rewrite_failed` and `evolution/step/rewrite_rejected`, plus cumulative
-`evolution/run/rewrite_*_total` curves. Signal outcomes have matching
-`evolution/step/signal_*` increments. The trainer reads rewrite outcomes at each
-logged step, without waiting for the round-level status snapshot. See
+The training W&B run logs, at each step, its own signals issued, closed and
+merged (`evolution/flow/*`), their outcomes (`evolution/signals/*`,
+`evolution/rewrites/*`), and the queue and `evolution/mix_version` from
+`status.json`. See
 [Evolution charts in the training W&B run](../runbook/RUNBOOK.md#evolution-charts-in-the-training-wb-run)
 for count definitions and the automatically launched accuracy/timeline observer.
 

@@ -335,8 +335,9 @@ Everything below is read from the environment in `config_registry.py` /
 - `bit_wise/logprob_diff/{abs_mean,max}` is generator-vs-trainer logprob drift.
   It is exactly 0 on prefill but not on GDN decode (chunk-parallel training vs
   recurrent decoding); a large `max` is what `SWE_DPPO_RATIO_CAP` guards against.
-- `evolution/run/signal_*_total` and `evolution/run/rewrite_*_total` count this
-  training run's signals and rewrite attempts. `evolution/mix_version` is read
+- `evolution/flow/*`, `evolution/signals/*` and `evolution/rewrites/*` count
+  this training run's signals and rewrite attempts; `evolution/queue/*` is the
+  loop's backlog. `evolution/mix_version` is read
   from `$TRL_BASE/evolution/status.json`: it is the version the loop last
   published; `trainer/mix_versions.jsonl` in the run directory says which one
   the trainer loaded, at boot and at every hot reload.

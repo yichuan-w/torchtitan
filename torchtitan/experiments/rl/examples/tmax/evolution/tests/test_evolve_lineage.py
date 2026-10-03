@@ -745,10 +745,27 @@ def test_rejected_rewrite_keeps_its_package_and_its_hardlinked_traces(
 def test_status_can_report_active_node_local_rewrites(tmp_path, monkeypatch) -> None:
     root = _root(tmp_path, monkeypatch)
 
-    status = od.rebuild_status(root, num_active_rewrites=3)
+    status = od.rebuild_status(root, active_tasks={"a", "b", "c"})
 
     assert status["rewrites_running"] == 3
     assert json.loads(root.evolution.status.read_text()) == status
+
+
+def test_queue_counts_each_startable_task_once(tmp_path, monkeypatch) -> None:
+    root = _root(tmp_path, monkeypatch)
+    _signal(root, task="tw_a", group=7, created="20260904-183012Z")
+    _signal(root, task="tw_a", group=8, created="20260904-183512Z")
+    _signal(root, task="tw_b", group=9)
+    _signal(root, task="tw_c", group=10)
+    _signal(root, task="tw_d", group=11)
+
+    status = od.rebuild_status(
+        root, active_tasks={"tw_d"}, taken=frozenset({"tw_c", "tw_d"})
+    )
+
+    # Five signal files, four tasks; tw_d is running, tw_c waits for the round.
+    assert status["pending"] == 5
+    assert status["queue"] == {"waiting_tasks": 3, "blocked_tasks": 1, "running": 1}
 
 
 def test_long_round_refreshes_status_while_a_rewrite_is_active(
@@ -768,11 +785,9 @@ def test_long_round_refreshes_status_while_a_rewrite_is_active(
     real_rebuild = od.rebuild_status
     active_counts = []
 
-    def observe(root_, *, num_active_rewrites=None):
-        active_counts.append(num_active_rewrites)
-        status = real_rebuild(
-            root_, num_active_rewrites=num_active_rewrites
-        )
+    def observe(root_, *, active_tasks=None, taken=frozenset()):
+        active_counts.append(None if active_tasks is None else len(active_tasks))
+        status = real_rebuild(root_, active_tasks=active_tasks, taken=taken)
         refreshed.set()
         return status
 
@@ -803,7 +818,7 @@ def test_in_round_status_failure_does_not_abort_rewrites(
         raise OSError("status storage unavailable")
 
     monkeypatch.setattr(od, "rebuild_status", fail)
-    od._refresh_status_during_round(root, num_active_rewrites=2)
+    od._refresh_status_during_round(root, active_tasks={"a", "b"}, taken=frozenset())
 
     assert "status storage unavailable" in caplog.text
 

@@ -1154,15 +1154,43 @@ def _rewrite_metas(root: layout.Root):
             yield task, rw, meta
 
 
+def _queue(
+    root: layout.Root,
+    ledger: dict[str, dict],
+    running: set[str],
+    taken: frozenset[str],
+) -> dict:
+    """The tasks a free worker could start now, counted once per task.
+
+    `pending` counts raw signal files: several per task, the running rewrites'
+    own signals and ones a round will supersede. This applies choose() and the
+    deferral rule the way select_work does, so `waiting_tasks` is the backlog.
+    `blocked_tasks` are the waiting tasks this round already rewrote once: the
+    round does not start a second rewrite of a task, so they wait for it to end.
+    """
+    found = [s for s in discover(root, ledger) if s.data is not None and not s.junk]
+    picks, _ = choose(root, found)
+    waiting = {s.task for s in picks if not _deferred(root, s)} - running
+    return {
+        "waiting_tasks": len(waiting),
+        "blocked_tasks": len(waiting & taken),
+        "running": len(running),
+    }
+
+
 def rebuild_status(
-    root: layout.Root, *, num_active_rewrites: int | None = None
+    root: layout.Root,
+    *,
+    active_tasks: set[str] | None = None,
+    taken: frozenset[str] = frozenset(),
 ) -> dict:
     """status.json from the ledger and every task's rewrite files. No counter
     is carried over; losing the file loses nothing.
 
-    During a round, ``num_active_rewrites`` is the coordinator's live future
-    count. It overrides the on-disk count because node-local workspaces are not
-    visible under the durable root until they finish publishing.
+    During a round, ``active_tasks`` are the tasks the coordinator has a live
+    rewrite of, and ``taken`` every task the round has started. The live set
+    overrides the on-disk count because node-local workspaces are not visible
+    under the durable root until they finish publishing.
     """
     ledger = load_ledger(root)
     by_outcome: dict[str, int] = {}
@@ -1172,8 +1200,11 @@ def rebuild_status(
         )
     rewrites = {"running": 0, "accepted": 0, "failed": 0, "kept": 0}
     rejected: dict[str, int] = {}
+    running_on_disk: set[str] = set()
     for _task, _rw, meta in _rewrite_metas(root):
         st = meta.get("status")
+        if st == "running" and meta.get("task"):
+            running_on_disk.add(meta["task"])
         if st == "rejected":
             stage = meta.get("stage") or "unknown"
             rejected[stage] = rejected.get(stage, 0) + 1
@@ -1191,25 +1222,29 @@ def rebuild_status(
         "junk": by_outcome.get("junk", 0),
         "superseded": by_outcome.get("superseded", 0),
         "rewrites_running": (
-            rewrites["running"]
-            if num_active_rewrites is None
-            else num_active_rewrites
+            rewrites["running"] if active_tasks is None else len(active_tasks)
         ),
         "accepted": rewrites["accepted"],
         "rejected": rejected,
         "failed": rewrites["failed"],
         "kept": rewrites["kept"],
+        "queue": _queue(
+            root,
+            ledger,
+            running_on_disk if active_tasks is None else active_tasks,
+            taken,
+        ),
     }
     layout.write_json_atomic(root.evolution.status, status)
     return status
 
 
 def _refresh_status_during_round(
-    root: layout.Root, *, num_active_rewrites: int
+    root: layout.Root, *, active_tasks: set[str], taken: frozenset[str]
 ) -> None:
     """Refresh observability without making it a dependency of rewrite work."""
     try:
-        rebuild_status(root, num_active_rewrites=num_active_rewrites)
+        rebuild_status(root, active_tasks=active_tasks, taken=taken)
     except Exception as error:  # noqa: BLE001 -- status is a derived snapshot
         log.warning(
             "in-round status refresh failed; rewrite work continues: %s: %s",
@@ -1289,6 +1324,16 @@ def _replay_signal(root: layout.Root, sid: str) -> Signal:
     return Signal(run, path, sid, data, None)
 
 
+def _deferred(root: layout.Root, s: Signal) -> bool:
+    """An easier signal waits for nothing while the easier direction is off,
+    unless its task has never been solved."""
+    return (
+        s.data["direction"] == "easier"
+        and not SIMPLIFY_ENABLED
+        and not unsolved(root, s.task, int(s.data["rev"]))
+    )
+
+
 def select_work(
     root: layout.Root,
     ledger: dict[str, dict],
@@ -1338,12 +1383,7 @@ def select_work(
 
     todo, deferred = [], []
     for s in picks:
-        if (
-            s.data["direction"] == "easier"
-            and not SIMPLIFY_ENABLED
-            and not signal
-            and not unsolved(root, s.task, int(s.data["rev"]))
-        ):
+        if not signal and _deferred(root, s):
             deferred.append(s)
         else:
             todo.append(s)
@@ -1548,7 +1588,9 @@ def run_round(
                 and time.monotonic() - last_status_refresh >= STATUS_REFRESH_SEC
             ):
                 _refresh_status_during_round(
-                    root, num_active_rewrites=len(futs)
+                    root,
+                    active_tasks={s.task for s in futs.values()},
+                    taken=frozenset(taken),
                 )
                 last_status_refresh = time.monotonic()
 
