@@ -608,7 +608,7 @@ def test_node_local_rewrite_is_published_only_after_processing(
     assert seen[0]["seed_dir"] == active_paths["seed"]
 
 
-def test_publish_failure_preserves_local_rewrite_and_leaves_signal_pending(
+def test_publish_failure_is_recovered_before_the_next_round(
     tmp_path, monkeypatch
 ) -> None:
     root = _root(tmp_path, monkeypatch)
@@ -616,6 +616,7 @@ def test_publish_failure_preserves_local_rewrite_and_leaves_signal_pending(
     work_root = tmp_path / "node-local"
     monkeypatch.setenv("EVOLVE_WORK_ROOT", str(work_root))
     _stub(monkeypatch)
+    publish = rw_workspace.RewriteWorkspace.publish
 
     def fail_publish(workspace):
         raise rw_workspace.WorkspaceTransferError("durable storage unavailable")
@@ -627,11 +628,65 @@ def test_publish_failure_preserves_local_rewrite_and_leaves_signal_pending(
     assert result["handled"] == 0
     assert root.mix.live_version()[0] == 1
     assert _ledger(root) == []
-    assert root.evolution.task("tw_a").rewrite_dirs() == []
-    records = list(work_root.rglob("rewrite.json"))
-    assert len(records) == 1
-    assert json.loads(records[0].read_text())["execution_storage"] == "node_local"
+    # The durable root still names the rewrite in flight and where it runs.
+    [claimed] = root.evolution.task("tw_a").rewrite_dirs()
+    claim = json.loads(claimed.meta.read_text())
+    assert claim["status"] == "running"
+    assert claim["execution_storage"] == "node_local"
+    assert claim["active_path"].startswith(str(work_root))
     assert sid in {signal.sid for signal in od.discover(root, od.load_ledger(root))}
+
+    monkeypatch.setattr(rw_workspace.RewriteWorkspace, "publish", publish)
+    result = od.run_round(root, workers=1)
+
+    # The next round publishes the stranded workspace, marks it cut short,
+    # and handles the still-open signal again.
+    assert result["handled"] == 1
+    recovered = json.loads(claimed.meta.read_text())
+    assert recovered["status"] == "interrupted"
+    assert (claimed.package / "instruction.md").read_text() == "harder\n"
+    assert not list((work_root).rglob("rewrite.json"))
+
+
+def test_recover_publishes_a_workspace_a_stopped_loop_left(
+    tmp_path, monkeypatch
+) -> None:
+    root = _root(tmp_path, monkeypatch)
+    work_root = tmp_path / "node-local"
+    monkeypatch.setenv("EVOLVE_WORK_ROOT", str(work_root))
+    durable = layout.RewriteDir(
+        root.evolution.task("tw_a").path / "rewrites" / "20260904-190000Z--harder"
+    )
+    workspace = rw_workspace.prepare_rewrite(root, durable, tmp_path)
+    meta = {"task": "tw_a", "status": "running", "sessions": []}
+    layout.write_json_atomic(workspace.active.meta, meta)
+    workspace.claim(meta)
+    session = workspace.active.session("agent", "20260904-190001Z")
+    session.path.mkdir(parents=True)
+    session.stderr.write_text("cut short\n")
+
+    assert [d.path for d in rw_workspace.recover(root)] == [durable.path]
+
+    assert durable.session("agent", "20260904-190001Z").stderr.read_text() == (
+        "cut short\n"
+    )
+    assert "active_path" not in json.loads(durable.meta.read_text())
+    assert not workspace.active.path.exists()
+    assert rw_workspace.recover(root) == []
+
+
+def test_loop_refuses_to_start_when_the_budget_leaves_no_session_time(
+    tmp_path, monkeypatch
+) -> None:
+    root = _root(tmp_path, monkeypatch)
+    monkeypatch.setenv("EVOLVE_REWRITE_BUDGET_SEC", str(od.ec.FINAL_VALIDATION_RESERVE_SEC))
+    monkeypatch.setattr(sys, "argv", ["evolve_ondella.py", "--once"])
+
+    with pytest.raises(SystemExit) as raised:
+        od.main()
+
+    assert "EVOLVE_REWRITE_BUDGET_SEC" in str(raised.value)
+    assert not root.evolution.loop_lock.exists()
 
 
 def test_node_local_tool_copy_is_content_addressed(tmp_path, monkeypatch) -> None:

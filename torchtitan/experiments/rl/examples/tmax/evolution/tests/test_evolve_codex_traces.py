@@ -232,15 +232,8 @@ def test_only_all_pass_after_simplify_uses_restoration_guidance(
     assert bool(result.get("_calibration")) == calibration
 
 
-@pytest.mark.parametrize(
-    ("initial_verdict", "failure_type"),
-    [
-        (None, "agent_missing_validation"),
-        ("fail", "agent_check_failed"),
-    ],
-)
-def test_evolve_repairs_agent_validation_once(
-    tmp_path, monkeypatch, initial_verdict, failure_type
+def test_evolve_resumes_an_author_with_no_check_record_once(
+    tmp_path, monkeypatch
 ) -> None:
     rw = _rewrite(tmp_path, monkeypatch)
     calls = []
@@ -249,12 +242,10 @@ def test_evolve_repairs_agent_validation_once(
         calls.append((run, prompt, resume))
         run.meta["exit_code"] = 0
         (pkg / "instruction.md").write_text("harder instruction\n")
-        checks = pkg / "run/checks.jsonl"
-        if resume is None and initial_verdict is not None:
-            checks.write_text(json.dumps({"verdict": initial_verdict}) + "\n")
         if resume is not None:
+            assert "Run `./sandbox check` once" in prompt
             assert "Do not write `run/checks.jsonl` yourself" in prompt
-            with checks.open("a") as stream:
+            with (pkg / "run/checks.jsonl").open("a") as stream:
                 stream.write('{"verdict":"pass"}\n')
         return subprocess.CompletedProcess([], 0, stdout="", stderr="")
 
@@ -270,20 +261,22 @@ def test_evolve_repairs_agent_validation_once(
 
     assert len(calls) == 2
     assert calls[0][2] is None and calls[1][2] == "session-id"
-    assert failure_type in calls[1][1]
+    assert "without a readable ./sandbox check result" in calls[1][1]
     assert result["_agent_validated"] is True
     assert Path(result["_session"]).name.endswith("--agent-validation")
 
 
 @pytest.mark.parametrize(
-    ("verdict", "failure_type"),
+    ("verdict", "failure_type", "resumes"),
     [
-        (None, "agent_missing_validation"),
-        ("fail", "agent_check_failed"),
+        # No record at all: one resume to run the check, then classified.
+        (None, "agent_missing_validation", [None, "session-id"]),
+        # A failed last check is discarded, never resumed (AGENTS.md).
+        ("fail", "agent_check_failed", [None]),
     ],
 )
-def test_evolve_classifies_validation_missing_after_one_repair(
-    tmp_path, monkeypatch, verdict, failure_type
+def test_evolve_classifies_validation_failures(
+    tmp_path, monkeypatch, verdict, failure_type, resumes
 ) -> None:
     rw = _rewrite(tmp_path, monkeypatch)
     calls = []
@@ -306,7 +299,7 @@ def test_evolve_classifies_validation_missing_after_one_repair(
     with pytest.raises(ec.AgentValidationError) as raised:
         ec.evolve_agentic(rw, {**TASK, "_solved": 8, "_attempts": 8}, "harder")
 
-    assert calls == [None, "session-id"]
+    assert calls == resumes
     assert raised.value.failure_type == failure_type
     assert raised.value.returncode == 0
 

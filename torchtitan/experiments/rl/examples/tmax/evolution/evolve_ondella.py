@@ -763,6 +763,7 @@ def handle(
     if dry:
         meta["dry"] = True
     layout.write_json_atomic(rewrite.meta, meta)
+    workspace.claim(meta)
     hook = (pretests or {}).get(tid)
     lists = (protecteds or {}).get(tid)
     if hook or lists:
@@ -886,8 +887,9 @@ def handle(
             )
             rec["simplify_context"] = context
     except rw_workspace.WorkspaceTransferError:
-        # A storage outage is retryable infrastructure failure. Do not publish
-        # a failed rewrite or close the signal; retain the local workspace.
+        # A storage outage is retryable infrastructure failure. Do not close
+        # the signal; rw_workspace.recover publishes the local record before
+        # the next round and finalize_interrupted marks it.
         raise
     except OSError as e:
         if workspace.is_local and not processing_started:
@@ -1402,6 +1404,11 @@ def run_round(
     if not todo:
         return result
 
+    if not dry and rw_workspace.recover(root):
+        # Nothing of this root is running between rounds, so a recovered
+        # record still `running` was cut short by a failed publication.
+        finalize_interrupted(root)
+
     # Freeze the epoch-derived repair budget for this round before its workers
     # enter node-local workspaces. The repair loops can then consult the cache
     # without reading the remote mix or trainer logs mid-session.
@@ -1594,6 +1601,16 @@ def main() -> None:
     )
     args = ap.parse_args()
     root = layout.Root.from_env()
+    # Before the lock and the log: a root whose epoch is shorter than the
+    # final-validation reserve would fail every rewrite at its first session.
+    budget = ec.rewrite_budget_sec(root, refresh=True)
+    if budget <= ec.FINAL_VALIDATION_RESERVE_SEC:
+        raise SystemExit(
+            f"rewrite budget {budget:.0f}s ({ec.rewrite_budget_why()}) "
+            f"does not exceed the {ec.FINAL_VALIDATION_RESERVE_SEC}s final-validation "
+            "reserve, so no session could start; set EVOLVE_REWRITE_BUDGET_SEC or "
+            "lower EVOLVE_FINAL_VALIDATION_RESERVE_SEC"
+        )
     tool_bin = rw_workspace.prepare_tool_bin(root)
     if tool_bin != root.bin:
         os.environ[rw_workspace.TOOL_BIN_ENV] = str(tool_bin)
@@ -1619,10 +1636,20 @@ def main() -> None:
             root.evolution.path,
         )
         log.info("agent tools staged at %s", tool_bin)
+    log.info(
+        "rewrite budget at start: %.0fs (%s); %ds reserved for final validation, "
+        "%.0fs left for sessions; recomputed every 10 min",
+        budget,
+        ec.rewrite_budget_why(),
+        ec.FINAL_VALIDATION_RESERVE_SEC,
+        budget - ec.FINAL_VALIDATION_RESERVE_SEC,
+    )
     if not (args.dry or args.signal):
         # The singleton lock excludes another live loop before orphaned rewrites
         # are marked. The earlier loop may have exited before restart_evolve.sh
-        # could stop it and finalize its records.
+        # could stop it and finalize its records. Local workspaces are published
+        # first, so what they hold is marked with the rest.
+        rw_workspace.recover(root)
         recovered = finalize_interrupted(root)
         if recovered["failed"]:
             raise RuntimeError(f"could not finalize orphaned rewrites: {recovered}")

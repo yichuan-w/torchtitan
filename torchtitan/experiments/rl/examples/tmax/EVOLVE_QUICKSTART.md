@@ -130,7 +130,7 @@ own is revalidated at that size.
 | `EVOLVE_REWRITE_BUDGET_SEC` | unset (default) | The end-to-end deadline for one rewrite, measured from the rewrite directory's timestamp. By default it is one training epoch: rows in the mix over groups per step, times the median step interval (`rewrite budget ...` in `loop.log` shows the number). Set this to a number of seconds to use a fixed budget instead. Every author, verifier, probe, and repair stage shares this same deadline. |
 | `EVOLVE_FINAL_VALIDATION_RESERVE_SEC` | `2400` (default) | Seconds held back from authoring, verifier work, and repairs for the final Daytona oracle and null probes. Those probes may use the reserve but are themselves capped by the end-to-end rewrite deadline. |
 | `EVOLVE_STATUS_REFRESH_SEC` | `60` (default) | Maximum age, in seconds, of `evolution/status.json` while a long round is active. Refresh failure is logged and does not interrupt rewrite work. |
-| `EVOLVE_WORK_ROOT` | unset (in-place execution) | An absolute node-local directory for active rewrites. When set, the loop copies the input revision, rollout records, and pinned CLI tools there; Codex, hooks, sandbox commands, probes, and session logging stay local. A completed rewrite is copied to a hidden incoming directory under `TRL_BASE` and renamed into place before its signal can be closed. Use this when `TRL_BASE` is on FUSE or other remote storage. Do not point it inside `TRL_BASE`; allow enough space for `--workers` simultaneous task copies. |
+| `EVOLVE_WORK_ROOT` | unset (in-place execution) | An absolute node-local directory for active rewrites. When set, the loop copies the input revision, rollout records, and pinned CLI tools there; Codex, hooks, sandbox commands, probes, and session logging stay local. The durable rewrite directory holds a `running` claim from the start; a completed rewrite is copied through a hidden incoming directory under `TRL_BASE` and `rewrite.json` is replaced last, before its signal can be closed. Use this when `TRL_BASE` is on FUSE or other remote storage. Do not point it inside `TRL_BASE`; allow enough space for `--workers` simultaneous task copies. |
 | `--workers` | `16` (default `8`) | Concurrent rewrites in a round. The loop is signal-starved most of the time; workers only drain a burst faster. |
 | `--interval` | `120` | Seconds between rounds. |
 
@@ -150,8 +150,9 @@ node-local path before starting the loop, for example
 `EVOLVE_WORK_ROOT=/tmp/$USER/tmax-evolution`.
 Confirm its mount with `findmnt -T "$EVOLVE_WORK_ROOT"`; using another path on
 the same remote filesystem does not isolate the agent. If the final copy back
-to `TRL_BASE` fails, the signal remains pending and the completed local
-workspace is retained at the path printed in `loop.log`.
+to `TRL_BASE` fails, the signal remains pending; the local workspace is
+published into its durable record before the next round, or when the loop next
+starts, and `loop.log` has one `recovered local rewrite` line for each.
 
 ## 4. Readouts while it runs
 
