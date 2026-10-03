@@ -92,9 +92,9 @@ those signals are ledgered as `deferred` and are not replayed if the arm is turn
 
 Every consumed signal has a terminal line in `evolution/ledger.jsonl`:
 `handled`, `deferred`, `superseded`, or `junk`. The trainer counts these by
-training run in W&B as `evolution/run/signal_*_total`, alongside run-scoped
-`rewrite_*_total` counters. It reads only `evolution/mix_version` from the
-root-wide `evolution/status.json` for W&B.
+training run in W&B as `evolution/signals/*`, alongside run-scoped
+`evolution/rewrites/*` counters. From the root-wide `evolution/status.json` it
+reads `evolution/mix_version` and the queue counts `evolution/queue/*`.
 
 ## Enabling it, and keeping batch size fixed
 

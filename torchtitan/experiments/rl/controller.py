@@ -1870,7 +1870,7 @@ class Controller(Configurable):
         logger.info("=" * 60)
 
     def _evolution_metrics(self, step: int | None = None) -> list[m.Metric]:
-        """Per-step outcomes for this run, plus the current mix version."""
+        """This run's evolution flow, plus the loop's queue and mix version."""
         import json
 
         # Local import: the layout is a tmax convention and this file is shared
@@ -1889,53 +1889,35 @@ class Controller(Configurable):
         run = layout.Run.from_env()
         metrics = []
         if run is not None:
-            if not hasattr(self, "_evolution_outcomes"):
-                self._evolution_outcomes = EvolutionMetrics(
-                    evolution.run_outcomes(run.name), run=run, root=root
-                )
+            if not hasattr(self, "_evolution_flow"):
+                self._evolution_flow = EvolutionMetrics(run, root)
             metrics = [
                 m.Metric(key, m.NoReduce(value))
-                for key, value in self._evolution_outcomes.poll(step=step).items()
+                for key, value in self._evolution_flow.poll(step=step).items()
             ]
             if step is not None and self.config.metrics.enable_wandb:
                 try:
                     import wandb
 
                     if wandb.run is not None:
-                        flow_xs, flow_ys, flow_keys = (
-                            self._evolution_outcomes.signal_flow_series(step)
-                        )
-                        charts = {
-                            "evolution/run/signal_flow": wandb.plot.line_series(
-                                flow_xs,
-                                flow_ys,
-                                keys=flow_keys,
-                                title="Evolution signal flow",
-                                xname="Origin policy step",
-                            )
-                        }
-                        for counter in (
-                            "rewrite_accepted_harder",
-                            "rewrite_accepted",
-                            "rewrite_failed",
-                            "rewrite_rejected",
-                            "rewrite_finalized",
-                        ):
-                            xs, ys, keys = self._evolution_outcomes.comparison_series(
-                                step, counter
-                            )
-                            charts[f"evolution/step/{counter}_comparison"] = (
-                                wandb.plot.line_series(
+                        xs, ys, keys = self._evolution_flow.flow_series()
+                        # One overlay: W&B draws each scalar in its own panel,
+                        # and the gaps between these lines are the point.
+                        wandb.log(
+                            {
+                                "evolution/flow/chart": wandb.plot.line_series(
                                     xs,
                                     ys,
                                     keys=keys,
-                                    title=f"evolution/step/{counter}",
-                                    xname="Step (training observation / origin policy)",
+                                    title="Evolution flow (cumulative)",
+                                    xname="Training step",
                                 )
-                            )
-                        wandb.log(charts, step=step, commit=False)
+                            },
+                            step=step,
+                            commit=False,
+                        )
                 except Exception:
-                    logger.exception("failed to log evolution origin-step chart")
+                    logger.exception("failed to log the evolution flow chart")
         if run is not None and self.config.metrics.enable_wandb:
             import wandb
 
@@ -1954,10 +1936,16 @@ class Controller(Configurable):
             s = json.loads(status_path.read_text())
         except (OSError, ValueError):
             return metrics
+        queue = s.get("queue") or {}
         return [
             *metrics,
             m.Metric(
                 "evolution/mix_version", m.NoReduce(float(s.get("mix_version") or 0))
+            ),
+            *(
+                m.Metric(f"evolution/queue/{key}", m.NoReduce(float(queue[key])))
+                for key in ("waiting_tasks", "blocked_tasks", "running")
+                if key in queue
             ),
         ]
 
