@@ -46,9 +46,6 @@ def _root(tmp_path, monkeypatch, tmax: dict | None = None) -> layout.Root:
     monkeypatch.setenv("TRL_BASE", str(base))
     monkeypatch.setattr(od, "SIMPLIFY_ENABLED", True)
     monkeypatch.setattr(od, "FLEET", {"cpu": None, "mem_gb": None, "disk_gb": None})
-    # Fixture signals carry fixed 2026-09 stamps; an epoch-long expiry measured
-    # from the real clock would close every one of them.
-    monkeypatch.setenv("EVOLVE_REWRITE_BUDGET_SEC", str(10 * 365 * 86400))
     root = layout.Root(base)
     seed = root.data / "sources" / "tw-extract" / "tasks" / "tw_a"
     for rel, text in SEED.items():
@@ -1009,21 +1006,40 @@ def test_backlog_starts_the_newest_signal_first(tmp_path, monkeypatch) -> None:
     assert [h["signal"]["task"] for h in seen] == ["tw_b", "tw_a"]
 
 
-def test_a_signal_older_than_one_epoch_expires_instead_of_starting(
+def _later_group(root, task, group, rewards, *, rev=0, age=120):
+    """A finished group of `task` with these rewards and no signal, written
+    `age` seconds ago."""
+    run = root.run(RUN)
+    for i, reward in enumerate(rewards):
+        p = run.rollout_record(task, group, i)
+        rollout_record.write_record(
+            p,
+            {"task": task, "rev": rev, "run": RUN, "group": group,
+             "rollout": i, "reward": reward, "turns": 1},
+            [],
+        )
+        os.utime(p, (time.time() - age, time.time() - age))
+
+
+def test_a_signal_is_resolved_by_a_later_mixed_group_of_its_revision(
     tmp_path, monkeypatch
 ) -> None:
     root = _root(tmp_path, monkeypatch)
-    monkeypatch.setenv("EVOLVE_REWRITE_BUDGET_SEC", "3600")
     _second_seed(root)
-    old = _signal(root, task="tw_a", group=7, created=layout.stamp(time.time() - 7200))
-    fresh = _signal(root, task="tw_b", group=8, created=layout.stamp())
+    resolved = _signal(root, task="tw_a", group=7)
+    waiting = _signal(root, task="tw_b", group=8)
+    _later_group(root, "tw_a", 9, [1.0, 0.0])  # mixed: tw_a now trains
+    _later_group(root, "tw_b", 10, [1.0])  # still running: one of two
+    _later_group(root, "tw_b", 11, [1.0, 0.0], rev=1)  # another revision
     seen = _stub(monkeypatch, status="kept", harder_mode="student", require_solution_growth=False)
     result = od.run_round(root, workers=1)
-    assert result["expired"] == 1 and result["handled"] == 1
+    assert result["resolved"] == 1 and result["handled"] == 1
     assert [h["signal"]["task"] for h in seen] == ["tw_b"]
-    outcomes = {line["signal"]: line["outcome"] for line in _ledger(root)}
-    assert outcomes == {old: "expired", fresh: "handled"}
-    assert od.rebuild_status(root)["expired"] == 1
+    lines = {line["signal"]: line for line in _ledger(root)}
+    assert lines[resolved]["outcome"] == "resolved"
+    assert "g9 at rev 0 solved 1/2" in lines[resolved]["reason"]
+    assert lines[waiting]["outcome"] == "handled"
+    assert od.rebuild_status(root)["resolved"] == 1
 
 
 def test_rejected_rewrite_does_not_skip_a_new_signal(

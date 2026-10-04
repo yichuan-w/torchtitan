@@ -26,8 +26,10 @@ A round:
      is no longer the task's measured a policy input that is gone; both get a
      `superseded` line and the reason. A task with a rewrite in progress is
      skipped until it ends; then its signals are judged against its new
-     revision. Picks start newest signal first, and one that waited longer
-     than one epoch gets an `expired` line instead of a rewrite.
+     revision. Picks start newest signal first. A signal whose task has
+     since finished another whole group at the same revision without a
+     signal gets a `resolved` line instead of a rewrite: that group came out
+     mixed, so the task no longer needs one.
   3. handle, concurrently across tasks: copy r<rev> to the rewrite's
      package/, hardlink the rollout records under package/traces/, snapshot
      the row's pin hook as pretest.json beside rewrite.json, run
@@ -60,6 +62,7 @@ import difflib
 import fcntl
 import json
 import logging
+import math
 import os
 import shutil
 import socket
@@ -78,7 +81,7 @@ from finalize_interrupted_traces import finalize_interrupted  # noqa: E402
 import pack_to_dataset as pack  # noqa: E402
 from recorded_solution import solution_path  # noqa: E402
 import rewrite_workspace as rw_workspace  # noqa: E402
-from torchtitan.experiments.rl.examples.tmax import layout  # noqa: E402
+from torchtitan.experiments.rl.examples.tmax import layout, rollout_record  # noqa: E402
 from torchtitan.experiments.rl.examples.tmax.evolution_metrics import record_outcome  # noqa: E402
 
 log = logging.getLogger("evolve")
@@ -1162,17 +1165,17 @@ def _queue(root: layout.Root, ledger: dict[str, dict], running: set[str]) -> dic
 
     `pending` counts raw signal files: several per task, the running rewrites'
     own signals and ones a round will supersede. This applies choose() and the
-    deferral and expiry rules the way select_work does, so `waiting_tasks` is
+    resolution and deferral rules the way select_work does, so `waiting_tasks` is
     the backlog a free worker would start.
     """
-    found = [s for s in discover(root, ledger) if s.data is not None and not s.junk]
+    listing: dict = {}
+    found = [
+        s
+        for s in discover(root, ledger)
+        if s.data is not None and not s.junk and _resolved_by(root, s, listing) is None
+    ]
     picks, _ = choose(root, found)
-    max_age, now = ec.rewrite_budget_sec(root), time.time()
-    waiting = {
-        s.task
-        for s in picks
-        if not _deferred(root, s) and not _expired(s, max_age, now)
-    } - running
+    waiting = {s.task for s in picks if not _deferred(root, s)} - running
     return {"waiting_tasks": len(waiting), "running": len(running)}
 
 
@@ -1217,7 +1220,7 @@ def rebuild_status(
         "deferred": by_outcome.get("deferred", 0),
         "junk": by_outcome.get("junk", 0),
         "superseded": by_outcome.get("superseded", 0),
-        "expired": by_outcome.get("expired", 0),
+        "resolved": by_outcome.get("resolved", 0),
         "rewrites_running": (
             rewrites["running"] if active_tasks is None else len(active_tasks)
         ),
@@ -1320,12 +1323,63 @@ def _replay_signal(root: layout.Root, sid: str) -> Signal:
     return Signal(run, path, sid, data, None)
 
 
-def _expired(s: Signal, max_age_sec: float, now: float) -> bool:
-    """A signal that waited longer than one epoch measured a policy the run
-    has moved past; the task's next draw issues a fresh one if it still needs
-    rewriting."""
+def _groups(run: layout.Run, task: str, listing: dict) -> dict[int, list[Path]]:
+    """A run's rollout records of one task by group, listed once per call."""
+    key = (run.path, task)
+    if key not in listing:
+        groups: dict[int, list[Path]] = {}
+        folder = run.rollouts / layout.safe(task)
+        if folder.is_dir():
+            for path in folder.glob("g*-r*.jsonl"):
+                group = path.name[1:].split("-r", 1)[0]
+                if group.isdigit():
+                    groups.setdefault(int(group), []).append(path)
+        listing[key] = groups
+    return listing[key]
+
+
+def _resolved_by(root: layout.Root, s: Signal, listing: dict) -> str | None:
+    """Why a signal no longer asks for a rewrite, or None while it still does.
+
+    It does once the task has finished another whole group at the same
+    revision, after the signal, without a signal of its own: the trainer
+    judged that group inside both thresholds, so the task now trains. A
+    later group that did signal is a newer request, which choose() prefers.
+    Without rollout records there is no such evidence and the signal waits.
+    """
+    task, rev, own = s.task, int(s.data["rev"]), s.group
+    size = len(_groups(s.run, task, listing).get(own, []))
     created = s.data.get("created")
-    return bool(created) and now - layout.parse_stamp(created) > max_age_sec
+    if size < 2 or not created:
+        return None
+    since, now = layout.parse_stamp(created), time.time()
+    for run in root.run_dirs():
+        for group, paths in sorted(_groups(run, task, listing).items()):
+            if run.path == s.run.path and group == own:
+                continue
+            # A whole group, finished after this signal and long enough ago
+            # that a signal of its own would already be on disk.
+            if len(paths) != size or run.signal(task, group).exists():
+                continue
+            last = max(path.stat().st_mtime for path in paths)
+            if last <= since or now - last < FRESH_SEC:
+                continue
+            headers = [rollout_record.read_header(path) for path in paths]
+            if any(int(h.get("rev", -1)) != rev for h in headers):
+                continue
+            scored = [
+                h["reward"]
+                for h in headers
+                if not h.get("infra_failed")
+                and math.isfinite(float(h.get("reward", math.nan)))
+            ]
+            if len(scored) >= 2:
+                solved = sum(reward > 0 for reward in scored)
+                return (
+                    f"{run.name} g{group} at rev {rev} solved {solved}/{len(scored)} "
+                    "without a signal"
+                )
+    return None
 
 
 def _created(s: Signal) -> str:
@@ -1366,9 +1420,9 @@ def select_work(
     they close no ledger line, so without it a refill would hand them back
     forever. A later round tries them again.
 
-    The backlog runs newest signal first, and a signal that waited longer
-    than one epoch (rewrite_budget_sec) is closed as `expired` instead of
-    started: it measured a policy the run has moved past.
+    The backlog runs newest signal first. A signal whose task has since
+    finished a mixed group at the same revision is closed as `resolved`
+    (_resolved_by) instead of started.
 
     Returns None when there was nothing to look at at all (the caller reports
     "no signals"), and a possibly empty list otherwise -- empty meaning every
@@ -1386,38 +1440,36 @@ def select_work(
         if only:
             found = [s for s in found if s.task == only]
         found = [s for s in found if s.task not in running and s.sid not in stuck]
+        listing: dict = {}
+        live = []
         for s in found:
             if s.junk:
                 log.warning("junk signal %s: %s", s.sid, s.junk)
                 result["junk"] += 1
                 if not dry:
                     _ledger_line(root, s, "junk", reason=s.junk)
-        picks, rest = choose(root, [s for s in found if s.data is not None])
+            elif s.data is not None:
+                why = _resolved_by(root, s, listing)
+                if why is None:
+                    live.append(s)
+                    continue
+                log.info("%s %s resolved: %s", s.task, s.sid, why)
+                result["resolved"] += 1
+                if not dry:
+                    _ledger_line(root, s, "resolved", reason=why)
+        picks, rest = choose(root, live)
     if not picks and not rest:
         return None
 
-    todo, deferred, expired = [], [], []
-    max_age = ec.rewrite_budget_sec(root)
-    now = time.time()
+    todo, deferred = [], []
     for s in sorted(picks, key=_created, reverse=True):
-        if not signal and _expired(s, max_age, now):
-            expired.append(s)
-        elif not signal and _deferred(root, s):
+        if not signal and _deferred(root, s):
             deferred.append(s)
         else:
             todo.append(s)
     if limit:
         todo = todo[:limit]
-    closing = {s.sid for s in todo} | {s.sid for s in deferred} | {
-        s.sid for s in expired
-    }
-    for s in expired:
-        log.info("%s %s expired: waited longer than one epoch", s.task, s.sid)
-        result["expired"] += 1
-        if not dry:
-            _ledger_line(
-                root, s, "expired", reason=f"older than {max_age:.0f}s (one epoch)"
-            )
+    closing = {s.sid for s in todo} | {s.sid for s in deferred}
     for s in deferred:
         log.info("%s %s deferred: the easier direction is off", s.task, s.sid)
         result["deferred"] += 1
@@ -1454,7 +1506,7 @@ def run_round(
         "deferred": 0,
         "junk": 0,
         "superseded": 0,
-        "expired": 0,
+        "resolved": 0,
         "counts": {},
         "mix_version": None,
     }
@@ -1767,7 +1819,7 @@ def main() -> None:
                 or r.get("junk")
                 or r.get("deferred")
                 or r.get("superseded")
-                or r.get("expired")
+                or r.get("resolved")
             ):
                 log.info("round: %s", r)
             rebuild_status(root)
