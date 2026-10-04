@@ -134,11 +134,13 @@ own is revalidated at that size.
 | `--workers` | `16` (default `8`) | Concurrent rewrites in a round. The loop is signal-starved most of the time; workers only drain a burst faster. |
 | `--interval` | `120` | Seconds between rounds. |
 
-A round handles the signals present when it starts, one per task, and ends
-when all of them are done; signals arriving meanwhile wait for the next round.
-Since a rewrite runs one to three hours, a round that started on a single
-signal keeps everything after it waiting that long. Expect this at the start
-of a run, when the first group finishes alone.
+A free worker takes the next pending signal at once, newest first, one per
+task. A task with a rewrite in progress waits for it to end; its next signal
+then starts if it measured the task's current revision, whatever the previous
+verdict was, and is superseded if it measured the revision just replaced. A
+signal that waited longer than one epoch (the rewrite budget) is closed as
+`expired` instead: it measured a policy the run has moved past, and the
+task's next draw issues a fresh one if it still needs rewriting.
 
 `evolve_ondella.py --once --dry --limit 1` with the same environment, or
 `evolve_hip.sh dry` on hip, runs one round that handles and publishes nothing,

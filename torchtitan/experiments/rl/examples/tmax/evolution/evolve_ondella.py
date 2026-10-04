@@ -24,7 +24,10 @@ A round:
      current revision. Two rewrites of one revision in one round would be
      siblings racing for the same r<N+1>, and a signal about a revision that
      is no longer the task's measured a policy input that is gone; both get a
-     `superseded` line and the reason.
+     `superseded` line and the reason. A task with a rewrite in progress is
+     skipped until it ends; then its signals are judged against its new
+     revision. Picks start newest signal first, and one that waited longer
+     than one epoch gets an `expired` line instead of a rewrite.
   3. handle, concurrently across tasks: copy r<rev> to the rewrite's
      package/, hardlink the rollout records under package/traces/, snapshot
      the row's pin hook as pretest.json beside rewrite.json, run
@@ -1154,42 +1157,35 @@ def _rewrite_metas(root: layout.Root):
             yield task, rw, meta
 
 
-def _queue(
-    root: layout.Root,
-    ledger: dict[str, dict],
-    running: set[str],
-    taken: frozenset[str],
-) -> dict:
+def _queue(root: layout.Root, ledger: dict[str, dict], running: set[str]) -> dict:
     """The tasks a free worker could start now, counted once per task.
 
     `pending` counts raw signal files: several per task, the running rewrites'
     own signals and ones a round will supersede. This applies choose() and the
-    deferral rule the way select_work does, so `waiting_tasks` is the backlog.
-    `blocked_tasks` are the waiting tasks this round already rewrote once: the
-    round does not start a second rewrite of a task, so they wait for it to end.
+    deferral and expiry rules the way select_work does, so `waiting_tasks` is
+    the backlog a free worker would start.
     """
     found = [s for s in discover(root, ledger) if s.data is not None and not s.junk]
     picks, _ = choose(root, found)
-    waiting = {s.task for s in picks if not _deferred(root, s)} - running
-    return {
-        "waiting_tasks": len(waiting),
-        "blocked_tasks": len(waiting & taken),
-        "running": len(running),
-    }
+    max_age, now = ec.rewrite_budget_sec(root), time.time()
+    waiting = {
+        s.task
+        for s in picks
+        if not _deferred(root, s) and not _expired(s, max_age, now)
+    } - running
+    return {"waiting_tasks": len(waiting), "running": len(running)}
 
 
 def rebuild_status(
     root: layout.Root,
     *,
     active_tasks: set[str] | None = None,
-    taken: frozenset[str] = frozenset(),
 ) -> dict:
     """status.json from the ledger and every task's rewrite files. No counter
     is carried over; losing the file loses nothing.
 
     During a round, ``active_tasks`` are the tasks the coordinator has a live
-    rewrite of, and ``taken`` every task the round has started. The live set
-    overrides the on-disk count because node-local workspaces are not visible
+    rewrite of. The live set overrides the on-disk count because node-local workspaces are not visible
     under the durable root until they finish publishing.
     """
     ledger = load_ledger(root)
@@ -1221,6 +1217,7 @@ def rebuild_status(
         "deferred": by_outcome.get("deferred", 0),
         "junk": by_outcome.get("junk", 0),
         "superseded": by_outcome.get("superseded", 0),
+        "expired": by_outcome.get("expired", 0),
         "rewrites_running": (
             rewrites["running"] if active_tasks is None else len(active_tasks)
         ),
@@ -1232,7 +1229,6 @@ def rebuild_status(
             root,
             ledger,
             running_on_disk if active_tasks is None else active_tasks,
-            taken,
         ),
     }
     layout.write_json_atomic(root.evolution.status, status)
@@ -1240,11 +1236,11 @@ def rebuild_status(
 
 
 def _refresh_status_during_round(
-    root: layout.Root, *, active_tasks: set[str], taken: frozenset[str]
+    root: layout.Root, *, active_tasks: set[str]
 ) -> None:
     """Refresh observability without making it a dependency of rewrite work."""
     try:
-        rebuild_status(root, active_tasks=active_tasks, taken=taken)
+        rebuild_status(root, active_tasks=active_tasks)
     except Exception as error:  # noqa: BLE001 -- status is a derived snapshot
         log.warning(
             "in-round status refresh failed; rewrite work continues: %s: %s",
@@ -1324,6 +1320,18 @@ def _replay_signal(root: layout.Root, sid: str) -> Signal:
     return Signal(run, path, sid, data, None)
 
 
+def _expired(s: Signal, max_age_sec: float, now: float) -> bool:
+    """A signal that waited longer than one epoch measured a policy the run
+    has moved past; the task's next draw issues a fresh one if it still needs
+    rewriting."""
+    created = s.data.get("created")
+    return bool(created) and now - layout.parse_stamp(created) > max_age_sec
+
+
+def _created(s: Signal) -> str:
+    return str(s.data.get("created", ""))
+
+
 def _deferred(root: layout.Root, s: Signal) -> bool:
     """An easier signal waits for nothing while the easier direction is off,
     unless its task has never been solved."""
@@ -1343,16 +1351,24 @@ def select_work(
     limit: int | None,
     dry: bool,
     signal: str | None,
-    busy: frozenset[str],
+    running: frozenset[str] = frozenset(),
+    stuck: frozenset[str] = frozenset(),
 ) -> list[Signal] | None:
-    """The signals to start now, and the bookkeeping for the ones not started.
+    """The signals to start now, newest first, and the bookkeeping for the
+    ones not started.
 
-    ``busy`` names the tasks the calling round has already taken. choose()
-    gives one signal per task, so without it a task whose next signal arrived
-    while its rewrite was still going would get a second, concurrent rewrite
-    of the same package -- and a task whose rewrite closed no ledger line
-    would be handed back on every refill, forever. Its signals simply stay
-    pending: nothing closed them, so a later round finds them again.
+    ``running`` names the tasks with a rewrite in progress: their signals wait
+    for it, since a second rewrite of the same package would race it for
+    r<N+1>. When it ends, the next refill sees them against the task's new
+    revision: one about the revision just replaced is superseded, one about
+    the current revision starts, whatever the previous verdict was.
+    ``stuck`` names signals whose handling raised before a rewrite existed;
+    they close no ledger line, so without it a refill would hand them back
+    forever. A later round tries them again.
+
+    The backlog runs newest signal first, and a signal that waited longer
+    than one epoch (rewrite_budget_sec) is closed as `expired` instead of
+    started: it measured a policy the run has moved past.
 
     Returns None when there was nothing to look at at all (the caller reports
     "no signals"), and a possibly empty list otherwise -- empty meaning every
@@ -1369,8 +1385,7 @@ def select_work(
         found = discover(root, ledger)
         if only:
             found = [s for s in found if s.task == only]
-        if busy:
-            found = [s for s in found if s.task not in busy]
+        found = [s for s in found if s.task not in running and s.sid not in stuck]
         for s in found:
             if s.junk:
                 log.warning("junk signal %s: %s", s.sid, s.junk)
@@ -1381,15 +1396,28 @@ def select_work(
     if not picks and not rest:
         return None
 
-    todo, deferred = [], []
-    for s in picks:
-        if not signal and _deferred(root, s):
+    todo, deferred, expired = [], [], []
+    max_age = ec.rewrite_budget_sec(root)
+    now = time.time()
+    for s in sorted(picks, key=_created, reverse=True):
+        if not signal and _expired(s, max_age, now):
+            expired.append(s)
+        elif not signal and _deferred(root, s):
             deferred.append(s)
         else:
             todo.append(s)
     if limit:
         todo = todo[:limit]
-    closing = {s.sid for s in todo} | {s.sid for s in deferred}
+    closing = {s.sid for s in todo} | {s.sid for s in deferred} | {
+        s.sid for s in expired
+    }
+    for s in expired:
+        log.info("%s %s expired: waited longer than one epoch", s.task, s.sid)
+        result["expired"] += 1
+        if not dry:
+            _ledger_line(
+                root, s, "expired", reason=f"older than {max_age:.0f}s (one epoch)"
+            )
     for s in deferred:
         log.info("%s %s deferred: the easier direction is off", s.task, s.sid)
         result["deferred"] += 1
@@ -1426,6 +1454,7 @@ def run_round(
         "deferred": 0,
         "junk": 0,
         "superseded": 0,
+        "expired": 0,
         "counts": {},
         "mix_version": None,
     }
@@ -1437,7 +1466,6 @@ def run_round(
         limit=limit,
         dry=dry,
         signal=signal,
-        busy=frozenset(),
     )
     if todo is None:
         return {**result, "reason": "no signals"}
@@ -1464,12 +1492,9 @@ def run_round(
     last_status_refresh = time.monotonic()
     with ThreadPoolExecutor(max_workers=workers) as ex:
         futs: dict = {}
-        # Tasks this round has already taken, kept for the whole round rather
-        # than cleared on completion. Dropping a task when its rewrite ended
-        # would re-pick it forever on the paths that close no ledger line: a
-        # dry round writes none at all, and a handle() that raised before a
-        # rewrite existed writes none either.
-        taken: set[str] = set()
+        # Signals whose handle() raised before a rewrite existed: they close
+        # no ledger line, so a refill would otherwise pick them again forever.
+        stuck: set[str] = set()
 
         def fill(batch: list[Signal]) -> None:
             """Submit up to the free slots, newest mix in hand."""
@@ -1489,7 +1514,6 @@ def run_round(
                         protecteds=protecteds,
                     )
                 ] = s
-                taken.add(s.task)
 
         fill(todo)
         while futs:
@@ -1529,6 +1553,7 @@ def run_round(
                     log.exception(
                         "%s: handling failed before a rewrite existed: %s", s.sid, e
                     )
+                    stuck.add(s.sid)
                     continue
                 meta = h["meta"]
                 log.info(
@@ -1563,9 +1588,9 @@ def run_round(
                     _close(root, h, dry=dry)
             # A free slot takes the next pending signal now, including one
             # written while all existing rewrites are still running. The ledger
-            # is re-read because _close above may have just added to it, and
-            # `taken` keeps this round from starting a second rewrite of a
-            # task it has already rewritten.
+            # is re-read because _close above may have just added to it. A task
+            # whose rewrite just ended is free again: its pending signals are
+            # judged against its new revision.
             #
             # Not for a dry round, which closes no ledger line: the junk,
             # deferred and superseded signals it reports are still pending on
@@ -1580,7 +1605,8 @@ def run_round(
                     limit=limit,
                     dry=dry,
                     signal=None,
-                    busy=frozenset(taken),
+                    running=frozenset(s.task for s in futs.values()),
+                    stuck=frozenset(stuck),
                 )
                 fill(more or [])
             if (
@@ -1588,9 +1614,7 @@ def run_round(
                 and time.monotonic() - last_status_refresh >= STATUS_REFRESH_SEC
             ):
                 _refresh_status_during_round(
-                    root,
-                    active_tasks={s.task for s in futs.values()},
-                    taken=frozenset(taken),
+                    root, active_tasks={s.task for s in futs.values()}
                 )
                 last_status_refresh = time.monotonic()
 
@@ -1743,6 +1767,7 @@ def main() -> None:
                 or r.get("junk")
                 or r.get("deferred")
                 or r.get("superseded")
+                or r.get("expired")
             ):
                 log.info("round: %s", r)
             rebuild_status(root)

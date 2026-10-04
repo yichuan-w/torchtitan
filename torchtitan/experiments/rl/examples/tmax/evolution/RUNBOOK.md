@@ -52,8 +52,7 @@ active, and once more when the round ends. A stale `updated` beyond that interva
 means the refresh is failing or the loop is not running.
 
 `status.json` also carries `queue`: `waiting_tasks` (tasks a free worker could
-start now, one per task), `blocked_tasks` (waiting tasks this round already
-rewrote once, which wait for the round to end) and `running`. Its `pending` is
+start now, one per task) and `running`. Its `pending` is
 the raw count of signal files without a ledger line, several per task and the
 running rewrites' own included, so it overstates the backlog.
 

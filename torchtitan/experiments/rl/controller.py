@@ -1944,7 +1944,7 @@ class Controller(Configurable):
             ),
             *(
                 m.Metric(f"evolution/queue/{key}", m.NoReduce(float(queue[key])))
-                for key in ("waiting_tasks", "blocked_tasks", "running")
+                for key in ("waiting_tasks", "running")
                 if key in queue
             ),
         ]

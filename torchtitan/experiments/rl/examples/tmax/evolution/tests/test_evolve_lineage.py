@@ -46,6 +46,9 @@ def _root(tmp_path, monkeypatch, tmax: dict | None = None) -> layout.Root:
     monkeypatch.setenv("TRL_BASE", str(base))
     monkeypatch.setattr(od, "SIMPLIFY_ENABLED", True)
     monkeypatch.setattr(od, "FLEET", {"cpu": None, "mem_gb": None, "disk_gb": None})
+    # Fixture signals carry fixed 2026-09 stamps; an epoch-long expiry measured
+    # from the real clock would close every one of them.
+    monkeypatch.setenv("EVOLVE_REWRITE_BUDGET_SEC", str(10 * 365 * 86400))
     root = layout.Root(base)
     seed = root.data / "sources" / "tw-extract" / "tasks" / "tw_a"
     for rel, text in SEED.items():
@@ -759,13 +762,11 @@ def test_queue_counts_each_startable_task_once(tmp_path, monkeypatch) -> None:
     _signal(root, task="tw_c", group=10)
     _signal(root, task="tw_d", group=11)
 
-    status = od.rebuild_status(
-        root, active_tasks={"tw_d"}, taken=frozenset({"tw_c", "tw_d"})
-    )
+    status = od.rebuild_status(root, active_tasks={"tw_d"})
 
-    # Five signal files, four tasks; tw_d is running, tw_c waits for the round.
+    # Five signal files, four tasks; tw_d is running.
     assert status["pending"] == 5
-    assert status["queue"] == {"waiting_tasks": 3, "blocked_tasks": 1, "running": 1}
+    assert status["queue"] == {"waiting_tasks": 3, "running": 1}
 
 
 def test_long_round_refreshes_status_while_a_rewrite_is_active(
@@ -785,9 +786,9 @@ def test_long_round_refreshes_status_while_a_rewrite_is_active(
     real_rebuild = od.rebuild_status
     active_counts = []
 
-    def observe(root_, *, active_tasks=None, taken=frozenset()):
+    def observe(root_, *, active_tasks=None):
         active_counts.append(None if active_tasks is None else len(active_tasks))
-        status = real_rebuild(root_, active_tasks=active_tasks, taken=taken)
+        status = real_rebuild(root_, active_tasks=active_tasks)
         refreshed.set()
         return status
 
@@ -818,7 +819,7 @@ def test_in_round_status_failure_does_not_abort_rewrites(
         raise OSError("status storage unavailable")
 
     monkeypatch.setattr(od, "rebuild_status", fail)
-    od._refresh_status_during_round(root, active_tasks={"a", "b"}, taken=frozenset())
+    od._refresh_status_during_round(root, active_tasks={"a", "b"})
 
     assert "status storage unavailable" in caplog.text
 
@@ -964,7 +965,12 @@ def test_one_signal_per_task_the_newest_at_the_current_rev(
     assert len(seen) == 1
 
 
-def test_unchanged_late_signal_starts_a_new_rewrite(tmp_path, monkeypatch) -> None:
+def test_a_signal_waiting_on_a_running_rewrite_starts_when_it_ends(
+    tmp_path, monkeypatch
+) -> None:
+    """The late signal measured the same revision and the rewrite kept it, so
+    the revision is still current: it starts in the same round, as soon as
+    the task is free, instead of waiting for the round to end."""
     root = _root(tmp_path, monkeypatch)
     _signal(root)
     seen = _stub(monkeypatch, status="kept", harder_mode="student", require_solution_growth=False)
@@ -975,9 +981,9 @@ def test_unchanged_late_signal_starts_a_new_rewrite(tmp_path, monkeypatch) -> No
         return process(*args, **kwargs)
 
     monkeypatch.setattr(od.fb, "process_one", with_late_signal)
-    od.run_round(root, workers=1)
+    monkeypatch.setattr(od, "FREE_SLOT_POLL_SEC", 0.01)
     result = od.run_round(root, workers=1)
-    assert result["handled"] == 1
+    assert result["handled"] == 2
     assert len(seen) == 2
     assert seen[1]["signal"]["group"] == 8
     lines = _ledger(root)
@@ -985,6 +991,39 @@ def test_unchanged_late_signal_starts_a_new_rewrite(tmp_path, monkeypatch) -> No
     assert lines[-1]["rewrite"] != lines[0]["rewrite"]
     assert od.rebuild_status(root)["pending"] == 0
     assert od.run_round(root, workers=1)["handled"] == 0
+
+
+def _second_seed(root: layout.Root) -> None:
+    """tw_b, a copy of tw_a's seed package, for tests that need two tasks."""
+    tasks = root.data / "sources" / "tw-extract" / "tasks"
+    shutil.copytree(tasks / "tw_a", tasks / "tw_b")
+
+
+def test_backlog_starts_the_newest_signal_first(tmp_path, monkeypatch) -> None:
+    root = _root(tmp_path, monkeypatch)
+    _second_seed(root)
+    _signal(root, task="tw_a", group=7, created="20260904-180000Z")
+    _signal(root, task="tw_b", group=8, created="20260904-190000Z")
+    seen = _stub(monkeypatch, status="kept", harder_mode="student", require_solution_growth=False)
+    od.run_round(root, workers=1)
+    assert [h["signal"]["task"] for h in seen] == ["tw_b", "tw_a"]
+
+
+def test_a_signal_older_than_one_epoch_expires_instead_of_starting(
+    tmp_path, monkeypatch
+) -> None:
+    root = _root(tmp_path, monkeypatch)
+    monkeypatch.setenv("EVOLVE_REWRITE_BUDGET_SEC", "3600")
+    _second_seed(root)
+    old = _signal(root, task="tw_a", group=7, created=layout.stamp(time.time() - 7200))
+    fresh = _signal(root, task="tw_b", group=8, created=layout.stamp())
+    seen = _stub(monkeypatch, status="kept", harder_mode="student", require_solution_growth=False)
+    result = od.run_round(root, workers=1)
+    assert result["expired"] == 1 and result["handled"] == 1
+    assert [h["signal"]["task"] for h in seen] == ["tw_b"]
+    outcomes = {line["signal"]: line["outcome"] for line in _ledger(root)}
+    assert outcomes == {old: "expired", fresh: "handled"}
+    assert od.rebuild_status(root)["expired"] == 1
 
 
 def test_rejected_rewrite_does_not_skip_a_new_signal(
