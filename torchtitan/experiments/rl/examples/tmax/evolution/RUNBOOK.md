@@ -57,8 +57,8 @@ rewrote once, which wait for the round to end) and `running`. Its `pending` is
 the raw count of signal files without a ledger line, several per task and the
 running rewrites' own included, so it overstates the backlog.
 
-The training W&B run logs, at each step, its own signals issued, closed and
-merged (`evolution/flow/*`), their outcomes (`evolution/signals/*`,
+The training W&B run logs, at each step, its own signals issued and consumed
+and its accepted rewrites (`evolution/flow/*`), their outcomes (`evolution/signals/*`,
 `evolution/rewrites/*`), and the queue and `evolution/mix_version` from
 `status.json`. See
 [Evolution charts in the training W&B run](../runbook/RUNBOOK.md#evolution-charts-in-the-training-wb-run)
