@@ -196,7 +196,7 @@ class RewardObserverTest(unittest.TestCase):
                     )
                     values = dict(namespace["_evolution_metrics"](owner))
                     self.assertEqual(values["evolution/rewrites/accepted_harder"], 1)
-                    self.assertEqual(values["evolution/flow/rewrites_merged"], 1)
+                    self.assertEqual(values["evolution/flow/rewrites_accepted"], 1)
                     observer.layout.write_json_atomic(
                         root.evolution.status,
                         {
@@ -209,7 +209,7 @@ class RewardObserverTest(unittest.TestCase):
                         },
                     )
                     values = dict(namespace["_evolution_metrics"](owner))
-                    self.assertEqual(values["evolution/flow/rewrites_merged"], 1)
+                    self.assertEqual(values["evolution/flow/rewrites_accepted"], 1)
                     self.assertEqual(values["evolution/mix_version"], 4)
                     self.assertEqual(values["evolution/queue/waiting_tasks"], 7)
                     self.assertEqual(values["evolution/queue/blocked_tasks"], 2)
@@ -262,7 +262,7 @@ class RewardObserverTest(unittest.TestCase):
             self.assertEqual(first["evolution/rewrites/failed"], 2)  # + interrupted
             self.assertEqual(first["evolution/rewrites/rejected"], 1)
             self.assertEqual(first["evolution/rewrites/kept"], 1)
-            self.assertEqual(first["evolution/flow/rewrites_merged"], 2)
+            self.assertEqual(first["evolution/flow/rewrites_accepted"], 2)
             self.assertEqual(metrics.poll(), first)
             self.assertEqual(outcome_metrics.EvolutionMetrics(run, root).poll(), first)
 
@@ -280,8 +280,8 @@ class RewardObserverTest(unittest.TestCase):
             )
             first = metrics.poll(step=1)
             self.assertEqual(first["evolution/flow/signals_issued"], 3)
-            self.assertEqual(first["evolution/flow/signals_closed"], 0)
-            self.assertNotIn("evolution/flow/merge_latency_steps", first)
+            self.assertEqual(first["evolution/flow/signals_consumed"], 0)
+            self.assertNotIn("evolution/flow/accept_latency_steps", first)
 
             self._claim(run, 4, 2)
             for signal, outcome in [(a, "handled"), (b, "superseded"), (c, "handled")]:
@@ -295,15 +295,15 @@ class RewardObserverTest(unittest.TestCase):
             self._record_outcome(root, c, "c", "kept", name="3")
             fourth = metrics.poll(step=4)
             self.assertEqual(fourth["evolution/flow/signals_issued"], 4)
-            self.assertEqual(fourth["evolution/flow/signals_closed"], 3)
-            self.assertEqual(fourth["evolution/flow/rewrites_merged"], 1)
+            self.assertEqual(fourth["evolution/flow/signals_consumed"], 3)
+            self.assertEqual(fourth["evolution/flow/rewrites_accepted"], 1)
             self.assertEqual(fourth["evolution/signals/handled"], 2)
             self.assertEqual(fourth["evolution/signals/superseded"], 1)
-            self.assertEqual(fourth["evolution/flow/merge_latency_steps"], 4)
+            self.assertEqual(fourth["evolution/flow/accept_latency_steps"], 4)
 
             xs, ys, keys = metrics.flow_series()
             self.assertEqual(xs, [1, 4])
-            self.assertEqual(keys, ["signals_issued", "signals_closed", "rewrites_merged"])
+            self.assertEqual(keys, ["signals_issued", "signals_consumed", "rewrites_accepted"])
             self.assertEqual(ys, [[3, 4], [0, 3], [0, 1]])
 
     def test_stale_counts_original_draws_while_a_rewrite_is_pending(self):
@@ -374,7 +374,7 @@ class RewardObserverTest(unittest.TestCase):
                     root.evolution.ledger, {"signal": signal, "outcome": "handled"}
                 )
             totals = outcome_metrics.EvolutionMetrics(run, root).poll(step=1)
-            self.assertEqual(totals["evolution/flow/signals_closed"], 1)
+            self.assertEqual(totals["evolution/flow/signals_consumed"], 1)
             self.assertEqual(totals["evolution/rewrites/failed"], 1)
             self.assertEqual(totals["evolution/rewrites/kept"], 1)
 

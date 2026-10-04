@@ -1046,33 +1046,34 @@ diagram over training steps:
 
 - `signals_issued`: signals this run wrote, counted once the group's claim is
   visible.
-- `signals_closed`: those signals with a ledger decision (`handled`,
+- `signals_consumed`: those signals with a ledger decision (`handled`,
   `deferred`, `superseded` or `junk`). A signal whose rewrite is still running
-  is not closed.
-- `rewrites_merged`: accepted rewrites from this run's signals that were
-  published into the mix.
+  is not consumed.
+- `rewrites_accepted`: rewrites from this run's signals that were accepted.
+  An accepted rewrite has been folded into the mix: a fold that fails turns
+  the verdict into `rejected` or `failed` before it is recorded.
 
 At a given step, the vertical gap between `signals_issued` and
-`signals_closed` is the number of signals still open; at a given count, the
-horizontal gap is how many steps a signal waited. `rewrites_merged` stays
-below `signals_closed` by the signals that closed without a merge.
-`evolution/flow/merge_latency_steps` is the median, over the last 20 merges,
-of the steps from a signal's issue (the policy version that claimed its group)
-to the step that observed its merge.
+`signals_consumed` is the number of signals still open; at a given count, the
+horizontal gap is how many steps a signal waited. `rewrites_accepted` stays
+below `signals_consumed` by the signals consumed without an accepted rewrite.
+`evolution/flow/accept_latency_steps` is the median, over the last 20 accepted
+rewrites, of the steps from a signal's issue (the policy version that claimed
+its group) to the step that observed its acceptance.
 
 | Key | Count |
 | --- | --- |
-| `evolution/flow/signals_issued`, `signals_closed`, `rewrites_merged` | The three curves above, also logged as scalars. |
-| `evolution/signals/<outcome>` | Closed signals by ledger decision: `handled`, `deferred`, `superseded`, `junk`. They sum to `signals_closed`. |
+| `evolution/flow/signals_issued`, `signals_consumed`, `rewrites_accepted` | The three curves above, also logged as scalars. |
+| `evolution/signals/<outcome>` | Consumed signals by ledger decision: `handled`, `deferred`, `superseded`, `junk`. They sum to `signals_consumed`. |
 | `evolution/rewrites/<outcome>` | Rewrite attempts by verdict: `accepted_harder`, `accepted_easier`, `kept`, `rejected`, `failed` (interrupted attempts included). |
-| `evolution/stale/while_waiting`, `while_rewriting` | Groups trained on a task's original while its rewrite was pending: claimed after one of this run's signals asked to rewrite that exact revision and before the loop closed the signal, split by whether the rewrite had started. Each signal is counted when it closes. |
+| `evolution/stale/while_waiting`, `while_rewriting` | Groups trained on a task's original while its rewrite was pending: claimed after one of this run's signals asked to rewrite that exact revision and before the loop consumed the signal, split by whether the rewrite had started. Each signal is counted when it is consumed. |
 | `evolution/queue/waiting_tasks` | Tasks a free worker could start now, one per task: pending signals after the loop's one-signal-per-task choice and its deferral rule, minus tasks already running. |
 | `evolution/queue/blocked_tasks` | The waiting tasks the current round already rewrote once. A round starts at most one rewrite per task, so these wait for the round to end. |
 | `evolution/queue/running` | Rewrites in progress. |
 | `evolution/mix_version` | The live mix version. |
 
 Rewrite counts are per attempt: a signal retried after an interrupted attempt
-closes once and can count two verdicts. The queue and mix version come from
+is consumed once and can count two verdicts. The queue and mix version come from
 `$TRL_BASE/evolution/status.json`, which the loop rebuilds every
 `EVOLVE_STATUS_REFRESH_SEC` (60 s) during a round and at its end; they cover
 the whole root rather than one run. `status.json`'s `pending` is the raw count

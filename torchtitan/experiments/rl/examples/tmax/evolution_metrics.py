@@ -8,17 +8,18 @@
 
 Every value is cumulative for this training run and counted when the trainer
 observes it. Three of them form a cumulative flow diagram over training steps:
-`signals_issued` (the trainer wrote the signal), `signals_closed` (the loop
-wrote its ledger decision) and `rewrites_merged` (an accepted rewrite was
-published into the mix). At one step, the vertical gap between issued and
-closed is the work still open; at one height, the horizontal gap is how many
-steps a signal waited. `merge_latency_steps` states that wait for merges.
+`signals_issued` (the trainer wrote the signal), `signals_consumed` (the loop
+wrote its ledger decision) and `rewrites_accepted` (a rewrite was accepted,
+which means folded into the mix). At one step, the vertical gap between issued
+and consumed is the work still open; at one height, the horizontal gap is how
+many steps a signal waited. `accept_latency_steps` states that wait for
+accepted rewrites.
 
 `stale/*` counts the groups trained on a task's original while its rewrite was
 pending: claimed after one of this run's signals asked to rewrite that exact
-revision and before the loop closed the signal. A group claimed before the
+revision and before the loop consumed the signal. A group claimed before the
 rewrite started counts as `while_waiting`, after it as `while_rewriting`.
-Each signal is classified when it closes, so the counts only grow.
+Each signal is classified when it is consumed, so the counts only grow.
 """
 
 from __future__ import annotations
@@ -33,7 +34,7 @@ from torchtitan.experiments.rl.examples.tmax import layout
 
 SIGNAL_OUTCOMES = ("handled", "deferred", "superseded", "junk")
 REWRITE_OUTCOMES = ("accepted_harder", "accepted_easier", "kept", "rejected", "failed")
-FLOW_KEYS = ("signals_issued", "signals_closed", "rewrites_merged")
+FLOW_KEYS = ("signals_issued", "signals_consumed", "rewrites_accepted")
 # Merges the latency median looks back over: recent enough to move when the
 # loop speeds up or stalls, wide enough that one outlier does not set it.
 LATENCY_WINDOW = 20
@@ -217,7 +218,7 @@ class EvolutionMetrics:
             },
         }
         if self.latencies:
-            values["evolution/flow/merge_latency_steps"] = float(
+            values["evolution/flow/accept_latency_steps"] = float(
                 statistics.median(self.latencies[-LATENCY_WINDOW:])
             )
         return values
