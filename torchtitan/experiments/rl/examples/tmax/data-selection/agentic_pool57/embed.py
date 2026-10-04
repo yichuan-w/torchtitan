@@ -125,7 +125,10 @@ class Embedder:
         self.tok.no_padding()
         # Pooling defaults schedule about one 2048-token prompt per step, which left
         # the GPU at 5-16% utilisation; pack many prompts into each step instead.
-        self.llm = LLM(model=MODEL, runner="pooling", max_model_len=MAXTOK, dtype="bfloat16",
+        # max_model_len one above the truncation length: a prompt of exactly
+        # max_model_len tokens is never scheduled, and the engine idles forever
+        # (seen as GPU at 0% on long-document shards on both vLLM builds).
+        self.llm = LLM(model=MODEL, runner="pooling", max_model_len=MAXTOK + 1, dtype="bfloat16",
                        gpu_memory_utilization=0.85, max_num_batched_tokens=131072, max_num_seqs=512)
         queries = [json.loads(l) for l in (HERE / "embed_input/queries.jsonl").open()]
         self.qids = [q["id"] for q in queries]
