@@ -1047,7 +1047,7 @@ diagram over training steps:
 - `signals_issued`: signals this run wrote, counted once the group's claim is
   visible.
 - `signals_consumed`: those signals with a ledger decision (`handled`,
-  `deferred`, `superseded` or `junk`). A signal whose rewrite is still running
+  `deferred`, `superseded`, `expired` or `junk`). A signal whose rewrite is still running
   is not consumed.
 - `rewrites_accepted`: rewrites from this run's signals that were accepted.
   An accepted rewrite has been folded into the mix: a fold that fails turns
@@ -1073,11 +1073,10 @@ is the wait for the task's next draw.
 | --- | --- |
 | `evolution/flow/signals_issued`, `signals_consumed`, `rewrites_accepted`, `rewrites_trained` | The four curves above, also logged as scalars. |
 | `evolution/flow/accept_latency_steps`, `train_latency_steps` | Median steps from issue to acceptance, and to the first training step on the accepted revision, over the last 20. |
-| `evolution/signals/<outcome>` | Consumed signals by ledger decision: `handled`, `deferred`, `superseded`, `junk`. They sum to `signals_consumed`. |
+| `evolution/signals/<outcome>` | Consumed signals by ledger decision: `handled`, `deferred`, `superseded`, `expired`, `junk`. They sum to `signals_consumed`. |
 | `evolution/rewrites/<outcome>` | Rewrite attempts by verdict: `accepted_harder`, `accepted_easier`, `kept`, `rejected`, `failed` (interrupted attempts included). |
 | `evolution/stale/while_waiting`, `while_rewriting` | Groups trained on a task's original while its rewrite was pending: claimed after one of this run's signals asked to rewrite that exact revision and before the loop consumed the signal, split by whether the rewrite had started. Each signal is counted when it is consumed. |
 | `evolution/queue/waiting_tasks` | Tasks a free worker could start now, one per task: pending signals after the loop's one-signal-per-task choice and its deferral rule, minus tasks already running. |
-| `evolution/queue/blocked_tasks` | The waiting tasks the current round already rewrote once. A round starts at most one rewrite per task, so these wait for the round to end. |
 | `evolution/queue/running` | Rewrites in progress. |
 | `evolution/mix_version` | The live mix version. |
 

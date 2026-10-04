@@ -35,7 +35,7 @@ from pathlib import Path
 from torchtitan.experiments.rl.examples.tmax import layout
 
 
-SIGNAL_OUTCOMES = ("handled", "deferred", "superseded", "junk")
+SIGNAL_OUTCOMES = ("handled", "deferred", "superseded", "expired", "junk")
 REWRITE_OUTCOMES = ("accepted_harder", "accepted_easier", "kept", "rejected", "failed")
 FLOW_KEYS = ("signals_issued", "signals_consumed", "rewrites_accepted", "rewrites_trained")
 # Merges the latency median looks back over: recent enough to move when the

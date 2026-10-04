@@ -201,18 +201,13 @@ class RewardObserverTest(unittest.TestCase):
                         root.evolution.status,
                         {
                             "mix_version": 4,
-                            "queue": {
-                                "waiting_tasks": 7,
-                                "blocked_tasks": 2,
-                                "running": 3,
-                            },
+                            "queue": {"waiting_tasks": 7, "running": 3},
                         },
                     )
                     values = dict(namespace["_evolution_metrics"](owner))
                     self.assertEqual(values["evolution/flow/rewrites_accepted"], 1)
                     self.assertEqual(values["evolution/mix_version"], 4)
                     self.assertEqual(values["evolution/queue/waiting_tasks"], 7)
-                    self.assertEqual(values["evolution/queue/blocked_tasks"], 2)
                     self.assertEqual(values["evolution/queue/running"], 3)
 
     def _claim(self, run, group, origin):
