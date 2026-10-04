@@ -13,7 +13,10 @@ wrote its ledger decision) and `rewrites_accepted` (a rewrite was accepted,
 which means folded into the mix). At one step, the vertical gap between issued
 and consumed is the work still open; at one height, the horizontal gap is how
 many steps a signal waited. `accept_latency_steps` states that wait for
-accepted rewrites.
+accepted rewrites. `rewrites_trained` counts accepted rewrites whose new
+revision has been trained on at least once, and `train_latency_steps` is the
+wait from a signal's issue to that first training step: an accepted revision
+reaches training only when the epoch order next reaches its task.
 
 `stale/*` counts the groups trained on a task's original while its rewrite was
 pending: claimed after one of this run's signals asked to rewrite that exact
@@ -34,7 +37,7 @@ from torchtitan.experiments.rl.examples.tmax import layout
 
 SIGNAL_OUTCOMES = ("handled", "deferred", "superseded", "junk")
 REWRITE_OUTCOMES = ("accepted_harder", "accepted_easier", "kept", "rejected", "failed")
-FLOW_KEYS = ("signals_issued", "signals_consumed", "rewrites_accepted")
+FLOW_KEYS = ("signals_issued", "signals_consumed", "rewrites_accepted", "rewrites_trained")
 # Merges the latency median looks back over: recent enough to move when the
 # loop speeds up or stalls, wide enough that one outlier does not set it.
 LATENCY_WINDOW = 20
@@ -88,7 +91,12 @@ class EvolutionMetrics:
         self.rewrites: set[str] = set()
         self.outcomes: Counter[str] = Counter()
         self.latencies: list[int] = []
-        self.history: dict[int, tuple[int, int, int]] = {}
+        self.history: dict[int, tuple[int, ...]] = {}
+        # First training on an accepted revision: trained groups by task, and
+        # accepted rewrites still waiting for one.
+        self.trained: dict[str, list[tuple[float, str, int]]] = {}
+        self.awaiting_training: dict[str, tuple[str, str, float, int]] = {}
+        self.train_latencies: list[int] = []
         # Staleness: every claim by task, each signal's revision and lifetime.
         self.claims: dict[str, list[tuple[float, str, str]]] = {}
         self.group_revision: dict[int, str] = {}
@@ -104,6 +112,14 @@ class EvolutionMetrics:
             self.run.trainer / "training_lineage/events.jsonl", self.claim_offset
         )
         for event in events:
+            if event["event"] == "trained" and "sample_revision" in event:
+                self.trained.setdefault(event["task_id"], []).append(
+                    (
+                        event["time_unix_ns"] / 1e9,
+                        event["sample_revision"],
+                        event["train_step"],
+                    )
+                )
             if event["event"] == "claimed":
                 self.claimed_origin[event["group_id"]] = event[
                     "generator_policy_version"
@@ -168,6 +184,14 @@ class EvolutionMetrics:
                 origin = self.issued.get(event.get("signal"))
                 if step is not None and origin is not None:
                     self.latencies.append(step - origin)
+                span = self.signal_span.get(event.get("signal"))
+                if origin is not None and span is not None and event.get("finished"):
+                    self.awaiting_training[event["rewrite"]] = (
+                        span[0],
+                        span[1],
+                        layout.parse_stamp(event["finished"]),
+                        origin,
+                    )
             elif status == "interrupted":
                 self.outcomes["failed"] += 1
             else:
@@ -191,17 +215,37 @@ class EvolutionMetrics:
                 key = "while_waiting" if claimed_at < started else "while_rewriting"
                 self.stale[key] += 1
 
+    def _match_training(self) -> None:
+        """An accepted rewrite reaches training at the first trained group of
+        its task on a revision other than the one its signal measured."""
+        for rewrite, (task, old, accepted_at, origin) in list(
+            self.awaiting_training.items()
+        ):
+            first = min(
+                (
+                    train_step
+                    for trained_at, revision, train_step in self.trained.get(task, ())
+                    if revision != old and trained_at >= accepted_at
+                ),
+                default=None,
+            )
+            if first is not None:
+                self.train_latencies.append(first - origin)
+                del self.awaiting_training[rewrite]
+
     def poll(self, *, step: int | None = None) -> dict[str, float]:
         self._poll_claims()
         self._poll_signals()
         self._poll_ledger()
         self._poll_outcomes(step)
         self._classify_stale()
+        self._match_training()
         closed = Counter(o for s, o in self.closed.items() if s in self.issued)
         flow = (
             len(self.issued),
             sum(closed.values()),
             self.outcomes["accepted_harder"] + self.outcomes["accepted_easier"],
+            len(self.train_latencies),
         )
         if step is not None:
             self.history[step] = flow
@@ -221,10 +265,14 @@ class EvolutionMetrics:
             values["evolution/flow/accept_latency_steps"] = float(
                 statistics.median(self.latencies[-LATENCY_WINDOW:])
             )
+        if self.train_latencies:
+            values["evolution/flow/train_latency_steps"] = float(
+                statistics.median(self.train_latencies[-LATENCY_WINDOW:])
+            )
         return values
 
     def flow_series(self) -> tuple[list[int], list[list[int]], list[str]]:
-        """The three flow counts at every logged step, for one overlay chart."""
+        """The flow counts at every logged step, for one overlay chart."""
         steps = sorted(self.history)
         return (
             steps,

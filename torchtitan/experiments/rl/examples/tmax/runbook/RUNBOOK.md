@@ -1041,7 +1041,7 @@ step; no separate observer command is needed. Every count is cumulative for
 this training run and taken when the trainer observes it, so a rate is the
 slope of its curve.
 
-`evolution/flow/chart` overlays the three flow counts as a cumulative flow
+`evolution/flow/chart` overlays the four flow counts as a cumulative flow
 diagram over training steps:
 
 - `signals_issued`: signals this run wrote, counted once the group's claim is
@@ -1052,6 +1052,11 @@ diagram over training steps:
 - `rewrites_accepted`: rewrites from this run's signals that were accepted.
   An accepted rewrite has been folded into the mix: a fold that fails turns
   the verdict into `rejected` or `failed` before it is recorded.
+- `rewrites_trained`: accepted rewrites whose new revision has been trained on
+  at least once: a `trained` lineage event for the task on a revision other
+  than the one its signal measured, after the acceptance. Each epoch draws a
+  task once and the signal came from this epoch's draw, so a revision reaches
+  training at the task's next draw, usually in a later epoch.
 
 At a given step, the vertical gap between `signals_issued` and
 `signals_consumed` is the number of signals still open; at a given count, the
@@ -1060,10 +1065,14 @@ below `signals_consumed` by the signals consumed without an accepted rewrite.
 `evolution/flow/accept_latency_steps` is the median, over the last 20 accepted
 rewrites, of the steps from a signal's issue (the policy version that claimed
 its group) to the step that observed its acceptance.
+`evolution/flow/train_latency_steps` is the same median up to the first
+training step on the accepted revision, so the gap between the two latencies
+is the wait for the task's next draw.
 
 | Key | Count |
 | --- | --- |
-| `evolution/flow/signals_issued`, `signals_consumed`, `rewrites_accepted` | The three curves above, also logged as scalars. |
+| `evolution/flow/signals_issued`, `signals_consumed`, `rewrites_accepted`, `rewrites_trained` | The four curves above, also logged as scalars. |
+| `evolution/flow/accept_latency_steps`, `train_latency_steps` | Median steps from issue to acceptance, and to the first training step on the accepted revision, over the last 20. |
 | `evolution/signals/<outcome>` | Consumed signals by ledger decision: `handled`, `deferred`, `superseded`, `junk`. They sum to `signals_consumed`. |
 | `evolution/rewrites/<outcome>` | Rewrite attempts by verdict: `accepted_harder`, `accepted_easier`, `kept`, `rejected`, `failed` (interrupted attempts included). |
 | `evolution/stale/while_waiting`, `while_rewriting` | Groups trained on a task's original while its rewrite was pending: claimed after one of this run's signals asked to rewrite that exact revision and before the loop consumed the signal, split by whether the rewrite had started. Each signal is counted when it is consumed. |
