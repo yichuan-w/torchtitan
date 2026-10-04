@@ -91,7 +91,7 @@ those signals are ledgered as `deferred` and are not replayed if the arm is turn
 `EVOLVE_LOOP.md` has the measurement behind that default.
 
 Every consumed signal has a terminal line in `evolution/ledger.jsonl`:
-`handled`, `deferred`, `superseded`, `expired`, or `junk`. The trainer counts these by
+`handled`, `deferred`, `superseded`, `resolved`, or `junk`. The trainer counts these by
 training run in W&B as `evolution/signals/*`, alongside run-scoped
 `evolution/rewrites/*` counters. From the root-wide `evolution/status.json` it
 reads `evolution/mix_version` and the queue counts `evolution/queue/*`.

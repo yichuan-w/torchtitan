@@ -138,9 +138,11 @@ A free worker takes the next pending signal at once, newest first, one per
 task. A task with a rewrite in progress waits for it to end; its next signal
 then starts if it measured the task's current revision, whatever the previous
 verdict was, and is superseded if it measured the revision just replaced. A
-signal that waited longer than one epoch (the rewrite budget) is closed as
-`expired` instead: it measured a policy the run has moved past, and the
-task's next draw issues a fresh one if it still needs rewriting.
+waiting signal stays valid until the task is drawn again: when a later whole
+group of the task at the same revision finishes without a signal (the trainer
+found it mixed), the signal is closed as `resolved`; when that group signals
+too, the newer signal supersedes it. Without rollout records
+(`SWE_ROLLOUT_RECORDS=0`) only the revision and newer signals close it.
 
 `evolve_ondella.py --once --dry --limit 1` with the same environment, or
 `evolve_hip.sh dry` on hip, runs one round that handles and publishes nothing,
