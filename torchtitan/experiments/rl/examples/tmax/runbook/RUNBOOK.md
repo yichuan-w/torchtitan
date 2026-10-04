@@ -1065,6 +1065,7 @@ to the step that observed its merge.
 | `evolution/flow/signals_issued`, `signals_closed`, `rewrites_merged` | The three curves above, also logged as scalars. |
 | `evolution/signals/<outcome>` | Closed signals by ledger decision: `handled`, `deferred`, `superseded`, `junk`. They sum to `signals_closed`. |
 | `evolution/rewrites/<outcome>` | Rewrite attempts by verdict: `accepted_harder`, `accepted_easier`, `kept`, `rejected`, `failed` (interrupted attempts included). |
+| `evolution/stale/while_waiting`, `while_rewriting` | Groups trained on a task's original while its rewrite was pending: claimed after one of this run's signals asked to rewrite that exact revision and before the loop closed the signal, split by whether the rewrite had started. Each signal is counted when it closes. |
 | `evolution/queue/waiting_tasks` | Tasks a free worker could start now, one per task: pending signals after the loop's one-signal-per-task choice and its deferral rule, minus tasks already running. |
 | `evolution/queue/blocked_tasks` | The waiting tasks the current round already rewrote once. A round starts at most one rewrite per task, so these wait for the round to end. |
 | `evolution/queue/running` | Rewrites in progress. |

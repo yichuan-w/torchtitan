@@ -306,6 +306,62 @@ class RewardObserverTest(unittest.TestCase):
             self.assertEqual(keys, ["signals_issued", "signals_closed", "rewrites_merged"])
             self.assertEqual(ys, [[3, 4], [0, 3], [0, 1]])
 
+    def test_stale_counts_original_draws_while_a_rewrite_is_pending(self):
+        stamp = observer.layout.stamp
+        with tempfile.TemporaryDirectory() as directory:
+            root = observer.layout.Root(Path(directory))
+            run = root.run("current")
+            base = 1_790_000_000
+
+            def claim(group, task, revision, at):
+                observer.layout.append_jsonl(
+                    run.trainer / "training_lineage/events.jsonl",
+                    {
+                        "event": "claimed",
+                        "group_id": group,
+                        "generator_policy_version": 0,
+                        "task_id": task,
+                        "sample_revision": revision,
+                        "occurrence_id": f"s:{group}",
+                        "time_unix_ns": (base + at) * 10**9,
+                    },
+                )
+
+            claim(1, "a", "a@0", 0)
+            observer.layout.write_json_atomic(
+                run.signal("a", 1),
+                {"task": "a", "group": 1, "created": stamp(base + 100)},
+            )
+            signal = observer.layout.signal_id(run.name, "a", 1)
+            claim(2, "a", "a@0", 200)  # queued
+            claim(3, "b", "b@0", 250)  # another task
+            claim(4, "a", "a@0", 400)  # rewrite under way
+            claim(5, "a", "a@1", 500)  # already the new revision
+            metrics = outcome_metrics.EvolutionMetrics(run, root)
+            open_values = metrics.poll(step=1)
+            self.assertEqual(open_values["evolution/stale/while_waiting"], 0)
+
+            outcome_metrics.record_outcome(
+                root,
+                root.evolution.task("a").rewrite("harder", "1"),
+                {
+                    "signal": signal,
+                    "task": "a",
+                    "job": "harder",
+                    "status": "accepted",
+                    "started": stamp(base + 300),
+                },
+            )
+            observer.layout.append_jsonl(
+                root.evolution.ledger,
+                {"signal": signal, "outcome": "handled", "stamp": stamp(base + 600)},
+            )
+            claim(6, "a", "a@0", 700)  # after the signal closed
+            values = metrics.poll(step=2)
+            self.assertEqual(values["evolution/stale/while_waiting"], 1)
+            self.assertEqual(values["evolution/stale/while_rewriting"], 1)
+            self.assertEqual(metrics.poll(step=3), values)
+
     def test_retried_signal_closes_once_and_counts_each_attempt(self):
         with tempfile.TemporaryDirectory() as directory:
             root = observer.layout.Root(Path(directory))
