@@ -49,9 +49,11 @@ def build_indexes(work, grades):
     for d in read_jsonl(work / "reps.jsonl"):
         srcs = sorted({o[0] for o in d["occ"]})
         reps[d["id"]] = {"group": d["group"], "text": d["text"], "sources": srcs,
-                         "family_size": len(d["family"]), "verifier": grade_of(d, grades)}
+                         "family_size": len(d["family"]), "verifier": grade_of(d, grades),
+                         **({"note": d["note"]} if d.get("note") else {})}
         tsv[d["group"]].write(f"{d['id']}\t{','.join(srcs)}\t{' '.join(d['text'].split())}\n")
-        rows.extend((int(m[1:]), d["id"], d["group"]) for m in d["family"])
+        # meta maps pool doc ids; extra.py tasks (x ids) are not pool rows and are found by `search`.
+        rows.extend((int(m[1:]), d["id"], d["group"]) for m in d["family"] if m.startswith("d"))
     for fh in tsv.values():
         fh.close()
     meta.executemany("INSERT INTO m VALUES (?,?,?)", rows)

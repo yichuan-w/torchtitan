@@ -35,7 +35,7 @@ GROUPS = {
     "SWE-repo": ["SWE-smith", "SWE-Gym", "R2E-Gym", "SWE-Smith-Seeds-Clean", "SWE-Rebench-Tasks-Clean"],
     "Terminal-env": ["CLI-Gym", "Endless-Terminals", "FACET", "LiteCoder-RL", "OT-Agent-RL-5K",
                      "OT-Agent-v1-RL", "SETA", "Skill2Env", "SkillGym", "TermiGen",
-                     "TerminalTraj-5k", "MiMo-V2.6-RL-oss"],
+                     "TerminalTraj-5k", "MiMo-V2.6-RL-oss", "Turing-Labs"],
     "TerminalWorld": ["TerminalWorld-Seeds-Clean", "TerminalWorld"],
     "Other-benchmarks": ["OT-TBLite", "OT-TB-dev", "TB-Pro", "LHTB", "Terminal-Wrench"],
 }
@@ -63,6 +63,42 @@ def read_jsonl(path: Path):
 
 
 _CANARY = re.compile(r"<!--.*?-->", re.S)
+
+
+_EXTRA = None
+
+
+def extra_docs() -> dict:
+    """Tasks added by extra.py (ids x<NNN>); they are not rows of pool.sqlite."""
+    global _EXTRA
+    if _EXTRA is None:
+        p = ROOT / "work" / "extra_docs.jsonl"
+        _EXTRA = {d["id"]: d for d in read_jsonl(p)} if p.exists() else {}
+    return _EXTRA
+
+
+def texts_of(ids) -> dict:
+    """Instruction text for representative ids: d<N> from the pool, x<N> from extra_docs."""
+    import sqlite3
+    pool = sqlite3.connect(f"file:{POOL}?mode=ro", uri=True)
+    out = {}
+    for i in ids:
+        if i.startswith("x"):
+            out[i] = extra_docs().get(i, {}).get("text")
+        else:
+            row = pool.execute("SELECT instruction FROM docs WHERE id=?", (int(i[1:]),)).fetchone()
+            out[i] = row[0] if row else None
+    return out
+
+
+def occurrences_of(i) -> list:
+    """[(source, original task id)] for a representative id."""
+    import sqlite3
+    if i.startswith("x"):
+        d = extra_docs()[i]
+        return [("Turing-Labs", d["task_id"])]
+    pool = sqlite3.connect(f"file:{POOL}?mode=ro", uri=True)
+    return pool.execute("SELECT source, task_id FROM occurrences WHERE doc_id=?", (int(i[1:]),)).fetchall()
 
 
 def normalize(text: str) -> str:

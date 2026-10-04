@@ -19,7 +19,7 @@ import sqlite3
 import subprocess
 import sys
 
-from common import GROUPS, POOL, PRIOR, ROOT, SOURCE_GROUP
+from common import GROUPS, POOL, PRIOR, ROOT, SOURCE_GROUP, extra_docs, texts_of
 
 WORK = ROOT / "work"
 CAP = 5000
@@ -78,8 +78,7 @@ def opt_n(rest, default=30):
 
 
 def text_of(ids):
-    pool = sqlite3.connect(f"file:{POOL}?mode=ro", uri=True)
-    return {i: (pool.execute("SELECT instruction FROM docs WHERE id=?", (int(i[1:]),)).fetchone() or [None])[0] for i in ids}
+    return texts_of(ids)
 
 
 def main(argv):
@@ -101,6 +100,10 @@ def main(argv):
         return 0
     if cmd == "full":
         i = rest[0]
+        if i.startswith("x"):
+            d = extra_docs().get(i)
+            print(f"=== {i} ({d['task_id']}, Turing-Labs){' NOTE ' + d['note'] if d and d['note'] else ''}\n{d['full'] if d else '!! NOT FOUND'}")
+            return 0
         pool = sqlite3.connect(f"file:{POOL}?mode=ro", uri=True)
         tids = [t for (t,) in pool.execute("SELECT task_id FROM occurrences WHERE doc_id=?", (int(i[1:]),))]
         prior = sqlite3.connect(f"file:{PRIOR / 'pool.sqlite'}?mode=ro", uri=True)

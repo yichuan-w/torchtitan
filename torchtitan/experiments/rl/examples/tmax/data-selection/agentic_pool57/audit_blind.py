@@ -15,12 +15,11 @@ from __future__ import annotations
 
 import json
 import random
-import sqlite3
 import sys
 
 import numpy as np
 
-from common import POOL, ROOT, read_jsonl
+from common import ROOT, read_jsonl, texts_of
 
 N_DENSE = 20
 N_RUNNERS = 20
@@ -35,7 +34,6 @@ def build(qids):
     S = np.load(work / "dense_scores.npy", mmap_mode="r")
     idx = json.loads((work / "rep_index.json").read_text())
     pos = {str(x): j for j, x in enumerate(ids)}
-    pool = sqlite3.connect(f"file:{POOL}?mode=ro", uri=True)
     (ROOT / "audit").mkdir(exist_ok=True)
     for qid in qids:
         r = json.loads((ROOT / "rerank" / f"{qid}.json").read_text())
@@ -63,7 +61,7 @@ def build(qids):
         cands, key = [], {}
         for n, (i, kind) in enumerate(members, 1):
             label = f"C{n:02d}"
-            text = pool.execute("SELECT instruction FROM docs WHERE id=?", (int(i[1:]),)).fetchone()[0]
+            text = texts_of([i])[i]
             cands.append({"label": label, "sources": idx[i]["sources"], "verifier": idx[i]["verifier"],
                           "instruction": text[:MAXCHARS] + (" …[truncated]" if len(text) > MAXCHARS else "")})
             key[label] = {"id": i, "kind": kind,

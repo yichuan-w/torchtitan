@@ -9,10 +9,9 @@ from __future__ import annotations
 
 import csv
 import json
-import sqlite3
 from collections import Counter
 
-from common import POOL, ROOT, read_jsonl
+from common import ROOT, occurrences_of, read_jsonl
 from run_agents import load_index, validate
 
 FIELDS = ["query_id", "rank", "id", "group", "sources", "original_ids", "family_size", "verifier",
@@ -23,7 +22,6 @@ def main():
     out = ROOT / "results"
     out.mkdir(exist_ok=True)
     index = load_index()
-    pool = sqlite3.connect(f"file:{POOL}?mode=ro", uri=True)
     queries = [q["query_id"] for q in read_jsonl(ROOT / "work/queries.jsonl")]
     good, problems = {}, {}
     for q in queries:
@@ -34,7 +32,7 @@ def main():
 
     def row(q, e, group):
         r = index[e["task_id"]]
-        occ = pool.execute("SELECT source, task_id FROM occurrences WHERE doc_id=?", (int(e["task_id"][1:]),)).fetchall()
+        occ = occurrences_of(e["task_id"])
         return {"query_id": q, "rank": e["rank"], "id": e["task_id"], "group": group, "sources": "|".join(r["sources"]),
                 "original_ids": "|".join(f"{s}:{t}" for s, t in occ), "family_size": r["family_size"],
                 "verifier": r["verifier"], **{k: e[k] for k in ["skill", "domain", "task_form", "overall"]},

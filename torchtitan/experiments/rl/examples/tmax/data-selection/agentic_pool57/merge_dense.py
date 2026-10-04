@@ -20,8 +20,9 @@ from recall import PER_RETRIEVER, topn
 def main():
     work = ROOT / "work"
     queries = [q["query_id"] for q in read_jsonl(work / "queries.jsonl")]
+    # 64 pool shards plus shard_064, the extra.py tasks (Turing Labs).
     shards = sorted((work / "embed_out").glob("shard_[0-9][0-9][0-9].npz"))
-    assert len(shards) == 64, len(shards)
+    assert len(shards) == 65, len(shards)
     ids, scores = [], []
     for f in shards:
         z = np.load(f)
