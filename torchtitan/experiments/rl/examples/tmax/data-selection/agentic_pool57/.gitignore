@@ -1,0 +1,15 @@
+__pycache__/
+.venv/
+work/
+logs/
+bin/
+packets/
+rerank/
+results/
+audit/
+inputs/
+k3_home/
+smoke_lex/
+embed_out/
+embed_input/
+scores_out/
