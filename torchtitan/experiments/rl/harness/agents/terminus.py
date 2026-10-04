@@ -95,6 +95,16 @@ _CONTEXT_TAIL_MARGIN = 64
 # otherwise cannot see its budget, and a trajectory that hits the wall ends before
 # it can submit, which grades as a failure. 0 turns the notice off.
 _CONTEXT_WARN_FRAC = float(os.environ.get("TMAX_CONTEXT_WARN_FRAC", "0.7"))
+# The full warning is repeated once more at this fraction, the last point at which
+# wrapping up still fits. Ignored when it is not above _CONTEXT_WARN_FRAC.
+_CONTEXT_FINAL_WARN_FRAC = 0.9
+# Every notice opens with this label. Appended to the terminal output, a bare
+# "WARNING: You have used 52%..." read as something the screen printed: on
+# QEMU-style tasks the policy waited on it, pressed Enter, or sent Ctrl+C. Placed
+# before the output with no label and no stakes, it was ignored (under 5% of
+# trajectories ever mention it, against 11% for the warning). The label keeps
+# the stakes and says where the line comes from.
+_CONTEXT_NOTICE_LABEL = "[Harness notice, not terminal output]"
 
 # Placeholder model name handed to Terminus-2. The real policy is our swapped-in
 # _AdapterLLM, but Terminus-2 still calls litellm's token_counter(model=_MODEL_NAME)
@@ -173,6 +183,8 @@ class _AdapterLLM:
         # its completion, from the adapter's usage. The next prompt is this plus
         # the observation about to be appended.
         self.context_tokens = 0
+        # Fractions at which the full warning has already been given.
+        self._context_warned_at: set[float] = set()
         # Terminus-2's loop lives inside harbor, so this is the one hook we have
         # that runs once per episode -- the same "check between turns" the
         # vanillux loop does with its own deadline.
@@ -201,16 +213,38 @@ class _AdapterLLM:
     def context_notice(self) -> str:
         """The context-budget notice preceding this turn's observation, or "".
 
-        Nothing below ``context_warn_frac``; afterwards show the estimated
-        remaining tokens, based on the last reply, before the terminal output.
+        Nothing below ``context_warn_frac``. The first turn at or past it, and the
+        first at or past ``_CONTEXT_FINAL_WARN_FRAC``, get the full warning: the
+        stakes and what to do. Every other turn past it gets one line with the
+        share used and the tokens left, so the model can pace the rest.
         """
         if self._context_warn_frac <= 0 or self._max_context <= 0:
             return ""
         used = self.context_tokens
-        if used < self._context_warn_frac * self._max_context:
+        frac = used / self._max_context
+        if frac < self._context_warn_frac:
             return ""
         left = max(0, self._max_context - used)
-        return f"[Model context budget: ~{left:,} tokens remaining]"
+        pct = min(100, round(100 * frac))
+        crossed = [
+            f
+            for f in (self._context_warn_frac, _CONTEXT_FINAL_WARN_FRAC)
+            if f >= self._context_warn_frac and frac >= f
+        ]
+        if crossed and max(crossed) not in self._context_warned_at:
+            self._context_warned_at.update(crossed)
+            return (
+                f"{_CONTEXT_NOTICE_LABEL} You have used {pct}% of your context "
+                f"window ({used:,} of {self._max_context:,} tokens); about "
+                f"{left:,} tokens remain. If it runs out, the episode ends before "
+                "you can submit and the task counts as failed. Avoid commands that "
+                "print large output, finish the essential work, verify it, and mark "
+                "the task complete."
+            )
+        return (
+            f"{_CONTEXT_NOTICE_LABEL} Context: {pct}% used, about {left:,} tokens "
+            "remain."
+        )
 
     async def call(self, prompt: str, message_history=None, **_kwargs):
         from harbor.llms.base import (  # type: ignore
