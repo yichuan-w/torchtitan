@@ -303,8 +303,16 @@ class RewardObserverTest(unittest.TestCase):
 
             xs, ys, keys = metrics.flow_series()
             self.assertEqual(xs, [1, 4])
-            self.assertEqual(keys, ["signals_issued", "signals_consumed", "rewrites_accepted"])
-            self.assertEqual(ys, [[3, 4], [0, 3], [0, 1]])
+            self.assertEqual(
+                keys,
+                [
+                    "signals_issued",
+                    "signals_consumed",
+                    "rewrites_accepted",
+                    "rewrites_trained",
+                ],
+            )
+            self.assertEqual(ys, [[3, 4], [0, 3], [0, 1], [0, 0]])
 
     def test_stale_counts_original_draws_while_a_rewrite_is_pending(self):
         stamp = observer.layout.stamp
@@ -361,6 +369,60 @@ class RewardObserverTest(unittest.TestCase):
             self.assertEqual(values["evolution/stale/while_waiting"], 1)
             self.assertEqual(values["evolution/stale/while_rewriting"], 1)
             self.assertEqual(metrics.poll(step=3), values)
+
+    def test_accepted_revision_counts_as_trained_at_its_first_training_step(self):
+        stamp = observer.layout.stamp
+        with tempfile.TemporaryDirectory() as directory:
+            root = observer.layout.Root(Path(directory))
+            run = root.run("current")
+            events = run.trainer / "training_lineage/events.jsonl"
+            base = 1_790_000_000
+
+            def lineage(event, group, revision, at, **fields):
+                observer.layout.append_jsonl(
+                    events,
+                    {
+                        "event": event,
+                        "group_id": group,
+                        "task_id": "a",
+                        "sample_revision": revision,
+                        "occurrence_id": f"s:{group}",
+                        "time_unix_ns": (base + at) * 10**9,
+                        **fields,
+                    },
+                )
+
+            lineage("claimed", 1, "a@0", 0, generator_policy_version=2)
+            observer.layout.write_json_atomic(
+                run.signal("a", 1),
+                {"task": "a", "group": 1, "created": stamp(base + 100)},
+            )
+            signal = observer.layout.signal_id(run.name, "a", 1)
+            outcome_metrics.record_outcome(
+                root,
+                root.evolution.task("a").rewrite("harder", "1"),
+                {
+                    "signal": signal,
+                    "task": "a",
+                    "job": "harder",
+                    "status": "accepted",
+                    "finished": stamp(base + 300),
+                },
+            )
+            metrics = outcome_metrics.EvolutionMetrics(run, root)
+            first = metrics.poll(step=4)
+            self.assertEqual(first["evolution/flow/rewrites_accepted"], 1)
+            self.assertEqual(first["evolution/flow/rewrites_trained"], 0)
+            self.assertNotIn("evolution/flow/train_latency_steps", first)
+
+            # Claimed before the fold, so still the measured revision.
+            lineage("trained", 2, "a@0", 400, train_step=5)
+            self.assertEqual(metrics.poll(step=5)["evolution/flow/rewrites_trained"], 0)
+            lineage("trained", 3, "a@1", 900, train_step=9)
+            lineage("trained", 4, "a@1", 950, train_step=10)
+            later = metrics.poll(step=10)
+            self.assertEqual(later["evolution/flow/rewrites_trained"], 1)
+            self.assertEqual(later["evolution/flow/train_latency_steps"], 7)
 
     def test_retried_signal_closes_once_and_counts_each_attempt(self):
         with tempfile.TemporaryDirectory() as directory:
