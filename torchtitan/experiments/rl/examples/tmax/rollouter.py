@@ -395,6 +395,31 @@ def _sandbox_issue_metrics(
     ]
 
 
+def _shadow_grade_metrics(rollouts: list[Rollout]) -> list[m.Metric]:
+    """The group's solve rate if unsubmitted rollouts were graded too.
+
+    ``shadow_unsubmitted_pass_frac``: of the unsubmitted rollouts whose shadow
+    verifier ran, the fraction that passed -- the zeros that were real solves.
+    ``shadow_reward_mean``: every scored rollout at its verdict under the
+    grade-everything rule (submitted -> its binary reward, unsubmitted -> its
+    shadow verdict). Infra failures carry no verdict and are left out of both.
+    """
+    shadow, graded = [], []
+    for rollout in rollouts:
+        d = rollout.diagnostics
+        if d["infra_failed"]:
+            continue
+        if d["submitted"]:
+            graded.append(d["sparse_reward"])
+        elif d["shadow_reward"] is not None:
+            shadow.append(1.0 if d["shadow_reward"] > 0 else 0.0)
+            graded.append(d["shadow_reward"])
+    return [
+        m.Metric("rollout/shadow_unsubmitted_pass_frac", m.Mean.from_list(shadow)),
+        m.Metric("rollout/shadow_reward_mean", m.Mean.from_list(graded)),
+    ]
+
+
 def _timing_metrics(timings: list[Mapping[str, float]]) -> list[m.Metric]:
     """Where the group's rollouts spent their wall clock, by phase.
 
@@ -421,6 +446,7 @@ def _timing_metrics(timings: list[Mapping[str, float]]) -> list[m.Metric]:
     mean_of("agent_secs", "rollout/agent_secs_mean")
     mean_of("agent_exec_secs", "rollout/agent_exec_secs_mean")
     mean_of("grade_secs", "rollout/grade_secs_mean")
+    mean_of("shadow_grade_secs", "rollout/shadow_grade_secs_mean")
 
     # The agent loop split. A loop of zero seconds has no split to report.
     loops = [
@@ -917,6 +943,19 @@ class TMaxRollouter(Rollouter):
         (larger) set of prompts -- a training-dynamics change, not just a rescale.
         """
 
+        shadow_grade_unsubmitted: bool = False
+        """Run the verifier on a rollout that ended without submitting (context,
+        time or turn limit) and record the verdict, without changing its reward.
+
+        Harbor / TB-2.x grade every trial whether or not the agent submitted; tmax
+        scores an unsubmitted rollout 0 without looking. The shadow verdict measures
+        how many of those zeros were actually solved: it lands in the rollout record
+        (``verifier.shadow``) and in ``rollout/shadow_unsubmitted_pass_frac`` and
+        ``rollout/shadow_reward_mean`` (the solve rate under the grade-everything
+        rule), for training and validation alike. Costs one verifier run per
+        unsubmitted rollout, inside the eval share of the rollout's guard.
+        """
+
         evolution_harder_ratio: float = 1.0
         """Minimum solved fraction for sparse-reward hardening; dense keeps its
         existing zero-variance rule. Must be in (0, 1]. Mixed groups still train.
@@ -1027,6 +1066,7 @@ class TMaxRollouter(Rollouter):
             self._reward_mode == "dense"
             or os.environ.get("TMAX_CTRF_DIAGNOSTICS", "0") == "1"
         )
+        self._shadow_grade_unsubmitted = config.shadow_grade_unsubmitted
         # Whole-rollout wall-clock guard: agent budget + eval + boot buffer.
         # Fallback guard; a rollout whose task declares its own budget derives its
         # own (see _agent_budget_sec / _guard_for).
@@ -1138,6 +1178,8 @@ class TMaxRollouter(Rollouter):
             *sandbox_metrics,
             *timing_metrics,
         ]
+        if self._shadow_grade_unsubmitted:
+            group_metrics += _shadow_grade_metrics(rollouts)
         if self._read_ctrf:
             group_metrics += _ctrf_metrics(
                 [rollout.diagnostics.get("ctrf") for rollout in rollouts]
@@ -1485,6 +1527,9 @@ class TMaxRollouter(Rollouter):
         # comparable on one run, and whether dense had to fall back to it.
         sparse_reward = 0.0
         dense_fallback = False
+        # Verifier verdict for an unsubmitted rollout (shadow_grade_unsubmitted);
+        # None when it did not run. Never feeds the reward.
+        shadow_reward: float | None = None
         issue_tracker = SandboxIssueTracker(
             SandboxLogContext(
                 instance_id=sample.instance_id,
@@ -1711,6 +1756,29 @@ class TMaxRollouter(Rollouter):
                             reward = sparse_reward if dense is None else dense
                     else:
                         reward = 0.0
+                        if self._shadow_grade_unsubmitted:
+                            # Grade the sandbox as the agent left it, for the
+                            # record only; the rollout keeps reward 0. A failed
+                            # shadow run must not turn a scored rollout into an
+                            # infra failure, so its errors stay here.
+                            shadow: dict = {}
+                            grade_at = time.monotonic()
+                            try:
+                                shadow_reward = await grade_tmax(
+                                    sandbox,
+                                    sample.tmax,
+                                    workdir=sample.workdir,
+                                    timeout_sec=verifier_sec,
+                                    baseline_digests=baseline_digests,
+                                    diagnostics=shadow,
+                                )
+                            except Exception as e:  # noqa: BLE001
+                                logger.warning(
+                                    f"[tmax] {rollout_id}: shadow grade failed "
+                                    f"({type(e).__name__}: {e})"
+                                )
+                            timing["shadow_grade_secs"] = time.monotonic() - grade_at
+                            verifier["shadow"] = {"reward": shadow_reward, **shadow}
                 status = RolloutStatus.COMPLETED
         except (TimeoutError, asyncio.TimeoutError):
             infra_failed = True
@@ -1887,7 +1955,7 @@ class TMaxRollouter(Rollouter):
         # matter" is unanswerable, and the budget gets picked by feel.
         logger.info(
             "[tmax] %s: status=%s reward=%.2f turns=%d oom_suspect=%d "
-            "secs=%.0f exec_secs=%.0f exec_n=%d budget=%d",
+            "secs=%.0f exec_secs=%.0f exec_n=%d budget=%d%s",
             rollout_id,
             status,
             reward,
@@ -1897,6 +1965,7 @@ class TMaxRollouter(Rollouter):
             exec_timing["exec_secs"],
             exec_timing["exec_n"],
             budget_sec,
+            "" if shadow_reward is None else f" shadow_reward={shadow_reward:.2f}",
         )
         record = None
         if run is not None:
@@ -1946,6 +2015,7 @@ class TMaxRollouter(Rollouter):
                     "verifier": verifier,
                     "sparse_reward": sparse_reward,
                     "dense_fallback": dense_fallback,
+                    "shadow_reward": shadow_reward,
                     # Relative to the run directory, so the group-level signal
                     # can list its siblings' records; None when none was written.
                     "record": record,

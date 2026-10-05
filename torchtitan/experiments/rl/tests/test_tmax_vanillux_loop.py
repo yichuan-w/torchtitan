@@ -497,6 +497,7 @@ def _run_group_with_one_infra_failure(
     rollouter = object.__new__(TMaxRollouter)
     rollouter._ensure_adapter = AsyncMock(return_value=object())
     rollouter._read_ctrf = False
+    rollouter._shadow_grade_unsubmitted = False
     rollouter._reward_mode = "sparse"
 
     async def run_sibling(**kwargs):

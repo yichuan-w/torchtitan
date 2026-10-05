@@ -748,6 +748,7 @@ these are the variables that touch them.
 | `SWE_WRONG_SUBMIT_PENALTY` | unset | `0` | reward penalty for submitting a wrong answer. No run has set it; the table said `0.3` here while `rltrain.env` said unset and no `launch.json` carried it. Setting it makes a failure score -0.3 rather than 0, which is why the evolution thresholds count solves instead of testing rewards against 0. |
 | `SWE_EVOLUTION_EASIER_RATIO` | unset | `0.0` | solved fraction at or below which a group asks the loop for `easier`. Must stay strictly below `SWE_EVOLUTION_HARDER_RATIO`. |
 | `SWE_REWARD_DENSE` | unset | `0` | dense per-test reward instead of binary. |
+| `TMAX_SHADOW_GRADE_UNSUBMITTED` | unset | `0` | at `1`, also run the verifier on a rollout that ended without submitting (context / time / turn limit) and record the verdict, training and validation alike. Reward is unchanged (still 0). Shows up as `rollout/shadow_unsubmitted_pass_frac`, `rollout/shadow_reward_mean` (solve rate if every trial were graded, as Harbor does) and `verifier.shadow` in the rollout record. Costs one verifier run per unsubmitted rollout. |
 | `TMAX_FORMAT_ERROR_FEEDBACK` | unset | `0` | at `0`, a turn with no tool call ends the rollout immediately (open-instruct parity). |
 | `TMAX_TERMINUS_SUMMARIZE` | unset | `0` | upstream defaults this on; the module docstring says "on a 9B it is lethal". |
 | `TT_TERMINAL_ISOLATION` | unset | `1` | cgroup split of the student from the control plane (see "The student and the control plane are separate cgroups"). `0` skips it. |

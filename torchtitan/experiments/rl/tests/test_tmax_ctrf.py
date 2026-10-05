@@ -162,6 +162,7 @@ def _stub_rollouter(
     rollouter._max_context_tokens = 4096
     rollouter._reward_mode = reward_mode
     rollouter._read_ctrf = True
+    rollouter._shadow_grade_unsubmitted = False
     rollouter._rollout_gate = _RolloutIssueGate(1)
 
     @contextlib.asynccontextmanager

@@ -195,6 +195,11 @@ def _tmax_rollouter(*, validation_from_caller: bool = False) -> TMaxRollouter.Co
         reward_mode=(
             "dense" if os.environ.get("SWE_REWARD_DENSE", "0") == "1" else "sparse"
         ),
+        # Grade unsubmitted rollouts for the record only (reward unchanged): how
+        # many context/time/turn-limit zeros were actually solved.
+        shadow_grade_unsubmitted=(
+            os.environ.get("TMAX_SHADOW_GRADE_UNSUBMITTED", "0") == "1"
+        ),
         # MiMo-style in-group length penalty on solves (TMaxRollouter.Config.
         # length_penalty*), off unless SWE_LENGTH_PENALTY=1. Defaults are MiMo's
         # general recipe. Over a 150-step agentpick run the median turns per rollout
