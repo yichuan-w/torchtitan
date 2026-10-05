@@ -7,7 +7,7 @@
 """The model is told when its context is running out, and how much is left.
 
 Nothing is added below the warning fraction. The first turn past it, and the
-first past the final fraction, get a full warning with the stakes; every other
+first past 75% and 90%, get a full warning with the stakes; every other
 turn gets one line with the share used and the tokens left. Each notice is
 labelled as coming from the harness and sits before the terminal output. The
 count is the last reply's prompt plus completion, as the adapter reports it.
@@ -65,49 +65,65 @@ def test_nothing_below_the_warning_fraction():
     assert llm.context_notice() == ""
 
 
+FULL = "the task counts as failed"
+
+
 def test_the_first_turn_past_the_fraction_gets_the_full_warning():
     llm = _llm()
     llm.context_tokens = 7000
-    notice = llm.context_notice()
-    assert notice == (
+    assert llm.context_notice() == (
         f"{_CONTEXT_NOTICE_LABEL} You have used 70% of your context window "
         "(7,000 of 10,000 tokens); about 3,000 tokens remain. If it runs out, the "
-        "episode ends before you can submit and the task counts as failed. Avoid "
-        "commands that print large output, finish the essential work, verify it, "
-        "and mark the task complete."
+        "episode ends before you can submit and the task counts as failed. Stop "
+        "exploring: do not rewrite whole files, write long debug scripts, or run "
+        "commands that print large output. Make small targeted edits, run the "
+        "check once, then mark the task complete."
     )
 
 
-def test_later_turns_get_one_line_and_the_final_fraction_warns_again():
-    llm = _llm()
-    llm.context_tokens = 7000
-    llm.context_notice()
-    llm.context_tokens = 8500
+def test_one_line_between_warnings_and_full_again_at_75_and_90():
+    llm = _llm(warn_frac=0.5)
+    llm.context_tokens = 5000
+    assert FULL in llm.context_notice()
+    llm.context_tokens = 6000
     assert llm.context_notice() == (
-        f"{_CONTEXT_NOTICE_LABEL} Context: 85% used, about 1,500 tokens remain."
+        f"{_CONTEXT_NOTICE_LABEL} Context: 60% used, about 4,000 tokens remain."
     )
-    llm.context_tokens = 9100
-    assert "the task counts as failed" in llm.context_notice()
+    llm.context_tokens = 7500
+    assert FULL in llm.context_notice()
+    llm.context_tokens = 8000
+    assert llm.context_notice().endswith("about 2,000 tokens remain.")
+    llm.context_tokens = 9000
+    assert FULL in llm.context_notice()
     llm.context_tokens = 10400
     assert llm.context_notice() == (
         f"{_CONTEXT_NOTICE_LABEL} Context: 100% used, about 0 tokens remain."
     )
 
 
-def test_jumping_past_both_fractions_warns_once():
-    llm = _llm()
+def test_thresholds_use_the_shown_percentage():
+    llm = _llm(warn_frac=0.5)
+    llm.context_tokens = 5000
+    llm.context_notice()
+    llm.context_tokens = 8960  # shows 90%
+    notice = llm.context_notice()
+    assert "You have used 90%" in notice and FULL in notice
+
+
+def test_jumping_past_several_fractions_warns_once():
+    llm = _llm(warn_frac=0.5)
     llm.context_tokens = 9500
-    assert "the task counts as failed" in llm.context_notice()
+    assert FULL in llm.context_notice()
     llm.context_tokens = 9600
     assert llm.context_notice().endswith("about 400 tokens remain.")
 
 
-def test_a_warning_fraction_above_the_final_one_warns_once():
+def test_a_warning_fraction_above_the_repeats_warns_once():
     llm = _llm(warn_frac=0.95)
-    llm.context_tokens = 9000
+    llm.context_tokens = 9400
     assert llm.context_notice() == ""
     llm.context_tokens = 9500
-    assert "the task counts as failed" in llm.context_notice()
+    assert FULL in llm.context_notice()
     llm.context_tokens = 9700
     assert llm.context_notice().endswith("about 300 tokens remain.")
 

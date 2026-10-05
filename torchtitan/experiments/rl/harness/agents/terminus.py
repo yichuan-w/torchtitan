@@ -95,9 +95,11 @@ _CONTEXT_TAIL_MARGIN = 64
 # otherwise cannot see its budget, and a trajectory that hits the wall ends before
 # it can submit, which grades as a failure. 0 turns the notice off.
 _CONTEXT_WARN_FRAC = float(os.environ.get("TMAX_CONTEXT_WARN_FRAC", "0.7"))
-# The full warning is repeated once more at this fraction, the last point at which
-# wrapping up still fits. Ignored when it is not above _CONTEXT_WARN_FRAC.
-_CONTEXT_FINAL_WARN_FRAC = 0.9
+# The full warning is repeated at each of these fractions. At 90% about 6k tokens
+# are left, 3 to 6 turns, and the policy typically noticed the warning in its last
+# 1 to 7 turns, so 75% gives wrapping up a turn budget it can still use. Fractions
+# not above _CONTEXT_WARN_FRAC are ignored.
+_CONTEXT_REPEAT_WARN_FRACS = (0.75, 0.9)
 # Every notice opens with this label. Appended to the terminal output, a bare
 # "WARNING: You have used 52%..." read as something the screen printed: on
 # QEMU-style tasks the policy waited on it, pressed Enter, or sent Ctrl+C. Placed
@@ -183,8 +185,8 @@ class _AdapterLLM:
         # its completion, from the adapter's usage. The next prompt is this plus
         # the observation about to be appended.
         self.context_tokens = 0
-        # Fractions at which the full warning has already been given.
-        self._context_warned_at: set[float] = set()
+        # Percentages at which the full warning has already been given.
+        self._context_warned_at: set[int] = set()
         # Terminus-2's loop lives inside harbor, so this is the one hook we have
         # that runs once per episode -- the same "check between turns" the
         # vanillux loop does with its own deadline.
@@ -214,32 +216,34 @@ class _AdapterLLM:
         """The context-budget notice preceding this turn's observation, or "".
 
         Nothing below ``context_warn_frac``. The first turn at or past it, and the
-        first at or past ``_CONTEXT_FINAL_WARN_FRAC``, get the full warning: the
-        stakes and what to do. Every other turn past it gets one line with the
-        share used and the tokens left, so the model can pace the rest.
+        first at or past each of ``_CONTEXT_REPEAT_WARN_FRACS``, get the full
+        warning: the stakes and what to do. Every other turn past it gets one line
+        with the share used and the tokens left, so the model can pace the rest.
+        The repeats compare against the rounded percentage the notice shows, so a
+        line never reads "90% used" without the 90% warning having been given.
         """
         if self._context_warn_frac <= 0 or self._max_context <= 0:
             return ""
         used = self.context_tokens
-        frac = used / self._max_context
-        if frac < self._context_warn_frac:
-            return ""
         left = max(0, self._max_context - used)
-        pct = min(100, round(100 * frac))
-        crossed = [
-            f
-            for f in (self._context_warn_frac, _CONTEXT_FINAL_WARN_FRAC)
-            if f >= self._context_warn_frac and frac >= f
-        ]
-        if crossed and max(crossed) not in self._context_warned_at:
+        pct = min(100, round(100 * used / self._max_context))
+        if used < self._context_warn_frac * self._max_context:
+            return ""
+        first = round(100 * self._context_warn_frac)
+        repeats = {
+            round(100 * f) for f in _CONTEXT_REPEAT_WARN_FRACS if round(100 * f) > first
+        }
+        crossed = {first} | {t for t in repeats if pct >= t}
+        if max(crossed) not in self._context_warned_at:
             self._context_warned_at.update(crossed)
             return (
                 f"{_CONTEXT_NOTICE_LABEL} You have used {pct}% of your context "
                 f"window ({used:,} of {self._max_context:,} tokens); about "
                 f"{left:,} tokens remain. If it runs out, the episode ends before "
-                "you can submit and the task counts as failed. Avoid commands that "
-                "print large output, finish the essential work, verify it, and mark "
-                "the task complete."
+                "you can submit and the task counts as failed. Stop exploring: do "
+                "not rewrite whole files, write long debug scripts, or run commands "
+                "that print large output. Make small targeted edits, run the check "
+                "once, then mark the task complete."
             )
         return (
             f"{_CONTEXT_NOTICE_LABEL} Context: {pct}% used, about {left:,} tokens "
