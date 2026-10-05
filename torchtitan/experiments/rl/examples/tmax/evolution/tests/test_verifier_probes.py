@@ -27,17 +27,26 @@ class SemanticProbeTests(unittest.TestCase):
         self.pkg = Path(self.temp.name)
         directory = self.pkg / "run" / "verifier-probes"
         directory.mkdir(parents=True)
+        (self.pkg / "environment").mkdir()
+        (self.pkg / "environment" / "spec.md").write_text(
+            "Use the audited count for both filtering and weight.\n"
+            "Only verified audit records qualify.\n"
+        )
         (directory / "contract.json").write_text(
             json.dumps(
                 {
                     "cases": [
                         dict(
                             requirement="Use audited count for both filtering and weight",
+                            quote="Use the audited count for both filtering and weight",
+                            source="environment/spec.md",
                             wrong_behavior="Use raw count for weight",
                             expected_failure="Edge weight differs",
                         ),
                         dict(
                             requirement="Only verified audit records qualify",
+                            quote="Only verified audit records qualify",
+                            source="environment/spec.md",
                             wrong_behavior="Use pending audit record",
                             expected_failure="Selected papers differ",
                         ),
@@ -365,3 +374,50 @@ class SemanticProbeTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class QuoteCheckTests(unittest.TestCase):
+    """A probe case must quote the public sentence it checks, from a file the
+    agent can read, or the contract is refused before any replay."""
+
+    def setUp(self):
+        self.temp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.temp.cleanup)
+        self.pkg = Path(self.temp.name)
+        (self.pkg / "instruction.md").write_text(
+            "Reject a reading when the `denominator` is within 1e-9 of zero.\n"
+        )
+        (self.pkg / "environment").mkdir()
+        (self.pkg / "environment" / "README.md").write_text("Rows are comma separated.\n")
+        self.probes = self.pkg / "run" / "verifier-probes"
+        self.probes.mkdir(parents=True)
+        (self.probes / "correct.sh").write_text("ok")
+        (self.probes / "wrong-1.sh").write_text("bad")
+
+    def load(self, **case):
+        base = dict(requirement="r", wrong_behavior="w", expected_failure="f")
+        (self.probes / "contract.json").write_text(json.dumps({"cases": [{**base, **case}]}))
+        return probes.load_probe_contract(self.pkg)
+
+    def test_quote_from_instruction_passes_despite_markdown_and_spacing(self):
+        self.load(quote="Reject a reading when the denominator is\nwithin 1e-9 of zero", source="instruction.md")
+
+    def test_quote_from_environment_file_passes(self):
+        self.load(quote="Rows are comma separated", source="environment/README.md")
+
+    def test_unstated_clause_is_refused(self):
+        with self.assertRaisesRegex(probes.SemanticProbeContract, "does not appear"):
+            self.load(quote="Reject inf and -inf readings as invalid", source="instruction.md")
+
+    def test_missing_quote_is_refused(self):
+        with self.assertRaisesRegex(probes.SemanticProbeContract, "needs a `quote`"):
+            self.load(source="instruction.md")
+
+    def test_source_outside_what_the_agent_reads_is_refused(self):
+        for source in ("tests/test.sh", "../instruction.md", "solution/solve.sh"):
+            with self.assertRaisesRegex(probes.SemanticProbeContract, "not instruction.md"):
+                self.load(quote="Reject a reading when the denominator", source=source)
+
+    def test_missing_source_file_is_refused(self):
+        with self.assertRaisesRegex(probes.SemanticProbeContract, "does not exist"):
+            self.load(quote="Rows are comma separated", source="environment/NOTES.md")
