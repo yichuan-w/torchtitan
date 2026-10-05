@@ -1323,11 +1323,32 @@ class VLLMGenerator(Actor, Configurable):
             # measured on della-tridao at 15.3 tok/s per sequence with prefill=0
             # against 7.9 with prefill active, i.e. the graph fires almost never in
             # steady state. Costs an inductor compile at engine init (minutes).
+            #
+            # That default compiles every CustomOp's forward_native with inductor
+            # (custom_ops=['none']). On the CoreWeave B300 stack the inductor-fused
+            # native RoPE in Qwen3.5's attention drifts from eager: measured against
+            # the trainer model on 144k multi-turn decode tokens, step-1 KL k1 was
+            # 0.0017 compiled vs 0.00009 eager, which is the 10x CW-vs-della
+            # trainer/generator logprob gap. Running rotary_embedding as its CUDA
+            # op ("+rotary_embedding") brings it to 0.0002 and keeps ~99% of the
+            # compiled throughput. SWE_GEN_VLLM_CUSTOM_OPS overrides the list
+            # (comma-separated); set it empty to forward nothing, as before.
             if os.environ.get("SWE_GEN_VLLM_DEFAULT_COMPILE", "0") == "1":
+                custom_ops = [
+                    op
+                    for op in os.environ.get(
+                        "SWE_GEN_VLLM_CUSTOM_OPS", "none,+rotary_embedding"
+                    ).split(",")
+                    if op
+                ]
+                if custom_ops:
+                    engine_kwargs["compilation_config"] = CompilationConfig(
+                        custom_ops=custom_ops
+                    )
                 logger.info(
-                    "[generator] SWE_GEN_VLLM_DEFAULT_COMPILE=1: forwarding no "
-                    "compilation_config; vLLM keeps its own default "
-                    "(inductor VLLM_COMPILE + FULL_AND_PIECEWISE)"
+                    "[generator] SWE_GEN_VLLM_DEFAULT_COMPILE=1: vLLM default "
+                    "compile (inductor VLLM_COMPILE + FULL_AND_PIECEWISE), "
+                    f"custom_ops={custom_ops or 'vLLM default'}"
                 )
             else:
                 vllm_compilation_config = config.cudagraph.get_vllm_compilation_config(

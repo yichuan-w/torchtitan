@@ -7,6 +7,7 @@
 import contextlib
 import logging
 import os
+import time
 from dataclasses import dataclass, field, replace
 from typing import Any
 
@@ -561,6 +562,28 @@ class PolicyTrainer(Actor, Configurable):
 
         attention_masks = model.get_attention_masks(positions)
 
+        # Debug: SWE_DUMP_BATCH_STEPS=N saves this rank's full packed batch for the
+        # first N policy versions, so trainer-vs-generator logprobs can be re-scored
+        # offline token by token (the max_logdiff dump only keeps 8k chunks).
+        dump_batch = self.policy_version < int(
+            os.environ.get("SWE_DUMP_BATCH_STEPS", "0")
+        )
+        if dump_batch:
+            dump_dir = os.path.join(os.environ.get("SWE_DUMP_DIR", "/tmp"), "batches")
+            os.makedirs(dump_dir, exist_ok=True)
+            dump_path = os.path.join(
+                dump_dir,
+                f"batch_v{self.policy_version}_r{self.dp_rank}_{time.time_ns()}.pt",
+            )
+            dump = {
+                "token_ids": local_batch.token_ids,
+                "labels": local_batch.labels,
+                "positions": local_batch.positions,
+                "loss_mask": local_batch.loss_mask,
+                "generator_logprobs": local_batch.generator_logprobs,
+                "advantages": local_batch.advantages,
+            }
+
         # The model forward is where FSDP2 fully_shard issues its unshard
         # all-gather; under a multi-host dp_shard this is a cross-host collective.
         logger.info(f"[trainer] dp_rank={self.dp_rank}: model forward start")
@@ -572,6 +595,14 @@ class PolicyTrainer(Actor, Configurable):
                     token_ids, attention_masks=attention_masks, positions=positions
                 )
             logger.info(f"[trainer] dp_rank={self.dp_rank}: model forward done")
+            if dump_batch:
+                # With ChunkedLossWrapper the model returns final hidden states (the
+                # lm_head runs inside the loss), so save those: lm_head is re-applied
+                # offline to recover the trainer's logprobs.
+                hidden = pred.to_local() if isinstance(pred, DTensor) else pred
+                dump["hidden"] = hidden.detach().cpu()
+                torch.save(dump, dump_path)
+                logger.info(f"[trainer] dumped batch -> {dump_path}")
 
             with sl.log_trace_span("loss_fn"), torch.profiler.record_function(
                 "rl_loss_fn"
