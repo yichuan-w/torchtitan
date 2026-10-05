@@ -107,6 +107,18 @@ _CONTEXT_REPEAT_WARN_FRACS = (0.75, 0.9)
 # trajectories ever mention it, against 11% for the warning). The label keeps
 # the stakes and says where the line comes from.
 _CONTEXT_NOTICE_LABEL = "[Harness notice, not terminal output]"
+# Which notice text to use. "v2" (default) is the labelled notice above, given
+# before the observation and repeated at _CONTEXT_REPEAT_WARN_FRACS. "della" is the
+# notice of commit 882db3e0, the one the della csk4gby2 run trained under: one
+# warning, then a status line every turn, both appended after the observation.
+# The ropefix run (v2) drifted toward longer, self-revising thinking and fewer
+# commands, and its eval collapsed on runaway turns at temperature 0.7; della's
+# did not. "della" exists to rerun that recipe with only the notice changed.
+_CONTEXT_NOTICE_STYLE = os.environ.get("TMAX_CONTEXT_NOTICE_STYLE", "v2")
+if _CONTEXT_NOTICE_STYLE not in ("v2", "della"):
+    raise ValueError(
+        f"TMAX_CONTEXT_NOTICE_STYLE must be v2 or della, got {_CONTEXT_NOTICE_STYLE!r}"
+    )
 
 # Placeholder model name handed to Terminus-2. The real policy is our swapped-in
 # _AdapterLLM, but Terminus-2 still calls litellm's token_counter(model=_MODEL_NAME)
@@ -229,6 +241,18 @@ class _AdapterLLM:
         pct = min(100, round(100 * used / self._max_context))
         if used < self._context_warn_frac * self._max_context:
             return ""
+        if _CONTEXT_NOTICE_STYLE == "della":
+            if not self._context_warned_at:
+                self._context_warned_at.add(pct)
+                return (
+                    f"WARNING: You have used {pct}% of your context window "
+                    f"({used:,} of {self._max_context:,} tokens); about {left:,} "
+                    "tokens remain. If it runs out, the episode ends before you can "
+                    "submit and the task counts as failed. Avoid commands that print "
+                    "large output, finish the essential work, verify it, and mark the "
+                    "task complete."
+                )
+            return f"[Context: {pct}% used, about {left:,} tokens remain]"
         first = round(100 * self._context_warn_frac)
         repeats = {
             round(100 * f) for f in _CONTEXT_REPEAT_WARN_FRACS if round(100 * f) > first
@@ -569,7 +593,10 @@ class _SandboxEnvironment:
         shown = "new" if observation.startswith("New") else "screen"
         notice = self.context_notice() if self.context_notice else ""
         if notice:
-            observation = f"{notice}\n\n{observation}"
+            if _CONTEXT_NOTICE_STYLE == "della":
+                observation = f"{observation.rstrip()}\n\n{notice}\n"
+            else:
+                observation = f"{notice}\n\n{observation}"
         self.exec_trace.append(
             {
                 "t": round(started_at, 3),

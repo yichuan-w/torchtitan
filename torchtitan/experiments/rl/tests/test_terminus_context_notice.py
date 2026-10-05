@@ -167,3 +167,49 @@ def test_the_notice_rides_on_the_turns_observation(tmp_path: Path):
         "[MODEL CONTEXT BUDGET]\n\nCurrent Terminal Screen:\nprompt$ \n"
     )
     assert env.exec_trace[-1]["shown"] == "screen"
+
+
+def test_della_style_is_one_warning_then_status_lines(monkeypatch):
+    """TMAX_CONTEXT_NOTICE_STYLE=della: commit 882db3e0's text, warned once."""
+    from torchtitan.experiments.rl.harness.agents import terminus
+
+    monkeypatch.setattr(terminus, "_CONTEXT_NOTICE_STYLE", "della")
+    llm = _llm(warn_frac=0.5)
+    llm.context_tokens = 5000
+    assert llm.context_notice() == (
+        "WARNING: You have used 50% of your context window (5,000 of 10,000 "
+        "tokens); about 5,000 tokens remain. If it runs out, the episode ends "
+        "before you can submit and the task counts as failed. Avoid commands that "
+        "print large output, finish the essential work, verify it, and mark the "
+        "task complete."
+    )
+    for used, line in [
+        (7600, "[Context: 76% used, about 2,400 tokens remain]"),
+        (9100, "[Context: 91% used, about 900 tokens remain]"),
+    ]:
+        llm.context_tokens = used
+        assert llm.context_notice() == line
+
+
+def test_della_style_goes_after_the_observation(tmp_path: Path, monkeypatch):
+    from torchtitan.experiments.rl.harness.agents import terminus
+
+    monkeypatch.setattr(terminus, "_CONTEXT_NOTICE_STYLE", "della")
+    env = _SandboxEnvironment(AsyncMock(), agent_dir=tmp_path / "agent")
+    env.terminal.session = "terminus-1"
+    env.terminal.server_pid = "100"
+    env.terminal.pane_pid = "200"
+    env.context_notice = lambda: "[Context: 60% used, about 4,000 tokens remain]"
+    stdouts = [
+        "62|39|0|100|200|none\nscreen|0\n\n__torchtitan_screen__\nprompt$ \n",
+    ]
+
+    async def exec_raw(_script, **_kwargs):
+        return SimpleNamespace(return_code=0, stdout=stdouts.pop(0), stderr="")
+
+    env._exec_raw = exec_raw
+    session = SimpleNamespace(_session_name="terminus-1")
+    assert asyncio.run(env.observe_turn(session)) == (
+        "Current Terminal Screen:\nprompt$\n\n"
+        "[Context: 60% used, about 4,000 tokens remain]\n"
+    )
