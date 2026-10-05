@@ -127,6 +127,15 @@ def run_one(qid, index, k3):
             log(f"item={qid} status=retry reason=checkpoint_invalid moved_to={bad.name}")
     prompt = (ROOT / "AGENT_SPEC_V2.md").read_text() + ADAPTATION + f"\nAssigned query: {qid}\n"
     attempt = len(list((ROOT / "logs").glob(f"{qid}.attempt*.jsonl"))) + 1
+    # A retry is told why the last file was rejected; K3 most often fails by giving a
+    # task different scores in per_source and final_top10.
+    fails = [l for l in (ROOT / "logs/rerank.log").read_text().splitlines()
+             if f"item={qid} " in l and "status=fail" in l]
+    if fails:
+        reason = fails[-1].split("reason=", 1)[1].rsplit(" elapsed=", 1)[0].replace("_", " ")
+        prompt += (f"\nYour previous attempt at this query was rejected by validation: {reason}\n"
+                   "Fix that. In particular, every final_top10 entry must repeat exactly the skill, domain, "
+                   "task_form and overall it has in per_source, and every id must be filed under its own group.\n")
     (ROOT / "inputs").mkdir(exist_ok=True)
     (ROOT / "inputs" / f"prompt_{qid}.txt").write_text(prompt)
     home = ROOT / "k3_home" / qid

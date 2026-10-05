@@ -75,17 +75,33 @@ def build(qids):
 
 
 def score(qids):
-    tot = {"overlap": 0, "beat10": 0, "n": 0}
+    idx = json.loads((ROOT / "work/rep_index.json").read_text())
+    tot = {"queries": 0, "overlap": 0, "intruders_dense": 0, "intruders_runner": 0, "near_copy_in_k3_top10": 0}
     for qid in qids:
         key = json.loads((ROOT / "audit" / f"{qid}.key.json").read_text())
         judge = json.loads((ROOT / "audit" / f"{qid}.judge.json").read_text())
         top = [e["label"] for e in judge["top10"]]
+        assert len(top) == 10 and all(l in key for l in top), qid
         picks = {l for l, k in key.items() if k["kind"] == "k3_pick"}
-        overlap = len(picks & set(top))
-        intruders = [(l, key[l]["kind"], key[l]["id"]) for l in top if l not in picks]
-        print(f"{qid}: judge top10 holds {overlap}/10 of K3's picks; intruders: {intruders}")
-        tot["overlap"] += overlap; tot["n"] += 1; tot["beat10"] += len(intruders)
-    print(json.dumps(tot))
+        kept = picks & set(top)
+        dropped = sorted((key[l]["k3_rank"], l) for l in picks - set(top))
+        intruders = [l for l in top if l not in picks]
+        print(f"\n== {qid}: judge kept {len(kept)}/10 of K3's top-10")
+        for l in intruders:
+            k = key[l]; r = idx[k["id"]]
+            print(f"   + judge rank {top.index(l) + 1}: {k['id']} ({k['kind']}, dense rank {k['dense_rank']}) "
+                  f"[{','.join(r['sources'])}]")
+        for rank, l in dropped:
+            print(f"   - dropped K3 rank {rank}: {key[l]['id']} [{','.join(idx[key[l]['id']]['sources'])}]")
+        for l in judge.get("near_copies", []):
+            k = key.get(l, {})
+            print(f"   ! near-copy per judge: {k.get('id')} ({k.get('kind')}, K3 rank {k.get('k3_rank')}, "
+                  f"dense rank {k.get('dense_rank')})")
+            tot["near_copy_in_k3_top10"] += k.get("kind") == "k3_pick"
+        tot["queries"] += 1; tot["overlap"] += len(kept)
+        tot["intruders_dense"] += sum(key[l]["kind"] == "dense_challenger" for l in intruders)
+        tot["intruders_runner"] += sum(key[l]["kind"] == "k3_runner_up" for l in intruders)
+    print("\n" + json.dumps(tot))
 
 
 if __name__ == "__main__":
