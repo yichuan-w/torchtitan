@@ -109,9 +109,11 @@ run/simplify.json containing: retained_skill, bottleneck, change, restore and
 prediction, plus evidence (a nonempty list of objects with attempt, turn,
 observation).
 
-attempt is a basename from traces/, turn is an integer turn in that file,
-and observation explains what the command and output show. Each other field
-is a nonempty string. Describe the concrete size of the change in change.
+attempt is the file's name exactly as traces/ lists it, with its .jsonl
+suffix and no directory (attempt-03.jsonl). turn is an integer: a turn that
+file records, or 0 for its first line, the attempt's summary with any
+verifier diagnostics. observation explains what that line shows. Each other
+field is a nonempty string. Describe the concrete size of the change in change.
 The caller checks the declaration and evidence locations, not the truth of
 your diagnosis; ground the diagnosis in what actually happened.
 
@@ -182,8 +184,8 @@ the reference passes the current tests and the untouched state does not.
 Check the retained requirements against the verifier's actual input coverage;
 random cases alone may miss required branches or boundary behavior. Use the
 attempts' implementations to test a suspected mismatch on a legal input, and
-record the input, observed output and grading result in run/simplify.json's
-evidence observations. An incorrect retained behavior accepted by the verifier
+record the input, observed output and grading result in the observation of
+the evidence item for the attempt whose implementation you ran. An incorrect retained behavior accepted by the verifier
 requires repair, even if the reference also passes. Subsequent student
 rollouts measure difficulty; their scores do not resolve a grading defect.
 """
@@ -229,6 +231,12 @@ def read_decision(pkg: Path, hint: str) -> dict:
             raise ValueError(f"evidence names no file in traces/: {name}")
         with path.open() as stream:
             records = [json.loads(line) for line in stream if line.strip()]
-        if not any(record.get("turn") == turn for record in records):
+        # Turn 0 is the first line: the attempt's summary, where the verifier's
+        # diagnostics are, and evidence worth citing.
+        if turn == 0:
+            found = bool(records) and "turn" not in records[0]
+        else:
+            found = any(record.get("turn") == turn for record in records)
+        if not found:
             raise ValueError(f"evidence turn absent: {path.name}:{turn}")
     return decision

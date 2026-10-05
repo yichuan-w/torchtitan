@@ -1243,7 +1243,10 @@ these are enough:
                                                               # every attempt's outcome
   jq -r 'select(.turn) | "\(.turn)\t" + ((.keystrokes // [.raw]) | join(""))' traces/attempt-01.jsonl
                                                               # the commands alone, turn number first
-  tail -n 4 traces/attempt-03.jsonl | jq -r '.turn, .output'  # what the last four turns saw"""
+  tail -n 4 traces/attempt-03.jsonl | jq -r '.turn, .output'  # what the last four turns saw
+  jq -r 'select(.turn) | select((((.keystrokes // [.raw]) | join("")) + (.output // "")) | test("metrics")) | .turn' traces/attempt-02.jsonl
+                                                              # the turns whose commands or output mention "metrics"
+A line number from grep -n over the joined keystrokes is not a turn number."""
 
 
 def _traces_spec(traces: Path) -> str:
@@ -2042,10 +2045,12 @@ as they are."""
 
 _DECLARATION_JOB = """The caller cannot accept `run/simplify.json`: {problem}.
 
-Each evidence item names an attempt file in `traces/` by its basename (for
-example `attempt-03.jsonl`) and a turn that file records; turns start at 1,
-and the first line of a file is the attempt's summary, not a turn. Correct the
-declaration so every field and every evidence location is valid, keeping the
+Each evidence item names an attempt file exactly as `traces/` lists it, with
+its .jsonl suffix and no directory (for example `attempt-03.jsonl`), and a
+line of it: a turn the file records, or turn 0 for its first line, the
+attempt's summary. A result of your own sandbox test belongs in the
+observation of the item for the attempt whose implementation you ran, not in
+an item of its own. Correct the declaration so every field and every evidence location is valid, keeping the
 diagnosis it states. Change nothing else: the task, the reference solution and
 the environment stay as they are, and your last `./sandbox check` still stands."""
 
