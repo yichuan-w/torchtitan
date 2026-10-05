@@ -46,6 +46,29 @@ def test_record_round_trips_real_evidence(tmp_path):
     assert so.read_decision(tmp_path, "vague") == row
 
 
+def test_turn_zero_cites_the_attempts_summary_line(tmp_path):
+    row = decision(
+        tmp_path, evidence=[dict(attempt="attempt-01.jsonl", turn=0, observation="x")]
+    )
+    assert so.read_decision(tmp_path, "vague") == row
+
+
+def test_turn_zero_needs_a_summary_line(tmp_path):
+    decision(
+        tmp_path, evidence=[dict(attempt="attempt-01.jsonl", turn=0, observation="x")]
+    )
+    (tmp_path / "traces/attempt-01.jsonl").write_text('{"turn":1,"output":"x"}\n')
+    with pytest.raises(ValueError, match="turn absent"):
+        so.read_decision(tmp_path, "vague")
+
+
+def test_prompt_names_the_file_as_listed_and_the_summary_line():
+    text = so.prompt("vague")
+    assert "attempt-03.jsonl" in text and "or 0 for its first line" in text
+    # A sandbox test of an attempt's implementation is recorded on that attempt.
+    assert "evidence item for the attempt whose implementation you ran" in text
+
+
 def test_attempt_named_without_its_suffix_is_that_file(tmp_path):
     row = decision(
         tmp_path, evidence=[dict(attempt="attempt-01", turn=2, observation="x")]

@@ -958,6 +958,9 @@ def test_traces_spec_names_the_file_and_the_readers(tmp_path, monkeypatch) -> No
         "jq -r 'select(.turn)" in spec and "\\(.turn)" in spec
     )  # jq's escape, not python's
     assert "finish_reason" in spec
+    # Finding a turn by content prints turn numbers, not grep line numbers.
+    assert "| .turn' traces/attempt-02.jsonl" in spec
+    assert "not a turn number" in spec
 
 
 def test_simplify_without_traces_declines_before_starting_codex(tmp_path, monkeypatch):
