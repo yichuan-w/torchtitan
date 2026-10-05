@@ -117,10 +117,14 @@ def main():
     dedup = json.loads((work / "dedup_summary.json").read_text())
     exported = json.loads((work / "export_counts.json").read_text())["per_source"]
     final_slots, rank1, group_slots = Counter(), Counter(), Counter()
+    m = defaultdict(lambda: {"queries": set(), "ranks": [], "overall": [], "cos": [], "ids": set()})
     for r in top:
         for s in set(r["sources"]):
             final_slots[s] += 1
             rank1[s] += r["rank"] == 1
+            x = m[s]
+            x["queries"].add(r["query_id"]); x["ranks"].append(r["rank"]); x["overall"].append(r["overall"])
+            x["cos"].append(r["dense_cos"]); x["ids"].add(r["id"])
     for r in per:
         for s in set(r["sources"]):
             group_slots[s] += 1
@@ -143,8 +147,17 @@ def main():
         table_rows.append({**info, "status": status, "group": group_of.get(name, "-") if status == "candidate" else "-",
                            "rows_exported": n_in, "representatives": stats.get("representative", n_in if name == "Turing-Labs" else 0),
                            "tb21_overlap_removed": stats.get("contaminated", 0),
-                           "per_group_slots": group_slots[name], "final_slots": final_slots[name], "rank1": rank1[name]})
-    (STAGE / "sources.json").write_text(json.dumps(table_rows, indent=1))
+                           "per_group_slots": group_slots[name], "final_slots": final_slots[name], "rank1": rank1[name],
+                           "tb21_tasks_covered": len(m[name]["queries"]), "distinct_selected": len(m[name]["ids"]),
+                           "mean_rank": round(sum(m[name]["ranks"]) / len(m[name]["ranks"]), 2) if m[name]["ranks"] else None,
+                           "mean_overall": round(sum(m[name]["overall"]) / len(m[name]["overall"]), 2) if m[name]["overall"] else None,
+                           "mean_dense_cos": round(sum(m[name]["cos"]) / len(m[name]["cos"]), 3) if m[name]["cos"] else None,
+                           "_ranks": m[name]["ranks"], "_overall": m[name]["overall"], "_cos": m[name]["cos"],
+                           "_queries": m[name]["queries"], "_ids": m[name]["ids"]})
+    for r in table_rows:
+        r["selected_per_1k_candidates"] = round(1000 * r["distinct_selected"] / r["representatives"], 2) if r["representatives"] else None
+    (STAGE / "sources.json").write_text(json.dumps([{k: v for k, v in r.items() if not k.startswith("_")}
+                                                    for r in table_rows], indent=1))
 
     summary = json.loads((ROOT / "results/summary.json").read_text())
     provenance = {
@@ -216,17 +229,46 @@ def card(rows, prov, summary):
             return f"[{r['repo']}](https://huggingface.co/datasets/{r['repo']})"
         return r["repo"]
 
-    head = ("| Source | Repository | Revision | Licence | Kind | Status | Group | Rows | After dedup | TB2.1 overlap removed "
-            "| Per-group slots | Final slots | Rank-1 |\n|" + "---|" * 13 + "\n")
-    body = "".join(
+    # Table 1: contribution, highest first; datasets under 1% of the final slots fold into Others.
+    total = 890
+    ranked = sorted((r for r in rows if r["final_slots"]), key=lambda r: (-r["final_slots"], r["source"]))
+    major = [r for r in ranked if r["final_slots"] >= total * 0.01]
+    minor = [r for r in ranked if r["final_slots"] < total * 0.01]
+    yield_rank = {r["source"]: i for i, r in enumerate(sorted(
+        (r for r in rows if r["selected_per_1k_candidates"]), key=lambda r: -r["selected_per_1k_candidates"]), 1)}
+
+    def avg(v, nd):
+        return f"{sum(v) / len(v):.{nd}f}" if v else "-"
+
+    rank_tbl = ("| # | Dataset | Final slots | Share | TB2.1 tasks covered | Rank-1 | Mean rank | Mean overall "
+                "| Mean dense cos | Distinct tasks | Candidates | Selected per 1k candidates (rank) |\n|" + "---|" * 12 + "\n")
+    rank_tbl += "".join(
+        f"| {i} | {link(r)} | {r['final_slots']} | {100 * r['final_slots'] / total:.1f}% | {r['tb21_tasks_covered']} "
+        f"| {r['rank1']} | {avg(r['_ranks'], 1)} | {avg(r['_overall'], 2)} | {avg(r['_cos'], 3)} | {r['distinct_selected']} "
+        f"| {r['representatives']:,} | {r['selected_per_1k_candidates']:.2f} ({yield_rank[r['source']]}) |\n"
+        for i, r in enumerate(major, 1))
+    if minor:
+        names = ", ".join(r["source"] for r in minor)
+        ranks = [x for r in minor for x in r["_ranks"]]; ov = [x for r in minor for x in r["_overall"]]
+        cs = [x for r in minor for x in r["_cos"]]
+        qs = set().union(*(r["_queries"] for r in minor)); ids = set().union(*(r["_ids"] for r in minor))
+        cand = sum(r["representatives"] for r in minor)
+        rank_tbl += (f"| | Others ({len(minor)}: {names}) | {sum(r['final_slots'] for r in minor)} "
+                     f"| {100 * sum(r['final_slots'] for r in minor) / total:.1f}% | {len(qs)} | {sum(r['rank1'] for r in minor)} "
+                     f"| {avg(ranks, 1)} | {avg(ov, 2)} | {avg(cs, 3)} | {len(ids)} | {cand:,} | {1000 * len(ids) / cand:.2f} |\n")
+    # Table 2: one row per dataset in the pool, same order, then the ones with no final slots.
+    order = ranked + sorted((r for r in rows if not r["final_slots"]), key=lambda r: (r["status"] != "candidate", r["source"]))
+    info_tbl = ("| Dataset | Repository | Revision | Licence | Kind | Status | Group | Rows | After dedup | TB2.1 overlap removed |\n|"
+                + "---|" * 10 + "\n")
+    info_tbl += "".join(
         f"| {r['source']} | {link(r)} | `{r['revision']}` | {r['license']} | {r['kind']} | {r['status']} | {r['group']} "
-        f"| {r['rows_exported']:,} | {r['representatives']:,} | {r['tb21_overlap_removed']} | {r['per_group_slots']} "
-        f"| {r['final_slots']} | {r['rank1']} |\n" for r in rows)
+        f"| {r['rows_exported']:,} | {r['representatives']:,} | {r['tb21_overlap_removed']} |\n" for r in order)
     res = prov["results"]
     groups = ", ".join(f"{g} {n}" for g, n in sorted(res["final_group_slots"].items(), key=lambda x: -x[1]))
     n_cand = sum(r["status"] == "candidate" for r in rows) - 1  # minus the private set
     turing = next(r for r in rows if r["source"] == "Turing-Labs")
-    return CARD.format(table=head + body, n_cand=n_cand, turing_final=turing["final_slots"], groups=groups, unique=res["unique_selected"],
+    n_zero = sum(1 for r in rows if r["status"] == "candidate" and not r["final_slots"])
+    return CARD.format(n_cand_minus=n_zero, rank_table=rank_tbl, info_table=info_tbl, n_cand=n_cand, turing_final=turing["final_slots"], groups=groups, unique=res["unique_selected"],
                        commit=prov["code_commit"], code=prov["code"], v2=prov["method_origin"],
                        cands=f"{prov['candidates_after_dedup']:,}")
 
@@ -274,11 +316,16 @@ For each of the 89 Terminal-Bench 2.1 tasks, the ten training tasks that would m
 
 Each row names the task by `sources` (every dataset that carries it) and `original_ids` (source dataset, task id, repository, revision for each). `family_size` counts near-duplicates merged into it. `instruction` holds the task text only when at least one source declares a licence that permits redistribution (Apache-2.0, MIT, CC-BY-4.0, ODC-By); otherwise it is null and `instruction_withheld` says why, and the text is in the source repository under the listed id. `verifier` grades how hard a task's tests are to pass without solving it, read from its test files by the v2 heuristic: `strong`, `ok`, `weak` and `behavioral` from most to least constraining, `repo-tests` for a project's own suite, `FREE` for tests that existence checks alone satisfy (never selected), and `unknown` for sources whose tests were never graded. Tasks whose `sources` include `Terminal-Wrench` have verifier exploits recorded in [few-sh/terminal-wrench](https://huggingface.co/datasets/few-sh/terminal-wrench); check those verifiers before relying on their reward.
 
-## Sources
+## Sources by contribution
 
-One row per dataset in the search pool. `Rows` is the number of unique instruction texts exported and `After dedup` the representatives that remained candidates. `Per-group slots` counts rows of `per_group_top10.parquet`, `Final slots` rows of `top10.parquet` and `Rank-1` rows of `top10.parquet` at rank 1, each counting the rows whose `sources` include the dataset; a task carried by two sources counts once for each, so `Rank-1` sums to more than 89.
+Datasets ranked by how many of the 890 final slots their tasks fill. A slot counts for every dataset that carries the selected task, so shares sum to more than 100%. `TB2.1 tasks covered` is the number of the 89 TB2.1 tasks with at least one of the dataset's tasks in their top ten. `Rank-1` counts slots at rank 1 and `Mean rank` is the average position within the top ten (1 is best). `Mean overall` is the reranker's 1 to 5 score and `Mean dense cos` the Qwen3-Embedding-8B cosine to the TB2.1 task, both averaged over the dataset's slots. `Distinct tasks` counts different tasks selected, and `Selected per 1k candidates` divides it by the dataset's candidates after dedup, with its rank among all datasets, so a small dataset is not judged by its size. Datasets under 1% of the slots are grouped as Others; the other {n_cand_minus} candidate datasets fill none.
 
-{table}
+{rank_table}
+## Dataset details
+
+One row per dataset in the search pool, in the order above. `Rows` is the number of unique instruction texts exported and `After dedup` the representatives that remained candidates.
+
+{info_table}
 Turing Labs is a private delivery used in the authors' training runs. Its tasks were candidates and fill {turing_final} final slots; those rows carry neither text nor original ids.
 
 ## Method
