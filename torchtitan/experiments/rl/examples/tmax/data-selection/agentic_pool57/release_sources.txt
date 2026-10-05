@@ -41,8 +41,8 @@ AgentTrove|open-thoughts/AgentTrove|b395a4307a2bc9950a90dc899438f149e115fc60|tra
 Endless-Terminals|obiwan96/endless-terminals|26ecf78458e7f756e4d06780d5fbf3dd78e91815|environment|none-declared
 Nemotron-Terminal-Pivot|nvidia/Nemotron-RL-Agentic-Terminal-Pivot-v1|eaef26944643644c8a3dbbf361ce6128142f5976|step|cc-by-4.0
 TermiGen|ucsb-mlsec/terminal-bench-env|03bddac74ada2fa344df0e93b4a3ace2034294d1|environment|none-declared
-SETA|camel-ai/seta-env|683748c43e0b8ddd68ee5ceb75d28af3bea85d71|environment|none-declared
-LHTB|zli12321/LHTB|52381e7d747b03e6f6af1953a4c7ff5dad78112e|benchmark|none-declared
+SETA|camel-ai/seta-env|683748c43e0b8ddd68ee5ceb75d28af3bea85d71|environment|apache-2.0
+LHTB|zli12321/LHTB|52381e7d747b03e6f6af1953a4c7ff5dad78112e|benchmark|apache-2.0
 Terminal-Wrench|few-sh/terminal-wrench|d8a29613235a0ef56a8b70b3142626a533da28c2|benchmark|apache-2.0
 Skill2Env|https://hub.harborframework.com/datasets/skill2env/skill2env|2|environment|none-declared
 TMax-15K|allenai/TMax-15K|e3ded940596c|environment|odc-by

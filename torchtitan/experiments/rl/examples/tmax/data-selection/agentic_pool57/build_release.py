@@ -29,6 +29,7 @@ from common import GROUPS, ROOT, extra_docs, read_jsonl, texts_of
 STAGE = ROOT / "release"
 REDISTRIBUTABLE = {"apache-2.0", "mit", "cc-by-4.0", "odc-by"}
 PRIVATE = {"Turing-Labs"}
+GITHUB = {"TermiGen", "LHTB", "SETA"}  # hosted on GitHub, not the Hugging Face Hub; licences read from GitHub
 CODE = "https://github.com/yichuan-w/torchtitan/tree/andy/tb21-top10-pool57/torchtitan/experiments/rl/examples/tmax/data-selection/agentic_pool57"
 V2 = "https://github.com/yichuan-w/torchtitan/tree/yichuan/qwen35-port-cotrain/torchtitan/experiments/rl/examples/tmax/data-selection/agentic"
 EXCLUDED_BENCH = {
@@ -41,7 +42,7 @@ def sources_table():
     rows = {}
     for line in (ROOT / "release_sources.txt").read_text().splitlines():
         src, repo, rev, kind, lic = line.split("|")
-        rows[src] = {"source": src, "repo": repo, "revision": rev[:12], "kind": kind, "license": lic}
+        rows[src] = {"source": src, "repo": repo, "revision": rev[:12], "revision_full": rev, "kind": kind, "license": lic}
     rows["Turing-Labs"] = {"source": "Turing-Labs", "repo": "private delivery (2026-09-20)", "revision": "-",
                            "kind": "environment", "license": "private"}
     return rows
@@ -207,7 +208,13 @@ def scrub(body, path):
 
 def card(rows, prov, summary):
     def link(r):
-        return f"[{r['repo']}](https://huggingface.co/datasets/{r['repo']})" if re.fullmatch(r"[\w.-]+/[\w.-]+", r["repo"]) else r["repo"]
+        if r["source"] in GITHUB:
+            return f"[{r['repo']}](https://github.com/{r['repo']}/tree/{r['revision_full']}) (GitHub)"
+        if r["repo"].startswith("http"):
+            return f"[{r['repo'].split('/')[-1]}]({r['repo']}) (Harbor hub)"
+        if re.fullmatch(r"[\w.-]+/[\w.-]+", r["repo"]):
+            return f"[{r['repo']}](https://huggingface.co/datasets/{r['repo']})"
+        return r["repo"]
 
     head = ("| Source | Repository | Revision | Licence | Kind | Status | Group | Rows | After dedup | TB2.1 overlap removed "
             "| Per-group slots | Final slots | Rank-1 |\n|" + "---|" * 13 + "\n")
