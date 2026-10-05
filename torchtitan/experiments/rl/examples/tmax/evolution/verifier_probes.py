@@ -38,6 +38,55 @@ class _DaytonaTransportFailure(RuntimeError):
     pass
 
 
+_QUOTE_MIN_CHARS = 12
+
+
+def _normalized(text: str) -> str:
+    """Whitespace collapsed and markdown emphasis/backticks dropped, so a quote
+    copied out of rendered markdown still matches the file it came from."""
+    return " ".join(re.sub(r"[`*]", "", text).split())
+
+
+def _check_quote(pkg: Path, index: int, case: dict) -> None:
+    """A case's ``quote`` must appear, as written, in the ``source`` it names:
+    ``instruction.md`` or a file under ``environment/`` -- what the agent can
+    read. A check whose clause cannot be quoted from there grades something the
+    task never stated (cost-k3/opus55 audits, 2026-09-29: an `inf` rejection and
+    an empty-input exit code added with no public sentence behind them)."""
+    quote, source = case.get("quote"), case.get("source")
+    if not isinstance(quote, str) or len(_normalized(quote)) < _QUOTE_MIN_CHARS:
+        raise SemanticProbeContract(
+            f"Semantic probe contract case {index} needs a `quote`: the public "
+            f"sentence it checks, copied verbatim (at least {_QUOTE_MIN_CHARS} characters)"
+        )
+    if not isinstance(source, str) or not source.strip():
+        raise SemanticProbeContract(
+            f"Semantic probe contract case {index} needs a `source`: "
+            "instruction.md or a path under environment/"
+        )
+    rel = Path(source.strip().removeprefix("./"))
+    if rel.is_absolute() or ".." in rel.parts or not (
+        rel == Path("instruction.md") or (rel.parts and rel.parts[0] == "environment")
+    ):
+        raise SemanticProbeContract(
+            f"Semantic probe contract case {index}: source {source!r} is not "
+            "instruction.md or a file under environment/"
+        )
+    path = pkg / rel
+    try:
+        text = path.read_text(errors="replace")
+    except OSError:
+        raise SemanticProbeContract(
+            f"Semantic probe contract case {index}: source {source!r} does not exist"
+        ) from None
+    if _normalized(quote) not in _normalized(text):
+        raise SemanticProbeContract(
+            f"Semantic probe contract case {index}: its quote does not appear in "
+            f"{source}. Quote the sentence the check rests on exactly as written, "
+            "or drop the check if no public sentence states it"
+        )
+
+
 def load_probe_contract(pkg: Path) -> tuple[dict, list[str], dict[str, str]]:
     """Validate replay inputs before starting a Daytona sandbox."""
     probes = pkg / "run" / "verifier-probes"
@@ -62,7 +111,8 @@ def load_probe_contract(pkg: Path) -> tuple[dict, list[str], dict[str, str]]:
                 raise SemanticProbeContract(
                     f"Semantic probe contract case {index} missing {key}"
                 )
-    names = ["correct", *(f"wrong-{index}" for index in range(1, len(cases) + 1))]
+        _check_quote(pkg, index, case)
+    names =["correct", *(f"wrong-{index}" for index in range(1, len(cases) + 1))]
     missing = [name for name in names if not (probes / f"{name}.sh").is_file()]
     extra = sorted(
         p.stem for p in probes.glob("wrong-*.sh") if p.stem not in names and p.is_file()

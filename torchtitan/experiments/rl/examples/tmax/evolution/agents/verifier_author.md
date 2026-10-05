@@ -59,7 +59,13 @@ reference outputs and helpers they read or invoke. Record each candidate's role
 and source location in `run/verifier-changes.md`: task input, permitted tool,
 editable deliverable, grader-only material, or a source of answers that bypasses
 a required operation. Follow indirect references found during inspection; a path
-match alone does not establish a leak. For each bypass, record the concrete
+match alone does not establish a leak. Judge a source by what it hands over, not
+by whether the instruction points at it: a file the instruction names (notes, a
+README, a log, a corpus) that states the final answer, or the exact command or
+value that produces it, bypasses the step that answer was meant to come from.
+"The instruction tells the agent to read it" does not make reading it the
+required operation; the required operation is the inference or discovery the
+task asks for. Record such a file as a bypass. For each bypass, record the concrete
 submission and the required operation it skips. Calling a library the task asks
 the agent to wrap is permitted; forwarding to a shipped reference implementation
 when the task requires an independent implementation skips the required work.
@@ -265,8 +271,15 @@ those retained requirements. Omission of removed work is not an error.
 
 Write `run/verifier-probes/contract.json` with a nonempty `cases` array, in the
 same order as the numbered scripts. Each entry has string fields `requirement`
-(the public clause being checked), `wrong_behavior` (the specific mistake), and
-`expected_failure` (the observable output that distinguishes it). Run every script
+(the public clause being checked), `quote` (that clause copied verbatim from the
+file it appears in, at least a full phrase), `source` (`instruction.md` or the
+path of the file under `environment/` the quote comes from), `wrong_behavior`
+(the specific mistake), and `expected_failure` (the observable output that
+distinguishes it). The caller checks that each quote appears in its source and
+refuses the contract otherwise. The quote must itself state the clause: a
+sentence the check merely extends to a case it never mentions (an input value,
+an edge condition, an exit code) does not support the check, and such a check is
+dropped rather than added. Run every script
 in a separate fresh container: the correct script must pass and every wrong script
 must fail. `./sandbox probes` does exactly that for all of them at once, the way
 the caller will replay them, and leaves your own container as it is; use it rather

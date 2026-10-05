@@ -517,3 +517,53 @@ def test_resume_of_a_blind_rewrite_goes_to_the_author_first(
     assert fixed["solve_sh"] == NEW_SOLVE
     assert fixed["_repaired"] == "codex_resume_author_then_verifier"
     assert Path(fixed["_session"]).name.endswith("--repair-author")
+
+
+def _stop_early_then(monkeypatch, sessions, checks, *, first_exit=0, verdict=None):
+    """An author whose first turn ends with no passing check (and, optionally, a
+    verdict or a nonzero exit); a resumed turn behaves like the normal author."""
+    _wire(monkeypatch, sessions, checks)
+    normal = ec._run_codex
+    monkeypatch.setattr(ec, "_session_id", lambda sd: "thread-1")
+
+    def run_codex(run, cwd, prompt, resume=None):
+        if run.meta["kind"] == "agent":
+            sessions.append({"role": "author", "kind": "agent", "resume": resume})
+            (cwd / "instruction.md").write_text(NEW_INSTRUCTION)
+            if verdict:
+                (cwd / "run").mkdir(exist_ok=True)
+                (cwd / "run" / "verdict.txt").write_text(verdict)
+            return type("P", (), {"returncode": first_exit, "stdout": "Let me confirm.", "stderr": ""})()
+        sessions.append({"kind": run.meta["kind"], "prompt": prompt, "resume": resume})
+        return normal(run, cwd, prompt, resume)
+
+    monkeypatch.setattr(ec, "_run_codex", run_codex)
+
+
+def test_author_that_stops_before_its_check_is_resumed_once(tmp_path, monkeypatch) -> None:
+    rw = _rewrite(tmp_path, monkeypatch)
+    sessions, checks = [], []
+    _stop_early_then(monkeypatch, sessions, checks)
+    ec.evolve_agentic(rw, dict(SEED), "harder")
+    kinds = [s.get("kind") for s in sessions[:2]]
+    assert kinds == ["agent", "continue-author"]
+    assert sessions[1]["resume"] == "thread-1"
+    assert "Announcing a next step is not doing it" in sessions[1]["prompt"]
+
+
+def test_author_that_gave_up_is_not_resumed(tmp_path, monkeypatch) -> None:
+    rw = _rewrite(tmp_path, monkeypatch)
+    sessions, checks = [], []
+    _stop_early_then(monkeypatch, sessions, checks, verdict="GIVE UP: no hardening fits")
+    with pytest.raises(ec.Blocked):
+        ec.evolve_agentic(rw, dict(SEED), "harder")
+    assert [s.get("kind") for s in sessions] == ["agent"]
+
+
+def test_author_that_crashed_is_not_resumed(tmp_path, monkeypatch) -> None:
+    rw = _rewrite(tmp_path, monkeypatch)
+    sessions, checks = [], []
+    _stop_early_then(monkeypatch, sessions, checks, first_exit=1)
+    with pytest.raises(RuntimeError, match="without a passing ./sandbox check"):
+        ec.evolve_agentic(rw, dict(SEED), "harder")
+    assert [s.get("kind") for s in sessions] == ["agent"]

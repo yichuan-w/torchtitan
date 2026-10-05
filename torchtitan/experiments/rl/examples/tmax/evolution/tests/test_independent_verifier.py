@@ -41,6 +41,8 @@ def test_probe_author_runs_while_blind_verifier_is_writing(tmp_path, monkeypatch
                         "cases": [
                             {
                                 "requirement": "Preserve input bytes",
+                                "quote": "Compare /app/a.yml and /app/b.yml with gendiff",
+                                "source": "instruction.md",
                                 "wrong_behavior": "Trim spaces",
                                 "expected_failure": "Padded input loses spaces",
                             }
@@ -96,6 +98,8 @@ def setup(tmp_path, monkeypatch):
                         "cases": [
                             {
                                 "requirement": "Preserve input bytes",
+                                "quote": "Compare /app/a.yml and /app/b.yml with gendiff",
+                                "source": "instruction.md",
                                 "wrong_behavior": "Trim spaces",
                                 "expected_failure": "Padded input must retain its spaces",
                             }
@@ -164,6 +168,8 @@ def test_independent_author_repairs_missing_contract_once(setup, monkeypatch):
                         "cases": [
                             {
                                 "requirement": "Preserve input bytes",
+                                "quote": "Compare /app/a.yml and /app/b.yml with gendiff",
+                                "source": "instruction.md",
                                 "wrong_behavior": "Trim spaces",
                                 "expected_failure": "Padded input must retain its spaces",
                             }
@@ -332,6 +338,8 @@ def test_missing_original_probe_directory_resumes_verifier(setup, monkeypatch):
                         "cases": [
                             {
                                 "requirement": "Preserve input bytes",
+                                "quote": "Compare /app/a.yml and /app/b.yml with gendiff",
+                                "source": "instruction.md",
                                 "wrong_behavior": "Trim spaces",
                                 "expected_failure": "Padded input must retain its spaces",
                             }
@@ -357,11 +365,12 @@ def test_a_case_with_no_script_is_its_own_error(tmp_path):
 
     probes = tmp_path / "run" / "verifier-probes"
     probes.mkdir(parents=True)
+    (tmp_path / "instruction.md").write_text("Compare /app/a.yml and /app/b.yml with gendiff.\n")
     (probes / "contract.json").write_text(
         json.dumps(
             {
                 "cases": [
-                    {"requirement": "r", "wrong_behavior": "w", "expected_failure": "f"}
+                    {"requirement": "r", "quote": "Compare /app/a.yml and /app/b.yml with gendiff", "source": "instruction.md", "wrong_behavior": "w", "expected_failure": "f"}
                 ]
                 * 2
             }

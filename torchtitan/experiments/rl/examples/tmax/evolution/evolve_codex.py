@@ -937,6 +937,27 @@ def _require_checked(
         )
 
 
+_CONTINUE_JOB = """Your previous turn ended without a passing `./sandbox check`
+and without `run/verdict.txt`, so the rewrite would be discarded as it stands.
+Continue from where you stopped: finish the change and run `./sandbox check`
+until it passes, or write `GIVE UP: <reason>` or `BLOCKED: <reason>` to
+`run/verdict.txt`. Announcing a next step is not doing it; end your turn only
+after one of those two endings exists."""
+
+
+def _ended_unchecked(pkg: Path, result: subprocess.CompletedProcess | None) -> bool:
+    """The author's session exited normally with neither a passing check nor a
+    verdict: it stopped mid-task rather than failing. Kimi K3 under Claude Code
+    does this ("Let me confirm the mechanism." and end_turn), and the rewrite
+    was discarded for a turn it had not finished. One resume, not a loop."""
+    return (
+        result is not None
+        and result.returncode == 0
+        and not (pkg / "run" / "verdict.txt").exists()
+        and not _agent_checked(pkg)
+    )
+
+
 def _check_verdict(pkg: Path) -> None:
     verdict = pkg / "run" / "verdict.txt"
     if verdict.exists():
@@ -1832,12 +1853,15 @@ _PROBE_CONTRACT_JOB = """Your replay controls under `run/verifier-probes/` have
 an incomplete contract or do not match the scripts you wrote: {problem}.
 
 Every declared case must have nonempty string fields `requirement`,
-`wrong_behavior`, and `expected_failure`. The caller replays `correct.sh` and
+`quote`, `source`, `wrong_behavior`, and `expected_failure`; `quote` is the
+public clause copied verbatim from `source` (`instruction.md` or a file under
+`environment/`) and must appear there. A case whose clause no public sentence
+states is removed, together with its script and the check it exercised. The caller replays `correct.sh` and
 one `wrong-N.sh` per declared case, in contract order. Complete any missing
 fields and scripts -- each wrong script must be a single-error variant of the
 correct solution for its case -- or remove unfinished cases so they agree.
-Change nothing else: the verifier itself, the task and the other controls stay
-as they are."""
+Change nothing else: the task and the other controls stay as they are, and
+the verifier changes only to drop a check whose case was removed."""
 
 
 def _repair_probe_contract(
@@ -2335,6 +2359,15 @@ def evolve_agentic(
             p = _run_codex(run, pkg, prompt)
         finally:
             _sandbox_down(pkg)
+    if _ended_unchecked(pkg, p):
+        prior = run.dir
+        with session(rewrite, "continue-author", timeout=AGENT_TIMEOUT, resumes=prior) as run:
+            try:
+                p = _run_codex(
+                    run, pkg, _CONTINUE_JOB + _budget(AGENT_TIMEOUT), resume=_session_id(prior)
+                )
+            finally:
+                _sandbox_down(pkg)
 
     vsession = None
     try:
