@@ -1550,7 +1550,9 @@ instruction still makes, changes or drops the ones the instruction changed or
 dropped, and adds the checks the new requirement needs. So the seed's checks
 are not a floor you must pass: a requirement you change is checked as you
 state it. And a name only your solution knows will not be checked: state it in
-the instruction, or make the result checkable by value.
+the instruction, or make the result checkable by value. That is about names,
+formats and output paths -- the deliverable. The fact your change makes the
+agent infer stays in the environment for it to find, not in the instruction.
 
 The verifier author first lists the public requirements, checks shipped material
 for ways to bypass required work, and writes stable checks of the promised result.
@@ -1632,7 +1634,9 @@ your own `./sandbox check`; the verifier that failed is the blind session's,
 which you are not shown, and it will be run against your repaired solution
 next. Fix the solution, the instruction or the environment. Where
 `run/failure.txt` shows the verifier looking for something an agent could not
-have known, state it in the instruction; you cannot edit that verifier."""
+have known, state it in the instruction if it is part of the deliverable (a
+name, a format, a path); if it is the fact the change asks the agent to infer,
+make it findable in the environment instead. You cannot edit that verifier."""
 
 _SPEC_REPAIR_JOB = """A simplification attempt reported a possible task defect.
 The report is in `run/failure.txt`; it is a claim to check, not an established
