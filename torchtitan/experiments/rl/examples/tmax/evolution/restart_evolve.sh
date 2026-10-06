@@ -64,7 +64,7 @@ umask 077
 env | python3 -c '
 import sys
 keep = ("PATH", "HOME", "LANG", "LC_", "SYNTH_", "TRL_", "PYTHONPATH", "SWE_", "TMAX_",
-        "TT_DAYTONA_", "DAYTONA_", "OPENAI_", "CODEX_", "EVOLVE_")
+        "TT_DAYTONA_", "DAYTONA_", "OPENAI_", "CODEX_", "EVOLVE_", "ANTHROPIC_")
 for line in sys.stdin.read().split("\n"):
     if "=" not in line:
         continue
