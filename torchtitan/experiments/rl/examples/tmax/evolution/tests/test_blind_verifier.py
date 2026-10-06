@@ -137,6 +137,25 @@ def test_take_verifier_refuses_an_unchanged_verifier(tmp_path) -> None:
         ec._take_verifier(vpkg, pkg, "tests/test_state.py", SEED["test_state_py"])
 
 
+@pytest.mark.parametrize("simplify", [True, False])
+def test_a_guidance_only_simplification_may_keep_the_verifier(
+    tmp_path, monkeypatch, simplify
+) -> None:
+    rw = _rewrite(tmp_path, monkeypatch)
+    sessions = []
+    _wire(monkeypatch, sessions, [], verifier_text=SEED["test_state_py"])
+    task = {**SEED, "_simplify_hint": "vague"} if simplify else dict(SEED)
+    fmap = ec.ev.file_map(SEED)
+    if simplify:
+        _, rel = ec._blind_verifier(rw, task, fmap)
+        assert (rw.package / rel).read_text() == SEED["test_state_py"]
+        assert "This is a simplification." in sessions[0]["prompt"]
+    else:
+        with pytest.raises(RuntimeError, match="changed nothing"):
+            ec._blind_verifier(rw, task, fmap)
+        assert "This is a simplification." not in sessions[0]["prompt"]
+
+
 def _wire(monkeypatch, sessions: list, checks: list, verifier_text=NEW_VERIFIER):
     """Fake the sessions and the harness check; record what each saw."""
     monkeypatch.setattr(ec, "_codex_bin", lambda: Path(sys.executable))
