@@ -1694,7 +1694,9 @@ instruction still makes, changes or drops the ones the instruction changed or
 dropped, and adds the checks the new requirement needs. So the seed's checks
 are not a floor you must pass: a requirement you change is checked as you
 state it. And a name only your solution knows will not be checked: state it in
-the instruction, or make the result checkable by value.
+the instruction, or make the result checkable by value. That is about names,
+formats and output paths -- the deliverable. The fact your change makes the
+agent infer stays in the environment for it to find, not in the instruction.
 
 The verifier author first lists the public requirements, checks shipped material
 for ways to bypass required work, and writes stable checks of the promised result.
@@ -1793,7 +1795,9 @@ your own `./sandbox check`; the verifier that failed is the blind session's,
 which you are not shown, and it will be run against your repaired solution
 next. Fix the solution, the instruction or the environment. Where
 `run/failure.txt` shows the verifier looking for something an agent could not
-have known, state it in the instruction; you cannot edit that verifier."""
+have known, state it in the instruction if it is part of the deliverable (a
+name, a format, a path); if it is the fact the change asks the agent to infer,
+make it findable in the environment instead. You cannot edit that verifier."""
 
 _VERIFIER_BLOCKED_JOB = """The sessions that write this task's verifier and its
 independent controls, which never see your reference solution, stopped: from
@@ -2035,12 +2039,15 @@ an incomplete contract or do not match the scripts you wrote: {problem}.
 
 If the directory or `contract.json` is absent, create it now.
 Every declared case must have nonempty string fields `requirement`,
-`wrong_behavior`, and `expected_failure`. The caller replays `correct.sh` and
+`quote`, `source`, `wrong_behavior`, and `expected_failure`; `quote` is the
+public clause copied verbatim from `source` (`instruction.md` or a file under
+`environment/`) and must appear there. A case whose clause no public sentence
+states is removed, together with its script and the check it exercised. The caller replays `correct.sh` and
 one `wrong-N.sh` per declared case, in contract order. Complete any missing
 fields and scripts -- each wrong script must be a single-error variant of the
 correct solution for its case -- or remove unfinished cases so they agree.
-Change nothing else: the verifier itself, the task and the other controls stay
-as they are."""
+Change nothing else: the task and the other controls stay as they are, and
+the verifier changes only to drop a check whose case was removed."""
 
 
 _DECLARATION_JOB = """The caller cannot accept `run/simplify.json`: {problem}.

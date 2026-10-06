@@ -265,6 +265,21 @@ necessary facts in the instruction or discoverable workspace; remove a
 solution hint only when the task remains unambiguous. Measure difficulty by
 student re-testing, not by added lines.
 
+**State the deliverable, not the inference.** The instruction states the
+contract: which output, where, in what format, under which names a checker
+reads. It does not state the fact or rule your change makes the agent work out
+-- which file is the live one, which value is active, which convention the data
+follows, which records to drop. That fact lives in the environment, where an
+agent who investigates finds it (a log line, a timestamp, a schema comment, a
+record that contradicts another), not in a sentence or a shipped README that
+announces it. Fair means the fact can be found by investigating, not that it is
+written down. Hiding the inferred fact never removes the
+contract: an output path, file name or format the instruction already states
+stays stated, since the checker still reads it. A change an agent passes by reading one sentence you added is a
+reading test, not a harder task: rewrites that spelled out their new rule ("the
+active configuration is marked `ACTIVE_CONFIG`", "these three spellings name the
+same header", a README naming the live file) were solved 5 of 5.
+
 **Check names against the public contract.** Require an exact key, label, or
 filename only when the original public task or requested change requires it.
 Otherwise check the promised value or behavior while accepting permitted names

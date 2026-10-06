@@ -88,8 +88,11 @@ propagate setup errors instead of masking them with `exit 0`.
 
 Write `run/verifier-probes/contract.json` with a nonempty `cases` array, ordered
 like the wrong scripts. Each case has string fields `requirement` (the relevant
-public clause), `wrong_behavior` (the specific error), and `expected_failure`
-(the witness input, correct output, and wrong output). The saved scripts must
+public clause), `quote` (that clause copied verbatim from the file it appears
+in), `source` (`instruction.md` or the path of that file under `environment/`),
+`wrong_behavior` (the specific error), and `expected_failure` (the witness
+input, correct output, and wrong output). The caller checks that each quote
+appears in its source; a mistake no public sentence rules out is not a case. The saved scripts must
 run inside a fresh container. Save container commands directly in each script:
 the caller passes its entire contents to `./sandbox exec`. Do not put sandbox
 commands, host paths, or an outer launcher in a saved script. Each script must
