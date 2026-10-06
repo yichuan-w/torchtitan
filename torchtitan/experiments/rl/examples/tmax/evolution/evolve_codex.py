@@ -2001,8 +2001,9 @@ def _take_verifier(
 ) -> str:
     """Copy the verifier the blind author wrote into the author's package,
     replacing whatever ``tests/`` held (the seed's, or the author's scratch
-    draft), and return its path. Calibration may retain a reviewed verifier;
-    other jobs must change it -- judged against the previous revision's tests,
+    draft), and return its path. Calibration, and a simplification that only
+    adds guidance, may retain a reviewed verifier; other jobs must change
+    it -- judged against the previous revision's tests,
     which is what the blind author was given."""
     rel = _verifier_on_disk(vpkg, seed_rel)
     text = (vpkg / rel).read_text()
@@ -2375,11 +2376,21 @@ def _blind_verifier(
             if task.get("_role_files"):
                 prompt += _ROLE_PATCH_NOTE
             prompt += _budget(timeout)
+            # A simplification may only add guidance (a hint, a starter file) and
+            # keep every requirement; the previous verifier then still checks the
+            # whole contract, so an unchanged verifier is the correct outcome.
+            guidance_ok = bool(task.get("_calibration")) or "_simplify_hint" in task
             if task.get("_calibration"):
                 prompt += (
                     "\nThis adjusts a previous simplification. If the existing verifier "
                     "still fully checks the retained goal, keep it unchanged and validate it. "
                     "A change only to guidance does not require a new assertion.\n"
+                )
+            elif guidance_ok:
+                prompt += (
+                    "\nThis is a simplification. If it only adds guidance and the existing "
+                    "verifier still fully checks every retained requirement, keep it "
+                    "unchanged and validate it.\n"
                 )
             # The probe author sees the public task copy, never the verifier's
             # changing package. Its controls replay only after both authors finish.
@@ -2404,7 +2415,7 @@ def _blind_verifier(
         seed_rel,
         seed_text,
         seed_tests=seed_tests,
-        allow_unchanged=bool(task.get("_calibration")),
+        allow_unchanged=guidance_ok,
     )
     return run.dir, rel
 
