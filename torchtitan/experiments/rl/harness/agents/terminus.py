@@ -94,7 +94,7 @@ _CONTEXT_TAIL_MARGIN = 64
 # _AdapterLLM.context_notice). Below it the observation is unchanged. The model
 # otherwise cannot see its budget, and a trajectory that hits the wall ends before
 # it can submit, which grades as a failure. 0 turns the notice off.
-_CONTEXT_WARN_FRAC = float(os.environ.get("TMAX_CONTEXT_WARN_FRAC", "0.7"))
+_CONTEXT_WARN_FRAC = float(os.environ.get("TMAX_CONTEXT_WARN_FRAC", "0.5"))
 # The full warning is repeated at each of these fractions. At 90% about 6k tokens
 # are left, 3 to 6 turns, and the policy typically noticed the warning in its last
 # 1 to 7 turns, so 75% gives wrapping up a turn budget it can still use. Fractions
@@ -107,14 +107,11 @@ _CONTEXT_REPEAT_WARN_FRACS = (0.75, 0.9)
 # trajectories ever mention it, against 11% for the warning). The label keeps
 # the stakes and says where the line comes from.
 _CONTEXT_NOTICE_LABEL = "[Harness notice, not terminal output]"
-# Which notice text to use. "v2" (default) is the labelled notice above, given
-# before the observation and repeated at _CONTEXT_REPEAT_WARN_FRACS. "della" is the
-# notice of commit 882db3e0, the one the della csk4gby2 run trained under: one
-# warning, then a status line every turn, both appended after the observation.
-# The ropefix run (v2) drifted toward longer, self-revising thinking and fewer
-# commands, and its eval collapsed on runaway turns at temperature 0.7; della's
-# did not. "della" exists to rerun that recipe with only the notice changed.
-_CONTEXT_NOTICE_STYLE = os.environ.get("TMAX_CONTEXT_NOTICE_STYLE", "v2")
+# Default to the della notice used by ivuaqcol: one warning at 50% of context,
+# then a status line every turn, appended after the terminal observation.
+# "v2" remains an opt-in labelled notice before the observation, repeated at
+# _CONTEXT_REPEAT_WARN_FRACS.
+_CONTEXT_NOTICE_STYLE = os.environ.get("TMAX_CONTEXT_NOTICE_STYLE", "della")
 if _CONTEXT_NOTICE_STYLE not in ("v2", "della"):
     raise ValueError(
         f"TMAX_CONTEXT_NOTICE_STYLE must be v2 or della, got {_CONTEXT_NOTICE_STYLE!r}"

@@ -16,6 +16,8 @@ count is the last reply's prompt plus completion, as the adapter reports it.
 from __future__ import annotations
 
 import asyncio
+
+import pytest
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import AsyncMock
@@ -25,6 +27,15 @@ from torchtitan.experiments.rl.harness.agents.terminus import (
     _CONTEXT_NOTICE_LABEL,
     _SandboxEnvironment,
 )
+
+
+@pytest.fixture(autouse=True)
+def _legacy_notice_style(monkeypatch):
+    # These tests cover the opt-in v2 notice; della tests override this below.
+    monkeypatch.setattr(
+        "torchtitan.experiments.rl.harness.agents.terminus._CONTEXT_NOTICE_STYLE",
+        "v2",
+    )
 
 
 def _llm(*, warn_frac=0.7, max_context=10000, usages=()):

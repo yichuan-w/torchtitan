@@ -37,13 +37,13 @@ export SWE_TB2_CKPT=$CKPT
 # leaves data_path empty and the dataset refuses to build.
 export SWE_TB2_DATA=$W/data/tb2_eval.jsonl
 export SWE_VAL_SAMPLES=${SWE_VAL_SAMPLES:-89}
-# Pinned rather than left to defaults. The eval samples (temperature 0.7,
-# top_p 0.95, k=5 -> 89 x 5 = 445 rollouts); it is not greedy, so two runs of
+# Pinned rather than left to defaults. The eval samples (temperature 1.0,
+# top_p 1.0, k=5 -> 89 x 5 = 445 rollouts); it is not greedy, so two runs of
 # the same checkpoint differ by sampling noise -- about +/-8 rollouts at the
 # rates seen so far. A number is comparable to the training curve only if these
 # three match what the trainer's own validation used.
-export SWE_TB2_VAL_TEMPERATURE=${SWE_TB2_VAL_TEMPERATURE:-0.7}
-export SWE_TB2_VAL_TOP_P=${SWE_TB2_VAL_TOP_P:-0.95}
+export SWE_TB2_VAL_TEMPERATURE=${SWE_TB2_VAL_TEMPERATURE:-1.0}
+export SWE_TB2_VAL_TOP_P=${SWE_TB2_VAL_TOP_P:-1.0}
 export SWE_TB2_VAL_K=${SWE_TB2_VAL_K:-5}
 export SWE_GDN=1
 export SWE_GEN_BACKEND=vllm_native

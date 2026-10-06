@@ -84,11 +84,10 @@ _TB2_NUM_TASKS = 89
 # validation_dataset at the TB-2.0 JSONL so the periodic pass reports the real
 # benchmark instead of a tmax holdout slice. Empty = keep the holdout split.
 _TB2_VAL_DATA = os.environ.get("SWE_TB2_VAL_DATA", "")
-# Sampling for the TB-2.0 pass. Matches the Harbor Vanillux2Agent defaults the
-# published avg@k numbers were produced with (temperature 0.7, top_p 0.95, k=5),
-# so the inline curve is comparable to the standalone MAST TB-2.0 job.
-_TB2_VAL_TEMPERATURE = float(os.environ.get("SWE_TB2_VAL_TEMPERATURE", "0.7"))
-_TB2_VAL_TOP_P = float(os.environ.get("SWE_TB2_VAL_TOP_P", "0.95"))
+# Sampling for inline and standalone TB-2.0 evaluation. Defaults match
+# ivuaqcol (temperature 1.0, top_p 1.0); explicit environment overrides win.
+_TB2_VAL_TEMPERATURE = float(os.environ.get("SWE_TB2_VAL_TEMPERATURE", "1.0"))
+_TB2_VAL_TOP_P = float(os.environ.get("SWE_TB2_VAL_TOP_P", "1.0"))
 _TB2_VAL_K = int(os.environ.get("SWE_TB2_VAL_K", "5"))
 # Per-turn generation cap for the pass. Unset inherits the training value (16384,
 # the Harbor Vanillux2Agent default). Raising it is a probe for turns that burn the
