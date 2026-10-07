@@ -153,6 +153,7 @@ def _tmax_rollouter(*, validation_from_caller: bool = False) -> TMaxRollouter.Co
             split="train",
             include_ids_path=_INCLUDE_IDS,
             skip_ids_path=_SKIP_IDS,
+            initial_skip_samples=int(os.environ.get("SWE_INITIAL_SKIP_SAMPLES", "0")),
         ),
         # SWE_TB2_VAL_DATA swaps the held-out tmax slice for the whole TB-2.0 task
         # set (holdout_n=0 -> the file IS the validation split), so the periodic
@@ -886,6 +887,15 @@ def rl_grpo_qwen3_5_9b_tmax(
         checkpoint=dataclasses.replace(
             config.trainer.checkpoint,
             interval=int(os.environ.get("SWE_CKPT_INTERVAL", "20")),
+            initial_load_path=os.environ.get("SWE_INITIAL_DCP_CHECKPOINT")
+            or config.trainer.checkpoint.initial_load_path,
+            initial_load_in_hf=False
+            if os.environ.get("SWE_INITIAL_DCP_CHECKPOINT")
+            else config.trainer.checkpoint.initial_load_in_hf,
+            initial_load_model_only=True
+            if os.environ.get("SWE_INITIAL_DCP_CHECKPOINT")
+            else config.trainer.checkpoint.initial_load_model_only,
+            last_save_model_only=os.environ.get("SWE_LAST_SAVE_MODEL_ONLY", "1") == "1",
             # Cap disk the way the sibling recipes do (dapo_math, search_r1 both
             # pin 3). Left at the framework default of 10, a 9B run parks
             # 10 x 102 GiB = 1 TiB of checkpoints and eventually takes the whole
@@ -922,6 +932,7 @@ def rl_grpo_qwen3_5_9b_tmax(
             # disk keeps saves immune to other users filling the fileset.
             folder=os.environ.get("SWE_CKPT_FOLDER", config.trainer.checkpoint.folder),
         ),
+        initial_policy_version=int(os.environ.get("SWE_INITIAL_POLICY_VERSION", "0")),
     )
     # Optional trainer FSDP width override for a fwd/bwd speed experiment. The mast_rl
     # launcher derives the trainer host count from data_parallel_shard_degree, so

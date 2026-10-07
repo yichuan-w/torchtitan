@@ -203,6 +203,9 @@ class PolicyTrainer(Actor, Configurable):
         dump_folder: str = ""
         """Folder for AC debug dumps when using memory_budget mode."""
 
+        initial_policy_version: int = 0
+        """Starting version for an explicit model-only warm start; optimizer state is fresh."""
+
     def __init__(
         self,
         config: Config,
@@ -326,7 +329,17 @@ class PolicyTrainer(Actor, Configurable):
             training_steps=config.training.steps,
         )
 
-        self.policy_version = 0
+        if config.initial_policy_version < 0:
+            raise ValueError("initial_policy_version must be nonnegative")
+        if config.initial_policy_version and not (
+            config.checkpoint.enable
+            and config.checkpoint.initial_load_path
+            and config.checkpoint.initial_load_model_only
+        ):
+            raise ValueError(
+                "initial_policy_version requires an enabled model-only initial checkpoint"
+            )
+        self.policy_version = config.initial_policy_version
 
         # Always build CheckpointManager; enable is a field on the config.
         # When enable=False (CI/debug), load() is a no-op and random init stands.
@@ -340,6 +353,8 @@ class PolicyTrainer(Actor, Configurable):
             base_folder=config.dump_folder,
         )
         self.checkpointer.load()
+        if config.initial_policy_version and self.policy_version != config.initial_policy_version:
+            raise ValueError("Loaded training state disagrees with initial_policy_version")
         if not self.checkpointer.enable:
             logger.warning(
                 "Checkpoint disabled, skip weight loading and use random-initialized weights. "

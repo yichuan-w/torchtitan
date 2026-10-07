@@ -221,6 +221,13 @@ if [ -n "$_latest_step" ]; then
 elif [ -n "$RESUMED_FROM" ]; then
     echo "[launch] RL_RESUME_FROM=$RESUMED_FROM but no step-* under $SWE_CKPT_FOLDER; nothing to resume from." >&2
     exit 2
+elif [ -n "${SWE_INITIAL_DCP_CHECKPOINT:-}" ]; then
+    if [ ! -f "$SWE_INITIAL_DCP_CHECKPOINT/.metadata" ]; then
+        echo "[launch] initial DCP checkpoint has no .metadata: $SWE_INITIAL_DCP_CHECKPOINT" >&2
+        exit 2
+    fi
+    CHECKPOINT_STEP=${SWE_INITIAL_POLICY_VERSION:-0}
+    echo "[launch] model-only warm start from $SWE_INITIAL_DCP_CHECKPOINT at policy_version=$CHECKPOINT_STEP (optimizer reset)"
 else
     echo "[launch] fresh start: initial weights from $TRL_MODEL (no step-* under $SWE_CKPT_FOLDER)"
 fi
@@ -296,6 +303,7 @@ layout.write_json_atomic(run.launch_json, {
     "gpus": os.environ["CUDA_VISIBLE_DEVICES"],
     "resumed_from": resumed_from or None,
     "checkpoint_step": int(checkpoint_step) if checkpoint_step else None,
+    "initial_model_checkpoint": os.environ.get("SWE_INITIAL_DCP_CHECKPOINT") or None,
     "env": {k: v for k, v in os.environ.items() if k.startswith(prefixes)},
 })
 

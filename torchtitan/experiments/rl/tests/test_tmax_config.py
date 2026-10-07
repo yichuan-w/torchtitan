@@ -8,6 +8,23 @@ import asyncio
 
 import pytest
 
+
+def test_model_only_continuation_and_train_stream_offset(monkeypatch):
+    monkeypatch.setenv("SWE_INITIAL_DCP_CHECKPOINT", "/checkpoints/step-200")
+    monkeypatch.setenv("SWE_INITIAL_POLICY_VERSION", "200")
+    monkeypatch.setenv("SWE_INITIAL_SKIP_SAMPLES", "7926")
+    monkeypatch.setenv("SWE_TRAIN_STEPS", "400")
+    monkeypatch.setenv("SWE_LAST_SAVE_MODEL_ONLY", "0")
+    config = rl_grpo_qwen3_5_9b_tmax()
+    assert config.trainer.initial_policy_version == 200
+    assert config.trainer.checkpoint.initial_load_path == "/checkpoints/step-200"
+    assert config.trainer.checkpoint.initial_load_model_only
+    assert not config.trainer.checkpoint.initial_load_in_hf
+    assert not config.trainer.checkpoint.last_save_model_only
+    assert config.async_loop.num_training_steps == 400
+    assert config.rollouter.train_dataset.initial_skip_samples == 7926
+    assert config.rollouter.validation_dataset.initial_skip_samples == 0
+
 from torchtitan.experiments.rl.examples.tmax import (
     config_registry as tmax_config_registry,
 )
