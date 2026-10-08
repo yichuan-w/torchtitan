@@ -189,6 +189,23 @@ def row_pretest(md: dict) -> tuple[str, str] | None:
     return str(tm["pre_test_sh"]), str(tm.get("pretest_env_identity") or "")
 
 
+def _calibration_gave_up(task, rev: int) -> bool:
+    """Whether a hardening of revision ``rev`` already ended in GIVE UP."""
+    for previous in task.rewrite_dirs():
+        try:
+            meta = json.loads(previous.meta.read_text())
+        except (OSError, ValueError):
+            continue
+        if (
+            meta.get("job") == "harder"
+            and meta.get("input_rev") == rev
+            and meta.get("status") == "kept"
+            and str(meta.get("reason") or "").startswith("GIVE UP")
+        ):
+            return True
+    return False
+
+
 def _attach_student_feedback(
     signal: dict, task: layout.TaskDir, *, job: str, rev: int
 ) -> None:
@@ -799,7 +816,12 @@ def handle(
         parent_hashes = {}
         previous_context = None
         context_hash = None
-        for previous in task.rewrite_dirs():
+        # Calibration may only undo the latest simplification. Once a hardening of
+        # this revision gave up (that simplification is already fully undone, but
+        # earlier help is still in the task), harden it the ordinary way instead,
+        # or the task never gets harder again.
+        calibration_exhausted = job == "harder" and _calibration_gave_up(task, rev)
+        for previous in [] if calibration_exhausted else task.rewrite_dirs():
             try:
                 previous_meta = json.loads(previous.meta.read_text())
             except OSError:
