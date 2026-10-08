@@ -1581,6 +1581,36 @@ def test_a_rewrite_sees_every_earlier_rewrite_of_its_task(tmp_path):
     assert summary.index(first.path.name) < summary.index(second.path.name)
 
 
+def test_history_dates_each_measurement_against_the_current_signal(tmp_path):
+    """A measurement from an earlier run, many hours back, is marked as such."""
+    root = layout.Root(tmp_path / "root")
+    task = root.evolution.task("tw_a")
+    _package(task.rev(0), SEED)
+    _package(task.rev(1), SEED)
+    signals = root.run("old-run").signals
+    signals.mkdir(parents=True)
+    (signals / "tw_a--g3.json").write_text(json.dumps(
+        {"run": "old-run", "group": 3, "rev": 0, "solved": 0, "total": 8,
+         "created": "20260901-000000Z"}))
+    first = layout.RewriteDir(task.rewrites / "20260901-000100Z--easier")
+    _package(first.package, SEED)
+    layout.write_json_atomic(first.meta, {
+        "job": "easier", "input_rev": 0, "result_rev": 1, "status": "accepted",
+        "signal": "old-run/tw_a--g3"})
+    now = layout.RewriteDir(task.rewrites / "20260902-060000Z--harder")
+    now.traces.mkdir(parents=True)
+    current = {"run": RUN, "created": "20260902-060000Z"}
+
+    assert od._write_history(root, task, now, current=current) == 1
+    history = now.traces / "history"
+    entry = json.loads((history / "index.jsonl").read_text().splitlines()[0])
+    assert entry["measured_on_input"]["same_run_as_current"] is False
+    assert entry["measured_on_input"]["hours_before_current"] == 30.0
+    summary = (history / "summary.md").read_text()
+    assert "0/8 attempts solved (run old-run, group 3; an earlier training run, 30.0 h before" in summary
+    assert "weaker evidence of what the current student can do" in summary
+
+
 def test_a_task_without_earlier_rewrites_gets_no_history(tmp_path):
     root = layout.Root(tmp_path / "root")
     task = root.evolution.task("tw_a")
