@@ -352,8 +352,33 @@ def _write_history(
     if lines:
         (out / "index.jsonl").write_text("".join(json.dumps(e) + "\n" for e in lines))
     if lines:
-        (out / "summary.md").write_text(_history_summary(task.task_id, lines, texts))
+        summary = _history_summary(task.task_id, lines, texts)
+        since = _since_original(task, current, out)
+        if since:
+            summary += since
+        (out / "summary.md").write_text(summary)
     return len(lines)
+
+
+def _since_original(task: layout.TaskDir, current: dict | None, out: Path) -> str:
+    """How the revision being rewritten now differs from the original task, as
+    one diff: the net effect of every earlier rewrite, so help a simplification
+    added many revisions ago is as visible as the latest change."""
+    try:
+        rev = int((current or {})["rev"])
+    except (KeyError, TypeError, ValueError):
+        return ""
+    if rev == 0 or not task.rev(0).is_dir() or not task.rev(rev).is_dir():
+        return ""
+    diff = _package_diff(task.rev(0), task.rev(rev))
+    (out / "since-original.diff").write_text(diff)
+    return (
+        f"\n## Since the original task: r0 -> r{rev}\n"
+        f"- Changed: {_diff_stat(diff) if diff else 'nothing'}\n"
+        "- Diff: since-original.diff\n"
+        "- Everything in it was added or changed by the rewrites above; what an "
+        "easier rewrite added is help, not part of the original task.\n"
+    )
 
 
 def _diff_stat(diff: str) -> str:
