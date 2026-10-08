@@ -272,6 +272,7 @@ def _write_history(
     rewrite: layout.RewriteDir,
     *,
     strict_storage: bool = False,
+    current: dict | None = None,
 ) -> int:
     """Every earlier rewrite of this task, for the agent rewriting it now.
 
@@ -284,6 +285,10 @@ def _write_history(
     <rewrite>.notes.md the author's own notes and failure record. Under
     traces/, so the blind verifier and the probe never see it and nothing of
     it travels with the task. Returns the number of rewrites recorded.
+
+    ``current`` is the signal being handled now. Each earlier measurement is
+    dated against it (which run, how long before), since it measured the
+    student as it was then: training since, or a later run, may have changed it.
     """
     out = rewrite.traces / "history"
     lines = []
@@ -313,9 +318,14 @@ def _write_history(
             run_name, stem = meta["signal"].split("/", 1)
             try:
                 s = json.loads((root.run(run_name).signals / f"{stem}.json").read_text())
-                measured = {k: s.get(k) for k in ("run", "group", "rev", "solved", "total")}
+                measured = {
+                    k: s.get(k)
+                    for k in ("run", "group", "rev", "solved", "total", "created")
+                }
             except (OSError, ValueError):
                 measured = None
+        if measured is not None and current:
+            measured = {**measured, **_measurement_age(measured, current)}
         entry["measured_on_input"] = measured
         base = task.rev(meta["input_rev"]) if meta.get("input_rev") is not None else None
         result = (
@@ -366,6 +376,19 @@ def _diff_stat(diff: str) -> str:
     return ", ".join(f"{p} (+{a} -{r})" for p, (a, r) in stat.items()) or "nothing"
 
 
+def _measurement_age(measured: dict, current: dict) -> dict:
+    """Where an earlier measurement stands against the signal handled now."""
+    age: dict = {"same_run_as_current": measured.get("run") == current.get("run")}
+    try:
+        hours = (
+            layout.parse_stamp(current["created"]) - layout.parse_stamp(measured["created"])
+        ) / 3600
+        age["hours_before_current"] = round(hours, 1)
+    except (KeyError, TypeError, ValueError):
+        pass
+    return age
+
+
 def _history_summary(task_id: str, attempts: list[dict], texts: dict[str, str]) -> str:
     """The history as one page to read first: every earlier rewrite, oldest
     first, with what training measured before it, how it ended and what it
@@ -375,10 +398,23 @@ def _history_summary(task_id: str, attempts: list[dict], texts: dict[str, str]) 
         m = entry.get("measured_on_input") or {}
         if m.get("solved") is None:
             return "not recorded"
-        return f"{m['solved']}/{m['total']} attempts solved (run {m.get('run')}, group {m.get('group')})"
+        when = []
+        if "same_run_as_current" in m:
+            when.append("this training run" if m["same_run_as_current"] else "an earlier training run")
+        if m.get("hours_before_current") is not None:
+            when.append(f"{m['hours_before_current']} h before the current signal")
+        return (
+            f"{m['solved']}/{m['total']} attempts solved (run {m.get('run')}, group {m.get('group')}"
+            + (f"; {', '.join(when)}" if when else "")
+            + ")"
+        )
 
     out = [f"# Earlier rewrites of {task_id}\n\nOldest first. Diffs and notes named "
-           "below are files beside this one.\n"]
+           "below are files beside this one.\n\nEach measurement is the student as it was "
+           "when measured. The student keeps training, and a later run may start from a "
+           "different policy, so a result from many hours earlier or from an earlier run "
+           "is weaker evidence of what the current student can do than a recent one from "
+           "this run.\n"]
     for e in attempts:
         produced = f" -> r{e['result_rev']}" if e.get("result_rev") is not None else ""
         out.append(
@@ -808,7 +844,7 @@ def handle(
                 run_dir / rel, rewrite.traces / f"attempt-{i:02d}.jsonl"
             )
         n_history = _write_history(
-            root, task, rewrite, strict_storage=workspace.is_local
+            root, task, rewrite, strict_storage=workspace.is_local, current=d
         )
         if n_history:
             log.info("%s history: %d earlier rewrites in traces/history", tid, n_history)
