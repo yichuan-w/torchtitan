@@ -156,6 +156,16 @@ def test_a_guidance_only_simplification_may_keep_the_verifier(
         assert "This is a simplification." not in sessions[0]["prompt"]
 
 
+def test_a_help_withdrawing_hardening_may_keep_the_verifier(tmp_path, monkeypatch) -> None:
+    rw = _rewrite(tmp_path, monkeypatch)
+    sessions = []
+    _wire(monkeypatch, sessions, [], verifier_text=SEED["test_state_py"])
+    task = {**SEED, "_harder_mode": "student"}
+    _, rel = ec._blind_verifier(rw, task, ec.ev.file_map(SEED))
+    assert (rw.package / rel).read_text() == SEED["test_state_py"]
+    assert "This is a hardening." in sessions[0]["prompt"]
+
+
 def _wire(monkeypatch, sessions: list, checks: list, verifier_text=NEW_VERIFIER):
     """Fake the sessions and the harness check; record what each saw."""
     monkeypatch.setattr(ec, "_codex_bin", lambda: Path(sys.executable))
