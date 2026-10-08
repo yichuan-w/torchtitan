@@ -189,6 +189,16 @@ def test_author_session_is_capped_before_final_validation_reserve(
     assert "6 minutes from now" in seen["prompt"]
 
 
+def test_ordinary_hardening_may_withdraw_help_an_earlier_simplification_added():
+    """Only the original task's hints are protected; help a simplification added
+    may be partly withdrawn, and a failure without it entirely is not evidence
+    against a partial withdrawal."""
+    g = ec._STUDENT_HARDER_GUIDANCE
+    assert "not in removing the original task's hints" in g
+    assert "Help that an earlier simplification of this task added is not part of the" in g
+    assert "Prefer a partial withdrawal" in g
+
+
 @pytest.mark.parametrize("has_previous,solved", [(True, 8), (False, 8), (True, 4)])
 def test_only_all_pass_after_simplify_uses_restoration_guidance(
     tmp_path, monkeypatch, has_previous, solved
