@@ -1611,6 +1611,32 @@ def test_history_dates_each_measurement_against_the_current_signal(tmp_path):
     assert "weaker evidence of what the current student can do" in summary
 
 
+def test_history_shows_the_net_change_since_the_original_task(tmp_path):
+    """Help an early simplification added stays visible however many rewrites
+    later: summary.md names since-original.diff, the r0 -> current diff."""
+    root = layout.Root(tmp_path / "root")
+    task = root.evolution.task("tw_a")
+    _package(task.rev(0), SEED)
+    _package(task.rev(1), {**SEED, "environment/files/example.txt": "worked example\n"})
+    _package(task.rev(2), {**SEED, "environment/files/example.txt": "worked example\n",
+                           "instruction.md": SEED["instruction.md"] + "Hint.\n"})
+    for i, (job, a, b) in enumerate((("easier", 0, 1), ("easier", 1, 2))):
+        rw = layout.RewriteDir(task.rewrites / f"2026090{i + 1}-000000Z--{job}")
+        _package(rw.package, SEED)
+        layout.write_json_atomic(rw.meta, {"job": job, "input_rev": a, "result_rev": b,
+                                           "status": "accepted"})
+    now = layout.RewriteDir(task.rewrites / "20260905-000000Z--harder")
+    now.traces.mkdir(parents=True)
+
+    assert od._write_history(root, task, now, current={"run": RUN, "rev": 2}) == 2
+    history = now.traces / "history"
+    since = (history / "since-original.diff").read_text()
+    assert "+worked example" in since and "+Hint." in since
+    summary = (history / "summary.md").read_text()
+    assert "## Since the original task: r0 -> r2" in summary
+    assert "help, not part of the original task" in summary
+
+
 def test_a_task_without_earlier_rewrites_gets_no_history(tmp_path):
     root = layout.Root(tmp_path / "root")
     task = root.evolution.task("tw_a")
