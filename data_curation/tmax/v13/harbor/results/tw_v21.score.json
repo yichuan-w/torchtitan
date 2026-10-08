@@ -1,0 +1,222 @@
+{
+ "corpus": "TerminalWorld (andylizf/TerminalWorld-Seeds-Clean), the 99 tb21 top-10 harbor packages",
+ "rubric": "v13-harbor2 v2.1.1",
+ "prompt": "harbor/v13_harbor211_prompt.md",
+ "prompt_sha256": "ac3dde0e54c079bfa9ce81635cc0c45960b603f97dd6781c6180de5574db7739",
+ "schema": "harbor/output_schema_v13_harbor21.json",
+ "schema_sha256": "0d37ee14631bc41531df0af8b15e29d387a33c95e80d713a73fd5cb3d2b439ad",
+ "judge": "z-ai/glm-5.3, effort low, headless Claude Code through a provider-pin shim to OpenRouter baidu/fp8",
+ "concurrency": 4,
+ "window_utc": "2026-09-24T00:00:02Z..00:44:39Z",
+ "staged": 99,
+ "unparseable": 0,
+ "judged": 99,
+ "tiers": {
+  "SEED": 67,
+  "UNSURE": 3,
+  "FLAGGED": 29
+ },
+ "verdicts": {
+  "CLEAN": 69,
+  "ANSWER-LEAK": 26,
+  "INSTR-VERIFIER-MISMATCH": 4
+ },
+ "tier_x_verdict": {
+  "FLAGGED/ANSWER-LEAK": 25,
+  "FLAGGED/INSTR-VERIFIER-MISMATCH": 4,
+  "SEED/CLEAN": 67,
+  "UNSURE/ANSWER-LEAK": 1,
+  "UNSURE/CLEAN": 2
+ },
+ "fired": {
+  "core_clause_unenforced": 47,
+  "expectation_movable": 8,
+  "expectation_revealed": 2,
+  "oracle_reachable": 1,
+  "overspecific_check": 4,
+  "uncertain_fact": 2,
+  "value_derivable": 25,
+  "weak_verifier_exploit": 58
+ },
+ "expectation_source": {
+  "hardcoded_literal": 69,
+  "shape_only": 19,
+  "rollout_material": 9,
+  "test_only": 2
+ },
+ "rows_with_lint": 58,
+ "lint_distribution": {
+  "H1": 7,
+  "H11": 1,
+  "H13": 4,
+  "H15": 12,
+  "H16": 3,
+  "H2b": 20,
+  "H3": 25,
+  "H7": 1,
+  "H9": 7
+ },
+ "lints_by_task_non_screened": {
+  "tw_100135": [
+   "H9"
+  ],
+  "tw_101812": [
+   "H3"
+  ],
+  "tw_102792": [
+   "H9"
+  ],
+  "tw_105368": [
+   "H2b"
+  ],
+  "tw_117921": [
+   "H2b",
+   "H3"
+  ],
+  "tw_123496": [
+   "H16"
+  ],
+  "tw_12554": [
+   "H1",
+   "H2b"
+  ],
+  "tw_125967": [
+   "H15"
+  ],
+  "tw_132013": [
+   "H15"
+  ],
+  "tw_15324": [
+   "H2b"
+  ],
+  "tw_157071": [
+   "H3"
+  ],
+  "tw_17688": [
+   "H1"
+  ],
+  "tw_18271": [
+   "H1",
+   "H2b"
+  ],
+  "tw_18948": [
+   "H3"
+  ],
+  "tw_230022": [
+   "H15",
+   "H3"
+  ],
+  "tw_240491": [
+   "H3"
+  ],
+  "tw_241831": [
+   "H16"
+  ],
+  "tw_288787": [
+   "H15"
+  ],
+  "tw_313804": [
+   "H2b"
+  ],
+  "tw_316425": [
+   "H2b",
+   "H3"
+  ],
+  "tw_317290": [
+   "H2b"
+  ],
+  "tw_323887": [
+   "H15"
+  ],
+  "tw_334878": [
+   "H1",
+   "H13",
+   "H3"
+  ],
+  "tw_345797": [
+   "H15",
+   "H9"
+  ],
+  "tw_346220": [
+   "H3"
+  ],
+  "tw_360407": [
+   "H3"
+  ],
+  "tw_372371": [
+   "H13"
+  ],
+  "tw_417753": [
+   "H3"
+  ],
+  "tw_432894": [
+   "H2b"
+  ],
+  "tw_436604": [
+   "H2b"
+  ],
+  "tw_460725": [
+   "H2b"
+  ],
+  "tw_533008": [
+   "H2b"
+  ],
+  "tw_569867": [
+   "H1",
+   "H2b"
+  ],
+  "tw_582963": [
+   "H11"
+  ],
+  "tw_588262": [
+   "H15",
+   "H2b",
+   "H3"
+  ],
+  "tw_590222": [
+   "H3"
+  ],
+  "tw_590773": [
+   "H2b",
+   "H3"
+  ],
+  "tw_621404": [
+   "H2b",
+   "H3"
+  ],
+  "tw_6480": [
+   "H1",
+   "H16"
+  ],
+  "tw_668448": [
+   "H13",
+   "H2b"
+  ],
+  "tw_730164": [
+   "H3",
+   "H7"
+  ],
+  "tw_7829": [
+   "H15"
+  ],
+  "tw_96480": [
+   "H15"
+  ]
+ },
+ "schema_invalid": 0,
+ "rows_in_file": 75,
+ "held_out": "24 security-screened rows are judged but not published; counts above include them, ids do not",
+ "run": {
+  "requests": 1015,
+  "http_200": 900,
+  "http_404_count_tokens_probe": 115,
+  "retried_429": 139,
+  "mid_stream_aborts": 0,
+  "watchdog_abandons": 0,
+  "second_attempts": 0,
+  "capped_turns": 0,
+  "spend_usd": 24.5301,
+  "usd_per_row": 0.248
+ },
+ "lint": "harbor/lint_v13_harbor2.py (H-ids as in its docstring); HL = a leak, B3 or uncertain_fact anchored in the bootstrap"
+}
