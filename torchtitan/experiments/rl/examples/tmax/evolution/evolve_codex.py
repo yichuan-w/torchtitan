@@ -1549,11 +1549,19 @@ environment or checkable by the grader; otherwise reformulate it as an
 observable task condition. When reviewing measured feedback, check successful
 attempts for violations of those restrictions.
 
-Preserve the original user goal, existing tool hints and discovery aids, and
-requirements unrelated to the chosen change. Keep the specification solvable
-and discoverable. Locate the difficulty in deciding the correct outcome under
-the changed conditions, not in removing useful hints or adding an implementation
-restriction. Existing method requirements remain part of the original task;
+Preserve the original user goal, the original task's tool hints and discovery
+aids, and requirements unrelated to the chosen change. Keep the specification
+solvable and discoverable. Locate the difficulty in deciding the correct outcome
+under the changed conditions, not in removing the original task's hints or
+adding an implementation restriction.
+
+Help that an earlier simplification of this task added is not part of the
+original task; `traces/history` shows each easier rewrite and its diff. When the
+student now succeeds with such help, withdrawing part of it is a legitimate
+hardening. Prefer a partial withdrawal over removing all of it at once: reduce a
+shipped file to its structure, replace it with a short description, or drop one
+part of it. A failure measured when that help was absent entirely does not show
+that a partial withdrawal would fail. Existing method requirements remain part of the original task;
 repair missing checks for validity, but do not count stricter enforcement of
 an unchanged requirement as the hardening mechanism.
 Aim for a modest reduction in this student's solve rate toward mixed success,
