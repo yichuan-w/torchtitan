@@ -465,6 +465,26 @@ def test_ordinary_hardening_does_not_reuse_an_older_simplification(
     assert following[0]["previous_simplify"] is None
 
 
+def test_hardening_after_a_calibration_gave_up_is_ordinary(tmp_path, monkeypatch):
+    """Calibration can only undo the latest simplification; once it gives up on a
+    revision, the next hardening of that revision gets no previous-simplify record."""
+    root = _root(tmp_path, monkeypatch)
+    _signal(root, direction="easier")
+    _stub(monkeypatch, simplify={"operator": "reduce_scale"})
+    assert od.run_round(root, workers=1)["accepted"] == 1
+    _signal(root, rev=1, group=8, created="20260904-183112Z")
+    gave_up = _stub(
+        monkeypatch, status="kept", reason="GIVE UP: the simplification is undone"
+    )
+    od.run_round(root, workers=1)
+    assert gave_up[0]["previous_simplify"] is not None
+    _signal(root, rev=1, group=9, created="20260904-183212Z")
+    following = _stub(monkeypatch)
+    od.run_round(root, workers=1)
+    assert following[0]["previous_simplify"] is None
+    assert following[0]["previous_parent"] == {}
+
+
 @pytest.mark.parametrize(
     "corpus", ["tw-extract", "swe-extract", "rebench-extract", "extract"]
 )
