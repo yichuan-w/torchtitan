@@ -1549,11 +1549,19 @@ environment or checkable by the grader; otherwise reformulate it as an
 observable task condition. When reviewing measured feedback, check successful
 attempts for violations of those restrictions.
 
-Preserve the original user goal, existing tool hints and discovery aids, and
-requirements unrelated to the chosen change. Keep the specification solvable
-and discoverable. Locate the difficulty in deciding the correct outcome under
-the changed conditions, not in removing useful hints or adding an implementation
-restriction. Existing method requirements remain part of the original task;
+Preserve the original user goal, the original task's tool hints and discovery
+aids, and requirements unrelated to the chosen change. Keep the specification
+solvable and discoverable. Locate the difficulty in deciding the correct outcome
+under the changed conditions, not in removing the original task's hints or
+adding an implementation restriction.
+
+Help that an earlier simplification of this task added is not part of the
+original task; `traces/history` shows each easier rewrite and its diff. When the
+student now succeeds with such help, withdrawing part of it is a legitimate
+hardening. Prefer a partial withdrawal over removing all of it at once: reduce a
+shipped file to its structure, replace it with a short description, or drop one
+part of it. A failure measured when that help was absent entirely does not show
+that a partial withdrawal would fail. Existing method requirements remain part of the original task;
 repair missing checks for validity, but do not count stricter enforcement of
 an unchanged requirement as the hardening mechanism.
 Aim for a modest reduction in this student's solve rate toward mixed success,
@@ -2001,9 +2009,9 @@ def _take_verifier(
 ) -> str:
     """Copy the verifier the blind author wrote into the author's package,
     replacing whatever ``tests/`` held (the seed's, or the author's scratch
-    draft), and return its path. Calibration, and a simplification that only
-    adds guidance, may retain a reviewed verifier; other jobs must change
-    it -- judged against the previous revision's tests,
+    draft), and return its path. Calibration, a simplification that only adds
+    guidance, and a hardening that only withdraws help may retain a reviewed
+    verifier; other jobs must change it -- judged against the previous revision's tests,
     which is what the blind author was given."""
     rel = _verifier_on_disk(vpkg, seed_rel)
     text = (vpkg / rel).read_text()
@@ -2379,12 +2387,24 @@ def _blind_verifier(
             # A simplification may only add guidance (a hint, a starter file) and
             # keep every requirement; the previous verifier then still checks the
             # whole contract, so an unchanged verifier is the correct outcome.
-            guidance_ok = bool(task.get("_calibration")) or "_simplify_hint" in task
+            # A hardening may only withdraw help an earlier simplification added
+            # (guidance, a shipped example); the requirements, and so a verifier
+            # that already checks them, are then unchanged.
+            withdrawal_ok = task.get("_harder_mode") == "student"
+            guidance_ok = (
+                bool(task.get("_calibration")) or "_simplify_hint" in task or withdrawal_ok
+            )
             if task.get("_calibration"):
                 prompt += (
                     "\nThis adjusts a previous simplification. If the existing verifier "
                     "still fully checks the retained goal, keep it unchanged and validate it. "
                     "A change only to guidance does not require a new assertion.\n"
+                )
+            elif withdrawal_ok:
+                prompt += (
+                    "\nThis is a hardening. If it only withdraws guidance or shipped help "
+                    "and the existing verifier still fully checks every requirement, keep "
+                    "it unchanged and validate it.\n"
                 )
             elif guidance_ok:
                 prompt += (

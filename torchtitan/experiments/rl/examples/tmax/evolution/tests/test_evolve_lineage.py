@@ -465,6 +465,26 @@ def test_ordinary_hardening_does_not_reuse_an_older_simplification(
     assert following[0]["previous_simplify"] is None
 
 
+def test_hardening_after_a_calibration_gave_up_is_ordinary(tmp_path, monkeypatch):
+    """Calibration can only undo the latest simplification; once it gives up on a
+    revision, the next hardening of that revision gets no previous-simplify record."""
+    root = _root(tmp_path, monkeypatch)
+    _signal(root, direction="easier")
+    _stub(monkeypatch, simplify={"operator": "reduce_scale"})
+    assert od.run_round(root, workers=1)["accepted"] == 1
+    _signal(root, rev=1, group=8, created="20260904-183112Z")
+    gave_up = _stub(
+        monkeypatch, status="kept", reason="GIVE UP: the simplification is undone"
+    )
+    od.run_round(root, workers=1)
+    assert gave_up[0]["previous_simplify"] is not None
+    _signal(root, rev=1, group=9, created="20260904-183212Z")
+    following = _stub(monkeypatch)
+    od.run_round(root, workers=1)
+    assert following[0]["previous_simplify"] is None
+    assert following[0]["previous_parent"] == {}
+
+
 @pytest.mark.parametrize(
     "corpus", ["tw-extract", "swe-extract", "rebench-extract", "extract"]
 )
@@ -1559,6 +1579,62 @@ def test_a_rewrite_sees_every_earlier_rewrite_of_its_task(tmp_path):
     assert f"## {second.path.name}: easier r1, rejected at oracle" in summary
     assert "Reason: reference failed" in summary and "solution/solve.sh (+1 -0)" in summary
     assert summary.index(first.path.name) < summary.index(second.path.name)
+
+
+def test_history_dates_each_measurement_against_the_current_signal(tmp_path):
+    """A measurement from an earlier run, many hours back, is marked as such."""
+    root = layout.Root(tmp_path / "root")
+    task = root.evolution.task("tw_a")
+    _package(task.rev(0), SEED)
+    _package(task.rev(1), SEED)
+    signals = root.run("old-run").signals
+    signals.mkdir(parents=True)
+    (signals / "tw_a--g3.json").write_text(json.dumps(
+        {"run": "old-run", "group": 3, "rev": 0, "solved": 0, "total": 8,
+         "created": "20260901-000000Z"}))
+    first = layout.RewriteDir(task.rewrites / "20260901-000100Z--easier")
+    _package(first.package, SEED)
+    layout.write_json_atomic(first.meta, {
+        "job": "easier", "input_rev": 0, "result_rev": 1, "status": "accepted",
+        "signal": "old-run/tw_a--g3"})
+    now = layout.RewriteDir(task.rewrites / "20260902-060000Z--harder")
+    now.traces.mkdir(parents=True)
+    current = {"run": RUN, "created": "20260902-060000Z"}
+
+    assert od._write_history(root, task, now, current=current) == 1
+    history = now.traces / "history"
+    entry = json.loads((history / "index.jsonl").read_text().splitlines()[0])
+    assert entry["measured_on_input"]["same_run_as_current"] is False
+    assert entry["measured_on_input"]["hours_before_current"] == 30.0
+    summary = (history / "summary.md").read_text()
+    assert "0/8 attempts solved (run old-run, group 3; an earlier training run, 30.0 h before" in summary
+    assert "weaker evidence of what the current student can do" in summary
+
+
+def test_history_shows_the_net_change_since_the_original_task(tmp_path):
+    """Help an early simplification added stays visible however many rewrites
+    later: summary.md names since-original.diff, the r0 -> current diff."""
+    root = layout.Root(tmp_path / "root")
+    task = root.evolution.task("tw_a")
+    _package(task.rev(0), SEED)
+    _package(task.rev(1), {**SEED, "environment/files/example.txt": "worked example\n"})
+    _package(task.rev(2), {**SEED, "environment/files/example.txt": "worked example\n",
+                           "instruction.md": SEED["instruction.md"] + "Hint.\n"})
+    for i, (job, a, b) in enumerate((("easier", 0, 1), ("easier", 1, 2))):
+        rw = layout.RewriteDir(task.rewrites / f"2026090{i + 1}-000000Z--{job}")
+        _package(rw.package, SEED)
+        layout.write_json_atomic(rw.meta, {"job": job, "input_rev": a, "result_rev": b,
+                                           "status": "accepted"})
+    now = layout.RewriteDir(task.rewrites / "20260905-000000Z--harder")
+    now.traces.mkdir(parents=True)
+
+    assert od._write_history(root, task, now, current={"run": RUN, "rev": 2}) == 2
+    history = now.traces / "history"
+    since = (history / "since-original.diff").read_text()
+    assert "+worked example" in since and "+Hint." in since
+    summary = (history / "summary.md").read_text()
+    assert "## Since the original task: r0 -> r2" in summary
+    assert "help, not part of the original task" in summary
 
 
 def test_a_task_without_earlier_rewrites_gets_no_history(tmp_path):
