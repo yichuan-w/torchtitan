@@ -1,0 +1,24 @@
+{
+  "created": "20261009-014748Z",
+  "forked_from": null,
+  "name": "tmax-clean-rebench-csk4gby2-400",
+  "profile": "andy",
+  "purpose": "Fresh Qwen3.5-9B, ivuaqcol csk4gby2 recipe + RoPE fix + della notice + eval t1 + shadow grading; only training dataset changed, 400 steps",
+  "seed_mix": {
+    "inputs": "data/mix/history/v0001--20261009-014748Z.inputs.json",
+    "path": "/mnt/home/yichuan_wang+pocd36/projects/torchtitan/torchtitan/experiments/rl/examples/tmax/evolution/data/tb-full-rebench/mix_tmax_clean_rebench.jsonl",
+    "sha256": "d4d78efe3f27e60d3d19840da6be162c12c92febce0c4de4e3d77e9121cf0ab0"
+  },
+  "seed_mix_version": 1,
+  "wandb_run_id": "v63jzbwi",
+  "slurm_job_id": 81,
+  "reference_run": "ivuaqcol",
+  "reference_run_dir": "/mnt/data/yichuan_wang+pocd36/tmax-csk4gby2-dellanotice-evalt1-20261006/runs/tmax-9b--20261006-011936Z",
+  "training_rows": 7080,
+  "source_counts": {
+    "tmax_clean": 5763,
+    "swe_rebench": 1317
+  },
+  "validation": "unchanged independent TB2.1, 89 tasks x 5 trials, temperature=1, top_p=1",
+  "holdout_n": 0
+}

@@ -1,0 +1,32 @@
+{
+  "reference_run": "ivuaqcol",
+  "new_run": "v63jzbwi",
+  "differences": [
+    {
+      "field": ".async_loop.num_training_steps",
+      "old": 200,
+      "new": 400
+    },
+    {
+      "field": ".dump_folder",
+      "old": "/mnt/data/yichuan_wang+pocd36/tmax-csk4gby2-dellanotice-evalt1-20261006/runs/tmax-9b--20261006-011936Z/trainer",
+      "new": "/mnt/data/yichuan_wang+pocd36/tmax-clean-rebench-csk4gby2-400-20261009/runs/tmax-9b--20261009-014830Z/trainer"
+    },
+    {
+      "field": ".rollouter.train_dataset.data_path",
+      "old": "/mnt/data/yichuan_wang+pocd36/tmax-csk4gby2-dellanotice-evalt1-20261006/data/mix/live.jsonl",
+      "new": "/mnt/data/yichuan_wang+pocd36/tmax-clean-rebench-csk4gby2-400-20261009/data/mix/live.jsonl"
+    },
+    {
+      "field": ".trainer.checkpoint.folder",
+      "old": "/mnt/data/yichuan_wang+pocd36/checkpoints/tmax-csk4gby2-dellanotice-evalt1-20261006",
+      "new": "/mnt/data/yichuan_wang+pocd36/checkpoints/tmax-clean-rebench-csk4gby2-400-20261009"
+    },
+    {
+      "field": ".trainer.initial_policy_version",
+      "old": null,
+      "new": 0
+    }
+  ],
+  "normalization": "Python function memory addresses ignored; initial_policy_version is now explicit 0 (previous config omitted it)."
+}
