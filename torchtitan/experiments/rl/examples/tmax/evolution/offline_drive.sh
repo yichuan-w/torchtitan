@@ -106,7 +106,10 @@ probe_provider() {
   local key=${OPENAI_API_KEY:-$(sed -n 's/^OPENAI_API_KEY=//p' "${SYNTH_ENV_FILE:-/dev/null}" 2>/dev/null)}
   local body=$TRL_BASE/tmp/provider-probe.json code
   local req
-  req=$(printf '{"model":"%s","input":"ping","max_output_tokens":16}' "${SYNTH_MODEL:-gpt-5.6-sol}")
+  # The request Codex itself sends (input as a list, streamed, unstored): the ChatGPT
+  # backend behind dev.zhifei.li/codex/v1 rejects a bare string input with 400
+  # "Input must be a list", and the public API accepts this form too.
+  req=$(printf '{"model":"%s","instructions":"Reply briefly.","input":[{"type":"message","role":"user","content":[{"type":"input_text","text":"ping"}]}],"stream":true,"store":false}' "${SYNTH_MODEL:-gpt-5.6-sol}")
   code=$(curl -s -m 180 -o "$body" -w '%{http_code}' "${SYNTH_API_BASE:-https://us.api.openai.com/v1}/responses" \
     -H "Authorization: Bearer $key" -H 'Content-Type: application/json' -d "$req")
   echo "http=$code $(head -c 300 "$body" 2>/dev/null | tr '\n' ' ')"
