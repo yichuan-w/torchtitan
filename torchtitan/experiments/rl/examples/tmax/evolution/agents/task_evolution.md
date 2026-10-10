@@ -280,6 +280,18 @@ reading test, not a harder task: rewrites that spelled out their new rule ("the
 active configuration is marked `ACTIVE_CONFIG`", "these three spellings name the
 same header", a README naming the live file) were solved 5 of 5.
 
+**A hidden fact is decided by the environment, and the instruction stays true.**
+Hiding which revision, record or convention counts is fair only when something
+in the workspace settles it one way (a timestamp, a log line, a marker an agent
+can point to). Two candidates that both fit the instruction, with nothing to
+choose between them, make a coin flip, not a harder task. Where new data departs
+from what the instruction documents (a date format, NULL for a missing value,
+"the original script" when there are now two), change that sentence so it is no
+longer false, without naming the answer. How the checker runs the deliverable is
+contract, not inference: the working directory and arguments a program is
+launched with, and whether a file is changed in place or written anew, are
+stated, or the checker accepts every way the instruction permits.
+
 **Check names against the public contract.** Require an exact key, label, or
 filename only when the original public task or requested change requires it.
 Otherwise check the promised value or behavior while accepting permitted names
