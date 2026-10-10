@@ -84,6 +84,18 @@ and explores the container. Concretely:
   instruction points at.** Where the instruction leaves a name open, check the
   value instead: a report line that contains the commit's SHA, whichever label it
   is under; a field equal to the file's SHA-256, whichever key holds it.
+- **Every condition a check runs under is stated, settled by the environment, or
+  left open and accepted every way.** This covers the working directory and
+  arguments a program is launched with, whether a file must be changed in place or
+  may be written anew, which of several candidates counts (a revision, a duplicate
+  record, a conflicting value), and a convention the data follows (a date format,
+  an empty string for a missing value, quoting a field that holds the separator).
+  Either quote it from `instruction.md` or a file it points at, or name the evidence
+  in the container that decides it; otherwise accept every reasonable reading, such
+  as running the program from its workspace and from elsewhere, or reading the
+  result in place and from the documented output. Where the shipped data
+  contradicts what the instruction documents, do not encode one reading: use
+  `BLOCKED` and name the contradiction.
 - **Keep every existing test that still holds under the new instruction.** Remove
   a check only when its requirement was removed or relaxed in the public task;
   simplification does not permit dropping checks for retained requirements.
