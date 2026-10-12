@@ -72,18 +72,6 @@ requirement later in this file:
    about the grading can fail a correct result: not how the solution is written,
    nor how the grader runs or rebuilds it.
 
-These rules cover cases no list anticipates; the ones below are only examples of
-checks that broke them and decided the grade of correct attempts. "Takes exactly
-two arguments" says how the program is called, not that one or three must be
-rejected or with which exit code. Integers above 2^53, empty files and numbers
-written as strings are out of distribution when the task's data has none.
-"Rounded to 4 decimal places" fixes a value that `7.5` and `7.5000` both hold. A
-task that asks for a program and names the result it must produce wants that
-result; rerunning the program on new inputs assumes a reuse the task never
-states. A regex over the source or a shell trace grades how the work was written.
-Loading a submitted library into the grader, or rebuilding it offline without
-the dependencies the agent fetched, can fail correct work.
-
 ## What the verifier has to hold
 
 Inventory the paths and programs referenced by the instruction, environment
@@ -287,9 +275,8 @@ then `grade`.** You are the agent this verifier has to be fair to: if you, readi
 only the instruction, cannot reach a state your own verifier accepts, neither can
 the policy, and the check that stopped you is the one to fix. Solve it plainly,
 the way a competent engineer would from the instruction alone: the tools and
-language it suggests with their ordinary defaults (the language's default JSON
-encoder, awk's arithmetic, a script run from where the instruction puts it), and
-no validation or edge-case handling the instruction does not ask for. A careful
+language it suggests with their ordinary defaults, and nothing the instruction
+does not ask for. A careful
 solution that anticipates your checks proves nothing about them. Then `reset` and
 `grade` the untouched workspace, which must fail. Do both before you finish; a
 verifier that was never run against a real container is a guess.

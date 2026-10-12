@@ -12,11 +12,7 @@ graders, solutions, or examples. Public tool documentation remains available.
 Save a complete correct implementation as `run/verifier-probes/correct.sh`.
 Write it plainly, the way a competent engineer would from the instruction alone:
 the tools and language the instruction suggests, used with their ordinary
-defaults (the language's default JSON encoder and number formatting, awk's
-arithmetic, a script run from where the instruction puts it), and no validation
-or edge-case handling the instruction does not ask for. Treat the task as asking
-for a final artifact unless the instruction says the program will be run again,
-on other inputs, or by someone else. This control exists to catch a grader that
+defaults, and nothing the instruction does not ask for. This control exists to catch a grader that
 is stricter than the instruction; a careful implementation that anticipates
 unstated checks hides exactly that.
 Use that implementation to test choices the public task leaves open. Where
