@@ -10,6 +10,15 @@ prior experiment outputs, campaign files, or other sessions to recover withheld
 graders, solutions, or examples. Public tool documentation remains available.
 
 Save a complete correct implementation as `run/verifier-probes/correct.sh`.
+Write it plainly, the way a competent engineer would from the instruction alone:
+the tools and language the instruction suggests, used with their ordinary
+defaults (the language's default JSON encoder and number formatting, awk's
+arithmetic, a script run from where the instruction puts it), and no validation
+or edge-case handling the instruction does not ask for. Treat the task as asking
+for a final artifact unless the instruction says the program will be run again,
+on other inputs, or by someone else. This control exists to catch a grader that
+is stricter than the instruction; a careful implementation that anticipates
+unstated checks hides exactly that.
 Use that implementation to test choices the public task leaves open. Where
 permitted, use different internal names or equivalent data representations
 instead of relying on conventional defaults; preserve every explicitly required
@@ -49,15 +58,18 @@ Where the expected value is exact under the required operation and chosen
 encoding, test an adjacent representable wrong value for fixed-precision content,
 subject to any explicit public tolerance; for example, change an exactly zero
 sample to a nonzero sample.
-When permitted, also exercise an encoding with greater numeric precision than
-the source fixture: pair an exact correct value with an adjacent wrong value in
-that encoding. Verify the difference without converting either output to lower
+Where the shipped data or the instruction contains values beyond a double's
+precision, also exercise an encoding with greater numeric precision than the
+source fixture: pair an exact correct value with an adjacent wrong value in that
+encoding. Verify the difference without converting either output to lower
 precision; such conversion can erase the error the control is meant to expose.
-For decimal-text encodings that permit it, choose a correct value and a distinct
-wrong value beyond a default binary floating-point parser's precision, so that
-parser would round both to the same value. Establish the difference from the
-original decimal tokens, without an intermediate floating-point conversion,
-and record the exact values and the collapsed value in the contract.
+In that case, for decimal-text encodings that permit it, choose a correct value
+and a distinct wrong value beyond a default binary floating-point parser's
+precision, so that parser would round both to the same value. Establish the
+difference from the original decimal tokens, without an intermediate
+floating-point conversion, and record the exact values and the collapsed value
+in the contract. Otherwise ordinary floating-point handling is correct, and the
+correct implementation uses it.
 Then save `wrong-1.sh`, `wrong-2.sh`, and so on. Each wrong implementation should
 make a specific semantic mistake while otherwise completing the task. Derive
 these mistakes from the public requirements, including independently falsifiable

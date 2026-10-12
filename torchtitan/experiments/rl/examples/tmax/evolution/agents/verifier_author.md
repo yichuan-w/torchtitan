@@ -51,6 +51,45 @@ obtaining the result do not require proof of execution history. Require a token
 log, saved workflow, provenance artifact, or evidence of a restricted method only
 when the public contract explicitly makes it part of acceptance.
 
+## Grade what the instruction states, and nothing stricter
+
+A check the instruction does not support costs more than a check left out. A
+missed edge case lets a few weak attempts through; an unsupported check scores a
+correct attempt zero, and the policy learns that following the instruction is
+wrong. If a check needs an argument for why the instruction implies it, leave it
+out. Each of these has decided the grade of correct attempts in reviewed
+rewrites, and each rule below overrides any coverage requirement later in this
+file:
+
+- **The interface beyond what is stated.** "Takes exactly two arguments" says
+  how the program is called, not what it does with one or three. Check argument
+  rejection, exit codes, error output, missing files and empty input only where
+  the instruction states the behavior for that case.
+- **Inputs outside what the task shows.** Grader-owned inputs keep the formats,
+  value ranges and field types of the shipped data and the instruction's
+  examples. Integers above 2^31 or 2^53, values a double cannot hold, numbers
+  written as strings, empty or unterminated files and malformed records go into
+  a check only when the instruction or the shipped data contains them.
+- **Rendering when the instruction fixes a value.** "Rounded to 4 decimal
+  places" fixes the value; `7.5` and `7.5000` both hold it. Require a literal
+  text form only where the instruction says how the value is written.
+- **A reusable program read into "write a program".** A task that asks for a
+  script or program and names the result it must produce is a final-artifact
+  task. It is a reusable program only when the instruction says the program
+  will be run again, on other inputs, or by someone else; then call it the way
+  the instruction says, from the paths it names, with the instruction's
+  environment.
+- **How the solution is written.** Do not grade source text, a shell trace, call
+  counts, which syscalls ran, the order of statements or which library was
+  imported. Grade what the work produces. Where the instruction restricts the
+  method, check the restriction only through an observable difference in the
+  result, and otherwise leave it unchecked.
+- **Machinery that can fail a correct attempt.** Run submitted programs in their
+  own process; never import or load them into the grader. Never overwrite a file
+  the grader or the program still holds open. Never rebuild them under conditions
+  the environment does not give the agent, such as offline without the
+  dependencies the agent fetched.
+
 ## What the verifier has to hold
 
 Inventory the paths and programs referenced by the instruction, environment
@@ -155,15 +194,17 @@ when the subsequent comparison is exact. Decode permitted higher-precision
 outputs without reducing their precision, and test a correct value and an
 adjacent wrong value in that higher-precision encoding when available.
 Preserve submitted precision from the first parse: converting an already rounded
-floating-point value to a decimal type cannot recover discarded digits. For
-decimal-text encodings that permit it, test a correct value and a distinct wrong
-value that a default binary floating-point parser would round to the same value.
-Establish their difference directly from the decimal tokens and record it in the
-replay contract; a test that changes only digits the parser retains misses this loss.
-For reusable programs, exercise the permitted range of each numeric field that
-affects the result, including identifiers used for matching or ordering. A large
-argument does not test a large output identifier. Put the distinguishing values
-in grader-owned inputs and check the exact corresponding output values.
+floating-point value to a decimal type cannot recover discarded digits. Where the
+shipped data or the instruction contains values beyond a double's precision, test
+a correct value and a distinct wrong value that a default binary floating-point
+parser would round to the same value; otherwise ordinary floating-point handling
+is correct. Establish their difference directly from the decimal tokens and record
+it in the replay contract; a test that changes only digits the parser retains misses this loss.
+For reusable programs, exercise each numeric field that affects the result,
+including identifiers used for matching or ordering, across the range the shipped
+data and the instruction show. A large argument does not test a large output
+identifier. Put the distinguishing values in grader-owned inputs and check the
+exact corresponding output values.
 Choose parsers and decoders that support the representations allowed by the
 public task, including container variants supported by a required tool. A
 helper library's unsupported-format error does not establish an invalid
@@ -205,8 +246,8 @@ a requirement to save a script. Accept alternative paths, formats and implementa
 wherever the public task leaves them open.
 
 Cover valid boundary cases of both retained and changed requirements. For reusable
-programs, test empty inputs when permitted and nonempty inputs with no qualifying
-results; these exercise different behavior. In each case, check retained output
+programs, test empty inputs where the instruction states what they produce, and
+nonempty inputs with no qualifying results; these exercise different behavior. In each case, check retained output
 requirements, such as required headers or schema even when there are no records.
 Check these properties before parsing or normalization discards them; an empty
 parsed collection alone does not prove that the required output structure exists.
@@ -257,7 +298,12 @@ background job is killed when the command that started it returns.
 **Do the task yourself, through `exec`, the way the instruction describes it, and
 then `grade`.** You are the agent this verifier has to be fair to: if you, reading
 only the instruction, cannot reach a state your own verifier accepts, neither can
-the policy, and the check that stopped you is the one to fix. Then `reset` and
+the policy, and the check that stopped you is the one to fix. Solve it plainly,
+the way a competent engineer would from the instruction alone: the tools and
+language it suggests with their ordinary defaults (the language's default JSON
+encoder, awk's arithmetic, a script run from where the instruction puts it), and
+no validation or edge-case handling the instruction does not ask for. A careful
+solution that anticipates your checks proves nothing about them. Then `reset` and
 `grade` the untouched workspace, which must fail. Do both before you finish; a
 verifier that was never run against a real container is a guess.
 
