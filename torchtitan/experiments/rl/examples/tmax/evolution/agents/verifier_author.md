@@ -53,42 +53,36 @@ when the public contract explicitly makes it part of acceptance.
 
 ## Grade what the instruction states, and nothing stricter
 
-A check the instruction does not support costs more than a check left out. A
-missed edge case lets a few weak attempts through; an unsupported check scores a
-correct attempt zero, and the policy learns that following the instruction is
-wrong. If a check needs an argument for why the instruction implies it, leave it
-out. Each of these has decided the grade of correct attempts in reviewed
-rewrites, and each rule below overrides any coverage requirement later in this
-file:
+A check the task does not support costs more than a check left out. A missed
+edge case lets a few weak attempts through; an unsupported check scores a correct
+attempt zero, and the policy learns that following the instruction is wrong.
+Three rules decide whether a check belongs, and they override every coverage
+requirement later in this file:
 
-- **The interface beyond what is stated.** "Takes exactly two arguments" says
-  how the program is called, not what it does with one or three. Check argument
-  rejection, exit codes, error output, missing files and empty input only where
-  the instruction states the behavior for that case.
-- **Inputs outside what the task shows.** Grader-owned inputs keep the formats,
-  value ranges and field types of the shipped data and the instruction's
-  examples. Integers above 2^31 or 2^53, values a double cannot hold, numbers
-  written as strings, empty or unterminated files and malformed records go into
-  a check only when the instruction or the shipped data contains them.
-- **Rendering when the instruction fixes a value.** "Rounded to 4 decimal
-  places" fixes the value; `7.5` and `7.5000` both hold it. Require a literal
-  text form only where the instruction says how the value is written.
-- **A reusable program read into "write a program".** A task that asks for a
-  script or program and names the result it must produce is a final-artifact
-  task. It is a reusable program only when the instruction says the program
-  will be run again, on other inputs, or by someone else; then call it the way
-  the instruction says, from the paths it names, with the instruction's
-  environment.
-- **How the solution is written.** Do not grade source text, a shell trace, call
-  counts, which syscalls ran, the order of statements or which library was
-  imported. Grade what the work produces. Where the instruction restricts the
-  method, check the restriction only through an observable difference in the
-  result, and otherwise leave it unchecked.
-- **Machinery that can fail a correct attempt.** Run submitted programs in their
-  own process; never import or load them into the grader. Never overwrite a file
-  the grader or the program still holds open. Never rebuild them under conditions
-  the environment does not give the agent, such as offline without the
-  dependencies the agent fetched.
+1. **Grounded.** The behavior a check expects is what a competent reader of
+   `instruction.md` and the environment would expect without being argued into
+   it. You can point to the sentence or the file that settles it. If you need a
+   chain of reasoning to show the instruction implies it, leave the check out.
+2. **In distribution.** The inputs and situations a check creates are the kind
+   the task itself shows: the formats, value ranges, cases and ways of running
+   the work that appear in the instruction, its examples and the shipped data.
+   What the task never shows is unspecified, and every reasonable handling of it
+   passes.
+3. **Graded on the result.** A check grades what the work produces, and nothing
+   about the grading can fail a correct result: not how the solution is written,
+   nor how the grader runs or rebuilds it.
+
+These rules cover cases no list anticipates; the ones below are only examples of
+checks that broke them and decided the grade of correct attempts. "Takes exactly
+two arguments" says how the program is called, not that one or three must be
+rejected or with which exit code. Integers above 2^53, empty files and numbers
+written as strings are out of distribution when the task's data has none.
+"Rounded to 4 decimal places" fixes a value that `7.5` and `7.5000` both hold. A
+task that asks for a program and names the result it must produce wants that
+result; rerunning the program on new inputs assumes a reuse the task never
+states. A regex over the source or a shell trace grades how the work was written.
+Loading a submitted library into the grader, or rebuilding it offline without
+the dependencies the agent fetched, can fail correct work.
 
 ## What the verifier has to hold
 
@@ -194,17 +188,10 @@ when the subsequent comparison is exact. Decode permitted higher-precision
 outputs without reducing their precision, and test a correct value and an
 adjacent wrong value in that higher-precision encoding when available.
 Preserve submitted precision from the first parse: converting an already rounded
-floating-point value to a decimal type cannot recover discarded digits. Where the
-shipped data or the instruction contains values beyond a double's precision, test
-a correct value and a distinct wrong value that a default binary floating-point
-parser would round to the same value; otherwise ordinary floating-point handling
-is correct. Establish their difference directly from the decimal tokens and record
-it in the replay contract; a test that changes only digits the parser retains misses this loss.
-For reusable programs, exercise each numeric field that affects the result,
-including identifiers used for matching or ordering, across the range the shipped
-data and the instruction show. A large argument does not test a large output
-identifier. Put the distinguishing values in grader-owned inputs and check the
-exact corresponding output values.
+floating-point value to a decimal type cannot recover discarded digits. For reusable programs, exercise each numeric field that affects the result,
+including identifiers used for matching or ordering, with values the task's
+distribution contains. Put the distinguishing values in grader-owned inputs and
+check the exact corresponding output values.
 Choose parsers and decoders that support the representations allowed by the
 public task, including container variants supported by a required tool. A
 helper library's unsupported-format error does not establish an invalid
@@ -245,9 +232,9 @@ task asks only for a final artifact or state, check that result without inventin
 a requirement to save a script. Accept alternative paths, formats and implementations
 wherever the public task leaves them open.
 
-Cover valid boundary cases of both retained and changed requirements. For reusable
-programs, test empty inputs where the instruction states what they produce, and
-nonempty inputs with no qualifying results; these exercise different behavior. In each case, check retained output
+Cover valid boundary cases of both retained and changed requirements. Boundary cases
+come from the task's own distribution: test an empty input or one with no
+qualifying results where the task shows or states that case. In each case, check retained output
 requirements, such as required headers or schema even when there are no records.
 Check these properties before parsing or normalization discards them; an empty
 parsed collection alone does not prove that the required output structure exists.

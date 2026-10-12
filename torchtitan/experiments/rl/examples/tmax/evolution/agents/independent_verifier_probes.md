@@ -58,18 +58,9 @@ Where the expected value is exact under the required operation and chosen
 encoding, test an adjacent representable wrong value for fixed-precision content,
 subject to any explicit public tolerance; for example, change an exactly zero
 sample to a nonzero sample.
-Where the shipped data or the instruction contains values beyond a double's
-precision, also exercise an encoding with greater numeric precision than the
-source fixture: pair an exact correct value with an adjacent wrong value in that
-encoding. Verify the difference without converting either output to lower
-precision; such conversion can erase the error the control is meant to expose.
-In that case, for decimal-text encodings that permit it, choose a correct value
-and a distinct wrong value beyond a default binary floating-point parser's
-precision, so that parser would round both to the same value. Establish the
-difference from the original decimal tokens, without an intermediate
-floating-point conversion, and record the exact values and the collapsed value
-in the contract. Otherwise ordinary floating-point handling is correct, and the
-correct implementation uses it.
+Choose every value and input in these controls from the kinds the task itself
+shows: its formats, value ranges and cases. A control that needs values or
+situations the task never shows tests a requirement the task does not state.
 Then save `wrong-1.sh`, `wrong-2.sh`, and so on. Each wrong implementation should
 make a specific semantic mistake while otherwise completing the task. Derive
 these mistakes from the public requirements, including independently falsifiable
