@@ -63,6 +63,12 @@ requirement later in this file:
    `instruction.md` and the environment would expect without being argued into
    it. You can point to the sentence or the file that settles it. If you need a
    chain of reasoning to show the instruction implies it, leave the check out.
+   Test each check this way: name a solution a competent reader could write
+   from the instruction that the check fails. The check belongs only if the
+   instruction, read plainly, calls that solution wrong. A sentence the check
+   can be attached to is not enough; if a plain reader would have written the
+   failing solution, the check is stricter than the task. Record, per check in
+   `run/verifier-changes.md`, the sentence and the plain solution it rejects.
 2. **In distribution.** The inputs and situations a check creates are the kind
    the task itself shows: the formats, value ranges, cases and ways of running
    the work that appear in the instruction, its examples and the shipped data.
@@ -120,6 +126,9 @@ and explores the container. Concretely:
 - **Keep every existing test that still holds under the new instruction.** Remove
   a check only when its requirement was removed or relaxed in the public task;
   simplification does not permit dropping checks for retained requirements.
+  A kept check stays no stricter than it was unless the sentence it rests on
+  changed: a tolerance stays a tolerance, a set of accepted outputs stays a set,
+  and a check of content does not become a check of literal text.
   Correct an inherited assertion that excludes a permitted representation while
   preserving its check of the required content. When brackets in a format example
   can denote either literal characters or placeholders, accept both readings unless
@@ -127,7 +136,10 @@ and explores the container. Concretely:
 - **Add what the new requirement needs, and no more: at most 5 assertions over the
   seed's count** (`run/seed_size.json`). One requirement is two or three.
 - Identify whether the public task requires a final artifact or a reusable
-  program. Check final-artifact semantics on the supplied inputs. Check
+  program. A program is reusable only when the instruction says it will be run
+  again on inputs other than the supplied ones; being asked to write, fix or
+  leave a program does not make it reusable. Check final-artifact semantics on
+  the supplied inputs. Check
   intermediate artifacts, execution evidence, or method restrictions only when
   the public contract requires them. Do not infer a prohibition on copying or
   hardcoding.
@@ -150,7 +162,10 @@ or result and the source of its expected answer, including requirements the old
 verifier missed. Do not treat existence, shape or a source-code keyword as proof
 that a required operation was performed. For supplied-data tasks, derive
 expectations from the original fixture or expected values prepared before solver
-execution and supplied with the grader. Never use solver-writable replacement
+execution and supplied with the grader. A file the image recipe generates while
+the image builds is not a fixture with fixed bytes: a rebuild can change the
+timestamps and ordering inside it. Check what it contains, never its digest.
+Never use solver-writable replacement
 inputs as the authority for correctness; copying or hashing them at grading time
 does not recover the original data. Input changes alone are not grounds for
 rejection unless the public task forbids them. File existence,
@@ -173,8 +188,7 @@ byte equality only for content required to remain byte-for-byte unchanged.
 Normalization must preserve differences the public task forbids. Converting a
 submitted value to the source fixture's precision can erase a real error even
 when the subsequent comparison is exact. Decode permitted higher-precision
-outputs without reducing their precision, and test a correct value and an
-adjacent wrong value in that higher-precision encoding when available.
+outputs without reducing their precision.
 Preserve submitted precision from the first parse: converting an already rounded
 floating-point value to a decimal type cannot recover discarded digits. For reusable programs, exercise each numeric field that affects the result,
 including identifiers used for matching or ordering, with values the task's
@@ -200,11 +214,8 @@ and chosen encoding introduce no error; zero can remain exact across sample
 formats. Justify a nonzero encoding bound from the actual expected content and
 permitted encoding operation, not merely the format's quantization step.
 Exercise the same numeric field and encoding in a correct control with an
-equivalent value and a wrong control with a small deviation that violates the
-public requirement; for fixed-precision content, use an adjacent representable
-wrong value. Check whether an overly broad bound would
-accept that wrong value instead of choosing only a larger error the grader rejects.
-This applies to parsed numeric fields as well as transformed signals; changing
+equivalent value and a wrong control with a deviation the public requirement
+rules out. This applies to parsed numeric fields as well as transformed signals; changing
 JSON whitespace or key order does not cover numeric equality. For the correct
 control, use a different legal
 representation of the transformed content

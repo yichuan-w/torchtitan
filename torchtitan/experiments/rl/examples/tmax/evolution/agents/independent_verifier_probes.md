@@ -10,32 +10,18 @@ prior experiment outputs, campaign files, or other sessions to recover withheld
 graders, solutions, or examples. Public tool documentation remains available.
 
 Save a complete correct implementation as `run/verifier-probes/correct.sh`.
-Write it plainly, the way a competent engineer would from the instruction alone:
-the tools and language the instruction suggests, used with their ordinary
-defaults, and nothing the instruction does not ask for. This control exists to catch a grader that
-is stricter than the instruction; a careful implementation that anticipates
-unstated checks hides exactly that.
-Use that implementation to test choices the public task leaves open. Where
-permitted, use different internal names or equivalent data representations
-instead of relying on conventional defaults; preserve every explicitly required
-name, type, ordering rule, and interface. In a top-level `correct` object in
-`run/verifier-probes/contract.json`, record the choices exercised and why they satisfy the public
-requirements. If no such choice is available, record that and use the required
-representation. Verify the positive deliverable against the public requirements
-before presenting it to the withheld grader.
-For compiled programs, exercise a permitted language mode or build option beyond
-the compiler defaults when available. Compile and run the correct implementation
-with that option in the supplied environment, and record the command and checked
-behavior in the `correct` object; preserve any options the public task fixes.
-For a transformation task that permits alternative representations, exercise a
-choice in the transformed content itself, such as a lossless change in numeric encoding or
-serialization, and verify that the represented result is unchanged. Changing
-only report labels or paths does not cover this choice. Use the public task to
-identify fixed properties; an encoder's defaults do not make unspecified
-properties mandatory. Record the equivalence check in the `correct` object.
-Include a legal nondefault container or serialization supported by the task's
-required tool when available; changing numeric precision alone does not exercise
-container parsing. Verify the decoded content and record the chosen variant.
+Write the solution most competent engineers would write from the instruction
+alone: the tools and language the instruction suggests, used with their ordinary
+defaults (the library's own serializer and number formatting, the program's
+default way of running), handling exactly what the instruction and the shipped
+data show. Do not make it robust to situations the instruction never mentions,
+such as the inputs changing after the task is done, the program being run again,
+or an output format stricter than the one the instruction shows. This control
+exists to catch a grader that is stricter than the instruction; an implementation
+that anticipates unstated checks hides exactly that. In a top-level `correct`
+object in `run/verifier-probes/contract.json`, record the defaults it relies on.
+Verify the positive deliverable against the public requirements before
+presenting it to the withheld grader.
 Include a transformation error that preserves the required format and metadata
 while changing the represented content. For every field the task defines
 numerically, including parsed numeric fields, pair a correct equivalent encoding
@@ -50,10 +36,6 @@ and the allowance in the contract.
 For transformations, include decoded numeric content such as sample values in
 this check, even when the public task describes an operation rather than naming
 numeric fields. Encoding resolution alone does not grant an error allowance.
-Where the expected value is exact under the required operation and chosen
-encoding, test an adjacent representable wrong value for fixed-precision content,
-subject to any explicit public tolerance; for example, change an exactly zero
-sample to a nonzero sample.
 Choose every value and input in these controls from the kinds the task itself
 shows: its formats, value ranges and cases. A control that needs values or
 situations the task never shows tests a requirement the task does not state.
