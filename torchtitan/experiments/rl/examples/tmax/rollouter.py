@@ -39,6 +39,10 @@ Knobs read from env (the launcher sets these; see ``submit_swe_tmax_9b.sh``):
   ``SWE_MAX_CONTEXT_LEN``             model context budget for the adapter session
   ``SWE_EVAL_MAX_CONTEXT_LEN``        the same budget for validation rollouts only
                                       (default: SWE_MAX_CONTEXT_LEN)
+  ``SWE_EVAL_MAX_TURNS``              turn cap for validation rollouts only, read
+                                      by config_registry (0 = default: the
+                                      harness's TMAX_TERMINUS_MAX_TURNS; -1 = no
+                                      cap, time budget only)
   ``SWE_ROLLOUT_CONCURRENCY``         concurrently-active rollouts (default 16)
   ``TMAX_CALL_LIMIT``                 Vanillux step cap (its per-turn token cap is a
                                       constant in vanillux_loop, not an env knob)

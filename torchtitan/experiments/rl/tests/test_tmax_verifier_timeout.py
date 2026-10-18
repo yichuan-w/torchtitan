@@ -118,9 +118,11 @@ def test_the_guard_covers_the_declared_verifier():
 # --- end to end through a rollout ---
 
 
-def _run_rollout(rollouter: TMaxRollouter, sample: TMaxSample, monkeypatch):
+def _run_rollout(
+    rollouter: TMaxRollouter, sample: TMaxSample, monkeypatch, *, group_id: int = 0
+):
     """Drive one rollout with the sandbox, agent and grader stubbed, and report
-    what the grade call and the wall-clock guard were actually given."""
+    what the agent, the grade call and the wall-clock guard were actually given."""
     seen: dict = {}
 
     @contextlib.asynccontextmanager
@@ -128,6 +130,7 @@ def _run_rollout(rollouter: TMaxRollouter, sample: TMaxSample, monkeypatch):
         yield AsyncMock()
 
     async def fake_agent(task):
+        seen["max_turns"] = task.max_turns
         return AgentRun(turns=1, submitted=True, finish_reason="submit")
 
     async def fake_grade(sandbox, tmax, *, workdir, timeout_sec=None):
@@ -166,7 +169,7 @@ def _run_rollout(rollouter: TMaxRollouter, sample: TMaxSample, monkeypatch):
             adapter=adapter,
             generate_fn=AsyncMock(),
             sample=sample,
-            group_id=0,
+            group_id=group_id,
             rollout_idx=0,
             sampling=object(),
             renderer=object(),
@@ -211,3 +214,29 @@ def test_the_real_tb2_1_range_is_covered():
         12000,
     ]
     assert json.dumps(declared)  # the values are plain JSON numbers in the row
+
+
+# --- the validation-only turn cap (SWE_EVAL_MAX_TURNS) ---
+
+
+@pytest.mark.parametrize(
+    "eval_max_turns, group_id, expected",
+    [
+        # Unset: both kinds keep the harness default (TMAX_TERMINUS_MAX_TURNS).
+        (0, 0, None),
+        (0, -1, None),
+        # Set: validation (negative group id) gets it, training never does.
+        (300, -1, 300),
+        (300, 0, None),
+        # -1: validation is bounded by its time budget alone.
+        (-1, -1, rollouter_mod._UNCAPPED_TURNS),
+        (-1, 0, None),
+    ],
+)
+def test_the_eval_turn_cap_reaches_only_validation_rollouts(
+    monkeypatch, eval_max_turns, group_id, expected
+):
+    rollouter = _rollouter()
+    rollouter._eval_max_turns = eval_max_turns
+    _, seen = _run_rollout(rollouter, _sample(), monkeypatch, group_id=group_id)
+    assert seen["max_turns"] == expected
