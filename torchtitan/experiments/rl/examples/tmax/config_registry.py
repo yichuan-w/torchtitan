@@ -655,7 +655,13 @@ def rl_grpo_qwen3_5_9b_tmax(
         worker_concurrency // group_size + 1
         for worker_concurrency in worker_concurrencies
     )
-    if min_work_conserving_groups > max_active_rollout_groups:
+    # max_active == groups per step asks for lockstep generation: each step's
+    # groups start only after the previous step's update, so they come from the
+    # latest policy and the latest published mix (the overfit bench's recipe).
+    # The work-conserving headroom below exists to keep slots busy between groups,
+    # which lockstep gives up on purpose.
+    lockstep = max_active_rollout_groups == num_groups_per_train_step
+    if min_work_conserving_groups > max_active_rollout_groups and not lockstep:
         raise ValueError(
             "The rollout-worker split cannot keep every trajectory gate supplied: "
             f"it needs at least {min_work_conserving_groups} active groups, but "
