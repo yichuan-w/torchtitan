@@ -298,7 +298,11 @@ def test_harder_defaults_to_real_guidance_with_repair_in_the_rewrite(
     prompt = sessions[0]["prompt"]
     assert "These tasks train an agent for real terminal work" in prompt
     assert "Search with your web tool" in prompt
-    assert "Keep the existing instruction's wording" in prompt
+    assert "Keep the original task's wording" in prompt
+    # Help a simplification added is not the original's: a handed-out answer is
+    # withdrawn, not kept while new difficulty is stacked on it.
+    assert "traces/history/since-original.diff" in prompt
+    assert "withdrawing it whole is this rewrite's change" in " ".join(prompt.split())
     assert "These are not hardening" in prompt
     assert "Record every repair in `run/repair.json`" in prompt
     assert ec._STUDENT_HARDER_GUIDANCE not in prompt

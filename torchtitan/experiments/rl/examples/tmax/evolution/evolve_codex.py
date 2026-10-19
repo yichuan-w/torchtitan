@@ -1744,9 +1744,16 @@ those attempts show.
 These are not hardening, whatever their effect on the solve rate: decoy files,
 a second candidate or stale copy to choose between, a log that contradicts a
 config, an extra edge-case clause for the input, stricter output formatting, a
-longer instruction. Keep the existing instruction's wording: removing what it
+longer instruction. Keep the original task's wording: removing what it
 already says is a withdrawal of help, not the real difficulty, and it mixes
-the two in the student's measured solve rate. State any new requirement the
+the two in the student's measured solve rate. Help that an earlier
+simplification of this task added (`traces/history/since-original.diff`) is
+not the original task's. If any of it hands the student the result the task
+asks for -- a value the checks expect, the exact output, the decisive step --
+withdrawing it whole is this rewrite's change, however much the attempts lean
+on it, and nothing new is added on top: a task that gives its answer away does
+not get harder by adding to it. Say in `run/hardening.md` what you withdrew.
+State any new requirement the
 way a user would, in a sentence or two -- the goal and the deliverable. Do not
 list the pitfalls; the agent meets them as error messages, logs and behavior
 in the environment, the way the real software presents them.
@@ -1776,7 +1783,10 @@ includes a parent path, compare that original task's files with the current
 package to identify the exact help or restriction that changed. Keep the
 reference copy and lineage record unchanged; both are checked after the session. Move toward
 mixed success by undoing the previous simplification as far as the attempts
-show they no longer need it. That simplification is the first candidate, not
+show they no longer need it. Help that hands the student the result the task
+asks for -- a value the checks expect, the exact output, the decisive step --
+is withdrawn whole even though the attempts rely on it: no simplification was
+allowed to give it. That simplification is the first candidate, not
 the limit: help that earlier simplifications added (`traces/history/since-original.diff`)
 and that these attempts no longer use -- never opened, never cited, or
 reproduced from their own knowledge before they read it -- is withdrawn in

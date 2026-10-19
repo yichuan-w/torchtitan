@@ -175,6 +175,13 @@ def test_calibration_may_withdraw_unused_older_help_and_predicts_a_number():
     assert '("5 of 8")' in g
 
 
+def test_calibration_withdraws_a_handed_out_answer_even_when_attempts_rely_on_it():
+    """Sizing the withdrawal by what the attempts still use would keep a leaked
+    answer forever, since every attempt uses it."""
+    g = " ".join(ec._CALIBRATION_GUIDANCE.split())
+    assert "is withdrawn whole even though the attempts rely on it" in g
+
+
 def test_easier_keeps_the_core_decision_and_predicts_a_number():
     """A simplification may not make the task's core decision for the student,
     ranks help by the decisions it makes, and predicts a solved count."""
