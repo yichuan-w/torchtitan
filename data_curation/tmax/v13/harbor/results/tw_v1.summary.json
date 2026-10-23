@@ -1,0 +1,66 @@
+{
+ "corpus": "TerminalWorld (andylizf/TerminalWorld-Seeds-Clean), the 99 tb21 top-10 harbor packages",
+ "rubric": "v13-harbor v1 (superseded)",
+ "prompt": "harbor/v13_harbor_prompt.md",
+ "prompt_sha256": "4e9acb3915d09363392789b99d224d2d503c67f7b916ab79e54df941aebc3d6a",
+ "schema": "harbor/output_schema_v13_harbor.json",
+ "schema_sha256": "18a68b9f50b5e4d65d671ac1c4901b0ff14cb6597a92b79e699eb83aaad2a9c3",
+ "judge": "z-ai/glm-5.3 through the pin shim, five provider phases (baidu 46-wide, sail-research 8 and 3, baidu 4-wide)",
+ "judged": 99,
+ "tiers": {
+  "FLAGGED": 84,
+  "SEED": 15
+ },
+ "verdicts": {
+  "UNSTABLE-REWARD": 57,
+  "ANSWER-LEAK": 24,
+  "CLEAN": 15,
+  "INSTR-VERIFIER-MISMATCH": 3
+ },
+ "tier_x_verdict": {
+  "FLAGGED/ANSWER-LEAK": 24,
+  "FLAGGED/INSTR-VERIFIER-MISMATCH": 3,
+  "FLAGGED/UNSTABLE-REWARD": 57,
+  "SEED/CLEAN": 15
+ },
+ "fired": {
+  "core_clause_unenforced": 50,
+  "expectation_movable": 8,
+  "expectation_revealed": 2,
+  "oracle_reachable": 1,
+  "overspecific_check": 4,
+  "uncertain_fact": 8,
+  "unstable_reward": 81,
+  "value_derivable": 24,
+  "weak_verifier_exploit": 67
+ },
+ "expectation_source": {
+  "hardcoded_literal": 78,
+  "rollout_material": 9,
+  "shape_only": 11,
+  "test_only": 1
+ },
+ "schema_valid_v1": "99 of 99 against the v1 schema",
+ "spend_usd": 45.9331,
+ "usd_per_row": 0.464,
+ "measured_against_v2.1_contract": {
+  "HL_rows": 81,
+  "lint_distribution_v2.1_lint": {
+   "H0": 99,
+   "H1": 13,
+   "H11": 5,
+   "H12": 11,
+   "H13": 30,
+   "H15": 4,
+   "H16": 2,
+   "H2": 68,
+   "H2b": 74,
+   "H3": 21,
+   "H7": 56,
+   "HB": 99,
+   "HL": 81
+  },
+  "note": "lint_v13_harbor2 run over the v1 rows with the v2.1 candidate lists; H0 and HB fire on all 99 because v1 rows carry no bootstrap_fetch and the old label"
+ },
+ "rows": "not published here (superseded; 75 are in the reaudit repo)"
+}
