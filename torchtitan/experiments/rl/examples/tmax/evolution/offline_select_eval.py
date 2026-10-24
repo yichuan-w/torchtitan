@@ -21,11 +21,16 @@ with no source signals there is nothing to copy.
     offline_select_eval.py --eval <eval dir> --root <root> --name <run name> \
         [--min-rate 0.9] [--step 0] [--dry]
 
+--direction easier --max-rate 0 stages the tasks the eval found unsolved
+instead, and --allow-r0 lets either direction stage tasks no rewrite has
+touched, so an eval of a fresh corpus can drive its first round.
+
 Writes <root>/runs/<name>/{launch.json, signals/<task>--g<N>.json,
 rollouts/<task>/g<N>-r<i>.jsonl} and one log line per task under <root>/logs/.
-Refuses a run directory that exists. A task still at r0 is skipped and logged:
-nothing has hardened it yet, so the first round is offline_select.py's job and
-a signal at the wrong rev would only be superseded. A signal the ledger has
+Refuses a run directory that exists. Without --allow-r0 a task still at r0 is
+skipped and logged: nothing has hardened it yet, so after a training run the
+first round is offline_select.py's job and a signal at the wrong rev would only
+be superseded. A signal the ledger has
 closed is never handled again, so a retry goes under a new --name, and
 --only-failed restages just the tasks an infrastructure loss took down.
 """
@@ -68,6 +73,25 @@ def main() -> None:
         default=0.9,
         help="stage a task whose graded pass rate is at or above this (default 0.9: "
         "12/12 and 11/12 of a K12 eval, where the group carries no learning signal)",
+    )
+    ap.add_argument(
+        "--direction",
+        choices=("harder", "easier"),
+        default="harder",
+        help="easier stages the tasks at or below --max-rate instead (default harder)",
+    )
+    ap.add_argument(
+        "--max-rate",
+        type=float,
+        default=0.0,
+        help="with --direction easier: stage a task whose graded pass rate is at or "
+        "below this (default 0: nothing solved)",
+    )
+    ap.add_argument(
+        "--allow-r0",
+        action="store_true",
+        help="stage tasks still at r0 too, for a first round scored by an eval rather "
+        "than a training run; the loop copies the seed package on the first signal",
     )
     ap.add_argument("--step", type=int, default=0, help="validation step to read")
     ap.add_argument(
@@ -112,11 +136,16 @@ def main() -> None:
         if not v["graded"]:
             continue
         rate = v["pass"] / v["graded"]
-        if rate >= a.min_rate:
+        if (rate >= a.min_rate) if a.direction == "harder" else (rate <= a.max_rate):
             picks.append((tid, v, rate))
+    bound = (
+        f"at or above {a.min_rate:.0%}"
+        if a.direction == "harder"
+        else f"at or below {a.max_rate:.0%}"
+    )
     print(
         f"eval {os.path.basename(ev)} step {a.step}: {len(per)} tasks, "
-        f"{len(picks)} at or above {a.min_rate:.0%}"
+        f"{len(picks)} {bound} ({a.direction})"
     )
     if a.dry:
         for tid, v, rate in picks:
@@ -138,14 +167,15 @@ def main() -> None:
         log.flush()
 
     log_line(
-        f"eval={ev} step={a.step} root={a.root} name={a.name} min_rate={a.min_rate} "
+        f"eval={ev} step={a.step} root={a.root} name={a.name} direction={a.direction} "
+        f"min_rate={a.min_rate} max_rate={a.max_rate} allow_r0={a.allow_r0} "
         f"tasks={len(per)} picked={len(picks)}"
     )
     n_sig = n_rec = n_skip = 0
     for tid, v, rate in picks:
         task_dir = os.path.join(a.root, "evolution", "tasks", tid)
         rev = _latest_rev(task_dir)
-        if rev == 0:
+        if rev == 0 and not a.allow_r0:
             n_skip += 1
             log_line(f"task={tid} skipped: still at r0, nothing to harden further")
             continue
@@ -190,7 +220,7 @@ def main() -> None:
         signal = {
             "attempts": attempts,
             "created": stamp,
-            "direction": "harder",
+            "direction": a.direction,
             "group": group,
             "rev": rev,
             "run": a.name,
