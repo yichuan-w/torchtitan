@@ -634,7 +634,7 @@ def read_eval(eval_dir: Path, evalset: Path | None = None) -> dict:
     rows = _rows(evalset)
     per: dict[str, dict[str, Any]] = {
         _iid(r): {"pass": 0, "graded": 0, "infra": 0, "finish": collections.Counter(),
-                  "rev": int(r["metadata"].get("rev") or 0)}
+                  "finish_failed": collections.Counter(), "rev": int(r["metadata"].get("rev") or 0)}
         for r in rows
     }
     for e in json.load(open(eval_dir / INDEX)):
@@ -647,10 +647,12 @@ def read_eval(eval_dir: Path, evalset: Path | None = None) -> dict:
         t["graded"] += 1
         t["pass"] += e["state"] == "PASS"
         t["finish"][e.get("finish_reason") or "?"] += 1
+        if e["state"] != "PASS":
+            t["finish_failed"][e.get("finish_reason") or "?"] += 1
     tasks = {}
     for tid, v in per.items():
         b = "no_attempts" if v["graded"] + v["infra"] == 0 else bucket(v["pass"], v["graded"])
-        tasks[tid] = {**v, "finish": dict(v["finish"]), "bucket": b}
+        tasks[tid] = {**v, "finish": dict(v["finish"]), "finish_failed": dict(v["finish_failed"]), "bucket": b}
     recipe = None
     if launch is not None:
         recipe = {"source": "eval", "harness": _harness(launch)}
@@ -691,10 +693,7 @@ def counts(tasks: dict) -> dict:
     failed: collections.Counter = collections.Counter()
     for v in tasks.values():
         finish.update(v["finish"])
-        # finish reasons of the failed attempts: everything but the passes' submits
-        f = collections.Counter(v["finish"])
-        f["submit"] -= v["pass"]
-        failed.update({k: n for k, n in f.items() if n > 0})
+        failed.update(v["finish_failed"])
     return {
         **{b: c[b] for b in BUCKETS},
         "tasks": len(tasks),
@@ -738,7 +737,8 @@ def first_samplings(runs: list[Path]) -> tuple[dict, dict]:
             with open(f) as fh:
                 h = json.loads(fh.readline())
             key = (h["task"], int(h.get("rev") or 0), run.name, h["group"])
-            g = groups.setdefault(key, {"pass": 0, "graded": 0, "infra": 0, "finish": collections.Counter(), "started": h.get("started") or ""})
+            g = groups.setdefault(key, {"pass": 0, "graded": 0, "infra": 0, "finish": collections.Counter(),
+                                        "finish_failed": collections.Counter(), "started": h.get("started") or ""})
             g["started"] = min(g["started"], h.get("started") or g["started"])
             r = h.get("reward")
             if h.get("infra_failed") or r is None or (isinstance(r, float) and math.isnan(r)):
@@ -747,11 +747,13 @@ def first_samplings(runs: list[Path]) -> tuple[dict, dict]:
             g["graded"] += 1
             g["pass"] += r >= 1.0
             g["finish"][h.get("finish_reason") or "?"] += 1
+            if r < 1.0:
+                g["finish_failed"][h.get("finish_reason") or "?"] += 1
     first: dict[tuple, dict[str, Any]] = {}
     for (task, rev, run, group), g in sorted(groups.items(), key=lambda kv: kv[1]["started"]):
         if (task, rev) in first:
             continue
-        first[(task, rev)] = {**g, "finish": dict(g["finish"]), "run": run, "group": group, "rev": rev,
+        first[(task, rev)] = {**g, "finish": dict(g["finish"]), "finish_failed": dict(g["finish_failed"]), "run": run, "group": group, "rev": rev,
                               "bucket": bucket(g["pass"], g["graded"])}
     harnesses = sorted({_harness(lc) for lc in launches})
     recipe = {"source": "run", "harness": harnesses[0] if len(harnesses) == 1 else harnesses,
