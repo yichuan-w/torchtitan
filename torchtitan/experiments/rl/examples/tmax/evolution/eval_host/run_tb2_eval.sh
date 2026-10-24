@@ -65,7 +65,7 @@ export TT_DAYTONA_LABEL=tw_eval_flowmatic
 # process has set, and each one changes what a rollout does (tokens per turn, how
 # many turns, how long a command may run). A number produced with different values
 # is not on the same curve.
-export TMAX_AGENT=${TMAX_AGENT:-terminus}
+export TMAX_AGENT=${TMAX_AGENT:-vanillux}
 export TMAX_TURN_MAX_TOKENS=${TMAX_TURN_MAX_TOKENS:-32768}
 export TMAX_TERMINUS_MAX_TURNS=${TMAX_TERMINUS_MAX_TURNS:-120}
 export TMAX_EXEC_TIMEOUT_SEC=${TMAX_EXEC_TIMEOUT_SEC:-120}

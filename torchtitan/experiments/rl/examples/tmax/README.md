@@ -45,9 +45,9 @@ Controller (one asyncio loop)
     per sibling (32), spread over SWE_NUM_ROLLOUT_WORKERS CPU processes:
       boot sandbox from the task's public docker image (tests baked in), as root
       TMAX_AGENT picks the host-side agent brain:
-        terminus (default) -> harness/agents/terminus.py, harbor's Terminus-2
+        terminus           -> harness/agents/terminus.py, harbor's Terminus-2
            drives a live tmux pane; see README_TERMINALWORLD.md
-        vanillux           -> run_vanillux_loop(adapter, sandbox)
+        vanillux (default) -> run_vanillux_loop(adapter, sandbox)
            one `bash` tool only; persistent shell (cd/export stick)
            each action -> sb.exec in the sandbox; observation head/tail-truncated
            agent submits by `echo COMPLETE_TASK_AND_SUBMIT_FINAL_OUTPUT`
@@ -318,9 +318,9 @@ Everything below is read from the environment in `config_registry.py` /
 | `SWE_GROUP_SIZE` / `SWE_NUM_GROUPS_PER_TRAIN_STEP` / `SWE_OFFPOLICY_STEPS` | 32 / 8 / 4 | The async/GRPO shape |
 | `SWE_LOSS` | `dppo` | `dapo` or `grpo` for an A/B |
 | `SWE_DPPO_RATIO_CAP` | 0 (off) | Truncated-IS cap; 2 tames a residual GDN train/infer logprob tail |
-| `TMAX_AGENT` | `terminus` | Agent scaffold. `terminus` is harbor's Terminus-2 (README_TERMINALWORLD.md); `vanillux` is the one-command loop; `miniswe` is mini-swe-agent's text loop (`harness/agents/miniswe.py`) |
+| `TMAX_AGENT` | `vanillux` | Agent scaffold. `vanillux` is the one-command loop (mini-swe-agent v2's tool-calling scaffold, the one the 9B was SFT'd under); `terminus` is harbor's Terminus-2 (README_TERMINALWORLD.md); `miniswe` is mini-swe-agent's text loop (`harness/agents/miniswe.py`) |
 | `TMAX_TERMINUS_MAX_TURNS` | 64 | Max agent turns per episode under `terminus` |
-| `TMAX_CALL_LIMIT` | 64 | Max bash actions per episode (the reference run's `--max_steps`). Read by `vanillux_loop.py` only -- inert under the default agent |
+| `TMAX_CALL_LIMIT` | 64 | Max bash actions per episode (the reference run's `--max_steps`). Read by `vanillux_loop.py` only |
 | `TMAX_EXEC_TIMEOUT_SEC` | 120 | Per-command timeout under `vanillux` and `miniswe`; a foreground server can otherwise burn the budget |
 | `TMAX_FORMAT_ERROR_FEEDBACK` | 0 | 0 = break on the first turn with no `bash` call (reference behavior) |
 | `SWE_VAL_SAMPLES` / `SWE_VAL_INTERVAL` | 32 / 20 | Held-out validation size and cadence; `SWE_VAL_SAMPLES=0` turns it off |
