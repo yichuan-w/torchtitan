@@ -332,6 +332,8 @@ def test_audit_bundle_blinds_and_audit_tally_unblinds(tmp_path):
     k = json.load(open(key))
     assert sorted(k["tasks"]["t1"].values()) == ["x", "y"]
     assert not any(p.name in ("x", "y") for p in out.rglob("*"))
+    diffs = "".join(p.read_text() for p in out.rglob("diff_*.txt"))
+    assert "check x" in diffs and str(tmp_path) not in diffs
     vx = next(v for v, a in k["tasks"]["t1"].items() if a == "x")
     (out / "t1" / vx / "verdict.json").write_text(json.dumps(
         {"label": "UNFAIR", "findings": [{"id": "f1", "class": "UNFAIR"}, {"id": "f2", "class": "SEED"}]}))

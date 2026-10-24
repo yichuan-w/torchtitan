@@ -1378,8 +1378,10 @@ AUDIT_LABELS = ("EFFECTIVE", "WEAK", "LEAKY", "UNFAIR", "BROKEN", "GRADER-TIGHTE
 DEFECT_LABELS = {"LEAKY", "UNFAIR", "BROKEN", "UNSTATED-ENVIRONMENT-TRAP"}
 
 
-def _diff(a: Path, b: Path) -> str:
-    return subprocess.run(["diff", "-ruN", str(a), str(b)], capture_output=True, text=True).stdout
+def _diff(task_dir: Path, a: str, b: str) -> str:
+    """diff -ruN of two paths relative to the task directory, so the headers
+    name r<N>/ and never the root, whose name would unblind the arm."""
+    return subprocess.run(["diff", "-ruN", a, b], capture_output=True, text=True, cwd=task_dir).stdout
 
 
 def audit_bundle(*, arms: list[tuple[str, Path]], out: Path, key: Path, sample: int | None, seed: int, log: Log) -> None:
@@ -1417,12 +1419,12 @@ def audit_bundle(*, arms: list[tuple[str, Path]], out: Path, key: Path, sample: 
         for v, label in keymap[t].items():
             rw, rw_dir = accepted[label][t]
             tdir = dict(arms)[label] / "evolution" / "tasks" / t
-            r0, rn = tdir / f"r{rw['input_rev']}", tdir / f"r{rw['result_rev']}"
+            r0, rn = f"r{rw['input_rev']}", f"r{rw['result_rev']}"
             vd = td / v
             vd.mkdir(parents=True)
-            shutil.copytree(rn, vd / "package", symlinks=True)
+            shutil.copytree(tdir / rn, vd / "package", symlinks=True)
             for part in ("instruction.md", "tests", "solution", "environment"):
-                (vd / f"diff_{part.replace('.md', '')}.txt").write_text(_diff(r0 / part, rn / part))
+                (vd / f"diff_{part.replace('.md', '')}.txt").write_text(_diff(tdir, f"{r0}/{part}", f"{rn}/{part}"))
             (vd / "agent_summary.md").write_text(_last_agent_message(rw_dir) or "(no agent summary found)")
             (vd / "direction.txt").write_text(f"{rw['job']}\n")
         log(f"task={t} variants={len(keymap[t])}")
