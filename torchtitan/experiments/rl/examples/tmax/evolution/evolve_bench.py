@@ -724,7 +724,8 @@ def merge_evals(evals: list[dict]) -> dict:
             raise SystemExit(f"{e['eval']} scores tasks another eval already did: {sorted(both)[:3]}")
         tasks.update(e["tasks"])
     for e in evals[1:]:
-        mm = recipe_mismatch(evals[0]["recipe"], e["recipe"])
+        # Increments made before launch.json recorded a field agree on not having it.
+        mm = {k: v for k, v in recipe_mismatch(evals[0]["recipe"], e["recipe"]).items() if k != "unrecorded"}
         if mm:
             raise SystemExit(f"{e['eval']} ran another recipe than {evals[0]['eval']}: {mm}")
     return tasks
@@ -905,8 +906,7 @@ def rewrite_facts(root: Path, tid: str, rw_path: Path) -> dict:
     one what it changed and whether its grader needs a live third-party host."""
     rw = json.load(open(rw_path))
     rw_dir = rw_path.parent
-    usd, priced = offline_cost.rewrite_usd(str(rw_dir))
-    sessions = len(list((rw_dir / "sessions").glob("*")))
+    usd, _ = offline_cost.rewrite_usd(str(rw_dir))
     f = {
         "task": tid,
         "rewrite": rw_dir.name,
@@ -919,7 +919,9 @@ def rewrite_facts(root: Path, tid: str, rw_path: Path) -> dict:
         "result_rev": rw.get("result_rev"),
         "signal_band": _signal_band(root, rw) if rw.get("signal") else None,
         "usd": round(usd, 4),
-        "cost_known": priced > 0 or sessions == 0,
+        # Codex sessions record token counts (one that died before its first
+        # turn records none and cost nothing); a Claude Code arm's do not.
+        "cost_known": (rw.get("arm") or "codex") == "codex",
         "declared_repairs": len(rw.get("repair") or []),
     }
     task_dir = root / "evolution" / "tasks" / tid
@@ -1174,7 +1176,8 @@ def tally(
             tasks = sorted(json.load(open(set_dir / "selected.json")))
             out["inputs"]["set"] = {"dir": str(set_dir.resolve()), "manifest_sha256": set_sha, "tasks": manifest["tasks"],
                                     "rows": manifest["seed_mix"]["rows"], "rows_by_source": manifest.get("rows_by_source"),
-                                    "no_signal": manifest.get("no_signal", {}), "student_harness": manifest.get("student_harness")}
+                                    "no_signal": manifest.get("no_signal", {}), "student_harness": manifest.get("student_harness"),
+                                    "signals_from": manifest.get("signals_from")}
         else:
             # A live root: every task the loop handled.
             tasks = sorted(p.name for p in (root / "evolution" / "tasks").iterdir() if (p / "rewrites").is_dir())
@@ -1200,7 +1203,8 @@ def tally(
         mixed = sum(1 for r in rewrites if r.get("after_band") == "mixed")
         out["funnel"]["mixed_after"] = mixed
         out["funnel"]["usd_per_mixed"] = round(out["funnel"]["usd_counted"] / mixed, 2) if mixed else None
-        if out["inputs"]["set"]:
+        # Yield over the set's rows is defined when one eval of all of them made the signals.
+        if out["inputs"]["set"] and "eval" in (out["inputs"]["set"]["signals_from"] or {}):
             no_sig = out["inputs"]["set"]["no_signal"]
             out["set_yield"] = {"rows": out["inputs"]["set"]["rows"], "mixed_as_is": no_sig.get("mixed", 0),
                                 "mixed_rewritten": mixed, "usable": no_sig.get("mixed", 0) + mixed}
