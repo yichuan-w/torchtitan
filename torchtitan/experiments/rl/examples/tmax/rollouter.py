@@ -1430,9 +1430,10 @@ class TMaxRollouter(Rollouter):
         if not 0 <= config.length_penalty_min_pass_rate <= 1:
             raise ValueError("length_penalty_min_pass_rate must be in [0, 1]")
         super().__init__(config)
-        # Training and evaluation share Terminus unless a run explicitly selects
-        # another scaffold with its corresponding action format.
-        self._agent_name = os.environ.get("TMAX_AGENT", "terminus")
+        # Training and evaluation share the vanillux loop, the mini-swe-agent v2
+        # scaffold the 9B was SFT'd under, unless a run explicitly selects another
+        # scaffold with its corresponding action format.
+        self._agent_name = os.environ.get("TMAX_AGENT", "vanillux")
         # Import for the side effect of registering; only vanillux is wired in by
         # the tmax module itself.
         if self._agent_name == "miniswe":

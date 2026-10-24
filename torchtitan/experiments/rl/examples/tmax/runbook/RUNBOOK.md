@@ -746,7 +746,7 @@ these are the variables that touch them.
 | `SWE_LOSS` | unset | `dppo` | `dppo` / `dapo` / `grpo`. |
 | `SWE_TMAX_CONTEXT` | `81920` | `65536` | model context (vLLM `max_model_len`) and the trainer's packing width, set together. Must divide by the loss chunk count (`SWE_LOSS_CHUNKS`, recipe base 32). `rltrain.env` carries the team's 80K training cap; the reference run had the 65536 default. |
 | `SWE_MAX_CONTEXT_LEN` | `79872` | tmax recipes: `SWE_TMAX_CONTEXT` − 2048 (63488 at the 65536 default); other entry points still differ (63488 / 22528 / 20480) | per-session context budget: total prompt + all turns, the per-turn generation is clamped to what is left, and context notices count against it. Keep it at `SWE_TMAX_CONTEXT` − 2048. `rltrain.env` carries the team's 80K training cap; the reference run had 63488. |
-| `TMAX_AGENT` | `terminus` | `terminus` | agent scaffold. Changes the action distribution. |
+| `TMAX_AGENT` | `vanillux` | `vanillux` | agent scaffold. Changes the action distribution. |
 | `SWE_AGENT_TIMEOUT_FLOOR_SEC` | `7200` | `7200` | floor on a task's declared budget, never a ceiling. 900 capped TB-2.0 tasks and caused ~60% eval timeouts. |
 | `SWE_WRONG_SUBMIT_PENALTY` | unset | `0` | reward penalty for submitting a wrong answer. No run has set it; the table said `0.3` here while `rltrain.env` said unset and no `launch.json` carried it. Setting it makes a failure score -0.3 rather than 0, which is why the evolution thresholds count solves instead of testing rewards against 0. |
 | `SWE_EVOLUTION_EASIER_RATIO` | unset | `0.0` | solved fraction at or below which a group asks the loop for `easier`. Must stay strictly below `SWE_EVOLUTION_HARDER_RATIO`. |
