@@ -33,11 +33,11 @@ every argument.
 So 200 rows are clean and 200 are repair. The release's `config.json`, with
 every exclude list, is copied into the frozen set's manifest.
 
-- **400 rows** is one base-student eval of 2,000 attempts. On repair342 the
+- 400 rows is one base-student eval of 2,000 attempts. On repair342 the
   base student left 257 of 342 repair rows all-solved or none-solved; clean
   rows carry signal more often, so an arm rewrites fewer than 400 tasks but
   still several times r100's 100.
-- **All of repair**, because those are the rows with known defects.
+- All of repair, because those are the rows with known defects.
   Each arm then also reports whether it repairs them. The 76 repair rows
   (and 1 calibforge_repair row) that the audit excluded from the training
   release stay in on purpose. They are the rows whose defects are known
@@ -134,32 +134,32 @@ reported as `usd_infra`.
 
 Mechanical, computed for every rewrite from the root:
 
-- **Three counts** (mixed / all solved / none solved, plus ungraded and
+- Three counts (mixed / all solved / none solved, plus ungraded and
   unattempted) with the finish-reason split of all and of failed attempts.
   These come from an eval or from a training run's first group on each new
   revision (`tally --run`), so the same report reads off a live run.
-- **Band by direction**: harder -> mixed, -> none solved (overshoot), ->
+- Band by direction: harder -> mixed, -> none solved (overshoot), ->
   still all solved; easier -> mixed, -> all solved (overshoot), -> still none
   solved.
-- **Before -> after** on the original rows, with exact McNemar on the mixed
+- Before -> after on the original rows, with exact McNemar on the mixed
   share; arm against arm on the tasks both accepted, and over the whole set
   with an unaccepted task counting as not mixed.
-- **Where each task ended**: accepted, give-up / blocked, each gate
+- Where each task ended: accepted, give-up / blocked, each gate
   (`gate:<stage>`, the blind verifier's assertion cap, the semantic probe),
   provider content filter, each infra class.
-- **Diff statistics** of every accepted rewrite against its input revision:
+- Diff statistics of every accepted rewrite against its input revision:
   tests/ size ratio, assertion count delta, instruction word delta,
   Dockerfile changed, a new check that runs the submitted program on inputs
   the grader writes, and the rewrite saying the verifier is unchanged while
   tests/ differs.
-- **Grader fetches**: hosts other than package indexes that a grader clones
+- Grader fetches: hosts other than package indexes that a grader clones
   or downloads from, before and after, with which rewrites introduced, kept
   or removed one.
-- **Cost**: list price per session from `offline_cost.py`, per accepted
+- Cost: list price per session from `offline_cost.py`, per accepted
   rewrite and per mixed task. An arm with sessions of a model `offline_cost`
   has no price for, or a Claude Code arm (no Codex token records), reports
   its cost as unknown.
-- **Repair rows by known defect**: the HF judge's verdict, a missing reference
+- Repair rows by known defect: the HF judge's verdict, a missing reference
   solution, the defects file, and the grader-fetch check on every row. For
   each class: where the rows ended, the accepted revisions' band, how many
   declared a repair, the fix rate where it is mechanical (a missing solution
