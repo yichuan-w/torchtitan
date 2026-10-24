@@ -37,8 +37,9 @@ from concurrent.futures import ThreadPoolExecutor
 from dataclasses import replace
 from typing import TYPE_CHECKING
 
-from monarch.actor import Actor, endpoint
+from monarch.actor import Actor
 
+from torchtitan.experiments.rl.actors.monarch_compat import endpoint
 from torchtitan.experiments.rl.actors.generator import SamplingConfig
 from torchtitan.experiments.rl.controller_metrics import compute_rollout_metrics
 from torchtitan.experiments.rl.rollout import RolloutGroup

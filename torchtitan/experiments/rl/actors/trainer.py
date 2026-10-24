@@ -17,7 +17,7 @@ from typing import Any
 
 import torch
 import torchstore as ts
-from monarch.actor import Actor, current_rank, endpoint
+from monarch.actor import Actor, current_rank
 from torch.distributed.tensor import DTensor
 from torchtitan.components.checkpoint import CheckpointManager
 from torchtitan.components.checkpoint_utils import canonical_fqn
@@ -41,6 +41,7 @@ from torchtitan.distributed.activation_checkpoint import (
     SelectiveAC,
 )
 from torchtitan.distributed.utils import set_batch_invariance
+from torchtitan.experiments.rl.actors.monarch_compat import endpoint
 from torchtitan.experiments.rl.losses import GRPOLoss
 from torchtitan.experiments.rl.types import OptimStepOutput, TrainingMicrobatch
 from torchtitan.models.common.attention import FlexAttention
