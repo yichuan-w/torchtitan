@@ -44,6 +44,7 @@ from torchtitan.experiments.rl.controller import (
     _split_rollout_concurrency,
     Controller,
     ValidationConfig,
+    ValidationSetConfig,
 )
 from torchtitan.experiments.rl.eval_trace_recorder import ValidationTraceRecorder
 from torchtitan.experiments.rl.examples.swe_r2e.config_registry import (
@@ -101,6 +102,14 @@ _TB2_VAL_K = int(os.environ.get("SWE_TB2_VAL_K", "5"))
 # reasoning in later prompts, so longer turns fill the context sooner.
 _TB2_VAL_MAX_TOKENS = int(os.environ.get("SWE_TB2_VAL_MAX_TOKENS", "0")) or None
 
+# Further validation sets scored in the same pass as the one above, e.g.
+# SWE_VAL_SETS="tb4=/data/evalsets/tb4_eval.jsonl" (comma-separated name=path).
+# Each logs under validation/<name>/ and is tuned by SWE_VAL_SET_<NAME>_SAMPLES
+# (default: every row of its file), _K, _TEMPERATURE, _TOP_P, _MAX_TOKENS (default:
+# the main set's) and _EVERY (score it on every n-th pass; default 1). Read when the
+# recipe is built; see _tmax_validation_sets.
+_VAL_SETS_ENV = "SWE_VAL_SETS"
+
 # Full TMax-9B recipe context (open-instruct qwen35_9b.sh: response_length 65536)
 # and per-turn generation cap (per_turn_max_tokens 16384). The context is the
 # generator's vLLM max_model_len AND the trainer batcher's packing width: both are
@@ -125,6 +134,93 @@ _TMAX_9B_VAL_SAMPLES = 32
 # Use all training rows by default with a separate benchmark for validation.
 # SWE_HOLDOUT_N opts into reserving the last N rows for same-file validation.
 _TMAX_9B_HOLDOUT_N = 0
+
+
+def _jsonl_row_count(path: str) -> int | None:
+    """Rows ``TMaxDataset`` loads from ``path`` (its non-blank lines), or None when
+    the file cannot be read here (e.g. a config built away from the data)."""
+    try:
+        with open(path) as f:
+            return sum(1 for line in f if line.strip())
+    except OSError:
+        return None
+
+
+def _validation_samples(
+    label: str, path: str, *, explicit: str | None, fallback: int
+) -> int:
+    """Prompts per pass for a whole-file validation set: ``explicit`` if given,
+    else the file's row count, else ``fallback``.
+
+    The validation iterator keeps its cursor across passes, so a count other than
+    the row count makes each pass start where the last one stopped (shifting and
+    repeating tasks between passes); that is warned about, not refused.
+    """
+    rows = _jsonl_row_count(path) if path else None
+    if explicit is None or explicit == "":
+        return fallback if rows is None else rows
+    num_samples = int(explicit)
+    if rows is not None and num_samples not in (0, rows):
+        logger.warning(
+            f"validation set {label}: {num_samples} samples per pass but {path} has "
+            f"{rows} rows; each pass continues where the last stopped, so passes "
+            "score different tasks"
+        )
+    return num_samples
+
+
+def _parse_validation_sets(spec: str) -> list[tuple[str, str]]:
+    """``SWE_VAL_SETS`` ("name=path,name=path") -> [(name, path), ...]."""
+    pairs = []
+    for item in spec.split(","):
+        item = item.strip()
+        if not item:
+            continue
+        name, sep, path = item.partition("=")
+        if not sep or not name.strip() or not path.strip():
+            raise ValueError(
+                f"{_VAL_SETS_ENV}: expected name=path, got {item!r} "
+                "(entries are comma-separated, so a path cannot contain a comma)"
+            )
+        pairs.append((name.strip(), path.strip()))
+    return pairs
+
+
+def _tmax_validation_set_datasets() -> dict[str, TMaxDataset.Config]:
+    """The rollouter's ``validation_sets``: each named file, whole, in file order."""
+    return {
+        name: TMaxDataset.Config(data_path=path, seed=99, shuffle=False, holdout_n=0)
+        for name, path in _parse_validation_sets(os.environ.get(_VAL_SETS_ENV, ""))
+    }
+
+
+def _tmax_validation_sets() -> list[ValidationSetConfig]:
+    """The controller's ``ValidationConfig.sets`` for ``SWE_VAL_SETS``; [] if unset."""
+    sets = []
+    for name, path in _parse_validation_sets(os.environ.get(_VAL_SETS_ENV, "")):
+
+        def knob(suffix: str, name=name) -> str | None:
+            return os.environ.get(f"SWE_VAL_SET_{name.upper()}_{suffix}") or None
+
+        temperature, top_p, max_tokens = (
+            knob("TEMPERATURE"),
+            knob("TOP_P"),
+            knob("MAX_TOKENS"),
+        )
+        sets.append(
+            ValidationSetConfig(
+                name=name,
+                num_samples=_validation_samples(
+                    name, path, explicit=knob("SAMPLES"), fallback=-1
+                ),
+                group_size=int(knob("K") or 0),
+                temperature=None if temperature is None else float(temperature),
+                top_p=None if top_p is None else float(top_p),
+                max_tokens=None if max_tokens is None else int(max_tokens),
+                every=int(knob("EVERY") or 1),
+            )
+        )
+    return sets
 
 
 def _tmax_context() -> int:
@@ -152,7 +248,7 @@ def _tmax_rollouter(*, validation_from_caller: bool = False) -> TMaxRollouter.Co
         holdout_n == 0
         and not _TB2_VAL_DATA
         and not validation_from_caller
-        and int(os.environ.get("SWE_VAL_SAMPLES", _TMAX_9B_VAL_SAMPLES)) > 0
+        and int(os.environ.get("SWE_VAL_SAMPLES") or _TMAX_9B_VAL_SAMPLES) > 0
     ):
         raise ValueError(
             "SWE_HOLDOUT_N=0 requires a separate SWE_TB2_VAL_DATA dataset "
@@ -197,6 +293,11 @@ def _tmax_rollouter(*, validation_from_caller: bool = False) -> TMaxRollouter.Co
                 skip_ids_path=_SKIP_IDS,
             )
         ),
+        # SWE_VAL_SETS: further whole-file validation sets, by name.
+        validation_sets=_tmax_validation_set_datasets(),
+        # GPU rows (TB4 with daytona_gpu) running at once across the host, training
+        # and validation together; 5 trials x (agent + verifier) = the 10-H100 quota.
+        gpu_trial_concurrency=int(os.environ.get("SWE_GPU_TRIAL_CONCURRENCY") or 5),
         # Run knobs resolved from the launcher env ONCE, into config fields so they
         # land in the W&B run config (per-run differences are visible). Same env
         # names + defaults as before; the RolloutWorker pool splits
@@ -336,7 +437,13 @@ def _tmax_9b_validation() -> ValidationConfig:
     on the steps they score, so a background pass measures a frozen policy version.
     """
     if _TB2_VAL_DATA:
-        num_samples = int(os.environ.get("SWE_VAL_SAMPLES", _TB2_NUM_TASKS))
+        # The whole file by default (89 for TB-2.0 / 2.1, as before).
+        num_samples = _validation_samples(
+            "main",
+            _TB2_VAL_DATA,
+            explicit=os.environ.get("SWE_VAL_SAMPLES"),
+            fallback=_TB2_NUM_TASKS,
+        )
         group_size, temperature, top_p = (
             _TB2_VAL_K,
             _TB2_VAL_TEMPERATURE,
@@ -345,7 +452,7 @@ def _tmax_9b_validation() -> ValidationConfig:
     else:
         # SWE_VAL_SAMPLES=0 skips the pre/periodic held-out validation entirely
         # (e.g. a pure step-time / speedup run); defaults to the paper's 32.
-        num_samples = int(os.environ.get("SWE_VAL_SAMPLES", _TMAX_9B_VAL_SAMPLES))
+        num_samples = int(os.environ.get("SWE_VAL_SAMPLES") or _TMAX_9B_VAL_SAMPLES)
         group_size, temperature, top_p = 1, 0.0, 1.0
     return ValidationConfig(
         num_samples=num_samples,
@@ -377,6 +484,7 @@ def _tmax_9b_validation() -> ValidationConfig:
         trace=ValidationTraceRecorder.Config(
             enable=os.environ.get("SWE_VAL_TRACES", "1") == "1"
         ),
+        sets=_tmax_validation_sets(),
     )
 
 
@@ -442,6 +550,12 @@ def rl_grpo_qwen3_5_27b_tmax() -> Controller.Config:
     """
     config = _swe_27b()
     config.rollouter = _tmax_rollouter()
+    config.async_loop = dataclasses.replace(
+        config.async_loop,
+        validation=dataclasses.replace(
+            config.async_loop.validation, sets=_tmax_validation_sets()
+        ),
+    )
     config.trainer = dataclasses.replace(
         config.trainer, loss=_tmax_recipe_loss(config.trainer.loss)
     )
@@ -1448,7 +1562,14 @@ def rl_grpo_qwen3_5_9b_tmax_tb2_eval() -> Controller.Config:
         num_training_steps=0,
         validation=dataclasses.replace(
             _tmax_9b_validation(),
-            num_samples=int(os.environ.get("SWE_VAL_SAMPLES", _TB2_NUM_TASKS)),
+            # The row count only of an explicit SWE_TB2_DATA file: without it this
+            # recipe reads the training mix, whose row count is no eval size.
+            num_samples=_validation_samples(
+                "main",
+                _TB2_DATA,
+                explicit=os.environ.get("SWE_VAL_SAMPLES"),
+                fallback=_TB2_NUM_TASKS,
+            ),
             interval=0,
             # Nothing to overlap with at 0 training steps.
             run_async=False,

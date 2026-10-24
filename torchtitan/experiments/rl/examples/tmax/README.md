@@ -292,6 +292,105 @@ export SWE_NUM_EVAL_GENERATORS=1                 # also flips validation to run_
 export SWE_VAL_INTERVAL=25
 ```
 
+### More than one validation set (e.g. TB2.1 and TB4)
+
+`SWE_VAL_SETS` adds named sets to the pass, comma-separated `name=path` (so a path
+cannot contain a comma). Each one is the whole file, once per pass, unless
+`SWE_VAL_SET_<NAME>_SAMPLES` says otherwise; `_K`, `_TEMPERATURE`, `_TOP_P` and
+`_MAX_TOKENS` default to the main set's, and `_EVERY=n` scores it only on every
+n-th pass. The pre-training and post-training passes always include every set;
+the pass count is not checkpointed, so the first pass after a resume does too.
+`SWE_TB2_VAL_DATA` stays the main set and keeps its metric names; a named set logs
+the same metrics under `validation/<name>/` (`pass_at_k`, `reward` = avg@k, the
+finish fractions, `valid`, and `trace_pass_at_k` when the trace report is written
+inside the pass), its trace report goes to `validation_traces/<name>/step-<N>/`
+with `"set": "<name>"` on every row, and its records in `rollout_samples.jsonl`
+carry `"validation_set": "<name>"`. The eval generators' latency metrics
+(`validation_generator/*`) stay pooled across sets. In a pass with more than one
+set, a set whose collection raises is logged with `validation/<name>/valid = 0`
+without costing the other sets; this includes the main set, whose error raises (as
+before) only in a pass where no named set is due. So in a blocking or eval-only run
+with TB4, a main-set collection error leaves no TB2.1 score and the run still exits
+0: check `validation/valid`.
+
+```bash
+export SWE_TB2_VAL_DATA=$TRL_BASE/data/evalsets/tb2_1_eval.jsonl
+export SWE_VAL_SAMPLES=89 SWE_TB2_VAL_K=5
+export SWE_VAL_SETS=tb4=$TRL_BASE/data/evalsets/tb4_eval.jsonl   # 66 rows, k=5 inherited
+export SWE_GPU_TRIAL_CONCURRENCY=5   # the default: 10 H100 on earth / (agent + verifier)
+# Bound TB4's share of the passes (see "How long a pass takes"):
+export SWE_VAL_SET_TB4_EVERY=3
+# The cap applies to every set: below 12000 it also cuts TB2.1's build-pov-ray
+# (declares 12000 s), so keep it >= 12000 when TB2.1 must stay comparable.
+export SWE_EVAL_AGENT_BUDGET_CAP_SEC=12000
+```
+
+Build the TB4 file from the v4.0.0 release tree (digest-pinned images). The
+`--verify-runtime` check boots each task on Daytona, so it costs sandbox time, and
+with `--keep-going` a task that fails the check is left out, so check `wc -l`
+(66) before using the file. A TB4 file built before the GPU/compose fields existed
+has no `daytona_gpu` and must not be used: its GPU rows would boot without a GPU
+and bypass the admission below.
+
+```bash
+python -m torchtitan.experiments.rl.examples.tmax.prepare_tb2_1_data \
+    --tasks-root /path/to/terminal-bench-prebuilt-v4.0.0 --expect-tasks 66 \
+    --gpu-target earth --verify-runtime $TRL_BASE/data/evalsets/tb4_verify \
+    --keep-going --out $TRL_BASE/data/evalsets/tb4_eval.jsonl
+wc -l $TRL_BASE/data/evalsets/tb4_eval.jsonl
+```
+
+**How long a pass takes.** All sets run concurrently in one pass, at one policy
+version: the eval generators pull weights only between passes, so alternating
+sets would leave a gap in every set's curve and score the sets at different steps.
+A pass therefore lasts as long as its slowest part, and with TB4 that is long:
+
+- Every TB4 task declares an 8-hour agent budget (verifiers up to 5 hours).
+- The 3 GPU rows at k=5 are 15 trials through 5 GPU slots: at least 3 waves back
+  to back, each up to the agent budget plus grading.
+- Every set's trials share one eval rollout pool (`SWE_EVAL_ROLLOUT_CONCURRENCY`,
+  64 by default; 445 + 330 = 775 trials at k=5). Its gate admits the most negative
+  group ids first, and the named sets' ids come after the main set's, so TB4's long
+  trials queue ahead of TB2.1's. A pass takes roughly total trial time / 64.
+- At the end of training the controller waits for a pass still in flight, then
+  runs the post-training pass, which always includes TB4. Its background trace
+  reports (TB4's is the largest) are written at the very end of shutdown, after the
+  trainer and generators are released; they complete on a normal exit, and a stop
+  signal during that wait cancels them.
+
+So set `SWE_VAL_SET_TB4_EVERY` and `SWE_EVAL_AGENT_BUDGET_CAP_SEC` together, and
+widen `SWE_VAL_INTERVAL` to match. The cap is validation-only but covers every set:
+TB2.1's build-pov-ray declares 12000 s, so a cap below that changes TB2.1's score;
+use a cap of at least 12000, or `_EVERY` alone, when TB2.1 comparability matters. With
+`run_async` (dedicated eval generators) a pass still running at the next interval
+is skipped as a whole (with `SWE_VAL_DEFER=1`, deferred: at most one waits and then
+scores the step it starts on), so the TB2.1 curve thins to TB4's pace rather than
+stalling training. Without eval generators the pass blocks the trainer for its
+whole length; that includes `rl_grpo_qwen3_5_27b_tmax`, which has none.
+
+**GPU admission.** Trials of rows that ask for a GPU (TB4's fp8-rmsnorm-gemm,
+jax-speedrun-gpu and math-eval-grader) are admitted by `SWE_GPU_TRIAL_CONCURRENCY`
+across training and validation and every rollout worker on the host. A trial takes
+its slot before it boots and keeps it through grading, so a trial the slots
+admitted has room for its verifier; rows without a GPU are not counted or delayed.
+See `gpu_admission.py`. Limits of that guarantee:
+
+- The default of 5 assumes this host's slot directory is the only user of the
+  earth GPU quota. A second run on another node, the evolution tools that boot GPU
+  rows without admission (`evolution/daytona_revalidate.py`,
+  `evolution/agent_sandbox.py`), or a GPU sandbox whose delete failed all take
+  GPUs the slots do not count. Then a boot fails for want of a GPU: the trial is
+  `infra_failed` and its set's pass `valid = 0`, not a deadlock. Lower the limit
+  when the quota is shared.
+- The slot is taken before the rollout gate, so queued GPU trials never hold gate
+  seats, but a slot can sit idle while its trial waits for a seat, and slots have
+  no training-versus-validation priority.
+
+Not handled yet: the 11 compose rows pull their images inside the
+docker-in-docker sandbox with no registry credentials and no mirror, so images on
+Docker Hub count against its anonymous pull rate limit. A mirror or authenticated
+pulls are a follow-up.
+
 Eval an existing checkpoint only:
 
 ```bash
@@ -323,7 +422,9 @@ Everything below is read from the environment in `config_registry.py` /
 | `TMAX_CALL_LIMIT` | 64 | Max bash actions per episode (the reference run's `--max_steps`). Read by `vanillux_loop.py` only -- inert under the default agent |
 | `TMAX_EXEC_TIMEOUT_SEC` | 120 | Per-command timeout under `vanillux` and `miniswe`; a foreground server can otherwise burn the budget |
 | `TMAX_FORMAT_ERROR_FEEDBACK` | 0 | 0 = break on the first turn with no `bash` call (reference behavior) |
-| `SWE_VAL_SAMPLES` / `SWE_VAL_INTERVAL` | 32 / 20 | Held-out validation size and cadence; `SWE_VAL_SAMPLES=0` turns it off |
+| `SWE_VAL_SAMPLES` / `SWE_VAL_INTERVAL` | 32 / 20 | Held-out validation size and cadence; `SWE_VAL_SAMPLES=0` turns off the main set (validation stops only if `SWE_VAL_SETS` is unset too). With `SWE_TB2_VAL_DATA` the default is that file's row count |
+| `SWE_VAL_SETS` | unset | Further validation sets, `name=path,...`, scored in the same pass under `validation/<name>/`; per-set `SWE_VAL_SET_<NAME>_{SAMPLES,K,TEMPERATURE,TOP_P,MAX_TOKENS,EVERY}` |
+| `SWE_GPU_TRIAL_CONCURRENCY` | 5 | Trials of GPU rows running at once on the host (training + validation); `0` = no limit |
 | `SWE_HOLDOUT_N` | 0 | Training rows reserved as the validation slice. At 0 the recipe needs `SWE_TB2_VAL_DATA` or `SWE_VAL_SAMPLES=0`; see Run |
 | `SWE_CKPT_INTERVAL` / `SWE_CKPT_KEEP` | 20 / 3 | Save every N steps, keep the last K on the host's local disk. One save is 109 GB and blocks the loop for 61-86 s |
 | `SWE_CKPT_ASYNC` | `async` | The loop blocks only for the GPU-to-CPU copy and a thread writes the 109 GB (a synchronous save blocked it for 61-86 s). `disabled` restores that; `async_with_pinned_mem` needs a staging wait this trainer does not call, so it can copy weights the optimizer has already changed |
@@ -343,7 +444,9 @@ Everything below is read from the environment in `config_registry.py` /
   is *not* a learning signal. This has burned us before.
 - `validation/reward/mean` is avg@k and `validation/pass_at_k` is pass@k over the
   validation set; with `SWE_TB2_VAL_DATA` these are directly comparable to
-  published Terminal-Bench 2.0 numbers.
+  published Terminal-Bench 2.0 numbers. A set from `SWE_VAL_SETS` has the same
+  metrics under `validation/<name>/` (`validation/tb4/reward/_mean`,
+  `validation/tb4/pass_at_k/mean`, `validation/tb4/valid`).
 - `bit_wise/logprob_diff/{abs_mean,max}` is generator-vs-trainer logprob drift.
   It is exactly 0 on prefill but not on GDN decode (chunk-parallel training vs
   recurrent decoding); a large `max` is what `SWE_DPPO_RATIO_CAP` guards against.

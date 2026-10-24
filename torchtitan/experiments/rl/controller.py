@@ -94,6 +94,7 @@ import logging
 import math
 import os
 import pickle
+import re
 import time
 from collections import deque
 from collections.abc import Awaitable, Callable
@@ -209,6 +210,72 @@ def _should_drop_group_at_batcher(*, group_age: int, max_offpolicy_steps: int) -
     return group_age > max_offpolicy_steps
 
 
+_VALIDATION_SET_NAME = re.compile(r"[a-z][a-z0-9]*")
+# Single words the unnamed set already logs under validation/<word>; a set by one of
+# these names would land on top of them.
+_RESERVED_VALIDATION_SET_NAMES = frozenset(
+    {"valid", "skipped", "deferred", "reward", "default"}
+)
+
+
+@dataclass(kw_only=True, slots=True)
+class ValidationSetConfig:
+    """One further validation set, scored in the same pass as the main one.
+
+    Its prompts come from the rollouter's ``validation_sets[name]``; its metrics go
+    under ``validation/<name>/`` (pass@k, avg@k as ``validation/<name>/reward``,
+    the rollouter's finish fractions, ``valid``), and its trace report under
+    ``<dump>/validation_traces/<name>/step-<N>/``. Fields left at their defaults
+    inherit the main ``ValidationConfig``. The eval generators' own latency metrics
+    (``validation_generator/*``) stay pooled across sets: the generators are shared.
+    """
+
+    name: str
+    """Lowercase letters and digits, starting with a letter (e.g. ``tb4``)."""
+
+    num_samples: int = -1
+    """Prompts per pass. -1 = every row of the set's dataset, once."""
+
+    group_size: int = 0
+    """Trials per prompt; 0 inherits ``ValidationConfig.group_size``."""
+
+    temperature: float | None = None
+    """None inherits ``ValidationConfig.temperature``."""
+
+    top_p: float | None = None
+    """None inherits ``ValidationConfig.top_p``."""
+
+    max_tokens: int | None = None
+    """None inherits ``ValidationConfig.max_tokens``."""
+
+    every: int = 1
+    """Score this set on every ``every``-th validation pass (1 = every pass). The
+    pre-training pass and the post-training pass always include it. The pass count
+    is not checkpointed: after a resume the first pass includes every set."""
+
+    def __post_init__(self) -> None:
+        if not _VALIDATION_SET_NAME.fullmatch(self.name or ""):
+            raise ValueError(
+                f"validation set name {self.name!r}: use lowercase letters and digits, "
+                "starting with a letter"
+            )
+        if self.name in _RESERVED_VALIDATION_SET_NAMES:
+            raise ValueError(f"validation set name {self.name!r} is reserved")
+        if self.num_samples < -1:
+            raise ValueError(
+                f"validation set {self.name}: num_samples must be -1 or >= 0, "
+                f"got {self.num_samples}"
+            )
+        if self.group_size < 0:
+            raise ValueError(
+                f"validation set {self.name}: group_size must be >= 0, got {self.group_size}"
+            )
+        if self.every < 1:
+            raise ValueError(
+                f"validation set {self.name}: every must be >= 1, got {self.every}"
+            )
+
+
 @dataclass(kw_only=True, slots=True)
 class ValidationConfig:
     """Held-out validation that runs at the start and end of training, and
@@ -275,6 +342,15 @@ class ValidationConfig:
     )
     """Per-pass browsable trace report (off by default)."""
 
+    sets: list[ValidationSetConfig] = field(default_factory=list)
+    """Further named validation sets, scored concurrently in the same pass as the
+    main set (one policy version per pass, so the eval generators' weights stay put
+    for all of them). The main set keeps its ``validation/*`` metric names; each
+    named set logs under ``validation/<name>/*``. A pass lasts as long as its slowest
+    set, and a pass still running at the next interval is skipped (or deferred, see
+    ``defer_busy_passes``) as a whole, so a long set either widens ``interval`` or
+    runs on every n-th pass via ``ValidationSetConfig.every``."""
+
     def __post_init__(self) -> None:
         if self.group_size < 1:
             raise ValueError(
@@ -284,6 +360,16 @@ class ValidationConfig:
             raise ValueError(
                 f"validation.num_samples must be non-negative, got {self.num_samples}"
             )
+        names = [validation_set.name for validation_set in self.sets]
+        if len(names) != len(set(names)):
+            raise ValueError(f"validation set names must be unique, got {names}")
+
+    @property
+    def enabled(self) -> bool:
+        """Whether a pass scores anything: the main set or a named one."""
+        return self.num_samples > 0 or any(
+            validation_set.num_samples != 0 for validation_set in self.sets
+        )
 
 
 # An eval generator idle between passes answers its next RPC with a gloo
@@ -316,11 +402,28 @@ def _hold_validation_for_unchanged_weights(
     )
 
 
+def _check_validation_sets(validation: ValidationConfig, *, datasets: dict) -> None:
+    """Every named set needs a rollouter dataset; a dataset nothing scores is said."""
+    names = {validation_set.name for validation_set in validation.sets}
+    missing = sorted(names - set(datasets))
+    if missing:
+        raise ValueError(
+            f"validation sets {missing} have no rollouter.validation_sets dataset "
+            f"(configured: {sorted(datasets) or 'none'})"
+        )
+    unused = sorted(set(datasets) - names)
+    if unused:
+        logger.warning(
+            "rollouter.validation_sets %s are not in validation.sets; nothing scores them",
+            unused,
+        )
+
+
 def _will_validate_after_step(
     *, validation: ValidationConfig, step: int, num_training_steps: int
 ) -> bool:
     """Return whether a non-empty validation pass follows this training step."""
-    return validation.num_samples > 0 and (
+    return validation.enabled and (
         step == num_training_steps
         or (validation.interval > 0 and step % validation.interval == 0)
     )
@@ -939,6 +1042,10 @@ class Controller(Configurable):
                 + self.training_lineage.session_id
             )
             os.environ["TRL_ROLLOUT_ATTEMPT_ID"] = self._rollout_attempt_id
+        _check_validation_sets(
+            config.async_loop.validation,
+            datasets=getattr(config.rollouter, "validation_sets", {}),
+        )
         self._rollouter: Rollouter = config.rollouter.build()
         self.rollout_recorder = config.rollout_recorder.build(
             dump_dir=config.dump_folder
@@ -1004,6 +1111,12 @@ class Controller(Configurable):
             except Exception:
                 logger.exception("mesh.stop[%d] failed", i)
         self._proc_meshes = []
+
+        # Trace reports still being written (the last pass's, with
+        # trace_report_in_background) need only this process: finish them after
+        # the trainer and generators are released, not while they wait. A further
+        # stop signal during this wait still cancels them.
+        await self._drain_trace_reports()
 
     def _get_rank_0_value(self, result):
         """Extract rank 0 result from a Monarch ValueMesh.
@@ -1112,7 +1225,11 @@ class Controller(Configurable):
         # is tight, so a larger ceiling matches the run-ahead pool without OOM.
         async_loop = self.config.async_loop
         validation = async_loop.validation
-        num_validation_rollouts = validation.num_samples * validation.group_size
+        # Named sets share the pass, so they count toward its size.
+        num_validation_rollouts = validation.num_samples * validation.group_size + sum(
+            math.prod(self._validation_set_shape(validation_set))
+            for validation_set in validation.sets
+        )
         rollout_concurrency = max(
             async_loop.resolved_max_active_rollout_groups() * async_loop.group_size,
             # A dedicated eval generator sizes itself off the validation pass alone.
@@ -1596,15 +1713,32 @@ class Controller(Configurable):
 
     @sl.log_trace_span("_collect_validation_rollouts")
     async def _collect_validation_rollouts(
-        self, *, num_groups: int, group_size: int, sampling: SamplingConfig, step: int
+        self,
+        *,
+        num_groups: int,
+        group_size: int,
+        sampling: SamplingConfig,
+        step: int,
+        set_name: str | None = None,
     ) -> tuple[list[object], list[RolloutGroup], list[m.Metric]]:
         """Run ``num_groups`` held-out prompts x ``group_size`` trials concurrently.
+
+        ``set_name`` draws the prompts from that named validation set and puts its
+        metrics under ``validation/<set_name>/``; None is the main set, whose
+        metrics keep their ``validation/*`` names.
 
         Returns the surviving prompts, their scored groups (index-aligned), and the
         validation metrics.
         """
+        prefix = "validation" if set_name is None else f"validation/{set_name}"
+        reward_key = "validation_reward" if set_name is None else f"{prefix}/reward"
         # TODO(naming): reserve "sample" for TrainingSample; rename the rollouter's raw-prompt "sample" -> "prompt"/"data_input".
-        samples = [self._rollouter.get_validation_sample() for _ in range(num_groups)]
+        samples = [
+            self._rollouter.get_validation_sample()
+            if set_name is None
+            else self._rollouter.get_validation_sample(set_name)
+            for _ in range(num_groups)
+        ]
         # Negative, process-unique ids keep validation disjoint from training and
         # from prior validation prefix-cache salts.
         group_ids = self._allocate_validation_group_ids(num_groups)
@@ -1647,7 +1781,18 @@ class Controller(Configurable):
             rollout_groups.append(result)
 
         rollouts = [rollout for group in rollout_groups for rollout in group.rollouts]
-        metrics = compute_rollout_metrics(prefix="validation", rollouts=rollouts)
+        metrics = compute_rollout_metrics(prefix=prefix, rollouts=rollouts)
+        if set_name is not None:
+            # compute_rollout_metrics names the reward "<prefix>_reward"; a named
+            # set keeps all of its keys under validation/<name>/ instead.
+            metrics = [
+                replace(
+                    metric,
+                    key=metric.key.replace(f"{prefix}_reward/", f"{prefix}/reward/", 1),
+                )
+                for metric in metrics
+                if metric.key != f"{prefix}_reward"
+            ]
         # Keep the requested denominator when infrastructure loses a trial or group.
         rewards = [
             rollout.reward
@@ -1658,13 +1803,13 @@ class Controller(Configurable):
             for rollout in rollouts
         ]
         rewards.extend([0.0] * (num_groups * group_size - len(rollouts)))
-        metrics = [metric for metric in metrics if metric.key != "validation_reward"]
-        metrics.append(m.Metric("validation_reward", m.SummaryStats.from_list(rewards)))
+        metrics = [metric for metric in metrics if metric.key != reward_key]
+        metrics.append(m.Metric(reward_key, m.SummaryStats.from_list(rewards)))
         # Re-key the rollouter's own group metrics (e.g. tmax nonsubmit_frac,
         # finish-reason split) into the validation namespace, so the eval curve
         # carries the same diagnostics as the training curve without colliding.
         metrics.extend(
-            replace(metric, key=metric.key.replace("rollout/", "validation/", 1))
+            replace(metric, key=metric.key.replace("rollout/", f"{prefix}/", 1))
             for group in rollout_groups
             for metric in group.metrics
             if metric.key.startswith("rollout/")
@@ -1675,7 +1820,7 @@ class Controller(Configurable):
         if group_size > 1:
             metrics.extend(
                 m.Metric(
-                    "validation/pass_at_k",
+                    f"{prefix}/pass_at_k",
                     m.Mean(
                         1.0
                         if any(
@@ -1691,32 +1836,62 @@ class Controller(Configurable):
                 for group in rollout_groups
             )
             metrics.extend(
-                m.Metric("validation/pass_at_k", m.Mean(0.0))
+                m.Metric(f"{prefix}/pass_at_k", m.Mean(0.0))
                 for _ in range(num_failed_groups)
             )
         metrics.append(
-            m.Metric("validation/group_failures", m.Sum(float(num_failed_groups)))
+            m.Metric(f"{prefix}/group_failures", m.Sum(float(num_failed_groups)))
         )
         valid = validation_is_valid(
             rollout_groups, num_groups=num_groups, group_size=group_size
         )
         if not valid:
             logger.warning(
-                "step %d: incomplete validation; scores include unscored trials as zero",
+                "step %d: incomplete validation%s; scores include unscored trials as zero",
                 step,
+                "" if set_name is None else f" of set {set_name}",
             )
-        metrics.append(m.Metric("validation/valid", m.NoReduce(float(valid))))
+        metrics.append(m.Metric(f"{prefix}/valid", m.NoReduce(float(valid))))
         return kept_samples, rollout_groups, metrics
+
+    def _validation_set_shape(
+        self, validation_set: ValidationSetConfig
+    ) -> tuple[int, int]:
+        """(prompts, trials per prompt) one pass scores for a named set."""
+        validation = self.config.async_loop.validation
+        num_samples = validation_set.num_samples
+        if num_samples < 0:
+            num_samples = self._rollouter.validation_set_size(validation_set.name)
+            if num_samples is None:
+                raise ValueError(
+                    f"validation set {validation_set.name}: num_samples=-1 needs a "
+                    "dataset that reports its size; set num_samples"
+                )
+        return num_samples, validation_set.group_size or validation.group_size
+
+    def _validation_set_due(
+        self, validation_set: ValidationSetConfig, *, final: bool
+    ) -> bool:
+        """Whether this pass scores ``validation_set`` (see ``every``). ``final`` is
+        the post-training pass, which may come before ``num_training_steps`` when
+        the loop exits early."""
+        pass_index = getattr(self, "_validation_pass_index", 0)
+        return validation_set.num_samples != 0 and (
+            validation_set.every == 1
+            or pass_index % validation_set.every == 0
+            or final
+        )
 
     # TODO: we currently determine validation.num_samples
     # but what if i want to run the entire dataset?
     @sl.log_trace_span("validate")
-    async def validate(self, *, step: int) -> list[m.Metric]:
+    async def validate(self, *, step: int, final: bool = False) -> list[m.Metric]:
         """Run one validation pass over held-out prompts.
 
         Args:
             step: Policy version this pass scores (0 for the pre-training pass);
                 tagged into logged rollout samples and the trace report directory.
+            final: The post-training pass; it scores every named set.
 
         Returns:
             Validation rollout metrics, generation metrics, and validation
@@ -1724,7 +1899,7 @@ class Controller(Configurable):
         """
         t_validate_start = time.perf_counter()
         validation = self.config.async_loop.validation
-        if validation.num_samples == 0:  # skip validation (e.g. loss guard CI)
+        if not validation.enabled:  # skip validation (e.g. loss guard CI)
             return []
         if self.config.num_eval_generators > 0 and self.eval_generator_router is None:
             # An earlier eval-generator failure disabled the evaluator; training
@@ -1741,15 +1916,136 @@ class Controller(Configurable):
                 else {"max_tokens": validation.max_tokens}
             ),
         )
+        due_sets = [
+            validation_set
+            for validation_set in validation.sets
+            if self._validation_set_due(validation_set, final=final)
+        ]
+        self._validation_pass_index = getattr(self, "_validation_pass_index", 0) + 1
 
-        samples, rollout_groups, metrics = await self._collect_validation_rollouts(
-            num_groups=validation.num_samples,
-            group_size=validation.group_size,
-            sampling=sampling,
-            step=step,
+        # The main set and every due named set run concurrently, in one pass.
+        collections = []
+        if validation.num_samples > 0:
+            collections.append(
+                self._collect_validation_rollouts(
+                    num_groups=validation.num_samples,
+                    group_size=validation.group_size,
+                    sampling=sampling,
+                    step=step,
+                )
+            )
+        shapes = [self._validation_set_shape(s) for s in due_sets]
+        collections.extend(
+            self._collect_validation_rollouts(
+                num_groups=num_groups,
+                group_size=group_size,
+                sampling=replace(
+                    sampling,
+                    **{
+                        key: value
+                        for key, value in (
+                            ("temperature", validation_set.temperature),
+                            ("top_p", validation_set.top_p),
+                            ("max_tokens", validation_set.max_tokens),
+                        )
+                        if value is not None
+                    },
+                ),
+                step=step,
+                set_name=validation_set.name,
+            )
+            for validation_set, (num_groups, group_size) in zip(
+                due_sets, shapes, strict=True
+            )
         )
+        # A lone main set is awaited as before. With more than one collection, one
+        # that raises costs only its own set: the others are still awaited and
+        # logged, and the failed one is marked invalid.
+        results = (
+            [await collections[0]]
+            if len(collections) == 1
+            else await asyncio.gather(*collections, return_exceptions=True)
+        )
+        for result in results:
+            if isinstance(result, BaseException) and not isinstance(result, Exception):
+                raise result  # cancellation and the like are not a set's failure
+        main_result = results[0] if validation.num_samples > 0 else None
+        set_results = results[1:] if validation.num_samples > 0 else results
 
-        self.rollout_recorder.record(is_validation=True, rollout_groups=rollout_groups)
+        metrics: list[m.Metric] = []
+        if isinstance(main_result, Exception):
+            logger.error(
+                f"step {step}: main validation set failed; marking it invalid",
+                exc_info=main_result,
+            )
+            metrics.append(m.Metric("validation/valid", m.NoReduce(0.0)))
+            main_result = None
+        if main_result is not None:
+            samples, rollout_groups, main_metrics = main_result
+            metrics.extend(main_metrics)
+            self.rollout_recorder.record(
+                is_validation=True, rollout_groups=rollout_groups
+            )
+            summary = await self._validation_trace_report(
+                step=step, samples=samples, rollout_groups=rollout_groups
+            )
+            if summary is not None and summary.pass_at_k is not None:
+                metrics.append(
+                    m.Metric("validation/trace_pass_at_k", m.NoReduce(summary.pass_at_k))
+                )
+        for validation_set, (num_groups, group_size), result in zip(
+            due_sets, shapes, set_results, strict=True
+        ):
+            if isinstance(result, Exception):
+                logger.error(
+                    f"step {step}: validation set {validation_set.name} failed; "
+                    "marking it invalid",
+                    exc_info=result,
+                )
+                metrics.append(
+                    m.Metric(f"validation/{validation_set.name}/valid", m.NoReduce(0.0))
+                )
+                continue
+            samples, rollout_groups, set_metrics = result
+            metrics.extend(set_metrics)
+            self.rollout_recorder.record(
+                is_validation=True,
+                rollout_groups=rollout_groups,
+                set_name=validation_set.name,
+            )
+            summary = await self._validation_trace_report(
+                step=step,
+                samples=samples,
+                rollout_groups=rollout_groups,
+                set_name=validation_set.name,
+                num_samples=num_groups,
+                group_size=group_size,
+            )
+            if summary is not None and summary.pass_at_k is not None:
+                metrics.append(
+                    m.Metric(
+                        f"validation/{validation_set.name}/trace_pass_at_k",
+                        m.NoReduce(summary.pass_at_k),
+                    )
+                )
+
+        metrics.append(m.Metric("validation/policy_version", m.NoReduce(float(step))))
+        t_validate_s = time.perf_counter() - t_validate_start
+        metrics.append(m.Metric("timing/validate", m.NoReduce(t_validate_s)))
+        return metrics
+
+    async def _validation_trace_report(
+        self,
+        *,
+        step: int,
+        samples: list[object],
+        rollout_groups: list[RolloutGroup],
+        **set_fields,
+    ) -> EvalSummary | None:
+        """Write one set's trace report: inside the pass, or in a background task
+        with ``trace_report_in_background`` (then None, and no trace_pass_at_k).
+
+        ``set_fields`` are ``_record_validation_traces``' named-set arguments."""
         # Off the event loop: the report decodes and writes all 445 trials to
         # the dump mount, measured at ~500 s per pass, during which the loop
         # served no rollouts, data input or batching.
@@ -1758,30 +2054,40 @@ class Controller(Configurable):
             step=step,
             samples=samples,
             rollout_groups=rollout_groups,
+            **set_fields,
         )
-        summary = None
-        if validation.trace_report_in_background:
-            task = asyncio.create_task(report, name=f"validation_trace_{step}")
-            self._trace_report_tasks.add(task)
-            task.add_done_callback(self._trace_report_tasks.discard)
-        else:
-            summary = await report
-        if summary is not None and summary.pass_at_k is not None:
-            metrics.append(
-                m.Metric("validation/trace_pass_at_k", m.NoReduce(summary.pass_at_k))
-            )
-
-        metrics.append(m.Metric("validation/policy_version", m.NoReduce(float(step))))
-        t_validate_s = time.perf_counter() - t_validate_start
-        metrics.append(m.Metric("timing/validate", m.NoReduce(t_validate_s)))
-        return metrics
+        if not self.config.async_loop.validation.trace_report_in_background:
+            return await report
+        set_name = set_fields.get("set_name")
+        task = asyncio.create_task(
+            report,
+            name=f"validation_trace_{step}"
+            if set_name is None
+            else f"validation_trace_{set_name}_{step}",
+        )
+        self._trace_report_tasks.add(task)
+        task.add_done_callback(self._trace_report_tasks.discard)
+        return None
 
     def _record_validation_traces(
-        self, *, step: int, samples: list[object], rollout_groups: list[RolloutGroup]
+        self,
+        *,
+        step: int,
+        samples: list[object],
+        rollout_groups: list[RolloutGroup],
+        set_name: str | None = None,
+        num_samples: int | None = None,
+        group_size: int | None = None,
     ) -> EvalSummary | None:
-        """Write the browsable per-pass trace report; never fail the pass over it."""
+        """Write the browsable per-pass trace report; never fail the pass over it.
+
+        A named set (``set_name``) passes its own ``num_samples`` / ``group_size``
+        and gets its own report directory; the main set uses the config's."""
         if not self.validation_trace_recorder.enabled:
             return None
+        validation = self.config.async_loop.validation
+        num_samples = validation.num_samples if num_samples is None else num_samples
+        group_size = validation.group_size if group_size is None else group_size
         try:
             return self.validation_trace_recorder.record(
                 policy_version=step,
@@ -1790,16 +2096,12 @@ class Controller(Configurable):
                     _task_id(sample, index) for index, sample in enumerate(samples)
                 ],
                 decode=self.renderer._tokenizer.decode,
-                expected_num_tasks=self.config.async_loop.validation.num_samples,
-                expected_num_trials=(
-                    self.config.async_loop.validation.num_samples
-                    * self.config.async_loop.validation.group_size
-                ),
+                expected_num_tasks=num_samples,
+                expected_num_trials=num_samples * group_size,
                 valid=validation_is_valid(
-                    rollout_groups,
-                    num_groups=self.config.async_loop.validation.num_samples,
-                    group_size=self.config.async_loop.validation.group_size,
+                    rollout_groups, num_groups=num_samples, group_size=group_size
                 ),
+                **({} if set_name is None else {"set_name": set_name}),
             )
         except Exception:
             logger.exception("validation trace report failed at step %d", step)
@@ -2075,7 +2377,10 @@ class Controller(Configurable):
             requested_training_steps=num_training_steps,
         )
         self._training_activity_phase = "complete"
+        await self._post_training_validation()
 
+    async def _post_training_validation(self) -> None:
+        """The final pass, after the loop: it scores every named set (``final``)."""
         # Drain any background pass first: it holds the eval generators, and its
         # curve point would otherwise be lost when the controller exits.
         await self._await_pending_validation()
@@ -2092,13 +2397,26 @@ class Controller(Configurable):
         # Label the pass with the version actually reached, not the requested step
         # count: the loop also exits early when the batcher drains.
         post_validation = await self._validate_and_log(
-            step=self._trainer_policy_version
+            step=self._trainer_policy_version, final=True
         )
         self._log_reward_delta(
             self._validation_results.get(self.start_step, {}), post_validation
         )
 
-    async def _validate_and_log(self, *, step: int) -> dict[str, float]:
+    async def _drain_trace_reports(self) -> None:
+        """Wait for the background trace reports (``trace_report_in_background``)
+        still being written, e.g. the post-training or eval-only pass's: nothing
+        else awaits them. ``close`` calls it last, once the actors are down."""
+        tasks = getattr(self, "_trace_report_tasks", None)
+        if tasks:
+            logger.info(
+                "Waiting for %d validation trace report(s) to finish writing", len(tasks)
+            )
+            await asyncio.gather(*tasks, return_exceptions=True)
+
+    async def _validate_and_log(
+        self, *, step: int, final: bool = False
+    ) -> dict[str, float]:
         """Run one validation pass, log it, and return its aggregated values for the pre/post delta.
 
         Metrics are logged at ``self._trainer_policy_version`` (the live training
@@ -2108,7 +2426,9 @@ class Controller(Configurable):
         version is carried in ``validation/policy_version`` and in the trace report's
         directory name instead.
         """
-        metrics = await self.validate(step=step)
+        metrics = await (
+            self.validate(step=step, final=True) if final else self.validate(step=step)
+        )
         if metrics:
             self.metrics_processor.log(
                 step=max(step, self._trainer_policy_version),
@@ -2286,8 +2606,7 @@ class Controller(Configurable):
                 "Waiting for the in-flight background validation pass to finish"
             )
             await task
-        if self._trace_report_tasks:
-            await asyncio.gather(*self._trace_report_tasks, return_exceptions=True)
+        await self._drain_trace_reports()
 
     def _log_reward_delta(self, pre: dict[str, float], post: dict[str, float]) -> None:
         """Console pre/post reward summary, visible without scrolling back through the loop."""

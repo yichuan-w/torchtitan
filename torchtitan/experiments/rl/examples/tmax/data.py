@@ -457,6 +457,10 @@ class TMaxDataset(Configurable):
                 config.initial_skip_samples,
             )
 
+    def __len__(self) -> int:
+        """Rows this split serves (one pass over them is one epoch)."""
+        return len(self._order)
+
     def __iter__(self) -> Iterator[TMaxSample]:
         return self
 
