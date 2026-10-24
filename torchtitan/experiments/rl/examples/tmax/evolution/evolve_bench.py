@@ -914,7 +914,7 @@ def rewrite_facts(root: Path, tid: str, rw_path: Path) -> dict:
     one what it changed and whether its grader needs a live third-party host."""
     rw = json.load(open(rw_path))
     rw_dir = rw_path.parent
-    usd, _ = offline_cost.rewrite_usd(str(rw_dir))
+    usd, unpriced = offline_cost.rewrite_usd(str(rw_dir))
     f = {
         "task": tid,
         "rewrite": rw_dir.name,
@@ -928,8 +928,10 @@ def rewrite_facts(root: Path, tid: str, rw_path: Path) -> dict:
         "signal_band": _signal_band(root, rw) if rw.get("signal") else None,
         "usd": round(usd, 4),
         # Codex sessions record token counts (one that died before its first
-        # turn records none and cost nothing); a Claude Code arm's do not.
-        "cost_known": (rw.get("arm") or "codex") == "codex",
+        # turn records none and cost nothing); a Claude Code arm's do not, and
+        # a model offline_cost has no list price for is not guessed at.
+        "cost_known": (rw.get("arm") or "codex") == "codex" and not unpriced,
+        "unpriced_models": sorted(unpriced),
         "declared_repairs": len(rw.get("repair") or []),
     }
     task_dir = root / "evolution" / "tasks" / tid

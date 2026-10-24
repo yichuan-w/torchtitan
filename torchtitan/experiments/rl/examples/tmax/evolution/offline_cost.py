@@ -84,13 +84,14 @@ def priced(c: dict, p: dict) -> dict:
     return c
 
 
-def rewrite_usd(rewrite_dir: str) -> tuple[float, int]:
+def rewrite_usd(rewrite_dir: str) -> tuple[float, set[str]]:
     """List-price USD of every session of one rewrite, each at the price of
-    the model its session.json names, and how many sessions carried token
-    records. A model missing from MODEL_PRICES raises: a bench number priced
-    at someone else's rate is worse than none."""
+    the model its session.json names, and the models MODEL_PRICES has no
+    price for. Those sessions are left out of the sum, and the caller reports
+    the cost as unknown: a bench number priced at someone else's rate is
+    worse than none."""
     usd = 0.0
-    n = 0
+    unpriced: set[str] = set()
     for j in glob.glob(os.path.join(rewrite_dir, SESSION_GLOB)):
         last, _, _ = read_session(j)
         if not last:
@@ -98,10 +99,11 @@ def rewrite_usd(rewrite_dir: str) -> tuple[float, int]:
         model = json.load(
             open(os.path.join(j.split("/codex/sessions/")[0], "session.json"))
         )["model"]
+        if model not in MODEL_PRICES:
+            unpriced.add(model)
+            continue
         usd += priced(token_classes(last), MODEL_PRICES[model])["usd"]
-        n += 1
-    return usd, n
-
+    return usd, unpriced
 
 def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__.split("\n\n", 1)[0])
