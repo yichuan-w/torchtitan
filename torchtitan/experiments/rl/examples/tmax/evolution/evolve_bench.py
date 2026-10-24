@@ -123,6 +123,8 @@ PACKAGE_HOSTS = {
     "download.pytorch.org", "conda.anaconda.org", "repo.anaconda.com",
     "repo.maven.apache.org", "rubygems.org", "cloud.r-project.org", "nodejs.org",
 }
+# RFC 2606 / 6761 names never resolve to a real host.
+RESERVED_SUFFIXES = (".local", ".example", ".test", ".invalid", ".localhost")
 LOCAL_HOSTS = {"localhost", "127.0.0.1", "0.0.0.0", "host.docker.internal", "example.com", "example.org"}
 FETCH_RE = re.compile(
     r"\bgit['\"]?[\s,]+['\"]?(clone|fetch|pull|ls-remote)\b|clone_from\(|\bcurl\b|\bwget\b"
@@ -133,10 +135,13 @@ URL_RE = re.compile(r"\b(?:https?|git|ssh)://([A-Za-z0-9.-]+)|\bgit@([A-Za-z0-9.
 EXEC_RE = re.compile(r"subprocess\.(run|call|check_call|check_output|Popen)|os\.system\(|\bbash\s+-c\b|\bpython3?\s+/(app|home|tmp|workspace)")
 WRITE_RE = re.compile(r"tempfile\.|mkdtemp|NamedTemporaryFile|write_text\(|write_bytes\(|open\([^)]*['\"][wa]b?['\"]|cat\s*>|>\s*/tmp/|shutil\.copy")
 ASSERT_RE = re.compile(r"\bassert\w*\b")
+# The rewrite saying, of the verifier itself, that it did not change. A partial
+# "otherwise unchanged" is not that claim, and neither is an untouched workspace.
+_SUBJ = r"(?:verifier|tests?|checker|grader|test\.sh|test_\w+\.py)"
 CLAIM_UNCHANGED_RE = re.compile(
-    r"\b(verifier|tests?|checker|grader|test\.sh|test_\w+\.py)\b[^.\n]{0,60}"
-    r"\b(unchanged|untouched|not (?:been )?(?:changed|modified|edited|touched)|left as[- ]is|kept as[- ]is)"
-    r"|\b(no changes? to|without (?:changing|modifying|touching)) (?:the )?(verifier|tests?|checker|grader)\b",
+    rf"\b{_SUBJ}\s+(?:remains?|remained|stays?|stayed|is|are|was|were)\s+(?:entirely\s+|completely\s+)?(?:unchanged|untouched)\b"
+    rf"|\b(?:left|leaves?|keeps?|kept)\s+(?:the\s+)?(?:[\w-]+,?\s+(?:and\s+)?){{0,3}}{_SUBJ}\s+(?:unchanged|untouched|as[- ]is)\b"
+    rf"|\b(?:no\s+changes?\s+to|without\s+(?:changing|modifying|touching))\s+(?:the\s+)?{_SUBJ}\b(?!['\u2019]s)",
     re.I,
 )
 TEXT_LIMIT = 2 << 20
@@ -835,7 +840,7 @@ def grader_hosts(pkg: Path) -> list[str]:
             continue
         for m in URL_RE.finditer(text):
             h = (m.group(1) or m.group(2)).lower().rstrip(".")
-            if h not in PACKAGE_HOSTS and h not in LOCAL_HOSTS and not h.endswith(".local"):
+            if h not in PACKAGE_HOSTS and h not in LOCAL_HOSTS and not h.endswith(RESERVED_SUFFIXES):
                 hosts.add(h)
     return sorted(hosts)
 

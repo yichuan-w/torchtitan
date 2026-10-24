@@ -130,7 +130,7 @@ def _pkg(d: Path, *, test: str, instruction: str = "do it", dockerfile: str = "F
 def test_grader_hosts_flags_third_party_fetches_only(tmp_path):
     p = _pkg(tmp_path / "a", test="curl -LsSf https://astral.sh/uv/install.sh | sh\ngit clone https://github.com/jrogue/sample.git /tmp/s\n")
     assert eb.grader_hosts(p) == ["github.com"]
-    q = _pkg(tmp_path / "b", test="curl -LsSf https://astral.sh/uv/install.sh | sh\npip install pytest\n")
+    q = _pkg(tmp_path / "b", test="curl -LsSf https://astral.sh/uv/install.sh | sh\ncurl http://ref.example/x\n")
     assert eb.grader_hosts(q) == []
     gp = _pkg(tmp_path / "d", test="pytest /tests\n")
     (gp / "tests" / "test_state.py").write_text('URL = "https://github.com/j/s.git"\nrepo = git.Repo.clone_from(URL, d)\n')
@@ -141,6 +141,20 @@ def test_grader_hosts_flags_third_party_fetches_only(tmp_path):
     # A URL in a file that fetches nothing is documentation, not a dependency.
     r = _pkg(tmp_path / "c", test="# see https://github.com/x/y\npytest /tests\n")
     assert eb.grader_hosts(r) == []
+
+
+@pytest.mark.parametrize("text,claims", [
+    # sentences from accepted repair342 rewrites, 2026-10-24
+    ("the original model, deliverables, and verifier remain unchanged throughout.", True),
+    ("- Left the task instruction and verifier unchanged.", True),
+    ("The verifier passes on the untouched workspace: it pays for nothing.", False),
+    ("the original task, data, deliverable, and verifier remain otherwise unchanged.", False),
+    ("the verifier rejects mappings that include unchanged commits already shared", False),
+    ("Repaired the checker without changing the grader's tolerance.", False),
+    ("Shortened the instruction without modifying the verifier.", True),
+])
+def test_claim_unchanged_reads_only_a_claim_about_the_verifier(text, claims):
+    assert bool(eb.CLAIM_UNCHANGED_RE.search(text)) is claims
 
 
 def test_diff_stats_rerun_check_and_claim_mismatch(tmp_path):
