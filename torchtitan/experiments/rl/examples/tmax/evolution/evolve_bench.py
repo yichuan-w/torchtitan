@@ -124,7 +124,10 @@ PACKAGE_HOSTS = {
     "repo.maven.apache.org", "rubygems.org", "cloud.r-project.org", "nodejs.org",
 }
 LOCAL_HOSTS = {"localhost", "127.0.0.1", "0.0.0.0", "host.docker.internal", "example.com", "example.org"}
-FETCH_RE = re.compile(r"\bgit\s+(clone|fetch|pull|ls-remote)\b|\bcurl\b|\bwget\b|requests\.(get|post|head)\(|urlopen\(|urlretrieve\(|httpx\.|aiohttp")
+FETCH_RE = re.compile(
+    r"\bgit['\"]?[\s,]+['\"]?(clone|fetch|pull|ls-remote)\b|clone_from\(|\bcurl\b|\bwget\b"
+    r"|requests\.(get|post|head)\(|urlopen\(|urlretrieve\(|httpx\.|aiohttp|pip\s+install\s+git\+"
+)
 URL_RE = re.compile(r"\b(?:https?|git|ssh)://([A-Za-z0-9.-]+)|\bgit@([A-Za-z0-9.-]+):")
 # A new check that runs the submitted program on inputs the grader writes.
 EXEC_RE = re.compile(r"subprocess\.(run|call|check_call|check_output|Popen)|os\.system\(|\bbash\s+-c\b|\bpython3?\s+/(app|home|tmp|workspace)")

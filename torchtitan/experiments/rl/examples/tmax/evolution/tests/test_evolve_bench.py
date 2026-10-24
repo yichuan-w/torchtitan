@@ -132,6 +132,12 @@ def test_grader_hosts_flags_third_party_fetches_only(tmp_path):
     assert eb.grader_hosts(p) == ["github.com"]
     q = _pkg(tmp_path / "b", test="curl -LsSf https://astral.sh/uv/install.sh | sh\npip install pytest\n")
     assert eb.grader_hosts(q) == []
+    gp = _pkg(tmp_path / "d", test="pytest /tests\n")
+    (gp / "tests" / "test_state.py").write_text('URL = "https://github.com/j/s.git"\nrepo = git.Repo.clone_from(URL, d)\n')
+    assert eb.grader_hosts(gp) == ["github.com"]
+    lp = _pkg(tmp_path / "e", test="pytest /tests\n")
+    (lp / "tests" / "t.py").write_text("subprocess.run(['git', 'clone', 'https://gitlab.com/a/b'])\n")
+    assert eb.grader_hosts(lp) == ["gitlab.com"]
     # A URL in a file that fetches nothing is documentation, not a dependency.
     r = _pkg(tmp_path / "c", test="# see https://github.com/x/y\npytest /tests\n")
     assert eb.grader_hosts(r) == []
