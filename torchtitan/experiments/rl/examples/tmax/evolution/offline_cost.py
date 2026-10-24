@@ -28,11 +28,79 @@ import os
 
 
 # platform.claude.com/docs/en/about-claude/pricing, 2026-09-27; 5-minute cache writes.
+# gpt-5.6-sol: the list price the r100 Codex arms were priced at (uncached input,
+# cached input, output); OpenAI bills no cache write, and Codex records none.
 MODEL_PRICES = {
     "claude-opus-5": {"in": 5.0, "cw": 6.25, "cr": 0.50, "out": 25.0},
     "claude-opus-5-5": {"in": 4.0, "cw": 5.0, "cr": 0.20, "out": 20.0},
     "claude-sonnet-5": {"in": 2.0, "cw": 2.50, "cr": 0.20, "out": 10.0},
+    "gpt-5.6-sol": {"in": 4.0, "cw": 4.0, "cr": 0.40, "out": 20.0},
 }
+TOKEN_CLASSES = ("in", "cw", "cr", "out")
+# Under <rewrite dir>: every Codex session's own rollout jsonl.
+SESSION_GLOB = "sessions/*/codex/sessions/*/*/*/*.jsonl"
+
+
+def read_session(path: str) -> tuple[dict | None, list[int], list[int]]:
+    """A Codex session jsonl's last cumulative token_count usage, and each
+    turn's context and output size. The usage is None when no turn recorded one."""
+    last = None
+    ctx: list[int] = []
+    out: list[int] = []
+    for line in open(path, errors="replace"):
+        if '"token_count"' not in line:
+            continue
+        try:
+            info = json.loads(line)["payload"]["info"]
+        except Exception:  # noqa: BLE001
+            continue
+        if not info or not info.get("total_token_usage"):
+            continue
+        last = info["total_token_usage"]
+        lu = info.get("last_token_usage") or {}
+        ctx.append(lu.get("input_tokens", 0))
+        out.append(lu.get("output_tokens", 0))
+    return last, ctx, out
+
+
+def token_classes(last: dict) -> dict:
+    """Cumulative usage split into the four priced classes."""
+    return {
+        "in": last["input_tokens"]
+        - last.get("cached_input_tokens", 0)
+        - last.get("cache_write_input_tokens", 0),
+        "cw": last.get("cache_write_input_tokens", 0),
+        "cr": last.get("cached_input_tokens", 0),
+        "out": last["output_tokens"],
+    }
+
+
+def priced(c: dict, p: dict) -> dict:
+    """``c`` with usd_<class> and usd added, at per-million prices ``p``."""
+    c = dict(c)
+    for k in TOKEN_CLASSES:
+        c["usd_" + k] = c[k] / 1e6 * p[k]
+    c["usd"] = sum(c["usd_" + k] for k in TOKEN_CLASSES)
+    return c
+
+
+def rewrite_usd(rewrite_dir: str) -> tuple[float, int]:
+    """List-price USD of every session of one rewrite, each at the price of
+    the model its session.json names, and how many sessions carried token
+    records. A model missing from MODEL_PRICES raises: a bench number priced
+    at someone else's rate is worse than none."""
+    usd = 0.0
+    n = 0
+    for j in glob.glob(os.path.join(rewrite_dir, SESSION_GLOB)):
+        last, _, _ = read_session(j)
+        if not last:
+            continue
+        model = json.load(
+            open(os.path.join(j.split("/codex/sessions/")[0], "session.json"))
+        )["model"]
+        usd += priced(token_classes(last), MODEL_PRICES[model])["usd"]
+        n += 1
+    return usd, n
 
 
 def main() -> None:
@@ -69,9 +137,7 @@ def main() -> None:
     thinking = out_total = turns_total = 0
     ctx: list[int] = []
     out: list[int] = []
-    pattern = os.path.join(
-        a.root, "evolution/tasks/*/rewrites/*/sessions/*/codex/sessions/*/*/*/*.jsonl"
-    )
+    pattern = os.path.join(a.root, "evolution/tasks/*/rewrites/*", SESSION_GLOB)
     for j in glob.glob(pattern):
         rw_dir = j.split("/sessions/")[0]
         if a.since and os.path.basename(rw_dir) < a.since:
@@ -103,36 +169,13 @@ def main() -> None:
             fate = "kept(give-up)"
         else:
             fate = status or "?"
-        last = None
-        t = 0
-        for line in open(j, errors="replace"):
-            if '"token_count"' not in line:
-                continue
-            try:
-                info = json.loads(line)["payload"]["info"]
-            except Exception:  # noqa: BLE001
-                continue
-            if not info or not info.get("total_token_usage"):
-                continue
-            last = info["total_token_usage"]
-            lu = info.get("last_token_usage") or {}
-            t += 1
-            ctx.append(lu.get("input_tokens", 0))
-            out.append(lu.get("output_tokens", 0))
+        last, s_ctx, s_out = read_session(j)
+        t = len(s_ctx)
+        ctx.extend(s_ctx)
+        out.extend(s_out)
         if not last:
             continue
-        c = {
-            "in": last["input_tokens"]
-            - last.get("cached_input_tokens", 0)
-            - last.get("cache_write_input_tokens", 0),
-            "cw": last.get("cache_write_input_tokens", 0),
-            "cr": last.get("cached_input_tokens", 0),
-            "out": last["output_tokens"],
-        }
-        p = session_price(j.split("/codex/sessions/")[0])
-        for k in price:
-            c["usd_" + k] = c[k] / 1e6 * p[k]
-        c["usd"] = sum(c["usd_" + k] for k in price)
+        c = priced(token_classes(last), session_price(j.split("/codex/sessions/")[0]))
         thinking += last.get("reasoning_output_tokens", 0)
         out_total += last["output_tokens"]
         turns_total += t
