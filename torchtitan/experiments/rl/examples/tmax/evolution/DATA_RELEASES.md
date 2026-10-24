@@ -49,6 +49,8 @@ package only. The training row does not change. A source with
 solution. `data_agentpick.json` does not set it: its 104 unsolved repair rows
 are imported without one, and the evolution loop's first easier rewrite of each
 writes it (`EVOLVE_LOOP.md`, step 2).
+`"exclude": [<task id>, ...]` leaves the listed tasks out of the release, each
+logged as skipped; an ID the source does not ship is refused.
 
 When an upstream snapshot includes `metadata/cache_manifest.jsonl`, preparation
 downloads and verifies the listed offline cache archives at the same commit. Tasks

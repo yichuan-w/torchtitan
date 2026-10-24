@@ -87,13 +87,16 @@ def check_config(config):
             "archives",
             "count",
         }
-        optional = {"skip_unsolved"}
+        optional = {"skip_unsolved", "exclude"}
         if not required <= set(source) <= required | optional:
             raise ValueError(
                 f"source keys must be {sorted(required)}, optionally {sorted(optional)}"
             )
         if type(source.get("skip_unsolved", False)) is not bool:
             raise ValueError("skip_unsolved must be a boolean")
+        exclude = source.get("exclude", [])
+        if not isinstance(exclude, list) or not all(isinstance(t, str) for t in exclude):
+            raise ValueError("exclude must be a list of task IDs")
         if not re.fullmatch(r"[a-z0-9_-]+", source["name"]) or source["name"] in names:
             raise ValueError("source names must be unique path components")
         names.add(source["name"])
@@ -233,6 +236,13 @@ def prepare_source(source, files, stage, checkpoints, log):
     actual_ids = {p.name for p in (home / "tasks").iterdir() if p.is_dir()}
     if actual_ids != set(ids):
         raise ValueError(f"{source['name']}: package and metadata membership differ")
+    excluded = set(source.get("exclude", []))
+    if excluded - set(ids):
+        raise ValueError(f"{source['name']}: excluded IDs not in the source: {sorted(excluded - set(ids))}")
+    for tid in sorted(excluded):
+        shutil.rmtree(home / "tasks" / tid)
+        log(source=source["name"], task=tid, status="skipped", reason="excluded by config")
+    metadata = [record for record in metadata if record[id_key] not in excluded]
     if source["adapter"] == "tmax_reaudit":
         solved = []
         for record in metadata:
