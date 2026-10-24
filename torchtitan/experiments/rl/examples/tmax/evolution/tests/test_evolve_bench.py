@@ -95,9 +95,10 @@ def test_eval_env_refuses_a_clash_and_another_harness(tmp_path):
     es = tmp_path / "x.jsonl"
     eb._write_evalset(es, [_row("a")], set_dir=str(set_dir))
     env = eb.eval_env(es, "terminus", {"PATH": "/bin"})
-    assert env["SWE_ROLLOUT_CONCURRENCY"] == "256" and env["TMAX_AGENT"] == "terminus"
+    assert env["SWE_ROLLOUT_CONCURRENCY"] == "128" and env["TMAX_AGENT"] == "terminus"
+    assert env["TMAX_CALL_LIMIT"] == "120"
     with pytest.raises(SystemExit, match="pins"):
-        eb.eval_env(es, "terminus", {"SWE_ROLLOUT_CONCURRENCY": "445"})
+        eb.eval_env(es, "terminus", {"SWE_ROLLOUT_CONCURRENCY": "600"})
     with pytest.raises(SystemExit, match="measured under terminus"):
         eb.eval_env(es, "miniswe", {})
 

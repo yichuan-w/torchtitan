@@ -63,6 +63,8 @@ STUDENT_RECIPE = {
     "SWE_TIME_BUDGET_SEC": "2400",
     "SWE_MAX_NUM_SEQS": "256",
     "TMAX_TERMINUS_MAX_TURNS": "120",
+    # vanillux's action cap (its default is 64), so every harness gets 120.
+    "TMAX_CALL_LIMIT": "120",
     "TMAX_TURN_MAX_TOKENS": "32768",
     "TMAX_EXEC_TIMEOUT_SEC": "120",
     "SWE_MAX_CONTEXT_LEN": "63488",
@@ -73,13 +75,15 @@ STUDENT_RECIPE = {
     "SWE_EVOLUTION_SIGNALS": "0",
 }
 # The student harness is part of the recipe but chosen per eval (`eval --harness`).
-HARNESSES = ("terminus", "miniswe")
+HARNESSES = ("vanillux", "terminus", "miniswe")
 # tb2_eval_local.sh runs one generator.
 EVAL_GENERATORS = 1
-# Attempts queue for a decode slot while their wall clock runs: past
-# max_num_seqs x generators they read as time-budget failures (one eval at 445
-# on one 256-seq generator: 356 of its last 400 attempts at the 2400 s budget).
-ROLLOUT_CONCURRENCY = str(int(STUDENT_RECIPE["SWE_MAX_NUM_SEQS"]) * EVAL_GENERATORS)
+# Attempts queue for a decode slot while their wall clock runs and read as
+# time-budget failures: the repair342 base eval at 600 on one generator had 356
+# of its last 400 attempts at the 2400 s budget, and at 128 it had 36 over all
+# 1710. 128 per generator is the measured value; 256 (max_num_seqs) never was.
+ROLLOUT_CONCURRENCY_PER_GENERATOR = 128
+ROLLOUT_CONCURRENCY = str(ROLLOUT_CONCURRENCY_PER_GENERATOR * EVAL_GENERATORS)
 # Launch-level fields that have to agree too.
 RECIPE_FIELDS = ("checkpoint", "tt_commit", "gpu_names", "num_generators")
 

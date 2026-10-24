@@ -42,7 +42,8 @@ every exclude list, is copied into the frozen set's manifest.
   (and 1 calibforge_repair row) that the audit excluded from the training
   release stay in on purpose. They are the rows whose defects are known
   independently of the rewriter, and `data_evolve_bench_defects.tsv` lists
-  them as `audit_20261024_broken`, with four classes checked by hand.
+  them as `audit_20261024_broken`, with four classes checked by hand. For
+  the same reason this release is not training data as it stands.
 - `skip_unpackable` is off: the fixture rows are excluded by id, so a new
   unpackable row fails the build instead of disappearing.
 
@@ -78,7 +79,7 @@ BENCH=/scratch/gpfs/TRIDAO/al9080/terminal-rl/evolve-bench
 
 # once per set: build the release, score every row with the base student, freeze
 $PY $EVO/data_release.py build --config $EVO/data_evolve_bench.json --out <data>/prepared
-TRL_PROFILE=andy $PY $EVO/evolve_bench.py eval --evalset <release>/mix.jsonl --harness terminus \
+TRL_PROFILE=andy $PY $EVO/evolve_bench.py eval --evalset <release>/mix.jsonl --harness vanillux \
     --gpus 4,4 --base $BENCH                       # through gpu-pool, on della-tridao
 $PY $EVO/evolve_bench.py freeze --bench $BENCH --name agentpick400 \
     --eval $BENCH/evals/<stamp>--base-step0-mix --release <release>
@@ -87,7 +88,7 @@ $PY $EVO/evolve_bench.py freeze --bench $BENCH --name agentpick400 \
 $PY $EVO/evolve_bench.py run --bench $BENCH --set agentpick400 --arm arms/sol-medium.json
 # when the drive's log ends in "finished"
 $PY $EVO/evolve_bench.py evalset --root $BENCH/arms/agentpick400--sol-medium
-TRL_PROFILE=andy $PY $EVO/evolve_bench.py eval --harness terminus --gpus 4,4 \
+TRL_PROFILE=andy $PY $EVO/evolve_bench.py eval --harness vanillux --gpus 4,4 \
     --evalset $BENCH/arms/agentpick400--sol-medium/data/evalsets/bench-accepted.jsonl
 $PY $EVO/evolve_bench.py tally --root $BENCH/arms/agentpick400--sol-medium \
     --eval $BENCH/arms/agentpick400--sol-medium/evals/<stamp>--base-step0-bench-accepted \
@@ -123,8 +124,9 @@ The student eval (`eval`, through `della/tb2_eval_local.sh`):
 | sampling | temperature 1.0, top_p 1.0 | `tb2_eval_local.sh`'s defaults, which the `repair342` base eval ran at; the r100 evals of earlier arms ran 0.8 / 0.95 and do not compare with bench evals |
 | budget of a row that declares none | `SWE_EVAL_TIME_BUDGET_SEC=2400` | the workspace's fixed rollout budget |
 | budget of a row that declares one | max(declared, `SWE_EVAL_BUDGET_FLOOR_SEC=7200`) | the floor the `r100` and `repair342` evals used; the eval config reads these two, not `SWE_TIME_BUDGET_SEC` |
-| concurrency | `SWE_ROLLOUT_CONCURRENCY` = `SWE_MAX_NUM_SEQS` (256) x 1 generator | past it, attempts wait for a decode slot while their wall clock runs and read as time-budget failures: one eval run at a concurrency of 445 on one 256-sequence generator had 356 of its last 400 attempts end at the budget |
-| harness | `--harness terminus` or `miniswe`, recorded | the student's harness changes what it can do; a set's signals were measured under one, and `eval` refuses another |
+| concurrency | `SWE_ROLLOUT_CONCURRENCY` = 128 per generator, 1 generator | above what the generator decodes at once, attempts wait for a slot while their wall clock runs and read as time-budget failures: the `repair342` base eval at 600 on one generator had 356 of its last 400 attempts end at the budget, and at 128 it had 36 time-budget failures over all 1,710 attempts. 128 is the measured value; 256 (`SWE_MAX_NUM_SEQS`) has not been measured |
+| harness | `--harness vanillux`, `terminus` or `miniswe`, recorded | the student's harness changes what it can do; a set's signals were measured under one, and `eval` refuses another |
+| action cap | `TMAX_CALL_LIMIT=120` | vanillux's action cap, whose default is 64; at 120 it matches the 120 turns `TMAX_TERMINUS_MAX_TURNS` gives Terminus |
 | per-sandbox fallback | `TT_DAYTONA_*` 1 / 2 / 2 | applies only to rows that declare nothing |
 | signals | `SWE_EVOLUTION_SIGNALS=0` | the measurement never reaches a loop |
 
