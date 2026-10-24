@@ -604,28 +604,49 @@ def build_evalset(root: Path, log: Log) -> Path:
 # --------------------------------------------------------------------------- eval
 
 
+def _release_of(evalset: Path) -> dict | None:
+    """The data release whose mix.jsonl ``evalset`` is, or None."""
+    m = evalset.parent / "manifest.json"
+    if evalset.name != "mix.jsonl" or not m.exists():
+        return None
+    manifest = json.load(open(m))
+    return manifest if "release_sha256" in manifest else None
+
+
 def eval_env(evalset: Path, harness: str, environ: dict[str, str]) -> dict[str, str]:
     """The pinned student recipe over ``environ``; a caller value that
-    disagrees with a pin is refused rather than silently replaced."""
+    disagrees with a pin is refused rather than silently replaced. The evalset
+    is checked against what pinned it: a data release's manifest (the base
+    eval a set's signals are made from, which fixes the set's harness), or
+    its own manifest, whose set fixes the harness this eval must use."""
     pins = {**STUDENT_RECIPE, "SWE_ROLLOUT_CONCURRENCY": ROLLOUT_CONCURRENCY, "TMAX_AGENT": harness}
     clash = {k: environ[k] for k in pins if k in environ and environ[k] != pins[k]}
     if clash:
         raise SystemExit(f"the environment sets {clash}, which the bench recipe pins to {[pins[k] for k in clash]}")
-    manifest = json.load(open(evalset.with_name(evalset.stem + ".manifest.json")))
-    if layout.sha256_file(evalset) != manifest["sha256"]:
-        raise SystemExit(f"{evalset} no longer matches its manifest")
-    set_harness = json.load(open(Path(manifest["set_dir"]) / "manifest.json"))["student_harness"]
-    if harness != set_harness:
-        raise SystemExit(f"the set's signals were measured under {set_harness}, not {harness}")
+    release = _release_of(evalset)
+    if release is not None:
+        want = release["files"]["mix.jsonl"]
+    else:
+        manifest = json.load(open(evalset.with_name(evalset.stem + ".manifest.json")))
+        want = manifest["sha256"]
+        set_harness = json.load(open(Path(manifest["set_dir"]) / "manifest.json"))["student_harness"]
+        if harness != set_harness:
+            raise SystemExit(f"the set's signals were measured under {set_harness}, not {harness}")
+    if layout.sha256_file(evalset) != want:
+        raise SystemExit(f"{evalset} no longer matches the sha256 its manifest pinned")
     return {**environ, **pins, "SWE_TB2_DATA": str(evalset)}
 
 
-def run_eval(evalset: Path, ckpt: str, gpus: str, harness: str) -> None:
+def run_eval(evalset: Path, ckpt: str, gpus: str, harness: str, base: Path | None) -> None:
     """exec della/tb2_eval_local.sh under the recipe. The eval lands in
-    <TRL_BASE>/evals/, TRL_BASE being the root or set the evalset belongs to.
-    Launch it through gpu-pool on della-tridao; TRL_PROFILE names the checkout."""
+    <base>/evals/: by default the root or set the evalset belongs to; a data
+    release's mix names one (its own directory must stay as built). Launch it
+    through gpu-pool on della-tridao; TRL_PROFILE names the checkout."""
     evalset = evalset.resolve()
-    base = evalset.parent.parent.parent if evalset.parent.name == "evalsets" else evalset.parent
+    if base is None:
+        if _release_of(evalset) is not None:
+            raise SystemExit("a release's mix is scored into --base <dir>/evals/, never into the release")
+        base = evalset.parent.parent.parent if evalset.parent.name == "evalsets" else evalset.parent
     env = eval_env(evalset, harness, dict(os.environ))
     env.update(TRL_BASE=str(base), RL_GPUS=gpus)
     script = _EVO / "della" / "tb2_eval_local.sh"
@@ -1530,6 +1551,7 @@ def main() -> None:
     p.add_argument("--harness", choices=HARNESSES, required=True, help="the student harness (TMAX_AGENT)")
     p.add_argument("--ckpt", default="base", help="checkpoint directory, or base")
     p.add_argument("--gpus", required=True, help="RL_GPUS: trainer card, then generator card")
+    p.add_argument("--base", type=Path, help="where evals/ goes; required for a release's mix")
     p = sub.add_parser("tally", help="bands, funnel, rewrite stats, cost and repair as one JSON")
     p.add_argument("--eval", type=Path, nargs="*", default=[], help="eval(s) of the accepted revisions")
     p.add_argument("--run", type=Path, nargs="*", default=[], help="training run(s): bands from each revision's first group")
@@ -1568,7 +1590,7 @@ def main() -> None:
     elif a.cmd == "evalset":
         build_evalset(a.root, _log_for(a.root, "evalset"))
     elif a.cmd == "eval":
-        run_eval(a.evalset, a.ckpt, a.gpus, a.harness)
+        run_eval(a.evalset, a.ckpt, a.gpus, a.harness, a.base)
     elif a.cmd == "tally":
         if a.evalset and len(a.eval) != 1:
             ap.error("--evalset names the evalset of a single eval")

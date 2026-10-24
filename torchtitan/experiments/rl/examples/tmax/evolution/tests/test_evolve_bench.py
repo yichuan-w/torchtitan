@@ -102,6 +102,18 @@ def test_eval_env_refuses_a_clash_and_another_harness(tmp_path):
         eb.eval_env(es, "miniswe", {})
 
 
+def test_eval_env_takes_a_release_mix_against_its_release_manifest(tmp_path):
+    rel = tmp_path / "releases" / "abc"
+    mix = _jsonl(rel / "mix.jsonl", [_row("a")])
+    (rel / "manifest.json").write_text(json.dumps({"release_sha256": "abc", "files": {"mix.jsonl": eb.layout.sha256_file(mix)}}))
+    assert eb.eval_env(mix, "miniswe", {})["TMAX_AGENT"] == "miniswe"
+    mix.write_text(mix.read_text() + "\n")
+    with pytest.raises(SystemExit, match="no longer matches"):
+        eb.eval_env(mix, "miniswe", {})
+    with pytest.raises(SystemExit, match="--base"):
+        eb.run_eval(mix, "base", "0,1", "terminus", None)
+
+
 def test_classify_separates_infra_from_verdicts():
     c = lambda st, reason="", stage="agent": eb.classify({"status": st, "reason": reason, "stage": stage})  # noqa: E731
     assert c("accepted") == "accepted"
