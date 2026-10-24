@@ -80,6 +80,10 @@ class AgentTask:
     the episode the same way, instead of the harness salvaging or re-asking.
     Hitting the context limit is unaffected."""
 
+    context_notice: bool = True
+    """Show the harness's context-budget notices (warnings and status lines).
+    Off, the model sees no budget at all. Only terminus has them."""
+
 
 # Labels for a counted format-error turn in ``AgentRun.format_breakdown``; a
 # harness that fills them in makes them sum to ``format_errors``.

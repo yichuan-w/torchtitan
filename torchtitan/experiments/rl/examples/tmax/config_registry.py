@@ -268,6 +268,15 @@ def _tmax_rollouter(*, validation_from_caller: bool = False) -> TMaxRollouter.Co
         # as Harbor / TB-2.x do (their trial verifies after an agent timeout too).
         # SWE_EVAL_GRADE_UNSUBMITTED=0 restores submit-only validation, which
         # validation/strict_reward_mean reports either way.
+        # Training counterpart, off unless TMAX_GRADE_UNSUBMITTED_TRAIN=1: a
+        # training rollout that ends without submitting scores its verifier
+        # verdict instead of 0; a context-wall-truncated last turn is not trained.
+        grade_unsubmitted=(
+            os.environ.get("TMAX_GRADE_UNSUBMITTED_TRAIN", "0") == "1"
+        ),
+        # SWE_EVAL_CONTEXT_NOTICE=0 hides terminus's context warnings and status
+        # lines from validation only (eval-only A/B of the notice).
+        eval_context_notice=os.environ.get("SWE_EVAL_CONTEXT_NOTICE", "1") == "1",
         eval_grade_unsubmitted=(
             os.environ.get("SWE_EVAL_GRADE_UNSUBMITTED", "1") == "1"
         ),

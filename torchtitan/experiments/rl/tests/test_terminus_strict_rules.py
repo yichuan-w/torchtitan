@@ -555,6 +555,8 @@ def _rollouter_for_agent_task(*, strict_format, strict_truncation, eval_format, 
     r._shadow_grade_unsubmitted = True
     r._eval_shadow_grade_timeouts = True
     r._eval_grade_unsubmitted = False
+    r._grade_unsubmitted = False
+    r._eval_context_notice = True
     r._length_penalty = False
     r._strict_format = strict_format
     r._strict_opening = False

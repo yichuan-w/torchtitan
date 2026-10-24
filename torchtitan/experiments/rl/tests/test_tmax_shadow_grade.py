@@ -26,6 +26,7 @@ from torchtitan.experiments.rl.examples.tmax.data import TMaxSample
 from torchtitan.experiments.rl.examples.tmax.rollouter import (
     _RolloutIssueGate,
     _shadow_grade_metrics,
+    _drop_context_wall_turn,
     _strict_reward_metric,
     TMaxRollouter,
 )
@@ -51,6 +52,8 @@ def _rollouter(*, shadow: bool) -> TMaxRollouter:
     r._shadow_grade_unsubmitted = shadow
     r._eval_shadow_grade_timeouts = True
     r._eval_grade_unsubmitted = False
+    r._grade_unsubmitted = False
+    r._eval_context_notice = True
     r._rollout_gate = _RolloutIssueGate(1)
     return r
 
@@ -65,6 +68,7 @@ def _run(
     boot=None,
     finish_reason="hit_context_limit",
     group_id=0,
+    agent=None,
 ):
     @contextlib.asynccontextmanager
     async def fake_boot(*args, **kwargs):
@@ -82,7 +86,7 @@ def _run(
 
     monkeypatch.delenv("TRL_RUN_DIR", raising=False)
     monkeypatch.setattr(rollouter_mod, "boot_agent_sandbox", boot or fake_boot)
-    monkeypatch.setattr(rollouter_mod, "get_agent", lambda name: fake_agent)
+    monkeypatch.setattr(rollouter_mod, "get_agent", lambda name: agent or fake_agent)
     monkeypatch.setattr(rollouter_mod, "seed_workspace", AsyncMock())
     monkeypatch.setattr(rollouter_mod, "grade_tmax", grade)
 
@@ -158,6 +162,8 @@ def test_validation_timeouts_skip_the_shadow_grade_when_off(
     rollouter = _rollouter(shadow=True)
     rollouter._eval_shadow_grade_timeouts = eval_timeouts
     rollouter._eval_grade_unsubmitted = False
+    rollouter._grade_unsubmitted = False
+    rollouter._eval_context_notice = True
     calls = []
     _run(
         rollouter,
@@ -326,3 +332,74 @@ def test_strict_reward_counts_only_submitted_verdicts():
     metric = _strict_reward_metric(rollouts)
     assert metric.key == "rollout/strict_reward_mean"
     assert type(metric.value).reduce([metric.value])["mean"] == pytest.approx(0.25)
+
+
+def test_training_scores_unsubmitted_at_the_verdict_when_on(monkeypatch):
+    rollouter = _rollouter(shadow=False)
+    rollouter._grade_unsubmitted = True
+    calls: list = []
+    rollout = _run(
+        rollouter,
+        monkeypatch,
+        submitted=False,
+        grade=_grade(1.0, calls),
+        finish_reason="hit_max_turns",
+        group_id=3,
+    )
+    assert len(calls) == 1
+    assert rollout.turns[-1].env_rewards == {"tmax_reward": 1.0}
+    assert rollout.diagnostics["shadow_reward"] == 1.0
+
+
+def _ct(finish_reason: str, tokens=(3,)) -> CapturedTurn:
+    return CapturedTurn(
+        prompt_token_ids=[1, 2],
+        completion_token_ids=list(tokens),
+        completion_logprobs=[-0.1] * len(tokens),
+        min_policy_version=0,
+        max_policy_version=0,
+        finish_reason=finish_reason,
+        extends_previous=False,
+    )
+
+
+@pytest.mark.parametrize(
+    "captured,kept",
+    [
+        ([_ct("stop"), _ct("length")], 1),  # wall-truncated last turn dropped
+        ([_ct("stop"), _ct("length"), _ct("length", ())], 1),  # empty tail skipped
+        ([_ct("stop"), _ct("stop")], 2),  # last turn complete: kept
+        ([_ct("length")], 1),  # never drops the only turn
+    ],
+)
+def test_drop_context_wall_turn(captured, kept):
+    turns = [object() for ct in captured if ct.completion_token_ids]
+    _drop_context_wall_turn(turns, captured)
+    assert len(turns) == kept
+
+
+
+@pytest.mark.parametrize(
+    "group_id,eval_notice,shown",
+    [(-1, False, False), (-1, True, True), (0, False, True)],
+)
+def test_eval_context_notice_reaches_the_agent(
+    monkeypatch, group_id, eval_notice, shown
+):
+    rollouter = _rollouter(shadow=False)
+    rollouter._eval_context_notice = eval_notice
+    seen: list = []
+
+    async def agent(task):
+        seen.append(task.context_notice)
+        return AgentRun(turns=1, submitted=True, finish_reason="submit")
+
+    _run(
+        rollouter,
+        monkeypatch,
+        submitted=True,
+        grade=_grade(1.0, []),
+        group_id=group_id,
+        agent=agent,
+    )
+    assert seen == [shown]

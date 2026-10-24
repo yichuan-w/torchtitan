@@ -423,6 +423,19 @@ def _sandbox_issue_metrics(
     ]
 
 
+def _drop_context_wall_turn(
+    turns: list[RolloutTurn], captured: list[CapturedTurn]
+) -> None:
+    """Drop the last trainable turn when the context wall cut it off.
+
+    A graded context-limit rollout can now score 1, and its final completion
+    stopped mid-generation at the wall; training on it would reinforce a
+    fragment. The episode keeps at least one turn."""
+    last = next((ct for ct in reversed(captured) if ct.completion_token_ids), None)
+    if len(turns) > 1 and last is not None and last.finish_reason == "length":
+        turns.pop()
+
+
 def _strict_reward_metric(rollouts: list[Rollout]) -> m.Metric:
     """The submit-only score (unsubmitted and infra-failed rollouts count 0): the
     validation reward before ``eval_grade_unsubmitted``."""
@@ -1208,6 +1221,13 @@ class TMaxRollouter(Rollouter):
         time budget. Those finish last, so their shadow grade sits on the pass's
         critical path; off skips it (they almost never pass)."""
 
+        grade_unsubmitted: bool = False
+        """Score a training rollout that ended without submitting (context, time or
+        turn limit, exited terminal) at its verifier verdict instead of 0, as
+        ``eval_grade_unsubmitted`` does for validation. Rule-terminated endings stay
+        0. A context-limit rollout's last turn, cut off by the context wall, is
+        left out of training whatever the verdict."""
+
         eval_grade_unsubmitted: bool = False
         """Score a validation rollout that ended without submitting (context, time
         or turn limit, exited terminal) at its verifier verdict, as Harbor / TB-2.x
@@ -1294,6 +1314,10 @@ class TMaxRollouter(Rollouter):
 
         eval_strict_truncation: bool = False
         """``strict_truncation`` for validation groups; off by default."""
+
+        eval_context_notice: bool = True
+        """Show terminus's context-budget notices in validation. Off, a validation
+        rollout sees no budget warning or status line; training keeps them."""
 
         length_penalty: bool = False
         """In-group length penalty on solved training rollouts (off by default).
@@ -1406,6 +1430,7 @@ class TMaxRollouter(Rollouter):
         self._eval_strict_format = config.eval_strict_format
         self._eval_strict_opening = config.eval_strict_opening
         self._eval_strict_truncation = config.eval_strict_truncation
+        self._eval_context_notice = config.eval_context_notice
         if self._agent_name != "terminus" and (
             self._strict_format
             or self._strict_opening
@@ -1438,6 +1463,7 @@ class TMaxRollouter(Rollouter):
         self._shadow_grade_unsubmitted = config.shadow_grade_unsubmitted
         self._eval_shadow_grade_timeouts = config.eval_shadow_grade_timeouts
         self._eval_grade_unsubmitted = config.eval_grade_unsubmitted
+        self._grade_unsubmitted = config.grade_unsubmitted
         # Whole-rollout wall-clock guard: agent budget + eval + boot buffer.
         # Fallback guard; a rollout whose task declares its own budget derives its
         # own (see _agent_budget_sec / _guard_for).
@@ -2066,8 +2092,10 @@ class TMaxRollouter(Rollouter):
         sparse_reward = 0.0
         dense_fallback = False
         # Verifier verdict for an unsubmitted rollout (shadow_grade_unsubmitted);
-        # None when it did not run. Never feeds the reward.
+        # None when it did not run. Feeds the reward only under
+        # grade_unsubmitted / eval_grade_unsubmitted.
         shadow_reward: float | None = None
+        grade_unsubmitted = False
         issue_tracker = SandboxIssueTracker(
             SandboxLogContext(
                 instance_id=sample.instance_id,
@@ -2275,6 +2303,7 @@ class TMaxRollouter(Rollouter):
                             strict_format=strict_format,
                             strict_opening=strict_opening,
                             strict_truncation=strict_truncation,
+                            context_notice=group_id >= 0 or self._eval_context_notice,
                         )
                     )
                     timing["agent_secs"] = time.monotonic() - agent_at
@@ -2316,12 +2345,16 @@ class TMaxRollouter(Rollouter):
                     # git_diff: grade the agent's OWN sandbox in place. ``None`` means
                     # the harness has no submit signal -- grade anyway rather than
                     # scoring every rollout 0 (see AgentRun.submitted).
-                    # eval_grade_unsubmitted: validation grades it anyway, as Harbor.
+                    # grade_unsubmitted / eval_grade_unsubmitted: grade it anyway
+                    # and score the verdict, as Harbor does.
                     grade_unsubmitted = (
                         not submitted
-                        and group_id < 0
-                        and self._eval_grade_unsubmitted
                         and finish_reason not in _RULE_TERMINATED_REASONS
+                        and (
+                            self._eval_grade_unsubmitted
+                            if group_id < 0
+                            else self._grade_unsubmitted
+                        )
                     )
                     if submitted or grade_unsubmitted:
                         failure_stage = "verifier"
@@ -2490,6 +2523,8 @@ class TMaxRollouter(Rollouter):
         )
 
         turns = _captured_to_turns(captured, group_id, rollout_idx)
+        if grade_unsubmitted and group_id >= 0 and finish_reason == "hit_context_limit":
+            _drop_context_wall_turn(turns, captured)
 
         # Load-bearing invariant: the off-policy age filter (controller) takes
         # min()/max() over each sample's turn policy versions, which TypeErrors

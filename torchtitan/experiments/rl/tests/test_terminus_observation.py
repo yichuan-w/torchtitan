@@ -183,10 +183,14 @@ def test_keys_that_start_with_a_dash_are_not_read_as_flags():
     assert end("timeout 5s tmux send-keys -t terminus-1 ls Enter") == (
         "timeout 5s tmux send-keys -t terminus-1 -- ls Enter"
     )
-    # Harbor never writes ``--``, so a leading one is a key the model typed.
-    assert end("tmux send-keys -t terminus-1 -- Enter") == (
-        "tmux send-keys -t terminus-1 -- -- Enter"
-    )
+    # Harbor 0.22 writes its own ``--``; adding another would type a literal
+    # ``--`` before the command. A model's own ``--`` key follows Harbor's.
+    for harbor in (
+        "tmux send-keys -t terminus-1 -- 'ls -la' Enter",
+        "tmux send-keys -t terminus-1 -- -- Enter",
+        "timeout 5s tmux send-keys -t terminus-1 -- '-EOF' Enter",
+    ):
+        assert end(harbor) == harbor
     # Other tmux commands and compound wrappers stay as they are.
     for cmd in (
         "tmux capture-pane -p -t terminus-1",
@@ -207,6 +211,15 @@ def test_dash_key_reaches_a_real_tmux():
         time.sleep(0.3)
         pane = subprocess.run(["tmux", "capture-pane", "-p", "-t", session], capture_output=True, text=True).stdout
         assert "-EOF" in pane
+        # Harbor's own shape (Enter first ends the line above): the command
+        # arrives without a stray ``--``.
+        cmd = _SandboxEnvironment._end_send_keys_options(
+            f"tmux send-keys -t {session} -- Enter 'echo dash_ok_$((40+2))' Enter"
+        )
+        subprocess.run(["bash", "-c", cmd], check=True)
+        time.sleep(0.3)
+        pane = subprocess.run(["tmux", "capture-pane", "-p", "-t", session], capture_output=True, text=True).stdout
+        assert "dash_ok_42" in pane and "--echo" not in pane
     finally:
         subprocess.run(["tmux", "kill-session", "-t", session])
 

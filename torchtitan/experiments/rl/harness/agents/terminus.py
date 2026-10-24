@@ -700,16 +700,22 @@ class _SandboxEnvironment:
     def _end_send_keys_options(command: str) -> str:
         """Harbor sends keys as ``tmux send-keys -t <session> <keys>``, so a key
         that starts with ``-`` (a heredoc line like ``-EOF``) reads as a flag and
-        tmux rejects the whole delivery. ``--`` ends the options. Harbor never
-        writes ``--`` itself, so a leading ``--`` is the model's key and still
-        needs one in front of it."""
+        tmux rejects the whole delivery. ``--`` ends the options. Harbor 0.22
+        (the locked version) already writes ``-t <session> --`` itself, and a
+        second terminator would reach the pane as a literal ``--`` key in front
+        of every command, so a command whose first token after the target is
+        ``--`` is left as it is; a ``--`` the model typed then follows Harbor's."""
         try:
             tokens = shlex.split(command)
         except ValueError:
             return command
         offset = 2 if tokens[:1] == ["timeout"] else 0
         head = tokens[offset : offset + 4]
-        if len(tokens) < offset + 5 or head[:3] != ["tmux", "send-keys", "-t"]:
+        if (
+            len(tokens) < offset + 5
+            or head[:3] != ["tmux", "send-keys", "-t"]
+            or tokens[offset + 4] == "--"
+        ):
             return command
         prefix = f"tmux send-keys -t {shlex.quote(head[3])} "
         if prefix not in command:
@@ -1054,7 +1060,7 @@ async def terminus_agent(
                 max_context=task.max_context_tokens or _MAX_CONTEXT,
                 turn_max_tokens=_TURN_MAX_TOKENS,
                 deadline=deadline,
-                context_warn_frac=_CONTEXT_WARN_FRAC,
+                context_warn_frac=_CONTEXT_WARN_FRAC if task.context_notice else 0.0,
                 strict_truncation=task.strict_truncation,
             )
             agent._llm = llm

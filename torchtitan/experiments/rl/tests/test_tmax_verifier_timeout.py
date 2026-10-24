@@ -56,6 +56,8 @@ def _rollouter(*, eval_timeout_sec: int = 600) -> TMaxRollouter:
     r._shadow_grade_unsubmitted = False
     r._eval_shadow_grade_timeouts = True
     r._eval_grade_unsubmitted = False
+    r._grade_unsubmitted = False
+    r._eval_context_notice = True
     r._rollout_gate = _RolloutIssueGate(1)
     return r
 
