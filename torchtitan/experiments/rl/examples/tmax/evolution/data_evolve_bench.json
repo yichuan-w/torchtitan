@@ -1,0 +1,115 @@
+{
+  "seed": 20260928,
+  "sources": [
+    {
+      "name": "agentpick-clean-fast",
+      "repo": "Fzz1/tb-training-mix-agentpick",
+      "revision": "7dee55fe37cf5d2119539a7996d04c9fd558ca09",
+      "adapter": "tmax_reaudit",
+      "metadata": "data/clean_fast.parquet",
+      "archives": [
+        "data/tasks-clean_fast.tar"
+      ],
+      "count": 100,
+      "exclude": [
+        "rts_task_a1f849c57e17b4f4302493d0",
+        "rts_task_d35d647825db9db40f37a95c",
+        "tw_14495",
+        "tw_329715"
+      ]
+    },
+    {
+      "name": "agentpick-repair",
+      "repo": "Fzz1/tb-training-mix-agentpick",
+      "revision": "7dee55fe37cf5d2119539a7996d04c9fd558ca09",
+      "adapter": "tmax_reaudit",
+      "metadata": "data/repair.parquet",
+      "archives": [
+        "data/tasks-repair.tar"
+      ],
+      "count": null
+    },
+    {
+      "name": "agentpick-calibforge-clean-fast",
+      "repo": "Fzz1/tb-training-mix-agentpick",
+      "revision": "7dee55fe37cf5d2119539a7996d04c9fd558ca09",
+      "adapter": "tmax_reaudit",
+      "metadata": "data/calibforge_clean_fast.parquet",
+      "archives": [
+        "data/tasks-calibforge_clean_fast.tar"
+      ],
+      "count": 100,
+      "exclude": [
+        "software-engineering_20260419_065313_011",
+        "system-administration_20260606_153537_008"
+      ]
+    },
+    {
+      "name": "agentpick-calibforge-repair",
+      "repo": "Fzz1/tb-training-mix-agentpick",
+      "revision": "7dee55fe37cf5d2119539a7996d04c9fd558ca09",
+      "adapter": "tmax_reaudit",
+      "metadata": "data/calibforge_repair.parquet",
+      "archives": [
+        "data/tasks-calibforge_repair.tar"
+      ],
+      "count": 29,
+      "exclude": [
+        "data-processing_20260415_002933_002",
+        "data-processing_20260614_141608_002",
+        "data-science_20260603_181444_004",
+        "data-science_20260604_002443_007",
+        "data-science_20260604_194036_007",
+        "data-science_20260606_172606_007",
+        "data-science_20260610_111012_007",
+        "data-science_20260615_143956_003",
+        "data-science_20260617_104707_007",
+        "debugging_20260415_182321_002",
+        "debugging_20260416_031414_002",
+        "debugging_20260421_155939_002",
+        "debugging_20260610_111702_001",
+        "debugging_20260614_141608_003",
+        "file-operations_20260604_004411_001",
+        "machine-learning_20260425_072438_002",
+        "machine-learning_20260504_125558_002",
+        "machine-learning_20260509_065529_002",
+        "machine-learning_20260510_062946_002",
+        "machine-learning_20260601_053159_002",
+        "machine-learning_20260604_003113_002",
+        "mathematics_20260508_204815_003",
+        "model-training_20260604_003814_003",
+        "model-training_20260604_193056_003",
+        "optimization_20260612_191200_001",
+        "optimization_20260615_143301_001",
+        "optimization_20260618_093107_001",
+        "personal-assistant_20260415_182321_001",
+        "scientific-computing_20260413_174325_001",
+        "scientific-computing_20260415_123352_007",
+        "scientific-computing_20260419_065313_007",
+        "scientific-computing_20260421_155939_001",
+        "scientific-computing_20260503_030115_001",
+        "scientific-computing_20260503_182123_007",
+        "software-engineering_20260414_091921_001",
+        "software-engineering_20260415_123352_001",
+        "software-engineering_20260419_112101_026",
+        "software-engineering_20260420_020307_001",
+        "software-engineering_20260501_172213_011",
+        "software-engineering_20260501_172213_019",
+        "software-engineering_20260503_030115_015",
+        "software-engineering_20260507_172207_003",
+        "software-engineering_20260508_045800_026",
+        "software-engineering_20260511_015840_004",
+        "software-engineering_20260602_105139_026",
+        "software-engineering_20260604_003814_015",
+        "software-engineering_20260606_172554_015",
+        "software-engineering_20260615_143301_013",
+        "software-engineering_20260617_051646_014",
+        "software-engineering_20260617_104707_025",
+        "video-processing_20260419_065313_001",
+        "video-processing_20260429_103257_001",
+        "video-processing_20260508_045920_001",
+        "video-processing_20260602_105139_001"
+      ]
+    }
+  ]
+}
