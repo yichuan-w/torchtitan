@@ -65,3 +65,6 @@ CLAUDE_CONTEXT/
 
 # Local slide decks
 *.pptx
+
+# mast_rl task data (hundreds of MB, some rows carry key fixtures); staged on the bucket
+mast_rl/swe_assets/

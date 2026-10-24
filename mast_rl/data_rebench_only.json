@@ -1,0 +1,14 @@
+{
+  "seed": 20260915,
+  "sources": [
+    {
+      "name": "swe-rebench",
+      "repo": "Fzz1/SWE-Rebench-Tasks-Clean",
+      "revision": "a6d8f8ead159520d079f81fa07fcb1aaa2ff1b04",
+      "adapter": "swe_peaks",
+      "metadata": "metadata/tasks.parquet",
+      "archives": ["data/tasks-00000.tar"],
+      "count": null
+    }
+  ]
+}
