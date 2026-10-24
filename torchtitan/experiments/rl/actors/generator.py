@@ -908,6 +908,11 @@ def use_assigned_physical_gpu() -> None:
         return
     os.environ["LOCAL_RANK"] = gpu_index
     torch.cuda.set_device(int(gpu_index))
+    # vLLM's uniproc rendezvous otherwise binds port 0, releases it, then binds
+    # the TCPStore: sibling packed engines (and any other socket drawing from
+    # the ephemeral range) can take it in between -> EADDRINUSE.
+    # A per-GPU base below the ephemeral range removes the race.
+    os.environ.setdefault("VLLM_PORT", str(20000 + 100 * int(gpu_index)))
 
 
 class VLLMGenerator(Actor, Configurable):
