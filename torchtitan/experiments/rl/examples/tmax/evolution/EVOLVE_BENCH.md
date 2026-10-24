@@ -6,7 +6,7 @@ frozen signals, its accepted revisions are scored by the same student under
 one pinned recipe, and the result is a JSON that names every input it came
 from. Two arms are compared task by task.
 
-It complements `overfit_bench/` rather than replacing it. The overfit bench
+It complements `overfit_bench/`. The overfit bench
 asks whether a rewriter, given a whole training run on one task, brings the
 policy to solve that task: slow, one task per job, measured by training.
 EvolveBench asks what one round of rewriting does to the training signal of a
@@ -33,10 +33,10 @@ every argument.
 So 200 rows are clean and 200 are repair. The release's `config.json`, with
 every exclude list, is copied into the frozen set's manifest.
 
-- 400 rows is one base-student eval of 2,000 attempts. On repair342 the
-  base student left 257 of 342 repair rows all-solved or none-solved; clean
-  rows carry signal more often, so an arm rewrites fewer than 400 tasks but
-  still several times r100's 100.
+- 400 rows is one base-student eval of 2,000 attempts. The base student left
+  257 of the 342 repair rows of the `repair342` set all-solved or none-solved;
+  clean rows carry signal more often, so an arm rewrites fewer than 400 tasks,
+  still several times the 100 of `r100`.
 - All of repair, because those are the rows with known defects.
   Each arm then also reports whether it repairs them. The 76 repair rows
   (and 1 calibforge_repair row) that the audit excluded from the training
@@ -46,13 +46,28 @@ every exclude list, is copied into the frozen set's manifest.
 - `skip_unpackable` is off: the fixture rows are excluded by id, so a new
   unpackable row fails the build instead of disappearing.
 
-First-round signals come from a base-student eval of the whole set, the way
-the repair342 set's did. `freeze --eval` makes a harder signal for every task
+First-round signals come from a base-student eval of the whole set. `freeze --eval` makes a harder signal for every task
 solved on every graded attempt and an easier one for every task solved on
 none. Mixed tasks need no rewrite; they are recorded as usable as they are and
-counted in the set's yield. A task whose package grader differs from its row's
+counted in the set's yield (mixed as-is plus rewritten to mixed, over the
+set's rows). A task whose package grader differs from its row's
 `test_sh` is left out and listed (`package_not_row`), since the loop would
 rewrite it from a grader the student never met.
+
+## Sets already frozen
+
+Two sets are frozen on della under
+`/scratch/gpfs/TRIDAO/al9080/terminal-rl/evolve-bench/sets/`, from runs that
+predate the bench:
+
+- `r100`: 100 harder signals from `runs/tmax-9b--20260911-000700Z`, each
+  task's first training group, all solved (`offline_select.py`'s pick); the
+  selection the r100 rewriter arms used.
+- `repair342`: the 342 repair and calibforge_repair rows of the 2026-10-24
+  agentpick release (`data/prepared/releases/c02f5864…`), with signals made
+  by `freeze --eval` from its base-student eval: 237 easier, 19 harder, 81
+  mixed as-is, 4 ungraded, and 1 left out because its package grader is not
+  its row's.
 
 ## Running an arm
 
@@ -98,17 +113,17 @@ derives. It records the arm, the checkout's full commit, `codex --version`
 and the set manifest's sha256 in the root's `bench_arm.json`. Running the
 same arm again resumes it; a changed config needs a new name.
 
-## What is pinned, and why
+## Pinned values and their reasons
 
 The student eval (`eval`, through `della/tb2_eval_local.sh`):
 
 | pin | value | why |
 |---|---|---|
-| attempts per task | `SWE_TB2_VAL_K=5` | three counts need a spread; k=5 is what every arm so far was scored at |
-| sampling | temperature 1.0, top_p 1.0 | `tb2_eval_local.sh`'s defaults, which the repair342 baseline ran at; the r100 evals on hip ran 0.8 / 0.95 and do not compare with bench evals |
+| attempts per task | `SWE_TB2_VAL_K=5` | three counts need a spread; the `r100` and `repair342` arms were scored at k=5 |
+| sampling | temperature 1.0, top_p 1.0 | `tb2_eval_local.sh`'s defaults, which the `repair342` base eval ran at; the r100 evals of earlier arms ran 0.8 / 0.95 and do not compare with bench evals |
 | budget of a row that declares none | `SWE_EVAL_TIME_BUDGET_SEC=2400` | the workspace's fixed rollout budget |
-| budget of a row that declares one | max(declared, `SWE_EVAL_BUDGET_FLOOR_SEC=7200`) | the floor every recent eval used; the eval config reads these two, not `SWE_TIME_BUDGET_SEC` |
-| concurrency | `SWE_ROLLOUT_CONCURRENCY` = `SWE_MAX_NUM_SEQS` (256) x 1 generator | past it, attempts wait for a decode slot while their wall clock runs and read as time-budget failures: 356 of one eval's last 400 attempts at 445 on one generator |
+| budget of a row that declares one | max(declared, `SWE_EVAL_BUDGET_FLOOR_SEC=7200`) | the floor the `r100` and `repair342` evals used; the eval config reads these two, not `SWE_TIME_BUDGET_SEC` |
+| concurrency | `SWE_ROLLOUT_CONCURRENCY` = `SWE_MAX_NUM_SEQS` (256) x 1 generator | past it, attempts wait for a decode slot while their wall clock runs and read as time-budget failures: one eval run at a concurrency of 445 on one 256-sequence generator had 356 of its last 400 attempts end at the budget |
 | harness | `--harness terminus` or `miniswe`, recorded | the student's harness changes what it can do; a set's signals were measured under one, and `eval` refuses another |
 | per-sandbox fallback | `TT_DAYTONA_*` 1 / 2 / 2 | applies only to rows that declare nothing |
 | signals | `SWE_EVOLUTION_SIGNALS=0` | the measurement never reaches a loop |
@@ -125,7 +140,7 @@ since a row that declares nothing is verified at that size), offline_drive's
 own `MAX_ROUNDS=6` and `MAX_ATTEMPTS=2`, and `SWE_POLICY_CANARY_K=0`: the loop
 spends no student rollouts on a rewrite.
 
-## What the tally reports
+## Tally output
 
 Infra-failed attempts are dropped from every band and counted apart. A
 rewrite lost to infrastructure (429s, provider outages, session timeouts, a
@@ -159,8 +174,8 @@ Mechanical, computed for every rewrite from the root:
   rewrite and per mixed task. An arm with sessions of a model `offline_cost`
   has no price for, or a Claude Code arm (no Codex token records), reports
   its cost as unknown.
-- Repair rows by known defect: the HF judge's verdict, a missing reference
-  solution, the defects file, and the grader-fetch check on every row. For
+- Repair rows by known defect: the `verdict` column of each repair source's
+  `metadata.parquet` (the HF dataset's judge), a missing reference solution, the defects file, and the grader-fetch check on every row. For
   each class: where the rows ended, the accepted revisions' band, how many
   declared a repair, the fix rate where it is mechanical (a missing solution
   is fixed when the accepted revision ships one; a grader fetch when the
