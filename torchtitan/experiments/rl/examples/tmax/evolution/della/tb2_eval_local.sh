@@ -92,7 +92,7 @@ export SWE_MAX_CONTEXT_LEN=63488
 # rows declare their own. 3600 is what training gives the same rows.
 export SWE_TIME_BUDGET_SEC=${SWE_TIME_BUDGET_SEC:-3600}
 # TMAX_AGENT=terminus or miniswe scores the policy under that harness instead.
-export TMAX_AGENT=${TMAX_AGENT:-vanillux} TMAX_EXEC_TIMEOUT_SEC=120 TMAX_TERMINUS_MAX_TURNS=120
+export TMAX_AGENT=${TMAX_AGENT:-vanillux} TMAX_EXEC_TIMEOUT_SEC=120 TMAX_TERMINUS_MAX_TURNS=120 TMAX_CALL_LIMIT=${TMAX_CALL_LIMIT:-120}
 export TMAX_TURN_MAX_TOKENS=32768
 export TT_DAYTONA_CPU=1 TT_DAYTONA_MEM_GB=2 TT_DAYTONA_DISK_GB=2
 # per rollout-worker process: 16 x 8 workers = 128 creates in flight per eval
