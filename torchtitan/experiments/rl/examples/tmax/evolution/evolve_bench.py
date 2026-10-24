@@ -253,11 +253,12 @@ def _harness(launch: dict | None) -> str | None:
 # ------------------------------------------------------------------------- freeze
 
 
-def _signals_from_eval(ev: Path, dst: Path, name: str, log: Log) -> tuple[dict, dict]:
+def _signals_from_eval(ev: Path, name: str, log: Log) -> tuple[dict, dict]:
     """First-round signals from a base-student eval of the whole set: none
-    solved -> easier, all solved -> harder, each at rev 0 with the eval's
-    records hardlinked (offline_select_eval.py's signal shape). Mixed tasks
-    need no rewrite and are returned as usable as-is, with the ungraded."""
+    solved -> easier, all solved -> harder, each at rev 0, in
+    offline_select_eval.py's signal shape, with the source path of every
+    record its attempts name. Mixed tasks need no rewrite and are returned
+    as usable as-is, with the ungraded."""
     per: dict[str, dict[str, Any]] = collections.defaultdict(lambda: {"pass": 0, "graded": 0, "records": []})
     for e in json.load(open(ev / INDEX)):
         t = per[e["task"]]
@@ -265,7 +266,7 @@ def _signals_from_eval(ev: Path, dst: Path, name: str, log: Log) -> tuple[dict, 
         if not e.get("infra_failed"):
             t["graded"] += 1
             t["pass"] += e["state"] == "PASS"
-    picks, rest = {}, {}
+    signals, rest = {}, {}
     stamp = layout.stamp()
     for tid, v in sorted(per.items()):
         b = bucket(v["pass"], v["graded"])
@@ -276,22 +277,35 @@ def _signals_from_eval(ev: Path, dst: Path, name: str, log: Log) -> tuple[dict, 
         groups = {int(re.findall(r"g(-?\d+)-r\d+\.jsonl$", r)[0]) for r in v["records"]}
         if len(groups) != 1:
             raise SystemExit(f"{tid}: the eval's records span groups {sorted(groups)}")
-        attempts = []
-        for rel in sorted(v["records"]):
-            rel_dst = f"rollouts/{tid}/{Path(rel).name}"
-            (dst / rel_dst).parent.mkdir(parents=True, exist_ok=True)
-            os.link(_record_path(ev, rel), dst / rel_dst)
-            attempts.append(rel_dst)
+        records = {f"rollouts/{tid}/{Path(rel).name}": _record_path(ev, rel) for rel in sorted(v["records"])}
         group = groups.pop()
         sig = {
-            "attempts": attempts, "created": stamp,
+            "attempts": list(records), "created": stamp,
             "direction": "harder" if b == "all_solved" else "easier",
             "group": group, "rev": 0, "run": name,
             "solved": v["pass"], "task": tid, "total": v["graded"],
         }
-        layout.write_json_atomic(dst / "signals" / f"{tid}--g{group}.json", sig)
-        picks[tid] = group
-    return picks, rest
+        signals[tid] = (sig, records)
+    return signals, rest
+
+
+def _signals_from_run(run: Path, selected: Path | None) -> dict:
+    """The signals of a run directory (``selected`` filters them, task ->
+    {"group": N}), with the source path of every record they name."""
+    if selected is not None:
+        picks = {t: int(v["group"]) for t, v in json.load(open(selected)).items()}
+    else:
+        picks = {}
+        for p in sorted((run / "signals").glob("*.json")):
+            s = json.load(open(p))
+            if s["task"] in picks:
+                raise SystemExit(f"{run} holds two signals for {s['task']}; give --selected")
+            picks[s["task"]] = int(s["group"])
+    out = {}
+    for tid, group in sorted(picks.items()):
+        sig = json.load(open(run / "signals" / f"{tid}--g{group}.json"))
+        out[tid] = (sig, {rel: run / rel for rel in sig["attempts"]})
+    return out
 
 
 def freeze(
@@ -316,7 +330,7 @@ def freeze(
     holds the signals and a hardlink of every rollout record they name, a
     hardlink of the seed mix, the selected tasks' original rows, and a
     manifest pinning each of those by sha256 and each task's seed package by
-    a tree digest.
+    a tree digest. Everything is checked before anything is written.
     """
     out = bench / "sets" / name
     if out.exists():
@@ -334,74 +348,67 @@ def freeze(
     assert mix is not None
     rows = _rows(mix)
     by_id = {_iid(r): r for r in rows}
-    dst = out / "runs" / name
-    (dst / "signals").mkdir(parents=True)
-    (dst / "rollouts").mkdir()
     rest: dict[str, str] = {}
     if eval_dir is not None:
         src_launch = eval_dir / "launch.json"
-        picks, rest = _signals_from_eval(eval_dir, dst, name, log)
-        outside = sorted((set(picks) | set(rest)) - set(by_id))
-        if outside:
-            raise SystemExit(f"{eval_dir} scores tasks that are not rows of {mix}: {outside[:5]}")
+        signals, rest = _signals_from_eval(eval_dir, name, log)
     else:
         assert run is not None
         src_launch = run / "launch.json"
-        if selected is not None:
-            picks = {t: int(v["group"]) for t, v in json.load(open(selected)).items()}
-        else:
-            picks = {}
-            for p in sorted((run / "signals").glob("*.json")):
-                s = json.load(open(p))
-                if s["task"] in picks:
-                    raise SystemExit(f"{run} holds two signals for {s['task']}; give --selected")
-                picks[s["task"]] = int(s["group"])
-        for tid, group in sorted(picks.items()):
-            rel_sig = f"signals/{tid}--g{group}.json"
-            sig = json.load(open(run / rel_sig))
-            for rel in sig["attempts"]:
-                (dst / rel).parent.mkdir(parents=True, exist_ok=True)
-                os.link(run / rel, dst / rel)
-            shutil.copy2(run / rel_sig, dst / rel_sig)
-    missing = sorted(set(picks) - set(by_id))
-    if missing:
-        raise SystemExit(f"{len(missing)} selected tasks are not rows of {mix}: {missing[:5]}")
+        signals = _signals_from_run(run, selected)
+    outside = sorted((set(signals) | set(rest)) - set(by_id))
+    if outside:
+        raise SystemExit(f"{len(outside)} tasks are not rows of {mix}: {outside[:5]}")
 
-    files: dict[str, str] = {}
     packages: dict[str, dict] = {}
-    directions: collections.Counter = collections.Counter()
-    for tid, group in sorted(picks.items()):
+    # r0 is copied from the package and the signal measured the row: a task
+    # whose package grader is not the row's would be rewritten from a grader
+    # the student never met, so it is left out and listed.
+    package_not_row: list[str] = []
+    for tid, (sig, _) in sorted(signals.items()):
+        if sig["task"] != tid or sig["direction"] not in ("harder", "easier"):
+            raise SystemExit(f"{tid}: not a harder/easier signal: {sig}")
+        # An arm root starts at the seed, and the loop takes only a signal at a
+        # task's current revision.
+        if sig["rev"] != 0:
+            raise SystemExit(f"{tid}: signal at rev {sig['rev']}, a fresh root is at 0")
         found = [s for s in sources if (s / "tasks" / tid).is_dir()]
         if len(found) != 1:
             raise SystemExit(f"{tid}: package under {len(found)} of the sources, need exactly 1")
         pkg = found[0] / "tasks" / tid
-        # r0 is copied from this package; it has to be the row the signal measured.
         if (pkg / "tests" / "test.sh").read_text() != by_id[tid]["metadata"]["tmax"]["test_sh"]:
-            raise SystemExit(f"{tid}: {pkg}/tests/test.sh differs from the mix row's test_sh")
+            package_not_row.append(tid)
+            log(f"task={tid} left out: {pkg}/tests/test.sh is not the mix row's test_sh")
+            continue
         packages[tid] = {"source": found[0].name, "tree_sha256": tree_sha256(pkg)}
-        rel_sig = f"signals/{tid}--g{group}.json"
-        sig = json.load(open(dst / rel_sig))
-        if sig["task"] != tid or sig["direction"] not in ("harder", "easier"):
-            raise SystemExit(f"{dst / rel_sig}: not a harder/easier signal for {tid}")
-        # An arm root starts at the seed, and the loop takes only a signal at a
-        # task's current revision.
-        if sig["rev"] != 0:
-            raise SystemExit(f"{dst / rel_sig}: rev {sig['rev']}, a fresh root is at 0")
-        for rel in sig["attempts"]:
+    for tid in package_not_row:
+        del signals[tid]
+
+    dst = out / "runs" / name
+    (dst / "signals").mkdir(parents=True)
+    (dst / "rollouts").mkdir()
+    files: dict[str, str] = {}
+    directions: collections.Counter = collections.Counter()
+    for tid, (sig, records) in sorted(signals.items()):
+        for rel, src in records.items():
+            (dst / rel).parent.mkdir(parents=True, exist_ok=True)
+            os.link(src, dst / rel)
             files[f"runs/{name}/{rel}"] = layout.sha256_file(dst / rel)
+        rel_sig = f"signals/{tid}--g{sig['group']}.json"
+        layout.write_json_atomic(dst / rel_sig, sig)
         files[f"runs/{name}/{rel_sig}"] = layout.sha256_file(dst / rel_sig)
         directions[sig["direction"]] += 1
         log(
-            f"task={tid} group={group} direction={sig['direction']} solved={sig['solved']}/{sig['total']} "
-            f"records={len(sig['attempts'])} package={packages[tid]['source']}:{packages[tid]['tree_sha256'][:12]}"
+            f"task={tid} group={sig['group']} direction={sig['direction']} solved={sig['solved']}/{sig['total']} "
+            f"records={len(records)} package={packages[tid]['source']}:{packages[tid]['tree_sha256'][:12]}"
         )
     shutil.copy2(src_launch, dst / "launch.json")
     files[f"runs/{name}/launch.json"] = layout.sha256_file(dst / "launch.json")
     os.link(mix, out / "mix.jsonl")
     files["mix.jsonl"] = layout.sha256_file(out / "mix.jsonl")
-    layout.write_json_atomic(out / "selected.json", {t: {"group": g} for t, g in sorted(picks.items())})
+    layout.write_json_atomic(out / "selected.json", {t: {"group": s["group"]} for t, (s, _) in sorted(signals.items())})
     files["selected.json"] = layout.sha256_file(out / "selected.json")
-    original = [r for r in rows if _iid(r) in picks]
+    original = [r for r in rows if _iid(r) in signals]
     m = _write_evalset(
         out / "original.jsonl", original,
         source=str(Path(mix).resolve()),
@@ -428,18 +435,21 @@ def freeze(
         "rows_by_source": dict(sorted(collections.Counter(row_source.values()).items())),
         "row_source": row_source,
         "run": f"runs/{name}",
-        "tasks": len(picks),
+        "tasks": len(signals),
         "directions": dict(directions),
         # Rows the signal source scored that need no rewrite (mixed: usable as
         # they are) or carry no verdict (fewer than two graded attempts).
         "no_signal": dict(collections.Counter(rest.values())),
         "no_signal_tasks": rest,
+        "package_not_row": package_not_row,
         "packages": packages,
         "files": files,
     }
     layout.write_json_atomic(out / "manifest.json", manifest)
-    log(f"done set={out} tasks={len(picks)} directions={dict(directions)} no_signal={manifest['no_signal']} files={len(files)}")
-    print(f"{out}: {len(picks)} signals {dict(directions)}, no signal {manifest['no_signal']}, {len(files)} files pinned")
+    log(f"done set={out} tasks={len(signals)} directions={dict(directions)} no_signal={manifest['no_signal']} "
+        f"package_not_row={package_not_row} files={len(files)}")
+    print(f"{out}: {len(signals)} signals {dict(directions)}, no signal {manifest['no_signal']}, "
+          f"left out (package grader is not the row's) {package_not_row}, {len(files)} files pinned")
     return out
 
 

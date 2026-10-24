@@ -257,15 +257,16 @@ def test_freeze_from_eval_pins_everything_and_evalset_follows(tmp_path, monkeypa
                   sources=[src], log=eb.Log(tmp_path / "f.log"))
 
 
-def test_freeze_refuses_a_package_that_is_not_the_row(tmp_path, monkeypatch):
+def test_freeze_leaves_out_a_package_that_is_not_the_row(tmp_path, monkeypatch):
     monkeypatch.setattr(eb, "_bench_commit", lambda: "test")
     src = tmp_path / "corpus"
     _pkg(src / "tasks" / "a", test="other")
     mix = _jsonl(tmp_path / "mix.jsonl", [_row("a", test="mine")])
     ev = _eval(tmp_path, "base", mix, {"a": "PPPPP"})
-    with pytest.raises(SystemExit, match="differs from the mix row"):
-        eb.freeze(bench=tmp_path / "bench", name="s", run=None, eval_dir=ev, selected=None, release=None,
-                  mix=mix, sources=[src], log=eb.Log(tmp_path / "f.log"))
+    out = eb.freeze(bench=tmp_path / "bench", name="s", run=None, eval_dir=ev, selected=None, release=None,
+                    mix=mix, sources=[src], log=eb.Log(tmp_path / "f.log"))
+    m, _ = eb.load_set(out, verify=True)
+    assert m["package_not_row"] == ["a"] and m["tasks"] == 0
 
 
 def test_load_arm_refuses_pinned_or_derived_env(tmp_path):
