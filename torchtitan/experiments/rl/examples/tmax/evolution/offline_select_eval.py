@@ -50,6 +50,18 @@ import time
 RECORD_RE = re.compile(r"g(-?\d+)-r(\d+)\.jsonl$")
 
 
+def _record_path(ev: str, rel: str) -> str:
+    """Where an index entry's record is. The controller writes each lifetime's
+    records into a sibling ``<eval>--attempt-<id>/`` directory while index.json
+    names them relative to the eval, so look in the eval first, then in each
+    attempt directory, oldest first."""
+    for d in [ev] + sorted(glob.glob(glob.escape(ev) + "--attempt-*")):
+        p = os.path.join(d, rel)
+        if os.path.exists(p):
+            return p
+    raise FileNotFoundError(f"{rel}: not under {ev} or any of its attempt directories")
+
+
 def _latest_rev(task_dir: str) -> int:
     """The task's current accepted revision: the highest r<N>/ it holds."""
     if not os.path.isdir(task_dir):
@@ -210,7 +222,7 @@ def main() -> None:
         group = groups.pop()
         attempts = []
         for rel in sorted(v["records"]):
-            src = os.path.join(ev, rel)
+            src = _record_path(ev, rel)
             rel_dst = os.path.join("rollouts", tid, os.path.basename(rel))
             d = os.path.join(dst, rel_dst)
             os.makedirs(os.path.dirname(d), exist_ok=True)
