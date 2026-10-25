@@ -533,3 +533,12 @@ def test_recipes_cap_context_inside_the_model_len_and_compare_keeps_them_apart(t
     (old_dir / "launch.json").write_text(json.dumps(legacy_launch))
     mm = eb.recipe_mismatch(new["recipe"], eb.read_eval(old_dir)["recipe"])
     assert {"student_recipe", "SWE_TMAX_CONTEXT", "SWE_MAX_CONTEXT_LEN", "SWE_EVAL_TIME_BUDGET_SEC"} <= set(mm)
+
+
+def test_mechanical_fix_says_nothing_about_classes_it_cannot_check():
+    acc = {"has_solution": True, "hosts_after": ["github.com"]}
+    assert eb.mechanical_fix("hf:INSTR-VERIFIER-MISMATCH", None) is None
+    assert eb.mechanical_fix("audit_20261024_broken", acc) is None
+    assert eb.mechanical_fix("no_reference_solution", None) is False
+    assert eb.mechanical_fix("no_reference_solution", acc) is True
+    assert eb.mechanical_fix("grader_fetch", acc) is False

@@ -1443,12 +1443,17 @@ def defect_labels(root: Path, labels: Path | None) -> dict[str, dict]:
     return out
 
 
+MECHANICAL_DEFECTS = ("no_reference_solution", "external_network", "grader_fetch")
+
+
 def mechanical_fix(defect: str, accepted: dict | None) -> bool | None:
     """Whether the accepted revision fixes ``defect``, where a mechanical check
     can say: a missing reference solution is fixed when the accepted revision
     ships one (the oracle gate then held it to the task); a grader's
     third-party fetch is fixed when the accepted grader fetches none. None
     where only reading the rewrite can tell."""
+    if defect not in MECHANICAL_DEFECTS:
+        return None
     if accepted is None:
         return False
     if defect == "no_reference_solution":
