@@ -9,7 +9,8 @@
 EVOLVE_BENCH.md says what it measures and why each pin exists. Subcommands, in
 the order an arm goes through them:
 
-    freeze        signals (a run dir, or a base-student eval) -> <bench>/sets/<name>/, pinned by sha256
+    freeze        zero-signal rows of a mix, with their existing measurements (evals, training
+                  runs' first groups) as signals -> <bench>/sets/<name>/, pinned by sha256
     run           an arm config + a set -> <bench>/arms/<set>--<arm>/, offline_drive.sh as a user unit
     pipeline      the same while the base eval still runs: signals staged as tasks finish (stage),
                   drive rounds picking them up, accepted revisions cut into eval waves (wave)
@@ -117,6 +118,7 @@ ARM_KEYS = {"name", "profile", "commit", "bin", "workers", "env"}
 BUCKETS = ("mixed", "all_solved", "none_solved", "ungraded", "no_attempts")
 GRADED_BUCKETS = BUCKETS[:3]
 INDEX = Path("trainer/validation_traces/step-0/index.json")
+RECORD_NAME = re.compile(r"g(-?\d+)-r(\d+)\.jsonl")
 
 # Hosts a grader may fetch from without depending on someone's live repository:
 # package indexes, distro mirrors and toolchain installers.
@@ -267,40 +269,66 @@ def _harness(launch: dict | None) -> str | None:
 # ------------------------------------------------------------------------- freeze
 
 
-def _signals_from_eval(ev: Path, name: str, log: Log) -> tuple[dict, dict]:
-    """First-round signals from a base-student eval of the whole set: none
-    solved -> easier, all solved -> harder, each at rev 0, in
-    offline_select_eval.py's signal shape, with the source path of every
-    record its attempts name. Mixed tasks need no rewrite and are returned
-    as usable as-is, with the ungraded."""
-    per: dict[str, dict[str, Any]] = collections.defaultdict(lambda: {"pass": 0, "graded": 0, "records": []})
+def _measured_by_eval(ev: Path) -> dict[str, dict]:
+    """Each task an eval scored: all its attempts, banded as scored, with the
+    test_sh of the row the eval read (the evalset launch.json names)."""
+    launch = json.load(open(ev / "launch.json"))
+    rows = {_iid(r): r for r in _rows(Path(launch["env"]["SWE_TB2_DATA"]))}
+    per: dict[str, list[dict]] = collections.defaultdict(list)
     for e in json.load(open(ev / INDEX)):
-        t = per[e["task"]]
-        t["records"].append(e["record"])
-        if not e.get("infra_failed"):
-            t["graded"] += 1
-            t["pass"] += e["state"] == "PASS"
-    signals, rest = {}, {}
-    stamp = layout.stamp()
-    for tid, v in sorted(per.items()):
-        b = bucket(v["pass"], v["graded"])
-        if b not in ("all_solved", "none_solved"):
-            rest[tid] = b
-            log(f"task={tid} {v['pass']}/{v['graded']} {b}: no signal")
-            continue
-        groups = {int(re.findall(r"g(-?\d+)-r\d+\.jsonl$", r)[0]) for r in v["records"]}
+        state = "INFRA" if e.get("infra_failed") else e["state"]
+        per[e["task"]].append({"state": state, "rel": e["record"], "src": _record_path(ev, e["record"])})
+    out = {}
+    for tid, attempts in per.items():
+        b, passed, graded = _attempts_bucket(attempts)
+        groups = {int(re.findall(r"g(-?\d+)-r\d+\.jsonl$", a["rel"])[0]) for a in attempts}
         if len(groups) != 1:
             raise SystemExit(f"{tid}: the eval's records span groups {sorted(groups)}")
-        records = {f"rollouts/{tid}/{Path(rel).name}": _record_path(ev, rel) for rel in sorted(v["records"])}
-        group = groups.pop()
-        sig = {
-            "attempts": list(records), "created": stamp,
-            "direction": "harder" if b == "all_solved" else "easier",
-            "group": group, "rev": 0, "run": name,
-            "solved": v["pass"], "task": tid, "total": v["graded"],
+        out[tid] = {
+            "bucket": b, "solved": passed, "graded": graded, "group": groups.pop(),
+            "records": {f"rollouts/{tid}/{Path(a['rel']).name}": a["src"] for a in sorted(attempts, key=lambda x: x["rel"])},
+            "test_sh": rows[tid]["metadata"]["tmax"]["test_sh"],
+            "source": {"kind": "eval", "dir": str(ev.resolve()), "tt_commit": launch.get("tt_commit"),
+                       "harness": _harness(launch), "k": len(attempts)},
         }
-        signals[tid] = (sig, records)
-    return signals, rest
+    return out
+
+
+def _measured_by_first_group(run: Path, k: int) -> dict[str, dict]:
+    """Each task a training run sampled at rev 0: its first group (lowest group
+    id), banded on its first ``k`` graded attempts in rollout order so the band
+    means what a k-attempt eval's does; every record of the group is staged.
+    The test_sh is the row of the mix the run trained on."""
+    launch = json.load(open(run / "launch.json"))
+    rows = {_iid(r): r for r in _rows(run / "inputs" / "mix.jsonl")}
+    out = {}
+    for tdir in sorted((run / "rollouts").iterdir()):
+        names = [f.name for f in tdir.iterdir() if RECORD_NAME.fullmatch(f.name)]
+        if not names:
+            continue
+        first = min(int(RECORD_NAME.fullmatch(n).group(1)) for n in names)
+        recs = sorted((int(RECORD_NAME.fullmatch(n).group(2)), tdir / n) for n in names
+                      if int(RECORD_NAME.fullmatch(n).group(1)) == first)
+        heads = []
+        for idx, f in recs:
+            with open(f) as fh:
+                heads.append((idx, f, json.loads(fh.readline())))
+        if any(int(h.get("rev") or 0) != 0 for _, _, h in heads):
+            continue  # the task's first group already ran a rewritten revision
+        graded = [h for _, _, h in heads
+                  if not h.get("infra_failed") and h.get("reward") is not None
+                  and not (isinstance(h["reward"], float) and math.isnan(h["reward"]))][:k]
+        passed = sum(h["reward"] >= 1.0 for h in graded)
+        tid = tdir.name
+        out[tid] = {
+            "bucket": bucket(passed, len(graded)) if len(graded) == k else "ungraded",
+            "solved": passed, "graded": len(graded), "group": first,
+            "records": {f"rollouts/{tid}/{f.name}": f for _, f, _ in heads},
+            "test_sh": rows[tid]["metadata"]["tmax"]["test_sh"] if tid in rows else None,
+            "source": {"kind": "run_first_group", "dir": str(run.resolve()), "tt_commit": launch.get("tt_commit"),
+                       "harness": _harness(launch), "k": k, "group_size": len(heads)},
+        }
+    return out
 
 
 def _signals_from_run(run: Path, selected: Path | None) -> dict:
@@ -327,7 +355,8 @@ def freeze(
     bench: Path,
     name: str,
     run: Path | None,
-    eval_dir: Path | None,
+    evals: list[Path],
+    first_group: list[Path],
     selected: Path | None,
     release: Path | None,
     mix: Path | None,
@@ -336,15 +365,24 @@ def freeze(
 ) -> Path:
     """Snapshot a signal selection as ``<bench>/sets/<name>/``.
 
-    Signals come from ``run`` (a directory in the run shape: a training run,
-    or one a staging tool wrote; ``selected`` filters it) or are made from
-    ``eval_dir``, a base-student eval of the whole set. The seed rows and
-    packages come from a data release (``release``: its config, excludes
-    included, goes into the manifest) or from ``mix`` + ``sources``. The set
-    holds the signals and a hardlink of every rollout record they name, a
-    hardlink of the seed mix, the selected tasks' original rows, and a
-    manifest pinning each of those by sha256 and each task's seed package by
-    a tree digest. Everything is checked before anything is written.
+    Signals come either from ``run``, a directory that already holds them
+    (``selected`` filters it), or from existing measurements of the mix's
+    rows: ``evals`` (each task's attempts in an eval) and ``first_group``
+    (each task's first rev-0 group in a training run, banded on its first k
+    graded attempts). For each row the first source that measured it, in the
+    order given, is its before-measurement. Only zero-signal rows enter the
+    set (none solved -> easier, all solved -> harder); every other row is
+    listed with why it is out: mixed (it already carries gradient), ungraded,
+    not measured, measured on a different test_sh than the row's, or a
+    package whose grader is not the row's.
+
+    The seed rows and packages come from a data release (``release``: its
+    config, excludes included, goes into the manifest) or from ``mix`` +
+    ``sources``. The set holds the signals and a hardlink of every rollout
+    record they name, a hardlink of the seed mix, the selected rows, and a
+    manifest pinning each of those by sha256, each task's seed package by a
+    tree digest, and each task's before-measurement by its source.
+    Everything is checked before anything is written.
     """
     out = bench / "sets" / name
     if out.exists():
@@ -352,33 +390,56 @@ def freeze(
     release_info = None
     if release is not None:
         rm = json.load(open(release / "manifest.json"))
-        release_info = {
-            "path": str(release.resolve()),
-            "release_sha256": rm["release_sha256"],
-            "config": json.load(open(release / "config.json")),
-        }
+        release_info = {"path": str(release.resolve()), "release_sha256": rm["release_sha256"],
+                        "config": json.load(open(release / "config.json"))}
         mix = release / "mix.jsonl"
         sources = sorted((release / "sources").iterdir())
     assert mix is not None
     rows = _rows(mix)
     by_id = {_iid(r): r for r in rows}
-    rest: dict[str, str] = {}
-    if eval_dir is not None:
-        src_launch = eval_dir / "launch.json"
-        signals, rest = _signals_from_eval(eval_dir, name, log)
-    else:
-        assert run is not None
-        src_launch = run / "launch.json"
+    stamp = layout.stamp()
+    dropped: dict[str, str] = {}
+    measured: dict[str, dict] = {}
+    signals: dict[str, tuple[dict, dict]] = {}
+    if run is not None:
         signals = _signals_from_run(run, selected)
-    outside = sorted((set(signals) | set(rest)) - set(by_id))
+        launches = [json.load(open(run / "launch.json"))]
+        src_launch = run / "launch.json"
+    else:
+        found: dict[str, dict] = {}
+        for ev in evals:
+            for tid, m in _measured_by_eval(ev).items():
+                found.setdefault(tid, m)
+        for r in first_group:
+            for tid, m in _measured_by_first_group(r, int(STUDENT_RECIPE["SWE_TB2_VAL_K"])).items():
+                found.setdefault(tid, m)
+        launches = [json.load(open(p / "launch.json")) for p in [*evals, *first_group]]
+        src_launch = (evals or first_group)[0] / "launch.json"
+        for tid in sorted(by_id):
+            m = found.get(tid)
+            if m is None:
+                dropped[tid] = "not_measured"
+            elif m["test_sh"] != by_id[tid]["metadata"]["tmax"]["test_sh"]:
+                dropped[tid] = "measured_other_test_sh"
+            elif m["bucket"] not in ("all_solved", "none_solved"):
+                dropped[tid] = m["bucket"]
+            else:
+                measured[tid] = m
+                sig = {"attempts": list(m["records"]), "created": stamp,
+                       "direction": "harder" if m["bucket"] == "all_solved" else "easier",
+                       "group": m["group"], "rev": 0, "run": name,
+                       "solved": m["solved"], "task": tid, "total": m["graded"]}
+                signals[tid] = (sig, m["records"])
+            if tid in dropped:
+                log(f"task={tid} dropped: {dropped[tid]}")
+    harnesses = sorted({_harness(lc) for lc in launches})
+    if len(harnesses) != 1:
+        raise SystemExit(f"the before-measurements ran under different harnesses {harnesses}")
+    outside = sorted(set(signals) - set(by_id))
     if outside:
         raise SystemExit(f"{len(outside)} tasks are not rows of {mix}: {outside[:5]}")
 
     packages: dict[str, dict] = {}
-    # r0 is copied from the package and the signal measured the row: a task
-    # whose package grader is not the row's would be rewritten from a grader
-    # the student never met, so it is left out and listed.
-    package_not_row: list[str] = []
     for tid, (sig, _) in sorted(signals.items()):
         if sig["task"] != tid or sig["direction"] not in ("harder", "easier"):
             raise SystemExit(f"{tid}: not a harder/easier signal: {sig}")
@@ -386,17 +447,21 @@ def freeze(
         # task's current revision.
         if sig["rev"] != 0:
             raise SystemExit(f"{tid}: signal at rev {sig['rev']}, a fresh root is at 0")
-        found = [s for s in sources if (s / "tasks" / tid).is_dir()]
-        if len(found) != 1:
-            raise SystemExit(f"{tid}: package under {len(found)} of the sources, need exactly 1")
-        pkg = found[0] / "tasks" / tid
+        pkgs = [s for s in sources if (s / "tasks" / tid).is_dir()]
+        if len(pkgs) != 1:
+            raise SystemExit(f"{tid}: package under {len(pkgs)} of the sources, need exactly 1")
+        pkg = pkgs[0] / "tasks" / tid
+        # r0 is copied from this package and the signal measured the row: a
+        # package grader that is not the row's would be rewritten from a
+        # grader the student never met.
         if (pkg / "tests" / "test.sh").read_text() != by_id[tid]["metadata"]["tmax"]["test_sh"]:
-            package_not_row.append(tid)
-            log(f"task={tid} left out: {pkg}/tests/test.sh is not the mix row's test_sh")
+            dropped[tid] = "package_not_row"
+            log(f"task={tid} dropped: {pkg}/tests/test.sh is not the mix row's test_sh")
             continue
-        packages[tid] = {"source": found[0].name, "tree_sha256": tree_sha256(pkg)}
-    for tid in package_not_row:
+        packages[tid] = {"source": pkgs[0].name, "tree_sha256": tree_sha256(pkg)}
+    for tid in [t for t in signals if dropped.get(t) == "package_not_row"]:
         del signals[tid]
+        measured.pop(tid, None)
 
     dst = out / "runs" / name
     (dst / "signals").mkdir(parents=True)
@@ -412,10 +477,8 @@ def freeze(
         layout.write_json_atomic(dst / rel_sig, sig)
         files[f"runs/{name}/{rel_sig}"] = layout.sha256_file(dst / rel_sig)
         directions[sig["direction"]] += 1
-        log(
-            f"task={tid} group={sig['group']} direction={sig['direction']} solved={sig['solved']}/{sig['total']} "
-            f"records={len(records)} package={packages[tid]['source']}:{packages[tid]['tree_sha256'][:12]}"
-        )
+        log(f"task={tid} group={sig['group']} direction={sig['direction']} solved={sig['solved']}/{sig['total']} "
+            f"records={len(records)} package={packages[tid]['source']}:{packages[tid]['tree_sha256'][:12]}")
     shutil.copy2(src_launch, dst / "launch.json")
     files[f"runs/{name}/launch.json"] = layout.sha256_file(dst / "launch.json")
     os.link(mix, out / "mix.jsonl")
@@ -423,26 +486,29 @@ def freeze(
     layout.write_json_atomic(out / "selected.json", {t: {"group": s["group"]} for t, (s, _) in sorted(signals.items())})
     files["selected.json"] = layout.sha256_file(out / "selected.json")
     original = [r for r in rows if _iid(r) in signals]
-    m = _write_evalset(
-        out / "original.jsonl", original,
-        source=str(Path(mix).resolve()),
-        source_rows=f"the {len(original)} selected tasks' rows of the seed mix, in mix order",
-        set=name, set_dir=str(out.resolve()),
-    )
+    m = _write_evalset(out / "original.jsonl", original, source=str(Path(mix).resolve()),
+                       source_rows=f"the {len(original)} selected tasks' rows of the seed mix, in mix order",
+                       set=name, set_dir=str(out.resolve()))
     files["original.jsonl"] = m["sha256"]
-    # Which corpus each mix row came from, so a report can say how many repair rows the set holds.
+    # Which corpus each mix row came from, so a report can count repair rows.
     row_source = {}
     for s in sources:
         for t in (s / "tasks").iterdir():
             if t.name in by_id:
                 row_source[t.name] = s.name
+    by_corpus = collections.defaultdict(collections.Counter)
+    for tid, (sig, _) in signals.items():
+        by_corpus[row_source[tid]][sig["direction"]] += 1
+    for tid, why in dropped.items():
+        by_corpus[row_source.get(tid, "?")][f"dropped:{why}"] += 1
     manifest = {
         "name": name,
-        "created": layout.stamp(),
+        "created": stamp,
         "bench_commit": _bench_commit(),
-        "signals_from": {"run": str(run.resolve())} if run else {"eval": str(eval_dir.resolve())},
+        "signals_from": {"run": str(run.resolve())} if run else
+        {"evals": [str(e.resolve()) for e in evals], "first_group": [str(r.resolve()) for r in first_group]},
         "selected_from": str(selected.resolve()) if selected else None,
-        "student_harness": _harness(json.load(open(src_launch))),
+        "student_harness": harnesses[0],
         "release": release_info,
         "seed_mix": {"path": str(Path(mix).resolve()), "sha256": files["mix.jsonl"], "rows": len(rows)},
         "sources": [str(s.resolve()) for s in sources],
@@ -451,19 +517,17 @@ def freeze(
         "run": f"runs/{name}",
         "tasks": len(signals),
         "directions": dict(directions),
-        # Rows the signal source scored that need no rewrite (mixed: usable as
-        # they are) or carry no verdict (fewer than two graded attempts).
-        "no_signal": dict(collections.Counter(rest.values())),
-        "no_signal_tasks": rest,
-        "package_not_row": package_not_row,
+        "by_corpus": {k: dict(v) for k, v in sorted(by_corpus.items())},
+        "dropped": dict(sorted(dropped.items())),
+        "measured": {t: {k: v for k, v in mm.items() if k not in ("records", "test_sh")}
+                     | {"test_sh_sha256": hashlib.sha256(mm["test_sh"].encode()).hexdigest()}
+                     for t, mm in sorted(measured.items()) if t in signals},
         "packages": packages,
         "files": files,
     }
     layout.write_json_atomic(out / "manifest.json", manifest)
-    log(f"done set={out} tasks={len(signals)} directions={dict(directions)} no_signal={manifest['no_signal']} "
-        f"package_not_row={package_not_row} files={len(files)}")
-    print(f"{out}: {len(signals)} signals {dict(directions)}, no signal {manifest['no_signal']}, "
-          f"left out (package grader is not the row's) {package_not_row}, {len(files)} files pinned")
+    log(f"done set={out} tasks={len(signals)} directions={dict(directions)} dropped={dict(collections.Counter(dropped.values()))}")
+    print(f"{out}: {len(signals)} signals {dict(directions)}; by corpus {manifest['by_corpus']}; {len(files)} files pinned")
     return out
 
 
@@ -700,8 +764,8 @@ def stage(*, bench: Path, name: str, eval_dir: Path, release: Path, root: Path, 
     # A stager restarted after the freeze finds the set already there.
     set_dir = bench / "sets" / name
     if not (set_dir / "manifest.json").exists():
-        set_dir = freeze(bench=bench, name=name, run=None, eval_dir=eval_dir, selected=None, release=release,
-                         mix=None, sources=[], log=log)
+        set_dir = freeze(bench=bench, name=name, run=None, evals=[eval_dir], first_group=[], selected=None,
+                         release=release, mix=None, sources=[], log=log)
     manifest, set_sha = load_set(set_dir, verify=False)
     final_attempts = _eval_attempts(eval_dir, final=True)
     mismatch = {t: [b, _attempts_bucket(final_attempts.get(t, []))[0]] for t, b in st["decided"].items()
@@ -1442,6 +1506,7 @@ def tally(
         rec_path = root / "bench_arm.json"
         rec = json.load(open(rec_path)) if rec_path.exists() else None
         set_dir = set_dir or (Path(rec["set_dir"]) if rec else None)
+        set_measured = None
         if set_dir is not None:
             manifest, set_sha = load_set(set_dir, verify=False)
             if rec and rec["set_manifest_sha256"] != set_sha:
@@ -1449,8 +1514,10 @@ def tally(
             tasks = sorted(json.load(open(set_dir / "selected.json")))
             out["inputs"]["set"] = {"dir": str(set_dir.resolve()), "manifest_sha256": set_sha, "tasks": manifest["tasks"],
                                     "rows": manifest["seed_mix"]["rows"], "rows_by_source": manifest.get("rows_by_source"),
-                                    "no_signal": manifest.get("no_signal", {}), "student_harness": manifest.get("student_harness"),
+                                    "dropped": dict(collections.Counter(manifest.get("dropped", {}).values())),
+                                    "by_corpus": manifest.get("by_corpus"), "student_harness": manifest.get("student_harness"),
                                     "signals_from": manifest.get("signals_from")}
+            set_measured = manifest.get("measured")
         else:
             # A live root: every task the loop handled.
             tasks = sorted(p.name for p in (root / "evolution" / "tasks").iterdir() if (p / "rewrites").is_dir())
@@ -1476,11 +1543,6 @@ def tally(
         mixed = sum(1 for r in rewrites if r.get("after_band") == "mixed")
         out["funnel"]["mixed_after"] = mixed
         out["funnel"]["usd_per_mixed"] = round(out["funnel"]["usd_counted"] / mixed, 2) if mixed else None
-        # Yield over the set's rows is defined when one eval of all of them made the signals.
-        if out["inputs"]["set"] and "eval" in (out["inputs"]["set"]["signals_from"] or {}):
-            no_sig = out["inputs"]["set"]["no_signal"]
-            out["set_yield"] = {"rows": out["inputs"]["set"]["rows"], "mixed_as_is": no_sig.get("mixed", 0),
-                                "mixed_rewritten": mixed, "usable": no_sig.get("mixed", 0) + mixed}
         lab = defect_labels(root, labels)
         # The mechanical label: a seed grader that fetches from a third-party
         # host, on any row, since hand labels found that class accepted unfixed.
@@ -1495,6 +1557,20 @@ def tally(
             outside = sorted(set(after_tasks) - set(tasks))
             if outside:
                 raise SystemExit(f"the evals score tasks outside the root's tasks: {outside[:3]}")
+    if not before and evals and root is not None and set_measured:
+        # The set's own before-measurement of each task (its manifest's measured),
+        # in the per-task shape of an eval.
+        b_tasks = {t: {"bucket": m["bucket"], "pass": m["solved"], "graded": m["graded"], "infra": 0,
+                       "finish": {}, "finish_failed": {}} for t, m in set_measured.items()}
+        missing = sorted(set(after_tasks) - set(b_tasks))
+        if missing:
+            raise SystemExit(f"the set has no before-measurement of {len(missing)} tasks: {missing[:3]}")
+        common = sorted(after_tasks)
+        out["before"] = counts({k: b_tasks[k] for k in common})
+        out["before_after"] = {**transitions(b_tasks, after_tasks, common),
+                               "recipe_mismatch": {"before": "the set's measurements; their sources are in its manifest"}}
+        for k in common:
+            log(f"transition task={k} {b_tasks[k]['bucket']}->{after_tasks[k]['bucket']}")
     if before:
         if not evals:
             raise SystemExit("--before pairs with evals of the accepted rows")
@@ -1551,7 +1627,7 @@ def compare(results: list[tuple[str, dict]], allow_mismatch: bool) -> tuple[dict
             ya, yb = ym(ref), ym(r)
             gained = sum(k not in ya and k in yb for k in all_tasks)
             lost = sum(k in ya and k not in yb for k in all_tasks)
-            pair["set_yield"] = {"tasks": len(all_tasks), "mixed": [len(ya), len(yb)], "gained": gained, "lost": lost,
+            pair["whole_set"] = {"tasks": len(all_tasks), "mixed": [len(ya), len(yb)], "gained": gained, "lost": lost,
                                  "mcnemar_p": mcnemar_exact(gained, lost)}
         pairs.append(pair)
     if problems and not allow_mismatch:
@@ -1595,9 +1671,6 @@ def compare(results: list[tuple[str, dict]], allow_mismatch: bool) -> tuple[dict
         cells.append(f"{r['before']['mixed']} -> {a['mixed']} (p={ba['mcnemar_p']:.3g})" if ba else "-")
         lines.append("| " + " | ".join(str(c) for c in cells) + " |")
     for label, r in results:
-        if r.get("set_yield"):
-            y = r["set_yield"]
-            lines.append(f"\n{label}: set yield {y['usable']} of {y['rows']} rows usable (mixed as-is {y['mixed_as_is']}, rewritten to mixed {y['mixed_rewritten']}).")
         if r.get("repair"):
             lines += ["", f"**{label} repair rows by known defect**", "",
                       "| defect | rows | accepted | after mixed / all / none | declared a repair | fixed (mechanical) | not fixed (mechanical) | hand labels: fixed / agree / disagree |",
@@ -1624,8 +1697,8 @@ def compare(results: list[tuple[str, dict]], allow_mismatch: bool) -> tuple[dict
             lines += ["", f"**{p['arms'][0]} vs {p['arms'][1]}**, tasks both accepted ({ca['graded_both']} graded by both): "
                       f"mixed gained {ca['mixed_gained']}, lost {ca['mixed_lost']}, exact McNemar p={ca['mcnemar_p']:.3g}; "
                       f"unpaired Fisher on mixed share p={p['fisher_mixed_unpaired_p']:.3g}."]
-        if "set_yield" in p:
-            y = p["set_yield"]
+        if "whole_set" in p:
+            y = p["whole_set"]
             lines.append(f"Whole set ({y['tasks']} tasks, mixed only if accepted): {y['mixed'][0]} vs {y['mixed'][1]}, "
                          f"gained {y['gained']}, lost {y['lost']}, exact McNemar p={y['mcnemar_p']:.3g}.")
         if "common_accepted" in p:
@@ -1774,10 +1847,11 @@ def main() -> None:
     p = sub.add_parser("freeze", help="snapshot a signal selection as a named set")
     p.add_argument("--bench", type=Path, required=True)
     p.add_argument("--name", required=True)
-    g = p.add_mutually_exclusive_group(required=True)
-    g.add_argument("--run", type=Path, help="a directory in the run shape holding the signals")
-    g.add_argument("--eval", type=Path, help="a base-student eval of the set: signals are made from it")
+    p.add_argument("--run", type=Path, help="a directory in the run shape that already holds the signals")
     p.add_argument("--selected", type=Path, help="with --run: task -> {group}; default every signal")
+    p.add_argument("--eval", type=Path, nargs="*", default=[], help="evals measuring the rows (each task's attempts)")
+    p.add_argument("--first-group", type=Path, nargs="*", default=[],
+                   help="training runs measuring the rows (each task's first rev-0 group, first k graded attempts)")
     g = p.add_mutually_exclusive_group(required=True)
     g.add_argument("--release", type=Path, help="a data_release.py release: mix, sources and config")
     g.add_argument("--mix", type=Path, help="the seed mix the signals measured (with --sources)")
@@ -1843,7 +1917,9 @@ def main() -> None:
             ap.error("--selected filters the signals of --run")
         if a.mix and not a.sources:
             ap.error("--mix needs --sources")
-        freeze(bench=a.bench, name=a.name, run=a.run, eval_dir=a.eval, selected=a.selected,
+        if bool(a.run) == bool(a.eval or a.first_group):
+            ap.error("give --run, or measurements (--eval / --first-group)")
+        freeze(bench=a.bench, name=a.name, run=a.run, evals=a.eval, first_group=a.first_group, selected=a.selected,
                release=a.release, mix=a.mix, sources=a.sources, log=_log_for(a.bench, "freeze"))
     elif a.cmd == "run":
         run_arm(bench=a.bench, set_name=a.set, arm_path=a.arm, log=_log_for(a.bench, "run"))

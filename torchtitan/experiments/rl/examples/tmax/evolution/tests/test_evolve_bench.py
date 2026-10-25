@@ -273,11 +273,12 @@ def test_freeze_from_eval_pins_everything_and_evalset_follows(tmp_path, monkeypa
     mix = _jsonl(tmp_path / "mix.jsonl", rows)
     ev = _eval(tmp_path, "base", mix, {"a": "PPPPP", "b": "FFFFF", "c": "PFPFP"}, attempt_dir=True)
     bench = tmp_path / "bench"
-    out = eb.freeze(bench=bench, name="s1", run=None, eval_dir=ev, selected=None, release=None, mix=mix,
+    out = eb.freeze(bench=bench, name="s1", run=None, evals=[ev], first_group=[], selected=None, release=None, mix=mix,
                     sources=[src], log=eb.Log(tmp_path / "f.log"))
     m, sha = eb.load_set(out, verify=True)
     assert m["directions"] == {"harder": 1, "easier": 1}
-    assert m["no_signal"] == {"mixed": 1} and m["student_harness"] == "terminus"
+    assert m["dropped"] == {"c": "mixed"} and m["student_harness"] == "terminus"
+    assert m["measured"]["a"]["source"]["kind"] == "eval" and m["measured"]["a"]["bucket"] == "all_solved"
     sig = json.load(open(out / "runs" / "s1" / "signals" / "a--g-1.json"))
     assert sig["direction"] == "harder" and sig["rev"] == 0 and len(sig["attempts"]) == 5
     assert (out / "runs" / "s1" / sig["attempts"][0]).exists()
@@ -286,7 +287,7 @@ def test_freeze_from_eval_pins_everything_and_evalset_follows(tmp_path, monkeypa
     with pytest.raises(SystemExit, match="pinned items changed"):
         eb.load_set(out, verify=True)
     with pytest.raises(SystemExit, match="frozen once"):
-        eb.freeze(bench=bench, name="s1", run=None, eval_dir=ev, selected=None, release=None, mix=mix,
+        eb.freeze(bench=bench, name="s1", run=None, evals=[ev], first_group=[], selected=None, release=None, mix=mix,
                   sources=[src], log=eb.Log(tmp_path / "f.log"))
 
 
@@ -296,10 +297,10 @@ def test_freeze_leaves_out_a_package_that_is_not_the_row(tmp_path, monkeypatch):
     _pkg(src / "tasks" / "a", test="other")
     mix = _jsonl(tmp_path / "mix.jsonl", [_row("a", test="mine")])
     ev = _eval(tmp_path, "base", mix, {"a": "PPPPP"})
-    out = eb.freeze(bench=tmp_path / "bench", name="s", run=None, eval_dir=ev, selected=None, release=None,
+    out = eb.freeze(bench=tmp_path / "bench", name="s", run=None, evals=[ev], first_group=[], selected=None, release=None,
                     mix=mix, sources=[src], log=eb.Log(tmp_path / "f.log"))
     m, _ = eb.load_set(out, verify=True)
-    assert m["package_not_row"] == ["a"] and m["tasks"] == 0
+    assert m["dropped"] == {"a": "package_not_row"} and m["tasks"] == 0
 
 
 def test_load_arm_refuses_pinned_or_derived_env(tmp_path):
@@ -422,7 +423,7 @@ def test_stage_streams_signals_then_freezes_from_the_index(tmp_path, monkeypatch
     assert json.load(open(sd / "selected.json")) == {"a": {"group": -1}, "b": {"group": -2}}
     assert (sd / "done").exists()
     m, sha = eb.load_set(bench / "sets" / "s", verify=True)
-    assert m["no_signal"] == {"mixed": 1} and m["student_harness"] == "vanillux"
+    assert m["dropped"] == {"c": "mixed"} and m["student_harness"] == "vanillux"
     assert m["release"]["config"]["sources"][0]["exclude"] == ["x"]
     assert json.load(open(root / "bench_arm.json"))["set_manifest_sha256"] == sha
     sig = json.load(open(run / "signals" / "b--g-2.json"))
@@ -452,3 +453,60 @@ def test_cut_wave_takes_new_accepted_revisions_only(tmp_path, monkeypatch):
     assert eb.eval_env(w2, "vanillux", {})["TMAX_AGENT"] == "vanillux"
     with pytest.raises(SystemExit, match="measured under vanillux"):
         eb.eval_env(w2, "terminus", {})
+
+
+def test_freeze_takes_the_first_measurement_of_each_row_and_drops_the_rest(tmp_path, monkeypatch):
+    monkeypatch.setattr(eb, "_bench_commit", lambda: "test")
+    src = tmp_path / "corpus"
+    tasks = ["r1", "c1", "c2", "c3", "c4", "c5"]
+    rows = [_row(t, test=f"test {t}") for t in tasks]
+    for r in rows:
+        _pkg(src / "tasks" / r["label"], test=r["metadata"]["tmax"]["test_sh"])
+    mix = _jsonl(tmp_path / "mix.jsonl", rows)
+    ev = _eval(tmp_path, "base", mix, {"r1": "FFFFF"})  # the repair row, from an eval
+    run = tmp_path / "train" / "runs" / "sep"
+    (run / "rollouts").mkdir(parents=True)
+    (run / "launch.json").write_text(json.dumps({"tt_commit": "old1234", "env": {"TMAX_AGENT": "terminus"}}))
+    trained = [_row(t, test=f"test {t}") for t in ("c1", "c2", "c3", "c4")] + [_row("c5", test="older grader")]
+    _jsonl(run / "inputs" / "mix.jsonl", trained)
+
+    def group(t, g, rewards, rev=0):
+        for i, r in enumerate(rewards):
+            p = run / "rollouts" / t / f"g{g}-r{i}.jsonl"
+            p.parent.mkdir(parents=True, exist_ok=True)
+            head = {"task": t, "rev": rev, "group": g, "reward": r, "infra_failed": r is None}
+            p.write_text(json.dumps(head) + "\n")
+
+    # c1: first group's first 5 graded all solved (an infra attempt skipped), later attempts fail
+    group("c1", 7, [1.0, None, 1.0, 1.0, 1.0, 1.0, 0.0, 0.0])
+    group("c1", 40, [0.0] * 8)  # a later group is not the before
+    group("c2", 9, [0.0] * 12)  # none solved
+    group("c3", 3, [1.0, 0.0, 1.0, 0.0, 0.0, 0.0])  # mixed: already carries gradient, out
+    group("c5", 2, [0.0] * 6)  # measured on another test_sh, out
+    out = eb.freeze(bench=tmp_path / "bench", name="m", run=None, evals=[ev], first_group=[run], selected=None,
+                    release=None, mix=mix, sources=[src], log=eb.Log(tmp_path / "f.log"))
+    m, _ = eb.load_set(out, verify=True)
+    assert m["directions"] == {"easier": 2, "harder": 1}
+    assert m["dropped"] == {"c3": "mixed", "c4": "not_measured", "c5": "measured_other_test_sh"}
+    assert m["measured"]["c1"]["source"] == {"kind": "run_first_group", "dir": str(run.resolve()), "tt_commit": "old1234",
+                                             "harness": "terminus", "k": 5, "group_size": 8}
+    assert (m["measured"]["c1"]["solved"], m["measured"]["c1"]["graded"], m["measured"]["c1"]["group"]) == (5, 5, 7)
+    assert m["measured"]["r1"]["source"]["kind"] == "eval"
+    sig = json.load(open(out / "runs" / "m" / "signals" / "c1--g7.json"))
+    assert sig["direction"] == "harder" and len(sig["attempts"]) == 8  # the whole group is staged
+
+    # the tally reads the before-bands from the set when no before eval is given
+    root = tmp_path / "root"
+    _pkg(root / "evolution" / "tasks" / "c1" / "r0", test="test c1")
+    _pkg(root / "evolution" / "tasks" / "c1" / "r1", test="test c1 harder")
+    d = root / "evolution" / "tasks" / "c1" / "rewrites" / "20261025-000000Z--harder"
+    d.mkdir(parents=True)
+    (d / "rewrite.json").write_text(json.dumps({"task": "c1", "job": "harder", "status": "accepted", "input_rev": 0,
+                                                "result_rev": 1}))
+    _, sha = eb.load_set(out, verify=False)
+    (root / "bench_arm.json").write_text(json.dumps({"set_dir": str(out), "set_manifest_sha256": sha}))
+    after = _eval(tmp_path, "wave1", _jsonl(tmp_path / "w1.jsonl", [_row("c1", 1)]), {"c1": "PFPFF"})
+    res = eb.tally(evals=[after], runs=[], evalset=None, root=root, set_dir=None, before=[], labels=None,
+                   log=eb.Log(tmp_path / "t.log"))
+    assert res["before_after"]["table"] == {"all_solved->mixed": 1}
+    assert res["inputs"]["set"]["dropped"] == {"mixed": 1, "not_measured": 1, "measured_other_test_sh": 1}
