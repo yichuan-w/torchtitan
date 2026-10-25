@@ -623,10 +623,16 @@ def _arm_root(*, root: Path, arm: dict, arm_path: Path, tt: Path, head: str, cod
     rec_path = root / "bench_arm.json"
     if root.exists():
         prev = json.load(open(rec_path))
-        keys = ("arm", "arm_commit", "codex_version", "set", "stream")
-        if {k: prev.get(k) for k in keys} != {k: record.get(k) for k in keys}:
+        keys = ("arm_commit", "codex_version", "set", "stream")
+        # The worker count is how fast the arm runs, not what it measures: a
+        # relaunch may change it (fewer workers after provider 429s), recorded.
+        same_arm = {k: v for k, v in prev["arm"].items() if k != "workers"} == \
+            {k: v for k, v in record["arm"].items() if k != "workers"}
+        if not same_arm or {k: prev.get(k) for k in keys} != {k: record.get(k) for k in keys}:
             raise SystemExit(f"{root} holds another arm or set ({rec_path}); a new config is a new arm name")
-        log(f"resume root={root}")
+        prev.setdefault("relaunches", []).append({"at": layout.stamp(), "workers": record["arm"]["workers"]})
+        layout.write_json_atomic(rec_path, prev)
+        log(f"resume root={root} workers={record['arm']['workers']}")
         return
     py = Path(os.environ.get("TRL_VENV", "/scratch/gpfs/TRIDAO/al9080/titan-rl")) / "bin" / "python"
     subprocess.run(
@@ -670,7 +676,7 @@ def _drive_env(root: Path, arm: dict, pins: dict[str, str], source_run: Path, se
 DRIVE = _EVO / "offline_drive.sh"
 
 
-def run_arm(*, bench: Path, set_name: str, arm_path: Path, log: Log) -> Path:
+def run_arm(*, bench: Path, set_name: str, arm_path: Path, log: Log, workers: int | None = None) -> Path:
     """Create the arm's root from the set and start offline_drive.sh for it as a
     systemd user unit (RUNBOOK, "Offline evolution of a signal subset"). A root
     that exists with the same arm and set is resumed: the drive restages only
@@ -678,6 +684,8 @@ def run_arm(*, bench: Path, set_name: str, arm_path: Path, log: Log) -> Path:
     set_dir = bench / "sets" / set_name
     manifest, set_sha = load_set(set_dir, verify=True)
     arm = load_arm(arm_path)
+    if workers is not None:
+        arm = {**arm, "workers": workers}
     tt, head, codex_version = _arm_checkout(arm)
     root = bench / "arms" / f"{set_name}--{arm['name']}"
     _arm_root(root=root, arm=arm, arm_path=arm_path, tt=tt, head=head, codex_version=codex_version,
@@ -1392,6 +1400,11 @@ def funnel(per_task: dict[str, list[dict]]) -> dict:
         "usd_per_accepted": round(usd_counted / c["accepted"], 2) if c["accepted"] else None,
         # A Claude Code arm records no Codex token counts: its cost is unknown, not 0.
         "rewrites_cost_unknown": sum(not r["cost_known"] for r in all_rw),
+        # Every task that lost an attempt to infrastructure, and to what: the
+        # drive's MAX_ATTEMPTS counts those attempts too.
+        "infra_lost_attempts": {t: [r["class"] for r in rs if r["class"].startswith("infra:")]
+                                for t, rs in sorted(per_task.items())
+                                if any(r["class"].startswith("infra:") for r in rs)},
         "task_final": final,
     }
 
@@ -1910,6 +1923,7 @@ def main() -> None:
     p.add_argument("--bench", type=Path, required=True)
     p.add_argument("--set", required=True)
     p.add_argument("--arm", type=Path, required=True)
+    p.add_argument("--workers", type=int, help="relaunch an existing root at this worker count")
     p = sub.add_parser("pipeline", help="rewrite while the base eval runs: stager + drive as user units")
     p.add_argument("--bench", type=Path, required=True)
     p.add_argument("--name", required=True, help="the set's name")
@@ -1973,7 +1987,7 @@ def main() -> None:
                recipe=a.recipe,
                release=a.release, mix=a.mix, sources=a.sources, log=_log_for(a.bench, "freeze"))
     elif a.cmd == "run":
-        run_arm(bench=a.bench, set_name=a.set, arm_path=a.arm, log=_log_for(a.bench, "run"))
+        run_arm(bench=a.bench, set_name=a.set, arm_path=a.arm, log=_log_for(a.bench, "run"), workers=a.workers)
     elif a.cmd == "pipeline":
         pipeline(bench=a.bench, name=a.name, eval_dir=a.eval, release=a.release, arm_path=a.arm,
                  poll_sec=a.poll, log=_log_for(a.bench, "pipeline"))

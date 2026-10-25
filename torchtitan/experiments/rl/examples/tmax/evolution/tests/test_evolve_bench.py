@@ -228,6 +228,7 @@ def test_tally_root_with_eval_funnel_directions_and_repair(tmp_path):
     out = eb.tally(evals=[ev], runs=[], evalset=None, root=root, set_dir=None, before=[], labels=labels, log=log)
     f = out["funnel"]
     assert f["final"] == {"accepted": 1, "give_up": 1, "infra:interrupted": 1}
+    assert f["infra_lost_attempts"] == {"t3": ["infra:codex_exit_nonzero", "infra:interrupted"]}
     assert f["acceptance_rate"] == 0.5  # infra losses are not verdicts
     assert out["directions"]["harder"]["mixed"] == 1
     assert out["rewrite_stats"]["harder"]["grader_network"] == {"introduced": 0, "kept": 0, "removed": 1}
