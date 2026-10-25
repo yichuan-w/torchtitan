@@ -33,10 +33,6 @@ every argument.
 So 200 rows are clean and 200 are repair. The release's `config.json`, with
 every exclude list, is copied into the frozen set's manifest.
 
-- 400 rows is one base-student eval of 2,000 attempts. The base student left
-  257 of the 342 repair rows of the `repair342` set all-solved or none-solved;
-  clean rows carry signal more often, so an arm rewrites fewer than 400 tasks,
-  still several times the 100 of `r100`.
 - All of repair, because those are the rows with known defects.
   Each arm then also reports whether it repairs them. The 76 repair rows
   (and 1 calibforge_repair row) that the audit excluded from the training
@@ -47,28 +43,51 @@ every exclude list, is copied into the frozen set's manifest.
 - `skip_unpackable` is off: the fixture rows are excluded by id, so a new
   unpackable row fails the build instead of disappearing.
 
-First-round signals come from a base-student eval of the whole set. `freeze --eval` makes a harder signal for every task
-solved on every graded attempt and an easier one for every task solved on
-none. Mixed tasks need no rewrite; they are recorded as usable as they are and
-counted in the set's yield (mixed as-is plus rewritten to mixed, over the
-set's rows). A task whose package grader differs from its row's
-`test_sh` is left out and listed (`package_not_row`), since the loop would
-rewrite it from a grader the student never met.
+A set holds only zero-signal rows. A row solved on every graded attempt of
+its before-measurement gets a harder signal, one solved on none an easier
+signal; a mixed row already carries gradient and is an ordinary training
+task, so it is not in the set. `freeze` takes each row's before-measurement
+from existing results, the first source that measured it, in the order
+given: an eval (`--eval`, the task's attempts) or a training run
+(`--first-group`, the task's first rev-0 group, banded on its first five
+graded attempts so the band means what a five-attempt eval's does; the
+whole group is staged as the signal's attempts). A row is dropped, with the
+reason in the manifest's `dropped`, when it is mixed, ungraded, not
+measured, measured on a `test_sh` other than the release row's, or when its
+package grader is not the row's `test_sh` (the loop would rewrite it from a
+grader the student never met). The manifest's `measured` names each kept
+row's source, group, commit and k, and the tally reads the before-bands from
+it. All sources of one set must have run one student harness, which becomes
+the set's: evals of its rewrites have to use that harness too.
 
 ## Sets already frozen
 
-Two sets are frozen on della under
-`/scratch/gpfs/TRIDAO/al9080/terminal-rl/evolve-bench/sets/`, from runs that
-predate the bench:
+Three sets are frozen on della under
+`/scratch/gpfs/TRIDAO/al9080/terminal-rl/evolve-bench/sets/`:
+
+- `agentpick400-measured`: the zero-signal rows of the 400-row release
+  above, 234 of them (191 easier, 43 harder), all measured under Terminus.
+  The 163 repair rows come from the base eval of the repair342 rows
+  (`evals/20261024-100842Z--base-step0-repair342-20261024`, commit
+  ba31d0ca, k=5). The 71 clean rows come from the first groups of the
+  September agentpick training run (`runs/tmax-9b--20260927-084446Z` of the
+  `yichuan` profile's root, commit 9403e73c), so their before-bands come
+  from older code than the evals of their rewrites.
+
+  | corpus | easier | harder | dropped |
+  |---|---|---|---|
+  | repair (171) | 133 | 11 | mixed 23, ungraded 3, package not the row 1 |
+  | calibforge_repair (29) | 18 | 1 | mixed 10 |
+  | clean_fast (100) | 7 | 28 | mixed 39, measured on another test_sh 16, not measured 9, ungraded 1 |
+  | calibforge_clean_fast (100) | 33 | 3 | not measured 50, mixed 14 |
 
 - `r100`: 100 harder signals from `runs/tmax-9b--20260911-000700Z`, each
   task's first training group, all solved (`offline_select.py`'s pick); the
   selection the r100 rewriter arms used.
-- `repair342`: the 342 repair and calibforge_repair rows of the 2026-10-24
-  agentpick release (`data/prepared/releases/c02f5864…`), with signals made
-  by `freeze --eval` from its base-student eval: 237 easier, 19 harder, 81
-  mixed as-is, 4 ungraded, and 1 left out because its package grader is not
-  its row's.
+- `repair342`: the zero-signal repair and calibforge_repair rows of the
+  2026-10-24 agentpick release (`data/prepared/releases/c02f5864…`), from
+  its base-student eval: 237 easier and 19 harder, frozen before the
+  manifest listed dropped rows.
 
 ## Running an arm
 
@@ -77,37 +96,46 @@ EVO=<checkout>/torchtitan/experiments/rl/examples/tmax/evolution
 PY=/scratch/gpfs/TRIDAO/al9080/titan-rl/bin/python
 BENCH=/scratch/gpfs/TRIDAO/al9080/terminal-rl/evolve-bench
 
-# once per set: build the release, score every row with the base student, freeze
+# once per set: build the release, freeze it from existing measurements of its rows
 $PY $EVO/data_release.py build --config $EVO/data_evolve_bench.json --out <data>/prepared
-TRL_PROFILE=andy $PY $EVO/evolve_bench.py eval --evalset <release>/mix.jsonl --harness vanillux \
-    --gpus 4,4 --base $BENCH                       # through gpu-pool, on della-tridao
-$PY $EVO/evolve_bench.py freeze --bench $BENCH --name agentpick400 \
-    --eval $BENCH/evals/<stamp>--base-step0-mix --release <release>
+$PY $EVO/evolve_bench.py freeze --bench $BENCH --name agentpick400-measured --release <release> \
+    --eval <evals of the rows> --first-group <training runs that sampled them>
 
 # per arm: a root from the set and offline_drive.sh as a user unit (login node)
-$PY $EVO/evolve_bench.py run --bench $BENCH --set agentpick400 --arm arms/sol-medium.json
+$PY $EVO/evolve_bench.py run --bench $BENCH --set agentpick400-measured --arm arms/sol-medium.json
 # when the drive's log ends in "finished"
-$PY $EVO/evolve_bench.py evalset --root $BENCH/arms/agentpick400--sol-medium
-TRL_PROFILE=andy $PY $EVO/evolve_bench.py eval --harness vanillux --gpus 4,4 \
-    --evalset $BENCH/arms/agentpick400--sol-medium/data/evalsets/bench-accepted.jsonl
-$PY $EVO/evolve_bench.py tally --root $BENCH/arms/agentpick400--sol-medium \
-    --eval $BENCH/arms/agentpick400--sol-medium/evals/<stamp>--base-step0-bench-accepted \
-    --before $BENCH/evals/<stamp>--base-step0-mix --labels $EVO/data_evolve_bench_defects.tsv \
+$PY $EVO/evolve_bench.py evalset --root $BENCH/arms/agentpick400-measured--sol-medium
+TRL_PROFILE=andy $PY $EVO/evolve_bench.py eval --harness terminus --gpus 4,4 \
+    --evalset $BENCH/arms/agentpick400-measured--sol-medium/data/evalsets/bench-accepted.jsonl
+$PY $EVO/evolve_bench.py tally --root $BENCH/arms/agentpick400-measured--sol-medium \
+    --eval $BENCH/arms/agentpick400-measured--sol-medium/evals/<stamp>--base-step0-bench-accepted \
+    --labels $EVO/data_evolve_bench_defects.tsv \
     --out $BENCH/results/sol-medium.json
 $PY $EVO/evolve_bench.py compare sol=$BENCH/results/sol-medium.json opus=$BENCH/results/opus-medium.json \
     --out $BENCH/results/sol-vs-opus
 ```
 
-### Rewriting while the base eval runs
+### Scoring rewrites while the arm runs
 
-`pipeline` overlaps the stages instead of running them one after another:
+`wave` scores accepted revisions while the drive is still rewriting: it cuts
+the revisions no earlier wave holds into `data/evalsets/bench-wave-NN.jsonl`
+once enough have accumulated, enough time has passed since the previous
+wave, or the drive is done, and each wave is evaluated like any evalset. The
+tally takes every wave's eval as `--eval`. Wave evals feed only the tally: no
+signal is made from them and no acceptance waits on them.
 
 ```bash
-$PY $EVO/evolve_bench.py pipeline --bench $BENCH --name agentpick400 \
-    --eval $BENCH/evals/<stamp>--base-step0-mix --release <release> --arm arms/sol-medium.json
 # every few minutes, from the machine that launches GPU work
-$PY $EVO/evolve_bench.py wave --root $BENCH/arms/agentpick400--sol-medium --every 40 --minutes 60
+$PY $EVO/evolve_bench.py wave --root $BENCH/arms/agentpick400-measured--sol-medium --every 40 --minutes 60
 # for each WAVE it prints: eval that wave's evalset, as above
+```
+
+When a set has no measurement yet and needs a base eval, `pipeline` also
+overlaps rewriting with that eval:
+
+```bash
+$PY $EVO/evolve_bench.py pipeline --bench $BENCH --name <set> \
+    --eval $BENCH/evals/<stamp>--base-step0-mix --release <release> --arm arms/sol-medium.json
 ```
 
 It starts two systemd user units. The stager (`stage`) reads the base eval's
@@ -117,11 +145,7 @@ attempts are graded, growing the stream's `selected.json`. The drive
 staged and waits, rather than ending, while the stream is still open. When the
 eval writes its own `index.json`, the stager freezes the set from that index,
 checks every streamed decision against it (`stream.json`'s `final_check`), and
-writes the done marker that lets the drive finish. `wave` cuts accepted
-revisions that no earlier wave holds into `data/evalsets/bench-wave-NN.jsonl`,
-once enough have accumulated, enough time has passed, or the drive is done;
-the tally takes every wave's eval as `--eval`. Wave evals feed only the tally:
-no signal is made from them and no acceptance waits on them.
+writes the done marker that lets the drive finish.
 
 An arm is one JSON file with exactly these keys:
 
