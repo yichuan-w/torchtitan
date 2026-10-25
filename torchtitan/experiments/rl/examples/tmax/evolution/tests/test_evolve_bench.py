@@ -542,3 +542,12 @@ def test_mechanical_fix_says_nothing_about_classes_it_cannot_check():
     assert eb.mechanical_fix("no_reference_solution", None) is False
     assert eb.mechanical_fix("no_reference_solution", acc) is True
     assert eb.mechanical_fix("grader_fetch", acc) is False
+
+
+def test_overshoot_pairs_counts_direction_aware_overshoot():
+    def res(bands):
+        return {"rewrites": [{"task": t, "class": "accepted", "job": j, "after_band": b} for t, (j, b) in bands.items()]}
+    a = res({"t1": ("harder", "none_solved"), "t2": ("easier", "mixed"), "t3": ("easier", "all_solved")})
+    b = res({"t1": ("harder", "mixed"), "t2": ("easier", "all_solved"), "t3": ("easier", "all_solved")})
+    o = eb.overshoot_pairs(a, b, ["t1", "t2", "t3"])
+    assert (o["tasks"], o["overshoot"], o["gained"], o["lost"]) == (3, [2, 2], 1, 1)

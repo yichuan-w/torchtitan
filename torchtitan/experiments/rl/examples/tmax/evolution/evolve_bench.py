@@ -1664,6 +1664,24 @@ def _share(x) -> str:
     return "-" if x is None else f"{100 * x:.0f}%"
 
 
+def overshoot_pairs(a: dict, b: dict, tasks: list[str]) -> dict:
+    """Exact McNemar on overshoot over tasks both arms accepted and graded:
+    a harder rewrite that came out none solved, or an easier one that came out
+    all solved."""
+    def over(res: dict) -> dict[str, bool]:
+        out = {}
+        for x in res["rewrites"]:
+            if x["class"] == "accepted" and x.get("after_band") in GRADED_BUCKETS:
+                out[x["task"]] = x["after_band"] == ("none_solved" if x["job"] == "harder" else "all_solved")
+        return out
+    oa, ob = over(a), over(b)
+    both = [t for t in tasks if t in oa and t in ob]
+    gained = sum(not oa[t] and ob[t] for t in both)
+    lost = sum(oa[t] and not ob[t] for t in both)
+    return {"tasks": len(both), "overshoot": [sum(oa[t] for t in both), sum(ob[t] for t in both)],
+            "gained": gained, "lost": lost, "mcnemar_p": mcnemar_exact(gained, lost)}
+
+
 def compare(results: list[tuple[str, dict]], allow_mismatch: bool) -> tuple[dict, str]:
     """Paired arm-vs-arm against the first, and one markdown table of all."""
     ref_label, ref = results[0]
@@ -1681,6 +1699,8 @@ def compare(results: list[tuple[str, dict]], allow_mismatch: bool) -> tuple[dict
         if "after_tasks" in ref and "after_tasks" in r:
             common = sorted(set(ref["after_tasks"]) & set(r["after_tasks"]))
             pair["common_accepted"] = transitions(ref["after_tasks"], r["after_tasks"], common)
+            if "rewrites" in ref and "rewrites" in r:
+                pair["overshoot"] = overshoot_pairs(ref, r, common)
             a, b = ref["after"], r["after"]
             ga = a["mixed"] + a["all_solved"] + a["none_solved"]
             gb = b["mixed"] + b["all_solved"] + b["none_solved"]
@@ -1763,6 +1783,10 @@ def compare(results: list[tuple[str, dict]], allow_mismatch: bool) -> tuple[dict
             lines += ["", f"**{p['arms'][0]} vs {p['arms'][1]}**, tasks both accepted ({ca['graded_both']} graded by both): "
                       f"mixed gained {ca['mixed_gained']}, lost {ca['mixed_lost']}, exact McNemar p={ca['mcnemar_p']:.3g}; "
                       f"unpaired Fisher on mixed share p={p['fisher_mixed_unpaired_p']:.3g}."]
+        if "overshoot" in p:
+            o = p["overshoot"]
+            lines.append(f"Overshoot on the {o['tasks']} tasks both accepted and graded: {o['overshoot'][0]} vs {o['overshoot'][1]}, "
+                         f"gained {o['gained']}, lost {o['lost']}, exact McNemar p={o['mcnemar_p']:.3g}.")
         if "whole_set" in p:
             y = p["whole_set"]
             lines.append(f"Whole set ({y['tasks']} tasks, mixed only if accepted): {y['mixed'][0]} vs {y['mixed'][1]}, "

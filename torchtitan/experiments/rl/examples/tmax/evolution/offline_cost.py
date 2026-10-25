@@ -35,6 +35,8 @@ MODEL_PRICES = {
     "claude-opus-5-5": {"in": 4.0, "cw": 5.0, "cr": 0.20, "out": 20.0},
     "claude-sonnet-5": {"in": 2.0, "cw": 2.50, "cr": 0.20, "out": 10.0},
     "gpt-5.6-sol": {"in": 4.0, "cw": 4.0, "cr": 0.40, "out": 20.0},
+    # platform.kimi.ai/docs/pricing/chat-k3 (2026-09-27): no separate cache-write price.
+    "moonshotai/Kimi-K3": {"in": 3.0, "cw": 3.0, "cr": 0.30, "out": 15.0},
 }
 TOKEN_CLASSES = ("in", "cw", "cr", "out")
 # Under <rewrite dir>: every Codex session's own rollout jsonl.
