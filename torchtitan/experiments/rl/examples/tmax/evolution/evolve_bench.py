@@ -51,32 +51,62 @@ sys.path.insert(0, str(_EVO))
 import layout  # noqa: E402
 import offline_cost  # noqa: E402
 
-# The student recipe every bench eval runs under. tb2_eval_local.sh exports
-# these into the trainer and records them in launch.json's env; tally reads
-# them back from there, and two evals that disagree on any are not compared.
-STUDENT_RECIPE = {
+# The student recipes a bench eval runs under. tb2_eval_local.sh exports one
+# into the trainer and records it in launch.json's env (SWE_BENCH_RECIPE names
+# it); tally reads it back, and compare refuses to pair two evals that differ
+# on any of it. A set records the recipe its before-measurements were taken
+# under, and every eval of its rewrites runs that one.
+_COMMON = {
     "SWE_TB2_VAL_K": "5",
     "SWE_TB2_VAL_TEMPERATURE": "1.0",
     "SWE_TB2_VAL_TOP_P": "1.0",
-    # A row declaring no agent timeout gets this; one declaring its own gets
-    # max(declared, floor). Both are the eval recipe's own knobs: the eval
-    # config does not read SWE_TIME_BUDGET_SEC / SWE_AGENT_TIMEOUT_FLOOR_SEC.
-    "SWE_EVAL_TIME_BUDGET_SEC": "2400",
-    "SWE_EVAL_BUDGET_FLOOR_SEC": "7200",
-    "SWE_TIME_BUDGET_SEC": "2400",
     "SWE_MAX_NUM_SEQS": "256",
     "TMAX_TERMINUS_MAX_TURNS": "120",
     # vanillux's action cap (its default is 64), so every harness gets 120.
     "TMAX_CALL_LIMIT": "120",
     "TMAX_TURN_MAX_TOKENS": "32768",
     "TMAX_EXEC_TIMEOUT_SEC": "120",
-    "SWE_MAX_CONTEXT_LEN": "63488",
     "TT_DAYTONA_CPU": "1",
     "TT_DAYTONA_MEM_GB": "2",
     "TT_DAYTONA_DISK_GB": "2",
     # The eval writes no evolution signals: what it measures never reaches a loop.
     "SWE_EVOLUTION_SIGNALS": "0",
 }
+STUDENT_RECIPES = {
+    # Training's caps as it runs now: 120 turns, an 81920-token context (the
+    # generator's vLLM max_model_len is SWE_TMAX_CONTEXT; the agent stops 2048
+    # tokens short of it, config_registry's headroom), 2 h per attempt. A row
+    # declaring no agent timeout gets SWE_EVAL_TIME_BUDGET_SEC, one declaring
+    # its own max(declared, floor); the eval config reads only these two.
+    "training-2026-10": {
+        **_COMMON,
+        "SWE_TMAX_CONTEXT": "81920",
+        "SWE_MAX_CONTEXT_LEN": "79872",
+        "SWE_EVAL_TIME_BUDGET_SEC": "7200",
+        "SWE_EVAL_BUDGET_FLOOR_SEC": "7200",
+    },
+    # What the repair342 and r100 evals ran: a 65536 context (the code's
+    # default, so unset here), 2400 s for rows that declare nothing. Sets
+    # measured under it keep it, so their before and after stay comparable.
+    "legacy-2400": {
+        **_COMMON,
+        "SWE_MAX_CONTEXT_LEN": "63488",
+        "SWE_EVAL_TIME_BUDGET_SEC": "2400",
+        "SWE_EVAL_BUDGET_FLOOR_SEC": "7200",
+        "SWE_TIME_BUDGET_SEC": "2400",
+    },
+}
+DEFAULT_RECIPE = "training-2026-10"
+# Every key either recipe pins, so a recipe missing one reads as different.
+RECIPE_KEYS = sorted({k for r in STUDENT_RECIPES.values() for k in r})
+
+
+def set_recipe(manifest: dict) -> str:
+    """The student recipe a set was measured under. A set frozen before sets
+    recorded one was measured under the legacy recipe."""
+    return manifest.get("student_recipe", "legacy-2400")
+
+
 # The student harness is part of the recipe but chosen per eval (`eval --harness`).
 HARNESSES = ("vanillux", "terminus", "miniswe")
 # tb2_eval_local.sh runs one generator.
@@ -362,6 +392,7 @@ def freeze(
     mix: Path | None,
     sources: list[Path],
     log: Log,
+    recipe: str = DEFAULT_RECIPE,
 ) -> Path:
     """Snapshot a signal selection as ``<bench>/sets/<name>/``.
 
@@ -411,7 +442,7 @@ def freeze(
             for tid, m in _measured_by_eval(ev).items():
                 found.setdefault(tid, m)
         for r in first_group:
-            for tid, m in _measured_by_first_group(r, int(STUDENT_RECIPE["SWE_TB2_VAL_K"])).items():
+            for tid, m in _measured_by_first_group(r, int(STUDENT_RECIPES[recipe]["SWE_TB2_VAL_K"])).items():
                 found.setdefault(tid, m)
         launches = [json.load(open(p / "launch.json")) for p in [*evals, *first_group]]
         src_launch = (evals or first_group)[0] / "launch.json"
@@ -509,6 +540,9 @@ def freeze(
         {"evals": [str(e.resolve()) for e in evals], "first_group": [str(r.resolve()) for r in first_group]},
         "selected_from": str(selected.resolve()) if selected else None,
         "student_harness": harnesses[0],
+        # The recipe the before-measurements were taken under; evals of the
+        # set's rewrites run the same one.
+        "student_recipe": recipe,
         "release": release_info,
         "seed_mix": {"path": str(Path(mix).resolve()), "sha256": files["mix.jsonl"], "rows": len(rows)},
         "sources": [str(s.resolve()) for s in sources],
@@ -850,6 +884,7 @@ def cut_wave(*, root: Path, every: int, minutes: int, log: Log) -> Path | None:
     staged = set(json.load(open((sd or Path(rec["set_dir"])) / "selected.json")))
     harness = json.load(open(sd / "stream.json"))["student_harness"] if sd else \
         json.load(open(Path(rec["set_dir"]) / "manifest.json"))["student_harness"]
+    recipe = DEFAULT_RECIPE if sd else set_recipe(json.load(open(Path(rec["set_dir"]) / "manifest.json")))
     ev_dir = root / "data" / "evalsets"
     waves = sorted(ev_dir.glob("bench-wave-*.manifest.json"))
     done = {t for w in waves for t in json.load(open(w))["labels"]}
@@ -865,7 +900,8 @@ def cut_wave(*, root: Path, every: int, minutes: int, log: Log) -> Path | None:
         return None
     path = ev_dir / f"bench-wave-{len(waves) + 1:02d}.jsonl"
     m = _write_evalset(path, new, source=str(live[1]), source_rows=f"live mix v{live[0]}: accepted revisions no earlier wave holds",
-                       set=rec["set"], set_dir=rec["set_dir"], arm=rec["arm"]["name"], student_harness=harness)
+                       set=rec["set"], set_dir=rec["set_dir"], arm=rec["arm"]["name"], student_harness=harness,
+                       student_recipe=recipe)
     for r in new:
         log(f"wave={path.name} task={_iid(r)} rev={r['metadata']['rev']}")
     print(f"WAVE {path} rows={len(new)} sha256={m['sha256'][:12]}")
@@ -922,22 +958,27 @@ def eval_env(evalset: Path, harness: str, environ: dict[str, str]) -> dict[str, 
     """The pinned student recipe over ``environ``; a caller value that
     disagrees with a pin is refused rather than silently replaced. The evalset
     is checked against what pinned it: a data release's manifest (the base
-    eval a set's signals are made from, which fixes the set's harness), or
-    its own manifest, whose set fixes the harness this eval must use."""
-    pins = {**STUDENT_RECIPE, "SWE_ROLLOUT_CONCURRENCY": ROLLOUT_CONCURRENCY, "TMAX_AGENT": harness}
-    clash = {k: environ[k] for k in pins if k in environ and environ[k] != pins[k]}
-    if clash:
-        raise SystemExit(f"the environment sets {clash}, which the bench recipe pins to {[pins[k] for k in clash]}")
+    eval a new set's signals are made from, which fixes the set's harness and
+    runs the default recipe), or its own manifest, whose set (or wave) fixes
+    the harness and the recipe this eval must use."""
     release = _release_of(evalset)
     if release is not None:
-        want = release["files"]["mix.jsonl"]
+        want, recipe = release["files"]["mix.jsonl"], DEFAULT_RECIPE
     else:
         manifest = json.load(open(evalset.with_name(evalset.stem + ".manifest.json")))
         want = manifest["sha256"]
-        # A wave is cut before its set is frozen, so it names the harness itself.
-        set_harness = manifest.get("student_harness") or json.load(open(Path(manifest["set_dir"]) / "manifest.json"))["student_harness"]
+        set_manifest = (json.load(open(Path(manifest["set_dir"]) / "manifest.json"))
+                        if (Path(manifest["set_dir"]) / "manifest.json").exists() else {})
+        # A wave is cut before a streamed set is frozen, so it names both itself.
+        set_harness = manifest.get("student_harness") or set_manifest["student_harness"]
+        recipe = manifest.get("student_recipe") or set_recipe(set_manifest)
         if harness != set_harness:
             raise SystemExit(f"the set's signals were measured under {set_harness}, not {harness}")
+    pins = {**STUDENT_RECIPES[recipe], "SWE_BENCH_RECIPE": recipe,
+            "SWE_ROLLOUT_CONCURRENCY": ROLLOUT_CONCURRENCY, "TMAX_AGENT": harness}
+    clash = {k: environ[k] for k in pins if k in environ and environ[k] != pins[k]}
+    if clash:
+        raise SystemExit(f"the environment sets {clash}, which the {recipe} recipe pins to {[pins[k] for k in clash]}")
     if layout.sha256_file(evalset) != want:
         raise SystemExit(f"{evalset} no longer matches the sha256 its manifest pinned")
     return {**environ, **pins, "SWE_TB2_DATA": str(evalset)}
@@ -1002,7 +1043,8 @@ def read_eval(eval_dir: Path, evalset: Path | None = None) -> dict:
     if launch is not None:
         recipe = {"source": "eval", "harness": _harness(launch)}
         recipe.update({k: launch.get(k) for k in RECIPE_FIELDS})
-        recipe.update({k: launch["env"].get(k) for k in STUDENT_RECIPE})
+        recipe["student_recipe"] = launch["env"].get("SWE_BENCH_RECIPE")
+        recipe.update({k: launch["env"].get(k) for k in RECIPE_KEYS})
         recipe["SWE_ROLLOUT_CONCURRENCY"] = launch["env"].get("SWE_ROLLOUT_CONCURRENCY")
     return {
         "eval": str(eval_dir.resolve()),
@@ -1516,7 +1558,11 @@ def tally(
                                     "rows": manifest["seed_mix"]["rows"], "rows_by_source": manifest.get("rows_by_source"),
                                     "dropped": dict(collections.Counter(manifest.get("dropped", {}).values())),
                                     "by_corpus": manifest.get("by_corpus"), "student_harness": manifest.get("student_harness"),
-                                    "signals_from": manifest.get("signals_from")}
+                                    "signals_from": manifest.get("signals_from"),
+                                    "student_recipe": set_recipe(manifest)}
+            out["student_recipe"] = set_recipe(manifest)
+            # A legacy-recipe set compares only with sets measured the same way.
+            out["legacy_recipe"] = set_recipe(manifest) != DEFAULT_RECIPE
             set_measured = manifest.get("measured")
         else:
             # A live root: every task the loop handled.
@@ -1609,6 +1655,8 @@ def compare(results: list[tuple[str, dict]], allow_mismatch: bool) -> tuple[dict
         mm = recipe_mismatch(ref.get("recipe"), r.get("recipe"))
         if set_sha(ref) != set_sha(r):
             mm["set_manifest_sha256"] = [set_sha(ref), set_sha(r)]
+        if ref.get("student_recipe") != r.get("student_recipe"):
+            mm["set student_recipe"] = [ref.get("student_recipe"), r.get("student_recipe")]
         if mm:
             problems.append(f"{ref_label} vs {label}: {mm}")
         pair: dict[str, Any] = {"arms": [ref_label, label], "mismatch": mm}
@@ -1637,12 +1685,12 @@ def compare(results: list[tuple[str, dict]], allow_mismatch: bool) -> tuple[dict
     if problems:
         lines += ["**NOT COMPARABLE** (compared anyway with --allow-mismatch):", ""] + [f"- {p}" for p in problems] + [""]
     lines += [
-        "| arm | source / harness | accepted / handled | give-ups | gate / filter | infra-lost | harder -> mixed / overshoot / stays | easier -> mixed / overshoot / stays | mixed | all-solved | none-solved | no verdict | submit / context / time | $ counted | $ / accepted | $ / mixed | before -> after mixed (p) |",
+        "| arm | source / harness / recipe | accepted / handled | give-ups | gate / filter | infra-lost | harder -> mixed / overshoot / stays | easier -> mixed / overshoot / stays | mixed | all-solved | none-solved | no verdict | submit / context / time | $ counted | $ / accepted | $ / mixed | before -> after mixed (p) |",
         "|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|",
     ]
     for label, r in results:
         rec = r.get("recipe") or {}
-        cells = [label, f"{rec.get('source', '?')} / {rec.get('harness', '?')}"]
+        cells = [label, f"{rec.get('source', '?')} / {rec.get('harness', '?')} / {r.get('student_recipe') or rec.get('student_recipe') or '?'}"]
         f = r.get("funnel")
         if f:
             fin = f["final"]
@@ -1850,6 +1898,8 @@ def main() -> None:
     p.add_argument("--run", type=Path, help="a directory in the run shape that already holds the signals")
     p.add_argument("--selected", type=Path, help="with --run: task -> {group}; default every signal")
     p.add_argument("--eval", type=Path, nargs="*", default=[], help="evals measuring the rows (each task's attempts)")
+    p.add_argument("--recipe", choices=sorted(STUDENT_RECIPES), default=DEFAULT_RECIPE,
+                   help="the student recipe the measurements were taken under")
     p.add_argument("--first-group", type=Path, nargs="*", default=[],
                    help="training runs measuring the rows (each task's first rev-0 group, first k graded attempts)")
     g = p.add_mutually_exclusive_group(required=True)
@@ -1920,6 +1970,7 @@ def main() -> None:
         if bool(a.run) == bool(a.eval or a.first_group):
             ap.error("give --run, or measurements (--eval / --first-group)")
         freeze(bench=a.bench, name=a.name, run=a.run, evals=a.eval, first_group=a.first_group, selected=a.selected,
+               recipe=a.recipe,
                release=a.release, mix=a.mix, sources=a.sources, log=_log_for(a.bench, "freeze"))
     elif a.cmd == "run":
         run_arm(bench=a.bench, set_name=a.set, arm_path=a.arm, log=_log_for(a.bench, "run"))

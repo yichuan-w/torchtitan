@@ -87,7 +87,7 @@ export SWE_PROMPT_DATA=$SWE_TB2_DATA
 export SWE_DP_SHARD=1 SWE_GEN_DP=1 SWE_GEN_BACKEND=vllm_native
 export SWE_ROLLOUT_CONCURRENCY=${SWE_ROLLOUT_CONCURRENCY:-445} SWE_NUM_ROLLOUT_WORKERS=8
 export SWE_GPU_MEM_LIMIT=${SWE_GPU_MEM_LIMIT:-0.85} SWE_MAX_NUM_SEQS=256 SWE_GEN_PREFIX_CACHE=1
-export SWE_MAX_CONTEXT_LEN=63488
+export SWE_MAX_CONTEXT_LEN=${SWE_MAX_CONTEXT_LEN:-63488}
 # Rows that declare no timeout (TerminalWorld holdouts) get this budget; TB-2.0
 # rows declare their own. 3600 is what training gives the same rows.
 export SWE_TIME_BUDGET_SEC=${SWE_TIME_BUDGET_SEC:-3600}

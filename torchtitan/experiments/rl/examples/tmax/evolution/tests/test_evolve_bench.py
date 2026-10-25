@@ -25,7 +25,8 @@ def _jsonl(path: Path, rows: list[dict]) -> Path:
 
 
 def _launch(evalset: Path, **over) -> dict:
-    env = {**eb.STUDENT_RECIPE, "SWE_ROLLOUT_CONCURRENCY": eb.ROLLOUT_CONCURRENCY,
+    env = {**eb.STUDENT_RECIPES[eb.DEFAULT_RECIPE], "SWE_BENCH_RECIPE": eb.DEFAULT_RECIPE,
+           "SWE_ROLLOUT_CONCURRENCY": eb.ROLLOUT_CONCURRENCY,
            "TMAX_AGENT": "terminus", "SWE_TB2_DATA": str(evalset)}
     return {"checkpoint": None, "tt_commit": "abc1234", "gpu_names": "NVIDIA B300",
             "num_generators": 1, "evalset_sha256": eb.layout.sha256_file(evalset), "env": env, **over}
@@ -97,6 +98,12 @@ def test_eval_env_refuses_a_clash_and_another_harness(tmp_path):
     env = eb.eval_env(es, "terminus", {"PATH": "/bin"})
     assert env["SWE_ROLLOUT_CONCURRENCY"] == "128" and env["TMAX_AGENT"] == "terminus"
     assert env["TMAX_CALL_LIMIT"] == "120"
+    # a set frozen without a recorded recipe was measured under the legacy one
+    assert env["SWE_BENCH_RECIPE"] == "legacy-2400" and env["SWE_EVAL_TIME_BUDGET_SEC"] == "2400"
+    assert "SWE_TMAX_CONTEXT" not in env and env["SWE_MAX_CONTEXT_LEN"] == "63488"
+    (set_dir / "manifest.json").write_text(json.dumps({"student_harness": "terminus", "student_recipe": "training-2026-10"}))
+    env = eb.eval_env(es, "terminus", {})
+    assert (env["SWE_TMAX_CONTEXT"], env["SWE_MAX_CONTEXT_LEN"], env["SWE_EVAL_TIME_BUDGET_SEC"]) == ("81920", "79872", "7200")
     with pytest.raises(SystemExit, match="pins"):
         eb.eval_env(es, "terminus", {"SWE_ROLLOUT_CONCURRENCY": "600"})
     with pytest.raises(SystemExit, match="measured under terminus"):
@@ -229,7 +236,7 @@ def test_tally_root_with_eval_funnel_directions_and_repair(tmp_path):
     assert rep["external_network"]["ground_truth"]["agree"] == 1
     assert rep["grader_fetch"]["tasks"] == 1
     _, md = eb.compare([("x", out)], allow_mismatch=False)
-    assert "| x | eval / terminus | 1 / 3 |" in md
+    assert "| x | eval / terminus / training-2026-10 | 1 / 3 |" in md
 
 
 def test_tally_reads_bands_off_a_training_run(tmp_path):
@@ -510,3 +517,18 @@ def test_freeze_takes_the_first_measurement_of_each_row_and_drops_the_rest(tmp_p
                    log=eb.Log(tmp_path / "t.log"))
     assert res["before_after"]["table"] == {"all_solved->mixed": 1}
     assert res["inputs"]["set"]["dropped"] == {"mixed": 1, "not_measured": 1, "measured_other_test_sh": 1}
+
+
+def test_recipes_cap_context_inside_the_model_len_and_compare_keeps_them_apart(tmp_path):
+    for r in eb.STUDENT_RECIPES.values():
+        model_len = int(r.get("SWE_TMAX_CONTEXT", "65536"))  # config_registry's default context
+        assert int(r["SWE_MAX_CONTEXT_LEN"]) == model_len - 2048 and model_len % 32 == 0
+    es = _jsonl(tmp_path / "s.jsonl", [_row("a")])
+    new = eb.read_eval(_eval(tmp_path, "new", es, {"a": "PF"}))
+    legacy_launch = _launch(es)
+    legacy_launch["env"] = {**eb.STUDENT_RECIPES["legacy-2400"], "SWE_BENCH_RECIPE": "legacy-2400",
+                            "TMAX_AGENT": "terminus", "SWE_TB2_DATA": str(es)}
+    old_dir = _eval(tmp_path, "old", es, {"a": "PF"})
+    (old_dir / "launch.json").write_text(json.dumps(legacy_launch))
+    mm = eb.recipe_mismatch(new["recipe"], eb.read_eval(old_dir)["recipe"])
+    assert {"student_recipe", "SWE_TMAX_CONTEXT", "SWE_MAX_CONTEXT_LEN", "SWE_EVAL_TIME_BUDGET_SEC"} <= set(mm)
