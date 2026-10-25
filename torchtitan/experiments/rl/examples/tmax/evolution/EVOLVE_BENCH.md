@@ -72,7 +72,10 @@ Three sets are frozen on della under
   ba31d0ca, k=5). The 71 clean rows come from the first groups of the
   September agentpick training run (`runs/tmax-9b--20260927-084446Z` of the
   `yichuan` profile's root, commit 9403e73c), so their before-bands come
-  from older code than the evals of their rewrites.
+  from older code than the evals of their rewrites. Both sources ran the
+  `legacy-2400` recipe, so the set is a legacy-recipe set: its rewrites are
+  evaluated under `legacy-2400`, and its results compare only with other
+  sets measured that way.
 
   | corpus | easier | harder | dropped |
   |---|---|---|---|
@@ -165,15 +168,36 @@ same arm again resumes it; a changed config needs a new name.
 
 ## Pinned values and their reasons
 
-The student eval (`eval`, through `della/tb2_eval_local.sh`):
+The student eval (`eval`, through `della/tb2_eval_local.sh`) runs one of two
+named recipes, which `launch.json` records as `SWE_BENCH_RECIPE`. A set
+records the recipe its before-measurements were taken under
+(`student_recipe` in its manifest; a set frozen before manifests recorded one
+counts as legacy), and every eval of its rewrites runs that recipe, so before
+and after stay comparable. `compare` refuses to pair the two recipes.
+
+| | `training-2026-10` (default) | `legacy-2400` |
+|---|---|---|
+| turns | 120 | 120 |
+| context: generator `max_model_len` (`SWE_TMAX_CONTEXT`) | 81920 | 65536 (the code's default) |
+| context: the agent stops at (`SWE_MAX_CONTEXT_LEN`) | 79872 | 63488 |
+| budget of a row that declares none (`SWE_EVAL_TIME_BUDGET_SEC`) | 7200 s | 2400 s |
+| budget of a row that declares one | max(declared, 7200 s) | max(declared, 7200 s) |
+| sets | new sets | `agentpick400-measured`, `repair342`, `r100` |
+
+`training-2026-10` holds the student to the caps training runs at now: 120
+turns, an 81920-token context, two hours per attempt. The agent stops 2048
+tokens short of the generator's `max_model_len` (config_registry's headroom),
+so a long episode ends before vLLM would reject it. `legacy-2400` is what the
+repair342 and r100 evals ran; it stays for the sets measured under it, whose
+before-measurements are not taken again.
+
+Both recipes share the rest:
 
 | pin | value | why |
 |---|---|---|
 | attempts per task | `SWE_TB2_VAL_K=5` | three counts need a spread; the `r100` and `repair342` arms were scored at k=5 |
 | sampling | temperature 1.0, top_p 1.0 | `tb2_eval_local.sh`'s defaults, which the `repair342` base eval ran at; the r100 evals of earlier arms ran 0.8 / 0.95 and do not compare with bench evals |
-| budget of a row that declares none | `SWE_EVAL_TIME_BUDGET_SEC=2400` | the workspace's fixed rollout budget |
-| budget of a row that declares one | max(declared, `SWE_EVAL_BUDGET_FLOOR_SEC=7200`) | the floor the `r100` and `repair342` evals used; the eval config reads these two, not `SWE_TIME_BUDGET_SEC` |
-| concurrency | `SWE_ROLLOUT_CONCURRENCY` = 128 per generator, 1 generator | above what the generator decodes at once, attempts wait for a slot while their wall clock runs and read as time-budget failures: the `repair342` base eval at 600 on one generator had 356 of its last 400 attempts end at the budget, and at 128 it had 36 time-budget failures over all 1,710 attempts. 128 is the measured value; 256 (`SWE_MAX_NUM_SEQS`) has not been measured |
+| concurrency | `SWE_ROLLOUT_CONCURRENCY` = 128 per generator, 1 generator | above what the generator decodes at once, attempts wait for a slot while their wall clock runs and read as time-budget failures: the `repair342` base eval at 600 on one generator had 356 of its last 400 attempts end at the budget, and at 128 it had 36 time-budget failures over all 1,710 attempts. 128 is the measured value, under `legacy-2400`; 256 (`SWE_MAX_NUM_SEQS`) has not been measured, and neither has 128 at the longer context |
 | harness | `--harness vanillux`, `terminus` or `miniswe`, recorded | the student's harness changes what it can do; a set's signals were measured under one, and `eval` refuses another |
 | action cap | `TMAX_CALL_LIMIT=120` | vanillux's action cap, whose default is 64; at 120 it matches the 120 turns `TMAX_TERMINUS_MAX_TURNS` gives Terminus |
 | per-sandbox fallback | `TT_DAYTONA_*` 1 / 2 / 2 | applies only to rows that declare nothing |
