@@ -1336,6 +1336,13 @@ class VLLMGenerator(Actor, Configurable):
         # 'align'-mode prefix caching so multi-turn rollouts reuse the shared prefix.
         if config.enable_prefix_caching is not None:
             engine_kwargs["enable_prefix_caching"] = config.enable_prefix_caching
+        # SWE_GEN_ATTENTION_BACKEND names vLLM's attention backend (unset = vLLM's
+        # choice). On MI350X vLLM picks ROCM_ATTN, whose prefill over a cached long
+        # prefix ran 3.3x slower than TRITON_ATTN at 35K context (112 sequences,
+        # 94 s vs 28.6 s; decode 1373 vs 1976 tok/s): 128 multi-turn rollouts at a
+        # 160K context became prefill-bound and most hit their time budget.
+        if os.environ.get("SWE_GEN_ATTENTION_BACKEND"):
+            engine_kwargs["attention_backend"] = os.environ["SWE_GEN_ATTENTION_BACKEND"]
         # Continuous batching requires FCFS scheduling: admission order must equal the
         # broadcast order on every rank
         engine_kwargs["scheduling_policy"] = "fcfs"
