@@ -357,3 +357,98 @@ def test_audit_bundle_blinds_and_audit_tally_unblinds(tmp_path):
     assert res["x"]["confirmed_defects"] == {"UNFAIR": 1} and res["x"]["mixed_defect_rate"] == 1.0
     assert res["x"]["usd_per_clean_mixed"] is None
     assert res["y"]["audited"] == 0
+
+
+def _release(tmp: Path, tasks: list[str]) -> Path:
+    rel = tmp / "releases" / "r1"
+    for t in tasks:
+        _pkg(rel / "sources" / "src-a" / "tasks" / t, test=f"test {t}")
+    mix = _jsonl(rel / "mix.jsonl", [_row(t, test=f"test {t}") for t in tasks])
+    (rel / "config.json").write_text(json.dumps({"seed": 1, "sources": [{"name": "src-a", "exclude": ["x"]}]}))
+    (rel / "manifest.json").write_text(json.dumps({"release_sha256": "r1", "files": {"mix.jsonl": eb.layout.sha256_file(mix)}}))
+    return rel
+
+
+def _record(d: Path, task: str, g: int, i: int, reward: float) -> None:
+    p = d / "validation_rollouts" / task / f"g-{g}-r{i}.jsonl"
+    p.parent.mkdir(parents=True, exist_ok=True)
+    p.write_text(json.dumps({"task": task, "reward": reward, "agent": "vanillux"}) + "\n")
+
+
+def test_stage_streams_signals_then_freezes_from_the_index(tmp_path, monkeypatch):
+    monkeypatch.setattr(eb, "_bench_commit", lambda: "test")
+    rel = _release(tmp_path, ["a", "b", "c"])
+    ev = tmp_path / "bench" / "evals" / "base"
+    att = Path(str(ev) + "--attempt-1")
+    ev.mkdir(parents=True)
+    launch = _launch(rel / "mix.jsonl")
+    launch["env"]["TMAX_AGENT"] = "vanillux"
+    (ev / "launch.json").write_text(json.dumps(launch))
+    bench = tmp_path / "bench"
+    sd = eb._stream_dir(bench, "s")
+    run = sd / "runs" / "s"
+    (run / "signals").mkdir(parents=True)
+    eb.layout.write_json_atomic(sd / "stream.json", {"k": 5, "student_harness": "vanillux", "decided": {},
+                                                    "selected": {}, "package_not_row": []})
+    root = tmp_path / "root"
+    root.mkdir()
+    (root / "bench_arm.json").write_text(json.dumps({"set_manifest_sha256": None}))
+    # first poll: a has all 5 (all solved), b only 3
+    for i in range(5):
+        _record(att, "a", 1, i, 1.0)
+    for i in range(3):
+        _record(att, "b", 2, i, 0.0)
+    seen = []
+
+    def finish_eval(_sec):
+        seen.append(json.load(open(sd / "selected.json")))
+        for i in range(3, 5):
+            _record(att, "b", 2, i, 0.0)
+        for i, r in enumerate((1.0, 0.0, 1.0, 0.0, 0.0)):
+            _record(att, "c", 3, i, r)
+        index = [{"task": t, "state": "PASS" if r >= 1 else "FAIL", "infra_failed": False, "finish_reason": "submit",
+                  "record": f"validation_rollouts/{t}/g-{g}-r{i}.jsonl"}
+                 for t, g, rs in (("a", 1, [1.0] * 5), ("b", 2, [0.0] * 5), ("c", 3, (1.0, 0.0, 1.0, 0.0, 0.0)))
+                 for i, r in enumerate(rs)]
+        (ev / eb.INDEX).parent.mkdir(parents=True, exist_ok=True)
+        (ev / eb.INDEX).write_text(json.dumps(index))
+
+    monkeypatch.setattr(eb.time, "sleep", finish_eval)
+    eb.stage(bench=bench, name="s", eval_dir=ev, release=rel, root=root, poll_sec=1, log=eb.Log(tmp_path / "s.log"))
+    assert seen == [{"a": {"group": -1}}]  # a was staged while b was still running
+    st = json.load(open(sd / "stream.json"))
+    assert st["decided"] == {"a": "all_solved", "b": "none_solved", "c": "mixed"}
+    assert st["final_check"]["bucket_mismatch"] == {} and st["final_check"]["set_not_staged"] == []
+    assert json.load(open(sd / "selected.json")) == {"a": {"group": -1}, "b": {"group": -2}}
+    assert (sd / "done").exists()
+    m, sha = eb.load_set(bench / "sets" / "s", verify=True)
+    assert m["no_signal"] == {"mixed": 1} and m["student_harness"] == "vanillux"
+    assert m["release"]["config"]["sources"][0]["exclude"] == ["x"]
+    assert json.load(open(root / "bench_arm.json"))["set_manifest_sha256"] == sha
+    sig = json.load(open(run / "signals" / "b--g-2.json"))
+    assert sig["direction"] == "easier" and all((run / a).exists() for a in sig["attempts"])
+
+
+def test_cut_wave_takes_new_accepted_revisions_only(tmp_path, monkeypatch):
+    root = tmp_path / "root"
+    sd = tmp_path / "s.stream"
+    sd.mkdir()
+    (sd / "selected.json").write_text(json.dumps({"a": {}, "b": {}, "c": {}}))
+    (sd / "stream.json").write_text(json.dumps({"student_harness": "vanillux"}))
+    root.mkdir()
+    (root / "bench_arm.json").write_text(json.dumps({"stream": str(sd), "set": "s", "set_dir": str(tmp_path / "sets" / "s"),
+                                                    "arm": {"name": "x"}}))
+    mix = eb.layout.Root(root).mix
+    mix.publish([json.dumps(_row("a", 1)), json.dumps(_row("b", 0)), json.dumps(_row("c", 0)), json.dumps(_row("d", 2))])
+    log = eb.Log(tmp_path / "w.log")
+    assert eb.cut_wave(root=root, every=2, minutes=600, log=log) is None  # one new, not yet due
+    w1 = eb.cut_wave(root=root, every=1, minutes=600, log=log)
+    assert json.load(open(w1.with_name(w1.stem + ".manifest.json")))["labels"] == ["a"]
+    mix.publish([json.dumps(_row("a", 1)), json.dumps(_row("b", 1)), json.dumps(_row("c", 1)), json.dumps(_row("d", 2))])
+    w2 = eb.cut_wave(root=root, every=2, minutes=600, log=log)
+    m2 = json.load(open(w2.with_name(w2.stem + ".manifest.json")))
+    assert w2.name == "bench-wave-02.jsonl" and m2["labels"] == ["b", "c"] and m2["student_harness"] == "vanillux"
+    # a wave's own manifest names the harness before the set exists
+    assert eb.eval_env(w2, "vanillux", {})["TMAX_AGENT"] == "vanillux"
+    with pytest.raises(SystemExit, match="measured under vanillux"):
+        eb.eval_env(w2, "terminus", {})

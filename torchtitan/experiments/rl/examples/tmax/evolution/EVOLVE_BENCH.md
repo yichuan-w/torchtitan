@@ -98,6 +98,31 @@ $PY $EVO/evolve_bench.py compare sol=$BENCH/results/sol-medium.json opus=$BENCH/
     --out $BENCH/results/sol-vs-opus
 ```
 
+### Rewriting while the base eval runs
+
+`pipeline` overlaps the stages instead of running them one after another:
+
+```bash
+$PY $EVO/evolve_bench.py pipeline --bench $BENCH --name agentpick400 \
+    --eval $BENCH/evals/<stamp>--base-step0-mix --release <release> --arm arms/sol-medium.json
+# every few minutes, from the machine that launches GPU work
+$PY $EVO/evolve_bench.py wave --root $BENCH/arms/agentpick400--sol-medium --every 40 --minutes 60
+# for each WAVE it prints: eval that wave's evalset, as above
+```
+
+It starts two systemd user units. The stager (`stage`) reads the base eval's
+per-attempt records as they land and stages a task's signal once all k of its
+attempts are graded, growing the stream's `selected.json`. The drive
+(`offline_drive.sh` with `STREAM_DONE`) runs rounds over whatever has been
+staged and waits, rather than ending, while the stream is still open. When the
+eval writes its own `index.json`, the stager freezes the set from that index,
+checks every streamed decision against it (`stream.json`'s `final_check`), and
+writes the done marker that lets the drive finish. `wave` cuts accepted
+revisions that no earlier wave holds into `data/evalsets/bench-wave-NN.jsonl`,
+once enough have accumulated, enough time has passed, or the drive is done;
+the tally takes every wave's eval as `--eval`. Wave evals feed only the tally:
+no signal is made from them and no acceptance waits on them.
+
 An arm is one JSON file with exactly these keys:
 
 ```json

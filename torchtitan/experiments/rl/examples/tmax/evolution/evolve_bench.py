@@ -11,6 +11,8 @@ the order an arm goes through them:
 
     freeze        signals (a run dir, or a base-student eval) -> <bench>/sets/<name>/, pinned by sha256
     run           an arm config + a set -> <bench>/arms/<set>--<arm>/, offline_drive.sh as a user unit
+    pipeline      the same while the base eval still runs: signals staged as tasks finish (stage),
+                  drive rounds picking them up, accepted revisions cut into eval waves (wave)
     evalset       an arm root -> its accepted revisions as data/evalsets/bench-accepted.jsonl
     eval          an evalset -> della/tb2_eval_local.sh under the pinned student recipe
     tally         evals and/or training runs [+ root] -> one JSON: bands, funnel, rewrite stats, cost, repair
@@ -498,14 +500,10 @@ def load_arm(path: Path) -> dict:
     return arm
 
 
-def run_arm(*, bench: Path, set_name: str, arm_path: Path, log: Log) -> Path:
-    """Create the arm's root from the set and start offline_drive.sh for it as a
-    systemd user unit (RUNBOOK, "Offline evolution of a signal subset"). A root
-    that exists with the same arm and set is resumed: the drive restages only
-    the tasks an infrastructure loss took, under a fresh ATTEMPTS_SINCE."""
-    set_dir = bench / "sets" / set_name
-    manifest, set_sha = load_set(set_dir, verify=True)
-    arm = load_arm(arm_path)
+def _arm_checkout(arm: dict) -> tuple[Path, str, str]:
+    """The arm's checkout (its profile's TRL_TT), its full commit, and the codex
+    version in the arm's bin; refused when the checkout is not at the arm's
+    commit or has uncommitted changes."""
     tt = Path(_profile(arm["profile"])["TRL_TT"])
     head = _git(tt, "rev-parse", "HEAD")
     if not head.startswith(arm["commit"]):
@@ -515,60 +513,299 @@ def run_arm(*, bench: Path, set_name: str, arm_path: Path, log: Log) -> Path:
     codex_version = subprocess.run(
         [str(Path(arm["bin"]) / "codex"), "--version"], check=True, capture_output=True, text=True
     ).stdout.strip()
-    root = bench / "arms" / f"{set_name}--{arm['name']}"
-    record = {
-        "arm": arm,
-        "arm_file": str(arm_path.resolve()),
-        "arm_commit": head,
-        "codex_version": codex_version,
-        "set": set_name,
-        "set_dir": str(set_dir.resolve()),
-        "set_manifest_sha256": set_sha,
-        "drive_pins": DRIVE_PINS,
-        "bench_commit": _bench_commit(),
-    }
+    return tt, head, codex_version
+
+
+def _arm_root(*, root: Path, arm: dict, arm_path: Path, tt: Path, head: str, codex_version: str,
+              mix: Path, sources: list[str], record: dict, log: Log) -> None:
+    """Create the arm's root (new_root.py of the arm's checkout) and write
+    bench_arm.json, or check that an existing root holds this same arm and set."""
+    record = {"arm": arm, "arm_file": str(arm_path.resolve()), "arm_commit": head,
+              "codex_version": codex_version, **record, "bench_commit": _bench_commit()}
     rec_path = root / "bench_arm.json"
     if root.exists():
         prev = json.load(open(rec_path))
-        same = {k: prev.get(k) for k in ("arm", "arm_commit", "set_manifest_sha256", "codex_version")}
-        if same != {k: record[k] for k in same}:
+        keys = ("arm", "arm_commit", "codex_version", "set", "stream")
+        if {k: prev.get(k) for k in keys} != {k: record.get(k) for k in keys}:
             raise SystemExit(f"{root} holds another arm or set ({rec_path}); a new config is a new arm name")
         log(f"resume root={root}")
-    else:
-        py = Path(os.environ.get("TRL_VENV", "/scratch/gpfs/TRIDAO/al9080/titan-rl")) / "bin" / "python"
-        subprocess.run(
-            [
-                str(py), str(tt / "torchtitan/experiments/rl/examples/tmax/new_root.py"),
-                "--base", str(root), "--mix", str(set_dir / "mix.jsonl"),
-                "--sources", *manifest["sources"], "--bin", arm["bin"], "--profile", arm["profile"],
-                "--purpose", f"EvolveBench arm {arm['name']} on set {set_name} (manifest {set_sha[:12]}), {arm['commit']}",
-            ],
-            check=True,
-        )
-        record["created"] = layout.stamp()
-        layout.write_json_atomic(rec_path, record)
-        log(f"created root={root} arm={arm['name']} commit={head[:12]} codex={codex_version!r}")
-    (root / "tmp").mkdir(exist_ok=True)
-    env = {
+        return
+    py = Path(os.environ.get("TRL_VENV", "/scratch/gpfs/TRIDAO/al9080/titan-rl")) / "bin" / "python"
+    subprocess.run(
+        [str(py), str(tt / "torchtitan/experiments/rl/examples/tmax/new_root.py"),
+         "--base", str(root), "--mix", str(mix), "--sources", *sources, "--bin", arm["bin"],
+         "--profile", arm["profile"],
+         "--purpose", f"EvolveBench arm {arm['name']} on set {record['set']}, {arm['commit']}"],
+        check=True,
+    )
+    record["created"] = layout.stamp()
+    layout.write_json_atomic(rec_path, record)
+    log(f"created root={root} arm={arm['name']} commit={head[:12]} codex={codex_version!r}")
+
+
+def _start_unit(unit: str, cwd: Path, env: dict[str, str], argv: list[str], log: Log) -> None:
+    """A systemd user unit, the way RUNBOOK starts the drive on the login node."""
+    cmd = ["systemd-run", "--user", f"--unit={unit}", "--collect", f"--working-directory={cwd}"]
+    cmd += [f"--setenv={k}={v}" for k, v in sorted(env.items())]
+    log(f"launch unit={unit} argv={argv} env={json.dumps(env, sort_keys=True)}")
+    subprocess.run(cmd + argv, check=True)
+
+
+def _drive_env(root: Path, arm: dict, pins: dict[str, str], source_run: Path, selected: Path) -> dict[str, str]:
+    return {
         **arm["env"],
-        **DRIVE_PINS,
+        **pins,
         "TRL_PROFILE": arm["profile"],
         "TRL_BASE": str(root),
-        "SOURCE_RUN": str(set_dir / manifest["run"]),
-        "SELECTED": str(set_dir / "selected.json"),
+        "SOURCE_RUN": str(source_run),
+        "SELECTED": str(selected),
         "WORKERS": str(arm["workers"]),
         "ATTEMPTS_SINCE": time.strftime("%Y%m%d-%H%M", time.gmtime()),
         "EVOLVE_SOCK_DIR": f"/dev/shm/{os.environ['USER']}-evolve-{root.name}",
         "TMPDIR": str(root / "tmp"),
     }
+
+
+# The drive script is the bench checkout's (its staging, and STREAM_DONE); the
+# loop it runs is the arm checkout's, which evolveloop_env.sh finds through the
+# arm's profile.
+DRIVE = _EVO / "offline_drive.sh"
+
+
+def run_arm(*, bench: Path, set_name: str, arm_path: Path, log: Log) -> Path:
+    """Create the arm's root from the set and start offline_drive.sh for it as a
+    systemd user unit (RUNBOOK, "Offline evolution of a signal subset"). A root
+    that exists with the same arm and set is resumed: the drive restages only
+    the tasks an infrastructure loss took, under a fresh ATTEMPTS_SINCE."""
+    set_dir = bench / "sets" / set_name
+    manifest, set_sha = load_set(set_dir, verify=True)
+    arm = load_arm(arm_path)
+    tt, head, codex_version = _arm_checkout(arm)
+    root = bench / "arms" / f"{set_name}--{arm['name']}"
+    _arm_root(root=root, arm=arm, arm_path=arm_path, tt=tt, head=head, codex_version=codex_version,
+              mix=set_dir / "mix.jsonl", sources=manifest["sources"], log=log,
+              record={"set": set_name, "set_dir": str(set_dir.resolve()), "set_manifest_sha256": set_sha,
+                      "drive_pins": DRIVE_PINS})
+    (root / "tmp").mkdir(exist_ok=True)
     unit = f"bench-{root.name}"
-    cmd = ["systemd-run", "--user", f"--unit={unit}", "--collect", f"--working-directory={root}"]
-    cmd += [f"--setenv={k}={v}" for k, v in sorted(env.items())]
-    cmd += ["bash", str(tt / "torchtitan/experiments/rl/examples/tmax/evolution/offline_drive.sh")]
-    log(f"launch unit={unit} env={json.dumps(env, sort_keys=True)}")
-    subprocess.run(cmd, check=True)
+    _start_unit(unit, root, _drive_env(root, arm, DRIVE_PINS, set_dir / manifest["run"], set_dir / "selected.json"),
+                ["bash", str(DRIVE)], log)
     print(f"{unit} started -> {root}; drive log {root}/logs/offline_drive--*.log")
     return root
+
+
+# ----------------------------------------------------------------------- streaming
+
+# Streaming runs as many rounds as signals arrive in; MAX_ATTEMPTS still bounds
+# each task's retries, so the round cap only has to stay out of the way.
+STREAM_DRIVE_PINS = {**DRIVE_PINS, "MAX_ROUNDS": "30"}
+
+
+def _stream_dir(bench: Path, name: str) -> Path:
+    return bench / "sets" / f"{name}.stream"
+
+
+def _eval_attempts(ev: Path, *, final: bool) -> dict[str, list[dict]]:
+    """Each task's attempts: state (PASS / FAIL / INFRA), the record's path
+    relative to its eval directory, and where it is. ``final`` reads the
+    eval's own index.json; otherwise the records the controller has written so
+    far (an attempt's record lands when it is graded, so a task with all k is
+    decided; on the repair342 base eval the records' verdicts matched the
+    index on 1710 of 1710 attempts)."""
+    out: dict[str, list[dict]] = collections.defaultdict(list)
+    if final:
+        for e in json.load(open(ev / INDEX)):
+            state = "INFRA" if e.get("infra_failed") else e["state"]
+            out[e["task"]].append({"state": state, "rel": e["record"], "src": _record_path(ev, e["record"])})
+        return out
+    for d in [ev, *sorted(Path(p) for p in glob.glob(glob.escape(str(ev)) + "--attempt-*"))]:
+        for f in sorted(d.glob("validation_rollouts/*/*.jsonl")):
+            try:
+                with open(f) as fh:
+                    h = json.loads(fh.readline())
+            except (OSError, ValueError):
+                continue  # being written
+            state = "INFRA" if h.get("infra_failed") else ("PASS" if (h.get("reward") or 0) >= 1.0 else "FAIL")
+            out[h["task"]].append({"state": state, "rel": str(f.relative_to(d)), "src": f})
+    return out
+
+
+def _attempts_bucket(attempts: list[dict]) -> tuple[str, int, int]:
+    graded = [a for a in attempts if a["state"] != "INFRA"]
+    passed = sum(a["state"] == "PASS" for a in graded)
+    return bucket(passed, len(graded)), passed, len(graded)
+
+
+def stage(*, bench: Path, name: str, eval_dir: Path, release: Path, root: Path, poll_sec: int, log: Log) -> None:
+    """Stage first-round signals while the base eval runs: a task is decided
+    once all k of its attempts have records, and its signal (harder for all
+    solved, easier for none, at rev 0) goes into the stream's run directory,
+    SELECTED growing with it. When the eval writes index.json, the set is
+    frozen from that index (``freeze --eval``), every streamed decision is
+    checked against it, the root's bench_arm.json gets the set's manifest
+    sha256, and the done marker tells the drive SELECTED is complete."""
+    sd = _stream_dir(bench, name)
+    run = sd / "runs" / name
+    state_path = sd / "stream.json"
+    st = json.load(open(state_path))
+    k = int(st["k"])
+    rows = {_iid(r): r for r in _rows(release / "mix.jsonl")}
+    sources = sorted((release / "sources").iterdir())
+    while True:
+        final = (eval_dir / INDEX).exists()
+        per = _eval_attempts(eval_dir, final=False)
+        new = 0
+        for tid in sorted(per):
+            if tid in st["decided"] or len(per[tid]) < k:
+                continue
+            b, passed, graded = _attempts_bucket(per[tid])
+            if tid not in rows:
+                raise SystemExit(f"{eval_dir} scores {tid}, not a row of {release}/mix.jsonl")
+            st["decided"][tid] = b
+            if b not in ("all_solved", "none_solved"):
+                log(f"task={tid} {passed}/{graded} {b}: no signal")
+                continue
+            pkg = next((s / "tasks" / tid for s in sources if (s / "tasks" / tid).is_dir()), None)
+            if pkg is None or (pkg / "tests" / "test.sh").read_text() != rows[tid]["metadata"]["tmax"]["test_sh"]:
+                st["package_not_row"].append(tid)
+                log(f"task={tid} left out: its package grader is not the mix row's test_sh")
+                continue
+            groups = {int(re.findall(r"g(-?\d+)-r\d+\.jsonl$", a["rel"])[0]) for a in per[tid]}
+            if len(groups) != 1:
+                raise SystemExit(f"{tid}: the eval's records span groups {sorted(groups)}")
+            group = groups.pop()
+            attempts = []
+            for a in sorted(per[tid], key=lambda x: x["rel"]):
+                rel_dst = f"rollouts/{tid}/{Path(a['rel']).name}"
+                (run / rel_dst).parent.mkdir(parents=True, exist_ok=True)
+                if not (run / rel_dst).exists():
+                    os.link(a["src"], run / rel_dst)
+                attempts.append(rel_dst)
+            sig = {"attempts": attempts, "created": layout.stamp(),
+                   "direction": "harder" if b == "all_solved" else "easier",
+                   "group": group, "rev": 0, "run": name, "solved": passed, "task": tid, "total": graded}
+            layout.write_json_atomic(run / "signals" / f"{tid}--g{group}.json", sig)
+            st["selected"][tid] = {"group": group}
+            new += 1
+            log(f"task={tid} group={group} direction={sig['direction']} solved={passed}/{graded} staged")
+        # The signal files exist before SELECTED names them.
+        layout.write_json_atomic(sd / "selected.json", dict(sorted(st["selected"].items())))
+        st["updated"] = layout.stamp()
+        layout.write_json_atomic(state_path, st)
+        log(f"poll decided={len(st['decided'])} staged={len(st['selected'])} new={new} final={final}")
+        if final:
+            break
+        time.sleep(poll_sec)
+    # The eval's own index is the record: freeze the set from it and check the stream.
+    # A stager restarted after the freeze finds the set already there.
+    set_dir = bench / "sets" / name
+    if not (set_dir / "manifest.json").exists():
+        set_dir = freeze(bench=bench, name=name, run=None, eval_dir=eval_dir, selected=None, release=release,
+                         mix=None, sources=[], log=log)
+    manifest, set_sha = load_set(set_dir, verify=False)
+    final_attempts = _eval_attempts(eval_dir, final=True)
+    mismatch = {t: [b, _attempts_bucket(final_attempts.get(t, []))[0]] for t, b in st["decided"].items()
+                if _attempts_bucket(final_attempts.get(t, []))[0] != b}
+    staged_not_set = sorted(set(st["selected"]) - set(manifest["packages"]))
+    set_not_staged = sorted(set(manifest["packages"]) - set(st["selected"]))
+    st["final_check"] = {"set_manifest_sha256": set_sha, "bucket_mismatch": mismatch,
+                         "staged_not_in_set": staged_not_set, "set_not_staged": set_not_staged}
+    layout.write_json_atomic(state_path, st)
+    log(f"final check: bucket_mismatch={len(mismatch)} staged_not_in_set={staged_not_set} set_not_staged={set_not_staged}")
+    # Tasks the stream had not decided when the index landed get their signal now.
+    for tid in set_not_staged:
+        sig = json.load(open(set_dir / manifest["run"] / "signals" / f"{tid}--g{json.load(open(set_dir / 'selected.json'))[tid]['group']}.json"))
+        for rel in sig["attempts"]:
+            (run / rel).parent.mkdir(parents=True, exist_ok=True)
+            if not (run / rel).exists():
+                os.link(set_dir / manifest["run"] / rel, run / rel)
+        layout.write_json_atomic(run / "signals" / f"{tid}--g{sig['group']}.json", {**sig, "run": name})
+        st["selected"][tid] = {"group": sig["group"]}
+        log(f"task={tid} staged from the final index")
+    layout.write_json_atomic(sd / "selected.json", dict(sorted(st["selected"].items())))
+    rec_path = root / "bench_arm.json"
+    rec = json.load(open(rec_path))
+    rec["set_manifest_sha256"] = set_sha
+    layout.write_json_atomic(rec_path, rec)
+    (sd / "done").write_text(layout.stamp() + "\n")
+    log(f"done set={set_dir} sha256={set_sha}")
+
+
+def pipeline(*, bench: Path, name: str, eval_dir: Path, release: Path, arm_path: Path, poll_sec: int, log: Log) -> Path:
+    """Rewrite while the base eval still runs. Starts two systemd user units:
+    the stager (``stage``), which turns each task's finished attempts into a
+    signal, and offline_drive.sh over the stream, whose rounds pick up what
+    was staged since the last one. Accepted revisions are scored in waves
+    (``wave``) by evals launched on a GPU the operator gives; those evals feed
+    only the tally, never a signal or an acceptance."""
+    if not (eval_dir / "launch.json").exists():
+        raise SystemExit(f"{eval_dir} has no launch.json yet; start the base eval first")
+    if _release_of(release / "mix.jsonl") is None:
+        raise SystemExit(f"{release} is not a data release")
+    launch = json.load(open(eval_dir / "launch.json"))
+    if launch["env"].get("SWE_TB2_DATA") != str((release / "mix.jsonl").resolve()):
+        raise SystemExit(f"{eval_dir} does not score {release}/mix.jsonl")
+    arm = load_arm(arm_path)
+    tt, head, codex_version = _arm_checkout(arm)
+    sd = _stream_dir(bench, name)
+    run = sd / "runs" / name
+    if not sd.exists():
+        (run / "signals").mkdir(parents=True)
+        (run / "rollouts").mkdir()
+        shutil.copy2(eval_dir / "launch.json", run / "launch.json")
+        layout.write_json_atomic(sd / "selected.json", {})
+        layout.write_json_atomic(sd / "stream.json", {
+            "name": name, "created": layout.stamp(), "eval": str(eval_dir.resolve()),
+            "release": str(release.resolve()), "k": int(launch["env"]["SWE_TB2_VAL_K"]),
+            "student_harness": _harness(launch), "decided": {}, "selected": {}, "package_not_row": []})
+    root = bench / "arms" / f"{name}--{arm['name']}"
+    _arm_root(root=root, arm=arm, arm_path=arm_path, tt=tt, head=head, codex_version=codex_version,
+              mix=release / "mix.jsonl", sources=[str(s) for s in sorted((release / "sources").iterdir())], log=log,
+              record={"set": name, "set_dir": str((bench / "sets" / name).resolve()), "set_manifest_sha256": None,
+                      "stream": str(sd.resolve()), "drive_pins": STREAM_DRIVE_PINS})
+    (root / "tmp").mkdir(exist_ok=True)
+    py = Path(os.environ.get("TRL_VENV", "/scratch/gpfs/TRIDAO/al9080/titan-rl")) / "bin" / "python"
+    _start_unit(f"bench-stage-{name}", bench, {},
+                [str(py), str(Path(__file__).resolve()), "stage", "--bench", str(bench), "--name", name,
+                 "--eval", str(eval_dir), "--release", str(release), "--root", str(root),
+                 "--poll", str(poll_sec)], log)
+    env = _drive_env(root, arm, STREAM_DRIVE_PINS, run, sd / "selected.json")
+    env["STREAM_DONE"] = str(sd / "done")
+    _start_unit(f"bench-{root.name}", root, env, ["bash", str(DRIVE)], log)
+    print(f"bench-stage-{name} and bench-{root.name} started -> {root}; stream {sd}")
+    return root
+
+
+def cut_wave(*, root: Path, every: int, minutes: int, log: Log) -> Path | None:
+    """The next eval wave: accepted revisions of staged tasks that no earlier
+    wave holds, cut once ``every`` of them have accumulated, or ``minutes``
+    after the previous wave, or when the drive has finished. Returns the
+    wave's evalset, or None when none is due."""
+    rec = json.load(open(root / "bench_arm.json"))
+    sd = Path(rec["stream"]) if rec.get("stream") else None
+    staged = set(json.load(open((sd or Path(rec["set_dir"])) / "selected.json")))
+    harness = json.load(open(sd / "stream.json"))["student_harness"] if sd else \
+        json.load(open(Path(rec["set_dir"]) / "manifest.json"))["student_harness"]
+    ev_dir = root / "data" / "evalsets"
+    waves = sorted(ev_dir.glob("bench-wave-*.manifest.json"))
+    done = {t for w in waves for t in json.load(open(w))["labels"]}
+    live = layout.Root(root).mix.live_version()
+    new = [r for r in _rows(live[1]) if _iid(r) in staged and _iid(r) not in done and int(r["metadata"].get("rev") or 0) > 0]
+    last = waves[-1].stat().st_mtime if waves else (root / "bench_arm.json").stat().st_mtime
+    age_min = (time.time() - last) / 60
+    finished = _drive_finished(root)
+    due = len(new) >= every or (new and (age_min >= minutes or finished))
+    log(f"wave check new={len(new)} age_min={age_min:.0f} drive_finished={finished} due={bool(due)}")
+    if not due:
+        print(f"NO-WAVE new={len(new)} age_min={age_min:.0f} drive_finished={finished}")
+        return None
+    path = ev_dir / f"bench-wave-{len(waves) + 1:02d}.jsonl"
+    m = _write_evalset(path, new, source=str(live[1]), source_rows=f"live mix v{live[0]}: accepted revisions no earlier wave holds",
+                       set=rec["set"], set_dir=rec["set_dir"], arm=rec["arm"]["name"], student_harness=harness)
+    for r in new:
+        log(f"wave={path.name} task={_iid(r)} rev={r['metadata']['rev']}")
+    print(f"WAVE {path} rows={len(new)} sha256={m['sha256'][:12]}")
+    return path
 
 
 # ------------------------------------------------------------------------ evalset
@@ -633,7 +870,8 @@ def eval_env(evalset: Path, harness: str, environ: dict[str, str]) -> dict[str, 
     else:
         manifest = json.load(open(evalset.with_name(evalset.stem + ".manifest.json")))
         want = manifest["sha256"]
-        set_harness = json.load(open(Path(manifest["set_dir"]) / "manifest.json"))["student_harness"]
+        # A wave is cut before its set is frozen, so it names the harness itself.
+        set_harness = manifest.get("student_harness") or json.load(open(Path(manifest["set_dir"]) / "manifest.json"))["student_harness"]
         if harness != set_harness:
             raise SystemExit(f"the set's signals were measured under {set_harness}, not {harness}")
     if layout.sha256_file(evalset) != want:
@@ -1548,6 +1786,24 @@ def main() -> None:
     p.add_argument("--bench", type=Path, required=True)
     p.add_argument("--set", required=True)
     p.add_argument("--arm", type=Path, required=True)
+    p = sub.add_parser("pipeline", help="rewrite while the base eval runs: stager + drive as user units")
+    p.add_argument("--bench", type=Path, required=True)
+    p.add_argument("--name", required=True, help="the set's name")
+    p.add_argument("--eval", type=Path, required=True, help="the running base-student eval of the release")
+    p.add_argument("--release", type=Path, required=True)
+    p.add_argument("--arm", type=Path, required=True)
+    p.add_argument("--poll", type=int, default=120, help="seconds between the stager's scans")
+    p = sub.add_parser("stage", help="the pipeline's stager (pipeline starts it)")
+    p.add_argument("--bench", type=Path, required=True)
+    p.add_argument("--name", required=True)
+    p.add_argument("--eval", type=Path, required=True)
+    p.add_argument("--release", type=Path, required=True)
+    p.add_argument("--root", type=Path, required=True)
+    p.add_argument("--poll", type=int, required=True)
+    p = sub.add_parser("wave", help="cut the next eval wave of accepted revisions, if one is due")
+    p.add_argument("--root", type=Path, required=True)
+    p.add_argument("--every", type=int, required=True, help="cut once this many accepted revisions wait")
+    p.add_argument("--minutes", type=int, required=True, help="or this long after the previous wave")
     p = sub.add_parser("evalset", help="an arm's accepted revisions as an evalset")
     p.add_argument("--root", type=Path, required=True)
     p = sub.add_parser("eval", help="score an evalset under the pinned student recipe")
@@ -1591,6 +1847,14 @@ def main() -> None:
                release=a.release, mix=a.mix, sources=a.sources, log=_log_for(a.bench, "freeze"))
     elif a.cmd == "run":
         run_arm(bench=a.bench, set_name=a.set, arm_path=a.arm, log=_log_for(a.bench, "run"))
+    elif a.cmd == "pipeline":
+        pipeline(bench=a.bench, name=a.name, eval_dir=a.eval, release=a.release, arm_path=a.arm,
+                 poll_sec=a.poll, log=_log_for(a.bench, "pipeline"))
+    elif a.cmd == "stage":
+        stage(bench=a.bench, name=a.name, eval_dir=a.eval, release=a.release, root=a.root,
+              poll_sec=a.poll, log=_log_for(a.bench, f"stage-{a.name}"))
+    elif a.cmd == "wave":
+        cut_wave(root=a.root, every=a.every, minutes=a.minutes, log=_log_for(a.root, "wave"))
     elif a.cmd == "evalset":
         build_evalset(a.root, _log_for(a.root, "evalset"))
     elif a.cmd == "eval":
