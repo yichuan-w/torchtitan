@@ -116,6 +116,9 @@ def test_eval_env_refuses_a_clash_and_another_harness(tmp_path):
     assert eb.eval_env(es, "terminus", {})["SWE_BENCH_RECIPE"] == "train-2026-10-25"
     with pytest.raises(SystemExit, match="pins"):
         eb.eval_env(es, "terminus", {"SWE_ROLLOUT_CONCURRENCY": "600"})
+    assert eb.eval_env(es, "terminus", {}, concurrency=48)["SWE_ROLLOUT_CONCURRENCY"] == "48"
+    with pytest.raises(SystemExit, match="1 to 128"):
+        eb.eval_env(es, "terminus", {}, concurrency=256)
     with pytest.raises(SystemExit, match="measured under terminus"):
         eb.eval_env(es, "miniswe", {})
 

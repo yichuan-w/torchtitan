@@ -1000,7 +1000,8 @@ def _release_of(evalset: Path) -> dict | None:
     return manifest if "release_sha256" in manifest else None
 
 
-def eval_env(evalset: Path, harness: str, environ: dict[str, str]) -> dict[str, str]:
+def eval_env(evalset: Path, harness: str, environ: dict[str, str],
+             concurrency: int = ROLLOUT_CONCURRENCY_PER_GENERATOR) -> dict[str, str]:
     """The default student recipe over ``environ``; a caller value that
     disagrees with a pin is refused rather than silently replaced. Every eval
     runs the default recipe, also for a set measured under another one: its
@@ -1009,6 +1010,11 @@ def eval_env(evalset: Path, harness: str, environ: dict[str, str]) -> dict[str, 
     evalset is checked against what pinned it: a data release's manifest, or
     its own manifest, whose set (or wave) fixes the harness."""
     recipe = DEFAULT_RECIPE
+    # A card whose KV cache holds fewer sequences than the cap queues the rest
+    # in vLLM while their wall clock runs, the failure the cap exists to
+    # prevent; such a card runs fewer. Never more than the measured cap.
+    if not 1 <= concurrency <= ROLLOUT_CONCURRENCY_PER_GENERATOR:
+        raise SystemExit(f"--concurrency {concurrency}: 1 to {ROLLOUT_CONCURRENCY_PER_GENERATOR} per generator")
     release = _release_of(evalset)
     if release is not None:
         want = release["files"]["mix.jsonl"]
@@ -1022,7 +1028,7 @@ def eval_env(evalset: Path, harness: str, environ: dict[str, str]) -> dict[str, 
         if harness != set_harness:
             raise SystemExit(f"the set's signals were measured under {set_harness}, not {harness}")
     pins = {**STUDENT_RECIPES[recipe], "SWE_BENCH_RECIPE": recipe,
-            "SWE_ROLLOUT_CONCURRENCY": ROLLOUT_CONCURRENCY, "TMAX_AGENT": harness}
+            "SWE_ROLLOUT_CONCURRENCY": str(concurrency * EVAL_GENERATORS), "TMAX_AGENT": harness}
     clash = {k: environ[k] for k in pins if k in environ and environ[k] != pins[k]}
     if clash:
         raise SystemExit(f"the environment sets {clash}, which the {recipe} recipe pins to {[pins[k] for k in clash]}")
@@ -1061,7 +1067,8 @@ def shard_evalset(evalset: Path, shard: str, base: Path) -> Path:
     return path
 
 
-def run_eval(evalset: Path, ckpt: str, gpus: str, harness: str, base: Path | None, shard: str | None = None) -> None:
+def run_eval(evalset: Path, ckpt: str, gpus: str, harness: str, base: Path | None, shard: str | None = None,
+             concurrency: int = ROLLOUT_CONCURRENCY_PER_GENERATOR) -> None:
     """exec della/tb2_eval_local.sh under the recipe. The eval lands in
     <base>/evals/: by default the root or set the evalset belongs to; a data
     release's mix names one (its own directory must stay as built). Launch it
@@ -1075,7 +1082,7 @@ def run_eval(evalset: Path, ckpt: str, gpus: str, harness: str, base: Path | Non
         if _release_of(evalset) is not None:
             raise SystemExit("--shard splits an evalset with its own manifest, not a release's mix")
         evalset = shard_evalset(evalset, shard, base)
-    env = eval_env(evalset, harness, dict(os.environ))
+    env = eval_env(evalset, harness, dict(os.environ), concurrency)
     env.update(TRL_BASE=str(base), RL_GPUS=gpus)
     script = _EVO / "della" / "tb2_eval_local.sh"
     os.execve("/bin/bash", ["bash", str(script), ckpt, gpus.split(",")[0]], env)
@@ -2063,6 +2070,9 @@ def main() -> None:
     p.add_argument("--gpus", required=True, help="RL_GPUS: trainer card, then generator card")
     p.add_argument("--base", type=Path, help="where evals/ goes; required for a release's mix")
     p.add_argument("--shard", help="i/n: score only rows i, i+n, ... (n evals on n cards; tally merges them)")
+    p.add_argument("--concurrency", type=int, default=ROLLOUT_CONCURRENCY_PER_GENERATOR,
+                   help="rollouts in flight on the generator, at most 128: lower on a card whose KV cache "
+                        "runs fewer sequences at once, so the rest do not wait while their clock runs")
     p = sub.add_parser("tally", help="bands, funnel, rewrite stats, cost and repair as one JSON")
     p.add_argument("--eval", type=Path, nargs="*", default=[], help="eval(s) of the accepted revisions")
     p.add_argument("--run", type=Path, nargs="*", default=[], help="training run(s): bands from each revision's first group")
@@ -2112,7 +2122,7 @@ def main() -> None:
     elif a.cmd == "evalset":
         build_evalset(a.root, _log_for(a.root, "evalset"))
     elif a.cmd == "eval":
-        run_eval(a.evalset, a.ckpt, a.gpus, a.harness, a.base, a.shard)
+        run_eval(a.evalset, a.ckpt, a.gpus, a.harness, a.base, a.shard, a.concurrency)
     elif a.cmd == "tally":
         if a.evalset and len(a.eval) != 1:
             ap.error("--evalset names the evalset of a single eval")
