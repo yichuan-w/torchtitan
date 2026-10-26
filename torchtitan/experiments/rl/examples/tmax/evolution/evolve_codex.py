@@ -2220,7 +2220,13 @@ later version can leave it out by building from the original without it. Help
 about how to work -- a table to write, a check to run, an order of steps -- is
 advice to the student, however the plan words it: it adds no requirement, and
 the verifier grades the result as before, never whether the advice was
-followed. If an
+followed. An intervention of kind setup_hint, check_hint, direction_hint,
+decomposition or feedback changes no requirement, so a version made only of
+such interventions keeps tests/ exactly as the original has it: do not edit,
+tighten or extend the verifier for it. Only scope_removal, smaller_instance and
+supplied_work change what is graded, and then only for the part they change.
+(Measured: v11's hint-only {{i2}} rewrote the verifier with exact-equality and
+new ownership checks, and the original's reference solution failed it.) If an
 intervention cannot be applied without breaking an invariant below, apply the
 rest and say which one and why in change; if none can, write GIVE UP with the
 reason.
