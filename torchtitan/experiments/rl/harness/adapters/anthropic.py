@@ -297,6 +297,32 @@ def _tool_calls_from_text(text: str) -> list[tuple[str, Any]]:
     return out
 
 
+def _plain_text_blocks(renderer: Renderer, token_ids: list[int]) -> list[dict]:
+    """Thinking plus the whole post-think reply as one text block, as an
+    OpenAI-compatible server without a tool parser returns it. parse_response
+    cuts ``content`` at a ``<tool_call>`` token even with no tools declared, which
+    drops a text action written after it."""
+    parsed = renderer.parse_response(token_ids=token_ids, tools=None)
+    text = parsed.content or ""
+    tokenizer = getattr(renderer, "_tokenizer", None)
+    if tokenizer is not None:
+        think_id = tokenizer.convert_tokens_to_ids("<think>")
+        think_end_id = tokenizer.convert_tokens_to_ids("</think>")
+        if think_end_id in token_ids:
+            start = token_ids.index(think_end_id) + 1
+        elif think_id in token_ids:
+            start = None  # thinking never closed: no reply, as parse_response
+        else:
+            start = 0
+        if start is not None:
+            text = tokenizer.decode(token_ids[start:], skip_special_tokens=True).strip()
+    blocks: list[dict] = []
+    if parsed.reasoning_content:
+        blocks.append({"type": "thinking", "thinking": parsed.reasoning_content})
+    blocks.append({"type": "text", "text": text})
+    return blocks
+
+
 def _completion_to_blocks(
     renderer: Renderer, token_ids: list[int], tools: list[ToolSpec] | None
 ) -> tuple[list[dict], str]:
@@ -537,9 +563,12 @@ class AnthropicAdapter:
             # the captured turn stores the same blocks: the dump then carries the
             # assistant's own message in the form the client saw, and nobody has
             # to hold a tokenizer to read it.
-            blocks, stop = _completion_to_blocks(
-                self.renderer, completion.token_ids, session.tools
-            )
+            if body.get("plain_text") and not session.tools:
+                blocks, stop = _plain_text_blocks(self.renderer, completion.token_ids), "end_turn"
+            else:
+                blocks, stop = _completion_to_blocks(
+                    self.renderer, completion.token_ids, session.tools
+                )
 
             session.turns.append(
                 CapturedTurn(

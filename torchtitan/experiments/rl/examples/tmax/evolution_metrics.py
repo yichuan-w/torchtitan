@@ -23,15 +23,22 @@ reaches training only when the epoch order next reaches its task.
 The two signal directions mean opposite things -- `harder` comes from a group
 that all passed, `easier` from one that all failed -- and move opposite ways as
 the policy learns, so each direction also gets its own four curves
-(`<key>_<direction>`, one overlay chart per direction). A signal's direction
+(`<key>_<direction>`, one overlay chart per direction). The counts at each
+step are appended to the run's `trainer/evolution_flow.jsonl` and read back
+when a trainer resumes, so the charts keep the steps before the resume. A
+rewrite already accepted when this process first polls was accepted at a step
+it cannot know, and enters no `accept_latency_steps`. A signal's direction
 follows every stage, so a rewrite counts under the direction of the signal
 that asked for it whatever route handled it.
 
-`stale/*` counts the groups trained on a task's original while its rewrite was
-pending: claimed after one of this run's signals asked to rewrite that exact
-revision and before the loop consumed the signal. A group claimed before the
-rewrite started counts as `while_waiting`, after it as `while_rewriting`.
-Each signal is classified when it is consumed, so the counts only grow.
+`stale/groups` counts the groups trained on a task's original while its
+rewrite was pending: claimed after one of this run's signals asked to rewrite
+that exact revision and before the loop handled the signal. Such a group most
+likely repeats the all-pass or all-fail result the signal reported, so this is
+training spent on a revision already known to carry no signal while the loop
+caught up. Only signals the loop handled count; one it deferred, superseded or
+judged junk was never going to be rewritten from that wait. Each signal is
+counted when it is handled, so the count only grows.
 
 `repairs/*` counts the defects harder and easier rewrites repaired on the way
 (declared in run/repair.json; one line each in evolution/repairs.jsonl):
@@ -79,6 +86,11 @@ AFTER_GROUPS = 6
 # Training steps between uploads of the rewrite report: its rows change as
 # groups finish, and every upload is the whole table.
 REWRITE_REPORT_EVERY = 10
+# The runbook's table of evolution keys is the one place each is described; the
+# trainer uploads it as the evolution/glossary table so W&B shows it too.
+RUNBOOK = Path(__file__).parent / "runbook/RUNBOOK.md"
+GLOSSARY_SECTION = "### Evolution charts in the training W&B run"
+GLOSSARY_COLUMNS = ("metric", "description")
 FLOW_KEYS = ("signals_issued", "signals_consumed", "rewrites_accepted", "rewrites_trained")
 DIRECTIONS = ("harder", "easier")
 # Merges the latency median looks back over: recent enough to move when the
@@ -175,8 +187,14 @@ class EvolutionMetrics:
         # Why rewrites ended where they did, and how long each took.
         self.stages: Counter[tuple[str, str]] = Counter()
         self.rewrite_secs: list[float] = []
-        # Flow counts at each logged step: None for all signals, else by direction.
-        self.history: dict[int, dict[str | None, tuple[int, ...]]] = {}
+        # Flow counts at each logged step: None for all signals, else by
+        # direction. Read back from the run, so a resumed trainer charts the
+        # steps of the lifetimes before it too.
+        self.history: dict[int, dict[str | None, tuple[int, ...]]] = self._load_history()
+        # The first step this process logs. An outcome already on disk by then
+        # was accepted at a step this process cannot know (before the resume,
+        # or by an earlier attempt), so it enters no latency and no report step.
+        self.first_step: int | None = None
         # First training on an accepted revision: trained groups by task, and
         # accepted rewrites still waiting for one.
         self.trained: dict[str, list[tuple[float, str, int]]] = {}
@@ -188,10 +206,9 @@ class EvolutionMetrics:
         self.group_revision: dict[tuple[str | None, int], str] = {}
         self.signal_span: dict[str, tuple[str, str, float]] = {}
         self.closed_at: dict[str, float] = {}
-        self.rewrite_started: dict[str, float] = {}
         self.classified: set[str] = set()
         self.stale_claims: set[str] = set()
-        self.stale: Counter[str] = Counter()
+        self.stale_groups = 0
         self.repairs: Counter[str] = Counter()
         # One row per declared repair, for the report table beside the counts.
         self.repair_rows: list[list] = []
@@ -200,6 +217,16 @@ class EvolutionMetrics:
         self.rewrite_events: list[tuple[int | None, dict]] = []
         self.signal_measured: dict[str, str] = {}
         self.finished_groups: dict[str, list[tuple[float, str, int, int]]] = {}
+
+    def _load_history(self) -> dict[int, dict[str | None, tuple[int, ...]]]:
+        history = {}
+        # A later line for the same step is the lifetime that logged it again.
+        for line in _new_lines(self.base.evolution_flow, 0)[0]:
+            history[line["step"]] = {
+                None if key == "all" else key: tuple(counts)
+                for key, counts in line["flow"].items()
+            }
+        return history
 
     def _poll_claims(self) -> None:
         events, self.claim_offset = _new_lines(
@@ -298,12 +325,6 @@ class EvolutionMetrics:
                 continue
             self.rewrites.add(event["rewrite"])
             self.rewrite_events.append((step, event))
-            if event.get("started") and event.get("signal"):
-                started = layout.parse_stamp(event["started"])
-                # A retried signal waited until its first attempt began.
-                self.rewrite_started[event["signal"]] = min(
-                    started, self.rewrite_started.get(event["signal"], started)
-                )
             status = event["status"]
             if fixes := int(event.get("repairs") or 0):
                 self.repairs["rewrites"] += 1
@@ -352,11 +373,14 @@ class EvolutionMetrics:
 
     def _classify_stale(self) -> None:
         for signal, closed_at in self.closed_at.items():
-            if signal in self.classified or signal not in self.signal_span:
+            if (
+                signal in self.classified
+                or signal not in self.signal_span
+                or self.closed.get(signal) != "handled"
+            ):
                 continue
             self.classified.add(signal)
             task, revision, created = self.signal_span[signal]
-            started = self.rewrite_started.get(signal, closed_at)
             for claimed_at, claim_revision, occurrence in self.claims.get(task, ()):
                 if (
                     claim_revision != revision
@@ -365,8 +389,7 @@ class EvolutionMetrics:
                 ):
                     continue
                 self.stale_claims.add(occurrence)
-                key = "while_waiting" if claimed_at < started else "while_rewriting"
-                self.stale[key] += 1
+                self.stale_groups += 1
 
     def _match_training(self) -> None:
         """An accepted rewrite reaches training at the first trained group of
@@ -391,7 +414,13 @@ class EvolutionMetrics:
         self._poll_claims()
         self._poll_signals()
         self._poll_ledger()
-        self._poll_outcomes(step)
+        observed = step if self.first_step is not None else None
+        if step is not None and self.first_step is None:
+            self.first_step = step
+            # Steps from here on were logged by a lifetime whose checkpoint
+            # this one did not resume from; this one logs them again.
+            self.history = {s: h for s, h in self.history.items() if s < step}
+        self._poll_outcomes(observed)
         self._classify_stale()
         self._match_training()
         closed = Counter(o for s, o in self.closed.items() if s in self.issued)
@@ -412,6 +441,16 @@ class EvolutionMetrics:
         }
         if step is not None:
             self.history[step] = {None: flow, **by_direction}
+            layout.append_jsonl(
+                self.base.evolution_flow,
+                {
+                    "step": step,
+                    "flow": {
+                        "all" if key is None else key: list(counts)
+                        for key, counts in self.history[step].items()
+                    },
+                },
+            )
         values = {
             **{f"evolution/flow/{k}": float(v) for k, v in zip(FLOW_KEYS, flow, strict=True)},
             **{f"evolution/signals/{o}": float(closed[o]) for o in SIGNAL_OUTCOMES},
@@ -421,10 +460,7 @@ class EvolutionMetrics:
             },
             **{f"evolution/repairs/{k}": float(self.repairs[k]) for k in REPAIR_KEYS},
             **{f"evolution/repairs/kind_{k}": float(self.repairs[f"kind_{k}"]) for k in REPAIR_KINDS},
-            **{
-                f"evolution/stale/{k}": float(self.stale[k])
-                for k in ("while_waiting", "while_rewriting")
-            },
+            "evolution/stale/groups": float(self.stale_groups),
             **{
                 f"evolution/{route}/{outcome}": float(counts[outcome])
                 for route, counts in self.routes.items()
@@ -510,6 +546,17 @@ class EvolutionMetrics:
             [[self.history[s][direction][i] for s in steps] for i in range(len(FLOW_KEYS))],
             list(FLOW_KEYS),
         )
+
+
+def glossary_rows(runbook: Path = RUNBOOK) -> list[list[str]]:
+    """One row per line of the runbook's evolution key table, backticks dropped."""
+    section = runbook.read_text().split(GLOSSARY_SECTION, 1)[1].split("\n## ", 1)[0]
+    rows = []
+    for line in section.splitlines():
+        if line.startswith("| `"):
+            key, description = line.strip().strip("|").split(" | ", 1)
+            rows.append([key.strip().replace("`", ""), description.strip().replace("`", "")])
+    return rows
 
 
 def _cut(text: object) -> str | None:

@@ -44,6 +44,12 @@ policy, which is this file's and not the bench's:
 - One request per version at a time, and none for a version that already has
   an active child in that direction; any number of versions of one task may
   be rewritten at once, up to --workers rewrites in all.
+- The original is never hardened: it is what the readout scores.
+- A harder rewrite starts on whatever group the trainer calls hardenable. With
+  the trainer's SWE_EVOLUTION_HARDER_RATIO low (a version's first partial solve)
+  and the rewriter's EVOLVE_HARDER_FROM_PARTIAL=1, a version gets its next rung,
+  restored toward the original, as soon as it gives a gradient, while it keeps
+  training; the one-active-child rule keeps that to one child per version.
 - Weights, recomputed from the version's training groups at every
   group_done: p(1-p) for p the solve rate of its last --history groups
   (smoothed by --prior on both sides), --explore for a version with no group
@@ -609,6 +615,11 @@ class Ladder:
             return ("superseded", f"a {r.direction} request for {v['label']} is running"), None
         if self._has_active_child(vid, direction):
             return ("superseded", f"{v['label']} already has an active {direction} child"), None
+        if direction == HARDER and is_original(v):
+            # The original is the exam the readout scores: a harder variant of it
+            # trains past the goal (a low SWE_EVOLUTION_HARDER_RATIO sends one at
+            # its first partial solve).
+            return ("superseded", f"policy: {v['label']} is the original; it is not hardened"), None
         if direction == EASIER:
             exploit = self._learnable(v["task"])
             if exploit:

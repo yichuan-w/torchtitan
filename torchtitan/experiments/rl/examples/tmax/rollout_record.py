@@ -6,7 +6,9 @@ turn's completion is the model's whole answer and the next turn's prompt
 extends this turn's prompt+completion by the terminal reply, so the growing
 prefix recovers each reply (the TITO invariant). The completion is Terminus-2's
 XML, thinking first, so ``parse_completion`` splits it into fields and puts
-the command first in the line.
+the command first in the line. Under any other harness (vanillux's native
+tool call, for one) the reply has no Terminus response and stays under
+``raw``; ``vanillux_command`` reads a vanillux turn's command back out of it.
 """
 from __future__ import annotations
 
@@ -20,6 +22,9 @@ TURN_KEYS = ("turn", "keystrokes", "raw", "task_complete", "output", "analysis",
 _CHAT_MARKERS = re.compile(r"<\|im_(?:start|end)\|>(?:assistant|user|system)?\n?")
 _KEYSTROKES = re.compile(r"<keystrokes[^>]*>(.*?)</keystrokes>", re.S)
 _RESPONSE = re.compile(r"<(?:response|analysis|commands)>")
+# vanillux turns keep the model's reply under ``raw``: any prose, then the
+# native qwen3 tool call. Only the first call in a reply runs.
+_VANILLUX_COMMAND = re.compile(r"<parameter=command>\n?(.*?)\n?</parameter>", re.S)
 
 
 class _Turn(Protocol):
@@ -79,6 +84,15 @@ def turn_line(index: int, completion: str, output: str) -> dict:
         if key in fields:
             line[key] = fields[key]
     return line
+
+
+def vanillux_command(raw: str) -> str:
+    """The bash command a vanillux turn ran, from its ``raw`` reply
+    (``<tool_call><function=bash><parameter=command>…</parameter>``): the
+    first call's, stripped as vanillux_loop strips it; "" when the reply
+    carries none (a format error, a cut-off reply)."""
+    m = _VANILLUX_COMMAND.search(raw or "")
+    return m.group(1).strip() if m else ""
 
 
 def turns_from_tokens(turns: Iterable[_Turn], decode) -> list[dict]:

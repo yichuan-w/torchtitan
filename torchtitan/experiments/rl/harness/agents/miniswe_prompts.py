@@ -26,9 +26,13 @@ what ``vanillux_prompts.py`` ports), and v2's text-based config
 the timeout template.
 
 These are Jinja2 templates rendered with ``StrictUndefined``, as upstream does.
-The only change is ``INSTANCE_TEMPLATE``, which adds one rule after upstream's
-rule 3 (see ``_BACKGROUND_RULE``). Do not edit the upstream strings: the point of
-this harness is that a policy sees mini-swe-agent's own prompt.
+Two changes: ``INSTANCE_TEMPLATE`` adds one rule after upstream's rule 3 (see
+``_BACKGROUND_RULE``), and ``FORMAT_ERROR_TEMPLATE`` drops upstream's "If you
+want to end the task, please issue ... echo COMPLETE_TASK_AND_SUBMIT_FINAL_OUTPUT
+without any other command. Else, please format ..." (now "Please format ..."):
+in run 1024 it steered the policy into submitting right after a format error
+(7 of 9 such eval submits failed). Do not edit the other upstream strings: the
+point of this harness is that a policy sees mini-swe-agent's own prompt.
 """
 
 SYSTEM_TEMPLATE = """\
@@ -166,9 +170,7 @@ If you really need to see something from the full command's output, you can redi
 
 FORMAT_ERROR_TEMPLATE = """\
 Please always provide EXACTLY ONE action in triple backticks, found {{actions|length}} actions.
-If you want to end the task, please issue the following command: `echo COMPLETE_TASK_AND_SUBMIT_FINAL_OUTPUT`
-without any other command.
-Else, please format your response exactly as follows:
+Please format your response exactly as follows:
 
 <response_example>
 Here are some thoughts about why you want to perform the action.

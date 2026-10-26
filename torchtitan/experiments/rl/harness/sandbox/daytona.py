@@ -238,7 +238,15 @@ def _build_exec_command(
         f"{timeout}s",
         *argv,
     ]
-    runner = f'{shlex.join(argv)} "$_tt_script_path"'
+    # eval the script's text inside a fixed ``bash -c`` so errors read
+    # "bash: line N:" as in a plain shell, not the staging path. The text must
+    # never be an argv string itself: a ``pkill -f`` in it would match and kill
+    # its own shell.
+    runner = (
+        f"{shlex.join(argv)} -c "
+        + shlex.quote('_tt_s=$(cat "$1"); set --; eval "unset _tt_s; $_tt_s"')
+        + ' bash "$_tt_script_path"'
+    )
     return (
         f"_tt_script_path={script_path_prefix}$$; "
         f"if printf %s {shlex.quote(encoded_cmd)} | base64 -d "

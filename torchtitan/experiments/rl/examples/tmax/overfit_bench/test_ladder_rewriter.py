@@ -612,3 +612,16 @@ def test_a_live_rewrites_servers_are_left_alone(job, monkeypatch):
     ladder = lr.Ladder(root, client, evolve.ev, workers=4, sweeper=sweeper)
     ladder.start()
     assert set(servers.live) == {elsewhere}
+
+
+def test_the_original_is_never_hardened(job, monkeypatch):
+    root, run, sched, client = job
+    evolve = Evolve(monkeypatch, root)
+    ladder = lr.Ladder(root, client, evolve.ev, workers=16)
+    ladder.start()
+    _signal(run, version=V0, rev=0, group=4, direction="harder", solved=3)
+    _group_done(sched, version=V0, rev=0, group=4, passed=3)
+    _drain(ladder)
+    assert evolve.calls == []
+    entry = evolve.ev.load_ledger(root)[f"{RUN}/a--g4"]
+    assert entry["outcome"] == "superseded" and "is the original" in entry["reason"]

@@ -1501,3 +1501,127 @@ def test_traces_spec_follows_the_attempts_harness(tmp_path):
     for header in ({"agent": "terminus"}, {"task": "t"}):
         attempt.write_text(json.dumps(header) + "\n")
         assert evolve_codex._traces_spec(tmp_path) == evolve_codex._TRACES_SPEC
+
+
+
+# A vanillux attempt as rollouter.py writes it. The header keeps the fields a
+# TB-2.0 eval record carried (ids zeroed) (evals/20261024-214029Z--base-step0, della);
+# every turn is copied from a record of that eval, renumbered and with think
+# shortened: a plain
+# call (filter-js-from-html g-27-r2 t1), prose then a call (polyglot-rust-c
+# g-61-r2 t6), a call with no command parameter (fix-ocaml-gc g-31-r3 t73), a
+# command killed at 120 s (train-fasttext g-84-r4 t45), the submit
+# (filter-js-from-html g-27-r2 t110).
+VANILLUX_HEADER = {
+    "task": "filter-js-from-html", "rev": 0, "version": None,
+    "run": "20261024-214029Z--base-step0--attempt-20261024-214332Z--0000",
+    "group": -27, "rollout": 2, "reward": 0.0, "status": "completed",
+    "finish_reason": "submit", "submitted": True, "format_errors": 0,
+    "format_breakdown": {}, "infra_failed": False, "failure": {},
+    "terminal_events": [], "error": "",
+    "sandbox": {"id": "00000000-0000-0000-0000-000000000000", "disk_gb": 2,
+                "issues": {"command_timeout": 1}, "dropped_details": 0},
+    "secs": 10809.8, "budget_sec": 5400, "turns": 5, "started": "20261024-214724Z",
+    "exec": [], "verifier": None, "ctrf": None, "agent": "vanillux",
+}
+VANILLUX_TURNS = [
+    {"turn": 1,
+     "raw": "<tool_call>\n<function=bash>\n<parameter=command>\npython3 -c \"import bs4; print('bs4 available')\" 2>/dev/null || echo \"bs4 not available\"\n</parameter>\n</function>\n</tool_call>",
+     "output": "<tool_response>\nbs4 available\n\n\n(exit_code=0)\n</tool_response>",
+     "think": "Let me analyze this task."},
+    {"turn": 2,
+     "raw": "C++ compiled. Let me test both:\n\n<tool_call>\n<function=bash>\n<parameter=command>\ncd /app/polyglot && ./cmain 10\n</parameter>\n</function>\n</tool_call>",
+     "output": "<tool_response>\n55\n\n\n(exit_code=0)\n</tool_response>"},
+    {"turn": 3,
+     "raw": "<tool_call>\n<function=bash>\n</tool_call>",
+     "output": "<tool_response>\nFormat error: 'command' parameter is required.\n\nPlease always provide EXACTLY ONE call to the `bash` tool. If you want to\nend the task, please issue the command `echo COMPLETE_TASK_AND_SUBMIT_FINAL_OUTPUT`\nvia the `bash` tool, with no other content in the command.\n</tool_response>"},
+    {"turn": 4,
+     "raw": "<tool_call>\n<function=bash>\n<parameter=command>\nsleep 300\n</parameter>\n</function>\n</tool_call>",
+     "output": "<tool_response>\nCommand timed out after 120s.\n\n(exit_code=124)\n</tool_response>"},
+    {"turn": 5,
+     "raw": "<tool_call>\n<function=bash>\n<parameter=command>\necho COMPLETE_TASK_AND_SUBMIT_FINAL_OUTPUT\n</parameter>\n</function>\n</tool_call>",
+     "output": "",
+     "think": "The filter is working correctly."},
+]
+VANILLUX_COMMANDS = [
+    "python3 -c \"import bs4; print('bs4 available')\" 2>/dev/null || echo \"bs4 not available\"",
+    "cd /app/polyglot && ./cmain 10",
+    "",
+    "sleep 300",
+    "echo COMPLETE_TASK_AND_SUBMIT_FINAL_OUTPUT",
+]
+# The last turn of a stopped_early attempt (financial-document-processor
+# g-28-r3 t62): the marker written as prose, no call, nothing submitted.
+VANILLUX_PROSE_ONLY = {"turn": 62, "raw": "`echo COMPLETE_TASK_AND_SUBMIT_FINAL_OUTPUT`", "output": ""}
+
+
+def test_traces_spec_reads_vanillux_records(tmp_path):
+    rollout_record.write_record(tmp_path / "attempt-01.jsonl", VANILLUX_HEADER, VANILLUX_TURNS)
+    spec = ec._traces_spec(tmp_path)
+    assert spec == ec._VANILLUX_TRACES_SPEC
+    assert "keystrokes (a list" not in spec and "keystrokes //" not in spec
+    for said in ("<tool_call><function=bash><parameter=command>", "<tool_response>",
+                 "exit_code=124", "echo COMPLETE_TASK_AND_SUBMIT_FINAL_OUTPUT",
+                 "stopped_early", "hit_context_limit", "Only the first call"):
+        assert said in spec, said
+
+
+def test_vanillux_command_is_the_first_calls_command():
+    assert [rollout_record.vanillux_command(t["raw"]) for t in VANILLUX_TURNS] == VANILLUX_COMMANDS
+    assert rollout_record.vanillux_command(VANILLUX_PROSE_ONLY["raw"]) == ""
+    assert rollout_record.vanillux_command("") == ""
+    two = VANILLUX_TURNS[1]["raw"] + "\n" + VANILLUX_TURNS[3]["raw"]
+    assert rollout_record.vanillux_command(two) == "cd /app/polyglot && ./cmain 10"
+
+
+@pytest.mark.skipif(shutil.which("jq") is None, reason="jq not installed")
+def test_vanillux_spec_jq_recipes_print_the_commands(tmp_path):
+    """The recipes the paragraph hands the rewriter, run as written, agree
+    with vanillux_command turn by turn."""
+    traces = tmp_path / "traces"
+    for name in ("attempt-01.jsonl", "attempt-02.jsonl", "attempt-03.jsonl"):
+        rollout_record.write_record(
+            traces / name, VANILLUX_HEADER, VANILLUX_TURNS + [VANILLUX_PROSE_ONLY]
+        )
+    recipes = [
+        line.strip()
+        for line in ec._VANILLUX_TRACES_SPEC.splitlines()
+        if line.strip().startswith("jq -r 'def cmd:")
+    ]
+    assert len(recipes) == 2
+
+    def run(recipe):
+        return subprocess.run(
+            ["bash", "-c", recipe], cwd=tmp_path, capture_output=True, text=True, check=True
+        ).stdout
+
+    expected = "".join(
+        f"{t['turn']}\t{c}\n"
+        for t, c in zip(VANILLUX_TURNS + [VANILLUX_PROSE_ONLY], VANILLUX_COMMANDS + [""])
+    )
+    assert run(recipes[0]) == expected
+    # "metrics" appears nowhere; "cmain" only in turn 2's command.
+    assert run(recipes[1]) == ""
+    assert run(recipes[1].replace('test("metrics")', 'test("cmain")')) == "2\n"
+
+def test_partial_calibration_says_what_was_measured_and_restores_one_part():
+    """A harder rewrite from a partly solved simplification (EVOLVE_HARDER_FROM_PARTIAL)
+    is not told every attempt passed."""
+    full = ec._calibration_guidance(12, 12)
+    assert full == ec._CALIBRATION_GUIDANCE
+    partial = ec._calibration_guidance(4, 12)
+    assert ec._ALL_PASSING not in partial
+    assert partial.startswith("The previous simplification is now solved in 4 of 12 attempts")
+    assert "one coherent\npart of what the simplifications removed" in partial
+    assert "since-original.diff" in partial
+
+
+def test_calibration_appends_the_deployment_extra_rules(monkeypatch, tmp_path):
+    extra = tmp_path / "extra.md"
+    extra.write_text("## Bench rule\n\nWithdraw the hints first.\n")
+    monkeypatch.setenv("EVOLVE_SIMPLIFY_EXTRA_GUIDANCE_FILE", str(extra))
+    for solved in (12, 4):
+        g = ec._calibration_guidance(solved, 12)
+        assert g.rstrip().endswith("Withdraw the hints first.")
+    monkeypatch.delenv("EVOLVE_SIMPLIFY_EXTRA_GUIDANCE_FILE")
+    assert ec._calibration_guidance(12, 12) == ec._CALIBRATION_GUIDANCE

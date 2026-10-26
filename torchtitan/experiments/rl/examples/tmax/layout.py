@@ -478,6 +478,12 @@ class Run:
         return self.trainer / "mix_versions.jsonl"
 
     @property
+    def evolution_flow(self) -> Path:
+        """The evolution flow counts at every training step, so the cumulative
+        flow charts keep their steps across a resume."""
+        return self.trainer / "evolution_flow.jsonl"
+
+    @property
     def checkpoints(self) -> Path:
         return self.path / "checkpoints"
 

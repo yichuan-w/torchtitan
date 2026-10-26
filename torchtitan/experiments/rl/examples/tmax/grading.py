@@ -86,6 +86,10 @@ def _pre_grade_command(reward_path: str, ctrf_path: str, nonce: str) -> str:
     q_ctrf = shlex.quote(ctrf_path)
     q_dir = shlex.quote(posixpath.dirname(reward_path) or _VERIFIER_DIR)
     return (
+        # pip's wheel cache is never needed after install; agents that pip
+        # install CUDA torch leave GBs there and the verifier's own installs
+        # then fail on a full disk (run 1024: 25 of 36 infra-zero eval trials).
+        "rm -rf /root/.cache/pip /home/*/.cache/pip 2>/dev/null; "
         f"chattr -R -i {q_dir} 2>/dev/null; "
         f"chattr -i {q_reward} {q_ctrf} 2>/dev/null; "
         f"rm -f {q_reward} {q_ctrf}; "

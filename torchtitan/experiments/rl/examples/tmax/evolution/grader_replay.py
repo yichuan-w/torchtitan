@@ -18,7 +18,8 @@ grader, each on a fresh Daytona sandbox through the same probe as the oracle
 (daytona_revalidate.py, the training harness and grading contract):
 
 - the training finals of the parent version that scored 1: each rollout's
-  recorded keystrokes, replayed turn by turn through Terminus as a recorded
+  recorded keystrokes (a vanillux record's bash commands), replayed turn by
+  turn through Terminus as a recorded
   solution (recorded_solution.py's action format), so the workspace is rebuilt
   by the commands that built it when it was graded;
 - the parent revision's reference solution and the original task's (r0), when
@@ -40,6 +41,7 @@ records (``validation_rollouts/``, negative groups) are never read.
 
 from __future__ import annotations
 
+import base64
 import hashlib
 import json
 import logging
@@ -68,6 +70,11 @@ TURN_GAP_SEC = 20.0
 _INFRA_STAGES = frozenset(
     {"daytona_error", "daytona_unavailable", "cancelled", "package_error", "no_solution"}
 )
+
+
+# vanillux_loop.SUBMIT_MARKER, spelled here so this module does not import the
+# agent loop and its harness dependencies.
+_SUBMIT_MARKER = "COMPLETE_TASK_AND_SUBMIT_FINAL_OUTPUT"
 
 
 def enabled(default: str = "0") -> bool:
@@ -102,12 +109,30 @@ def passing_finals(root: layout.Root, task_id: str, rev: int) -> list[Path]:
 
 def actions_from_record(path: Path) -> list[dict]:
     """A training rollout as a recorded solution: every turn's keystrokes in
-    order, then the two completion markers Terminus's submit takes."""
-    _, turns = rollout_record.read_record(path)
+    order, then the two completion markers Terminus's submit takes.
+
+    A vanillux record has no keystrokes: each turn ran one bash command (the
+    first tool call in ``raw``) through ``eval`` in a shell that keeps cwd and
+    exported variables. Each such command is typed as one ``eval`` of its
+    base64, which runs it the same way in the replay's persistent shell without
+    interactive bash reinterpreting it (history expansion, prompts on
+    continuation lines). The submit marker ran nothing in the task and is
+    skipped. A command that itself calls ``exit`` ends the replay's shell,
+    which vanillux's per-command process did not."""
+    head, turns = rollout_record.read_record(path)
+    vanillux = head.get("agent") == "vanillux"
     actions: list[dict] = []
     offset, step = 0.0, 0
     for turn in turns:
-        keys = [k for k in turn.get("keystrokes") or () if k]
+        if vanillux:
+            cmd = rollout_record.vanillux_command(turn.get("raw", ""))
+            keys = (
+                [f'eval "$(printf %s {base64.b64encode(cmd.encode()).decode()} | base64 -d)"\n']
+                if cmd and cmd != "echo " + _SUBMIT_MARKER
+                else []
+            )
+        else:
+            keys = [k for k in turn.get("keystrokes") or () if k]
         if not keys:
             continue
         step = int(turn.get("turn") or step + 1)

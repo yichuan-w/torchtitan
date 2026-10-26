@@ -171,6 +171,7 @@ def _stub_rollouter(
     rollouter._eval_grade_unsubmitted = False
     rollouter._grade_unsubmitted = False
     rollouter._eval_context_notice = True
+    rollouter._format_streak_limit = 0
     rollouter._rollout_gate = _RolloutIssueGate(1)
 
     @contextlib.asynccontextmanager

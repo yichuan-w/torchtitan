@@ -1,0 +1,46 @@
+{
+  "seed": 20260928,
+  "sources": [
+    {
+      "name": "agentpick-clean-fast",
+      "repo": "Fzz1/tb-training-mix-agentpick",
+      "revision": "7dee55fe37cf5d2119539a7996d04c9fd558ca09",
+      "adapter": "tmax_reaudit",
+      "metadata": "data/clean_fast.parquet",
+      "archives": [
+        "data/tasks-clean_fast.tar"
+      ],
+      "count": null,
+      "skip_unpackable": true,
+      "exclude": [
+        "rts_task_d35d647825db9db40f37a95c",
+        "rts_task_24702e8563eef351a1c3cedd",
+        "rts_task_469ae9c3a2966eb3357a54fa",
+        "tw_283245",
+        "task_004496_9337bdc3"
+      ]
+    },
+    {
+      "name": "agentpick-calibforge-clean-fast",
+      "repo": "Fzz1/tb-training-mix-agentpick",
+      "revision": "7dee55fe37cf5d2119539a7996d04c9fd558ca09",
+      "adapter": "tmax_reaudit",
+      "metadata": "data/calibforge_clean_fast.parquet",
+      "archives": [
+        "data/tasks-calibforge_clean_fast.tar"
+      ],
+      "count": null,
+      "skip_unpackable": true,
+      "exclude": [
+        "software-engineering_20260419_065313_011",
+        "file-operations_20260606_172606_001",
+        "file-operations_20260617_104707_004",
+        "system-administration_20260610_112157_004",
+        "system-administration_20260508_045740_002",
+        "games_20260615_105532_001",
+        "software-engineering_20260528_174918_024",
+        "software-engineering_20260508_161717_002"
+      ]
+    }
+  ]
+}

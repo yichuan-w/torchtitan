@@ -229,6 +229,9 @@ def _tmax_rollouter(*, validation_from_caller: bool = False) -> TMaxRollouter.Co
         strict_format=os.environ.get("SWE_STRICT_FORMAT", "0") == "1",
         strict_opening=os.environ.get("SWE_STRICT_OPENING", "1") == "1",
         strict_truncation=os.environ.get("SWE_STRICT_TRUNCATION", "0") == "1",
+        # 5 rejected turns in a row end a training episode (0 = off); after a
+        # 5-streak only 6.7% of 1024's rollouts still passed.
+        format_streak_limit=int(os.environ.get("TMAX_FORMAT_STREAK_LIMIT", "5")),
         eval_strict_format=os.environ.get("SWE_EVAL_STRICT_FORMAT", "0") == "1",
         eval_strict_opening=os.environ.get("SWE_EVAL_STRICT_OPENING", "0") == "1",
         eval_strict_truncation=(
@@ -304,10 +307,15 @@ def _tmax_rollouter(*, validation_from_caller: bool = False) -> TMaxRollouter.Co
             os.environ.get("SWE_LENGTH_PENALTY_MIN_PASS_RATE", "0.5")
         ),
         # Overfit bench (overfit_bench/README.md): draw from the scheduler's
-        # version pool; cap a training attempt by turns alone; boot every
+        # version pool; cap a training attempt by turns (and a fixed wall clock
+        # when SWE_BENCH_TRAIN_BUDGET_SEC is set); boot every
         # sandbox (training, readout, separate verifier) at a fixed size.
         bench_scheduler=_bench_scheduler(),
         bench_max_turns=int(os.environ.get("SWE_BENCH_MAX_TURNS", "0")),
+        bench_train_budget_sec=int(os.environ.get("SWE_BENCH_TRAIN_BUDGET_SEC", "0")),
+        bench_readout_eval_budget=(
+            os.environ.get("SWE_BENCH_READOUT_EVAL_BUDGET", "0") == "1"
+        ),
         bench_sandbox_cpu=int(os.environ.get("SWE_BENCH_SANDBOX_CPU", "0")),
         bench_sandbox_mem_gb=int(os.environ.get("SWE_BENCH_SANDBOX_MEM_GB", "0")),
         bench_sandbox_disk_gb=int(os.environ.get("SWE_BENCH_SANDBOX_DISK_GB", "0")),

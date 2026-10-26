@@ -1407,6 +1407,64 @@ as keystrokes in a terminal; that does not change what the student can do.""",
 assert _MINISWE_TRACES_SPEC.count("mini-swe-agent") == 1
 
 
+# The same paragraph for attempts the vanillux harness produced
+# (vanillux_loop.py): every turn a reply carrying one native tool call to the
+# single bash tool, kept under "raw" as the model wrote it, and the tool
+# response under "output". The jq recipes pull the command out of raw with the
+# same pattern rollout_record.vanillux_command uses.
+_JQ_VANILLUX_CMD = (
+    r"""def cmd: (.raw // "") | (capture("<parameter=command>\n?(?<c>[\\s\\S]*?)\n?</parameter>").c // ""); """
+)
+_VANILLUX_TRACES_SPEC = (
+    _TRACES_SPEC.replace(
+        """Every later line is one turn, in order: turn, keystrokes (a list:
+what the agent typed; empty on a closing turn), task_complete, output (the
+terminal after it; empty on the last turn, where the episode ended),
+analysis, plan, think. A turn with no parseable response has raw instead of
+keystrokes.""",
+        """These attempts ran under vanillux (mini-swe-agent's
+tool-calling loop): each turn the agent may write some prose, then calls its
+one tool, bash, with a command. Each command runs as its own non-interactive
+bash process with no terminal; the working directory (starting at /app) and
+exported variables carry over to the next command, and a command still running
+after 120 s is killed ("Command timed out after 120s.", exit_code=124). Every
+later line is one turn, in order: turn, raw (the reply as the model wrote it:
+any prose, then the call: <tool_call><function=bash><parameter=command>, the
+command, </parameter></function></tool_call>), output (what came back, inside
+<tool_response>: the command's output, cut to its head and tail when long,
+then (exit_code=N); or a format error), think (its reasoning before the
+reply). Only the first call in a reply runs. A call without a command
+parameter ran nothing and got a format error back. A reply with no call at
+all ran nothing: by default it ends the attempt (finish_reason
+stopped_early), and format_errors counts such replies. The student submits
+by running echo COMPLETE_TASK_AND_SUBMIT_FINAL_OUTPUT; that turn is the last
+and its output is empty, and only a submitted attempt is graded; writing the
+marker in prose submits nothing. hit_context_limit means the last reply was
+cut off at the context limit, so its raw may be empty or partial.
+The student meets the rewritten task the same way, so keep it solvable like
+that: nothing that only an interactive terminal can do (an editor, a REPL, a
+prompt waiting for an answer) and no single step that must run in the
+foreground for more than 120 s; long work has to be able to run in the
+background and be checked later. The reference solution may still be replayed
+as keystrokes in a terminal; that does not change what the student can do.""",
+    )
+    .replace("jq -r 'select(.turn)", "jq -r '" + _JQ_VANILLUX_CMD + "select(.turn)")
+    .replace("((.keystrokes // [.raw]) | join(\"\"))", "cmd")
+    .replace("the commands alone", "the commands alone (\"\" where none ran)")
+    .replace("joined keystrokes", "joined commands")
+)
+assert _VANILLUX_TRACES_SPEC.count("vanillux") == 1
+assert "keystrokes //" not in _VANILLUX_TRACES_SPEC
+assert _VANILLUX_TRACES_SPEC.count("def cmd:") == 2
+
+# Which paragraph a package's attempts get, by the header's "agent"; anything
+# else (terminus, or a record from before the field existed) gets _TRACES_SPEC.
+_AGENT_TRACES_SPECS = {
+    "miniswe": _MINISWE_TRACES_SPEC,
+    "vanillux": _VANILLUX_TRACES_SPEC,
+}
+
+
 def _attempts_agent(traces: Path) -> str:
     """The harness named in the first attempt record's header ("" if none)."""
     for path in sorted(traces.glob("attempt-*.jsonl")):
@@ -1422,9 +1480,7 @@ def _traces_spec(traces: Path) -> str:
     """The format paragraph, only when the package carries attempt records."""
     if not any(traces.glob("attempt-*.jsonl")):
         return ""
-    if _attempts_agent(traces) == "miniswe":
-        return _MINISWE_TRACES_SPEC
-    return _TRACES_SPEC
+    return _AGENT_TRACES_SPECS.get(_attempts_agent(traces), _TRACES_SPEC)
 
 
 # --------------------------------------------------------------------------
@@ -1899,6 +1955,34 @@ evidence does not support an intermediate task, write GIVE UP with the reason.
 """
     + so.CALIBRATION_GUIDANCE
 )
+
+# EVOLVE_HARDER_FROM_PARTIAL=1 (default off): a harder signal from a simplified
+# version that only some attempts solved -- the trainer's
+# SWE_EVOLUTION_HARDER_RATIO below 1 -- is calibrated like an all-solved one,
+# restoring toward the original, instead of taking the add-a-difficulty
+# guidance. The overfit bench's ladder uses it so the next rung exists as soon
+# as a version gives a gradient, while that version keeps training.
+HARDER_FROM_PARTIAL = os.environ.get("EVOLVE_HARDER_FROM_PARTIAL", "0") == "1"
+_ALL_PASSING = "The previous simplification now has all attempts passing."
+_PARTIAL_PASSING = (
+    "The previous simplification is now solved in {solved} of {attempts} attempts:\n"
+    "the student has a foothold on it and has not mastered it, and that version\n"
+    "keeps training beside this one. Restore toward the original task one coherent\n"
+    "part of what the simplifications removed (`traces/history/since-original.diff`),\n"
+    "the part these attempts already handle best, and keep the help for what they\n"
+    "still fail. Aim for mixed success on the new version; a measurement short of\n"
+    "all-solved does not justify withdrawing more than that one part."
+)
+
+
+def _calibration_guidance(solved: int, attempts: int) -> str:
+    """The calibration text for a harder rewrite measured at solved/attempts,
+    with the deployment's extra rules (so.extra_guidance) after it."""
+    if solved >= attempts:
+        return _CALIBRATION_GUIDANCE + so.extra_guidance()
+    return _CALIBRATION_GUIDANCE.replace(
+        _ALL_PASSING, _PARTIAL_PASSING.format(solved=solved, attempts=attempts), 1
+    ) + so.extra_guidance()
 
 
 _HARDER_JOB = """This task was solved {solved} of {attempts} attempts and met the
@@ -3277,8 +3361,8 @@ def evolve_agentic(
     previous = rewrite.traces / "previous-simplify.json"
     calibration = (
         job == "harder"
-        and solved == attempts_n
         and attempts_n > 0
+        and (solved == attempts_n or (HARDER_FROM_PARTIAL and 0 < solved < attempts_n))
         and previous.exists()
         and bool(json.loads(previous.read_text()).get("simplify"))
     )
@@ -3303,7 +3387,7 @@ def evolve_agentic(
             "harder": (_HARDER_JOB_BLIND if blind else _HARDER_JOB).format(
                 solved=solved,
                 attempts=attempts_n,
-                guidance=_CALIBRATION_GUIDANCE
+                guidance=_calibration_guidance(solved, attempts_n)
                 if calibration
                 else _REAL_HARDER_GUIDANCE.replace(
                     "Your shell has network access",

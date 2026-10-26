@@ -202,6 +202,30 @@ def test_della_style_is_one_warning_then_status_lines(monkeypatch):
         assert llm.context_notice() == line
 
 
+def test_urge_style_is_della_without_the_failure_stakes(monkeypatch):
+    """TMAX_CONTEXT_NOTICE_STYLE=urge: della's timing and call to mark the task
+    complete, without saying running out counts as failed."""
+    from torchtitan.experiments.rl.harness.agents import terminus
+
+    monkeypatch.setattr(terminus, "_CONTEXT_NOTICE_STYLE", "urge")
+    llm = _llm(warn_frac=0.5)
+    llm.context_tokens = 4000
+    assert llm.context_notice() == ""
+    llm.context_tokens = 5000
+    assert llm.context_notice() == (
+        "WARNING: You have used 50% of your context window (5,000 of 10,000 "
+        "tokens); about 5,000 tokens remain. Avoid commands that print large "
+        "output, finish the essential work, verify it, and mark the task complete."
+    )
+    llm.context_tokens = 7600
+    assert llm.context_notice() == "[Context: 76% used, about 2,400 tokens remain]"
+    llm.context_tokens = 8100
+    assert llm.context_notice() == (
+        "[Context: 81% used, about 1,900 tokens remain. You are almost out of "
+        "context: run as few commands as you can and mark the task complete soon.]"
+    )
+
+
 def test_checked_style_drops_the_call_to_mark_complete(monkeypatch):
     """The default: della's placement and status lines, but a failing submission
     is said to score like running out instead of being asked for."""

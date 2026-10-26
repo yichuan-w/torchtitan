@@ -55,8 +55,9 @@ $TRL_BASE/
 │       ├── stdout.log
 │       ├── inputs/mix.jsonl      hardlink to the history version loaded at boot
 │       ├── trainer/              structured logs, metrics, profiling
-│       │   └── mix_versions.jsonl   one line per boot or hot reload: stamp, event, version, sha256, replaced, appended, retired
-│       │                              (which step ran on which version: join the stamp with the structured logs' step times)
+│       │   ├── mix_versions.jsonl   one line per boot or hot reload: stamp, event, version, sha256, replaced, appended, retired
+│       │   │                          (which step ran on which version: join the stamp with the structured logs' step times)
+│       │   └── evolution_flow.jsonl one line per training step: the evolution flow counts, all signals and per direction; read back on resume
 │       ├── checkpoints -> <local disk>/ckpt/tmax-9b--<stamp>   rolled by SWE_CKPT_KEEP
 │       ├── checkpoints-held/step-<N>/   hardlinks of a step kept past the rotation (cp -al from checkpoints/)
 │       ├── checkpoints-staged/step-<N>/ a GPFS copy for eval nodes, made and pruned by eval_watcher.sh
@@ -144,7 +145,19 @@ bench attempt, which has no wall clock.
 `keystrokes` is a list (a turn may send several); empty on a closing turn. A
 turn whose completion holds no Terminus response keeps its text under `raw`
 instead of `keystrokes`. `output` is the terminal reply the next turn was
-prompted with; empty on the last turn. Validation groups (negative ids) write
+prompted with; empty on the last turn.
+
+The header's `agent` names the harness (`TMAX_AGENT`). Under `vanillux` no
+turn has `keystrokes`: `raw` is the whole reply, any prose and then the tool
+call (`<tool_call>\n<function=bash>\n<parameter=command>\n…\n</parameter>…`,
+only the first call runs; `rollout_record.vanillux_command` extracts it), and
+`output` is the `<tool_response>` holding the command's output and
+`(exit_code=N)`, or a format error:
+
+```json
+{"turn": 6, "raw": "C++ compiled. Let me test both:\n\n<tool_call>\n<function=bash>\n<parameter=command>\ncd /app/polyglot && ./cmain 10\n</parameter>\n</function>\n</tool_call>",
+ "output": "<tool_response>\n55\n\n\n(exit_code=0)\n</tool_response>", "think": "…"}
+``` Validation groups (negative ids) write
 the same format under `validation_rollouts/` as each attempt completes. They
 are separate from the training records consumed by evolution. The controller
 also writes its browsable report after the full validation pass finishes.

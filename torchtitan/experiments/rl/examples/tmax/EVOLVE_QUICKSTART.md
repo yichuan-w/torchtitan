@@ -234,7 +234,8 @@ starts, and `loop.log` has one `recovered local rewrite` line for each.
   version up.
 - W&B: the training run logs the evolution flow (`evolution/flow/*`, with the
   issued/consumed/accepted overlay per signal direction in
-  `evolution/flow/chart_harder` and `evolution/flow/chart_easier`), outcome counts
+  `evolution/flow/chart_harder` and `evolution/flow/chart_easier`, and both
+  directions' eight lines in `evolution/flow/chart_both`), outcome counts
   (`evolution/signals/*`, `evolution/rewrites/*`) and the loop's queue
   (`evolution/queue/*`). See [the training runbook](runbook/RUNBOOK.md#evolution-charts-in-the-training-wb-run)
   for what each one counts and for the supplementary observer link.

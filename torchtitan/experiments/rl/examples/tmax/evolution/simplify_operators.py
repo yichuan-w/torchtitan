@@ -224,9 +224,10 @@ a defect this environment does not let you repair -- and keep it unchanged.
 
 
 def extra_guidance() -> str:
-    """Rules a deployment adds to every simplify prompt, read from the file
+    """Rules a deployment adds to every simplify prompt and to every calibration
+    (the hardening that undoes a simplification), read from the file
     EVOLVE_SIMPLIFY_EXTRA_GUIDANCE_FILE names; nothing when it is unset, so the
-    evolve loop's prompt is unchanged. A named file that is missing raises."""
+    evolve loop's prompts are unchanged. A named file that is missing raises."""
     path = os.environ.get("EVOLVE_SIMPLIFY_EXTRA_GUIDANCE_FILE", "")
     if not path:
         return ""

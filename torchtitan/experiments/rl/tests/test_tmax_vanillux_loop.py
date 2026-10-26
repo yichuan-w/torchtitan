@@ -506,6 +506,7 @@ def _run_group_with_one_infra_failure(
     rollouter._eval_grade_unsubmitted = False
     rollouter._grade_unsubmitted = False
     rollouter._eval_context_notice = True
+    rollouter._format_streak_limit = 0
     rollouter._reward_mode = "sparse"
 
     async def run_sibling(**kwargs):

@@ -80,6 +80,10 @@ class AgentTask:
     the episode the same way, instead of the harness salvaging or re-asking.
     Hitting the context limit is unaffected."""
 
+    format_streak_limit: int = 0
+    """End the episode as a strict ``format_error`` once this many consecutive
+    turns are rejected (0 = off). Only miniswe honors it."""
+
     context_notice: bool = True
     """Show the harness's context-budget notices (warnings and status lines).
     Off, the model sees no budget at all. Only terminus has them."""

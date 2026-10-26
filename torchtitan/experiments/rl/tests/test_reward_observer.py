@@ -215,7 +215,21 @@ class RewardObserverTest(unittest.TestCase):
                     namespace["_evolution_metrics"](owner, step=2)
                     self.assertEqual(
                         sorted(logged[0]),
-                        ["evolution/flow/chart_easier", "evolution/flow/chart_harder"],
+                        [
+                            "evolution/flow/chart_both",
+                            "evolution/flow/chart_easier",
+                            "evolution/flow/chart_harder",
+                        ],
+                    )
+                    xs, ys, _ = logged[0]["evolution/flow/chart_both"]
+                    self.assertEqual(len(ys), 8)
+                    # The glossary goes up once per process, after the charts.
+                    columns, rows = logged[2]["evolution/glossary"]
+                    self.assertEqual(columns, ["metric", "description"])
+                    self.assertIn("evolution/stale/groups", [r[0] for r in rows])
+                    namespace["_evolution_metrics"](owner, step=3)
+                    self.assertFalse(
+                        any("evolution/glossary" in payload for payload in logged[3:])
                     )
                     # The rewrite reaches the rewrite report.
                     columns, rows = logged[1]["evolution/rewrites/report"]
@@ -475,6 +489,88 @@ class RewardObserverTest(unittest.TestCase):
             self.assertEqual(last["evolution/flow/rewrites_accepted"], 2)
             self.assertEqual(last["evolution/signals/junk"], 0)
 
+    def test_flow_chart_keeps_its_steps_across_a_resume(self):
+        # A crash at step 3 resumed from the step-1 checkpoint: the new process
+        # charts step 1 from the old lifetime, logs steps 2 and 3 again, and an
+        # outcome accepted before it started enters no latency.
+        with tempfile.TemporaryDirectory() as directory:
+            root = observer.layout.Root(Path(directory))
+            stable = root.run("training")
+            first = stable.for_attempt("20261011-000000Z--sa")
+            second = stable.for_attempt("20261011-010000Z--sb")
+
+            def issue(attempt, session, task, group, origin):
+                observer.layout.append_jsonl(
+                    stable.trainer / "training_lineage/events.jsonl",
+                    {
+                        "event": "claimed",
+                        "session_id": session,
+                        "group_id": group,
+                        "generator_policy_version": origin,
+                        "task_id": task,
+                    },
+                )
+                observer.layout.write_json_atomic(
+                    attempt.signal(task, group),
+                    {"task": task, "group": group, "direction": "harder"},
+                )
+                return observer.layout.signal_id(attempt.name, task, group)
+
+            before = outcome_metrics.EvolutionMetrics(first, root)
+            a = issue(first, "sa", "a", 0, origin=0)
+            for step in (1, 2, 3):
+                before.poll(step=step)
+            self.assertEqual(before.flow_series("harder")[0], [1, 2, 3])
+            self._record_outcome(root, a, "a", "accepted", name="a")
+
+            after = outcome_metrics.EvolutionMetrics(second, root)
+            values = after.poll(step=2)
+            self.assertEqual(values["evolution/flow/rewrites_accepted"], 1)
+            self.assertNotIn("evolution/flow/accept_latency_steps", values)
+            self.assertEqual(after.report_rows()[0][0], None)
+            xs, ys, _ = after.flow_series("harder")
+            self.assertEqual(xs, [1, 2])
+            self.assertEqual(ys[2], [0, 1])
+
+            b = issue(second, "sb", "b", 0, origin=2)
+            observer.layout.append_jsonl(
+                root.evolution.ledger, {"signal": b, "outcome": "handled"}
+            )
+            after.poll(step=3)
+            self._record_outcome(root, b, "b", "accepted", name="b")
+            values = after.poll(step=4)
+            self.assertEqual(values["evolution/flow/accept_latency_steps"], 2)
+            self.assertEqual(after.report_rows()[1][0], 4)
+
+            # A third lifetime sees every step the second one logged.
+            again = outcome_metrics.EvolutionMetrics(second, root)
+            self.assertEqual(sorted(again.history), [1, 2, 3, 4])
+            self.assertEqual(again.history[4]["harder"][0], 2)
+
+    def test_glossary_describes_every_key_the_trainer_logs(self):
+        import re
+
+        patterns = []
+        for key, description in outcome_metrics.glossary_rows():
+            self.assertTrue(description)
+            first, *siblings = [k.strip() for k in key.split(",")]
+            parent = first.rsplit("/", 1)[0]
+            for name in [first, *(f"{parent}/{s}" for s in siblings)]:
+                regex = re.sub(r"<path>", ".+", re.escape(name).replace(r"\<", "<").replace(r"\>", ">"))
+                patterns.append(re.compile(re.sub(r"<[^>]+>", "[^/]+", regex) + "$"))
+        with tempfile.TemporaryDirectory() as directory:
+            root = observer.layout.Root(Path(directory))
+            run = root.run("current")
+            self._record_outcome(root, self._issue(run, "a", 1, origin=0), "a", "accepted")
+            keys = list(outcome_metrics.EvolutionMetrics(run, root).poll(step=1))
+        keys += [f"evolution/flow/chart_{d}" for d in ("harder", "easier", "both")]
+        keys += ["evolution/glossary", "evolution/rewrites/report", "evolution/repairs/report"]
+        missing = [k for k in keys if not any(p.match(k) for p in patterns)]
+        self.assertEqual(missing, [])
+        self.assertIn(
+            "evolution/stale/groups", [row[0] for row in outcome_metrics.glossary_rows()]
+        )
+
     def test_stale_counts_original_draws_while_a_rewrite_is_pending(self):
         stamp = observer.layout.stamp
         with tempfile.TemporaryDirectory() as directory:
@@ -506,9 +602,24 @@ class RewardObserverTest(unittest.TestCase):
             claim(3, "b", "b@0", 250)  # another task
             claim(4, "a", "a@0", 400)  # rewrite under way
             claim(5, "a", "a@1", 500)  # already the new revision
+            # A signal the loop deferred counts none of its wait.
+            claim(7, "c", "c@0", 0)
+            observer.layout.write_json_atomic(
+                run.signal("c", 7),
+                {"task": "c", "group": 7, "created": stamp(base + 100)},
+            )
+            claim(8, "c", "c@0", 200)
+            observer.layout.append_jsonl(
+                root.evolution.ledger,
+                {
+                    "signal": observer.layout.signal_id(run.name, "c", 7),
+                    "outcome": "deferred",
+                    "stamp": stamp(base + 300),
+                },
+            )
             metrics = outcome_metrics.EvolutionMetrics(run, root)
             open_values = metrics.poll(step=1)
-            self.assertEqual(open_values["evolution/stale/while_waiting"], 0)
+            self.assertEqual(open_values["evolution/stale/groups"], 0)
 
             outcome_metrics.record_outcome(
                 root,
@@ -527,8 +638,7 @@ class RewardObserverTest(unittest.TestCase):
             )
             claim(6, "a", "a@0", 700)  # after the signal closed
             values = metrics.poll(step=2)
-            self.assertEqual(values["evolution/stale/while_waiting"], 1)
-            self.assertEqual(values["evolution/stale/while_rewriting"], 1)
+            self.assertEqual(values["evolution/stale/groups"], 2)
             self.assertEqual(metrics.poll(step=3), values)
 
     def test_accepted_revision_counts_as_trained_at_its_first_training_step(self):

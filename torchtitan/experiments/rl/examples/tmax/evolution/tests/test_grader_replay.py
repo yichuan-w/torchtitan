@@ -221,3 +221,30 @@ def test_a_record_becomes_a_valid_recorded_solution(tmp_path):
         _pkg(tmp_path / "pkg", "t\n", "echo ref\n"), tmp_path / "staged", actions=actions
     )
     assert sorted(p.name for p in (staged / "solution").iterdir()) == [Path(ACTION_PATH).name]
+
+
+def test_a_vanillux_record_replays_its_bash_commands(tmp_path):
+    """vanillux turns carry no keystrokes: each command that ran is typed as
+    one eval of its base64; the call that ran nothing and the bare submit
+    echo are not replayed."""
+    import base64
+    import re
+
+    import test_evolve_codex_traces as tt
+
+    path = tmp_path / "runs" / tl.RUN / "rollouts" / "tw_a" / "g3-r0.jsonl"
+    rollout_record.write_record(path, tt.VANILLUX_HEADER, tt.VANILLUX_TURNS)
+    actions = grader_replay.actions_from_record(path)
+    parse_actions(json.dumps(actions))
+    typed = [a for a in actions if a["kind"] == "terminal_action"]
+    assert [a["step_id"] for a in typed] == [1, 2, 4]
+    decoded = []
+    for a in typed:
+        m = re.fullmatch(r'eval "\$\(printf %s ([A-Za-z0-9+/=]+) \| base64 -d\)"\n', a["keystrokes"])
+        assert m, a["keystrokes"]
+        decoded.append(base64.b64decode(m.group(1)).decode())
+    assert decoded == [tt.VANILLUX_COMMANDS[i] for i in (0, 1, 3)]
+    assert [(a["kind"], a["step_id"]) for a in actions[len(typed):]] == [
+        ("completion_marker", 5),
+        ("completion_marker", 6),
+    ]

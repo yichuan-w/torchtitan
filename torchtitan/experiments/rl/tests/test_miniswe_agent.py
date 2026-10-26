@@ -31,6 +31,14 @@ _UNAME = "Linux\n6.8.0\n#1 SMP PREEMPT_DYNAMIC\nx86_64\n"
 _SUBMIT = "THOUGHT: done.\n\n```bash\necho COMPLETE_TASK_AND_SUBMIT_FINAL_OUTPUT\n```"
 
 
+@pytest.fixture(autouse=True)
+def _upstream_defaults(monkeypatch):
+    """Tests describe upstream's loop; the lenient parse and turn cap that tmax
+    turns on by default are opted into per test."""
+    monkeypatch.setattr(miniswe, "_LENIENT_PARSE", False)
+    monkeypatch.setattr(miniswe, "_DEFAULT_MAX_TURNS", 0)
+
+
 def _reply(text: str, *, stop: str = "end_turn", tokens: tuple[int, int] = (100, 20)):
     return {
         "content": [{"type": "thinking", "thinking": "hm"}, {"type": "text", "text": text}],
@@ -139,7 +147,9 @@ def test_format_error_says_how_many_actions_were_found():
     assert rendered.startswith(
         "Please always provide EXACTLY ONE action in triple backticks, found 2 actions."
     )
-    assert "`echo COMPLETE_TASK_AND_SUBMIT_FINAL_OUTPUT`" in rendered
+    # The re-ask no longer suggests submitting (see miniswe_prompts).
+    assert "COMPLETE_TASK_AND_SUBMIT_FINAL_OUTPUT" not in rendered
+    assert "Please format your response exactly as follows:" in rendered
 
 
 @pytest.mark.parametrize(
@@ -237,6 +247,19 @@ def test_format_errors_are_answered_and_counted():
     assert "found 2 actions." in feedback[1]
 
 
+def test_format_streak_limit_ends_the_episode_on_the_nth_rejected_turn():
+    replies = [_reply("Okay"), _reply("```bash\nls\n```")] + [_reply("Okay")] * 5
+    run = _run(_Adapter(replies), _Sandbox([(0, "f\n")]), format_streak_limit=3)
+    assert (run.turns, run.finish_reason, run.submitted) == (5, "format_error", False)
+    assert (run.violation_category, run.violation_turn) == ("no_commands", 5)
+    assert run.format_errors == 4
+
+
+def test_no_format_streak_limit_keeps_answering_rejected_turns():
+    run = _run(_Adapter([_reply("Okay")] * 5), _Sandbox())
+    assert (run.turns, run.finish_reason, run.violation_turn) == (5, "stopped_early", 0)
+
+
 def test_a_capped_turn_without_an_action_counts_as_truncated():
     adapter = _Adapter([_reply("THOUGHT: let me think at length", stop="max_tokens")])
     run = _run(adapter, _Sandbox(), max_context_tokens=80_000)
@@ -299,6 +322,12 @@ def test_turn_cap():
     assert len(adapter.requests) == 3
 
 
+def test_default_turn_cap_applies_when_the_rollout_sets_none(monkeypatch):
+    monkeypatch.setattr(miniswe, "_DEFAULT_MAX_TURNS", 2)
+    run = _run(_Adapter([_reply("```bash\nls\n```")] * 5), _Sandbox([(0, "f\n")] * 5))
+    assert (run.turns, run.finish_reason) == (2, "hit_max_turns")
+
+
 def test_time_budget_interrupts_a_pending_generation():
     adapter = _Adapter([_reply(_SUBMIT)], delay=5)
     run = _run(adapter, _Sandbox(), time_budget_sec=1)
@@ -337,6 +366,27 @@ def test_a_command_whose_status_never_arrives_reads_as_a_timeout(monkeypatch):
     assert (run.submitted, run.finish_reason) == (True, "submit")
     shown = adapter.requests[1]["messages"][-1]["content"]
     assert "timed out" in shown.lower()
+
+
+def test_lenient_action_shapes():
+    assert miniswe.lenient_action("x", ["ls", " pwd\n"]) == "ls\npwd"
+    py = "Run it:\n```python\nprint(1)\n```"
+    assert miniswe.lenient_action(py, []) == (
+        "python3 - <<'__MINISWE_PYTHON__'\nprint(1)\n__MINISWE_PYTHON__"
+    )
+    assert miniswe.lenient_action("no block at all", []) is None
+    two_py = "```python\na\n```\n```python\nb\n```"
+    assert miniswe.lenient_action(two_py, []) is None
+
+
+def test_lenient_parse_runs_two_blocks_when_on(monkeypatch):
+    monkeypatch.setattr(miniswe, "_LENIENT_PARSE", True)
+    sandbox = _Sandbox([(0, "COMPLETE_TASK_AND_SUBMIT_FINAL_OUTPUT\n")])
+    adapter = _Adapter([_reply("```bash\ncd /app\n```\n```bash\necho COMPLETE_TASK_AND_SUBMIT_FINAL_OUTPUT\n```")])
+    run = _run(adapter, sandbox)
+    assert run.submitted and run.format_errors == 0
+    assert run.format_breakdown["lenient_parses"] == 1
+    assert sandbox.calls[-1]["cmd"] == "cd /app\necho COMPLETE_TASK_AND_SUBMIT_FINAL_OUTPUT"
 
 
 # ---- what the rollouter reads ------------------------------------------------

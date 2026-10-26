@@ -625,6 +625,7 @@ def _rollouter(**bench) -> TMaxRollouter:
     r._eval_grade_unsubmitted = False
     r._grade_unsubmitted = False
     r._eval_context_notice = True
+    r._format_streak_limit = 0
     r._length_penalty = False
     r._evolution_min_scored = 2
     r._evolution_harder_ratio = 1.0

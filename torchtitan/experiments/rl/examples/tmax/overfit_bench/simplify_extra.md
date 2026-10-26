@@ -25,3 +25,23 @@ case where an easier version was solved and the original readout fell.
   and say in change that a hardening must withdraw them. (Measured: once the
   weight layout was stated, the original's attempts that chose the right axis
   fell from 4 of 16 to 0.)
+- Setting up and checking are part of the original's work. How to install the
+  runtime, and an instruction to run the implementation and check its result,
+  go into an easier version only as removable hint sentences, and change says a
+  hardening must withdraw them. (Measured: the most-trained version told the
+  student how to install CPU PyTorch and to validate on two ranks; on it the
+  student took a median 26 turns and tested, while on the original, which says
+  neither, its turns fell from a median 27 to 7 and torch installs from 15 of
+  32 to 7 of 48 as training went on.)
+
+## When you calibrate (harden a simplified version)
+
+- Withdraw the setup and checking hint sentences first, before any part of the
+  task itself: the student has to reach the original's habit of installing and
+  testing unprompted, and nothing in a later version teaches it once those
+  sentences stay.
+- A part the original requires that no version has asked for yet -- a forward
+  pass, its gradient, a second class -- is the next part to restore once the
+  hints are gone, before refining parts already asked for. (Measured: the
+  most-trained version left forward and gradients out of scope, and across 80
+  readout attempts ColumnParallelLinear's forward was correct 0 times.)

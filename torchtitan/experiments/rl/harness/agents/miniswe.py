@@ -40,7 +40,8 @@ litellm on the task's machine:
     loop's default and what the eval scripts set) instead of upstream's 30 s.
   - Upstream's step and cost limits are replaced by the rollout's own bounds:
     ``AgentTask.time_budget_sec`` (0 = no deadline, as for Terminus) and
-    ``AgentTask.max_turns`` (None = no cap, as mini.yaml's ``step_limit: 0``).
+    ``AgentTask.max_turns`` (None = TMAX_MINISWE_MAX_TURNS, default 150; 0 is
+    no cap, as mini.yaml's ``step_limit: 0``).
     A turn that ends at the context budget ends the episode as
     ``hit_context_limit``, as it does under Terminus.
 """
@@ -77,6 +78,9 @@ logger = logging.getLogger(__name__)
 
 # Per-command wall clock, the knob the vanillux loop reads too.
 _EXEC_TIMEOUT = int(os.environ.get("TMAX_EXEC_TIMEOUT_SEC", "120"))
+# Turn cap when the rollout sets none (training); 0 = uncapped, as upstream.
+# 150 stops a format-error loop before the 80K context wall.
+_DEFAULT_MAX_TURNS = int(os.environ.get("TMAX_MINISWE_MAX_TURNS", "150"))
 # DefaultAgent.has_finished accepts either marker on the output's first line.
 _SUBMIT_MARKERS = ("MINI_SWE_AGENT_FINAL_OUTPUT", "COMPLETE_TASK_AND_SUBMIT_FINAL_OUTPUT")
 # The sandbox wraps every command in `timeout -s TERM -k <grace> <N>s`: GNU
@@ -108,6 +112,29 @@ def render(text: str, **variables: Any) -> str:
 def parse_actions(text: str) -> list[str]:
     """Every ```bash block in ``text`` (DefaultAgent.parse_action's findall)."""
     return re.findall(ACTION_REGEX, text, re.DOTALL)
+
+
+# TMAX_MINISWE_LENIENT_PARSE=1 runs replies upstream would reject, on the two
+# most common shapes seen in the 1024 run's eval (pv50: about 250 replies with a
+# lone ```python block, about 230 with two or more ```bash blocks). Off keeps
+# upstream's exactly-one-block rule.
+_LENIENT_PARSE = os.environ.get("TMAX_MINISWE_LENIENT_PARSE", "1") == "1"
+_PYTHON_REGEX = r"```python[ \t]*\n(.*?)\n```"
+_PY_HEREDOC = "__MINISWE_PYTHON__"
+
+
+def lenient_action(text: str, actions: list[str]) -> str | None:
+    """One command for a reply without exactly one ```bash block, or None.
+
+    Several ```bash blocks run in order as one script; a reply with none and a
+    single ```python block runs it with python3 from a heredoc."""
+    if len(actions) > 1:
+        return "\n".join(action.strip() for action in actions)
+    if not actions:
+        python = re.findall(_PYTHON_REGEX, text, re.DOTALL)
+        if len(python) == 1 and _PY_HEREDOC not in python[0]:
+            return f"python3 - <<'{_PY_HEREDOC}'\n{python[0]}\n{_PY_HEREDOC}"
+    return None
 
 
 def is_submission(output: str, returncode: int) -> bool:
@@ -150,6 +177,8 @@ class _Episode:
         self.exec_trace: list[dict] = []
         # Commands whose exit status never arrived, answered as timeouts.
         self.status_timeouts = 0
+        # Replies run under TMAX_MINISWE_LENIENT_PARSE that upstream rejects.
+        self.lenient_parses = 0
         # AgentRun.format_breakdown, in the shape the tmax format metrics read.
         # A turn without exactly one block counts as "truncated" when it hit the
         # generation cap, "no_commands" with zero blocks, "other" with several.
@@ -162,6 +191,8 @@ class _Episode:
         self._streak = 0
         self._acted = False
         self._prev_text: str | None = None
+        self.violation_category: str | None = None
+        self.violation_turn = 0
 
     @property
     def format_errors(self) -> int:
@@ -175,6 +206,7 @@ class _Episode:
             "repeat_turns": self.repeat_turns,
             "replies": self.replies,
             "truncated_turns": self.truncated_turns,
+            "lenient_parses": self.lenient_parses,
         }
 
     async def _exec(self, command: str, timeout: int) -> tuple[int, str, float]:
@@ -229,6 +261,10 @@ class _Episode:
         self.max_streak = max(self.max_streak, self._streak)
         if not self._acted:
             self.opening_streak += 1
+        limit = self._task.format_streak_limit
+        if limit and self._streak >= limit:
+            self.violation_category = category
+            self.violation_turn = self.turns
 
     async def run(self) -> None:
         task = self._task
@@ -251,10 +287,18 @@ class _Episode:
             }
         ]
         system_prompt = render(SYSTEM_TEMPLATE)
-        while not task.max_turns or self.turns < task.max_turns:
+        max_turns = task.max_turns or _DEFAULT_MAX_TURNS
+        while not max_turns or self.turns < max_turns:
             reply = await task.adapter.complete(
                 task.session_id,
-                {"system": system_prompt, "messages": messages, "stream": False},
+                # plain_text: the reply as a text-only API returns it, so a
+                # stray <tool_call> token cannot hide the ```bash block after it.
+                {
+                    "system": system_prompt,
+                    "messages": messages,
+                    "stream": False,
+                    "plain_text": True,
+                },
             )
             if reply is None:
                 # The session is closed or the generator yielded nothing.
@@ -275,7 +319,16 @@ class _Episode:
             )
             capped = reply.get("stop_reason") in ("max_tokens", "length")
             actions = parse_actions(text)
+            lenient = None
+            if _LENIENT_PARSE and len(actions) != 1:
+                lenient = lenient_action(text, actions)
+            if lenient is not None:
+                self.lenient_parses += 1
+                actions = [lenient]
             self._count_reply(text, capped, len(actions))
+            if self.violation_turn:
+                self.finish_reason = "format_error"
+                return
             if len(actions) != 1:
                 messages.append(
                     {"role": "user", "content": render(FORMAT_ERROR_TEMPLATE, actions=actions)}
@@ -326,6 +379,8 @@ async def miniswe_agent(task: AgentTask) -> AgentRun:
         format_errors=episode.format_errors,
         format_breakdown=episode.breakdown(),
         finish_reason=episode.finish_reason,
+        violation_category=episode.violation_category,
+        violation_turn=episode.violation_turn,
         exec_trace=episode.exec_trace,
     )
 

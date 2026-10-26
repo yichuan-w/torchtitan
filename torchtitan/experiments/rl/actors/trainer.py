@@ -478,7 +478,9 @@ class PolicyTrainer(Actor, Configurable):
         if config.checkpoint_keep_every > 0:
             _keep_milestone_checkpoints(self.checkpointer, config.checkpoint_keep_every)
         self.checkpointer.load()
-        if config.initial_policy_version and self.policy_version != config.initial_policy_version:
+        # A model-only initial load leaves policy_version at the initial value; a
+        # resume from this run's own checkpoint restores a later one.
+        if config.initial_policy_version and self.policy_version < config.initial_policy_version:
             raise ValueError("Loaded training state disagrees with initial_policy_version")
         if not self.checkpointer.enable:
             logger.warning(

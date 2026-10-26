@@ -15,17 +15,12 @@ Tasks: every Terminal-Bench 2.1 task (89) and every Terminal-Bench 4 task (66).
 - **Policy and recipe**: `recipe.env` (group size 12, LR 3e-6, 200 steps of
   one group each, 8 groups in flight, groups up to 8 steps old still trained).
   Hardware placement is the runner's.
-- **A training attempt** is 60 Terminus turns and nothing else
-  (`SWE_BENCH_MAX_TURNS`): the agent has no wall-clock deadline, no budget
-  floor applies, and the rollout's outer guard is only a 12 h sanity bound
-  (`SWE_BENCH_TURN_CAP_GUARD_SEC`). Grading keeps the task's own verifier
-  timeout. The recipe used to say "2400 s per attempt on every task"; that was
-  never what ran. `SWE_TIME_BUDGET_SEC` applies only to a row that declares no
-  agent timeout, and every benchmark row declares one, so an attempt got
-  max(declared, `SWE_AGENT_TIMEOUT_FLOOR_SEC`) -- with the 7200 s floor of
-  `runbook/rltrain.env`, 7200 s for 88 of the 89 TB2.1 tasks, 12000 s for the
-  other, 28800 s for every TB4 task -- and `TMAX_TERMINUS_MAX_TURNS` (120)
-  turns.
+- **A training attempt** has the main training run's caps: 120 Terminus turns
+  (`SWE_BENCH_MAX_TURNS`), 2 h of wall clock (`SWE_BENCH_TRAIN_BUDGET_SEC`)
+  and an 80K context (`SWE_TMAX_CONTEXT=81920`, agent budget 79872), the same
+  for every task whatever it declares; no budget floor applies. Grading keeps
+  the task's own verifier timeout. Jobs before 2026-10-25 trained at 60 turns
+  with no wall clock and the 63488-token context `runbook/rltrain.env` fills in.
 - **Sandbox**: every sandbox, training and readout, and a separate verifier's,
   gets 4 vCPU (`SWE_BENCH_SANDBOX_CPU`), whatever the row declares; memory and
   disk are the row's, clamped to Daytona's per-sandbox caps (8 GiB, 10 GiB;
@@ -35,8 +30,15 @@ Tasks: every Terminal-Bench 2.1 task (89) and every Terminal-Bench 4 task (66).
   unless the rewriter seeds the pool before training starts (see Running a job).
 - **Readout**: the original task row, held in `data/evalsets/original.jsonl`
   and never served from the mix, 16 attempts every 5 steps. A readout attempt
-  has the same budget as a training attempt (60 turns, no wall-clock
-  deadline), so the original is read under the conditions the policy trains in.
+  has the TB2.1 eval's budget, not training's (`SWE_BENCH_READOUT_EVAL_BUDGET`):
+  300 turns, 5400 s whatever the task declares (`SWE_AGENT_TIMEOUT_FLOOR_SEC`
+  and `SWE_EVAL_AGENT_BUDGET_CAP_SEC` both 5400), a 160K context and no
+  context notice, as the current TB2.1 eval runs (run 1022's 160K validation
+  context; the RUNBOOK's 300-turn cap for a 160K eval). An attempt that ends without submitting
+  is graded and scored at the verifier's verdict, as Harbor does
+  (`SWE_EVAL_GRADE_UNSUBMITTED`); `validation/strict_reward_mean` keeps the
+  submit-only score. Jobs before 2026-10-25 read the original under the
+  training budget (60 turns, submit-only).
   Reported as
   pass@5 per validation, the first step with any pass, and the first step from
   which pass@5 stays at or above 0.5 for three validations in a row.
@@ -298,3 +300,13 @@ rewrite's author reads indexes training attempts only. It takes the evolve
 loop's lock, so it never runs beside the reference rewriter on one job. A
 seeded version it did not make has no package under `evolution/tasks/` past
 r0, so a signal about it is closed as junk.
+
+To start the next rung as soon as a version gives a gradient rather than once
+it is mastered, set `SWE_EVOLUTION_HARDER_RATIO=0.01` in the ladder job's
+`runner.env` (the trainer then sends a harder signal at a version's first
+partial solve) and `EVOLVE_HARDER_FROM_PARTIAL=1` in its `evolution/rewriter.env`
+(that rewrite restores one part toward the original instead of adding a new
+difficulty). The version keeps training beside its child, and the original is
+never hardened. Measured reason: on v7 (2026-10-23), r3 was learnable from step
+33 but never solved a whole group, so at the default ratio 1.0 the ladder never
+built the next rung; at 0.75 it would have done so only at step 177.

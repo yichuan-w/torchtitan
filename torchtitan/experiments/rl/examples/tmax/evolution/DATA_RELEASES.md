@@ -51,7 +51,7 @@ solution, and `"skip_unpackable": true` every package the row builder refuses
 `"exclude": [<task id>, ...]` leaves out listed tasks by id (logged the same
 way). `data_agentpick_fast_audited.json` is `data_agentpick_fast.json` minus the
 107 rows a 2026-10-24 audit found broken (wrong hardcoded answers, impossible
-tasks, rewards without the work, live third-party repos, agent-plantable tests). `data_agentpick.json` does not set it: its 104 unsolved repair rows
+tasks, rewards without the work, live third-party repos, agent-plantable tests). `data_agentpick_clean_only.json` keeps only its clean_fast and calibforge_clean_fast sources (724 rows) and excludes the rows run 1024 showed broken under miniswe: wrong or unstated verifier checks, impossible data, agda REPL tasks, a live-github grader, an agent-writable test path, and three rows the harness cannot grade (servers that must outlive a command, a stale agent server, a 1 GiB build disk). `data_agentpick.json` does not set it: its 104 unsolved repair rows
 are imported without one, and the evolution loop's first easier rewrite of each
 writes it (`EVOLVE_LOOP.md`, step 2).
 

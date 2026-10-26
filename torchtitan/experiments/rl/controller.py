@@ -2336,6 +2336,7 @@ class Controller(Configurable):
                         # lines are the point; summed across directions the
                         # gaps mix two queues that move opposite ways.
                         charts = {}
+                        both_ys, both_keys = [], []
                         for direction in ("harder", "easier"):
                             xs, ys, keys = self._evolution_flow.flow_series(direction)
                             charts[f"evolution/flow/chart_{direction}"] = (
@@ -2347,6 +2348,17 @@ class Controller(Configurable):
                                     xname="Training step",
                                 )
                             )
+                            both_ys += ys
+                            both_keys += [f"{key}_{direction}" for key in keys]
+                        # Both directions' eight lines on one set of axes, for
+                        # comparing their sizes; the gaps are read per direction.
+                        charts["evolution/flow/chart_both"] = wandb.plot.line_series(
+                            xs,
+                            both_ys,
+                            keys=both_keys,
+                            title="Evolution flow, harder and easier signals (cumulative)",
+                            xname="Training step",
+                        )
                         wandb.log(charts, step=step, commit=False)
                         # Each repair with the rewriter's own report, so a
                         # reward hack is read in W&B, not only counted. Logged
@@ -2392,6 +2404,31 @@ class Controller(Configurable):
                             self._evolution_rewrite_report = (step, report)
                 except Exception:
                     logger.exception("failed to log the evolution flow chart")
+                # What each evolution key means, once per process, read from
+                # the runbook so the two never disagree.
+                if not getattr(self, "_evolution_glossary", False):
+                    try:
+                        import wandb
+
+                        from torchtitan.experiments.rl.examples.tmax.evolution_metrics import (
+                            GLOSSARY_COLUMNS,
+                            glossary_rows,
+                        )
+
+                        if wandb.run is not None:
+                            self._evolution_glossary = True
+                            wandb.log(
+                                {
+                                    "evolution/glossary": wandb.Table(
+                                        columns=list(GLOSSARY_COLUMNS), data=glossary_rows()
+                                    )
+                                },
+                                step=step,
+                                commit=False,
+                            )
+                    except Exception:
+                        self._evolution_glossary = True
+                        logger.exception("failed to log the evolution glossary")
         if run is not None and self.config.metrics.enable_wandb:
             import wandb
 
