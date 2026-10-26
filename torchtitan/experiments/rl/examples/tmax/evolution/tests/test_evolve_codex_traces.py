@@ -1675,3 +1675,19 @@ def test_without_provider_resumes_the_failure_stands(tmp_path, monkeypatch) -> N
         with ec.session(rw, "agent", timeout=5) as run:
             ec._run_codex(run, rw.package, "simplify it")
     assert raised.value.failure_type == "provider_capacity"
+
+
+def test_an_instruction_only_plan_keeps_the_original_verifier(tmp_path) -> None:
+    hint = {"version": [{"id": "i1", "kind": "direction_hint"}, {"id": "i2", "kind": "setup_hint"}]}
+    assert ec.plan_is_instruction_only(hint)
+    assert not ec.plan_is_instruction_only({"version": [{"id": "i3", "kind": "scope_removal"}]})
+    assert not ec.plan_is_instruction_only(None) and not ec.plan_is_instruction_only({"version": []})
+    seed, pkg = tmp_path / "seed", tmp_path / "pkg"
+    (seed / "tests").mkdir(parents=True)
+    (seed / "tests" / "test_outputs.py").write_text("original")
+    (pkg / "tests").mkdir(parents=True)
+    (pkg / "tests" / "test_outputs.py").write_text("rewritten")
+    (pkg / "tests" / "extra.py").write_text("new check")
+    ec.restore_original_verifier(pkg, seed)
+    assert sorted(p.name for p in (pkg / "tests").iterdir()) == ["test_outputs.py"]
+    assert (pkg / "tests" / "test_outputs.py").read_text() == "original"

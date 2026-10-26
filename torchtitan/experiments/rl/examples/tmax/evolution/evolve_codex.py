@@ -3252,6 +3252,25 @@ def _reconcile_blind(
     return False
 
 
+INSTRUCTION_ONLY_KINDS = frozenset(
+    ("setup_hint", "check_hint", "direction_hint", "decomposition", "feedback")
+)
+
+
+def plan_is_instruction_only(plan: dict | None) -> bool:
+    """An intervention plan (the overfit bench's intervention rewriter) whose
+    every intervention only adds words to the instruction."""
+    items = (plan or {}).get("version") or []
+    return bool(items) and all(i.get("kind") in INSTRUCTION_ONLY_KINDS for i in items)
+
+
+def restore_original_verifier(pkg: Path, seed: Path) -> None:
+    """tests/ exactly as the original package has it, whatever the author
+    wrote there."""
+    shutil.rmtree(pkg / "tests", ignore_errors=True)
+    shutil.copytree(seed / "tests", pkg / "tests")
+
+
 PROVIDER_RESUMES = int(os.environ.get("EVOLVE_PROVIDER_RESUMES", "0"))
 PROVIDER_RESUME_SEC = int(os.environ.get("EVOLVE_PROVIDER_RESUME_SEC", "120"))
 PROVIDER_RESUME_MAX_SEC = 900
@@ -3457,7 +3476,10 @@ def evolve_agentic(
         "python" if ev._verifier_rel(task).endswith(".py") else "shell",
         solution_rel=fmap["solve_sh"],
     )
-    blind = job in ("harder", "easier") and VERIFIER_AUTHOR == "blind"
+    # A plan of instruction-only interventions changes no requirement: the
+    # original's verifier is the version's, never one rewritten for it.
+    keep_verifier = job == "easier" and plan_is_instruction_only(task.get("_intervention_plan"))
+    blind = job in ("harder", "easier") and VERIFIER_AUTHOR == "blind" and not keep_verifier
     prompt = (
         {
             "harder": (_HARDER_JOB_BLIND if blind else _HARDER_JOB).format(
@@ -3594,6 +3616,8 @@ def evolve_agentic(
             if not _reconcile_blind(rewrite, vsession, fmap, answered, deadline):
                 _notify_handoff(handoff, None, pkg, fmap, None)
             _add_time(timings, "reconcile", time.monotonic() - stage_start)
+        if keep_verifier:
+            restore_original_verifier(pkg, Path(task["_seed_dir"]))
         out = _collect(task, pkg, fmap)
     except Blocked:
         raise
