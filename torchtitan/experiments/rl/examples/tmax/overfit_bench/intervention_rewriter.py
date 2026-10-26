@@ -333,7 +333,10 @@ class Coordinator:
                 a = s["args"]
                 self.build(k.split(",") if k else [], base=s["base"], parent=parent, attempts=a["attempts"],
                            solved=a["solved"], total=a["total"])
-        for v in self.active():
+        # Most recently measured first: of several all-failed bases, the one the
+        # newest group is about is diagnosed, and the rest wait for its result.
+        for v in sorted(self.active(), key=lambda v: self.groups[v["id"]][-1][2] if self.groups[v["id"]] else "",
+                        reverse=True):
             members = self.set_of(v["id"])
             if members is None:
                 continue
@@ -370,9 +373,11 @@ class Coordinator:
     def _pending_measurement(self) -> str:
         """What a new diagnosis would not see yet: versions being built and
         active versions with no group, '' when there is none."""
+        diagnosing = sorted(k for k, d in self.state["diagnoses"].items() if d.get("status") == "running")
         building = sorted(k for k, s in self.state["sets"].items() if s["status"] in ("building", "retry"))
         untested = sorted(v["label"] for v in self.active() if not is_original(v) and not self.groups[v["id"]])
-        return ", ".join([f"{{{k}}} building" for k in building] + [f"{u} untested" for u in untested])
+        return ", ".join([f"diagnosis of {{{k}}} running" for k in diagnosing]
+                         + [f"{{{k}}} building" for k in building] + [f"{u} untested" for u in untested])
 
     def withdraw(self, v: dict, members: list[str]) -> None:
         cat = self.state["interventions"]
