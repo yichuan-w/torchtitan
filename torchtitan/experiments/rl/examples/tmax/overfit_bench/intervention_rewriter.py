@@ -758,7 +758,14 @@ Do this:
    (reuses) rather than written again; one that was built into a version that
    then failed on this same bottleneck is not proposed again unless you say
    what differs.
-4. kind is one of {", ".join(KINDS)}. scope_removal takes out a part the
+4. kind is one of {", ".join(KINDS)}, by what changes in the package:
+   setup_hint, check_hint, direction_hint, decomposition and feedback add
+   words to the instruction only (an optional exercise, a worked plan, advice
+   on what to check); smaller_instance makes the graded task itself smaller
+   (fewer cases, smaller inputs the verifier uses); supplied_work puts finished
+   work into the environment. The first five keep the original verifier
+   byte for byte, so a version of them is graded exactly as the original is.
+   scope_removal takes out a part the
    original requires (a forward pass, a gradient, a class): propose it only
    when catalog.json shows interventions of other kinds failed on this
    bottleneck, and say so. hint_level is none (structural change only), vague
