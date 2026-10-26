@@ -185,6 +185,9 @@ ARM_KEYS = {"name", "profile", "commit", "bin", "workers", "env"}
 BUCKETS = ("mixed", "all_solved", "none_solved", "ungraded", "no_attempts")
 GRADED_BUCKETS = BUCKETS[:3]
 INDEX = Path("trainer/validation_traces/step-0/index.json")
+# What `salvage` writes for an eval stopped before the controller wrote INDEX:
+# the tasks whose k attempts all have records, in INDEX's entry shape.
+SALVAGED = Path("salvaged-index.json")
 RECORD_NAME = re.compile(r"g(-?\d+)-r(\d+)\.jsonl")
 
 # Hosts a grader may fetch from without depending on someone's live repository:
@@ -318,6 +321,12 @@ def _record_path(ev: Path, rel: str) -> Path:
     raise FileNotFoundError(f"{rel}: not under {ev} or any of its attempt directories")
 
 
+def eval_index(ev: Path) -> list[dict]:
+    """An eval's per-attempt index: the controller's, or for an eval stopped
+    before writing it, what `salvage` kept."""
+    return json.load(open(ev / INDEX if (ev / INDEX).exists() else ev / SALVAGED))
+
+
 def bucket(passed: int, graded: int) -> str:
     """A task's band over its graded attempts (repair_eval_summary.py's rule):
     fewer than two graded attempts is no spread at all."""
@@ -342,7 +351,7 @@ def _measured_by_eval(ev: Path) -> dict[str, dict]:
     launch = json.load(open(ev / "launch.json"))
     rows = {_iid(r): r for r in _rows(Path(launch["env"]["SWE_TB2_DATA"]))}
     per: dict[str, list[dict]] = collections.defaultdict(list)
-    for e in json.load(open(ev / INDEX)):
+    for e in eval_index(ev):
         state = "INFRA" if e.get("infra_failed") else e["state"]
         per[e["task"]].append({"state": state, "rel": e["record"], "src": _record_path(ev, e["record"])})
     out = {}
@@ -1037,6 +1046,49 @@ def eval_env(evalset: Path, harness: str, environ: dict[str, str],
     return {**environ, **pins, "SWE_TB2_DATA": str(evalset)}
 
 
+def salvage(eval_dir: Path, log: Log) -> Path:
+    """An eval stopped before the controller wrote its index: keep each task
+    whose k attempts all have records (the records the stager reads; on the
+    repair342 base eval they matched the index on 1710 of 1710 attempts) as
+    ``salvaged-index.json`` in the index's entry shape, and write the evalset's
+    other rows as ``<evalset>.rest.jsonl`` for a new eval. tally and freeze read
+    the salvaged index where the eval has no index of its own."""
+    if (eval_dir / INDEX).exists():
+        raise SystemExit(f"{eval_dir} finished with its own index; nothing to salvage")
+    launch = json.load(open(eval_dir / "launch.json"))
+    k = int(launch["env"]["SWE_TB2_VAL_K"])
+    evalset = Path(launch["env"]["SWE_TB2_DATA"])
+    if layout.sha256_file(evalset) != launch["evalset_sha256"]:
+        raise SystemExit(f"{evalset} is not the file {eval_dir} scored")
+    index, kept = [], []
+    for tid, attempts in sorted(_eval_attempts(eval_dir, final=False).items()):
+        rollouts = {RECORD_NAME.search(a["rel"]).group(2) for a in attempts}
+        if len(attempts) != k or len(rollouts) != k:
+            log(f"task={tid} records={len(attempts)} of {k}: rerun")
+            continue
+        for a in attempts:
+            with open(a["src"]) as fh:
+                h = json.loads(fh.readline())
+            index.append({"task": tid, "state": "PASS" if a["state"] == "PASS" else "FAIL",
+                          "infra_failed": a["state"] == "INFRA", "finish_reason": h.get("finish_reason"),
+                          "record": a["rel"]})
+        kept.append(tid)
+        log(f"task={tid} records={k} of {k}: kept {_attempts_bucket(attempts)[0]}")
+    layout.write_json_atomic(eval_dir / SALVAGED, index)
+    parent = json.load(open(evalset.with_name(evalset.stem + ".manifest.json")))
+    rest = [r for r in _rows(evalset) if _iid(r) not in set(kept)]
+    meta = {k_: v for k_, v in parent.items() if k_ not in ("name", "rows", "sha256", "created", "labels")}
+    meta.update(source=str(evalset), source_rows=f"the rows of {evalset.name} that {eval_dir.name} did not finish",
+                parent_sha256=parent["sha256"], salvaged_from=str(eval_dir.resolve()))
+    path = evalset.with_name(evalset.stem + ".rest.jsonl")
+    if path.exists():
+        raise SystemExit(f"{path} exists")
+    _write_evalset(path, rest, **meta)
+    log(f"done kept={len(kept)} rest={len(rest)} -> {eval_dir / SALVAGED}, {path}")
+    print(f"{eval_dir}: kept {len(kept)} tasks ({len(index)} attempts); {len(rest)} rows to rerun in {path}")
+    return path
+
+
 def shard_evalset(evalset: Path, shard: str, base: Path) -> Path:
     """Shard ``i/n`` of an evalset: its rows i, i+n, i+2n, ... as an evalset of
     their own, so one evalset is scored by n evals on n cards at once and
@@ -1106,12 +1158,18 @@ def read_eval(eval_dir: Path, evalset: Path | None = None) -> dict:
     if launch and launch.get("evalset_sha256") not in (None, sha):
         raise SystemExit(f"{evalset} is not the file {eval_dir} scored (sha256 differs)")
     rows = _rows(evalset)
+    index = eval_index(eval_dir)
+    if not (eval_dir / INDEX).exists():
+        # A salvaged eval covers only the tasks it finished; its evalset's
+        # other rows are another eval's.
+        kept = {e["task"] for e in index}
+        rows = [r for r in rows if _iid(r) in kept]
     per: dict[str, dict[str, Any]] = {
         _iid(r): {"pass": 0, "graded": 0, "infra": 0, "finish": collections.Counter(),
                   "finish_failed": collections.Counter(), "rev": int(r["metadata"].get("rev") or 0)}
         for r in rows
     }
-    for e in json.load(open(eval_dir / INDEX)):
+    for e in index:
         if e["task"] not in per:
             raise SystemExit(f"{eval_dir}: index scores {e['task']}, not in {evalset}")
         t = per[e["task"]]
@@ -1136,6 +1194,7 @@ def read_eval(eval_dir: Path, evalset: Path | None = None) -> dict:
         recipe["SWE_ROLLOUT_CONCURRENCY"] = launch["env"].get("SWE_ROLLOUT_CONCURRENCY")
     return {
         "eval": str(eval_dir.resolve()),
+        "salvaged": not (eval_dir / INDEX).exists(),
         "launch": launch,
         "recipe": recipe,
         "evalset": {"path": str(evalset.resolve()), "sha256": sha, "rows": len(rows)},
@@ -1633,7 +1692,7 @@ def tally(
     if evals:
         after = [read_eval(e, evalset) for e in evals]
         after_tasks = merge_evals(after)
-        out["inputs"]["evals"] = [{k: e[k] for k in ("eval", "launch", "evalset")} for e in after]
+        out["inputs"]["evals"] = [{k: e[k] for k in ("eval", "salvaged", "launch", "evalset")} for e in after]
         out["recipe"] = after[0]["recipe"]
         out["after"] = counts(after_tasks)
         out["after_tasks"] = after_tasks
@@ -1725,7 +1784,7 @@ def tally(
             raise SystemExit("--before pairs with evals of the accepted rows")
         b_evals = [read_eval(e) for e in before]
         b_tasks = merge_evals(b_evals)
-        out["inputs"]["before"] = [{k: e[k] for k in ("eval", "launch", "evalset")} for e in b_evals]
+        out["inputs"]["before"] = [{k: e[k] for k in ("eval", "salvaged", "launch", "evalset")} for e in b_evals]
         missing = sorted(set(after_tasks) - set(b_tasks))
         if missing:
             raise SystemExit(f"the before evals do not score {len(missing)} tasks: {missing[:3]}")
@@ -2073,6 +2132,8 @@ def main() -> None:
     p.add_argument("--concurrency", type=int, default=ROLLOUT_CONCURRENCY_PER_GENERATOR,
                    help="rollouts in flight on the generator, at most 128: lower on a card whose KV cache "
                         "runs fewer sequences at once, so the rest do not wait while their clock runs")
+    p = sub.add_parser("salvage", help="a stopped eval's finished tasks as its index, the rest as an evalset")
+    p.add_argument("--eval", type=Path, required=True)
     p = sub.add_parser("tally", help="bands, funnel, rewrite stats, cost and repair as one JSON")
     p.add_argument("--eval", type=Path, nargs="*", default=[], help="eval(s) of the accepted revisions")
     p.add_argument("--run", type=Path, nargs="*", default=[], help="training run(s): bands from each revision's first group")
@@ -2123,6 +2184,8 @@ def main() -> None:
         build_evalset(a.root, _log_for(a.root, "evalset"))
     elif a.cmd == "eval":
         run_eval(a.evalset, a.ckpt, a.gpus, a.harness, a.base, a.shard, a.concurrency)
+    elif a.cmd == "salvage":
+        salvage(a.eval, Log(a.eval.parent / f"{a.eval.name}.salvage.log"))
     elif a.cmd == "tally":
         if a.evalset and len(a.eval) != 1:
             ap.error("--evalset names the evalset of a single eval")

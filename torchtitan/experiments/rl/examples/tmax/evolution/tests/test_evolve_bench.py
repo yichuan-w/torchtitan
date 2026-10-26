@@ -624,3 +624,33 @@ def test_tally_merges_shards_and_refuses_a_shard_of_another_recipe(tmp_path):
     with pytest.raises(SystemExit, match="another recipe"):
         eb.tally(evals=[e1, _as_legacy(e2)], runs=[], evalset=None, root=None, set_dir=None, before=[],
                  labels=None, log=eb.Log(tmp_path / "t.log"))
+
+
+def test_salvage_keeps_finished_tasks_and_writes_the_rest(tmp_path):
+    set_dir = tmp_path / "sets" / "s"
+    set_dir.mkdir(parents=True)
+    (set_dir / "manifest.json").write_text(json.dumps({"student_harness": "terminus"}))
+    es = tmp_path / "evalsets" / "x.jsonl"
+    eb._write_evalset(es, [_row(t) for t in "abc"], set_dir=str(set_dir))
+    ev = _eval(tmp_path, "stopped", es, {"a": "PF", "b": "FF", "c": "P"}, attempt_dir=True)
+    launch = json.load(open(ev / "launch.json"))
+    launch["env"]["SWE_TB2_VAL_K"] = "2"
+    (ev / "launch.json").write_text(json.dumps(launch))
+    with pytest.raises(SystemExit, match="own index"):
+        eb.salvage(ev, eb.Log(tmp_path / "s.log"))
+    (ev / eb.INDEX).unlink()  # stopped before the controller wrote it
+    rest = eb.salvage(ev, eb.Log(tmp_path / "s.log"))
+    assert json.load(open(rest.with_name(rest.stem + ".manifest.json")))["labels"] == ["c"]
+    e = eb.read_eval(ev)
+    assert e["salvaged"] and sorted(e["tasks"]) == ["a", "b"]
+    assert (e["tasks"]["a"]["bucket"], e["tasks"]["b"]["bucket"]) == ("mixed", "none_solved")
+    assert eb.eval_env(rest, "terminus", {})["SWE_TB2_DATA"] == str(rest)
+    # the rest, scored by another eval, merges with the salvaged one
+    rest_ev = _eval(tmp_path, "rest", rest, {"c": "PP"})
+    rl = json.load(open(rest_ev / "launch.json"))
+    rl["env"]["SWE_TB2_VAL_K"] = "2"
+    (rest_ev / "launch.json").write_text(json.dumps(rl))
+    assert sorted(eb.merge_evals([e, eb.read_eval(rest_ev)])) == ["a", "b", "c"]
+    with pytest.raises(SystemExit, match="exists"):
+        (ev / eb.SALVAGED).unlink()
+        eb.salvage(ev, eb.Log(tmp_path / "s.log"))

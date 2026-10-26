@@ -226,6 +226,15 @@ sits in a frozen set's directory). Each shard is one eval on one card, all of
 one GPU type; `tally --eval` and `--before` take every shard's eval and merge
 them, refusing shards that ran different recipes.
 
+An eval stopped before the controller wrote its index (a generator that
+thrashed, a lost card) is not rerun whole: `salvage --eval <dir>` keeps every
+task whose k attempts all have records as `salvaged-index.json` in the eval
+directory, and writes the evalset's other rows as `<evalset>.rest.jsonl`.
+Score that with a new eval; `tally` and `freeze` read a salvaged eval's index
+where it has none of its own, count only the tasks it kept, and mark it
+`salvaged` in their inputs. Every eval merged into one tally must still come
+from one code commit.
+
 The drive (`run`): `TT_DAYTONA_*` at the trainer's fleet default (1 / 2 / 2,
 since a row that declares nothing is verified at that size), offline_drive's
 own `MAX_ROUNDS=6` and `MAX_ATTEMPTS=2`, and `SWE_POLICY_CANARY_K=0`: the loop
