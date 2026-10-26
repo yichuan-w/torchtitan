@@ -361,7 +361,8 @@ class Coordinator:
                     # every version's result, and one base's interventions are
                     # not copied onto every other all-failed base.
                     if diag.get("waiting") != pending:
-                        diag["waiting"] = pending
+                        self.state["diagnoses"].setdefault(k, {"status": "waiting", "groups": -1})["waiting"] = pending
+                        self._save()
                         log.info("policy wait {%s} on %s: %s not measured yet", k, v["label"], pending)
                     continue
                 self.start_diagnosis(v, k, why=f"latest group g{last[4]} solved 0/{last[1]}")
