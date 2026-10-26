@@ -204,6 +204,9 @@ def test_the_diagnosis_reads_training_attempts_only(job, monkeypatch):
     for p in (work / "attempts").iterdir():
         assert "/rollouts/" in str(p.resolve()) and "validation" not in str(p.resolve())
     assert (work / "original" / "instruction.md").read_text() == "original"
+    versions = (work / "versions.md").read_text()
+    assert "turns and" in versions and "tokens of context" in versions
+    assert "how its attempts ended: submit 6" in versions
 
 
 def test_a_build_cut_by_a_restart_is_built_again(job, monkeypatch):

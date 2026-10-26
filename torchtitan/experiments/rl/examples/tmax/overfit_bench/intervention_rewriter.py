@@ -679,7 +679,10 @@ def stage_diagnosis(co: Coordinator, work: Path, base: dict, k: str) -> dict:
         src = co.ev._ensure_r0(root, task, base["task"])
     shutil.copytree(src, work / "original", ignore=shutil.ignore_patterns("run", "traces", ".*"))
     (work / "attempts").mkdir()
-    index, lines = {}, ["# Versions of this task and what training measured\n"]
+    budget = training_budget()
+    index, lines = {}, ["# Versions of this task and what training measured\n",
+                        f"\nTraining attempts run under {budget}; the readout's budget is larger. "
+                        "hit_context_limit means the attempt used up its context before submitting.\n"]
     order = [base] + [v for v in co.versions.values() if v["id"] != base["id"]]
     for v in order:
         members = co.set_of(v["id"])
@@ -687,6 +690,9 @@ def stage_diagnosis(co: Coordinator, work: Path, base: dict, k: str) -> dict:
         groups = co.groups[v["id"]]
         lines.append(f"\n## {v['label']} = {label} ({v['status']}){'  <- base of this diagnosis' if v is base else ''}\n")
         lines.append("groups (solved/scored): " + (", ".join(f"{g[0]}/{g[1]}" for g in groups) or "none yet") + "\n")
+        ends = collections.Counter(a["finish_reason"] for a in co.attempts[v["id"]])
+        if ends:
+            lines.append("how its attempts ended: " + ", ".join(f"{k} {n}" for k, n in ends.most_common()) + "\n")
         n = pol.diagnose_attempts if v is base else pol.diagnose_attempts // 4
         for a in list(reversed(co.attempts[v["id"]]))[:n]:
             rec = root.run(a["run"]).path / a["path"]
@@ -707,6 +713,18 @@ def stage_diagnosis(co: Coordinator, work: Path, base: dict, k: str) -> dict:
     })
     layout.write_json_atomic(work / "index.json", index)
     return index
+
+
+def training_budget() -> str:
+    """The training rollouts' turn and context caps, as recipe.env (loaded
+    first by start_training.sh, so a runner file cannot change them) sets them."""
+    env = {}
+    for line in (Path(__file__).resolve().parent / "recipe.env").read_text().splitlines():
+        k, _, v = line.partition("=")
+        if k and not k.startswith("#"):
+            env[k.strip()] = v.strip()
+    return (f"at most {env.get('SWE_BENCH_MAX_TURNS', '?')} turns and "
+            f"{env.get('SWE_MAX_CONTEXT_LEN', '?')} tokens of context")
 
 
 def cited_attempts(diagnosis: dict, index: dict) -> list[dict]:
@@ -742,6 +760,11 @@ Do this:
    Read other versions' attempts where they show whether a candidate help
    works (a version that already has it).
 2. Name the dominant bottleneck: the earliest point most attempts fail at.
+   Running out of the training budget is one: versions.md states the budget
+   and how each version's attempts ended. Help that adds work -- installing,
+   self-tests, extra checks -- spends that budget, so when many attempts end
+   in hit_context_limit, an intervention that removes work or shortens the
+   path is a candidate, and adding more steps is not.
 3. Propose up to {candidates} interventions on that bottleneck that differ in
    mechanism -- what in the task changes, not only how much is said: for
    example making the original's own error or output reach the student sooner,
