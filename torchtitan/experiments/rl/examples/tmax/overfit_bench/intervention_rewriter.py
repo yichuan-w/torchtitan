@@ -355,7 +355,23 @@ class Coordinator:
                         self.start_diagnosis(v, k, why=f"cold start: {len(failed)} scored attempts failed")
                 continue
             if last[0] == 0 and len(groups) > diag.get("groups", -1):
+                pending = self._pending_measurement()
+                if pending:
+                    # Measure before expanding: the next diagnosis then reads
+                    # every version's result, and one base's interventions are
+                    # not copied onto every other all-failed base.
+                    if diag.get("waiting") != pending:
+                        diag["waiting"] = pending
+                        log.info("policy wait {%s} on %s: %s not measured yet", k, v["label"], pending)
+                    continue
                 self.start_diagnosis(v, k, why=f"latest group g{last[4]} solved 0/{last[1]}")
+
+    def _pending_measurement(self) -> str:
+        """What a new diagnosis would not see yet: versions being built and
+        active versions with no group, '' when there is none."""
+        building = sorted(k for k, s in self.state["sets"].items() if s["status"] in ("building", "retry"))
+        untested = sorted(v["label"] for v in self.active() if not is_original(v) and not self.groups[v["id"]])
+        return ", ".join([f"{{{k}}} building" for k in building] + [f"{u} untested" for u in untested])
 
     def withdraw(self, v: dict, members: list[str]) -> None:
         cat = self.state["interventions"]

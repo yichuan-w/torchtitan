@@ -258,3 +258,19 @@ def test_a_plan_failure_is_not_retried(job, monkeypatch):
     _drain(co, 6, 0)
     co.step(0.05)
     assert co.state["sets"]["i1"]["status"] == "rejected" and len(evolve.calls) == 1
+
+
+def test_no_new_diagnosis_while_another_version_is_unmeasured(job, monkeypatch):
+    root, run, sched, client = job
+    co, evolve, diag = _start(job, monkeypatch, [_cand("A"), _cand("B", "feedback")], [_cand("C")])
+    _rollouts(run, sched, version=V0, rev=0, group=0, rewards=[0.0] * 6)
+    _drain(co, 6, 0)
+    va, vb = _set_version(co, "i1"), _set_version(co, "i2")
+    _rollouts(run, sched, version=va, rev=1, group=1, rewards=[0.0] * 12)
+    _group_done(sched, version=va, rev=1, group=1, passed=0)
+    _drain(co, 18, 1)
+    # {i1} failed, but {i2} has no group yet: wait for it.
+    assert len(diag.calls) == 1 and "untested" in co.state["diagnoses"]["i1"]["waiting"]
+    _group_done(sched, version=vb, rev=2, group=2, passed=0)
+    _drain(co, 18, 2)
+    assert len(diag.calls) == 2
