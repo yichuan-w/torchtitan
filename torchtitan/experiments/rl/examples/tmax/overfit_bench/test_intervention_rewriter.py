@@ -327,3 +327,16 @@ def test_an_unmeasured_intervention_is_not_copied_onto_another_base(job, monkeyp
     # {..,i3} had any group, so nothing was built for it.
     with_i3 = [k for k in co.state["sets"] if "i3" in k.split(",")]
     assert len(with_i3) == 1
+
+
+def test_a_restart_does_not_put_an_already_drawn_version_first_again(job, monkeypatch):
+    root, run, sched, client = job
+    co, evolve, diag = _start(job, monkeypatch, [_cand("A"), _cand("B", "feedback")])
+    _rollouts(run, sched, version=V0, rev=0, group=0, rewards=[0.0] * 6)
+    _drain(co, 6, 0)
+    cands = list(_pool(sched).values())
+    first = co.which_version(cands)
+    co2 = ir.Coordinator(root, client, evolve.ev, diagnose=diag)
+    co2.start()
+    second = co2.which_version(cands)
+    assert first and second and first != second and co2.which_version(cands) is None

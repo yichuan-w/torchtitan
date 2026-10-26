@@ -193,7 +193,9 @@ class Coordinator:
         self.groups: dict[str, list[tuple]] = collections.defaultdict(list)
         self.attempts: dict[str, list[dict]] = collections.defaultdict(list)
         self._seen: set[tuple] = set()
-        self.drawn: collections.Counter[str] = collections.Counter()
+        # The hook's own picks, kept across restarts: a version whose groups are
+        # still running is not untested, and must not be put first again.
+        self.drawn: collections.Counter[str] = collections.Counter(self._load_drawn())
         self._hook_lock = threading.Lock()
         self._ex = ThreadPoolExecutor(workers, thread_name_prefix="interventions")
         self._futs: dict[Future, tuple[str, str]] = {}  # future -> (kind, set key or base key)
@@ -205,6 +207,10 @@ class Coordinator:
         if path.is_file():
             return json.loads(path.read_text())
         return {"interventions": {}, "sets": {}, "diagnoses": {}}
+
+    def _load_drawn(self) -> dict:
+        path = self.dir / "drawn.json"
+        return json.loads(path.read_text()) if path.is_file() else {}
 
     def _save(self) -> None:
         layout.write_json_atomic(self.dir / "state.json", self.state)
@@ -290,6 +296,7 @@ class Coordinator:
             # answer is the one draw this hook knows the version of.
             if vid is not None:
                 self.drawn[vid] += 1
+                layout.write_json_atomic(self.dir / "drawn.json", dict(self.drawn))
             return vid
 
     # -- what the policy reads ---------------------------------------------------
