@@ -2216,7 +2216,11 @@ specified and add no help the plan does not list. traces/history shows earlier
 rewrites of this task: they built other versions, and none of their help is in
 this one unless the plan lists it. Keep each intervention a separable part --
 hint sentences as their own sentences, supplied work as its own files -- so a
-later version can leave it out by building from the original without it. If an
+later version can leave it out by building from the original without it. Help
+about how to work -- a table to write, a check to run, an order of steps -- is
+advice to the student, however the plan words it: it adds no requirement, and
+the verifier grades the result as before, never whether the advice was
+followed. If an
 intervention cannot be applied without breaking an invariant below, apply the
 rest and say which one and why in change; if none can, write GIVE UP with the
 reason.

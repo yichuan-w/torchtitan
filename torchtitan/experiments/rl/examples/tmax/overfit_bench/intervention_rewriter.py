@@ -746,6 +746,11 @@ Rules every intervention is held to:
 - It never states the final answer, an exact patch, or the output the student
   should compute, and never reveals the verifier.
 - Wording help is written as separate sentences that a later version can drop.
+- Help about how to work (a table to write, a check to run, an order of steps)
+  is advice the student may take, worded as advice ("It helps to ..."), never
+  a requirement: the verifier grades only the result, so a required process it
+  cannot check makes the version invalid. (Measured: v11's {{i3}}, written as
+  "First write a shape table ...", was given up by its author for that reason.)
 {extra}
 Write diagnosis.json in the current directory and read it back:
 {{"bottleneck": {{"name": "...", "description": "...", "attempts_hit": N,
