@@ -308,3 +308,22 @@ def test_the_wait_limit_never_overrides_a_running_build(job, monkeypatch):
     co.state["diagnoses"]["i1"]["waiting_since"] -= co.policy.max_wait_sec + 1
     co.step(0.05)
     assert len(diag.calls) == 1
+
+
+def test_an_unmeasured_intervention_is_not_copied_onto_another_base(job, monkeypatch):
+    root, run, sched, client = job
+    co, evolve, diag = _start(job, monkeypatch, [_cand("A"), _cand("B", "feedback")],
+                              [_cand("C", "decomposition")], [_cand("C", reuses="i3")])
+    co.policy = ir.Policy(max_wait_sec=0)
+    _rollouts(run, sched, version=V0, rev=0, group=0, rewards=[0.0] * 6)
+    _drain(co, 6, 0)
+    va, vb = _set_version(co, "i1"), _set_version(co, "i2")
+    for g, v in ((1, va), (2, vb)):
+        _rollouts(run, sched, version=v, rev=g, group=g, rewards=[0.0] * 12)
+        _group_done(sched, version=v, rev=g, group=g, passed=0)
+    _drain(co, 30, 2)
+    assert _until(lambda: (co.step(0.05), len(diag.calls) == 3 and not co._futs)[1])
+    # i3 was proposed on one base; the other base's diagnosis reused it before
+    # {..,i3} had any group, so nothing was built for it.
+    with_i3 = [k for k in co.state["sets"] if "i3" in k.split(",")]
+    assert len(with_i3) == 1

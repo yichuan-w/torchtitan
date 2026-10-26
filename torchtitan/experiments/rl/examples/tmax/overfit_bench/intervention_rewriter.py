@@ -385,6 +385,13 @@ class Coordinator:
                     continue
                 self.start_diagnosis(v, k, why=f"latest group g{last[4]} solved 0/{last[1]}")
 
+    def _measured(self, iid: str) -> bool:
+        """Some version whose set holds ``iid`` has a finished group."""
+        for sk, s in self.state["sets"].items():
+            if iid in (sk.split(",") if sk else []) and s.get("version") and self.groups[s["version"]]:
+                return True
+        return False
+
     def _pending_measurement(self) -> str:
         """What a new diagnosis would not see yet: versions being built and
         active versions with no group, '' when there is none."""
@@ -440,6 +447,11 @@ class Coordinator:
         members = k.split(",") if k else []
         cited = cited_attempts(result["diagnosis"], result["index"])
         for c in cands:
+            if c.get("reuses") and not self._measured(c["reuses"]):
+                # Copying an intervention onto another base before any version
+                # of it has been measured spends slots on an unknown.
+                log.info("policy skip %s on {%s}: no version with it is measured yet", c["reuses"], k)
+                continue
             if c.get("reuses"):
                 iid = c["reuses"]
             else:
