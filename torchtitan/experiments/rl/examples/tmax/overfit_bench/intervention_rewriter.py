@@ -361,7 +361,10 @@ class Coordinator:
             if last[0] == 0 and len(groups) > diag.get("groups", -1):
                 pending = self._pending_measurement()
                 waited = time.time() - self.state["diagnoses"].get(k, {}).get("waiting_since", time.time())
-                if pending and waited > pol.max_wait_sec and "diagnosis of" not in pending:
+                # Only an unmeasured version is waited out; a running diagnosis or
+                # build is always waited for, or its proposals get copied here.
+                only_untested = all(p.endswith(" untested") for p in pending.split(", ")) if pending else False
+                if pending and waited > pol.max_wait_sec and only_untested:
                     # Groups of a heavily helped version take hours: waiting for
                     # every one of them stalls the search, so after --max-wait-sec
                     # the diagnosis runs on what is measured.

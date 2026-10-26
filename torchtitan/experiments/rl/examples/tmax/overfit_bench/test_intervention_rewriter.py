@@ -293,3 +293,18 @@ def test_a_diagnosis_waits_for_unmeasured_versions_at_most_max_wait(job, monkeyp
     co.step(0.05)
     _drain(co)
     assert len(diag.calls) == 2
+
+
+def test_the_wait_limit_never_overrides_a_running_build(job, monkeypatch):
+    root, run, sched, client = job
+    co, evolve, diag = _start(job, monkeypatch, [_cand("A")], [_cand("C")])
+    _rollouts(run, sched, version=V0, rev=0, group=0, rewards=[0.0] * 6)
+    _drain(co, 6, 0)
+    va = _set_version(co, "i1")
+    co.state["sets"]["i9"] = {"status": "building", "base": "", "parent": V0, "version": None}
+    _rollouts(run, sched, version=va, rev=1, group=1, rewards=[0.0] * 12)
+    _group_done(sched, version=va, rev=1, group=1, passed=0)
+    assert _until(lambda: (co.step(0.05), len(co.groups[va]) == 1)[1])
+    co.state["diagnoses"]["i1"]["waiting_since"] -= co.policy.max_wait_sec + 1
+    co.step(0.05)
+    assert len(diag.calls) == 1
