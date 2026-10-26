@@ -1089,6 +1089,33 @@ def salvage(eval_dir: Path, log: Log) -> Path:
     return path
 
 
+def rest_evalset(evalset: Path, done: list[Path], log: Log) -> Path:
+    """The rows of ``evalset`` that none of the ``done`` evals scored, as
+    ``<evalset>.rest.jsonl``: what is left of an evalset some of whose shards
+    have run, to score in one eval rather than one per shard."""
+    parent = json.load(open(evalset.with_name(evalset.stem + ".manifest.json")))
+    if layout.sha256_file(evalset) != parent["sha256"]:
+        raise SystemExit(f"{evalset} no longer matches the sha256 its manifest pinned")
+    scored = set()
+    for ev in done:
+        e = read_eval(ev)
+        if not set(e["tasks"]) <= {_iid(r) for r in _rows(evalset)}:
+            raise SystemExit(f"{ev} scored tasks that are not rows of {evalset}")
+        scored |= set(e["tasks"])
+        log(f"done eval={ev} tasks={len(e['tasks'])}")
+    rest = [r for r in _rows(evalset) if _iid(r) not in scored]
+    meta = {k: v for k, v in parent.items() if k not in ("name", "rows", "sha256", "created", "labels")}
+    meta.update(source=str(evalset), source_rows=f"the rows of {evalset.name} the listed evals did not score",
+                parent_sha256=parent["sha256"], done_evals=[str(e.resolve()) for e in done])
+    path = evalset.with_name(evalset.stem + ".rest.jsonl")
+    if path.exists():
+        raise SystemExit(f"{path} exists")
+    _write_evalset(path, rest, **meta)
+    log(f"done rest={len(rest)} -> {path}")
+    print(f"{path}: {len(rest)} of {len(_rows(evalset))} rows")
+    return path
+
+
 def shard_evalset(evalset: Path, shard: str, base: Path) -> Path:
     """Shard ``i/n`` of an evalset: its rows i, i+n, i+2n, ... as an evalset of
     their own, so one evalset is scored by n evals on n cards at once and
@@ -2132,6 +2159,9 @@ def main() -> None:
     p.add_argument("--concurrency", type=int, default=ROLLOUT_CONCURRENCY_PER_GENERATOR,
                    help="rollouts in flight on the generator, at most 128: lower on a card whose KV cache "
                         "runs fewer sequences at once, so the rest do not wait while their clock runs")
+    p = sub.add_parser("rest", help="the rows of an evalset that finished evals did not score, as an evalset")
+    p.add_argument("--evalset", type=Path, required=True)
+    p.add_argument("--done", type=Path, nargs="+", required=True)
     p = sub.add_parser("salvage", help="a stopped eval's finished tasks as its index, the rest as an evalset")
     p.add_argument("--eval", type=Path, required=True)
     p = sub.add_parser("tally", help="bands, funnel, rewrite stats, cost and repair as one JSON")
@@ -2184,6 +2214,8 @@ def main() -> None:
         build_evalset(a.root, _log_for(a.root, "evalset"))
     elif a.cmd == "eval":
         run_eval(a.evalset, a.ckpt, a.gpus, a.harness, a.base, a.shard, a.concurrency)
+    elif a.cmd == "rest":
+        rest_evalset(a.evalset, a.done, Log(a.evalset.with_name(a.evalset.stem + ".rest.log")))
     elif a.cmd == "salvage":
         salvage(a.eval, Log(a.eval.parent / f"{a.eval.name}.salvage.log"))
     elif a.cmd == "tally":

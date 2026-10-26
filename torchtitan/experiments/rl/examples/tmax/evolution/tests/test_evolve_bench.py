@@ -654,3 +654,18 @@ def test_salvage_keeps_finished_tasks_and_writes_the_rest(tmp_path):
     with pytest.raises(SystemExit, match="exists"):
         (ev / eb.SALVAGED).unlink()
         eb.salvage(ev, eb.Log(tmp_path / "s.log"))
+
+
+def test_rest_evalset_is_what_the_done_evals_did_not_score(tmp_path):
+    set_dir = tmp_path / "sets" / "s"
+    set_dir.mkdir(parents=True)
+    (set_dir / "manifest.json").write_text(json.dumps({"student_harness": "terminus"}))
+    es = tmp_path / "evalsets" / "acc.jsonl"
+    eb._write_evalset(es, [_row(t, 1) for t in "abcd"], set_dir=str(set_dir))
+    s1 = eb.shard_evalset(es, "1/2", tmp_path)
+    ev = _eval(tmp_path, "s1", s1, {"a": "PF", "c": "FF"})
+    rest = eb.rest_evalset(es, [ev], eb.Log(tmp_path / "r.log"))
+    assert json.load(open(rest.with_name(rest.stem + ".manifest.json")))["labels"] == ["b", "d"]
+    assert eb.eval_env(rest, "terminus", {})["SWE_TB2_DATA"] == str(rest)
+    with pytest.raises(SystemExit, match="exists"):
+        eb.rest_evalset(es, [ev], eb.Log(tmp_path / "r.log"))

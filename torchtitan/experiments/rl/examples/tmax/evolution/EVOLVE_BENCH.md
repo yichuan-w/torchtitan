@@ -235,6 +235,11 @@ where it has none of its own, count only the tasks it kept, and mark it
 `salvaged` in their inputs. Every eval merged into one tally must still come
 from one code commit.
 
+When fewer cards turn up than an evalset has shards, `rest --evalset <x>
+--done <evals>` writes the rows none of the finished evals scored as
+`<x>.rest.jsonl`, so what is left runs as one eval and pays one slow tail
+instead of one per shard.
+
 The drive (`run`): `TT_DAYTONA_*` at the trainer's fleet default (1 / 2 / 2,
 since a row that declares nothing is verified at that size), offline_drive's
 own `MAX_ROUNDS=6` and `MAX_ATTEMPTS=2`, and `SWE_POLICY_CANARY_K=0`: the loop
