@@ -316,7 +316,8 @@ Everything below is read from the environment in `config_registry.py` /
 | `TT_DAYTONA_CREATE_CONCURRENCY` | 16 | Per-worker sandbox-create parallelism; lower it if the provider rate-limits (429) |
 | `SWE_TRAIN_STEPS` | 100 | Optimizer steps |
 | `SWE_GROUP_SIZE` / `SWE_NUM_GROUPS_PER_TRAIN_STEP` / `SWE_OFFPOLICY_STEPS` | 32 / 8 / 4 | The async/GRPO shape |
-| `SWE_LOSS` | `dppo` | `dapo` or `grpo` for an A/B |
+| `SWE_LOSS` | `dppo` | `dapo` or `grpo` for an A/B; `sc` for score centering (below) |
+| `SWE_SC_WEIGHT` / `SWE_SC_TIS_CAP` / `SWE_SC_TOPK` | `tis` / 2.0 / 32 | Score centering's importance weight (`tis`, `mis`, `none`), TIS cap and sampler top-k; only read under `SWE_LOSS=sc` |
 | `SWE_DPPO_RATIO_CAP` | 0 (off) | Truncated-IS cap; 2 tames a residual GDN train/infer logprob tail |
 | `TMAX_AGENT` | `terminus` | Agent scaffold. `terminus` is harbor's Terminus-2 (README_TERMINALWORLD.md); `vanillux` is the one-command loop; `miniswe` is mini-swe-agent's text loop (`harness/agents/miniswe.py`) |
 | `TMAX_TERMINUS_MAX_TURNS` | 64 | Max agent turns per episode under `terminus` |

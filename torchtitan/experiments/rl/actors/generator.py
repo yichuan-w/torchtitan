@@ -57,7 +57,7 @@ from torchtitan.experiments.rl.observability import metrics as m
 from torchtitan.experiments.rl.routing.intra_generator_router import (
     IntraGeneratorRouter,
 )
-from torchtitan.experiments.rl.types import Completion
+from torchtitan.experiments.rl.types import Completion, SamplerTopK
 from torchtitan.models.common.attention import FlexAttention, VarlenAttention
 from torchtitan.observability import structured_logger as sl
 from torchtitan.protocols.model_spec import ModelSpec
@@ -66,6 +66,7 @@ from vllm import EngineArgs, LLMEngine, SamplingParams
 from vllm.config import AttentionConfig, CompilationConfig, ParallelConfig
 from vllm.config.compilation import CompilationMode, PassConfig
 from vllm.distributed import get_dp_group
+from vllm.logprobs import FlatLogprobs
 from vllm.outputs import RequestOutput
 from vllm.sampling_params import RequestOutputKind
 from vllm.v1.attention.backends.registry import AttentionBackendEnum
@@ -394,6 +395,37 @@ class _RequestMetricsInputs:
     num_generation_tokens: int = 0
 
 
+def _split_flat_logprobs(
+    flat: FlatLogprobs,
+) -> tuple[list[float], SamplerTopK]:
+    """Split vLLM's flat sample logprobs into the sampled token's logprob and
+    the top-k.
+
+    Each position holds ``[sampled, top-1, ..., top-k]`` (the sampler writes the
+    sampled token first, then the top-k, even when the sampled token is among
+    them), so every position has exactly ``k + 1`` entries.
+    """
+    num_positions = len(flat)
+    if num_positions == 0:
+        return [], SamplerTopK.empty_rows(0, 0)
+    width = flat.end_indices[0] - flat.start_indices[0]
+    if len(flat.logprobs) != num_positions * width:
+        raise ValueError(
+            f"uneven flat logprobs: {len(flat.logprobs)} entries over "
+            f"{num_positions} positions"
+        )
+    token_ids = torch.tensor(flat.token_ids, dtype=torch.int32).view(
+        num_positions, width
+    )
+    logprobs = torch.tensor(flat.logprobs, dtype=torch.float32).view(
+        num_positions, width
+    )
+    topk = SamplerTopK(
+        token_ids=token_ids[:, 1:].contiguous(), logprobs=logprobs[:, 1:].contiguous()
+    )
+    return logprobs[:, 0].tolist(), topk
+
+
 def _extract_request_metrics_inputs(
     request_output: RequestOutput,
 ) -> _RequestMetricsInputs:
@@ -605,6 +637,10 @@ class SamplingConfig:
 
     stop_token_ids: list[int] | None = None
     """Renderer role-boundary stop tokens; filled by the controller."""
+
+    num_topk_logprobs: int = 0
+    """Also return the sampler's top-k logprobs at every generated position
+    (``Completion.topk``), for score centering. 0 = sampled token only."""
 
 
 class RequestDispatcher:
@@ -874,10 +910,14 @@ class RequestDispatcher:
 
             # get logprobs
             completion_output = request_output.outputs[0]
-            token_logprobs = [
-                next(iter(logprob_dict.values())).logprob
-                for logprob_dict in completion_output.logprobs
-            ]
+            topk = None
+            if isinstance(completion_output.logprobs, FlatLogprobs):
+                token_logprobs, topk = _split_flat_logprobs(completion_output.logprobs)
+            else:
+                token_logprobs = [
+                    next(iter(logprob_dict.values())).logprob
+                    for logprob_dict in completion_output.logprobs
+                ]
 
             completions.append(
                 (
@@ -894,6 +934,7 @@ class RequestDispatcher:
                         token_logprobs=token_logprobs,
                         finish_reason=completion_output.finish_reason,
                         stop_reason=getattr(completion_output, "stop_reason", None),
+                        topk=topk,
                     ),
                     _extract_request_metrics_inputs(request_output),
                 )
@@ -1425,6 +1466,9 @@ class VLLMGenerator(Actor, Configurable):
         )
         engine_kwargs["max_model_len"] = model_spec.model.max_seq_len
         engine_kwargs["max_num_seqs"] = self._max_num_seqs
+        # vLLM rejects requests asking for more than max_logprobs (default 20).
+        if config.sampling.num_topk_logprobs > 20:
+            engine_kwargs["max_logprobs"] = config.sampling.num_topk_logprobs
         has_gdn_layers = any(
             getattr(layer, "delta_net", None) is not None
             for layer in getattr(model_spec.model, "layers", ())
@@ -2171,6 +2215,12 @@ class VLLMGenerator(Actor, Configurable):
         ``seed`` per sample), so each sample in a group is a distinct ``n=1``
         request that stays diverse and bitwise-reproducible.
         """
+        num_topk = sampling.num_topk_logprobs
+        topk_kwargs = {}
+        if num_topk > 0:
+            # Flat lists instead of one dict per position, and no detokenizing
+            # of the k candidates: we only keep token ids. Stops are by token id.
+            topk_kwargs = {"flat_logprobs": True, "detokenize": False}
         return SamplingParams(
             temperature=sampling.temperature,
             top_p=sampling.top_p,
@@ -2178,7 +2228,10 @@ class VLLMGenerator(Actor, Configurable):
             n=1,  # always expects a single sample per request. Caller can call N times.
             stop_token_ids=sampling.stop_token_ids or None,
             seed=sampling.seed,
-            logprobs=0,  # return only the sampled token's logprob (for the GRPO ratio)
+            # The sampled token's logprob (for the GRPO ratio), plus the top-k
+            # when score centering asks for them.
+            logprobs=num_topk,
+            **topk_kwargs,
             # Return each request's result once, when it is fully done, instead of streaming partial
             # outputs as tokens arrive.
             # TODO(async-rl): use RequestOutputKind.CUMULATIVE for exact per-token

@@ -151,4 +151,13 @@ class RolloutSampleRecorder(Configurable):
             encoded["completion_token_ids"] = turn.completion_token_ids
         if self._log_logprobs:
             encoded["completion_logprobs"] = turn.completion_logprobs
+            topk = turn.completion_topk
+            encoded["completion_topk"] = (
+                None
+                if topk is None
+                else {
+                    "token_ids": topk.token_ids.tolist(),
+                    "logprobs": topk.logprobs.tolist(),
+                }
+            )
         return encoded

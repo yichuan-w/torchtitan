@@ -1735,6 +1735,8 @@ class Controller(Configurable):
             self._sampling,
             temperature=validation.temperature,
             top_p=validation.top_p,
+            # Validation never trains, so it has no use for the top-k.
+            num_topk_logprobs=0,
             **(
                 {}
                 if validation.max_tokens is None

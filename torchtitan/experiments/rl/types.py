@@ -50,6 +50,40 @@ class RolloutTurnID:
         return f"{base}/turn={self.turn_id}" if include_turn else base
 
 
+@dataclass(frozen=True, slots=True)
+class SamplerTopK:
+    """The sampler's top-k next-token logprobs, one row per token position.
+
+    Score centering (``losses/score_centering.py``) uses them to subtract the
+    sampler's expected score. Rows the sampler did not produce (prompt and env
+    tokens, padding) hold token id 0 and logprob ``-inf``.
+    """
+
+    token_ids: torch.Tensor  # [N, k] int32
+    logprobs: torch.Tensor  # [N, k] float32
+
+    def __len__(self) -> int:
+        return self.token_ids.shape[0]
+
+    @property
+    def k(self) -> int:
+        return self.token_ids.shape[1]
+
+    @staticmethod
+    def empty_rows(num_rows: int, k: int) -> "SamplerTopK":
+        return SamplerTopK(
+            token_ids=torch.zeros(num_rows, k, dtype=torch.int32),
+            logprobs=torch.full((num_rows, k), float("-inf")),
+        )
+
+    @staticmethod
+    def cat(parts: list["SamplerTopK"]) -> "SamplerTopK":
+        return SamplerTopK(
+            token_ids=torch.cat([p.token_ids for p in parts]),
+            logprobs=torch.cat([p.logprobs for p in parts]),
+        )
+
+
 @dataclass(kw_only=True, slots=True)
 class Completion:
     """A single generated sequence from the generator.
@@ -77,6 +111,9 @@ class Completion:
     """vLLM `CompletionOutput.finish_reason` ("stop" | "length" | "abort")"""
     stop_reason: int | str | None = None
     """vLLM stop string or token id that ended generation, if any."""
+    topk: SamplerTopK | None = None
+    """[num_tokens, k] sampler top-k logprobs; set only when
+    ``SamplingConfig.num_topk_logprobs > 0``."""
 
     metrics: list[m.Metric] = field(default_factory=list)
     """Per-generation metrics measured by the generator (latencies); the
@@ -115,6 +152,8 @@ class TrainingSample:
     """[L] generator logprobs; 0.0 where loss_mask is False."""
     advantage: list[float]
     """[L] advantage on assistant tokens, 0.0 elsewhere."""
+    topk: SamplerTopK | None = None
+    """[L, k] sampler top-k logprobs; empty rows off the completions."""
 
 
 @dataclass(frozen=True, slots=True)
@@ -147,6 +186,8 @@ class TrainingMicrobatch:
     generator_logprobs: torch.Tensor  # [B, L]
     loss_mask: torch.Tensor  # [B, L]
     advantages: torch.Tensor  # [B, L]
+    topk_token_ids: torch.Tensor | None = None  # [B, L, k]
+    topk_logprobs: torch.Tensor | None = None  # [B, L, k]
 
 
 @dataclass(frozen=True, slots=True)

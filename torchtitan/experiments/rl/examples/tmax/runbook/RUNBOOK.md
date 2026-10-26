@@ -743,7 +743,10 @@ these are the variables that touch them.
 | `SWE_DROP_ZERO_STD` | `0` | `1` | drop groups with no reward variance. Off here *only* because evolution re-tunes them instead. Without evolution, use `1`. |
 | `SWE_TRAIN_STEPS` | `150` | `100` | total optimizer steps. |
 | `SWE_LR` | `3e-6` | `0` (keep `1e-6`) | learning rate. |
-| `SWE_LOSS` | unset | `dppo` | `dppo` / `dapo` / `grpo`. |
+| `SWE_LOSS` | unset | `dppo` | `dppo` / `dapo` / `grpo` / `sc`. `sc` is score centering (arXiv 2609.20807): drops the DPPO mask and subtracts the sampler's expected score, which needs the generator to return top-k logprobs (turned on automatically). |
+| `SWE_SC_WEIGHT` | unset | `tis` | under `SWE_LOSS=sc`: importance weight composed with the centering, `tis` / `mis` / `none`. The paper's pick under staleness is TIS or MIS. |
+| `SWE_SC_TIS_CAP` | unset | `2.0` | under `SWE_SC_WEIGHT=tis`: the truncation cap. |
+| `SWE_SC_TOPK` | unset | `32` | under `SWE_LOSS=sc`: sampler top-k per generated token. The paper finds 32 matches the full vocabulary. |
 | `SWE_TMAX_CONTEXT` | `81920` | `65536` | model context (vLLM `max_model_len`) and the trainer's packing width, set together. Must divide by the loss chunk count (`SWE_LOSS_CHUNKS`, recipe base 32). `rltrain.env` carries the team's 80K training cap; the reference run had the 65536 default. |
 | `SWE_MAX_CONTEXT_LEN` | `79872` | tmax recipes: `SWE_TMAX_CONTEXT` − 2048 (63488 at the 65536 default); other entry points still differ (63488 / 22528 / 20480) | per-session context budget: total prompt + all turns, the per-turn generation is clamped to what is left, and context notices count against it. Keep it at `SWE_TMAX_CONTEXT` − 2048. `rltrain.env` carries the team's 80K training cap; the reference run had 63488. |
 | `TMAX_AGENT` | `terminus` | `terminus` | agent scaffold. Changes the action distribution. |

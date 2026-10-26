@@ -19,6 +19,7 @@ import torch
 from torchtitan.config import Configurable
 from torchtitan.experiments.rl.observability import metrics as m
 from torchtitan.experiments.rl.types import (
+    SamplerTopK,
     TrainingBatch,
     TrainingMicrobatch,
     TrainingSample,
@@ -624,7 +625,41 @@ class Batcher(Configurable):
         }
         packed["positions"] = torch.tensor(positions, dtype=torch.long).unsqueeze(0)
         packed["seq_lens"] = seq_lens
+        topk = self._pack_topk_row(training_samples)
+        if topk is not None:
+            packed["topk_token_ids"] = topk.token_ids.unsqueeze(0)
+            packed["topk_logprobs"] = topk.logprobs.unsqueeze(0)
         return packed
+
+    def _pack_topk_row(self, training_samples: list[TrainingSample]) -> SamplerTopK | None:
+        """The row's ``[seq_len, k]`` sampler top-k, laid out like the other fields
+        (shifted by one, per-sample and row padding as empty rows); None when no
+        sample in the row carries top-k."""
+        k = next((s.topk.k for s in training_samples if s.topk is not None), None)
+        if k is None:
+            return None
+        parts: list[SamplerTopK] = []
+        num_rows = 0
+        for training_sample in training_samples:
+            sample_len = len(training_sample.token_ids) - 1
+            if training_sample.topk is not None:
+                parts.append(
+                    SamplerTopK(
+                        token_ids=training_sample.topk.token_ids[1:],
+                        logprobs=training_sample.topk.logprobs[1:],
+                    )
+                )
+            else:
+                parts.append(SamplerTopK.empty_rows(sample_len, k))
+            if self._per_sample_pad_multiple:
+                align = self._per_sample_pad_multiple
+                padded_len = ((sample_len + align - 1) // align) * align
+                parts.append(SamplerTopK.empty_rows(padded_len - sample_len, k))
+                sample_len = padded_len
+            num_rows += sample_len
+        if self.seq_len > num_rows:
+            parts.append(SamplerTopK.empty_rows(self.seq_len - num_rows, k))
+        return SamplerTopK.cat(parts)
 
     # TODO: accept a collate_fn on Batcher.Config (like the pre-trainer's
     # dataloader) and wire a non-pretraining collate only when a caller actually
@@ -632,6 +667,17 @@ class Batcher(Configurable):
     @staticmethod
     def collate(rows: list[dict]) -> TrainingMicrobatch:
         """Concatenate packed rows into a single ``[B, L]`` TrainingMicrobatch."""
+        topk_token_ids = topk_logprobs = None
+        topk_row = next((row for row in rows if "topk_token_ids" in row), None)
+        if topk_row is not None:
+            # Rows without top-k (pad-only rows) get empty rows of the same shape.
+            empty = SamplerTopK.empty_rows(*topk_row["topk_token_ids"].shape[1:])
+            topk_token_ids = torch.cat(
+                [row.get("topk_token_ids", empty.token_ids[None]) for row in rows]
+            )
+            topk_logprobs = torch.cat(
+                [row.get("topk_logprobs", empty.logprobs[None]) for row in rows]
+            )
         return TrainingMicrobatch(
             token_ids=torch.cat([row["input_ids"] for row in rows]),
             labels=torch.cat([row["labels"] for row in rows]),
@@ -639,6 +685,8 @@ class Batcher(Configurable):
             generator_logprobs=torch.cat([row["generator_logprobs"] for row in rows]),
             loss_mask=torch.cat([row["loss_mask"] for row in rows]),
             advantages=torch.cat([row["advantages"] for row in rows]),
+            topk_token_ids=topk_token_ids,
+            topk_logprobs=topk_logprobs,
         )
 
     def _packing_metrics(

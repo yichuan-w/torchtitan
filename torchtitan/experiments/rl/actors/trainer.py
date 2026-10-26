@@ -753,6 +753,16 @@ class PolicyTrainer(Actor, Configurable):
         loss_mask = local_batch.loss_mask.to(device)
         generator_logprobs = local_batch.generator_logprobs.to(device)
         advantages = local_batch.advantages.to(device)
+        # Sampler top-k for score centering; only losses that take them get them.
+        topk_inputs = {}
+        inner_loss = getattr(self.loss_fn, "loss_fn", self.loss_fn)
+        if local_batch.topk_token_ids is not None and getattr(
+            inner_loss, "accepts_topk", False
+        ):
+            topk_inputs = {
+                "topk_token_ids": local_batch.topk_token_ids.to(device),
+                "topk_logprobs": local_batch.topk_logprobs.to(device),
+            }
 
         attention_masks = model.get_attention_masks(positions)
 
@@ -818,6 +828,7 @@ class PolicyTrainer(Actor, Configurable):
                     # tokens the batch shed); the loss scale uses
                     # num_loss_denominator_tokens.
                     metric_denominator=num_packed_valid_tokens,
+                    **topk_inputs,
                 )
             logger.info(f"[trainer] dp_rank={self.dp_rank}: loss done")
             _mem_log("loss done")

@@ -56,7 +56,7 @@ from torchtitan.experiments.rl.examples.swe_r2e.config_registry import (
 )
 from torchtitan.experiments.rl.examples.tmax.data import TMaxDataset
 from torchtitan.experiments.rl.examples.tmax.rollouter import TMaxRollouter
-from torchtitan.experiments.rl.losses import DPPOLoss, GRPOLoss
+from torchtitan.experiments.rl.losses import DPPOLoss, GRPOLoss, ScoreCenteringLoss
 from torchtitan.tools.logging import logger
 
 # tmax JSONL path, supplied by the launcher (PROMPT_DATA -> SWE_PROMPT_DATA).
@@ -401,6 +401,16 @@ def _tmax_recipe_loss(loss):
     _which = os.environ.get("SWE_LOSS", "dppo").lower()
     if _which == "dapo":
         return loss
+    if _which == "sc":
+        # Score centering (arXiv 2609.20807); _tmax_score_centering_sampling turns
+        # on the sampler top-k it needs.
+        return dataclasses.replace(
+            loss,
+            loss_fn=ScoreCenteringLoss.Config(
+                weight=os.environ.get("SWE_SC_WEIGHT", "tis"),
+                tis_cap=float(os.environ.get("SWE_SC_TIS_CAP", "2.0")),
+            ),
+        )
     if _which == "grpo":
         # Standard GRPO clipped surrogate (swaps the DPPO trust-region for the PPO
         # clip). Only loss_fn swapped; num_chunks etc. preserved.
@@ -416,6 +426,20 @@ def _tmax_recipe_loss(loss):
             # clamps the surrogate ratio so a residual GDN gen/train logprob-mismatch
             # tail cannot spike the gradient (our logdiff max ~2 vs open-instruct ~0.5).
             ratio_cap=float(os.environ.get("SWE_DPPO_RATIO_CAP", "0")),
+        ),
+    )
+
+
+def _tmax_score_centering_sampling(generator):
+    """Under SWE_LOSS=sc, have the generator return the sampler's top-k logprobs
+    (SWE_SC_TOPK, default 32; the paper finds k=32 matches the full vocabulary)."""
+    if os.environ.get("SWE_LOSS", "dppo").lower() != "sc":
+        return generator
+    return dataclasses.replace(
+        generator,
+        sampling=dataclasses.replace(
+            generator.sampling,
+            num_topk_logprobs=int(os.environ.get("SWE_SC_TOPK", "32")),
         ),
     )
 
@@ -453,6 +477,7 @@ def rl_grpo_qwen3_5_27b_tmax() -> Controller.Config:
     config.trainer = dataclasses.replace(
         config.trainer, loss=_tmax_recipe_loss(config.trainer.loss)
     )
+    config.generator = _tmax_score_centering_sampling(config.generator)
     return config
 
 
@@ -1080,6 +1105,7 @@ def rl_grpo_qwen3_5_9b_tmax(
     # Loss: the tmax recipe's DPPO is the DEFAULT (SWE_LOSS=dapo reverts). See
     # _tmax_recipe_loss. num_chunks=32 (chunked lm-head loss) is preserved.
     _loss = _tmax_recipe_loss(dataclasses.replace(config.trainer.loss, num_chunks=32))
+    config.generator = _tmax_score_centering_sampling(config.generator)
     config.trainer = dataclasses.replace(
         config.trainer,
         loss=_loss,
