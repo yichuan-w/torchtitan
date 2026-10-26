@@ -51,6 +51,15 @@ def _eval(tmp: Path, name: str, evalset: Path, results: dict[str, list], attempt
     return ev
 
 
+def _as_legacy(ev: Path) -> Path:
+    """Rewrite an eval's launch.json as if it ran the legacy-2400 recipe."""
+    launch = json.load(open(ev / "launch.json"))
+    launch["env"] = {**eb.STUDENT_RECIPES["legacy-2400"], "SWE_BENCH_RECIPE": "legacy-2400",
+                     "TMAX_AGENT": "terminus", "SWE_TB2_DATA": launch["env"]["SWE_TB2_DATA"]}
+    (ev / "launch.json").write_text(json.dumps(launch))
+    return ev
+
+
 def test_bucket_follows_repair_eval_summary():
     assert eb.bucket(0, 1) == "ungraded"
     assert eb.bucket(5, 5) == "all_solved"
@@ -98,12 +107,13 @@ def test_eval_env_refuses_a_clash_and_another_harness(tmp_path):
     env = eb.eval_env(es, "terminus", {"PATH": "/bin"})
     assert env["SWE_ROLLOUT_CONCURRENCY"] == "128" and env["TMAX_AGENT"] == "terminus"
     assert env["TMAX_CALL_LIMIT"] == "120"
-    # a set frozen without a recorded recipe was measured under the legacy one
-    assert env["SWE_BENCH_RECIPE"] == "legacy-2400" and env["SWE_EVAL_TIME_BUDGET_SEC"] == "2400"
-    assert "SWE_TMAX_CONTEXT" not in env and env["SWE_MAX_CONTEXT_LEN"] == "63488"
-    (set_dir / "manifest.json").write_text(json.dumps({"student_harness": "terminus", "student_recipe": "training-2026-10"}))
-    env = eb.eval_env(es, "terminus", {})
+    # every eval runs the training recipe, also of a set measured under the legacy one
+    assert env["SWE_BENCH_RECIPE"] == "train-2026-10-25"
     assert (env["SWE_TMAX_CONTEXT"], env["SWE_MAX_CONTEXT_LEN"], env["SWE_EVAL_TIME_BUDGET_SEC"]) == ("81920", "79872", "7200")
+    assert (env["SWE_TB2_VAL_K"], env["TMAX_TURN_MAX_TOKENS"]) == ("16", "16384")
+    assert (env["SWE_EVAL_CONTEXT_NOTICE"], env["SWE_EVAL_GRADE_UNSUBMITTED"], env["SWE_EVAL_STRICT_OPENING"]) == ("1", "0", "1")
+    (set_dir / "manifest.json").write_text(json.dumps({"student_harness": "terminus", "student_recipe": "legacy-2400"}))
+    assert eb.eval_env(es, "terminus", {})["SWE_BENCH_RECIPE"] == "train-2026-10-25"
     with pytest.raises(SystemExit, match="pins"):
         eb.eval_env(es, "terminus", {"SWE_ROLLOUT_CONCURRENCY": "600"})
     with pytest.raises(SystemExit, match="measured under terminus"):
@@ -237,7 +247,7 @@ def test_tally_root_with_eval_funnel_directions_and_repair(tmp_path):
     assert rep["external_network"]["ground_truth"]["agree"] == 1
     assert rep["grader_fetch"]["tasks"] == 1
     _, md = eb.compare([("x", out)], allow_mismatch=False)
-    assert "| x | eval / terminus / training-2026-10 | 1 / 3 |" in md
+    assert "| x | eval / terminus / train-2026-10-25 | 1 / 3 |" in md
 
 
 def test_tally_reads_bands_off_a_training_run(tmp_path):
@@ -471,7 +481,7 @@ def test_freeze_takes_the_first_measurement_of_each_row_and_drops_the_rest(tmp_p
     for r in rows:
         _pkg(src / "tasks" / r["label"], test=r["metadata"]["tmax"]["test_sh"])
     mix = _jsonl(tmp_path / "mix.jsonl", rows)
-    ev = _eval(tmp_path, "base", mix, {"r1": "FFFFF"})  # the repair row, from an eval
+    ev = _as_legacy(_eval(tmp_path, "base", mix, {"r1": "FFFFF"}))  # the repair row, from an eval
     run = tmp_path / "train" / "runs" / "sep"
     (run / "rollouts").mkdir(parents=True)
     (run / "launch.json").write_text(json.dumps({"tt_commit": "old1234", "env": {"TMAX_AGENT": "terminus"}}))
@@ -491,8 +501,11 @@ def test_freeze_takes_the_first_measurement_of_each_row_and_drops_the_rest(tmp_p
     group("c2", 9, [0.0] * 12)  # none solved
     group("c3", 3, [1.0, 0.0, 1.0, 0.0, 0.0, 0.0])  # mixed: already carries gradient, out
     group("c5", 2, [0.0] * 6)  # measured on another test_sh, out
+    with pytest.raises(SystemExit, match="ran the legacy-2400 recipe"):
+        eb.freeze(bench=tmp_path / "bench", name="m", run=None, evals=[ev], first_group=[run], selected=None,
+                  release=None, mix=mix, sources=[src], log=eb.Log(tmp_path / "f.log"))
     out = eb.freeze(bench=tmp_path / "bench", name="m", run=None, evals=[ev], first_group=[run], selected=None,
-                    release=None, mix=mix, sources=[src], log=eb.Log(tmp_path / "f.log"))
+                    recipe="legacy-2400", release=None, mix=mix, sources=[src], log=eb.Log(tmp_path / "f.log"))
     m, _ = eb.load_set(out, verify=True)
     assert m["directions"] == {"easier": 2, "harder": 1}
     assert m["dropped"] == {"c3": "mixed", "c4": "not_measured", "c5": "measured_other_test_sh"}
@@ -513,10 +526,27 @@ def test_freeze_takes_the_first_measurement_of_each_row_and_drops_the_rest(tmp_p
                                                 "result_rev": 1}))
     _, sha = eb.load_set(out, verify=False)
     (root / "bench_arm.json").write_text(json.dumps({"set_dir": str(out), "set_manifest_sha256": sha}))
-    after = _eval(tmp_path, "wave1", _jsonl(tmp_path / "w1.jsonl", [_row("c1", 1)]), {"c1": "PFPFF"})
+    w1 = _jsonl(tmp_path / "w1.jsonl", [_row("c1", 1)])
+    after = _as_legacy(_eval(tmp_path, "wave1", w1, {"c1": "PFPFF"}))
     res = eb.tally(evals=[after], runs=[], evalset=None, root=root, set_dir=None, before=[], labels=None,
                    log=eb.Log(tmp_path / "t.log"))
     assert res["before_after"]["table"] == {"all_solved->mixed": 1}
+    assert res["student_recipe"] == "legacy-2400" and res["legacy_recipe"]
+    # an after-eval of another recipe than the set's needs before-evals of its own recipe
+    after_new = _eval(tmp_path, "wave1-new", w1, {"c1": "PFPFF"})
+    with pytest.raises(SystemExit, match="give --before"):
+        eb.tally(evals=[after_new], runs=[], evalset=None, root=root, set_dir=None, before=[], labels=None,
+                 log=eb.Log(tmp_path / "t.log"))
+    orig = _jsonl(tmp_path / "orig.jsonl", [_row("c1", test="test c1")])
+    with pytest.raises(SystemExit, match="another recipe"):
+        eb.tally(evals=[after_new], runs=[], evalset=None, root=root, set_dir=None,
+                 before=[_as_legacy(_eval(tmp_path, "before-old", orig, {"c1": "PPPPP"}))], labels=None,
+                 log=eb.Log(tmp_path / "t.log"))
+    res = eb.tally(evals=[after_new], runs=[], evalset=None, root=root, set_dir=None,
+                   before=[_eval(tmp_path, "before-new", orig, {"c1": "PPPPPPPPPPPPPPPP"})], labels=None,
+                   log=eb.Log(tmp_path / "t.log"))
+    assert res["before_after"]["table"] == {"all_solved->mixed": 1}
+    assert res["student_recipe"] == "train-2026-10-25" and not res["legacy_recipe"]
     assert res["inputs"]["set"]["dropped"] == {"mixed": 1, "not_measured": 1, "measured_other_test_sh": 1}
 
 
@@ -551,3 +581,43 @@ def test_overshoot_pairs_counts_direction_aware_overshoot():
     b = res({"t1": ("harder", "mixed"), "t2": ("easier", "all_solved"), "t3": ("easier", "all_solved")})
     o = eb.overshoot_pairs(a, b, ["t1", "t2", "t3"])
     assert (o["tasks"], o["overshoot"], o["gained"], o["lost"]) == (3, [2, 2], 1, 1)
+
+
+def test_shard_evalset_splits_disjointly_and_never_writes_into_a_set(tmp_path):
+    set_dir = tmp_path / "sets" / "s"
+    set_dir.mkdir(parents=True)
+    (set_dir / "manifest.json").write_text(json.dumps({"student_harness": "terminus"}))
+    orig = set_dir / "original.jsonl"
+    eb._write_evalset(orig, [_row(t) for t in "abcdefg"], set="s", set_dir=str(set_dir))
+    before = sorted(p.name for p in set_dir.iterdir())
+    shards = [eb.shard_evalset(orig, f"{i}/3", tmp_path / "bench") for i in (1, 2, 3)]
+    assert sorted(p.name for p in set_dir.iterdir()) == before
+    labels = [json.load(open(p.with_name(p.stem + ".manifest.json")))["labels"] for p in shards]
+    assert labels == [["a", "d", "g"], ["b", "e"], ["c", "f"]]
+    assert shards[0] == tmp_path / "bench" / "evalsets" / "s" / "original.shard-01-of-03.jsonl"
+    m = json.load(open(shards[0].with_name(shards[0].stem + ".manifest.json")))
+    assert m["set_dir"] == str(set_dir) and m["shard"] == [1, 3]
+    assert eb.eval_env(shards[0], "terminus", {})["SWE_TB2_DATA"] == str(shards[0])
+    assert eb.shard_evalset(orig, "1/3", tmp_path / "bench") == shards[0]  # asking again reuses it
+    shards[0].write_text(shards[0].read_text() + "\n")
+    with pytest.raises(SystemExit, match="is not shard"):
+        eb.shard_evalset(orig, "1/3", tmp_path / "bench")
+    with pytest.raises(SystemExit, match="1 <= i <= n"):
+        eb.shard_evalset(orig, "4/3", tmp_path / "bench")
+    # an arm's evalset gets its shards beside it
+    acc = tmp_path / "root" / "data" / "evalsets" / "bench-accepted.jsonl"
+    eb._write_evalset(acc, [_row("a", 1), _row("b", 2)], set_dir=str(set_dir))
+    assert eb.shard_evalset(acc, "2/2", tmp_path / "root").parent == acc.parent
+
+
+def test_tally_merges_shards_and_refuses_a_shard_of_another_recipe(tmp_path):
+    es1 = _jsonl(tmp_path / "s1.jsonl", [_row("a")])
+    es2 = _jsonl(tmp_path / "s2.jsonl", [_row("b")])
+    e1 = _eval(tmp_path, "s1", es1, {"a": "PF"})
+    e2 = _eval(tmp_path, "s2", es2, {"b": "PP"})
+    out = eb.tally(evals=[e1, e2], runs=[], evalset=None, root=None, set_dir=None, before=[], labels=None,
+                   log=eb.Log(tmp_path / "t.log"))
+    assert (out["after"]["mixed"], out["after"]["all_solved"]) == (1, 1)
+    with pytest.raises(SystemExit, match="another recipe"):
+        eb.tally(evals=[e1, _as_legacy(e2)], runs=[], evalset=None, root=None, set_dir=None, before=[],
+                 labels=None, log=eb.Log(tmp_path / "t.log"))

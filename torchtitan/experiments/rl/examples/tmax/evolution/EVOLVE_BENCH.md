@@ -49,8 +49,9 @@ signal; a mixed row already carries gradient and is an ordinary training
 task, so it is not in the set. `freeze` takes each row's before-measurement
 from existing results, the first source that measured it, in the order
 given: an eval (`--eval`, the task's attempts) or a training run
-(`--first-group`, the task's first rev-0 group, banded on its first five
-graded attempts so the band means what a five-attempt eval's does; the
+(`--first-group`, the task's first rev-0 group, banded on its first k
+graded attempts, k the `--recipe`'s attempts per task, so the band means what
+an eval's does; the
 whole group is staged as the signal's attempts). A row is dropped, with the
 reason in the manifest's `dropped`, when it is mixed, ungraded, not
 measured, measured on a `test_sh` other than the release row's, or when its
@@ -73,9 +74,9 @@ Three sets are frozen on della under
   September agentpick training run (`runs/tmax-9b--20260927-084446Z` of the
   `yichuan` profile's root, commit 9403e73c), so their before-bands come
   from older code than the evals of their rewrites. Both sources ran the
-  `legacy-2400` recipe, so the set is a legacy-recipe set: its rewrites are
-  evaluated under `legacy-2400`, and its results compare only with other
-  sets measured that way.
+  `legacy-2400` recipe, so the bands in its manifest are legacy bands: an
+  eval of its rewrites under `train-2026-10-25` pairs with a re-measurement
+  of its original rows under that recipe (`tally --before`), never with them.
 
   | corpus | easier | harder | dropped |
   |---|---|---|---|
@@ -110,8 +111,12 @@ $PY $EVO/evolve_bench.py run --bench $BENCH --set agentpick400-measured --arm ar
 $PY $EVO/evolve_bench.py evalset --root $BENCH/arms/agentpick400-measured--sol-medium
 TRL_PROFILE=andy $PY $EVO/evolve_bench.py eval --harness terminus --gpus 4,4 \
     --evalset $BENCH/arms/agentpick400-measured--sol-medium/data/evalsets/bench-accepted.jsonl
+# a set measured under another recipe: its original rows again, under this one
+TRL_PROFILE=andy $PY $EVO/evolve_bench.py eval --harness terminus --gpus 5,5 \
+    --evalset $BENCH/sets/agentpick400-measured/original.jsonl --base $BENCH
 $PY $EVO/evolve_bench.py tally --root $BENCH/arms/agentpick400-measured--sol-medium \
     --eval $BENCH/arms/agentpick400-measured--sol-medium/evals/<stamp>--base-step0-bench-accepted \
+    --before $BENCH/evals/<stamp>--base-step0-original \
     --labels $EVO/data_evolve_bench_defects.tsv \
     --out $BENCH/results/sol-medium.json
 $PY $EVO/evolve_bench.py compare sol=$BENCH/results/sol-medium.json opus=$BENCH/results/opus-medium.json \
@@ -168,47 +173,58 @@ same arm again resumes it; a changed config needs a new name.
 
 ## Pinned values and their reasons
 
-The student eval (`eval`, through `della/tb2_eval_local.sh`) runs one of two
-named recipes, which `launch.json` records as `SWE_BENCH_RECIPE`. A set
-records the recipe its before-measurements were taken under
-(`student_recipe` in its manifest; a set frozen before manifests recorded one
-counts as legacy), and every eval of its rewrites runs that recipe, so before
-and after stay comparable. `compare` refuses to pair the two recipes.
+The student eval (`eval`, through `della/tb2_eval_local.sh`) runs one named
+recipe, `train-2026-10-25`, which `launch.json` records as
+`SWE_BENCH_RECIPE` with every value it pins. It rolls a validation attempt
+out the way a training rollout is, so a task's band says whether a training
+group on it carries gradient. The values come from `runbook/rltrain.env` and
+the training defaults of `config_registry.py` and Terminus; each `SWE_EVAL_*`
+switches a validation-only behaviour back to training's.
 
-| | `training-2026-10` (default) | `legacy-2400` |
+| pin | value | as in training |
 |---|---|---|
-| turns | 120 | 120 |
-| context: generator `max_model_len` (`SWE_TMAX_CONTEXT`) | 81920 | 65536 (the code's default) |
-| context: the agent stops at (`SWE_MAX_CONTEXT_LEN`) | 79872 | 63488 |
-| budget of a row that declares none (`SWE_EVAL_TIME_BUDGET_SEC`) | 7200 s | 2400 s |
-| budget of a row that declares one | max(declared, 7200 s) | max(declared, 7200 s) |
-| sets | new sets | `agentpick400-measured`, `repair342`, `r100` |
-
-`training-2026-10` holds the student to the caps training runs at now: 120
-turns, an 81920-token context, two hours per attempt. The agent stops 2048
-tokens short of the generator's `max_model_len` (config_registry's headroom),
-so a long episode ends before vLLM would reject it. `legacy-2400` is what the
-repair342 and r100 evals ran; it stays for the sets measured under it, whose
-before-measurements are not taken again.
-
-Both recipes share the rest:
-
-| pin | value | why |
-|---|---|---|
-| attempts per task | `SWE_TB2_VAL_K=5` | three counts need a spread; the `r100` and `repair342` arms were scored at k=5 |
-| sampling | temperature 1.0, top_p 1.0 | `tb2_eval_local.sh`'s defaults, which the `repair342` base eval ran at; the r100 evals of earlier arms ran 0.8 / 0.95 and do not compare with bench evals |
-| concurrency | `SWE_ROLLOUT_CONCURRENCY` = 128 per generator, 1 generator | above what the generator decodes at once, attempts wait for a slot while their wall clock runs and read as time-budget failures: the `repair342` base eval at 600 on one generator had 356 of its last 400 attempts end at the budget, and at 128 it had 36 time-budget failures over all 1,710 attempts. 128 is the measured value, under `legacy-2400`; 256 (`SWE_MAX_NUM_SEQS`) has not been measured, and neither has 128 at the longer context |
-| harness | `--harness vanillux`, `terminus` or `miniswe`, recorded | the student's harness changes what it can do; a set's signals were measured under one, and `eval` refuses another |
-| action cap | `TMAX_CALL_LIMIT=120` | vanillux's action cap, whose default is 64; at 120 it matches the 120 turns `TMAX_TERMINUS_MAX_TURNS` gives Terminus |
-| per-sandbox fallback | `TT_DAYTONA_*` 1 / 2 / 2 | applies only to rows that declare nothing |
+| attempts per task | `SWE_TB2_VAL_K=16` | `SWE_GROUP_SIZE=16` |
+| turns | `TMAX_TERMINUS_MAX_TURNS=120` | same |
+| context | `SWE_TMAX_CONTEXT=81920`, agent stops at `SWE_MAX_CONTEXT_LEN=79872` | same: 2048 tokens of headroom below vLLM's `max_model_len` |
+| per-turn generation cap | `TMAX_TURN_MAX_TOKENS=16384` | same |
+| wall clock per attempt | 7200 s (`SWE_EVAL_TIME_BUDGET_SEC`, floor `SWE_EVAL_BUDGET_FLOOR_SEC`) | `SWE_TIME_BUDGET_SEC` / `SWE_AGENT_TIMEOUT_FLOOR_SEC` = 7200 |
+| validation-only caps | `SWE_EVAL_MAX_TURNS`, `SWE_EVAL_MAX_CONTEXT_LEN`, `SWE_EVAL_*_BUDGET_CAP_SEC` = 0 | training has none |
+| context notice | `SWE_EVAL_CONTEXT_NOTICE=1`, style `checked` at 24576 / 8192 tokens left, status line each turn | training always shows it; validation hides it by default |
+| an attempt that never submitted | scores 0 (`SWE_EVAL_GRADE_UNSUBMITTED=0`); no shadow verdict enters the score | training scores it 0; validation would grade it at the verifier |
+| opening turn that breaks the format | ends the attempt at 0 (`SWE_EVAL_STRICT_OPENING=1`) | `SWE_STRICT_OPENING` defaults to 1 |
+| tmux | rows load as they are (`SWE_TB2_BAKE_TMUX=0`) | the training dataset does not bake tmux in |
+| sampling | temperature 1.0, top_p 1.0 | same |
+| concurrency | `SWE_ROLLOUT_CONCURRENCY` = 128 per generator, 1 generator | not training's: above what the generator decodes at once, attempts wait for a slot while their wall clock runs and read as time-budget failures. The `repair342` base eval at 600 on one generator had 356 of its last 400 attempts end at the budget; at 128 it had 36 time-budget failures over all 1,710 attempts |
+| harness | `--harness vanillux`, `terminus` or `miniswe`, recorded | a set's signals were measured under one, and `eval` refuses another |
+| action cap | `TMAX_CALL_LIMIT=120` | vanillux's cap, whose default is 64; 120 matches the turns Terminus gets |
+| per-sandbox fallback | `TT_DAYTONA_*` 1 / 2 / 2 | the fleet default, for rows that declare nothing |
 | signals | `SWE_EVOLUTION_SIGNALS=0` | the measurement never reaches a loop |
 
-Any of these already set to another value in the caller's environment is
-refused, not overridden. `launch.json` records them, with the checkout's
-commit, the GPU names, the generator count and the evalset's sha256. `tally`
-reads them back, and `compare` refuses to pair two measurements that differ
-on any of them: checkpoint, code commit, GPU type, generator count, harness or
-a pinned value (`--allow-mismatch` pairs them anyway, marked NOT COMPARABLE).
+`legacy-2400` is the recipe every measurement before it ran: the eval path's
+own behaviour (no context notice, unsubmitted attempts graded, no strict
+opening, tmux baked in), k=5, a 65536 context with the agent stopping at
+63488, 2400 s for rows that declare nothing, a 32768-token turn cap. The
+`agentpick400-measured`, `repair342` and `r100` sets were measured under it,
+and so were both arms' existing results. It is kept so those results can be
+read; no new eval runs it.
+
+Any pinned value already set to another value in the caller's environment is
+refused, not overridden. `launch.json` records the recipe, the checkout's
+commit, the host, the GPU names, the generator count and the evalset's
+sha256. `tally` reads them back and refuses to pair a before and an after of
+different recipes: an eval of a set measured under `legacy-2400` reports its
+transitions only against `--before` evals of the original rows under the same
+recipe. `compare` refuses to pair two measurements that differ on the recipe or
+on checkpoint, code commit, GPU type, generator count or harness
+(`--allow-mismatch` pairs them anyway, marked NOT COMPARABLE).
+
+### One evalset on several cards
+
+`eval --shard i/n` scores rows i, i+n, i+2n, ... of the evalset, written as an
+evalset of their own beside it (or under `<base>/evalsets/` when the evalset
+sits in a frozen set's directory). Each shard is one eval on one card, all of
+one GPU type; `tally --eval` and `--before` take every shard's eval and merge
+them, refusing shards that ran different recipes.
 
 The drive (`run`): `TT_DAYTONA_*` at the trainer's fleet default (1 / 2 / 2,
 since a row that declares nothing is verified at that size), offline_drive's
@@ -270,8 +286,9 @@ task.
 
 ## Known failure modes of the mechanical metrics
 
-- The band of one k=5 eval is noisy per task; compare arms paired, on one
-  recipe, and read the McNemar p rather than a difference of counts.
+- The band of one eval is noisy per task (k=16 under `train-2026-10-25`, k=5
+  under `legacy-2400`); compare arms paired, on one recipe, and read the
+  McNemar p rather than a difference of counts.
 - The claimed-unchanged check reads the author's notes and closing message.
   Under the blind verifier (the default) tests/ is written by another
   session, so an author who truthfully left tests/ alone still reads as a
