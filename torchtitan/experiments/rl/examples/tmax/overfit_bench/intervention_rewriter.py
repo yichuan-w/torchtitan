@@ -115,6 +115,7 @@ class Policy:
     diagnose_attempts: int = 24
     build_attempts: int = 8
     diagnose_timeout: int = 3600
+    max_wait_sec: int = 5400
     provider_retries: int = 3
     provider_retry_sec: int = 300
 
@@ -359,12 +360,21 @@ class Coordinator:
                 continue
             if last[0] == 0 and len(groups) > diag.get("groups", -1):
                 pending = self._pending_measurement()
+                waited = time.time() - self.state["diagnoses"].get(k, {}).get("waiting_since", time.time())
+                if pending and waited > pol.max_wait_sec and "diagnosis of" not in pending:
+                    # Groups of a heavily helped version take hours: waiting for
+                    # every one of them stalls the search, so after --max-wait-sec
+                    # the diagnosis runs on what is measured.
+                    log.info("policy stop waiting {%s} on %s after %.0f min: %s", k, v["label"], waited / 60, pending)
+                    pending = ""
                 if pending:
                     # Measure before expanding: the next diagnosis then reads
                     # every version's result, and one base's interventions are
                     # not copied onto every other all-failed base.
                     if diag.get("waiting") != pending:
-                        self.state["diagnoses"].setdefault(k, {"status": "waiting", "groups": -1})["waiting"] = pending
+                        d = self.state["diagnoses"].setdefault(k, {"status": "waiting", "groups": -1})
+                        d["waiting"] = pending
+                        d.setdefault("waiting_since", time.time())
                         self._save()
                         log.info("policy wait {%s} on %s: %s not measured yet", k, v["label"], pending)
                     continue
@@ -395,6 +405,7 @@ class Coordinator:
 
     def start_diagnosis(self, v: dict, k: str, *, why: str) -> None:
         d = self.state["diagnoses"].setdefault(k, {})
+        d.pop("waiting_since", None)
         d.update({"status": "running", "groups": len(self.groups[v["id"]]), "started": layout.stamp(),
                   "version": v["id"], "runs": d.get("runs", 0) + 1})
         self._save()

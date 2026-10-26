@@ -277,3 +277,19 @@ def test_no_new_diagnosis_while_another_version_is_unmeasured(job, monkeypatch):
     _group_done(sched, version=vb, rev=2, group=2, passed=0)
     _drain(co, 18, 2)
     assert len(diag.calls) == 2
+
+
+def test_a_diagnosis_waits_for_unmeasured_versions_at_most_max_wait(job, monkeypatch):
+    root, run, sched, client = job
+    co, evolve, diag = _start(job, monkeypatch, [_cand("A"), _cand("B", "feedback")], [_cand("C")])
+    _rollouts(run, sched, version=V0, rev=0, group=0, rewards=[0.0] * 6)
+    _drain(co, 6, 0)
+    va = _set_version(co, "i1")
+    _rollouts(run, sched, version=va, rev=1, group=1, rewards=[0.0] * 12)
+    _group_done(sched, version=va, rev=1, group=1, passed=0)
+    _drain(co, 18, 1)
+    assert len(diag.calls) == 1  # {i2} untested
+    co.state["diagnoses"]["i1"]["waiting_since"] -= co.policy.max_wait_sec + 1
+    co.step(0.05)
+    _drain(co)
+    assert len(diag.calls) == 2
