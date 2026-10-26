@@ -368,6 +368,8 @@ class Coordinator:
                     log.info("policy stop waiting {%s} on %s after %.0f min: %s", k, v["label"], waited / 60, pending)
                     pending = ""
                 if pending:
+                    self.state["diagnoses"].setdefault(k, {"status": "waiting", "groups": -1}).setdefault(
+                        "waiting_since", time.time())
                     # Measure before expanding: the next diagnosis then reads
                     # every version's result, and one base's interventions are
                     # not copied onto every other all-failed base.
