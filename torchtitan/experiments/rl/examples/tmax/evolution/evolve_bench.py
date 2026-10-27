@@ -40,6 +40,7 @@ import os
 import random
 import re
 import shutil
+import shlex
 import subprocess
 import sys
 import tempfile
@@ -55,6 +56,7 @@ sys.path.insert(0, str(_TMAX))
 sys.path.insert(0, str(_EVO))
 import layout  # noqa: E402
 import offline_cost  # noqa: E402
+import rollout_record  # noqa: E402
 
 # The student recipes a bench eval runs under. tb2_eval_local.sh exports one
 # into the trainer and records it in launch.json's env (SWE_BENCH_RECIPE names
@@ -217,6 +219,29 @@ URL_RE = re.compile(r"\b(?:https?|git|ssh)://([A-Za-z0-9.-]+)|\bgit@([A-Za-z0-9.
 # A new check that runs the submitted program on inputs the grader writes.
 EXEC_RE = re.compile(r"subprocess\.(run|call|check_call|check_output|Popen)|os\.system\(|\bbash\s+-c\b|\bpython3?\s+/(app|home|tmp|workspace)")
 WRITE_RE = re.compile(r"tempfile\.|mkdtemp|NamedTemporaryFile|write_text\(|write_bytes\(|open\([^)]*['\"][wa]b?['\"]|cat\s*>|>\s*/tmp/|shutil\.copy")
+
+# Package-install signals are deliberately mechanical.  The rewrite metric
+# reads only added instruction lines, while the rollout metric reads only the
+# student's terminal actions (``rollout_record``), never the harness command
+# that starts tmux or a sandbox.
+INSTALL_GUIDANCE_RE = re.compile(
+    r"(?:\bpip3?\b|\buv\b|\bconda\b|\bapt(?:-get)?\b).*\binstall\b"
+    r"|\binstall\b|\bdownload\b|\bfetch\b|\b[A-Za-z0-9_.-]+==[0-9][^\s,;)]*\b",
+    re.I,
+)
+INSTALL_COMMAND_RE = re.compile(
+    r"(?:^|[;&|]\s*|\bsudo\s+|\bpython(?:\d+(?:\.\d+)?)?\s+-m\s+)"
+    r"(?:pip3?|uv(?:\s+pip)?|conda|apt(?:-get)?|npm|cargo)\s+install\b",
+    re.I | re.M,
+)
+DISK_FULL_RE = re.compile(r"no space left on device|errno\s*28", re.I)
+DOCKER_INSTALL_RE = re.compile(
+    r"\b(?:pip3?|uv(?:\s+pip)?|conda|apt(?:-get)?|npm|cargo)\s+(?:install|add)\b",
+    re.I,
+)
+PACKAGE_SPEC_RE = re.compile(r"(?<![A-Za-z0-9_.-])([A-Za-z0-9][A-Za-z0-9_.-]*)(?:==|@|:)([^\s\\'\"]+)")
+WATCH_POLL_SEC = 60
+GPU_POOL = Path.home() / ".claude" / "skills" / "gpu-pool" / "tool" / "pool.py"
 ASSERT_RE = re.compile(r"\bassert\w*\b")
 # The rewrite saying, of the verifier itself, that it did not change. A partial
 # "otherwise unchanged" is not that claim, and neither is an untouched workspace.
@@ -730,7 +755,9 @@ def _drive_env(root: Path, arm: dict, pins: dict[str, str], source_run: Path, se
 DRIVE = _EVO / "offline_drive.sh"
 
 
-def run_arm(*, bench: Path, set_name: str, arm_path: Path, log: Log, workers: int | None = None) -> Path:
+def run_arm(*, bench: Path, set_name: str, arm_path: Path, log: Log, workers: int | None = None,
+            before: list[Path] | None = None, every: int = 40, minutes: int = 60,
+            eval_host: str = "della-tridao", eval_gpus: str = "auto", no_auto_eval: bool = False) -> Path:
     """Create the arm's root from the set and start offline_drive.sh for it as a
     systemd user unit (RUNBOOK, "Offline evolution of a signal subset"). A root
     that exists with the same arm and set is resumed: the drive restages only
@@ -742,15 +769,34 @@ def run_arm(*, bench: Path, set_name: str, arm_path: Path, log: Log, workers: in
         arm = {**arm, "workers": workers}
     tt, head, codex_version = _arm_checkout(arm)
     root = bench / "arms" / f"{set_name}--{arm['name']}"
+    before = [p.resolve() for p in (before or [])]
+    if root.exists() and (root / "bench_arm.json").exists():
+        previous = json.load(open(root / "bench_arm.json"))
+        requested = {"before": [str(p) for p in before],
+                     "auto_eval": not no_auto_eval, "every": every, "minutes": minutes,
+                     "eval_host": eval_host, "eval_gpus": eval_gpus}
+        existing = {k: previous.get(k) for k in requested}
+        if any(existing[k] is not None and existing[k] != v for k, v in requested.items()):
+            raise SystemExit(f"{root} has a different watcher configuration; use the original run arguments")
     _arm_root(root=root, arm=arm, arm_path=arm_path, tt=tt, head=head, codex_version=codex_version,
               mix=set_dir / "mix.jsonl", sources=manifest["sources"], log=log,
               record={"set": set_name, "set_dir": str(set_dir.resolve()), "set_manifest_sha256": set_sha,
-                      "drive_pins": DRIVE_PINS})
+                      "drive_pins": DRIVE_PINS, "before": [str(p) for p in before],
+                      "auto_eval": not no_auto_eval, "every": every, "minutes": minutes,
+                      "eval_host": eval_host, "eval_gpus": eval_gpus})
     (root / "tmp").mkdir(exist_ok=True)
     unit = f"bench-{root.name}"
     _start_unit(unit, root, _drive_env(root, arm, DRIVE_PINS, set_dir / manifest["run"], set_dir / "selected.json"),
                 ["bash", str(DRIVE)], log)
-    print(f"{unit} started -> {root}; drive log {root}/logs/offline_drive--*.log")
+    if not no_auto_eval:
+        py = Path(os.environ.get("TRL_VENV", "/scratch/gpfs/TRIDAO/al9080/titan-rl")) / "bin" / "python"
+        _start_unit(f"bench-watch-{root.name}", root, {},
+                    [str(py), str(Path(__file__).resolve()), "watch", "--root", str(root),
+                     "--every", str(every), "--minutes", str(minutes), "--eval-host", eval_host,
+                     "--eval-gpus", eval_gpus], log)
+        print(f"{unit} and bench-watch-{root.name} started -> {root}; drive log {root}/logs/offline_drive--*.log")
+    else:
+        print(f"{unit} started -> {root}; drive log {root}/logs/offline_drive--*.log")
     return root
 
 
@@ -1172,6 +1218,238 @@ def run_eval(evalset: Path, ckpt: str, gpus: str, harness: str, base: Path | Non
     os.execve("/bin/bash", ["bash", str(script), ckpt, gpus.split(",")[0]], env)
 
 
+# ----------------------------------------------------------------------- watcher
+
+
+def _watch_path(root: Path) -> Path:
+    return root / "watcher.json"
+
+
+def _load_watch_state(root: Path) -> dict:
+    path = _watch_path(root)
+    if path.exists():
+        return json.load(open(path))
+    return {"version": 1, "waves": {}, "tally": None}
+
+
+def _save_watch_state(root: Path, state: dict) -> None:
+    layout.write_json_atomic(_watch_path(root), state)
+
+
+def _wave_path(manifest: Path) -> Path:
+    return manifest.with_name(manifest.name.removesuffix(".manifest.json") + ".jsonl")
+
+
+def _wave_entries(root: Path, state: dict) -> list[dict]:
+    ev_dir = root / "data" / "evalsets"
+    for manifest in sorted(ev_dir.glob("bench-wave-*.manifest.json")):
+        path = _wave_path(manifest)
+        key = str(path.resolve())
+        state["waves"].setdefault(key, {"evalsets": [key], "evals": [], "launches": {}, "complete": False})
+    return [state["waves"][key] for key in sorted(state["waves"])]
+
+
+def _eval_dirs_for(evalset: Path, base: Path) -> list[Path]:
+    """Find eval directories whose launch record names this exact evalset."""
+    found = []
+    want = str(evalset.resolve())
+    for d in sorted(base.glob("*")):
+        if not d.is_dir() or "--attempt-" in d.name or not (d / "launch.json").is_file():
+            continue
+        try:
+            launch = json.load(open(d / "launch.json"))
+            got = str(Path(launch.get("env", {}).get("SWE_TB2_DATA", "")).resolve())
+        except (OSError, ValueError):
+            continue
+        if got == want:
+            found.append(d)
+    return found
+
+
+def _eval_complete(path: Path) -> bool:
+    return (path / INDEX).is_file() or (path / SALVAGED).is_file()
+
+
+def _pool_label(about: str, log: Log) -> str:
+    proc = subprocess.run([str(GPU_POOL), "label", about], capture_output=True, text=True, check=False)
+    label = (proc.stdout or "").strip()
+    log(f"pool label about={about!r} result={label!r} rc={proc.returncode}")
+    return label or about
+
+
+def _pool_pick(host: str, log: Log) -> str:
+    proc = subprocess.run(
+        [str(GPU_POOL), "pick", "--gpus", "1", "--time", "8h", "--json"],
+        capture_output=True, text=True, check=False,
+    )
+    if proc.returncode:
+        raise RuntimeError(f"pool pick exited {proc.returncode}: {(proc.stderr or '').strip()[-300:]}")
+    try:
+        options = json.loads(proc.stdout or "[]")
+    except json.JSONDecodeError as exc:
+        raise RuntimeError(f"pool pick returned non-JSON: {proc.stdout[-300:]}") from exc
+    for option in options:
+        if option.get("where") == host and option.get("gpus") is not None:
+            card = str(option["gpus"]).split(",")[0]
+            log(f"pool pick host={host} card={card} wait={option.get('wait')}")
+            return card
+    raise RuntimeError(f"pool has no free card on {host}")
+
+
+def _eval_command(*, root: Path, evalset: Path, harness: str, card: str, marker: Path,
+                  profile: str, py: Path, base: Path) -> str:
+    """Build the remote command run under ``pool.py run`` for one wave."""
+    script = _EVO / "evolve_bench.py"
+    started = marker.with_suffix(".started")
+    done = marker.with_suffix(".done")
+    argv = [str(py), str(script), "eval", "--evalset", str(evalset), "--harness", harness,
+            "--ckpt", "base", "--gpus", card, "--base", str(base)]
+    command = " ".join(shlex.quote(x) for x in argv)
+    return (
+        f"mkdir -p {shlex.quote(str(marker.parent))}; date -Is > {shlex.quote(str(started))}; "
+        f"export TRL_PROFILE={shlex.quote(profile)} TRL_BASE={shlex.quote(str(base))}; "
+        f"set +e; {command}; rc=$?; printf '%s\\n' \"$rc\" > {shlex.quote(str(done))}; exit $rc"
+    )
+
+
+def _launch_wave_eval(*, root: Path, evalset: Path, wave: str, card: str, host: str,
+                      harness: str, profile: str, py: Path, log: Log) -> dict:
+    base = root
+    marker = root / "logs" / "evals" / f"{Path(wave).stem}--gpu-{card}"
+    marker.with_suffix(".started").unlink(missing_ok=True)
+    marker.with_suffix(".done").unlink(missing_ok=True)
+    about = f"EvolveBench {root.name} {Path(wave).stem} student eval"
+    label = _pool_label(about, log)
+    command = _eval_command(root=root, evalset=evalset, harness=harness, card=card, marker=marker,
+                             profile=profile, py=py, base=base)
+    argv = [str(GPU_POOL), "run", host, card, "--note", "Zhifei: eval", "--about", label,
+            "--hours", "8", "--exclusive", "--", command]
+    log(f"wave={wave} launch card={card} host={host} evalset={evalset} argv={argv}")
+    subprocess.run(argv, check=True)
+    return {"evalset": str(evalset.resolve()), "card": card, "host": host,
+            "marker": str(marker), "launched": layout.stamp()}
+
+
+def _recover_eval(*, root: Path, evalset: Path, launch: dict, log: Log) -> Path | None:
+    """Salvage a failed eval and return the rest evalset, if any rows remain."""
+    evals = _eval_dirs_for(evalset, root / "evals")
+    if not evals:
+        log(f"evalset={evalset} failed without an eval directory; retrying whole evalset")
+        return evalset
+    ev = evals[-1]
+    if not (ev / INDEX).exists() and not (ev / SALVAGED).exists():
+        rest = salvage(ev, log)
+    else:
+        rest = evalset
+    if rest is None or not _rows(rest):
+        return None
+    log(f"evalset={evalset} salvage={ev} rest={rest}")
+    return rest
+
+
+def watch_once(*, root: Path, every: int, minutes: int, eval_host: str, eval_gpus: str,
+               log: Log, py: Path | None = None) -> bool:
+    """Advance wave cutting/eval recovery once; return true after final tally."""
+    rec = json.load(open(root / "bench_arm.json"))
+    state = _load_watch_state(root)
+    _wave_entries(root, state)
+    wave = cut_wave(root=root, every=every, minutes=minutes, log=log)
+    if wave is not None:
+        key = str(wave.resolve())
+        state["waves"].setdefault(key, {"evalsets": [key], "evals": [], "launches": {}, "complete": False})
+        _save_watch_state(root, state)
+        log(f"wave={wave.name} cut")
+    py = py or Path(os.environ.get("TRL_VENV", "/scratch/gpfs/TRIDAO/al9080/titan-rl")) / "bin" / "python"
+    cards = [x.strip() for x in eval_gpus.split(",") if x.strip()] if eval_gpus != "auto" else None
+    used_cards = set()
+    for key, entry in sorted(state["waves"].items()):
+        evalsets = [Path(x) for x in entry["evalsets"]]
+        # Completed evals are discovered from their launch.json, so a watcher
+        # restart never reruns a finished wave.
+        for evalset in list(evalsets):
+            found = [x for x in _eval_dirs_for(evalset, root / "evals") if _eval_complete(x)]
+            for ev in found:
+                if str(ev.resolve()) not in entry["evals"]:
+                    entry["evals"].append(str(ev.resolve()))
+                    log(f"wave={Path(key).name} eval_done={ev}")
+            launch = entry["launches"].get(str(evalset.resolve()))
+            if launch:
+                marker = Path(launch["marker"])
+                done = marker.with_suffix(".done")
+                if done.exists():
+                    rc = done.read_text().strip()
+                    if rc != "0" and not any(_eval_complete(x) for x in _eval_dirs_for(evalset, root / "evals")):
+                        rest = _recover_eval(root=root, evalset=evalset, launch=launch, log=log)
+                        for ev in _eval_dirs_for(evalset, root / "evals"):
+                            if _eval_complete(ev) and str(ev.resolve()) not in entry["evals"]:
+                                entry["evals"].append(str(ev.resolve()))
+                        entry["launches"].pop(str(evalset.resolve()), None)
+                        if rest is not None and str(rest.resolve()) not in entry["evalsets"]:
+                            entry["evalsets"].append(str(rest.resolve()))
+                    else:
+                        entry["launches"].pop(str(evalset.resolve()), None)
+                else:
+                    used_cards.add(launch["card"])
+        pending = [Path(x) for x in entry["evalsets"]
+                   if not any(str(Path(ev).resolve()) in entry["evals"] for ev in _eval_dirs_for(Path(x), root / "evals"))
+                   and str(Path(x).resolve()) not in entry["launches"]]
+        harness = json.load(open(Path(key).with_name(Path(key).stem + ".manifest.json"))).get("student_harness", "terminus")
+        for evalset in pending:
+            available = [c for c in cards or [] if c not in used_cards]
+            if not available and cards is not None:
+                break
+            try:
+                card = available[0] if available else _pool_pick(eval_host, log)
+                launch = _launch_wave_eval(root=root, evalset=evalset, wave=Path(key).name, card=card,
+                                           host=eval_host, harness=harness, profile=rec["arm"]["profile"], py=py, log=log)
+            except (OSError, RuntimeError, subprocess.CalledProcessError) as exc:
+                log(f"wave={Path(key).name} evalset={evalset} launch deferred: {exc}")
+                continue
+            entry["launches"][str(evalset.resolve())] = launch
+            used_cards.add(card)
+        entry["complete"] = bool(entry["evalsets"]) and all(
+            any(str(Path(ev).resolve()) in entry["evals"] for ev in _eval_dirs_for(Path(es), root / "evals"))
+            for es in entry["evalsets"]
+        ) and not entry["launches"]
+        log(f"wave={Path(key).name} evalsets={len(entry['evalsets'])} evals={len(entry['evals'])} "
+            f"active={len(entry['launches'])} complete={entry['complete']}")
+    _save_watch_state(root, state)
+    finished = _drive_finished(root)
+    if not finished or not all(x["complete"] for x in state["waves"].values()):
+        log(f"watch wait drive_finished={finished} waves={len(state['waves'])}")
+        return False
+    result = root.parent.parent / "results" / f"{rec['arm']['name']}.json"
+    if result.exists():
+        state["tally"] = str(result)
+        _save_watch_state(root, state)
+        return True
+    evals = [Path(x) for entry in state["waves"].values() for x in entry["evals"]]
+    # With no accepted revisions there is no after eval to pair with --before;
+    # tally still writes the arm funnel and keeps the recorded before paths in
+    # bench_arm.json for the manual path.
+    before = [Path(x) for x in rec.get("before", [])] if evals else []
+    log(f"tally start evals={evals} before={before} result={result}")
+    labels_path = _EVO / "data_evolve_bench_defects.tsv"
+    labels = labels_path if labels_path.is_file() else None
+    log(f"tally labels={labels}")
+    res = tally(evals=evals, runs=[], evalset=None, root=root, set_dir=None, before=before,
+                labels=labels, log=log)
+    result.parent.mkdir(parents=True, exist_ok=True)
+    layout.write_json_atomic(result, res)
+    state["tally"] = str(result)
+    _save_watch_state(root, state)
+    log(f"tally done result={result}")
+    return True
+
+
+def watch(*, root: Path, every: int, minutes: int, eval_host: str, eval_gpus: str, poll_sec: int = WATCH_POLL_SEC) -> None:
+    """Watch an arm until its waves are scored and its result is tallied."""
+    log = _log_for(root, "watcher")
+    while not watch_once(root=root, every=every, minutes=minutes, eval_host=eval_host,
+                         eval_gpus=eval_gpus, log=log):
+        time.sleep(poll_sec)
+
+
 # ----------------------------------------------------------------- bands: evals
 
 
@@ -1198,7 +1476,8 @@ def read_eval(eval_dir: Path, evalset: Path | None = None) -> dict:
         rows = [r for r in rows if _iid(r) in kept]
     per: dict[str, dict[str, Any]] = {
         _iid(r): {"pass": 0, "graded": 0, "infra": 0, "finish": collections.Counter(),
-                  "finish_failed": collections.Counter(), "rev": int(r["metadata"].get("rev") or 0)}
+                  "finish_failed": collections.Counter(), "rev": int(r["metadata"].get("rev") or 0),
+                  "attempts": []}
         for r in rows
     }
     for e in index:
@@ -1207,16 +1486,19 @@ def read_eval(eval_dir: Path, evalset: Path | None = None) -> dict:
         t = per[e["task"]]
         if e.get("infra_failed"):
             t["infra"] += 1
+            t["attempts"].append({"record": e["record"], "state": "INFRA"})
             continue
         t["graded"] += 1
         t["pass"] += e["state"] == "PASS"
+        t["attempts"].append({"record": e["record"], "state": e["state"]})
         t["finish"][e.get("finish_reason") or "?"] += 1
         if e["state"] != "PASS":
             t["finish_failed"][e.get("finish_reason") or "?"] += 1
     tasks = {}
     for tid, v in per.items():
         b = "no_attempts" if v["graded"] + v["infra"] == 0 else bucket(v["pass"], v["graded"])
-        tasks[tid] = {**v, "finish": dict(v["finish"]), "finish_failed": dict(v["finish_failed"]), "bucket": b}
+        tasks[tid] = {**v, "finish": dict(v["finish"]), "finish_failed": dict(v["finish_failed"]), "bucket": b,
+                      "attempts": list(v["attempts"])}
     recipe = None
     if launch is not None:
         recipe = {"source": "eval", "harness": _harness(launch)}
@@ -1430,6 +1712,10 @@ def diff_stats(old: Path, new: Path, claim_text: str) -> dict:
         if EXEC_RE.search(blob) and WRITE_RE.search(blob):
             rerun = True
     dock_old, dock_new = old / "environment" / "Dockerfile", new / "environment" / "Dockerfile"
+    old_instruction = (old / "instruction.md").read_text(errors="replace") if (old / "instruction.md").is_file() else ""
+    new_instruction = (new / "instruction.md").read_text(errors="replace") if (new / "instruction.md").is_file() else ""
+    old_docker = dock_old.read_text(errors="replace") if dock_old.is_file() else ""
+    new_docker = dock_new.read_text(errors="replace") if dock_new.is_file() else ""
     claims_unchanged = bool(CLAIM_UNCHANGED_RE.search(claim_text))
     return {
         "tests_bytes": [b_old, b_new],
@@ -1441,10 +1727,158 @@ def diff_stats(old: Path, new: Path, claim_text: str) -> dict:
         "instruction_words": [_words(old / "instruction.md"), _words(new / "instruction.md")],
         "dockerfile_changed": (dock_old.read_bytes() if dock_old.is_file() else None)
         != (dock_new.read_bytes() if dock_new.is_file() else None),
+        "instruction_adds_install_guidance": instruction_adds_install_guidance(old_instruction, new_instruction),
+        "dockerfile_removes_or_changes_install": dockerfile_removes_or_changes_install(old_docker, new_docker),
         "solution_changed": _texts(old / "solution") != _texts(new / "solution"),
         "claims_verifier_unchanged": claims_unchanged,
         "claim_mismatch": claims_unchanged and tests_changed,
     }
+
+
+def _added_text(old: str, new: str) -> str:
+    """The added side of a zero-context diff, without the ``+++`` header."""
+    return "\n".join(
+        line[1:] for line in difflib.unified_diff(old.splitlines(), new.splitlines(), lineterm="", n=0)
+        if line.startswith("+") and not line.startswith("+++")
+    )
+
+
+def instruction_adds_install_guidance(old: str, new: str) -> bool:
+    """Whether an instruction diff adds package/tool acquisition guidance."""
+    return bool(INSTALL_GUIDANCE_RE.search(_added_text(old, new)))
+
+
+def _docker_install_specs(text: str) -> dict[str, set[str]]:
+    """Installed package specs grouped by package name from Dockerfile lines."""
+    out: dict[str, set[str]] = collections.defaultdict(set)
+    for line in text.splitlines():
+        if not DOCKER_INSTALL_RE.search(line):
+            continue
+        for name, version in PACKAGE_SPEC_RE.findall(line):
+            out[name.lower()].add(version)
+        # Unpinned package names still matter for removal.  Keep the token after
+        # install, stopping at shell punctuation and common option flags.
+        m = re.search(r"\b(?:install|add)\s+(.+)$", line, re.I)
+        if m:
+            for token in re.split(r"\s+|&&|[;|]", m.group(1)):
+                token = token.strip("\\'\"(),")
+                if token and not token.startswith("-"):
+                    name = re.split(r"[<>=@:]", token, maxsplit=1)[0]
+                    if re.fullmatch(r"[A-Za-z0-9_.-]+", name):
+                        out[name.lower()].add(token)
+    return out
+
+
+def dockerfile_removes_or_changes_install(old: str, new: str) -> bool:
+    """Whether an accepted Dockerfile removes an install or changes its pin."""
+    before, after = _docker_install_specs(old), _docker_install_specs(new)
+    for name, specs in before.items():
+        if name not in after or not specs & after[name]:
+            return True
+    return False
+
+
+def _student_commands(record: Path) -> tuple[list[str], str]:
+    """Read student actions and visible output from one rollout record."""
+    try:
+        _header, turns = rollout_record.read_record(record)
+    except (OSError, ValueError, json.JSONDecodeError):
+        return [], ""
+    commands: list[str] = []
+    output: list[str] = []
+    for turn in turns:
+        output.append(str(turn.get("output") or ""))
+        keys = turn.get("keystrokes")
+        if isinstance(keys, list):
+            commands.extend(str(x) for x in keys)
+        elif isinstance(turn.get("raw"), str):
+            command = rollout_record.vanillux_command(turn["raw"])
+            if command:
+                commands.append(command)
+    return commands, "\n".join(output)
+
+
+def _attempt_install_fact(eval_dir: Path, task: str, attempt: dict) -> dict[str, Any]:
+    record = _record_path(eval_dir, attempt["record"])
+    commands, output = _student_commands(record)
+    install_count = sum(len(INSTALL_COMMAND_RE.findall(cmd)) for cmd in commands)
+    _header, turns = rollout_record.read_record(record)
+    visible = "\n".join([output, *[str(t.get("raw") or "") for t in turns]])
+    return {"task": task, "record": attempt["record"], "install_commands": install_count,
+            "installed": install_count > 0, "disk_full": bool(DISK_FULL_RE.search(visible)),
+            "passed": attempt.get("state") == "PASS"}
+
+
+def _summarize_install_facts(facts: list[dict]) -> dict:
+    """Summarize rollout-level install and disk-full facts."""
+    n = len(facts)
+    with_install = [x for x in facts if x["installed"]]
+    without_install = [x for x in facts if not x["installed"]]
+    counts = sorted(x["install_commands"] for x in facts)
+    med = (counts[(len(counts) - 1) // 2] + counts[len(counts) // 2]) / 2 if counts else None
+    rate = lambda xs: round(sum(x["passed"] for x in xs) / len(xs), 3) if xs else None  # noqa: E731
+    return {
+        "attempts": n,
+        "install_attempts": len(with_install),
+        "install_share": round(len(with_install) / n, 3) if n else None,
+        "median_install_commands": med,
+        "disk_full_attempts": sum(x["disk_full"] for x in facts),
+        "disk_full_share": round(sum(x["disk_full"] for x in facts) / n, 3) if n else None,
+        "pass_rate_with_install": rate(with_install),
+        "pass_rate_without_install": rate(without_install),
+    }
+
+
+def _install_facts(eval_obj: dict, task_ids: set[str] | None = None) -> list[dict]:
+    facts = []
+    eval_dir = Path(eval_obj["eval"])
+    for task, value in eval_obj["tasks"].items():
+        if task_ids is not None and task not in task_ids:
+            continue
+        for attempt in value.get("attempts", []):
+            if attempt.get("state") != "INFRA":
+                facts.append(_attempt_install_fact(eval_dir, task, attempt))
+    return facts
+
+
+def install_metrics(after: list[dict], before: list[dict], rewrites: list[dict]) -> dict:
+    """Report rollout install behaviour overall, by direction and guidance."""
+    after_facts = [f for e in after for f in _install_facts(e)]
+    before_facts = [f for e in before for f in _install_facts(e)]
+    out = {"before": _summarize_install_facts(before_facts),
+           "after": _summarize_install_facts(after_facts),
+           "delta": _metric_delta(_summarize_install_facts(before_facts), _summarize_install_facts(after_facts))}
+    groups: dict[str, set[str]] = {}
+    for label, predicate in (
+        ("instruction_guidance_added", lambda r: r.get("diff", {}).get("instruction_adds_install_guidance")),
+        ("instruction_guidance_not_added", lambda r: not r.get("diff", {}).get("instruction_adds_install_guidance")),
+    ):
+        groups[label] = {r["task"] for r in rewrites if r.get("class") == "accepted" and predicate(r)}
+    out["directions"] = {}
+    for direction in ("harder", "easier"):
+        ids = {r["task"] for r in rewrites if r.get("class") == "accepted" and r.get("job") == direction}
+        b = _summarize_install_facts([f for e in before for f in _install_facts(e, ids)])
+        a = _summarize_install_facts([f for e in after for f in _install_facts(e, ids)])
+        out["directions"][direction] = {"before": b, "after": a, "delta": _metric_delta(b, a), "tasks": sorted(ids)}
+    out["guidance"] = {}
+    for label, ids in groups.items():
+        b = _summarize_install_facts([f for e in before for f in _install_facts(e, ids)])
+        a = _summarize_install_facts([f for e in after for f in _install_facts(e, ids)])
+        out["guidance"][label] = {"before": b, "after": a, "delta": _metric_delta(b, a), "tasks": sorted(ids)}
+    return out
+
+
+def _metric_delta(before: dict | None, after: dict | None) -> dict:
+    """After-minus-before for numeric/share fields, preserving empty groups."""
+    before, after = before or {}, after or {}
+    out = {}
+    for key in ("install_share", "median_install_commands", "disk_full_share",
+                "pass_rate_with_install", "pass_rate_without_install"):
+        if before.get(key) is not None and after.get(key) is not None:
+            out[key] = round(after[key] - before[key], 3)
+        else:
+            out[key] = None
+    return out
 
 
 def _signal_band(root: Path, rw: dict) -> str | None:
@@ -1535,6 +1969,16 @@ def rewrite_stats(rewrites: list[dict]) -> dict:
             "dockerfile_changed": sum(x["dockerfile_changed"] for x in d),
             "solution_changed": sum(x["solution_changed"] for x in d),
             "claim_mismatch": sum(x["claim_mismatch"] for x in d),
+            "package_install": {
+                "instruction_guidance_added": {
+                    "count": sum(x["instruction_adds_install_guidance"] for x in d),
+                    "tasks": sorted(r["task"] for r in rs if r["diff"]["instruction_adds_install_guidance"]),
+                },
+                "dockerfile_install_removed_or_version_changed": {
+                    "count": sum(x["dockerfile_removes_or_changes_install"] for x in d),
+                    "tasks": sorted(r["task"] for r in rs if r["diff"]["dockerfile_removes_or_changes_install"]),
+                },
+            },
             "grader_network": {
                 "introduced": sum(bool(r["hosts_after"]) and not r["hosts_before"] for r in rs),
                 "kept": sum(bool(r["hosts_after"]) and bool(r["hosts_before"]) for r in rs),
@@ -1721,11 +2165,13 @@ def tally(
     after_tasks: dict = {}
     if evals and runs:
         raise SystemExit("one after-source per tally: evals or training runs")
+    after_evals: list[dict] = []
+    before_evals: list[dict] = []
     if evals:
-        after = [read_eval(e, evalset) for e in evals]
-        after_tasks = merge_evals(after)
-        out["inputs"]["evals"] = [{k: e[k] for k in ("eval", "salvaged", "launch", "evalset")} for e in after]
-        out["recipe"] = after[0]["recipe"]
+        after_evals = [read_eval(e, evalset) for e in evals]
+        after_tasks = merge_evals(after_evals)
+        out["inputs"]["evals"] = [{k: e[k] for k in ("eval", "salvaged", "launch", "evalset")} for e in after_evals]
+        out["recipe"] = after_evals[0]["recipe"]
         out["after"] = counts(after_tasks)
         out["after_tasks"] = after_tasks
         for tid, v in after_tasks.items():
@@ -1793,6 +2239,8 @@ def tally(
             out["inputs"]["labels"] = str(labels.resolve()) if labels else "metadata.parquet only"
             out["repair"] = repair_report(per_task, lab)
         out["rewrites"] = rewrites
+        if after_evals:
+            out["install_metrics"] = install_metrics(after_evals, before_evals, rewrites)
         if evals:
             outside = sorted(set(after_tasks) - set(tasks))
             if outside:
@@ -1814,14 +2262,14 @@ def tally(
     if before:
         if not evals:
             raise SystemExit("--before pairs with evals of the accepted rows")
-        b_evals = [read_eval(e) for e in before]
-        b_tasks = merge_evals(b_evals)
-        out["inputs"]["before"] = [{k: e[k] for k in ("eval", "salvaged", "launch", "evalset")} for e in b_evals]
+        before_evals = [read_eval(e) for e in before]
+        b_tasks = merge_evals(before_evals)
+        out["inputs"]["before"] = [{k: e[k] for k in ("eval", "salvaged", "launch", "evalset")} for e in before_evals]
         missing = sorted(set(after_tasks) - set(b_tasks))
         if missing:
             raise SystemExit(f"the before evals do not score {len(missing)} tasks: {missing[:3]}")
         common = sorted(after_tasks)
-        mm = recipe_mismatch(out["recipe"], b_evals[0]["recipe"])
+        mm = recipe_mismatch(out["recipe"], before_evals[0]["recipe"])
         # A before and an after of different recipes do not pair; a code commit
         # or GPU difference is recorded with the transitions.
         hard = {k: v for k, v in mm.items() if k in RECIPE_KEYS or k in ("recipe", "student_recipe", "harness")}
@@ -2437,11 +2885,17 @@ def main() -> None:
     g.add_argument("--release", type=Path, help="a data_release.py release: mix, sources and config")
     g.add_argument("--mix", type=Path, help="the seed mix the signals measured (with --sources)")
     p.add_argument("--sources", type=Path, nargs="+", default=[], help="with --mix: corpus directories holding tasks/<id>")
-    p = sub.add_parser("run", help="create an arm's root and start its offline drive")
+    p = sub.add_parser("run", help="create an arm's root, drive it, and watch waves by default")
     p.add_argument("--bench", type=Path, required=True)
     p.add_argument("--set", required=True)
     p.add_argument("--arm", type=Path, required=True)
     p.add_argument("--workers", type=int, help="relaunch an existing root at this worker count")
+    p.add_argument("--before", type=Path, nargs="+", default=[], help="original-row eval(s) for the final tally")
+    p.add_argument("--every", type=int, default=40, help="cut a wave after this many accepted revisions")
+    p.add_argument("--minutes", type=int, default=60, help="cut a wave after this many minutes")
+    p.add_argument("--eval-host", default="della-tridao", help="gpu-pool target for student evals")
+    p.add_argument("--eval-gpus", default="auto", help="comma-separated cards, or auto for pool pick")
+    p.add_argument("--no-auto-eval", action="store_true", help="start only the drive; keep manual wave/eval/tally")
     p = sub.add_parser("pipeline", help="rewrite while the base eval runs: stager + drive as user units")
     p.add_argument("--bench", type=Path, required=True)
     p.add_argument("--name", required=True, help="the set's name")
@@ -2460,6 +2914,13 @@ def main() -> None:
     p.add_argument("--root", type=Path, required=True)
     p.add_argument("--every", type=int, required=True, help="cut once this many accepted revisions wait")
     p.add_argument("--minutes", type=int, required=True, help="or this long after the previous wave")
+    p = sub.add_parser("watch", help="cut, score, recover and tally waves until an arm is complete")
+    p.add_argument("--root", type=Path, required=True)
+    p.add_argument("--every", type=int, required=True)
+    p.add_argument("--minutes", type=int, required=True)
+    p.add_argument("--eval-host", default="della-tridao")
+    p.add_argument("--eval-gpus", default="auto")
+    p.add_argument("--poll", type=int, default=WATCH_POLL_SEC)
     p = sub.add_parser("evalset", help="an arm's accepted revisions as an evalset")
     p.add_argument("--root", type=Path, required=True)
     p = sub.add_parser("eval", help="score an evalset under the pinned student recipe")
@@ -2522,7 +2983,9 @@ def main() -> None:
                recipe=a.recipe,
                release=a.release, mix=a.mix, sources=a.sources, log=_log_for(a.bench, "freeze"))
     elif a.cmd == "run":
-        run_arm(bench=a.bench, set_name=a.set, arm_path=a.arm, log=_log_for(a.bench, "run"), workers=a.workers)
+        run_arm(bench=a.bench, set_name=a.set, arm_path=a.arm, log=_log_for(a.bench, "run"), workers=a.workers,
+                before=a.before, every=a.every, minutes=a.minutes, eval_host=a.eval_host,
+                eval_gpus=a.eval_gpus, no_auto_eval=a.no_auto_eval)
     elif a.cmd == "pipeline":
         pipeline(bench=a.bench, name=a.name, eval_dir=a.eval, release=a.release, arm_path=a.arm,
                  poll_sec=a.poll, log=_log_for(a.bench, "pipeline"))
@@ -2531,6 +2994,9 @@ def main() -> None:
               poll_sec=a.poll, log=_log_for(a.bench, f"stage-{a.name}"))
     elif a.cmd == "wave":
         cut_wave(root=a.root, every=a.every, minutes=a.minutes, log=_log_for(a.root, "wave"))
+    elif a.cmd == "watch":
+        watch(root=a.root, every=a.every, minutes=a.minutes, eval_host=a.eval_host,
+              eval_gpus=a.eval_gpus, poll_sec=a.poll)
     elif a.cmd == "evalset":
         build_evalset(a.root, _log_for(a.root, "evalset"))
     elif a.cmd == "eval":

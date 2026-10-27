@@ -105,13 +105,21 @@ $PY $EVO/data_release.py build --config $EVO/data_evolve_bench.json --out <data>
 $PY $EVO/evolve_bench.py freeze --bench $BENCH --name agentpick400-measured --release <release> \
     --eval <evals of the rows> --first-group <training runs that sampled them>
 
-# per arm: a root from the set and offline_drive.sh as a user unit (login node)
-$PY $EVO/evolve_bench.py run --bench $BENCH --set agentpick400-measured --arm arms/sol-medium.json
-# when the drive's log ends in "finished"
+# choose one per arm: automatic scoring starts the drive and its wave watcher as systemd user units on the login node
+$PY $EVO/evolve_bench.py run --bench $BENCH --set agentpick400-measured --arm arms/sol-medium.json \
+    --before $BENCH/evals/<stamp>--base-step0-original \
+    --every 40 --minutes 60 --eval-host della-tridao --eval-gpus auto
+# the watcher writes $BENCH/results/sol-medium.json after the drive and every wave finish and tally completes
+
+# or choose the manual workflow when automatic scoring is not wanted
+$PY $EVO/evolve_bench.py run --bench $BENCH --set agentpick400-measured --arm arms/sol-medium.json \
+    --before $BENCH/evals/<stamp>--base-step0-original --no-auto-eval
+# manual path: cut the final evalset, score it, and tally it
 $PY $EVO/evolve_bench.py evalset --root $BENCH/arms/agentpick400-measured--sol-medium
 TRL_PROFILE=andy $PY $EVO/evolve_bench.py eval --harness terminus --gpus 4,4 \
     --evalset $BENCH/arms/agentpick400-measured--sol-medium/data/evalsets/bench-accepted.jsonl
-# a set measured under another recipe: its original rows again, under this one
+# for a set measured under another recipe, score its original rows under the
+# train-2026-10-25 recipe and pass that eval to --before
 TRL_PROFILE=andy $PY $EVO/evolve_bench.py eval --harness terminus --gpus 5,5 \
     --evalset $BENCH/sets/agentpick400-measured/original.jsonl --base $BENCH
 $PY $EVO/evolve_bench.py tally --root $BENCH/arms/agentpick400-measured--sol-medium \
@@ -125,18 +133,58 @@ $PY $EVO/evolve_bench.py compare sol=$BENCH/results/sol-medium.json opus=$BENCH/
 
 ### Scoring rewrites while the arm runs
 
-`wave` scores accepted revisions while the drive is still rewriting: it cuts
-the revisions no earlier wave holds into `data/evalsets/bench-wave-NN.jsonl`
-once enough have accumulated, enough time has passed since the previous
-wave, or the drive is done, and each wave is evaluated like any evalset. The
-tally takes every wave's eval as `--eval`. Wave evals feed only the tally: no
-signal is made from them and no acceptance waits on them.
+The default `run` starts a second systemd user unit,
+`bench-watch-<set>--<arm>`, beside the offline drive. The watcher repeats
+these steps until the arm is complete:
+
+1. It cuts the next accepted-revision wave into
+   `data/evalsets/bench-wave-NN.jsonl` when `--every` rows accumulate, when
+   `--minutes` elapse after the previous wave, or when the drive finishes.
+2. It assigns one eval to each card in `--eval-gpus`. With `--eval-gpus auto`,
+   it asks `~/.claude/skills/gpu-pool/tool/pool.py pick` for a free card. Each
+   eval starts through `pool.py label` and `pool.py run <eval-host> <card>`;
+   multiple supplied cards let it evaluate multiple waves in parallel;
+   the pool's della target follows the existing `della-ts` to
+   `della-tridao` hop.
+3. It records the eval marker and launch directory under the arm's `logs/`
+   and `watcher.json`. A restart discovers completed `launch.json` records and
+   does not rescore them.
+4. If an eval exits without its index, it runs `salvage`, keeps the salvaged
+   index, and queues the `.rest.jsonl` rows for retry. `tally` merges the
+   salvaged and retried evals. The existing `rest` and `salvage` layouts
+   therefore remain resumable.
+5. After the drive finishes and every wave is complete, it runs `tally` with
+   the evals and the paths recorded by `run --before`, then writes
+   `results/<arm>.json`.
+
+The watcher logs each check, wave, card, recovery, and tally step with a UTC
+timestamp in `arms/<set>--<arm>/logs/evolve_bench-watcher--*.log`. Wave evals populate tally
+data only; they do not affect acceptance or make the drive wait.
 
 ```bash
-# every few minutes, from the machine that launches GPU work
+# manual mode only: run from the machine that launches GPU work
 $PY $EVO/evolve_bench.py wave --root $BENCH/arms/agentpick400-measured--sol-medium --every 40 --minutes 60
 # for each WAVE it prints: eval that wave's evalset, as above
 ```
+
+### Package-install metrics in `tally`
+
+For each accepted rewrite, `rewrite_stats.<direction>.package_install` lists
+the task ids whose instruction diff adds install or obtain guidance and the
+task ids whose Dockerfile diff removes an installed package or changes its
+version pin. The classifier reads only added instruction lines and the
+Dockerfile diff.
+
+When `tally` receives both accepted-row evals and the original-row evals from
+`--before`, `install_metrics` reports before, after, and after-minus-before
+values. It reports the share of attempts with an install command, the median
+number of install commands per attempt, the share of attempts whose output
+contains `No space left on device` or `Errno 28`, and pass rates for attempts
+with and without installs.
+The same table is grouped by rewrite direction and by whether the rewrite
+added install guidance. Commands come from each student's rollout record:
+`keystrokes`, or the vanillux tool command extracted by `rollout_record.py`.
+Harness-issued tmux commands do not enter the metric.
 
 When a set has no measurement yet and needs a base eval, `pipeline` also
 overlaps rewriting with that eval:

@@ -206,6 +206,47 @@ def test_diff_stats_rerun_check_and_claim_mismatch(tmp_path):
     assert not eb.diff_stats(old, new, "Added a check that reruns the script.")["claim_mismatch"]
 
 
+def test_package_install_rewrite_classifiers_are_diff_based(tmp_path):
+    old = _pkg(tmp_path / "r0", test="true", instruction="solve the task", dockerfile="FROM x\nRUN pip install torch==2.1")
+    new = _pkg(tmp_path / "r1", test="true", instruction="solve the task\nInstall uv and download foo==1.2", dockerfile="FROM x\nRUN pip install torch==2.2")
+    d = eb.diff_stats(old, new, "")
+    assert d["instruction_adds_install_guidance"]
+    assert d["dockerfile_removes_or_changes_install"]
+    kept = _pkg(tmp_path / "r2", test="true", instruction="solve the task", dockerfile="FROM x\nRUN pip install torch==2.1")
+    assert not eb.instruction_adds_install_guidance(old.joinpath("instruction.md").read_text(), kept.joinpath("instruction.md").read_text())
+    assert not eb.dockerfile_removes_or_changes_install(old.joinpath("environment/Dockerfile").read_text(), kept.joinpath("environment/Dockerfile").read_text())
+
+
+def test_install_metrics_read_student_keystrokes_and_vanillux_commands(tmp_path):
+    es_before = _jsonl(tmp_path / "before.jsonl", [_row("a")])
+    es_after = _jsonl(tmp_path / "after.jsonl", [_row("a", rev=1)])
+
+    def make(name, evalset, commands, output, rewards):
+        ev = tmp_path / "evals" / name
+        rec = ev / "validation_rollouts" / "a" / "g-1-r0.jsonl"
+        rec.parent.mkdir(parents=True)
+        rec.write_text(json.dumps({"task": "a", "reward": rewards[0]}) + "\n" +
+                       json.dumps({"turn": 1, "keystrokes": commands, "output": output}) + "\n")
+        idx = [{"task": "a", "state": "PASS" if rewards[0] else "FAIL", "infra_failed": False,
+                "finish_reason": "submit", "record": "validation_rollouts/a/g-1-r0.jsonl"}]
+        (ev / eb.INDEX).parent.mkdir(parents=True)
+        (ev / eb.INDEX).write_text(json.dumps(idx))
+        (ev / "launch.json").write_text(json.dumps(_launch(evalset)))
+        return ev
+
+    before = make("before-install", es_before, ["echo no install"], "ok", [1.0])
+    after = make("after-install", es_after, ["python -m pip install torch\npip install wheel", "tmux send-keys pip install fake"], "No space left on device", [0.0])
+    a = eb.read_eval(after)
+    b = eb.read_eval(before)
+    out = eb.install_metrics([a], [b], [{"task": "a", "job": "harder", "class": "accepted",
+                                        "diff": {"instruction_adds_install_guidance": True}}])
+    assert out["before"]["install_share"] == 0.0
+    assert out["after"]["install_share"] == 1.0
+    assert out["after"]["median_install_commands"] == 2
+    assert out["after"]["disk_full_share"] == 1.0
+    assert out["directions"]["harder"]["delta"]["install_share"] == 1.0
+
+
 def _root_with_rewrites(tmp: Path) -> Path:
     """A root with three tasks: t1 accepted harder (r0 grader clones github,
     r1 does not), t2 kept, t3 lost to infra twice."""
