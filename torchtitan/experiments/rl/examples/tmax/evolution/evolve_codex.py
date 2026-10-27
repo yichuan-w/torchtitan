@@ -1926,8 +1926,9 @@ way a user would, in a sentence or two -- the goal and the deliverable. Do not
 list the pitfalls; the agent meets them as error messages, logs and behavior
 in the environment, the way the real software presents them.
 
-The student has 2400 seconds of wall clock per attempt, and generating its own
-turns takes most of that: in measured attempts its commands ran for about 100
+The student has """ + str(so.STUDENT_SECONDS) + """ seconds of wall clock, """ + str(so.STUDENT_TURNS) + """ turns
+and a """ + f"{so.STUDENT_CONTEXT:,}" + """-token context per attempt, and generating its own
+turns takes most of that time: in measured attempts its commands ran for about 100
 seconds in total. So the reference solution's commands, as `./sandbox check`
 times them, stay well under 300 seconds, and anything slow that is not the
 point of the task -- a large download, a full build of a dependency -- happens
