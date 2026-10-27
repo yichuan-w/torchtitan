@@ -295,10 +295,22 @@ spends no student rollouts on a rewrite.
 
 ## Tally output
 
-Infra-failed attempts are dropped from every band and counted apart. A
-rewrite lost to infrastructure (429s, provider outages, session timeouts, a
-stopped loop) counts in neither acceptance nor per-accepted cost; its spend is
-reported as `usd_infra`.
+Infra-failed attempts stay dropped from the existing bands and remain counted
+apart. `tally` classifies each one as `agent_caused` or `platform` from the
+rollout header and the last recorded student turn. A disk exhaustion at the
+agent or verifier stage, a final `pkill`/`kill`/`tmux kill-*`/tmux removal
+command, or a recorded control-plane PID signal is `agent_caused`; other
+infra failures are `platform`. The JSON field `infra` reports both classes for
+the arm, before measurement, and each accepted `harder`/`easier` direction.
+
+The existing bands remain the primary result. `after_agent_caused_as_failures`
+and `before_agent_caused_as_failures` show alternate bands that score
+`agent_caused` attempts as failures while still dropping `platform` attempts;
+`before_after_agent_caused_as_failures` gives the paired alternate transition
+table when a before measurement is present. The original `after`, `before`, and
+transition fields do not change. A rewrite lost to infrastructure (429s,
+provider outages, session timeouts, a stopped loop) counts in neither
+acceptance nor per-accepted cost; its spend is reported as `usd_infra`.
 
 Mechanical, computed for every rewrite from the root:
 
@@ -334,6 +346,14 @@ Mechanical, computed for every rewrite from the root:
   is fixed when the accepted revision ships one; a grader fetch when the
   accepted grader has none), and agreement with hand labels that carry a
   `fixed` column.
+- The checked-in `data_evolve_bench_defects.tsv` also carries the 2026-10-26
+  audit classes `audit_20261026_exclude`, `audit_20261026_resource`,
+  `audit_20261026_never_solved`, and `audit_20261026_near_always`. Rows that
+  are not in the current set stay in the file and do not enter a tally. For a
+  resource row, the mechanical fix is true only when the accepted row's
+  declared `daytona_cpu`, `daytona_mem_gb`, and `daytona_disk_gb` meet every
+  numeric `suggested=` value in its note; `repair.<class>.resource_rows`
+  records the declared size and whether it is raised for every row.
 
 LLM-judged, optional: `audit-bundle --union` writes blinded bundles of every
 task accepted by at least one listed arm (each existing arm revision as V1..Vn

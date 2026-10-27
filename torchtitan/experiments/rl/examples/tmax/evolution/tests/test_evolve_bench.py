@@ -85,6 +85,43 @@ def test_read_eval_counts_infra_apart_and_finds_ungraded(tmp_path):
     assert e["recipe"]["harness"] == "terminus"
 
 
+def test_infra_classifier_blames_disk_and_last_turn_self_destruct(tmp_path):
+    disk = tmp_path / "disk.jsonl"
+    disk.write_text(json.dumps({
+        "infra_failed": True,
+        "failure": {"stage": "verifier", "reason": "upload: Errno 28"},
+    }) + "\n")
+    assert eb.classify_infra_attempt(tmp_path, {"record": "disk.jsonl"}) == "agent_caused"
+
+    self_destruct = tmp_path / "self.jsonl"
+    self_destruct.write_text(
+        json.dumps({"infra_failed": True, "failure": {"stage": "agent"}}) + "\n"
+        + json.dumps({"turn": 1, "keystrokes": ["echo ok"]}) + "\n"
+        + json.dumps({"turn": 2, "keystrokes": ["pkill -f daytona"]}) + "\n"
+    )
+    assert eb.classify_infra_attempt(tmp_path, {"record": "self.jsonl"}) == "agent_caused"
+
+    platform = tmp_path / "platform.jsonl"
+    platform.write_text(json.dumps({
+        "infra_failed": True,
+        "failure": {"stage": "setup", "reason": "HTTP 502"},
+    }) + "\n")
+    assert eb.classify_infra_attempt(tmp_path, {"record": "platform.jsonl"}) == "platform"
+
+
+def test_alternate_bands_count_agent_caused_as_zero_failures():
+    tasks = {
+        "agent": {"pass": 0, "graded": 0, "infra": 2, "infra_agent_caused": 2, "infra_platform": 0,
+                  "finish": {}, "finish_failed": {}},
+        "platform": {"pass": 0, "graded": 0, "infra": 1, "infra_agent_caused": 0, "infra_platform": 1,
+                     "finish": {}, "finish_failed": {}},
+    }
+    assert eb.counts(tasks)["none_solved"] == 0
+    assert eb.counts(tasks, agent_caused_as_failures=True)["none_solved"] == 1
+    assert eb.counts(tasks, agent_caused_as_failures=True)["attempts_graded"] == 2
+    assert eb.counts(tasks, agent_caused_as_failures=True)["attempts_infra_platform"] == 1
+
+
 def test_recipe_mismatch_covers_harness_and_gpu(tmp_path):
     es = _jsonl(tmp_path / "set.jsonl", [_row("a")])
     a = eb.read_eval(_eval(tmp_path, "a", es, {"a": "PF"}))["recipe"]

@@ -235,6 +235,21 @@ INSTALL_COMMAND_RE = re.compile(
     re.I | re.M,
 )
 DISK_FULL_RE = re.compile(r"no space left on device|errno\s*28", re.I)
+# These are deliberately short, high-confidence policy actions.  A broad
+# process-management command is blameworthy only when it is the last turn of
+# an infra-failed rollout; ordinary task commands remain platform failures.
+SELF_DESTRUCT_PATTERNS = (
+    re.compile(r"\bpkill\b[^\n;]*\s-f\b", re.I),
+    re.compile(r"\bpkill\b[^\n;]*\b(?:daytona|tmux|daemon)\b", re.I),
+    re.compile(r"\bkill\b(?:\s+-\d+)*\s+(?:-1|1)\b", re.I),
+    re.compile(r"\btmux\s+(?:kill-session|kill-server)\b", re.I),
+    re.compile(r"\b(?:apt(?:-get)?|yum|dnf|apk|pacman)\s+(?:remove|purge)\b[^\n;]*\btmux\b", re.I),
+)
+RESOURCE_FIELDS = {
+    "cpu": "daytona_cpu",
+    "mem": "daytona_mem_gb",
+    "disk": "daytona_disk_gb",
+}
 DOCKER_INSTALL_RE = re.compile(
     r"\b(?:pip3?|uv(?:\s+pip)?|conda|apt(?:-get)?|npm|cargo)\s+(?:install|add)\b",
     re.I,
@@ -284,6 +299,36 @@ def _rows(path: Path) -> list[dict]:
 
 def _iid(row: dict) -> str:
     return row["metadata"]["instance_id"]
+
+
+def _row_resources(row: dict) -> dict[str, int | float]:
+    """The per-row Daytona allocation carried by a mix/evalset row."""
+    md = row.get("metadata") or {}
+    return {short: md[key] for short, key in RESOURCE_FIELDS.items() if md.get(key) is not None}
+
+
+def _package_resources(root: Path, task: str, rev: int | None) -> dict[str, float]:
+    """Fallback for a revision package whose row metadata omitted TOML sizes."""
+    if root is None or rev is None:
+        return {}
+    path = root / "evolution" / "tasks" / task / f"r{rev}" / "task.toml"
+    if not path.exists():
+        return {}
+    try:
+        import tomllib
+
+        env = tomllib.loads(path.read_text()).get("environment") or {}
+    except (OSError, ValueError, tomllib.TOMLDecodeError):
+        return {}
+    out: dict[str, float] = {}
+    if env.get("cpus") is not None:
+        out["cpu"] = float(env["cpus"])
+    memory = str(env.get("memory") or "")
+    m = re.fullmatch(r"\s*([0-9.]+)\s*([KMGTP]?)i?B?\s*", memory, re.I)
+    if m:
+        unit = {"": 1 / (1024 ** 3), "K": 1 / (1024 ** 2), "M": 1 / 1024, "G": 1, "T": 1024}[m.group(2).upper()]
+        out["mem"] = float(m.group(1)) * unit
+    return out
 
 
 def tree_sha256(d: Path) -> str:
@@ -1477,6 +1522,8 @@ def read_eval(eval_dir: Path, evalset: Path | None = None) -> dict:
     per: dict[str, dict[str, Any]] = {
         _iid(r): {"pass": 0, "graded": 0, "infra": 0, "finish": collections.Counter(),
                   "finish_failed": collections.Counter(), "rev": int(r["metadata"].get("rev") or 0),
+                  "resources": _row_resources(r), "infra_agent_caused": 0,
+                  "infra_platform": 0,
                   "attempts": []}
         for r in rows
     }
@@ -1485,8 +1532,10 @@ def read_eval(eval_dir: Path, evalset: Path | None = None) -> dict:
             raise SystemExit(f"{eval_dir}: index scores {e['task']}, not in {evalset}")
         t = per[e["task"]]
         if e.get("infra_failed"):
+            infra_class = classify_infra_attempt(eval_dir, e)
             t["infra"] += 1
-            t["attempts"].append({"record": e["record"], "state": "INFRA"})
+            t[f"infra_{infra_class}"] += 1
+            t["attempts"].append({"record": e["record"], "state": "INFRA", "infra_class": infra_class})
             continue
         t["graded"] += 1
         t["pass"] += e["state"] == "PASS"
@@ -1533,21 +1582,43 @@ def recipe_mismatch(a: dict | None, b: dict | None) -> dict:
     return out
 
 
-def counts(tasks: dict) -> dict:
+def _bucket_for(task: dict, *, agent_caused_as_failures: bool = False) -> str:
+    graded = task["graded"] + (task.get("infra_agent_caused", 0) if agent_caused_as_failures else 0)
+    return bucket(task["pass"], graded)
+
+
+def _alternate_tasks(tasks: dict) -> dict:
+    return {tid: {**task, "bucket": "no_attempts" if task["graded"] + task["infra"] == 0 else
+                  _bucket_for(task, agent_caused_as_failures=True)} for tid, task in tasks.items()}
+
+
+def counts(tasks: dict, *, agent_caused_as_failures: bool = False) -> dict:
     """Three counts plus the two ways a task carries no verdict, and the
     finish-reason split over graded attempts (all, and failed only)."""
-    c = collections.Counter(v["bucket"] for v in tasks.values())
+    c = collections.Counter(
+        "no_attempts" if v["graded"] + v["infra"] == 0 else _bucket_for(
+            v, agent_caused_as_failures=agent_caused_as_failures
+        )
+        for v in tasks.values()
+    )
     finish: collections.Counter = collections.Counter()
     failed: collections.Counter = collections.Counter()
     for v in tasks.values():
         finish.update(v["finish"])
         failed.update(v["finish_failed"])
+    effective_graded = sum(
+        v["graded"] + (v.get("infra_agent_caused", 0) if agent_caused_as_failures else 0)
+        for v in tasks.values()
+    )
     return {
         **{b: c[b] for b in BUCKETS},
         "tasks": len(tasks),
-        "attempts_graded": sum(v["graded"] for v in tasks.values()),
+        "attempts_graded": effective_graded,
         "attempts_passed": sum(v["pass"] for v in tasks.values()),
         "attempts_infra": sum(v["infra"] for v in tasks.values()),
+        "attempts_infra_agent_caused": sum(v.get("infra_agent_caused", 0) for v in tasks.values()),
+        "attempts_infra_platform": sum(v.get("infra_platform", 0) for v in tasks.values()),
+        "agent_caused_as_failures": agent_caused_as_failures,
         "finish": dict(finish.most_common()),
         "finish_failed": dict(failed.most_common()),
     }
@@ -1582,16 +1653,25 @@ def first_samplings(runs: list[Path]) -> tuple[dict, dict]:
     launches = []
     for run in runs:
         launches.append(json.load(open(run / "launch.json")))
+        row_resources = {}
+        mix = run / "inputs" / "mix.jsonl"
+        if mix.exists():
+            row_resources = {_iid(r): _row_resources(r) for r in _rows(mix)}
         for f in (run / "rollouts").glob("*/*.jsonl"):
             with open(f) as fh:
                 h = json.loads(fh.readline())
             key = (h["task"], int(h.get("rev") or 0), run.name, h["group"])
-            g = groups.setdefault(key, {"pass": 0, "graded": 0, "infra": 0, "finish": collections.Counter(),
+            g = groups.setdefault(key, {"pass": 0, "graded": 0, "infra": 0,
+                                        "infra_agent_caused": 0, "infra_platform": 0,
+                                        "resources": row_resources.get(h["task"], {}),
+                                        "finish": collections.Counter(),
                                         "finish_failed": collections.Counter(), "started": h.get("started") or ""})
             g["started"] = min(g["started"], h.get("started") or g["started"])
             r = h.get("reward")
             if h.get("infra_failed") or r is None or (isinstance(r, float) and math.isnan(r)):
                 g["infra"] += 1
+                infra_class = _infra_class_from_header(h, f) if h.get("infra_failed") else "platform"
+                g[f"infra_{infra_class}"] += 1
                 continue
             g["graded"] += 1
             g["pass"] += r >= 1.0
@@ -1796,6 +1876,78 @@ def _student_commands(record: Path) -> tuple[list[str], str]:
             if command:
                 commands.append(command)
     return commands, "\n".join(output)
+
+
+def _last_student_commands(record: Path) -> list[str]:
+    """Commands in the final recorded turn, preserving turn boundaries."""
+    try:
+        _header, turns = rollout_record.read_record(record)
+    except (OSError, ValueError, json.JSONDecodeError):
+        return []
+    if not turns:
+        return []
+    turn = turns[-1]
+    keys = turn.get("keystrokes")
+    if isinstance(keys, list):
+        return [str(x) for x in keys]
+    raw = turn.get("raw")
+    if isinstance(raw, str):
+        command = rollout_record.vanillux_command(raw)
+        return [command] if command else []
+    return []
+
+
+def _control_plane_signal(events: Any) -> bool:
+    """Whether recorded terminal evidence names a signalled control PID."""
+    if not isinstance(events, list):
+        return False
+    for event in events:
+        if not isinstance(event, dict) or not event.get("signal"):
+            continue
+        kind = str(event.get("kind") or "").lower()
+        if any(word in kind for word in ("tmux", "daemon", "server")):
+            return True
+        for key in event:
+            lowered = str(key).lower()
+            if any(word in lowered for word in ("tmux", "daemon", "server")) and "pid" in lowered:
+                return True
+    return False
+
+
+def _infra_class_from_header(header: dict, record: Path | None = None) -> str:
+    """Classify one unscored rollout without changing its existing score."""
+    failure = header.get("failure") if isinstance(header.get("failure"), dict) else {}
+    stage = str(failure.get("stage") or header.get("failure_stage") or "").lower()
+    blob = json.dumps(
+        {
+            "failure": failure,
+            "error": header.get("error"),
+            "verifier": header.get("verifier"),
+            "sandbox": header.get("sandbox"),
+        },
+        ensure_ascii=False,
+    )
+    issues = (header.get("sandbox") or {}).get("issues") or {}
+    disk_issue = any("disk_exhausted" in str(k).lower() for k in issues)
+    if stage in {"agent", "verifier"} and (disk_issue or DISK_FULL_RE.search(blob)):
+        return "agent_caused"
+    if record is not None:
+        if any(pattern.search(command) for command in _last_student_commands(record)
+               for pattern in SELF_DESTRUCT_PATTERNS):
+            return "agent_caused"
+    if _control_plane_signal(header.get("terminal_events")):
+        return "agent_caused"
+    return "platform"
+
+
+def classify_infra_attempt(eval_dir: Path, entry: dict) -> str:
+    """Classify an eval index entry; missing records remain platform failures."""
+    try:
+        record = _record_path(eval_dir, entry["record"])
+        header = rollout_record.read_header(record)
+    except (OSError, ValueError, json.JSONDecodeError, KeyError):
+        return "platform"
+    return _infra_class_from_header(header, record)
 
 
 def _attempt_install_fact(eval_dir: Path, task: str, attempt: dict) -> dict[str, Any]:
@@ -2048,11 +2200,12 @@ def defect_labels(root: Path, labels: Path | None) -> dict[str, dict]:
                 classes.append(f"hf:{v}")
             if str(r.get("has_reference_solution")) == "False":
                 classes.append("no_reference_solution")
-            out[tid] = {"source": src.name, "classes": classes or ["hf:none"], "ground_truth": {}}
+            out[tid] = {"source": src.name, "classes": classes or ["hf:none"], "ground_truth": {}, "notes": {}}
     if labels is not None:
         for r in csv.DictReader(open(labels), delimiter="\t"):
-            e = out.setdefault(r["task_id"], {"source": None, "classes": [], "ground_truth": {}})
+            e = out.setdefault(r["task_id"], {"source": None, "classes": [], "ground_truth": {}, "notes": {}})
             e["classes"].append(r["defect_class"])
+            e["notes"][r["defect_class"]] = r.get("note") or ""
             if r.get("fixed"):
                 e["ground_truth"][r["defect_class"]] = r["fixed"] == "yes"
     return out
@@ -2061,12 +2214,53 @@ def defect_labels(root: Path, labels: Path | None) -> dict[str, dict]:
 MECHANICAL_DEFECTS = ("no_reference_solution", "external_network", "grader_fetch")
 
 
-def mechanical_fix(defect: str, accepted: dict | None) -> bool | None:
+def _resource_note(note: str) -> tuple[dict[str, float], dict[str, float]]:
+    """Read ``now=...; suggested=cpu:2,mem:4`` from a defect note."""
+    current: dict[str, float] = {}
+    suggested: dict[str, float] = {}
+    triplet = re.search(r"\b(?:now|current)\s*=\s*([0-9.]+)\s*/\s*([0-9.]+)\s*/\s*([0-9.]+)", note, re.I)
+    if triplet:
+        current = {k: float(v) for k, v in zip(("cpu", "mem", "disk"), triplet.groups())}
+    m = re.search(r"\bsuggested\s*=\s*([^;]+)", note, re.I)
+    if m:
+        for dim, value in re.findall(r"\b(cpu|mem|disk)\s*:\s*([0-9.]+(?:\s*-\s*[0-9.]+)?)", m.group(1), re.I):
+            # A range means the audit's upper recommendation is the safe floor.
+            suggested[dim.lower()] = float(value.split("-")[-1].strip())
+    return current, suggested
+
+
+def _revision_resources(accepted: dict | None) -> dict[str, float]:
+    if not accepted:
+        return {}
+    return {k: float(v) for k, v in (accepted.get("after_resources") or {}).items()
+            if v is not None}
+
+
+def _resource_fix_info(note: str, accepted: dict | None) -> dict[str, Any]:
+    current, suggested = _resource_note(note)
+    actual = _revision_resources(accepted)
+    fixed = None
+    if accepted is None:
+        fixed = False
+    elif suggested and all(actual.get(dim, -math.inf) >= want for dim, want in suggested.items()):
+        fixed = True
+    elif suggested:
+        fixed = False
+    raised = None
+    if current and actual:
+        raised = any(actual.get(dim, -math.inf) > value for dim, value in current.items())
+    return {"current": current, "suggested": suggested, "declared": actual,
+            "raised": raised, "fixed": fixed}
+
+
+def mechanical_fix(defect: str, accepted: dict | None, note: str = "") -> bool | None:
     """Whether the accepted revision fixes ``defect``, where a mechanical check
     can say: a missing reference solution is fixed when the accepted revision
     ships one (the oracle gate then held it to the task); a grader's
     third-party fetch is fixed when the accepted grader fetches none. None
     where only reading the rewrite can tell."""
+    if defect == "audit_20261026_resource":
+        return _resource_fix_info(note, accepted)["fixed"]
     if defect not in MECHANICAL_DEFECTS:
         return None
     if accepted is None:
@@ -2084,6 +2278,7 @@ def repair_report(per_task: dict[str, list[dict]], labels: dict[str, dict]) -> d
     mechanical, checked against hand labels where those exist."""
     by: dict[str, dict[str, Any]] = collections.defaultdict(lambda: {"tasks": 0, "final": collections.Counter(), "after": collections.Counter(),
                                                            "declared_repair": 0, "fixed_mechanical": 0, "unfixed_mechanical": 0,
+                                                           "raised": 0, "not_raised": 0, "resource_rows": [],
                                                            "ground_truth": {"agree": 0, "disagree": [], "fixed": 0, "labelled": 0}})
     for tid, lab in labels.items():
         if tid not in per_task:
@@ -2097,7 +2292,15 @@ def repair_report(per_task: dict[str, list[dict]], labels: dict[str, dict]) -> d
             if acc:
                 e["after"][acc.get("after_band") or "unmeasured"] += 1
                 e["declared_repair"] += acc["declared_repairs"] > 0
-            fix = mechanical_fix(cls, acc)
+            note = lab.get("notes", {}).get(cls, "")
+            info = _resource_fix_info(note, acc) if cls == "audit_20261026_resource" else None
+            if info is not None:
+                e["resource_rows"].append({"task": tid, **info})
+                if info["raised"] is True:
+                    e["raised"] += 1
+                elif info["raised"] is False:
+                    e["not_raised"] += 1
+            fix = mechanical_fix(cls, acc, note)
             if fix is True:
                 e["fixed_mechanical"] += 1
             elif fix is False:
@@ -2149,6 +2352,24 @@ def transitions(before: dict, after: dict, tasks: list[str]) -> dict:
             "mixed_gained": gained, "mixed_lost": lost, "mcnemar_p": mcnemar_exact(gained, lost)}
 
 
+def _infra_scope(tasks: dict, ids: set[str] | None = None) -> dict:
+    selected = [v for tid, v in tasks.items() if ids is None or tid in ids]
+    agent = sum(v.get("infra_agent_caused", 0) for v in selected)
+    platform = sum(v.get("infra_platform", v.get("infra", 0) - v.get("infra_agent_caused", 0)) for v in selected)
+    total = agent + platform
+    return {"attempts": total, "agent_caused": agent, "platform": platform,
+            "agent_caused_share": round(agent / total, 3) if total else None}
+
+
+def infra_report(after: dict, before: dict, rewrites: list[dict]) -> dict:
+    """Infra attribution for the arm, its before measurement, and directions."""
+    directions = {}
+    for job in ("harder", "easier"):
+        ids = {r["task"] for r in rewrites if r.get("class") == "accepted" and r.get("job") == job}
+        directions[job] = {"after": _infra_scope(after, ids), "before": _infra_scope(before, ids)}
+    return {"after": _infra_scope(after), "before": _infra_scope(before), "directions": directions}
+
+
 def tally(
     *,
     evals: list[Path],
@@ -2167,18 +2388,22 @@ def tally(
         raise SystemExit("one after-source per tally: evals or training runs")
     after_evals: list[dict] = []
     before_evals: list[dict] = []
+    paired_before_tasks: dict = {}
     if evals:
         after_evals = [read_eval(e, evalset) for e in evals]
         after_tasks = merge_evals(after_evals)
         out["inputs"]["evals"] = [{k: e[k] for k in ("eval", "salvaged", "launch", "evalset")} for e in after_evals]
         out["recipe"] = after_evals[0]["recipe"]
         out["after"] = counts(after_tasks)
+        out["after_agent_caused_as_failures"] = counts(after_tasks, agent_caused_as_failures=True)
         out["after_tasks"] = after_tasks
         for tid, v in after_tasks.items():
             log(f"after task={tid} rev={v['rev']} bucket={v['bucket']} pass={v['pass']}/{v['graded']} infra={v['infra']} finish={v['finish']}")
     first = {}
     if runs:
         first, out["recipe"] = first_samplings(runs)
+        out["after"] = counts(first)
+        out["after_agent_caused_as_failures"] = counts(first, agent_caused_as_failures=True)
     if root is not None:
         rec_path = root / "bench_arm.json"
         rec = json.load(open(rec_path)) if rec_path.exists() else None
@@ -2219,6 +2444,10 @@ def tally(
                     else:
                         s = after_tasks.get(tid) if after_tasks.get(tid, {}).get("rev") == f["result_rev"] else None
                     f["after_band"] = s["bucket"] if s else None
+                    f["after_resources"] = {
+                        **_package_resources(root, tid, f.get("result_rev")),
+                        **(s.get("resources", {}) if s else {}),
+                    }
                 per_task[tid].append(f)
                 log(f"rewrite task={tid} {f['rewrite']} job={f['job']} class={f['class']} usd={f['usd']:.4f} "
                     f"after={f.get('after_band')} diff={json.dumps(f.get('diff'))} hosts={f['hosts_before']}->{f.get('hosts_after')}")
@@ -2255,8 +2484,15 @@ def tally(
             raise SystemExit(f"the set has no before-measurement of {len(missing)} tasks: {missing[:3]}")
         common = sorted(after_tasks)
         out["before"] = counts({k: b_tasks[k] for k in common})
+        out["before_agent_caused_as_failures"] = counts(
+            {k: b_tasks[k] for k in common}, agent_caused_as_failures=True
+        )
+        paired_before_tasks = {k: b_tasks[k] for k in common}
         out["before_after"] = {**transitions(b_tasks, after_tasks, common),
                                "recipe_mismatch": {"before": "the set's measurements; their sources are in its manifest"}}
+        out["before_after_agent_caused_as_failures"] = transitions(
+            _alternate_tasks(b_tasks), _alternate_tasks(after_tasks), common
+        )
         for k in common:
             log(f"transition task={k} {b_tasks[k]['bucket']}->{after_tasks[k]['bucket']}")
     if before:
@@ -2276,9 +2512,19 @@ def tally(
         if hard:
             raise SystemExit(f"the before evals ran another recipe than the evals: {hard}")
         out["before"] = counts({k: b_tasks[k] for k in common})
+        out["before_agent_caused_as_failures"] = counts(
+            {k: b_tasks[k] for k in common}, agent_caused_as_failures=True
+        )
+        paired_before_tasks = {k: b_tasks[k] for k in common}
         out["before_after"] = {**transitions(b_tasks, after_tasks, common), "recipe_mismatch": mm}
+        out["before_after_agent_caused_as_failures"] = transitions(
+            _alternate_tasks(b_tasks), _alternate_tasks(after_tasks), common
+        )
         for k in common:
             log(f"transition task={k} {b_tasks[k]['bucket']}->{after_tasks[k]['bucket']}")
+    measured_after = after_tasks if evals else first
+    if measured_after or paired_before_tasks:
+        out["infra"] = infra_report(measured_after, paired_before_tasks, out.get("rewrites", []))
     return out
 
 
