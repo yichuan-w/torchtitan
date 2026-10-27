@@ -35,7 +35,6 @@ from renderers.base import ToolCallParseStatus
 
 from torchtitan.experiments.rl.observability.metrics import Metric
 from torchtitan.experiments.rl.rollout.types import GenerateFn
-from torchtitan.experiments.rl.types import SamplerTopK
 
 if TYPE_CHECKING:
     # Type-only: importing the generator module pulls in vLLM at import time.
@@ -51,8 +50,6 @@ class CapturedTurn:
     prompt_token_ids: list[int]
     completion_token_ids: list[int]
     completion_logprobs: list[float]
-    # [num_completion_tokens, k] sampler top-k logprobs, when requested.
-    completion_topk: SamplerTopK | None = None
     # Async RL splits a turn's policy version into a (min, max) span (weights can
     # update mid-decode); a single-shot completion sets both to the same value.
     min_policy_version: int | None
@@ -535,7 +532,6 @@ class AnthropicAdapter:
                             prompt_token_ids=list(prompt_ids),
                             completion_token_ids=[],
                             completion_logprobs=[],
-                            completion_topk=None,
                             min_policy_version=None,
                             max_policy_version=None,
                             finish_reason="length",
@@ -583,7 +579,6 @@ class AnthropicAdapter:
                     prompt_token_ids=list(prompt_ids),
                     completion_token_ids=list(completion.token_ids),
                     completion_logprobs=list(completion.token_logprobs),
-                    completion_topk=completion.topk,
                     min_policy_version=completion.min_policy_version,
                     max_policy_version=completion.max_policy_version,
                     finish_reason=completion.finish_reason,

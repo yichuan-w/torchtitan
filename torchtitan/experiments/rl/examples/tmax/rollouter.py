@@ -310,7 +310,6 @@ def _captured_to_turns(
                 prompt_token_ids=ct.prompt_token_ids,
                 completion_token_ids=ct.completion_token_ids,
                 completion_logprobs=ct.completion_logprobs,
-                completion_topk=ct.completion_topk,
                 min_policy_version=ct.min_policy_version,
                 max_policy_version=ct.max_policy_version,
                 prompt_messages=prompt_messages,
