@@ -13,7 +13,8 @@ Tasks: every Terminal-Bench 2.1 task (89) and every Terminal-Bench 4 task (66).
 ## What the bench fixes
 
 - **Policy and recipe**: `recipe.env` (group size 12, LR 3e-6, 200 steps of
-  one group each, 8 groups in flight, groups up to 8 steps old still trained).
+  one group each, groups that all fail or all pass dropped without a step, 8 groups in
+  flight with all 96 attempts running at once, groups up to 12 steps old still trained).
   Hardware placement is the runner's.
 - **A training attempt** has the main training run's caps: 120 Terminus turns
   (`SWE_BENCH_MAX_TURNS`), 2 h of wall clock (`SWE_BENCH_TRAIN_BUDGET_SEC`)
