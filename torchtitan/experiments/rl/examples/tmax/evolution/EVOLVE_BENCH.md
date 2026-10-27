@@ -63,7 +63,7 @@ the set's: evals of its rewrites have to use that harness too.
 
 ## Sets already frozen
 
-Three sets are frozen on della under
+Four sets are frozen on della under
 `/scratch/gpfs/TRIDAO/al9080/terminal-rl/evolve-bench/sets/`:
 
 - `agentpick400-measured`: the zero-signal rows of the 400-row release
@@ -84,6 +84,20 @@ Three sets are frozen on della under
   | calibforge_repair (29) | 18 | 1 | mixed 10 |
   | clean_fast (100) | 7 | 28 | mixed 39, measured on another test_sh 16, not measured 9, ungraded 1 |
   | calibforge_clean_fast (100) | 33 | 3 | not measured 50, mixed 14 |
+
+- `agentpick400-train1025`: the 234 rows of `agentpick400-measured`
+  measured again under `train-2026-10-25` (k=16) and frozen from those evals.
+  191 stay zero-signal (166 easier, 25 harder); 42 came out mixed and 1
+  ungraded, and are dropped; the release's other 166 rows were not measured.
+  Its manifest names the evals. Their before-bands are the ones an eval of a
+  rewrite of these rows pairs with.
+
+  | corpus | easier | harder | dropped |
+  |---|---|---|---|
+  | repair | 121 | 4 | mixed 19 |
+  | calibforge_repair | 15 | 0 | mixed 4 |
+  | clean_fast | 4 | 19 | mixed 11, ungraded 1 |
+  | calibforge_clean_fast | 26 | 2 | mixed 8 |
 
 - `r100`: 100 harder signals from `runs/tmax-9b--20260911-000700Z`, each
   task's first training group, all solved (`offline_select.py`'s pick); the
