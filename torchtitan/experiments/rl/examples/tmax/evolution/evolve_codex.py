@@ -1907,7 +1907,9 @@ and still solves every time; in measured groups such changes stayed at k of k.
 The work has to need a decision the message does not dictate: a result that is
 wrong without saying so until the student checks it, or a choice between
 plausible fixes that only checking tells apart -- and the check that exposes it
-has to be one the student can run in the environment.
+has to be one the student can run in the environment. The plausible wrong fix
+must fail that check too, not only the hidden tests: a wrong fix that passes
+every check the student can run leaves every attempt at 0.
 
 A library, tool, version or bug that does not exist upstream is not
 allowed, and neither is a vendored imitation of one. The environment holds the

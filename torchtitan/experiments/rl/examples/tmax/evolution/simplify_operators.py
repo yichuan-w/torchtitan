@@ -123,8 +123,13 @@ cause:
   "hidden_requirement" for a check the instruction never states,
   "broken_setup" for an environment missing what the task needs, and "other"
   for anything else. The attempts measured the task with its defect, so they
-  cannot show what the repaired task needs: the repair is this rewrite's only change, and the
-  repaired task is measured before any help is added. A repair moves the task
+  cannot show what the repaired task needs. Re-grade what they left: run an
+  attempt's final commands in the sandbox and ./sandbox grade under the
+  repaired verifier. If the repair alone lets some of them pass, it is this
+  rewrite's only change, and the repaired task is measured before any help is
+  added. If none would pass, the repair cannot move the band by itself: add
+  help for the next check they fail in the same rewrite, and record the help
+  in change separately from the repair. A repair moves the task
   in this rewrite's direction only when it removes an unfair obstacle (a
   hidden requirement stated, a broken setup fixed, a wrong check corrected).
   Closing a shortcut an attempt was rewarded for makes the task harder, the
@@ -215,7 +220,16 @@ something the original task also shows it. Prefer help in this order:
 
 Help comes in increasing strength within each place, up to a worked instance
 of the hard step on an input other than the graded one. Use the earliest place
-and the weakest help the evidence says will produce successes. A failed
+and the weakest help the evidence says will produce successes. When most
+attempts ended at the context or turn limit, the help that works is the one
+that removes work: name what spent their budget (output they printed, files
+they rewrote, steps they repeated or never finished), remove enough of it -- a
+smaller input, a step done in the environment, output the task no longer makes
+them read -- that a successful attempt fits the budget with room to spare, and
+say in change how much it removes. Direction added to the instruction spends
+more of the same budget: in measured groups, rewrites whose attempts mostly
+died at the context limit stayed at 0 of 16 after instruction-only hints, and
+moved when the work itself shrank. A failed
 prediction at one strength needs a reason, from the traces, to stay at that
 strength. When no attempt has a foothold, reduce what the retained decision
 demands -- a smaller instance, fewer cases, feedback that exposes the mistake
@@ -245,6 +259,11 @@ Before editing, write run/simplify.json with retained_skill, bottleneck,
 change, restore, prediction, expected and evidence, plus previous when the
 history shows an earlier accepted simplification. expected is the solved
 count you predict for the next group of the same size, written as "k of n".
+Derive it attempt by attempt: for each attempt in traces/, list the graded
+checks it failed (or the limit it hit) and whether the change removes each;
+an attempt counts toward expected only when the change removes all of them,
+and the count scales to the group size. A round guess ("2 of 5") is not a
+prediction: in measured groups such guesses missed by most of the range.
 prediction names the failing action the change addresses, why the change
 enables a different next action, and an observable result that would refute
 it. evidence is a nonempty list of objects with attempt, turn and observation:

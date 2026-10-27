@@ -141,11 +141,13 @@ def test_prompt_states_the_goal_the_costs_and_the_general_rules():
     assert 'written as "k of n"' in text
 
 
-def test_a_repair_is_the_rewrites_only_change():
-    """Attempts measured the defective task, so a repair is measured alone."""
+def test_a_repair_is_alone_only_when_it_lets_some_attempt_pass():
+    """A repair is measured alone when re-grading shows it moves some attempt;
+    otherwise help for the next failing check rides in the same rewrite."""
     p = " ".join(so.prompt("vague").split())
-    assert "the repair is this rewrite's only change" in p
+    assert "it is this rewrite's only change" in p
     assert "the repaired task is measured before any help is added" in p
+    assert "If none would pass, the repair cannot move the band by itself" in p
 
 
 def test_an_all_failed_task_gets_a_hint_not_a_give_up():
