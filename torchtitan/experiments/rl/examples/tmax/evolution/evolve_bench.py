@@ -19,6 +19,7 @@ the order an arm goes through them:
     tally         evals and/or training runs [+ root] -> one JSON: bands, funnel, rewrite stats, cost, repair
     compare       tally JSONs -> paired transitions, exact McNemar, a markdown table
     audit-bundle  arm roots -> blinded per-task bundles for the LLM audit, key kept outside
+    audit-run     invoke the isolated auditor or verifier over a bundle
     audit-tally   audit verdicts + key + tallies -> per-arm audit rates, $ per clean mixed task
 
 Every subcommand logs one timestamped line per item to a file and prints where.
@@ -27,7 +28,9 @@ from __future__ import annotations
 
 import argparse
 import collections
+import concurrent.futures
 import csv
+import datetime
 import difflib
 import glob
 import hashlib
@@ -39,6 +42,8 @@ import re
 import shutil
 import subprocess
 import sys
+import tempfile
+import threading
 import time
 from pathlib import Path
 from typing import Any
@@ -1978,6 +1983,10 @@ def compare(results: list[tuple[str, dict]], allow_mismatch: bool) -> tuple[dict
 AUDIT_LABELS = ("EFFECTIVE", "WEAK", "LEAKY", "UNFAIR", "BROKEN", "GRADER-TIGHTENING-ONLY", "UNSTATED-ENVIRONMENT-TRAP")
 # A confirmed finding of these classes makes a reward wrong for some attempt.
 DEFECT_LABELS = {"LEAKY", "UNFAIR", "BROKEN", "UNSTATED-ENVIRONMENT-TRAP"}
+AUDIT_VERIFY_STATES = {"confirmed", "partly", "refuted"}
+AUDIT_MAX_ATTEMPTS = 3
+AUDIT_TIMEOUT_SEC = 900
+AUDIT_TOOLS = ("Read", "Grep", "Glob")
 
 
 def _diff(task_dir: Path, a: str, b: str) -> str:
@@ -1996,13 +2005,18 @@ def _scrub(text: str, roots: list[Path]) -> str:
     return text
 
 
-def audit_bundle(*, arms: list[tuple[str, Path]], out: Path, key: Path, sample: int | None, seed: int, log: Log) -> None:
-    """Blinded per-task bundles over the tasks every arm accepted (blind_bundle.py's
-    format): the seed package once, and each arm's accepted revision as V1..Vn
-    in a per-task random order, with diffs against r0 and the author's closing
-    summary. The key that maps V<k> to an arm goes to ``key``, which must sit
-    outside ``out``, so an auditor reading ``out`` cannot see it."""
-    if out.resolve() in key.resolve().parents:
+def audit_bundle(*, arms: list[tuple[str, Path]], out: Path, key: Path, sample: int | None, seed: int,
+                 log: Log, union: bool = False) -> None:
+    """Write blinded bundles, using the union only when ``union`` is requested.
+
+    The historical default is the intersection of accepted tasks, so existing
+    bundles remain reproducible. ``--union`` keeps every task accepted by at
+    least one arm and puts only the variants that exist for that arm in its
+    task directory. The seed package is copied once, and each variant is a
+    random V<k> in a per-task order. The key stays outside ``out`` so the
+    auditor cannot recover arm labels.
+    """
+    if key.resolve() == out.resolve() or out.resolve() in key.resolve().parents:
         raise SystemExit(f"{key} is inside {out}; the key has to stay outside the audit directory")
     if out.exists():
         raise SystemExit(f"{out} exists")
@@ -2014,7 +2028,8 @@ def audit_bundle(*, arms: list[tuple[str, Path]], out: Path, key: Path, sample: 
             if rw["status"] == "accepted":
                 acc[rw["task"]] = (rw, p.parent)
         accepted[label] = acc
-    tasks = sorted(set.intersection(*(set(a) for a in accepted.values())))
+    task_sets = [set(a) for a in accepted.values()]
+    tasks = sorted(set.union(*task_sets) if union else set.intersection(*task_sets))
     if sample is not None and sample < len(tasks):
         tasks = sorted(random.Random(seed).sample(tasks, sample))
     out.mkdir(parents=True)
@@ -2022,7 +2037,7 @@ def audit_bundle(*, arms: list[tuple[str, Path]], out: Path, key: Path, sample: 
     shutil.copy2(_EVO / "agents" / "bench_audit_verify.md", out / "VERIFY.md")
     keymap = {}
     for t in tasks:
-        order = [label for label, _ in arms]
+        order = [label for label, _ in arms if t in accepted[label]]
         random.Random(f"{seed}:{t}").shuffle(order)
         keymap[t] = {f"V{i + 1}": a for i, a in enumerate(order)}
         td = out / t
@@ -2044,7 +2059,305 @@ def audit_bundle(*, arms: list[tuple[str, Path]], out: Path, key: Path, sample: 
     key.parent.mkdir(parents=True, exist_ok=True)
     layout.write_json_atomic(key, {"arms": {label: str(root.resolve()) for label, root in arms}, "seed": seed,
                                    "sample": sample, "tasks": keymap})
-    print(f"{len(tasks)} tasks x {len(arms)} arms -> {out}; key -> {key}")
+    width = "up to " if union else ""
+    print(f"{len(tasks)} tasks x {width}{len(arms)} arms -> {out}; key -> {key}")
+
+
+def _audit_env_file(path: Path) -> dict[str, str]:
+    """Read only the AWS credentials an audit call is allowed to receive."""
+    allowed = {"AWS_BEARER_TOKEN_BEDROCK", "AWS_ACCESS_KEY_ID", "AWS_SECRET_ACCESS_KEY", "AWS_SESSION_TOKEN"}
+    values: dict[str, str] = {}
+    try:
+        lines = path.read_text().splitlines()
+    except OSError as exc:
+        raise SystemExit(f"cannot read --env-file {path}: {exc}") from exc
+    for raw in lines:
+        line = raw.strip()
+        if not line or line.startswith("#"):
+            continue
+        if line.startswith("export "):
+            line = line[7:].lstrip()
+        if "=" not in line:
+            raise SystemExit(f"invalid --env-file line (expected KEY=VALUE): {path}")
+        key, value = line.split("=", 1)
+        key = key.strip()
+        if key not in allowed:
+            continue
+        value = value.strip()
+        if len(value) >= 2 and value[0] == value[-1] and value[0] in "\"'":
+            value = value[1:-1]
+        values[key] = value
+    if not values.get("AWS_BEARER_TOKEN_BEDROCK") and not (
+        values.get("AWS_ACCESS_KEY_ID") and values.get("AWS_SECRET_ACCESS_KEY")
+    ):
+        raise SystemExit(
+            f"--env-file {path} must contain AWS_BEARER_TOKEN_BEDROCK or "
+            "AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY"
+        )
+    return values
+
+
+def _audit_path() -> str:
+    """A minimal PATH that still finds the caller-selected Claude binary."""
+    claude = shutil.which("claude")
+    dirs = [str(Path(claude).parent)] if claude else []
+    dirs.extend(("/usr/local/bin", "/usr/bin", "/bin"))
+    return os.pathsep.join(dict.fromkeys(dirs))
+
+
+def _audit_env(credentials: dict[str, str], region: str, home: Path) -> dict[str, str]:
+    """Build a clean Bedrock environment; no caller environment is inherited."""
+    config = home / "claude-config"
+    config.mkdir(parents=True, exist_ok=True)
+    env = {
+        "PATH": _audit_path(),
+        "HOME": str(home),
+        "CLAUDE_CONFIG_DIR": str(config),
+        "CLAUDE_CODE_USE_BEDROCK": "1",
+        "AWS_REGION": region,
+    }
+    env.update(credentials)
+    return env
+
+
+def _audit_argv(model: str, system_prompt_file: Path) -> list[str]:
+    """The complete clean, read-only Claude Code command for one call."""
+    return [
+        "claude", "-p", "--bare", "--restricted", "--setting-sources", "", "--strict-mcp-config",
+        "--mcp-config", '{"mcpServers":{}}', "--disable-slash-commands",
+        "--no-session-persistence", "--system-prompt-file", str(system_prompt_file),
+        "--model", model, "--tools", *AUDIT_TOOLS, "--output-format", "json",
+        "--permission-prompts", "none",
+    ]
+
+
+def _audit_cli_version(env: dict[str, str]) -> str:
+    proc = subprocess.run(["claude", "--version"], env=env, capture_output=True, text=True, check=False)
+    if proc.returncode:
+        raise RuntimeError(f"claude --version exited {proc.returncode}")
+    version = (proc.stdout or proc.stderr).strip()
+    if not version:
+        raise RuntimeError("claude --version returned no version")
+    return version
+
+
+def _audit_json_reply(stdout: str) -> tuple[dict, dict]:
+    """Decode Claude's JSON envelope and its JSON result string."""
+    envelope = json.loads(stdout)
+    payload = envelope.get("structured_output", envelope.get("result", envelope))
+    if isinstance(payload, str):
+        payload = json.loads(payload)
+    if not isinstance(payload, dict):
+        raise ValueError("Claude result is not a JSON object")
+    return payload, envelope
+
+
+def _valid_verdict(value: object) -> bool:
+    if not isinstance(value, dict) or value.get("label") not in AUDIT_LABELS:
+        return False
+    findings = value.get("findings")
+    if not isinstance(findings, list):
+        return False
+    for finding in findings:
+        if (
+            not isinstance(finding, dict)
+            or not finding.get("id")
+            or finding.get("class") not in (*AUDIT_LABELS, "SEED")
+        ):
+            return False
+    return True
+
+
+def _valid_verify(value: object) -> dict[str, str]:
+    if not isinstance(value, dict):
+        return {}
+    return {
+        str(k): v for k, v in value.items()
+        if k != "metadata" and isinstance(v, str) and v in AUDIT_VERIFY_STATES
+    }
+
+
+def _audit_metadata(*, model: str, cli_version: str, rubric_sha256: str, argv: list[str], envelope: dict) -> dict:
+    return {
+        "model": model,
+        "cli_version": cli_version,
+        "rubric_sha256": rubric_sha256,
+        "argv": list(argv),
+        "usage": envelope.get("usage"),
+        "cost_usd": envelope.get("total_cost_usd"),
+        "total_cost_usd": envelope.get("total_cost_usd"),
+        "timestamp": datetime.datetime.now(datetime.timezone.utc).isoformat(),
+    }
+
+
+def _assert_clean_audit_path(audit: Path) -> None:
+    """Reject any CLAUDE.md that could be discovered from a task cwd."""
+    audit = audit.resolve()
+    if not audit.is_dir():
+        raise SystemExit(f"audit bundle does not exist: {audit}")
+    found = list(audit.rglob("CLAUDE.md"))
+    for parent in (audit, *audit.parents):
+        candidate = parent / "CLAUDE.md"
+        if candidate.is_file() and candidate not in found:
+            found.append(candidate)
+    if found:
+        raise SystemExit(f"refusing audit bundle with CLAUDE.md: {found[0]}")
+
+
+def _audit_prompt(stage: str, variant: str, finding: dict | None = None) -> str:
+    if stage == "audit":
+        return (
+            f"Read original/ and {variant}/ in this task bundle and judge only {variant}. "
+            "Return exactly one JSON object with shape "
+            '{"label":"<one rubric label>","findings":[{"id":"f1","class":"<class>",'
+            '"file":"<path>","line":1,"evidence":"<evidence>","would_fail":"<solution>"}],'
+            '"notes":"<short notes>"}. Do not use markdown or add commentary.'
+        )
+    assert finding is not None
+    return (
+        f"Read original/ and {variant}/ in this task bundle. Re-evaluate finding {finding['id']} "
+        "under the verifier rubric and try to refute it. Return exactly one JSON object of the form "
+        f'{{"{finding["id"]}":"confirmed|partly|refuted"}}. Do not use markdown or add commentary. '
+        f"The finding is: {json.dumps(finding, ensure_ascii=False, sort_keys=True)}"
+    )
+
+
+def _audit_call(*, task_dir: Path, prompt: str, argv: list[str], credentials: dict[str, str],
+                region: str) -> tuple[dict, dict]:
+    with tempfile.TemporaryDirectory(prefix="evolve-bench-audit-") as raw_home:
+        env = _audit_env(credentials, region, Path(raw_home))
+        proc = subprocess.run(
+            argv, input=prompt, capture_output=True, text=True, cwd=task_dir, env=env,
+            timeout=AUDIT_TIMEOUT_SEC, check=False,
+        )
+    if proc.returncode:
+        raise RuntimeError(f"claude exited {proc.returncode}")
+    return _audit_json_reply(proc.stdout)
+
+
+def _audit_run_item(item: tuple, *, stage: str, argv: list[str], credentials: dict[str, str], region: str,
+                    rubric_sha256: str, cli_version: str, log, log_lock: threading.Lock,
+                    verify_locks: dict[Path, threading.Lock]) -> bool:
+    task_dir, variant_dir, output, finding = item
+    variant = variant_dir.name
+    prompt = _audit_prompt(stage, variant, finding)
+    for attempt in range(1, AUDIT_MAX_ATTEMPTS + 1):
+        try:
+            payload, envelope = _audit_call(task_dir=task_dir, prompt=prompt, argv=argv,
+                                            credentials=credentials, region=region)
+            metadata = _audit_metadata(model=argv[argv.index("--model") + 1], cli_version=cli_version,
+                                       rubric_sha256=rubric_sha256, argv=argv, envelope=envelope)
+            if stage == "audit":
+                if not _valid_verdict(payload):
+                    raise ValueError("auditor result does not match verdict schema")
+                payload = {**payload, "metadata": metadata}
+                layout.write_json_atomic(output, payload)
+            else:
+                finding_id = finding["id"]
+                state = payload.get(finding_id)
+                if state not in AUDIT_VERIFY_STATES:
+                    raise ValueError(f"verifier result for {finding_id} is invalid")
+                lock = verify_locks[output]
+                with lock:
+                    current = _valid_verify(json.loads(output.read_text()) if output.exists() else {})
+                    current[finding_id] = state
+                    layout.write_json_atomic(output, {**current, "metadata": metadata})
+            with log_lock:
+                log(f"stage={stage} task={task_dir.name} variant={variant} finding={finding.get('id') if finding else '-'} done attempt={attempt}")
+            return True
+        except Exception as exc:
+            with log_lock:
+                log(f"stage={stage} task={task_dir.name} variant={variant} finding={finding.get('id') if finding else '-'} failed attempt={attempt} error={type(exc).__name__}")
+            if attempt == AUDIT_MAX_ATTEMPTS:
+                return False
+    return False
+
+
+def audit_run(*, audit: Path, stage: str, model: str, concurrency: int, env_file: Path,
+              region: str, log: Log) -> dict[str, int]:
+    """Run one isolated, resumable audit or verification stage over a bundle."""
+    if stage not in {"audit", "verify"}:
+        raise SystemExit(f"unknown audit stage {stage}")
+    if concurrency < 1:
+        raise SystemExit("--concurrency must be at least 1")
+    _assert_clean_audit_path(audit)
+    audit = audit.resolve()
+    rubric = audit / ("INSTRUCTIONS.md" if stage == "audit" else "VERIFY.md")
+    if not rubric.is_file():
+        raise SystemExit(f"missing {rubric}")
+    credentials = _audit_env_file(env_file)
+    with tempfile.TemporaryDirectory(prefix="evolve-bench-version-") as raw_home:
+        cli_env = _audit_env(credentials, region, Path(raw_home))
+        cli_version = _audit_cli_version(cli_env)
+    rubric_sha256 = layout.sha256_file(rubric)
+    manifest_path = audit / "audit_run.json"
+    timestamp = datetime.datetime.now(datetime.timezone.utc).isoformat()
+    manifest = {
+        "model": model, "rubric_sha256": rubric_sha256, "cli_version": cli_version,
+        "bench_commit": _bench_commit(), "stage": stage, "concurrency": concurrency,
+        "env_file": str(env_file.resolve()), "timestamp": timestamp,
+    }
+    if manifest_path.exists():
+        old = json.loads(manifest_path.read_text())
+        for key in ("model", "cli_version", "bench_commit"):
+            if old.get(key) not in (None, manifest[key]):
+                raise SystemExit(f"audit_run.json {key} differs: {old.get(key)} vs {manifest[key]}")
+        history = old.get("stages", {})
+        history[stage] = {"rubric_sha256": rubric_sha256, "timestamp": timestamp}
+        manifest["stages"] = history
+    layout.write_json_atomic(manifest_path, manifest)
+
+    items = []
+    for task_dir in sorted(p for p in audit.iterdir() if p.is_dir()):
+        variants = sorted(p for p in task_dir.iterdir() if p.is_dir() and re.fullmatch(r"V\d+", p.name))
+        if not variants:
+            continue
+        if stage == "audit":
+            for variant_dir in variants:
+                output = variant_dir / "verdict.json"
+                try:
+                    if _valid_verdict(json.loads(output.read_text())):
+                        continue
+                except (OSError, ValueError, json.JSONDecodeError):
+                    pass
+                items.append((task_dir, variant_dir, output, None))
+        else:
+            for variant_dir in variants:
+                verdict_path = variant_dir / "verdict.json"
+                try:
+                    verdict = json.loads(verdict_path.read_text())
+                except (OSError, ValueError, json.JSONDecodeError):
+                    continue
+                if not _valid_verdict(verdict):
+                    continue
+                output = variant_dir / "verify.json"
+                existing = {}
+                try:
+                    existing = _valid_verify(json.loads(output.read_text()))
+                except (OSError, ValueError, json.JSONDecodeError):
+                    pass
+                for finding in verdict["findings"]:
+                    if finding.get("class") in DEFECT_LABELS and finding.get("id") not in existing:
+                        items.append((task_dir, variant_dir, output, finding))
+
+    log_lock = threading.Lock()
+    verify_locks = collections.defaultdict(threading.Lock)
+    system_prompt_file = audit / ("INSTRUCTIONS.md" if stage == "audit" else "VERIFY.md")
+    argv = _audit_argv(model, system_prompt_file)
+    log(f"stage={stage} start items={len(items)} model={model} cli_version={cli_version}")
+    done = failed = 0
+    with concurrent.futures.ThreadPoolExecutor(max_workers=concurrency) as pool:
+        futures = [pool.submit(_audit_run_item, item, stage=stage, argv=argv, credentials=credentials,
+                               region=region, rubric_sha256=rubric_sha256, cli_version=cli_version,
+                               log=log, log_lock=log_lock, verify_locks=verify_locks) for item in items]
+        for future in futures:
+            if future.result():
+                done += 1
+            else:
+                failed += 1
+    log(f"stage={stage} finished done={done} failed={failed}")
+    print(f"audit-run {stage}: {done} done, {failed} failed; manifest -> {manifest_path}")
+    return {"done": done, "failed": failed}
 
 
 def audit_tally(*, audit: Path, key: Path, tallies: dict[str, dict]) -> dict:
@@ -2183,6 +2496,14 @@ def main() -> None:
     p.add_argument("--key", type=Path, required=True, help="outside --out")
     p.add_argument("--sample", type=int, help="audit this many tasks; default all")
     p.add_argument("--seed", type=int, default=0)
+    p.add_argument("--union", action="store_true", help="include tasks accepted by any arm, with only existing variants")
+    p = sub.add_parser("audit-run", help="run the isolated auditor or verifier over a bundle")
+    p.add_argument("--audit", type=Path, required=True)
+    p.add_argument("--stage", choices=("audit", "verify"), required=True)
+    p.add_argument("--model", required=True)
+    p.add_argument("--concurrency", type=int, required=True)
+    p.add_argument("--env-file", type=Path, required=True, help="Bedrock credentials; values are never logged")
+    p.add_argument("--aws-region", "--region", dest="aws_region", default="us-east-1")
     p = sub.add_parser("audit-tally", help="unblind an audit into per-arm rates")
     p.add_argument("--audit", type=Path, required=True)
     p.add_argument("--key", type=Path, required=True)
@@ -2243,7 +2564,12 @@ def main() -> None:
         print(f"-> {a.out.with_suffix('.json')}, {a.out.with_suffix('.md')}")
     elif a.cmd == "audit-bundle":
         arms = [(s.split("=", 1)[0], Path(s.split("=", 1)[1])) for s in a.arms]
-        audit_bundle(arms=arms, out=a.out, key=a.key, sample=a.sample, seed=a.seed, log=_log_for(a.out.parent, "audit-bundle"))
+        audit_bundle(arms=arms, out=a.out, key=a.key, sample=a.sample, seed=a.seed, union=a.union,
+                     log=_log_for(a.out.parent, "audit-bundle"))
+    elif a.cmd == "audit-run":
+        audit_run(audit=a.audit, stage=a.stage, model=a.model, concurrency=a.concurrency,
+                  env_file=a.env_file, region=a.aws_region,
+                  log=_log_for(a.audit, f"audit-run-{a.stage}"))
     elif a.cmd == "audit-tally":
         tallies = {s.split("=", 1)[0]: json.load(open(s.split("=", 1)[1])) for s in a.tallies}
         res = audit_tally(audit=a.audit, key=a.key, tallies=tallies)

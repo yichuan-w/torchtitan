@@ -287,13 +287,17 @@ Mechanical, computed for every rewrite from the root:
   accepted grader has none), and agreement with hand labels that carry a
   `fixed` column.
 
-LLM-judged, optional: `audit-bundle` writes blinded bundles of the tasks every
-listed arm accepted (each arm's revision as V1..Vn in a per-task random order,
-diffs against r0, the author's closing summary, root paths and diff mtimes
-scrubbed), with `agents/bench_audit.md` as the auditors' rubric (EFFECTIVE,
-WEAK, LEAKY, UNFAIR, BROKEN, GRADER-TIGHTENING-ONLY,
-UNSTATED-ENVIRONMENT-TRAP) and `agents/bench_audit_verify.md` for one
-adversarial verifier per finding. The key goes to a path outside the bundle.
+LLM-judged, optional: `audit-bundle --union` writes blinded bundles of every
+task accepted by at least one listed arm (each existing arm revision as V1..Vn
+in a per-task random order, diffs against r0, the author's closing summary,
+root paths and diff mtimes scrubbed), with `agents/bench_audit.md` as the
+auditors' rubric and `agents/bench_audit_verify.md` for one adversarial
+verifier per defect finding. `audit-run` invokes `claude -p --bare` against
+Amazon Bedrock with a fresh empty home, no settings, skills, plugins, hooks,
+memory or MCP servers, the selected rubric as the system prompt, and only
+Read, Grep and Glob; it passes only the AWS credentials named in `--env-file`,
+resumes completed verdicts, retries failures, and records the model, CLI,
+rubric digest, argv, usage and cost. The key goes to a path outside the bundle.
 `audit-tally` unblinds verdicts into per-arm label rates, confirmed defects,
 defects inside the mixed band (they feed wrong rewards) and $ per clean mixed
 task.

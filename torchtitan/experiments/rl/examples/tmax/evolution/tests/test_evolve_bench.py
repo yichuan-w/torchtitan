@@ -381,6 +381,42 @@ def test_audit_bundle_blinds_and_audit_tally_unblinds(tmp_path):
     assert res["y"]["audited"] == 0
 
 
+def test_audit_bundle_union_keeps_single_arm_tasks(tmp_path):
+    arms = []
+    for label, tasks in (("x", ("t1", "only-x")), ("y", ("t1", "only-y"))):
+        root = tmp_path / label
+        for task in tasks:
+            _pkg(root / "evolution" / "tasks" / task / "r0", test="true")
+            _pkg(root / "evolution" / "tasks" / task / "r1", test=f"check {label}")
+            d = root / "evolution" / "tasks" / task / "rewrites" / "20261024-000000Z--harder"
+            d.mkdir(parents=True)
+            (d / "rewrite.json").write_text(json.dumps({"task": task, "job": "harder", "status": "accepted",
+                                                         "input_rev": 0, "result_rev": 1}))
+        arms.append((label, root))
+    out, key = tmp_path / "audit", tmp_path / "key.json"
+    eb.audit_bundle(arms=arms, out=out, key=key, sample=None, seed=0, union=True, log=eb.Log(tmp_path / "a.log"))
+    got = json.loads(key.read_text())["tasks"]
+    assert sorted(got) == ["only-x", "only-y", "t1"]
+    assert sorted(got["only-x"].values()) == ["x"]
+    assert sorted(got["only-y"].values()) == ["y"]
+
+
+def test_audit_argv_and_env_are_clean_and_read_only(tmp_path, monkeypatch):
+    prompt = tmp_path / "INSTRUCTIONS.md"
+    argv = eb._audit_argv("us.anthropic.claude-audit", prompt)
+    assert argv[0:4] == ["claude", "-p", "--bare", "--restricted"]
+    assert argv[argv.index("--system-prompt-file") + 1] == str(prompt)
+    assert argv[argv.index("--tools") + 1:argv.index("--output-format")] == ["Read", "Grep", "Glob"]
+    assert "Bash" not in argv and "Write" not in argv and "WebFetch" not in argv and "WebSearch" not in argv
+    monkeypatch.setattr(eb.shutil, "which", lambda name: "/caller/bin/claude")
+    env = eb._audit_env({"AWS_BEARER_TOKEN_BEDROCK": "secret"}, "us-east-1", tmp_path / "home")
+    assert env["HOME"] == str(tmp_path / "home")
+    assert env["CLAUDE_CONFIG_DIR"] == str(tmp_path / "home" / "claude-config")
+    assert set(env) == {"PATH", "HOME", "CLAUDE_CONFIG_DIR", "CLAUDE_CODE_USE_BEDROCK", "AWS_REGION",
+                        "AWS_BEARER_TOKEN_BEDROCK"}
+    assert "/Users/andyl/.claude" not in env.values()
+
+
 def _release(tmp: Path, tasks: list[str]) -> Path:
     rel = tmp / "releases" / "r1"
     for t in tasks:
