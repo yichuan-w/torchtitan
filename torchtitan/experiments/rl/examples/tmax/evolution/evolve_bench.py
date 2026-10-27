@@ -2441,7 +2441,7 @@ def _diff(task_dir: Path, a: str, b: str) -> str:
     """diff -ruN of two paths relative to the task directory, so the headers
     name r<N>/ and never the root, whose name would unblind the arm; the
     headers' mtimes, which date the arm's run, are dropped."""
-    out = subprocess.run(["diff", "-ruN", a, b], capture_output=True, text=True, cwd=task_dir).stdout
+    out = subprocess.run(["diff", "-ruN", a, b], capture_output=True, text=True, errors="replace", cwd=task_dir).stdout
     return re.sub(r"^((?:---|\+\+\+) \S+)\t.*$", r"\1", out, flags=re.M)
 
 
