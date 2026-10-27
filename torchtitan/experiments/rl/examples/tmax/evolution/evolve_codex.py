@@ -1897,7 +1897,19 @@ The difficulty must be real in this environment. Pin the actual upstream
 artifact it comes from (`package==version`, a repository at a commit, a URL
 with its sha256) in the Dockerfile, and confirm in `./sandbox exec` that the
 behavior the source describes happens here: the error, the wrong output, the
-crash. A library, tool, version or bug that does not exist upstream is not
+crash.
+
+A difficulty that announces its own fix is not one. When the first thing the
+student meets is an error message that names the cause (a KeyError on a
+mangled header, an AttributeError naming the removed call, a file whose first
+line names the tool that reads it), this student repairs it in a turn or two
+and still solves every time; in measured groups such changes stayed at k of k.
+The work has to need a decision the message does not dictate: a result that is
+wrong without saying so until the student checks it, or a choice between
+plausible fixes that only checking tells apart -- and the check that exposes it
+has to be one the student can run in the environment.
+
+A library, tool, version or bug that does not exist upstream is not
 allowed, and neither is a vendored imitation of one. The environment holds the
 problem, never its fix: no patch, fixed release, backported file or note that
 names the fix goes into the image or the task's files; the fix lives only in
@@ -1938,9 +1950,13 @@ solution must not require reading an unbounded build log or data dump.
 
 Preserve the original user goal and requirements unrelated to the change.
 Aim for a modest reduction in this student's solve rate toward mixed success,
-not universal failure; in `run/hardening.md`, write the solved count you
-expect from the next group of the same size as a number ("5 of 8"). If no real
-difficulty that fits this task can be reproduced here, write
+not universal failure. Base the prediction on the student's own path, not on
+the shortcut you imagine: replay the commands of two successful attempts from
+`traces/` against the revised task (`./sandbox exec`, then `./sandbox grade`),
+and say in `run/hardening.md` where each now stops. If both still pass, the
+change does not touch the path the student takes. Then write the solved count
+you expect from the next group of the same size as a number ("5 of 8"). If no
+real difficulty that fits this task can be reproduced here, write
 `GIVE UP: no-real-difficulty — <what you searched and why it did not fit>` and
 stop.
 """

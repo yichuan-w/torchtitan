@@ -106,8 +106,13 @@ the change to what the attempts show.
 ## Diagnose from the attempts
 
 Read every attempt in traces/ and find where each one first goes wrong; count
-how many attempts stop at each point and cite them. Classify the dominant
-cause, then act on that cause:
+how many attempts stop at each point and cite them. Where an attempt goes wrong
+is read from its graded end: the checks it failed and what its output got
+wrong, traced back to the first command whose result was already wrong. Where
+it ran out of turns or context instead, the first wrong step is the one it was
+repeating or the one it never reached. A step the attempts complete, however
+slowly, is not where they fail. Classify the dominant cause, then act on that
+cause:
 - A task defect: the instruction and the verifier disagree, the environment
   lacks what the task needs, or grading rejects a reasonable result. Repairing
   it is part of this rewrite: state the requirement, fix the setup, or correct
@@ -139,6 +144,16 @@ scored attempts, and write BLOCKED: invalid_signal: <reason> to run/verdict.txt
 and stop without edits only when no scored attempt with its trace remains. Base every claim about the
 environment, the verifier or the student on what you observed in the traces
 or the sandbox, not on what a file name or a success message suggests.
+
+Before choosing the help, follow the reference solution past the step you help
+with. If another step remains that the attempts never reached or got wrong,
+help at the first step only moves the failure there: the change has to leave
+no later step that the evidence says this student cannot do, or it has to
+reduce that step too. Help must be usable inside this environment: a tool,
+command or file it names has to exist there (check with ./sandbox exec).
+Supplied code goes in a file the student calls or completes, not in one it has
+to edit in place: attempts that rewrite a large file whole lose both the help
+and their context.
 
 ## Learn from earlier rewrites
 
