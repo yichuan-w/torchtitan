@@ -2679,7 +2679,12 @@ def _audit_call(*, task_dir: Path, prompt: str, argv: list[str], credentials: di
             timeout=AUDIT_TIMEOUT_SEC, check=False,
         )
     if proc.returncode:
-        raise RuntimeError(f"claude exited {proc.returncode}")
+        # The reply names the cause (a safeguard refusal, an API error); stderr is usually empty.
+        try:
+            why = str(json.loads(proc.stdout).get("result") or "")[:200]
+        except (json.JSONDecodeError, AttributeError):
+            why = (proc.stderr or proc.stdout or "").strip()[-200:]
+        raise RuntimeError(f"claude exited {proc.returncode}: {why}")
     return _audit_json_reply(proc.stdout)
 
 
@@ -2715,7 +2720,7 @@ def _audit_run_item(item: tuple, *, stage: str, argv: list[str], credentials: di
             return True
         except Exception as exc:
             with log_lock:
-                log(f"stage={stage} task={task_dir.name} variant={variant} finding={finding.get('id') if finding else '-'} failed attempt={attempt} error={type(exc).__name__}")
+                log(f"stage={stage} task={task_dir.name} variant={variant} finding={finding.get('id') if finding else '-'} failed attempt={attempt} error={type(exc).__name__}: {exc}")
             if attempt == AUDIT_MAX_ATTEMPTS:
                 return False
     return False
@@ -2859,7 +2864,9 @@ def audit_tally(*, audit: Path, key: Path, tallies: dict[str, dict]) -> dict:
             "mixed_defect_tasks": len(e["mixed_defect_tasks"]),
             "mixed_defect_rate": round(rate, 3) if rate is not None else None,
             "clean_mixed_estimate": round(clean_mixed, 1) if clean_mixed is not None else None,
-            "usd_per_clean_mixed": round(f["usd_counted"] / clean_mixed, 2) if clean_mixed else None,
+            # An arm with unpriced sessions has an unknown cost, not a cost of 0.
+            "usd_per_clean_mixed": (round(f["usd_counted"] / clean_mixed, 2)
+                                    if clean_mixed and not f.get("rewrites_cost_unknown") else None),
             "findings_unverified": e["unverified"],
         }
     return out
