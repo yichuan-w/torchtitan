@@ -115,6 +115,15 @@ and explores the container. Concretely:
   check to run -- helps the student and adds nothing to grade: test the outcome
   the instruction asks for, never whether the advice was followed. Only a
   sentence that states what the result must be is a requirement.
+- **These two rules shape checks you write; they never license weakening one.**
+  An inherited check of a retained requirement stays as strong as it was: if
+  it demands phrasing the instruction does not give, replace it with a check of
+  the same fact, never delete it. When a reported defect removes a hidden
+  requirement, the check that replaces it must still need the work the task
+  asks for -- a value only doing the work produces, compared exactly or within
+  the stated tolerance -- never a range, a non-empty file or a count that a
+  trivial or copied output also passes. In audited rewrites, checks loosened
+  this way let a student pass without doing the work.
 - **Keep every existing test that still holds under the new instruction.** Remove
   a check only when its requirement was removed or relaxed in the public task;
   simplification does not permit dropping checks for retained requirements.
