@@ -243,6 +243,21 @@ is in and which signal of the original the student learns to act on.
   The untouched environment must fail and the reference solution must pass:
   run ./sandbox check before finishing.
 
+## Grade the attempts, then replay one
+
+Both steps are required; a rewrite that skips them is guessing at what the
+attempts meet.
+- Before choosing the change, rebuild the final state of at least two scored
+  attempts in the sandbox -- replay their commands with ./sandbox exec, or
+  restore the files they submitted -- and run ./sandbox grade. It writes the
+  verifier's output to run/last-grade.json (output_tail): list every check that
+  failed, not only the first; where the verifier stops at its first failure,
+  run its checks in the container so that each one reports. A failing check the
+  change leaves in place still fails that attempt after the change.
+- After editing, replay at least one attempt on the changed task up to the
+  point your change targets -- its commands, or its approach where its
+  commands no longer apply -- and grade. Record what it now meets there.
+
 ## Declare
 
 Before editing, write run/simplify.json with retained_skill, bottleneck,
@@ -255,10 +270,12 @@ it. evidence is a nonempty list of objects with attempt, turn and observation:
 attempt is the file's name exactly as traces/ lists it, with its .jsonl suffix
 and no directory (attempt-03.jsonl); turn is an integer: a turn that file
 records, or 0 for its first line, the attempt's summary with any verifier
-diagnostics. When you run an attempt's implementation in the sandbox to test a
-suspected mismatch, record the input, observed output and grading result in
-the observation of the evidence item for the attempt whose implementation you
-ran. When at least half of the scored attempts ended at the context, turn or
+diagnostics. Record each grading and replay above -- the commands or files
+used, every check that failed, and what the replay reached -- in the
+observation of the evidence item for the attempt whose state or approach you
+ran. expected rests on the replay: an attempt counts toward it only when the
+grading and the replay show that nothing it failed remains, and you update
+expected after the replay if it moved. When at least half of the scored attempts ended at the context, turn or
 time limit, add budget: a list with one object per such attempt, with attempt
 (named as in evidence), turns (the first and last turn it spent on the stage
 your change removes or shortens, as two integers that file records) and stage

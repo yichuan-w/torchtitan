@@ -1940,8 +1940,14 @@ solution must not require reading an unbounded build log or data dump.
 
 Preserve the original user goal and requirements unrelated to the change.
 Aim for a modest reduction in this student's solve rate toward mixed success,
-not universal failure; in `run/hardening.md`, write the solved count you
-expect from the next group of the same size as a number ("5 of 8"). If no real
+not universal failure. Base the prediction on the student's own path, not on
+the shortcut you imagine: after editing, replay the commands of two successful
+attempts from `traces/` against the revised task (`./sandbox exec`, then
+`./sandbox grade`; the verifier's output is in `run/last-grade.json`), and say
+in `run/hardening.md` where each now stops and every check it fails. If both
+still pass, the change does not touch the path the student takes. Then write
+the solved count you expect from the next group of the same size as a number
+("5 of 8"), resting on those replays. If no real
 difficulty that fits this task can be reproduced here, write
 `GIVE UP: no-real-difficulty — <what you searched and why it did not fit>` and
 stop.

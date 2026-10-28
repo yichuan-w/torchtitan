@@ -305,6 +305,8 @@ def test_harder_defaults_to_real_guidance_with_repair_in_the_rewrite(
     assert "withdrawing it whole is this rewrite's change" in " ".join(prompt.split())
     assert "These are not hardening" in prompt
     assert "Record every repair in `run/repair.json`" in prompt
+    # The prediction rests on replaying successful attempts on the revised task.
+    assert "replay the commands of two successful attempts" in " ".join(prompt.split())
     assert ec._STUDENT_HARDER_GUIDANCE not in prompt
 
 

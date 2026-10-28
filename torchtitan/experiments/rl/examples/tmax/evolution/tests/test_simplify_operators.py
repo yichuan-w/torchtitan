@@ -66,8 +66,17 @@ def test_turn_zero_needs_a_summary_line(tmp_path):
 def test_prompt_names_the_file_as_listed_and_the_summary_line():
     text = " ".join(so.prompt("vague").split())
     assert "attempt-03.jsonl" in text and "or 0 for its first line" in text
-    # A sandbox test of an attempt's implementation is recorded on that attempt.
-    assert "evidence item for the attempt whose implementation you ran" in text
+    # A grading or replay of an attempt is recorded on that attempt.
+    assert "evidence item for the attempt whose state or approach you ran" in text
+
+
+def test_grading_two_attempts_and_replaying_one_is_required():
+    text = " ".join(so.prompt("vague").split())
+    assert "Both steps are required" in text
+    assert "at least two scored attempts" in text
+    assert "list every check that failed, not only the first" in text
+    assert "replay at least one attempt on the changed task" in text
+    assert "expected rests on the replay" in text
 
 
 def test_attempt_named_without_its_suffix_is_that_file(tmp_path):
