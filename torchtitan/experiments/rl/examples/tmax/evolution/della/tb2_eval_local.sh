@@ -76,7 +76,9 @@ if [ -n "${DAYTONA_ENV_FILE:-}" ]; then
 fi
 : "${DAYTONA_API_KEY:?supply project Daytona credentials or DAYTONA_ENV_FILE}"
 export SWE_VAL_SAMPLES=${SWE_VAL_SAMPLES:-$(grep -c "" "$SWE_TB2_DATA")}
-HF_ASSETS=/scratch/gpfs/TRIDAO/al9080/models/Qwen3.5-9B
+# TRL_MODEL (the runbook's name for the model directory) places the base model on
+# a host without this path, such as a rented GPU box; unset, it is della's copy.
+HF_ASSETS=${TRL_MODEL:-/scratch/gpfs/TRIDAO/al9080/models/Qwen3.5-9B}
 export SWE_TB2_CKPT=$CKPT
 if [ -n "$CKPT" ] && [ -f "$CKPT/model.safetensors.index.json" ]; then
     HF_ASSETS=$CKPT
