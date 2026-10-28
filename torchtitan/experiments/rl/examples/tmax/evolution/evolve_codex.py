@@ -1895,7 +1895,9 @@ Cite only what you fetched.
 
 The difficulty must be real in this environment. Pin the actual upstream
 artifact it comes from (`package==version`, a repository at a commit, a URL
-with its sha256) in the Dockerfile, and confirm in `./sandbox exec` that the
+with its sha256) in the Dockerfile -- not a distribution package pinned to a
+point release (`git=1:2.34.1-1ubuntu1.18`): the archive drops superseded
+builds and the image stops building -- and confirm in `./sandbox exec` that the
 behavior the source describes happens here: the error, the wrong output, the
 crash. A library, tool, version or bug that does not exist upstream is not
 allowed, and neither is a vendored imitation of one. The environment holds the

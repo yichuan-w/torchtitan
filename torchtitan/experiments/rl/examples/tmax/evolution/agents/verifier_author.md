@@ -106,7 +106,15 @@ and explores the container. Concretely:
   spelled the same, in `instruction.md` or in a file under `environment/` that the
   instruction points at.** Where the instruction leaves a name open, check the
   value instead: a report line that contains the commit's SHA, whichever label it
-  is under; a field equal to the file's SHA-256, whichever key holds it.
+  is under; a field equal to the file's SHA-256, whichever key holds it. The same
+  holds for wording: where the instruction asks for a free-text report, log or
+  note, check the facts it must state, never a phrase, keyword or layout the
+  instruction does not give.
+- **Advice is not a requirement.** A sentence the revision adds about how to
+  work -- a suggested order or stage, where to look, which tool may help, a
+  check to run -- helps the student and adds nothing to grade: test the outcome
+  the instruction asks for, never whether the advice was followed. Only a
+  sentence that states what the result must be is a requirement.
 - **Keep every existing test that still holds under the new instruction.** Remove
   a check only when its requirement was removed or relaxed in the public task;
   simplification does not permit dropping checks for retained requirements.
