@@ -234,15 +234,60 @@ def test_destroyed_sandbox_is_scored_zero(monkeypatch, group_id: int) -> None:
     grade.assert_not_awaited()
 
 
-def test_lost_sandbox_with_ordinary_last_command_stays_masked(monkeypatch) -> None:
+_ORDINARY_REPLY = '<response><commands><keystrokes>ls\n</keystrokes></commands></response>'
+
+
+def test_lost_sandbox_with_ordinary_last_command_stays_masked_in_eval(
+    monkeypatch,
+) -> None:
     rollouter = _stub_rollouter(monkeypatch, ctrf_result=None)
     _agent_raising(monkeypatch, _SandboxExecutionError("Failed to create session:"))
-    reply = '<response><commands><keystrokes>ls\n</keystrokes></commands></response>'
     rollout, _, _, reason, diagnostics = _run(
-        rollouter, [_turn([{"type": "text", "text": reply}])]
+        rollouter, [_turn([{"type": "text", "text": _ORDINARY_REPLY}])], group_id=-1
     )
     assert rollout.status == RolloutStatus.ERROR
     assert diagnostics.infra_failed is True and reason == "error"
+
+
+def test_lost_sandbox_in_training_is_scored_zero(monkeypatch) -> None:
+    rollouter = _stub_rollouter(monkeypatch, ctrf_result=None)
+    _agent_raising(monkeypatch, _SandboxExecutionError("Failed to create session:"))
+    rollout, _, _, reason, diagnostics = _run(
+        rollouter, [_turn([{"type": "text", "text": _ORDINARY_REPLY}])]
+    )
+    assert reason == "sandbox_failed" and reason in _FINISH_REASONS
+    assert rollout.status == RolloutStatus.COMPLETED
+    assert rollout.turns[-1].env_rewards == {"tmax_reward": 0.0}
+    assert diagnostics.infra_failed is False
+    assert diagnostics.failure["origin"] == "agent"
+    assert diagnostics.failure["reason"] == "sandbox_failed"
+
+
+@pytest.mark.parametrize(
+    "error",
+    [
+        RuntimeError("Failed to execute command: 429 Too Many Requests"),
+        RuntimeError("bad gateway (502) from the sandbox API"),
+        RuntimeError(": failed to send non-blocking keys: command too long"),
+    ],
+)
+def test_platform_failure_in_training_stays_masked(monkeypatch, error) -> None:
+    rollouter = _stub_rollouter(monkeypatch, ctrf_result=None)
+    _agent_raising(monkeypatch, error)
+    _, _, _, reason, diagnostics = _run(
+        rollouter, [_turn([{"type": "text", "text": _ORDINARY_REPLY}])]
+    )
+    assert diagnostics.infra_failed is True and reason == "error"
+
+
+def test_agent_stage_kill_switch_restores_the_mask(monkeypatch) -> None:
+    monkeypatch.setattr(rollouter_mod, "_SCORE_AGENT_STAGE_FAILURES", False)
+    rollouter = _stub_rollouter(monkeypatch, ctrf_result=None)
+    _agent_raising(monkeypatch, _SandboxExecutionError("Failed to create session:"))
+    _, _, _, _, diagnostics = _run(
+        rollouter, [_turn([{"type": "text", "text": _ORDINARY_REPLY}])]
+    )
+    assert diagnostics.infra_failed is True
 
 
 def test_self_destruct_command_without_a_failure_is_not_rescored(monkeypatch) -> None:
@@ -268,6 +313,7 @@ def test_timeout_keeps_the_mask(monkeypatch) -> None:
 
 def test_kill_switch_restores_the_mask(monkeypatch) -> None:
     monkeypatch.setattr(rollouter_mod, "_SCORE_SELF_DESTRUCT", False)
+    monkeypatch.setattr(rollouter_mod, "_SCORE_AGENT_STAGE_FAILURES", False)
     rollouter = _stub_rollouter(monkeypatch, ctrf_result=None)
     _agent_raising(
         monkeypatch, TerminalUnavailable("terminal_state_unavailable", [])

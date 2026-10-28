@@ -81,6 +81,7 @@ import json
 import logging
 import math
 import os
+import re
 import statistics
 import time
 from collections.abc import Mapping
@@ -162,6 +163,9 @@ _FINISH_REASONS = (
     "disk_exhausted",
     # The agent's last command killed its own sandbox (see self_destruct); scored 0.
     "sandbox_destroyed",
+    # Training only: the sandbox failed mid-episode with no rule match and no
+    # platform signature (see _SCORE_AGENT_STAGE_FAILURES); scored 0.
+    "sandbox_failed",
     # A strict environment rule ended the episode on the offending turn, ungraded
     # (TMaxRollouter.Config.strict_format / strict_opening / strict_truncation).
     "format_error",
@@ -248,6 +252,23 @@ _NONINTERACTIVE_DEBCONF = os.environ.get("TMAX_NONINTERACTIVE_DEBCONF", "1") == 
 # Score a sandbox the agent's own last command destroyed as 0 instead of masking it
 # as infra (self_destruct.py); 0 restores the mask.
 _SCORE_SELF_DESTRUCT = os.environ.get("TMAX_SCORE_SELF_DESTRUCT", "1") == "1"
+# Training only: score 0 any other sandbox failure during the agent stage after a
+# completed turn. Of 1026b's 547 masked training rollouts, the ones no rule matched
+# were still mostly the agent's doing (libc or libz moved away, `rm -rf /tmp/*`
+# taking the tmux socket, its own shell's pid in a kill list, `cp -r /usr
+# /dev/shm`) or a task outgrowing its sandbox; losses with a benign last command
+# were well under 1 in 1000 rollouts. 0 restores the mask.
+_SCORE_AGENT_STAGE_FAILURES = (
+    os.environ.get("TMAX_SCORE_AGENT_STAGE_FAILURES", "1") == "1"
+)
+# Errors that are the platform's or the harness's whatever the agent did: Daytona
+# API throttling or 5xx, a dead Monarch actor, and tmux refusing an over-long
+# key delivery.
+_PLATFORM_FAILURE = re.compile(
+    r"\b(?:429|50[0-4])\b|Throttler|Too Many Requests|rate limit|Unauthorized"
+    r"|ActorError|SupervisionError|command too long",
+    re.I,
+)
 _DEBCONF_NONINTERACTIVE_CMD = (
     "command -v debconf-set-selections >/dev/null 2>&1 && "
     "echo 'debconf debconf/frontend select Noninteractive' | debconf-set-selections"
@@ -2622,6 +2643,30 @@ class TMaxRollouter(Rollouter):
                     "stage": failure_stage,
                     "matched": matched,
                 }
+
+        if (
+            _SCORE_AGENT_STAGE_FAILURES
+            and group_id >= 0
+            and infra_failed
+            and status == RolloutStatus.ERROR
+            and failure_stage == "agent"
+            and captured
+            and captured[-1].completion_token_ids
+            and not _PLATFORM_FAILURE.search(error_msg or "")
+        ):
+            infra_failed = False
+            status = RolloutStatus.COMPLETED
+            finish_reason = "sandbox_failed"
+            logger.warning(
+                f"[tmax] {rollout_id}: sandbox failed during the agent's run, "
+                f"scored 0 ({error_msg})"
+            )
+            failure = {
+                "origin": "agent",
+                "reason": "sandbox_failed",
+                "stage": failure_stage,
+                "error": (error_msg or "")[:200],
+            }
 
         disk_gb = (
             sandbox.allocated_disk_gb
