@@ -2295,6 +2295,25 @@ stands, working from what those attempts did, and get `./sandbox oracle` to pass
 with it. Then harden: step 1 adapts that solution, and the change is one rung
 above it."""
 
+# The blind verifier author never sees the author's scratch tests, so a check
+# that lived only there was lost (M8 of the p5 rewriter-trace analysis: a leak
+# check, an anti-fabrication check, an unchanged-input check). What those tests
+# checked travels as requirements in words, never as code (_checked_behaviours).
+CHECKED_FILE = "run/checked-behaviours.json"
+_CHECKED_NOTE = """
+
+WHAT YOUR SCRATCH TESTS CHECK
+Your `tests/` is discarded, and the verifier that ships is written by a session
+that never sees it. Before you finish, write `run/checked-behaviours.json`: a JSON
+list with one string per behaviour your scratch tests check, stated in words as
+a requirement on the result, the way the instruction states it ("the report
+gives each host's open ports", "the input files are left unchanged") -- never
+test code, a value only your solution computed, or a name the instruction does
+not give. That verifier's author is given this list and must cover every entry,
+so a behaviour the task needs checked -- the one your change turns on above
+all -- is lost unless it is listed. An entry the public task does not state
+stops that author and comes back to you to state."""
+
 _REPAIR_JOB = """Your rewrite did not survive the caller's check. It rebuilt the
 package from scratch, ran `solution/solve.sh` against the verifier (exit
 {exit_code}) and audited what the verifier demands against what an agent can
@@ -3114,6 +3133,7 @@ def _blind_verifier(
                 prompt += _ROLE_PATCH_NOTE
             prompt += _instruction_change_note(seed_pkg, pkg)
             prompt += _reported_defects(pkg, vpkg)
+            prompt += _checked_behaviours(pkg, vpkg)
             prompt += _budget(timeout)
             # A simplification may only add guidance (a hint, a starter file) and
             # keep every requirement; the previous verifier then still checks the
@@ -3516,6 +3536,36 @@ def _reported_defects(pkg: Path, vpkg: Path) -> str:
     )
 
 
+def _checked_behaviours(pkg: Path, vpkg: Path) -> str:
+    """Hand the verifier's author, in words, every behaviour the task's author
+    checked with its scratch tests, so a check that lived only there is not
+    lost; the tests themselves stay hidden. A malformed list fails the rewrite,
+    as a malformed run/repair.json does; an absent one hands over nothing."""
+    path = pkg / CHECKED_FILE
+    if not path.exists():
+        return ""
+    checked = json.loads(path.read_text())
+    if not isinstance(checked, list) or not all(
+        isinstance(entry, str) and entry.strip() for entry in checked
+    ):
+        raise ValueError(f"{CHECKED_FILE} must be a list of nonempty strings")
+    if not checked:
+        return ""
+    (vpkg / CHECKED_FILE).write_text(json.dumps(checked, indent=1) + "\n")
+    return (
+        "\n\nBEHAVIOURS THE TASK'S AUTHOR CHECKED. `" + CHECKED_FILE + "` lists, "
+        "in words, every behaviour the task's author checked against its own "
+        "solution with a scratch checker you are not shown. Your verifier covers "
+        "each one: in `run/verifier-changes.md`, name for every entry the check "
+        "that covers it -- the inherited check where the entry is a retained "
+        "requirement, kept at its strictness, or a check you write where the "
+        "revision changed it. An entry is graded as the instruction states it; "
+        "where the instruction and the environment do not state or imply it, "
+        "write `BLOCKED: <the entry> is not stated in the public task` to "
+        "`run/verdict.txt` and stop, so the task's author states it.\n"
+    )
+
+
 def _read_repairs(pkg: Path) -> list[dict]:
     """The defects a harder or easier rewrite repaired on the way, from run/repair.json.
 
@@ -3648,6 +3698,7 @@ def evolve_agentic(
             + (_UNSOLVED_NOTE if task.get("_unsolved") else ""),
             "repair": _REPAIR_JOB.format(exit_code=exit_code),
         }[job]
+        + (_CHECKED_NOTE if blind else "")
         + _traces_spec(rewrite.traces)
         + _budget(author_timeout)
     )

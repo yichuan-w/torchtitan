@@ -344,6 +344,59 @@ def test_the_verifier_author_is_told_the_defects_the_author_repaired(tmp_path, m
     assert "PRIVATE" not in verifier["prompt"]
 
 
+@pytest.mark.parametrize("job", ["harder", "easier"])
+def test_the_verifier_author_must_cover_what_the_authors_scratch_tests_checked(
+    tmp_path, monkeypatch, job
+):
+    """The author's scratch tests stay hidden; what they checked reaches the
+    verifier's author in words, as requirements it must cover."""
+    rw = _rewrite(tmp_path, monkeypatch)
+    sessions, checks = [], []
+    _wire(monkeypatch, sessions, checks)
+    if job == "easier":
+        monkeypatch.setattr(
+            ec.so, "read_decision", lambda *a: {"retained_skill": "compare files"}
+        )
+    wired = ec._run_codex
+    listed = ["the report names every changed file", "the input files are left unchanged"]
+
+    def author_lists_its_checks(run, cwd, prompt, resume=None):
+        out = wired(run, cwd, prompt, resume)
+        if (cwd / "solution").exists():
+            (cwd / "tests" / "test_state.py").write_text("PRIVATE_SCRATCH_CHECK = 1\n")
+            (cwd / "run" / "checked-behaviours.json").write_text(json.dumps(listed))
+        return out
+
+    monkeypatch.setattr(ec, "_run_codex", author_lists_its_checks)
+    ec.evolve_agentic(rw, dict(SEED), job)
+    author = next(x for x in sessions if x["role"] == "author")
+    verifier = next(x for x in sessions if x["role"] == "verifier")
+    assert "WHAT YOUR SCRATCH TESTS CHECK" in author["prompt"]
+    assert "BEHAVIOURS THE TASK'S AUTHOR CHECKED" in verifier["prompt"]
+    assert "covers each one" in " ".join(verifier["prompt"].split())
+    handed = Path(verifier["cwd"]) / "run/checked-behaviours.json"
+    assert json.loads(handed.read_text()) == listed
+    # Blind to the scratch test code: neither the prompt nor tests/ carries it.
+    assert "PRIVATE_SCRATCH_CHECK" not in verifier["prompt"]
+    assert "PRIVATE_SCRATCH_CHECK" not in (
+        Path(verifier["cwd"]) / "tests/test_state.py"
+    ).read_text()
+
+
+def test_no_checked_list_hands_nothing_and_a_malformed_one_fails(tmp_path):
+    pkg, vpkg = tmp_path / "pkg", tmp_path / "vpkg"
+    (pkg / "run").mkdir(parents=True)
+    (vpkg / "run").mkdir(parents=True)
+    assert ec._checked_behaviours(pkg, vpkg) == ""
+    assert not (vpkg / "run/checked-behaviours.json").exists()
+    (pkg / "run/checked-behaviours.json").write_text(json.dumps(["ok", ""]))
+    with pytest.raises(ValueError, match="nonempty strings"):
+        ec._checked_behaviours(pkg, vpkg)
+    (pkg / "run/checked-behaviours.json").write_text(json.dumps({"a": "b"}))
+    with pytest.raises(ValueError):
+        ec._checked_behaviours(pkg, vpkg)
+
+
 def test_disabled_web_search_does_not_tell_the_author_to_search(tmp_path, monkeypatch):
     rw = _rewrite(tmp_path, monkeypatch)
     sessions, checks = [], []
