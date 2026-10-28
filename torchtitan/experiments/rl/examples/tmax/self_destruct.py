@@ -45,14 +45,19 @@ SELF_DESTRUCT_RULES: dict[str, re.Pattern[str]] = {
     name: re.compile(pattern, re.M)
     for name, pattern in {
         # The Daytona daemon (pid 1): the sandbox API dies with it.
+        # Its toolbox process carries the sandbox API too.
         "kill_daytona": _SEP + r"(?:pkill|killall)\b[^\n;&|]*\bdaytona\b"
+        r"|" + _SEP + r"(?:pkill|killall)\b[^\n;&]*\btoolbox\b"
         r"|\bkill\b[^\n;&|]*\$\((?:pgrep|pidof)[^)]*\b(?:daytona|tmux)\b"
         r"|grep[^\n|]*\bdaytona\b[^\n]*\|\s*xargs\s+(?:-\S+\s+)*kill\b"
         r"|\bkill\b[^\n;]*\$\(ps\b[^)]*\bdaytona\b",
-        # Every process (`kill -9 -1`), or pid 1.
+        # Every process (`kill -9 -1`, `kill -INT -1`, a kill over every pid `ps`
+        # lists), or pid 1.
         "kill_all_or_pid1": _SEP
-        + r"kill\s+(?:-(?:9|KILL|SIGKILL|15|TERM|SIGTERM|-|s\s+\w+)\s+)+-1"
+        + r"kill\s+(?:-(?:\w+|-|s\s+\w+)\s+)+-1"
         + _END
+        + r"|"
+        + r"\bkill\b[^\n;]*\$\(\s*ps\b[^)|]*\|\s*awk\s+['\"]\{\s*print\s+\$[12]\s*\}['\"]\s*\)"
         + r"|"
         + _SEP
         + r"kill\s+(?:-\S+\s+)*(?:\d+\s+)*1"
@@ -92,7 +97,11 @@ SELF_DESTRUCT_RULES: dict[str, re.Pattern[str]] = {
         + r"|"
         + _SEP
         + r"kill\s+(?:-\S+\s+)*(?:\$\$|\$PPID|\$\{PPID\})",
-        "rm_rf_root": _SEP + r"rm\s+(?:-\S+\s+)*(?:/|/\*)" + _END,
+        "rm_rf_root": _SEP + r"rm\s+(?:-\S+\s+)*(?:/|/\*)" + _END
+        # `find / ... -delete` with no name filter deletes the harness's files too.
+        + r"|"
+        + _SEP
+        + r"find\s+/\s(?:(?!-i?name\b|-i?path\b|-i?regex\b)[^\n;|&])*-delete\b",
         "machine_down": _SEP + r"(?:reboot|poweroff|shutdown)" + _END,
     }.items()
 }

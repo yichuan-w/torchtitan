@@ -80,6 +80,11 @@ def _stub_rollouter(monkeypatch, **kwargs):
         "pkill -f login",
         "pkill -9 bash",
         "ps aux | grep daytona | awk '{print $2}' | xargs kill -9",
+        # Eval run r1026bs300 (2026-10-27): sandboxes lost after these.
+        "python3 /app/final_test.py &\nsleep 2\nkill -INT -1\nwait",
+        "kill -9 $(ps aux | awk '{print $2}')",
+        'pkill -9 -f "dashboard\\|terminal\\|toolbox\\|computer\\|record"',
+        "find / -type f -newer /app/main.db -delete 2>/dev/null",
     ],
 )
 def test_self_destruct_commands_match(command: str) -> None:
@@ -110,6 +115,10 @@ def test_self_destruct_commands_match(command: str) -> None:
         "rm -f /usr/lib/x86_64-linux-gnu/libz.so.1",
         "cat > bomb.sh << 'EOF'\n:(){ :|:& };:\npkill tmux\nEOF\n",
         "halt:\n  jmp halt",
+        "kill -9 -1234",
+        "kill -9 $(ps aux | grep python | awk '{print $2}')",
+        "find / -name '*.pyc' -delete",
+        "find /tmp -type f -delete",
     ],
 )
 def test_ordinary_commands_do_not_match(command: str) -> None:
