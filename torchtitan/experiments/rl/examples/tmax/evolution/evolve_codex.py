@@ -800,8 +800,12 @@ Package runtime interface:
   sandbox command. oracle reloads solution/; grade reloads tests/. Dockerfile
   and build-context edits require reset. exec preserves container state.
 - check, oracle, grade, reset and up can each take minutes. Start them with a
-  long wait on the command (codex: yield_time_ms 600000) so the call returns
-  with the result; polling a running command spends a turn per poll.
+  long wait on the command (codex: yield_time_ms 600000). The exec tool may
+  still return after about 30 seconds with a session id while the command runs
+  on (in measured codex sessions it did, whatever wait was asked): that is not
+  a result. Keep waiting on that same session (codex: write_stdin with empty
+  chars) until it prints its result. Do not start a second check, oracle or
+  reset while one runs: it would only wait for the first to finish.
 - Once oracle has passed, re-check verifier edits with grade rather than check,
   which rebuilds and replays everything; run check again when solution/ or
   environment/ changed, and to confirm at the end. oracle and check reuse an

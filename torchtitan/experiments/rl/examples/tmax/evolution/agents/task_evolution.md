@@ -302,11 +302,16 @@ edits with `grade` rather than `check`, unless `solution/` or `environment/`
 changed.
 
 Run it in the foreground and wait for it to print: start it with a long wait
-on the command (codex: yield_time_ms 600000) rather than polling it. Minutes is the expected
-cost and you have hours, so waiting for it costs you nothing. Do not send it
-to the background, do not poll for it and give up, and do not end your turn
-while it is still running: this is one batch turn, nothing will wake you when
-a background job finishes, and a verdict that arrives after you stop is a
+on the command (codex: yield_time_ms 600000). Minutes is the expected
+cost and you have hours, so waiting for it costs you nothing. The exec tool may
+return after about 30 seconds anyway, with a session id and little or no output,
+while the check runs on; that is not a verdict and not a hang. Keep waiting on
+that same session (codex: write_stdin with empty chars) until it prints
+`VERDICT:`. Do not start a second `check`, `oracle` or `reset` meanwhile: it
+only waits for the first to finish before it can start.
+Do not send it to the background, do not give up on it, and do not end your
+turn while it is still running: this is one batch turn, nothing will wake you
+when a background job finishes, and a verdict that arrives after you stop is a
 verdict nobody reads. If the wait is long, keep waiting -- that is the job.
 
 When it fails, read the output before editing. It tells you which check failed

@@ -269,6 +269,8 @@ def test_check_returns_nonzero_when_the_oracle_fails(
     assert "VERDICT: fail" in out and "solve_exit=0" in out
     assert "reference completed" in out
     assert "AssertionError: balance" in out
+    # The long phases announce themselves before the verdict line.
+    assert out.index("check: running the reference solution") < out.index("VERDICT:")
     record = json.loads((pkg / "run" / "checks.jsonl").read_text().strip())
     assert record["verdict"] == "fail" and record["stage"] == "oracle"
     assert record["grading"] == {
@@ -677,3 +679,32 @@ def test_up_detach_starts_the_server_and_returns(tmp_path, monkeypatch, capsys):
     state = asb._read_state(pkg)
     assert state["status"] == "booting" and state["pid"] == 4245
     assert "commands wait for it" in capsys.readouterr().out
+
+
+
+def test_a_second_long_op_waits_for_the_first_instead_of_resetting_it(
+    tmp_path, monkeypatch, capsys
+) -> None:
+    """A second ./sandbox check started while one runs would take down the
+    container the first is grading in; it waits for the first to finish."""
+    import fcntl
+
+    pkg = tmp_path / "pkg"
+    (pkg / "run").mkdir(parents=True)
+    monkeypatch.setattr(asb, "_held_locks", [])
+    lock = pkg / "run" / "sandbox-op.lock"
+    lock.write_text("./sandbox check, pid 1, since then")
+    first = os.open(lock, os.O_RDWR)
+    fcntl.flock(first, fcntl.LOCK_EX)
+    done = threading.Event()
+    second = threading.Thread(
+        target=lambda: (asb._one_long_op(pkg, "check"), done.set()), daemon=True
+    )
+    second.start()
+    assert not done.wait(0.5), "the second op ran while the first held the lock"
+    assert "waiting for the one already running" in capsys.readouterr().out
+    os.close(first)  # the first check exits
+    assert done.wait(5)
+    assert "./sandbox check, pid" in lock.read_text()
+    for fd in asb._held_locks:
+        os.close(fd)
