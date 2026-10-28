@@ -21,6 +21,8 @@ from test_blind_verifier import _rewrite, _wire, SEED
 def stable_rewrite_deadline(monkeypatch):
     deadline = RewriteDeadline(0, 10**12, 0)
     monkeypatch.setattr(ec, "rewrite_deadline", lambda _rewrite: deadline)
+    # These tests are about the probe author, which is off by default.
+    monkeypatch.setenv("EVOLVE_INDEPENDENT_PROBES", "1")
 
 
 def test_probe_author_runs_while_blind_verifier_is_writing(tmp_path, monkeypatch):
@@ -444,3 +446,30 @@ def test_missing_contract_is_repairable_before_daytona_replay(tmp_path):
     ):
         vp.verify_probes(tmp_path, {}, 10)
     assert not (tmp_path / "run/verifier-probe-results.jsonl").exists()
+
+
+
+def test_probe_author_is_off_by_default_and_nothing_of_it_runs(tmp_path, monkeypatch):
+    """EVOLVE_INDEPENDENT_PROBES unset: no probe session, no independent
+    replay, no probe-repair; the blind verifier still ships."""
+    monkeypatch.delenv("EVOLVE_INDEPENDENT_PROBES")
+    assert ec.independent_probes() is False
+    rewrite = _rewrite(tmp_path, monkeypatch)
+    _wire(monkeypatch, [], [])
+
+    def never(*args, **kwargs):
+        raise AssertionError("probe author ran with EVOLVE_INDEPENDENT_PROBES off")
+
+    monkeypatch.setattr(ec, "_author_independent_probes", never)
+    monkeypatch.setattr(ec, "_independent_verifier", never)
+    monkeypatch.setattr(ec, "_early_independent_replay", never)
+    ec.evolve_agentic(rewrite, dict(SEED), "harder")
+    kinds = {p.name.split("--")[-1] for p in (rewrite.path / "sessions").iterdir()}
+    assert "verifier" in kinds
+    assert not kinds & {"probe", "probe-repair"}
+
+
+@pytest.mark.parametrize("value,on", [("1", True), ("0", False), ("", False)])
+def test_probe_author_switch_reads_the_environment(monkeypatch, value, on):
+    monkeypatch.setenv("EVOLVE_INDEPENDENT_PROBES", value)
+    assert ec.independent_probes() is on

@@ -1639,6 +1639,20 @@ SANDBOX = Path(__file__).resolve().parent / "agent_sandbox.sh"
 # result from the container instead of asserting the solution's strings,
 # which is what the split was for. "same" remains for comparison.
 VERIFIER_AUTHOR = os.environ.get("SWE_VERIFIER_AUTHOR", "blind")
+
+# EVOLVE_INDEPENDENT_PROBES=1 runs the independent probe author beside the blind
+# verifier author: a third session writing controls from the public task, their
+# replay against the blind verifier, and a probe-repair session when a control
+# is graded against its declared expectation. Off by default. On the p5
+# EvolveBench arms its controls ran on 57 of 175 rewrites and sent 10 to
+# probe-repair, 4 of which the audit then found defective; it caught none of
+# the 11 rewrites the audit labelled LEAKY, and in the sampled rewriter traces
+# (evolve-bench/analysis/p5-rewriter-traces-20261028) probe-repair itself
+# introduced the defect in 3 tasks. Off skips the probe session, its replay
+# and probe-repair; the blind verifier's own replay controls still run.
+def independent_probes() -> bool:
+    """Read when a rewrite runs, so a test or a caller can set it per process."""
+    return os.environ.get("EVOLVE_INDEPENDENT_PROBES", "0") == "1"
 VERIFIER_SPEC = Path(__file__).resolve().parent / "agents" / "verifier_author.md"
 # Hide author-only files; run metadata is filtered separately in _blind_layout.
 HIDDEN_FROM_VERIFIER = (
@@ -3139,7 +3153,7 @@ def _blind_verifier(
                 deadline=deadline,
                 # Without a seed dir seed_pkg is this revision itself: nothing to scope by.
                 previous=seed_pkg if task.get("_seed_dir") else None,
-            )
+            ) if independent_probes() else None
             try:
                 _run_codex(run, vpkg, prompt)
             finally:
@@ -3149,16 +3163,19 @@ def _blind_verifier(
         cancel_early = threading.Event()
         early = pool.submit(
             _early_independent_replay, probe_future, run.dir, deadline, cancel_early
-        )
+        ) if probe_future else None
         try:
             _verify_original_probes(run.dir, rewrite, deadline)
         except BaseException:
             # Rejected: the early replay's verdict will never be read.
             cancel_early.set()
-            early.cancel()
+            if early:
+                early.cancel()
             raise
-        probe_future.result()
-    _independent_verifier(rewrite, run.dir, deadline=deadline, early=early)
+        if probe_future:
+            probe_future.result()
+    if probe_future is not None:
+        _independent_verifier(rewrite, run.dir, deadline=deadline, early=early)
     _add_time(timings, "blind_verifier", sessions_done - started)
     _add_time(timings, "independent_verifier", time.monotonic() - sessions_done)
     rel = _take_verifier(
@@ -3199,9 +3216,10 @@ def _blind_repair(
             _sandbox_down(vpkg)
     _check_verdict(vpkg)
     _verify_original_probes(vsession, rewrite, deadline)
-    _independent_verifier(
-        rewrite, vsession, allow_repair=False, deadline=deadline
-    )
+    if independent_probes():
+        _independent_verifier(
+            rewrite, vsession, allow_repair=False, deadline=deadline
+        )
     before = (pkg / _verifier_on_disk(pkg, seed_rel)).read_text()
     return _take_verifier(vpkg, pkg, _verifier_on_disk(pkg, seed_rel), before)
 

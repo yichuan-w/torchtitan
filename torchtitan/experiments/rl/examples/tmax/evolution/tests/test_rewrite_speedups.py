@@ -121,7 +121,9 @@ def _authors(probe_started: threading.Event | None = None):
 
 
 def _replays(monkeypatch):
-    """Record the independent replays; the original replay runs elsewhere."""
+    """Record the independent replays; the original replay runs elsewhere.
+    The probe author is on for these (EVOLVE_INDEPENDENT_PROBES=1)."""
+    monkeypatch.setenv("EVOLVE_INDEPENDENT_PROBES", "1")
     started = threading.Event()
     replays: list[Path] = []
 

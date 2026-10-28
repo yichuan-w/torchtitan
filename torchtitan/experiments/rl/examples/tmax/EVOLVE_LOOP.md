@@ -148,8 +148,9 @@ the previous revision's. This session sees the instruction, the environment
 and the verifier the task had before the change, and neither the solution nor
 the author's scratch checker.
 
-What it writes is checked against independent probes, then copied back into the
-author's package, replacing `tests/`.
+What it writes is checked against its own replay controls (and, with
+`EVOLVE_INDEPENDENT_PROBES=1`, against an independent probe author's), then
+copied back into the author's package, replacing `tests/`.
 
 Then comes the only meeting of the two sessions: the harness runs the hidden
 reference solution against the blind verifier. A disagreement means one of two
