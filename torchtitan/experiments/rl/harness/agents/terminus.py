@@ -1288,6 +1288,22 @@ def _count_subagent_calls(agent: Any, llm: _AdapterLLM) -> None:
     agent._run_subagent = counting
 
 
+# tmux refuses a client command past ~16 KiB of bytes ("command too long"), and
+# harbor splits send-keys at 16,000 *characters*: 37K characters of a heredoc with
+# box-drawing and CJK text came to 48K bytes and one chunk crossed the limit,
+# failing the rollout (TB-2.1 reshard-c4-data, 2026-10-28). 4,000 characters stay
+# under it even at 4 bytes per character.
+_TMUX_SEND_KEYS_MAX_CHARS = 4000
+
+
+def _cap_tmux_send_keys_length() -> None:
+    from harbor.agents.terminus_2.tmux_session import TmuxSession  # type: ignore
+
+    TmuxSession._TMUX_SEND_KEYS_MAX_COMMAND_LENGTH = min(
+        TmuxSession._TMUX_SEND_KEYS_MAX_COMMAND_LENGTH, _TMUX_SEND_KEYS_MAX_CHARS
+    )
+
+
 async def terminus_agent(
     task: AgentTask,
     *,
@@ -1312,6 +1328,7 @@ async def terminus_agent(
     # Quiet litellm's per-turn token_counter for our placeholder model name (see
     # _register_titan_actor_with_litellm). Idempotent, cheap after the first call.
     _register_titan_actor_with_litellm()
+    _cap_tmux_send_keys_length()
 
     submitted = False
     turns = 0

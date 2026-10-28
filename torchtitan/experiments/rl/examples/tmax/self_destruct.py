@@ -48,6 +48,8 @@ SELF_DESTRUCT_RULES: dict[str, re.Pattern[str]] = {
         # Its toolbox process carries the sandbox API too.
         "kill_daytona": _SEP + r"(?:pkill|killall)\b[^\n;&|]*\bdaytona\b"
         r"|" + _SEP + r"(?:pkill|killall)\b[^\n;&]*\btoolbox\b"
+        # `pkill -f term` matches the harness's terminus-* tmux server and pane.
+        r"|" + _SEP + r"pkill\b[^\n;&]*\s-\S*f\S*\s+['\"]?[^'\"\s]*\bterm"
         r"|\bkill\b[^\n;&|]*\$\((?:pgrep|pidof)[^)]*\b(?:daytona|tmux)\b"
         r"|grep[^\n|]*\bdaytona\b[^\n]*\|\s*xargs\s+(?:-\S+\s+)*kill\b"
         r"|\bkill\b[^\n;]*\$\(ps\b[^)]*\bdaytona\b",
@@ -98,6 +100,10 @@ SELF_DESTRUCT_RULES: dict[str, re.Pattern[str]] = {
         + _SEP
         + r"kill\s+(?:-\S+\s+)*(?:\$\$|\$PPID|\$\{PPID\})",
         "rm_rf_root": _SEP + r"rm\s+(?:-\S+\s+)*(?:/|/\*)" + _END
+        # `/` among other operands: `rm -rf /git/old /app /tmp/test / 2>/dev/null`.
+        + r"|"
+        + _SEP
+        + r"rm\s+(?=[^\n;&|]*\s-\S*r)[^\n;&|]*\s(?:/|/\*)" + _END
         # `find / ... -delete` with no name filter deletes the harness's files too.
         + r"|"
         + _SEP
