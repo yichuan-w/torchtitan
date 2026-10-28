@@ -148,6 +148,52 @@ def test_a_repair_is_the_rewrites_only_change():
     assert "the repaired task is measured before any help is added" in p
 
 
+def test_a_repair_does_not_leave_the_stage_where_limit_attempts_ran_out():
+    p = " ".join(so.prompt("vague").split())
+    assert "A repair does not license leaving that stage as it is" in p
+    assert "the change adds nothing the student has to read" in p
+
+
+def _limit_traces(pkg, reasons):
+    (pkg / "traces").mkdir(exist_ok=True)
+    for i, reason in enumerate(reasons, 1):
+        (pkg / f"traces/attempt-{i:02d}.jsonl").write_text(
+            json.dumps({"reward": 0, "finish_reason": reason}) + "\n"
+            + "".join(json.dumps({"turn": t, "output": "x"}) + "\n" for t in range(1, 6))
+        )
+
+
+def test_budget_is_required_when_most_attempts_ended_at_a_limit(tmp_path):
+    decision(tmp_path)
+    _limit_traces(tmp_path, ["hit_context_limit", "hit_max_turns", "submit"])
+    with pytest.raises(ValueError, match="requires budget"):
+        so.read_decision(tmp_path, "vague")
+
+
+def test_budget_covers_every_limit_attempt_with_recorded_turns(tmp_path):
+    decision(tmp_path)
+    _limit_traces(tmp_path, ["hit_context_limit", "hit_time_budget", "submit"])
+    row = json.loads((tmp_path / "run/simplify.json").read_text())
+    row["evidence"] = [dict(attempt="attempt-01.jsonl", turn=2, observation="x")]
+    row["budget"] = [dict(attempt="attempt-01.jsonl", turns=[2, 5], stage="parse")]
+    (tmp_path / "run/simplify.json").write_text(json.dumps(row))
+    with pytest.raises(ValueError, match="attempt-02.jsonl"):
+        so.read_decision(tmp_path, "vague")
+    row["budget"].append(dict(attempt="attempt-02", turns=[1, 9], stage="parse"))
+    (tmp_path / "run/simplify.json").write_text(json.dumps(row))
+    with pytest.raises(ValueError, match="budget turn absent"):
+        so.read_decision(tmp_path, "vague")
+    row["budget"][1]["turns"] = [1, 4]
+    (tmp_path / "run/simplify.json").write_text(json.dumps(row))
+    assert so.read_decision(tmp_path, "vague")["budget"][1]["attempt"] == "attempt-02.jsonl"
+
+
+def test_budget_is_not_required_when_few_attempts_ended_at_a_limit(tmp_path):
+    decision(tmp_path)
+    _limit_traces(tmp_path, ["hit_context_limit", "submit", "submit"])
+    so.read_decision(tmp_path, "vague")
+
+
 def test_an_all_failed_task_gets_a_hint_not_a_give_up():
     p = " ".join(so.prompt("vague").split())
     assert "gives a hint, not up" in p

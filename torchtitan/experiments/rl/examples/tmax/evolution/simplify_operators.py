@@ -76,7 +76,11 @@ def student_budget() -> str:
         "context, turn or time limit ran out of room before it submitted: it read,\n"
         "printed or retried more than the budget holds. Help that adds to what the\n"
         "student must read or run spends the same budget, so for such attempts the\n"
-        "change that helps is one that shortens the work."
+        "change that helps is one that shortens the work: it removes part of the\n"
+        "stage where they ran out, so that they no longer have to do it. A sentence\n"
+        "of direction, a document to consult or an optional starter adds reading and\n"
+        "removes no stage; when most attempts ended at a limit, the change adds\n"
+        "nothing the student has to read."
     )
 
 
@@ -119,7 +123,13 @@ cause, then act on that cause:
   "broken_setup" for an environment missing what the task needs, and "other"
   for anything else. The attempts measured the task with its defect, so they
   cannot show what the repaired task needs: the repair is this rewrite's only change, and the
-  repaired task is measured before any help is added. A repair moves the task
+  repaired task is measured before any help is added. That holds for attempts
+  that reached the step the defect affects. An attempt that ended at a context,
+  turn or time limit before that step never met the defect, and the repair
+  does not change how it ends: when most scored attempts ended that way, repair
+  the defect and also shorten the work at the stage where they ran out, in the
+  same rewrite, and record the shortening in change separately from the
+  repair. A repair does not license leaving that stage as it is. A repair moves the task
   in this rewrite's direction only when it removes an unfair obstacle (a
   hidden requirement stated, a broken setup fixed, a wrong check corrected).
   Closing a shortcut an attempt was rewarded for makes the task harder, the
@@ -200,7 +210,16 @@ something the original task also shows it. Prefer help in this order:
 
 Help comes in increasing strength within each place, up to a worked instance
 of the hard step on an input other than the graded one. Use the earliest place
-and the weakest help the evidence says will produce successes. A failed
+and the weakest help the evidence says will produce successes. When most
+attempts ended at the context, turn or time limit, the help that works is the
+one that removes work: name what spent their budget (output they printed, files
+they rewrote, steps they repeated or never finished), remove enough of it -- a
+smaller input, a step done in the environment, output the task no longer makes
+them read -- that a successful attempt fits the budget with room to spare, and
+say in change how much it removes. Direction added to the instruction spends more of the same
+budget: in measured groups, rewrites whose attempts mostly ended at a limit
+stayed at 0 of 16 after instruction-only hints, and moved when the work itself
+shrank. A failed
 prediction at one strength needs a reason, from the traces, to stay at that
 strength. When no attempt has a foothold, reduce what the retained decision
 demands -- a smaller instance, fewer cases, feedback that exposes the mistake
@@ -239,7 +258,13 @@ records, or 0 for its first line, the attempt's summary with any verifier
 diagnostics. When you run an attempt's implementation in the sandbox to test a
 suspected mismatch, record the input, observed output and grading result in
 the observation of the evidence item for the attempt whose implementation you
-ran. Each other field is a nonempty string. The caller checks the
+ran. When at least half of the scored attempts ended at the context, turn or
+time limit, add budget: a list with one object per such attempt, with attempt
+(named as in evidence), turns (the first and last turn it spent on the stage
+your change removes or shortens, as two integers that file records) and stage
+(what that stage is and how the change removes it). Every such attempt needs
+one: if your change shortens nothing an attempt spent its turns on, it only
+adds reading for that attempt, so choose a change that does. Each other field is a nonempty string. The caller checks the
 declaration's form and evidence locations, not the truth of your diagnosis.
 
 Every attempt failing is itself the evidence that help is needed: a teacher
@@ -263,6 +288,48 @@ def extra_guidance() -> str:
 
 EXPECTED = re.compile(r"^\s*\d+\s+of\s+\d+\s*$")
 
+# How an attempt that ran out of room ends (rollouter._FINISH_REASONS).
+LIMIT_REASONS = frozenset({"hit_context_limit", "hit_max_turns", "hit_time_budget"})
+
+
+def _attempt_records(pkg: Path, item: dict) -> tuple[Path, list[dict]]:
+    """The records of the attempt file an evidence or budget item names; a name
+    without its .jsonl suffix is normalised in place."""
+    name = item.get("attempt", "")
+    if (
+        not isinstance(name, str)
+        or Path(name).name != name
+        or not name.startswith("attempt-")
+    ):
+        raise ValueError("evidence must name an attempt file")
+    path = pkg / "traces" / name
+    if not path.is_file() and (pkg / "traces" / f"{name}.jsonl").is_file():
+        # "attempt-01" names attempt-01.jsonl and nothing else.
+        path = pkg / "traces" / f"{name}.jsonl"
+        item["attempt"] = path.name
+    if not path.is_file():
+        raise ValueError(f"evidence names no file in traces/: {name}")
+    with path.open() as stream:
+        return path, [json.loads(line) for line in stream if line.strip()]
+
+
+def limit_attempts(pkg: Path) -> tuple[list[str], int]:
+    """The scored attempts in traces/ that ended at a limit, and how many
+    attempts were scored. A record with no summary line is not counted."""
+    ended, scored = [], 0
+    for path in sorted((pkg / "traces").glob("attempt-*.jsonl")):
+        try:
+            with path.open() as stream:
+                head = json.loads(stream.readline())
+        except (OSError, ValueError):
+            continue
+        if not isinstance(head, dict) or "turn" in head or head.get("infra_failed"):
+            continue
+        scored += 1
+        if head.get("finish_reason") in LIMIT_REASONS:
+            ended.append(path.name)
+    return ended, scored
+
 
 def read_decision(pkg: Path, hint: str) -> dict:
     decision = json.loads((pkg / "run/simplify.json").read_text())
@@ -282,13 +349,6 @@ def read_decision(pkg: Path, hint: str) -> dict:
     if not isinstance(evidence, list) or not evidence:
         raise ValueError("simplify decision requires trace evidence")
     for item in evidence:
-        name = item.get("attempt", "")
-        if (
-            not isinstance(name, str)
-            or Path(name).name != name
-            or not name.startswith("attempt-")
-        ):
-            raise ValueError("evidence must name an attempt file")
         turn = item.get("turn")
         observation = item.get("observation")
         if (
@@ -297,15 +357,7 @@ def read_decision(pkg: Path, hint: str) -> dict:
             or not observation.strip()
         ):
             raise ValueError("evidence requires a turn and observation")
-        path = pkg / "traces" / name
-        if not path.is_file() and (pkg / "traces" / f"{name}.jsonl").is_file():
-            # "attempt-01" names attempt-01.jsonl and nothing else.
-            path = pkg / "traces" / f"{name}.jsonl"
-            item["attempt"] = path.name
-        if not path.is_file():
-            raise ValueError(f"evidence names no file in traces/: {name}")
-        with path.open() as stream:
-            records = [json.loads(line) for line in stream if line.strip()]
+        path, records = _attempt_records(pkg, item)
         # Turn 0 is the first line: the attempt's summary, where the verifier's
         # diagnostics are, and evidence worth citing.
         if turn == 0:
@@ -314,4 +366,42 @@ def read_decision(pkg: Path, hint: str) -> dict:
             found = any(record.get("turn") == turn for record in records)
         if not found:
             raise ValueError(f"evidence turn absent: {path.name}:{turn}")
+    _check_budget(pkg, decision)
     return decision
+
+
+def _check_budget(pkg: Path, decision: dict) -> None:
+    """When at least half the scored attempts ended at a limit, budget names, for
+    each of them, the turns it spent on the stage the change removes."""
+    ended, scored = limit_attempts(pkg)
+    if not ended or 2 * len(ended) < scored:
+        return
+    budget = decision.get("budget")
+    if not isinstance(budget, list) or not budget:
+        raise ValueError(
+            f"{len(ended)} of {scored} attempts ended at a limit: simplify "
+            "decision requires budget"
+        )
+    covered = set()
+    for item in budget:
+        if not isinstance(item, dict):
+            raise ValueError("each budget item is an object")
+        path, records = _attempt_records(pkg, item)
+        turns, stage = item.get("turns"), item.get("stage")
+        if (
+            not isinstance(turns, list)
+            or len(turns) != 2
+            or any(type(t) is not int for t in turns)
+            or not 0 < turns[0] <= turns[1]
+            or not isinstance(stage, str)
+            or not stage.strip()
+        ):
+            raise ValueError("budget requires turns [first, last] and a stage")
+        recorded = {record.get("turn") for record in records}
+        for turn in turns:
+            if turn not in recorded:
+                raise ValueError(f"budget turn absent: {path.name}:{turn}")
+        covered.add(path.name)
+    missing = sorted(set(ended) - covered)
+    if missing:
+        raise ValueError("budget leaves out attempts that ended at a limit: " + ", ".join(missing))
