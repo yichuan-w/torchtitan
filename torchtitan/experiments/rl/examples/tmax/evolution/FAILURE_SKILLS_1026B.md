@@ -188,3 +188,6 @@ with the relevant specifications or man pages in the image and a tighter turn ca
 Traces: `validation_traces/step-75/` (and steps 50, 100, 125) of run
 `agentpick-clean-evolve-both-1026b`. The per-trial failure labels, per-task tables and trace
 quotes behind every number above were produced by three analysis passes over those traces.
+They are in [`failure_skills_1026b/`](failure_skills_1026b/): [`taxonomy.md`](failure_skills_1026b/taxonomy.md)
+(every failed trial labelled, per-task table), [`near_miss.md`](failure_skills_1026b/near_miss.md) (passing vs
+failing trials of the same task) and [`zero_pass.md`](failure_skills_1026b/zero_pass.md) (the 43 tasks with 0/5).
