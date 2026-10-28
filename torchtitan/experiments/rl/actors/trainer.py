@@ -500,6 +500,25 @@ class PolicyTrainer(Actor, Configurable):
             self.dp_size = 1
             self.dp_rank = 0
 
+        # SWE_TRAINER_RESERVE_GB=N: grow this rank's cached GPU memory to N GiB now, at
+        # startup. The trainer otherwise reaches its peak only in the first backward,
+        # and on a GPU shared with other users a process that arrives in between can
+        # take that memory (the overfit bench lost three resumes this way, 10-27/28).
+        # Nothing here calls empty_cache, so the freed block stays in the caching
+        # allocator and later steps reuse it. 0 (default) reserves nothing.
+        reserve_gib = float(os.environ.get("SWE_TRAINER_RESERVE_GB", "0") or 0)
+        if reserve_gib > 0 and self.device.type == "cuda":
+            gib = 1 << 30
+            missing = int(reserve_gib * gib) - torch.cuda.memory_reserved(self.device)
+            if missing > 0:
+                block = torch.empty(missing, dtype=torch.uint8, device=self.device)
+                del block
+            logger.info(
+                f"[trainer] dp_rank={self.dp_rank}: reserved "
+                f"{torch.cuda.memory_reserved(self.device) / gib:.1f} GiB at startup "
+                f"(SWE_TRAINER_RESERVE_GB={reserve_gib:g})"
+            )
+
         logger.debug(
             f"PolicyTrainer initialized (dp_rank={self.dp_rank}, dp_size={self.dp_size})"
         )
