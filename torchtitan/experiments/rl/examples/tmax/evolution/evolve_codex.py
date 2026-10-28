@@ -3594,6 +3594,43 @@ def _read_repairs(pkg: Path) -> list[dict]:
     return repairs
 
 
+# A rollout a strict rule ended is neither a solve nor an attempt
+# (rollouter._RULE_TERMINATED_REASONS); the trainer's signal skips it too.
+_RULE_TERMINATED = frozenset({"format_error", "truncated"})
+
+
+def _trace_counts(traces: Path) -> tuple[int, int] | None:
+    """(solved, attempts) over the attempt records in traces/, counted the way
+    the trainer counts a group: an infra-failed or rule-terminated record is not
+    an attempt, and a reward above 0 is a solve. None when no record is readable.
+
+    The job prompt states these, not the signal's solved/total: the signal's
+    total is the group that triggered the rewrite, and a staged signal can carry
+    the attempts of several groups (the p5 EvolveBench arms said "0 of 5" over
+    traces/ holding 11-12 attempts in 21 of 123 easier prompts), which left the
+    rewriter two denominators to choose between."""
+    solved = attempts = 0
+    for path in sorted(traces.glob("attempt-*.jsonl")):
+        try:
+            head = rollout_record.read_header(path)
+        except (OSError, ValueError):
+            continue
+        if not isinstance(head, dict):
+            continue
+        reward = head.get("reward")
+        if (
+            "turn" in head
+            or head.get("infra_failed")
+            or head.get("finish_reason") in _RULE_TERMINATED
+            or not isinstance(reward, (int, float))
+            or reward != reward  # NaN: the harness could not score it
+        ):
+            continue
+        attempts += 1
+        solved += reward > 0
+    return (solved, attempts) if attempts else None
+
+
 def evolve_agentic(
     rewrite: layout.RewriteDir,
     task: dict,
@@ -3632,9 +3669,9 @@ def evolve_agentic(
     if job == "harder":
         task = {**task, "_harder_mode": "student"}
     pkg = rewrite.package
-    solved = task.get("_solved", 0)
-    attempts_n = task.get(
-        "_attempts", len(list(rewrite.traces.glob("attempt-*.jsonl"))) or 16
+    solved, attempts_n = _trace_counts(rewrite.traces) or (
+        task.get("_solved", 0),
+        task.get("_attempts", len(list(rewrite.traces.glob("attempt-*.jsonl"))) or 16),
     )
     previous = rewrite.traces / "previous-simplify.json"
     calibration = (
