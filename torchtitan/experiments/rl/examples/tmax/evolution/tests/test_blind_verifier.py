@@ -863,3 +863,15 @@ def test_an_environmental_failure_is_fixed_in_the_environment_not_blocked():
     job = " ".join(ec._ORACLE_AGENTS_MD.split())
     assert "fix the environment it comes from" in job
     assert "only when the platform itself fails" in job
+
+
+def test_same_strictness_never_keeps_a_check_that_a_no_op_passes():
+    """Retained requirements keep their inherited checks, except one that a
+    submission doing none of the work passes: that is a defect to repair."""
+    spec = " ".join(ec.VERIFIER_SPEC.read_text().split())
+    assert "Same strictness never keeps a check that checks nothing" in spec
+    assert "is a defect in the inherited verifier" in spec
+    assert "whether or not anyone reported it" in spec
+    assert "inherited ones included" in spec
+    job = " ".join(ec._VERIFIER_JOB.split())
+    assert "unless that check passes a submission that does none of the work" in job

@@ -31,7 +31,22 @@ In one audited batch, 79 of the 82 easier rewrites judged unfair or broken had
 every confirmed defect in checks the verifier author added this way, not in the
 change the rewrite made. Loosen a retained check only where it rejects a
 representation the instruction permits, and change one otherwise only for a
-defect the rewriter reported (`run/reported-defects.json`, when present).
+defect the rewriter reported (`run/reported-defects.json`, when present) or for
+the defect below.
+
+Same strictness never keeps a check that checks nothing. An inherited check
+that passes a submission doing none of the work -- an empty or missing output,
+the untouched workspace, a no-op, a constant or placeholder that is not the
+result the task asks for (a value inside a range any guess falls in, a file
+that merely exists or is non-empty, a key that is merely present) -- is a
+defect in the inherited verifier, and repairing it is your work whether or not
+anyone reported it. Grade such a submission in the container to see whether
+it passes; if it does, replace the check with one of the same requirement that
+only doing the work passes -- the value the work produces, compared exactly or
+within the stated tolerance -- and record it in `run/verifier-changes.md` as a
+repaired defect with the submission that passed. In audited rewrites, such
+checks kept at their inherited strictness let a no-op or an echoed constant
+pass.
 
 Write or change checks for what the revision changed: the clauses the
 instruction diff adds or rewrites, and the reported defects. Everything below
@@ -257,6 +272,7 @@ services as acceptance conditions only when the public task requires them; keep
 ordinary hang-prevention timeouts separate from correctness checks.
 
 Before finishing, inspect whether a no-op or fabricated evidence could still pass
+any check, inherited ones included
 (and, for an explicitly required reusable program, a hardcoded answer), and whether an equivalent legal solution could fail. Choose examples
 relevant to this task. In your final response, identify one concrete incorrect solution
 and the check that rejects it, and one legal alternative the checks allow; distinguish

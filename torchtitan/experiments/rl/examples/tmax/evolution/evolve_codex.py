@@ -2379,7 +2379,8 @@ _VERIFIER_JOB = """The task in this package was revised through a change to its
 requirements or workflow. Write the verifier for the task as the
 instruction states it, changing the inherited checks only where the revision
 changed the task: a retained requirement keeps its inherited check at the same
-strictness (AGENTS.md says why).
+strictness (AGENTS.md says why), unless that check passes a submission that
+does none of the work, which is a defect to repair.
 
 You are shown the instruction, `environment/`, and the previous revision's
 verifier at `{verifier_rel}` -- the one the task had before this change, not a
