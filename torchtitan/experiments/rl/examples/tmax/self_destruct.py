@@ -103,6 +103,10 @@ SELF_DESTRUCT_RULES: dict[str, re.Pattern[str]] = {
         + _SEP
         + r"find\s+/\s(?:(?!-i?name\b|-i?path\b|-i?regex\b)[^\n;|&])*-delete\b",
         "machine_down": _SEP + r"(?:reboot|poweroff|shutdown)" + _END,
+        # A loop that rm -rf's every top-level directory. (Loops over /proc that kill
+        # are left out: most filter by name first, 16 of 18 on the 1026b evals.)
+        "rm_every_top_dir": r"\bfor\s+(\w+)\s+in\s+[^\n;]*\s/\*(?=[\s;])[^\n]*"
+        r"\brm\s+-\S*r\S*\s+\"?\$\{?\1\b",
     }.items()
 }
 

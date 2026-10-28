@@ -85,6 +85,7 @@ def _stub_rollouter(monkeypatch, **kwargs):
         "kill -9 $(ps aux | awk '{print $2}')",
         'pkill -9 -f "dashboard\\|terminal\\|toolbox\\|computer\\|record"',
         "find / -type f -newer /app/main.db -delete 2>/dev/null",
+        'for d in /var/www /app /*; do [ -d "$d" ] && [ "$d" != "/var" ] && rm -rf "$d"; done',
     ],
 )
 def test_self_destruct_commands_match(command: str) -> None:
@@ -119,6 +120,8 @@ def test_self_destruct_commands_match(command: str) -> None:
         "kill -9 $(ps aux | grep python | awk '{print $2}')",
         "find / -name '*.pyc' -delete",
         "find /tmp -type f -delete",
+        "for f in /app/*; do rm -rf \"$f\"; done",
+        "for pid in $(pgrep -f myserver); do kill $pid; done",
     ],
 )
 def test_ordinary_commands_do_not_match(command: str) -> None:
