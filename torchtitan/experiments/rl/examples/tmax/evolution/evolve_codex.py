@@ -2369,7 +2369,11 @@ If the public task does leave that choice open, state the choice your
 reference solution makes where an agent will read it (the instruction, or a
 file in the image the instruction points at). Stating a choice the grading
 already depends on does not change what the task asks for; change nothing
-else. If the report is wrong, or the gap cannot be closed without changing
+else. Where the report says a check would pass an empty or no-op submission
+unless it could reach the work through something the instruction does not
+state (how the program is invoked, a path, an argument, a file it writes),
+state that interface in the instruction as your reference solution provides
+it. If the report is wrong, or the gap cannot be closed without changing
 what the task asks for, write `GIVE UP: <reason>` to `run/verdict.txt` and stop.
 
 `tests/` here is the previous revision's checker again, a scratch copy for
@@ -2383,8 +2387,10 @@ _VERIFIER_JOB = """The task in this package was revised through a change to its
 requirements or workflow. Write the verifier for the task as the
 instruction states it, changing the inherited checks only where the revision
 changed the task: a retained requirement keeps its inherited check at the same
-strictness (AGENTS.md says why), unless that check passes a submission that
-does none of the work, which is a defect to repair.
+strictness (AGENTS.md says why). A check that an empty or no-op submission
+passes is a defect: repair it only by checking a deliverable the instruction
+states, by the property it states; where that needs an interface the
+instruction does not state, report it as BLOCKED (AGENTS.md says how).
 
 You are shown the instruction, `environment/`, and the previous revision's
 verifier at `{verifier_rel}` -- the one the task had before this change, not a

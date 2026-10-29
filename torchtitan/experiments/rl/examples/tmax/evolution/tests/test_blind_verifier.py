@@ -865,13 +865,23 @@ def test_an_environmental_failure_is_fixed_in_the_environment_not_blocked():
     assert "only when the platform itself fails" in job
 
 
-def test_same_strictness_never_keeps_a_check_that_a_no_op_passes():
-    """Retained requirements keep their inherited checks, except one that a
-    submission doing none of the work passes: that is a defect to repair."""
+def test_a_no_op_check_is_repaired_only_through_the_stated_deliverable():
+    """A retained check that an empty or no-op submission passes is still a
+    defect, but the repair checks a deliverable the instruction states, by the
+    property it states; an interface the instruction does not state goes back
+    to the task's author as BLOCKED, and the rule no longer reaches every
+    inherited check."""
     spec = " ".join(ec.VERIFIER_SPEC.read_text().split())
     assert "Same strictness never keeps a check that checks nothing" in spec
-    assert "is a defect in the inherited verifier" in spec
     assert "whether or not anyone reported it" in spec
-    assert "inherited ones included" in spec
+    assert "The one repair you may make is to check the value of a deliverable the instruction already states" in spec
+    assert "Compare exactly only where the instruction determines that value uniquely" in spec
+    assert "keep the inherited range or property check" in spec
+    assert "do not invent it" in spec
+    assert "inherited ones included" not in spec
+    assert "compared exactly or within the stated tolerance -- and record it" not in spec
     job = " ".join(ec._VERIFIER_JOB.split())
-    assert "unless that check passes a submission that does none of the work" in job
+    assert "repair it only by checking a deliverable the instruction states" in job
+    assert "report it as BLOCKED" in job
+    blocked = " ".join(ec._VERIFIER_BLOCKED_JOB.split())
+    assert "state that interface in the instruction" in blocked

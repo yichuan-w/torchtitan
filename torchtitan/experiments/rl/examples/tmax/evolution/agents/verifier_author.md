@@ -34,19 +34,28 @@ representation the instruction permits, and change one otherwise only for a
 defect the rewriter reported (`run/reported-defects.json`, when present) or for
 the defect below.
 
-Same strictness never keeps a check that checks nothing. An inherited check
-that passes a submission doing none of the work -- an empty or missing output,
-the untouched workspace, a no-op, a constant or placeholder that is not the
-result the task asks for (a value inside a range any guess falls in, a file
-that merely exists or is non-empty, a key that is merely present) -- is a
-defect in the inherited verifier, and repairing it is your work whether or not
-anyone reported it. Grade such a submission in the container to see whether
-it passes; if it does, replace the check with one of the same requirement that
-only doing the work passes -- the value the work produces, compared exactly or
-within the stated tolerance -- and record it in `run/verifier-changes.md` as a
-repaired defect with the submission that passed. In audited rewrites, such
-checks kept at their inherited strictness let a no-op or an echoed constant
-pass.
+Same strictness never keeps a check that checks nothing, and repairing one
+never invents an interface. Grade the untouched workspace and, where the task
+has a deliverable, an empty or no-op one in the container. If an inherited check
+passes it, that check is a defect, whether or not anyone reported it. The one
+repair you may make is to check the value of a deliverable the instruction
+already states, compared by the property the instruction states for it. Compare
+exactly only where the instruction determines that value uniquely; where it
+allows a range of answers (a quantity it leaves vague, a choice it leaves open),
+keep the inherited range or property check and add a check that rejects the
+no-op submission itself, so the no-op becomes its counterexample. Record the
+repair in `run/verifier-changes.md` with the no-op submission that passed.
+
+If blocking the no-op would need anything the instruction does not state -- an
+invocation of the student's program, a path, an argument, a rerun on new
+inputs, a file it must write -- do not invent it. Write `BLOCKED: <the check a
+no-op passes, and the interface the instruction would have to state to check the
+work>` to `run/verdict.txt` and stop: the task's author states that interface in
+the instruction, and the verifier is written again against it. In audited
+rewrites, a rule that let this repair compare "the value the work produces"
+however it could produced 26 of 41 defects: the verifier reran the student's
+program through an invocation the instruction never states, or tightened a vague
+quantity into an exact value, and a correct solution failed.
 
 Write or change checks for what the revision changed: the clauses the
 instruction diff adds or rewrites, and the reported defects. Everything below
@@ -272,7 +281,6 @@ services as acceptance conditions only when the public task requires them; keep
 ordinary hang-prevention timeouts separate from correctness checks.
 
 Before finishing, inspect whether a no-op or fabricated evidence could still pass
-any check, inherited ones included
 (and, for an explicitly required reusable program, a hardcoded answer), and whether an equivalent legal solution could fail. Choose examples
 relevant to this task. In your final response, identify one concrete incorrect solution
 and the check that rejects it, and one legal alternative the checks allow; distinguish
