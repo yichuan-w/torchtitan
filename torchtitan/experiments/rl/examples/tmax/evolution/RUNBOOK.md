@@ -279,8 +279,9 @@ pathname on the same FUSE mount provides no isolation.
 The worker count is not a throughput knob: the loop is signal-starved (89% of rounds carry
 ≤8 signals) and it only drains rare bursts faster.
 
-After the task author finishes, the blind verifier and independent probe authors run
-concurrently in separate packages. The probe author sees only public task files; its
+After the task author finishes, the blind verifier author and an independent
+probe author run concurrently in separate packages (`EVOLVE_INDEPENDENT_PROBES=0`
+turns the probe author off). The probe author sees only public task files; its
 controls replay against the completed verifier before the rewrite can be accepted.
 This overlaps their authoring time but can double model requests for each rewrite
 during that stage, so check proxy capacity when raising the worker count.

@@ -1691,3 +1691,38 @@ def test_an_instruction_only_plan_keeps_the_original_verifier(tmp_path) -> None:
     ec.restore_original_verifier(pkg, seed)
     assert sorted(p.name for p in (pkg / "tests").iterdir()) == ["test_outputs.py"]
     assert (pkg / "tests" / "test_outputs.py").read_text() == "original"
+
+
+def _attempt(path, **head):
+    path.write_text(json.dumps(head) + "\n" + json.dumps({"turn": 1}) + "\n")
+
+
+def test_trace_counts_count_what_traces_hold_the_way_the_trainer_does(tmp_path):
+    for i in range(1, 13):
+        _attempt(tmp_path / f"attempt-{i:02d}.jsonl", reward=1.0 if i <= 2 else 0.0)
+    _attempt(tmp_path / "attempt-13.jsonl", reward=0.0, infra_failed=True)
+    _attempt(tmp_path / "attempt-14.jsonl", reward=0.0, finish_reason="format_error")
+    _attempt(tmp_path / "attempt-15.jsonl", reward=float("nan"))
+    (tmp_path / "attempt-16.jsonl").write_text(json.dumps({"turn": 1}) + "\n")
+    assert ec._trace_counts(tmp_path) == (2, 12)
+    assert ec._trace_counts(tmp_path / "empty") is None
+
+
+def test_the_job_prompt_states_the_attempts_traces_hold_not_the_signals_group(
+    tmp_path, monkeypatch
+):
+    """A staged signal said total=5 while traces/ held 12 attempts; the prompt
+    read "0 of 5" and rewriters mixed both denominators."""
+    from test_blind_verifier import SEED, _rewrite, _wire
+
+    rw = _rewrite(tmp_path, monkeypatch)
+    rw.traces.mkdir(parents=True, exist_ok=True)
+    for i in range(1, 13):
+        _attempt(rw.traces / f"attempt-{i:02d}.jsonl", reward=0.0, finish_reason="submit")
+    sessions = []
+    _wire(monkeypatch, sessions, [])
+    monkeypatch.setattr(ec.so, "read_decision", lambda *a: {"retained_skill": "x"})
+    ec.evolve_agentic(rw, {**SEED, "_solved": 0, "_attempts": 5}, "easier")
+    prompt = sessions[0]["prompt"]
+    assert prompt.startswith("This task was solved 0 of 12 attempts.")
+    assert "0 of 5" not in prompt

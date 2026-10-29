@@ -800,8 +800,12 @@ Package runtime interface:
   sandbox command. oracle reloads solution/; grade reloads tests/. Dockerfile
   and build-context edits require reset. exec preserves container state.
 - check, oracle, grade, reset and up can each take minutes. Start them with a
-  long wait on the command (codex: yield_time_ms 600000) so the call returns
-  with the result; polling a running command spends a turn per poll.
+  long wait on the command (codex: yield_time_ms 600000). The exec tool may
+  still return after about 30 seconds with a session id while the command runs
+  on (in measured codex sessions it did, whatever wait was asked): that is not
+  a result. Keep waiting on that same session (codex: write_stdin with empty
+  chars) until it prints its result. Do not start a second check, oracle or
+  reset while one runs: it would only wait for the first to finish.
 - Once oracle has passed, re-check verifier edits with grade rather than check,
   which rebuilds and replays everything; run check again when solution/ or
   environment/ changed, and to confirm at the end. oracle and check reuse an
@@ -1639,6 +1643,21 @@ SANDBOX = Path(__file__).resolve().parent / "agent_sandbox.sh"
 # result from the container instead of asserting the solution's strings,
 # which is what the split was for. "same" remains for comparison.
 VERIFIER_AUTHOR = os.environ.get("SWE_VERIFIER_AUTHOR", "blind")
+
+# The independent probe author runs beside the blind verifier author unless
+# EVOLVE_INDEPENDENT_PROBES=0: a third session writing controls from the public
+# task, their replay against the blind verifier, and a probe-repair session when
+# a control is graded against its declared expectation. Its cases are scoped to
+# the requirements the revision changed (_scope_cases). p7 turned it off, after
+# probe-repair introduced the defect in 3 sampled p5 tasks; of the 41 defective
+# p7 rewrites (evolve-bench/analysis/p7-defects-20261029), about 12 had a defect
+# a control written from the public task would plausibly have failed on, so the
+# net it removed cost more than the defects it added. =0 skips the probe
+# session, its replay and probe-repair; the blind verifier's own replay
+# controls run either way.
+def independent_probes() -> bool:
+    """Read when a rewrite runs, so a test or a caller can set it per process."""
+    return os.environ.get("EVOLVE_INDEPENDENT_PROBES", "1") != "0"
 VERIFIER_SPEC = Path(__file__).resolve().parent / "agents" / "verifier_author.md"
 # Hide author-only files; run metadata is filtered separately in _blind_layout.
 HIDDEN_FROM_VERIFIER = (
@@ -1899,7 +1918,25 @@ with its sha256) in the Dockerfile -- not a distribution package pinned to a
 point release (`git=1:2.34.1-1ubuntu1.18`): the archive drops superseded
 builds and the image stops building -- and confirm in `./sandbox exec` that the
 behavior the source describes happens here: the error, the wrong output, the
-crash. A library, tool, version or bug that does not exist upstream is not
+crash.
+
+Then act as the student on what it now meets. In the sandbox, apply the fix
+the error message or tool output itself suggests, and the fix the attempts in
+`traces/` reach for first when a step fails (often upgrading, reinstalling or
+regenerating the thing that broke), and grade each. If either passes, the
+difficulty announces its own fix: such changes stayed at k of k in measured
+groups, so choose another. A planted error must not name its own fix. The work
+has to need a decision the message does not dictate -- a result that is wrong
+without saying so until the student checks it, or a choice between plausible
+fixes that only checking tells apart -- and the output has to give an
+investigating student something to go on: a name, a code, a documented
+message. The intended fix must be reachable without editing a file the task
+protects or pins by digest: when the natural fix is an edit to such a file,
+every attempt that makes it fails the integrity check, and the group fails
+every time. Record both fixes you tried and their grades in
+`run/hardening.md`.
+
+A library, tool, version or bug that does not exist upstream is not
 allowed, and neither is a vendored imitation of one. The environment holds the
 problem, never its fix: no patch, fixed release, backported file or note that
 names the fix goes into the image or the task's files; the fix lives only in
@@ -1940,8 +1977,16 @@ solution must not require reading an unbounded build log or data dump.
 
 Preserve the original user goal and requirements unrelated to the change.
 Aim for a modest reduction in this student's solve rate toward mixed success,
-not universal failure; in `run/hardening.md`, write the solved count you
-expect from the next group of the same size as a number ("5 of 8"). If no real
+not universal failure. Base the prediction on the student's own path, not on
+the shortcut you imagine: after editing, replay the commands of two successful
+attempts from `traces/` against the revised task (`./sandbox exec`, then
+`./sandbox grade`; the verifier's output is in `run/last-grade.json`), each
+from a fresh `./sandbox reset` of the built image, starting nothing by hand
+that the instruction says is ready (AGENTS.md says why), and say
+in `run/hardening.md` where each now stops and every check it fails. If both
+still pass, the change does not touch the path the student takes. Then write
+the solved count you expect from the next group of the same size as a number
+("5 of 8"), resting on those replays. If no real
 difficulty that fits this task can be reproduced here, write
 `GIVE UP: no-real-difficulty — <what you searched and why it did not fit>` and
 stop.
@@ -2257,6 +2302,30 @@ stands, working from what those attempts did, and get `./sandbox oracle` to pass
 with it. Then harden: step 1 adapts that solution, and the change is one rung
 above it."""
 
+# The blind verifier author never sees the author's scratch tests, so a check
+# that lived only there was lost (M8 of the p5 rewriter-trace analysis: a leak
+# check, an anti-fabrication check, an unchanged-input check). What those tests
+# checked travels as requirements in words, never as code (_checked_behaviours).
+CHECKED_FILE = "run/checked-behaviours.json"
+_CHECKED_NOTE = """
+
+WHAT YOUR SCRATCH TESTS CHECK
+Your `tests/` is discarded, and the verifier that ships is written by a session
+that never sees it. Before you finish, write `run/checked-behaviours.json`: a JSON
+list with one object per behaviour your scratch tests check,
+`{"behaviour": ..., "quote": ...}`. `behaviour` states it in words as a
+requirement on the result ("the report gives each host's open ports", "the
+input files are left unchanged") -- never test code, a value only your solution
+computed, or a name the instruction does not give. `quote` is the sentence of
+`instruction.md` the behaviour rests on, copied verbatim. That verifier's author
+is given the list and must cover every entry, and its check may be no stricter
+than the quoted sentence: a behaviour the sentence does not state is not
+checked. The caller passes on only the entries whose quote appears in
+`instruction.md` (whitespace aside); an entry with no sentence to quote is
+dropped. So a behaviour the task needs checked -- the one your change turns on
+above all -- is lost unless the instruction states it and the entry quotes that
+statement: state it in the instruction, or drop the entry."""
+
 _REPAIR_JOB = """Your rewrite did not survive the caller's check. It rebuilt the
 package from scratch, ran `solution/solve.sh` against the verifier (exit
 {exit_code}) and audited what the verifier demands against what an agent can
@@ -2308,7 +2377,11 @@ If the public task does leave that choice open, state the choice your
 reference solution makes where an agent will read it (the instruction, or a
 file in the image the instruction points at). Stating a choice the grading
 already depends on does not change what the task asks for; change nothing
-else. If the report is wrong, or the gap cannot be closed without changing
+else. Where the report says a check would pass an empty or no-op submission
+unless it could reach the work through something the instruction does not
+state (how the program is invoked, a path, an argument, a file it writes),
+state that interface in the instruction as your reference solution provides
+it. If the report is wrong, or the gap cannot be closed without changing
 what the task asks for, write `GIVE UP: <reason>` to `run/verdict.txt` and stop.
 
 `tests/` here is the previous revision's checker again, a scratch copy for
@@ -2322,7 +2395,10 @@ _VERIFIER_JOB = """The task in this package was revised through a change to its
 requirements or workflow. Write the verifier for the task as the
 instruction states it, changing the inherited checks only where the revision
 changed the task: a retained requirement keeps its inherited check at the same
-strictness (AGENTS.md says why).
+strictness (AGENTS.md says why). A check that an empty or no-op submission
+passes is a defect: repair it only by checking a deliverable the instruction
+states, by the property it states; where that needs an interface the
+instruction does not state, report it as BLOCKED (AGENTS.md says how).
 
 You are shown the instruction, `environment/`, and the previous revision's
 verifier at `{verifier_rel}` -- the one the task had before this change, not a
@@ -3076,6 +3152,7 @@ def _blind_verifier(
                 prompt += _ROLE_PATCH_NOTE
             prompt += _instruction_change_note(seed_pkg, pkg)
             prompt += _reported_defects(pkg, vpkg)
+            prompt += _checked_behaviours(pkg, vpkg)
             prompt += _budget(timeout)
             # A simplification may only add guidance (a hint, a starter file) and
             # keep every requirement; the previous verifier then still checks the
@@ -3115,7 +3192,7 @@ def _blind_verifier(
                 deadline=deadline,
                 # Without a seed dir seed_pkg is this revision itself: nothing to scope by.
                 previous=seed_pkg if task.get("_seed_dir") else None,
-            )
+            ) if independent_probes() else None
             try:
                 _run_codex(run, vpkg, prompt)
             finally:
@@ -3125,16 +3202,19 @@ def _blind_verifier(
         cancel_early = threading.Event()
         early = pool.submit(
             _early_independent_replay, probe_future, run.dir, deadline, cancel_early
-        )
+        ) if probe_future else None
         try:
             _verify_original_probes(run.dir, rewrite, deadline)
         except BaseException:
             # Rejected: the early replay's verdict will never be read.
             cancel_early.set()
-            early.cancel()
+            if early:
+                early.cancel()
             raise
-        probe_future.result()
-    _independent_verifier(rewrite, run.dir, deadline=deadline, early=early)
+        if probe_future:
+            probe_future.result()
+    if probe_future is not None:
+        _independent_verifier(rewrite, run.dir, deadline=deadline, early=early)
     _add_time(timings, "blind_verifier", sessions_done - started)
     _add_time(timings, "independent_verifier", time.monotonic() - sessions_done)
     rel = _take_verifier(
@@ -3146,6 +3226,73 @@ def _blind_verifier(
         allow_unchanged=guidance_ok,
     )
     return run.dir, rel
+
+
+def _refresh_blind_package(pkg: Path, vpkg: Path) -> str:
+    """Bring the verifier session's package up to the task as the author left it.
+
+    The verifier's package is laid out once, when its session first runs
+    (_blind_layout). A repair-author session that then edits the instruction,
+    the environment or run/checked-behaviours.json changes only the author's
+    package, so the resumed verifier-repair session used to grade a stale copy:
+    in one audited p7 rewrite the repair-author added a receive policy to the
+    environment and a clause to the instruction and to an entry, and the
+    verifier repaired against the old ones and never checked the policy. Every
+    public file is copied again here (the verifier's own tests/, run/,
+    AGENTS.md and sandbox stay), with the run inputs, the reported defects and
+    the quoted checked behaviours. Returns the prompt text naming what moved."""
+    keep = set(HIDDEN_FROM_VERIFIER) | {"tests", "run"}
+    before_instruction = (vpkg / "instruction.md").read_text(errors="replace") if (
+        vpkg / "instruction.md"
+    ).is_file() else ""
+    before = _probe_hashes(vpkg, tuple(keep))
+    def remove(path: Path) -> None:
+        if path.is_dir() and not path.is_symlink():
+            shutil.rmtree(path)
+        elif path.exists() or path.is_symlink():
+            path.unlink()
+
+    for child in vpkg.iterdir():
+        if child.name not in keep and not (pkg / child.name).exists():
+            remove(child)
+    for child in pkg.iterdir():
+        if child.name in keep:
+            continue
+        target = vpkg / child.name
+        remove(target)
+        if child.is_dir() and not child.is_symlink():
+            shutil.copytree(child, target, symlinks=True)
+        else:
+            shutil.copy2(child, target, follow_symlinks=False)
+    (vpkg / "run").mkdir(exist_ok=True)
+    for name in _LAYOUT_RUN_INPUTS:
+        if (pkg / "run" / name).is_file():
+            shutil.copy2(pkg / "run" / name, vpkg / "run" / name)
+    after = _probe_hashes(vpkg, tuple(keep))
+    moved = sorted(n for n in before.keys() | after.keys() if before.get(n) != after.get(n))
+    note = ""
+    if moved:
+        note = (
+            "\n\nThe task's author repaired the task after you wrote your verifier. "
+            "This package now holds the task as it stands; these public files "
+            "changed: " + ", ".join(moved) + ". Grade the task as it now reads.\n"
+        )
+        after_instruction = (vpkg / "instruction.md").read_text(errors="replace") if (
+            vpkg / "instruction.md"
+        ).is_file() else ""
+        if after_instruction != before_instruction:
+            note += (
+                "\n```diff\n"
+                + "".join(difflib.unified_diff(
+                    before_instruction.splitlines(keepends=True),
+                    after_instruction.splitlines(keepends=True),
+                    "instruction.md (when you wrote your verifier)",
+                    "instruction.md",
+                ))
+                + "```\n"
+            )
+    (vpkg / "run" / "reported-defects.json").unlink(missing_ok=True)
+    return note + _reported_defects(pkg, vpkg) + _checked_behaviours(pkg, vpkg)
 
 
 def _blind_repair(
@@ -3166,18 +3313,24 @@ def _blind_repair(
     (vpkg / "run").mkdir(exist_ok=True)
     (vpkg / "run" / "failure.txt").write_text(observed or "(no output captured)")
     (vpkg / "run" / "verdict.txt").unlink(missing_ok=True)
+    refreshed = _refresh_blind_package(pkg, vpkg)
     timeout = _session_timeout(deadline, "blind verifier repair")
     with session(rewrite, "repair", timeout=timeout, resumes=vsession) as run:
-        prompt = _VERIFIER_REPAIR_JOB.format(exit_code=exit_code) + _budget(timeout)
+        prompt = (
+            _VERIFIER_REPAIR_JOB.format(exit_code=exit_code)
+            + refreshed
+            + _budget(timeout)
+        )
         try:
             _run_codex(run, vpkg, prompt, resume=sid)
         finally:
             _sandbox_down(vpkg)
     _check_verdict(vpkg)
     _verify_original_probes(vsession, rewrite, deadline)
-    _independent_verifier(
-        rewrite, vsession, allow_repair=False, deadline=deadline
-    )
+    if independent_probes():
+        _independent_verifier(
+            rewrite, vsession, allow_repair=False, deadline=deadline
+        )
     before = (pkg / _verifier_on_disk(pkg, seed_rel)).read_text()
     return _take_verifier(vpkg, pkg, _verifier_on_disk(pkg, seed_rel), before)
 
@@ -3474,6 +3627,81 @@ def _reported_defects(pkg: Path, vpkg: Path) -> str:
     )
 
 
+def _quoted_in(quote: str, text: str) -> bool:
+    """Whether ``quote`` is a nonempty substring of ``text``, whitespace aside."""
+    quote = " ".join(quote.split())
+    return bool(quote) and quote in " ".join(text.split())
+
+
+def _checked_behaviours(pkg: Path, vpkg: Path) -> str:
+    """Hand the verifier's author, in words, every behaviour the task's author
+    checked with its scratch tests, so a check that lived only there is not
+    lost; the tests themselves stay hidden.
+
+    Each entry quotes the instruction sentence it rests on, and only entries
+    whose quote is in ``instruction.md`` (whitespace normalised) are passed on:
+    in p7 the entries paraphrased the instruction, the verifier encoded the
+    paraphrase more strictly than the instruction, and the BLOCKED route for an
+    unstated entry never fired (0 of the 41 audited defects). The dropped
+    entries are kept beside the list in the author's package for the record. A
+    malformed list fails the rewrite, as a malformed run/repair.json does; an
+    absent one hands over nothing."""
+    path = pkg / CHECKED_FILE
+    handed = vpkg / CHECKED_FILE
+    dropped_path = pkg / "run" / "checked-behaviours-unquoted.json"
+    handed.unlink(missing_ok=True)
+    dropped_path.unlink(missing_ok=True)
+    if not path.exists():
+        return ""
+    checked = json.loads(path.read_text())
+
+    def well_formed(entry) -> bool:
+        if isinstance(entry, str):  # no quote: dropped below
+            return bool(entry.strip())
+        return (
+            isinstance(entry, dict)
+            and isinstance(entry.get("behaviour"), str)
+            and bool(entry["behaviour"].strip())
+            and isinstance(entry.get("quote", ""), str)
+        )
+
+    if not isinstance(checked, list) or not all(map(well_formed, checked)):
+        raise ValueError(
+            f"{CHECKED_FILE} must be a list of objects with a nonempty "
+            '"behaviour" and a "quote" from instruction.md'
+        )
+    try:
+        instruction = (pkg / "instruction.md").read_text(errors="replace")
+    except OSError:
+        instruction = ""
+    kept, dropped = [], []
+    for entry in checked:
+        if isinstance(entry, str):
+            entry = {"behaviour": entry, "quote": ""}
+        entry = {"behaviour": entry["behaviour"], "quote": entry.get("quote", "")}
+        (kept if _quoted_in(entry["quote"], instruction) else dropped).append(entry)
+    if dropped:
+        log.info("checked behaviours with no quote in instruction.md, not passed on: %d", len(dropped))
+        dropped_path.write_text(json.dumps(dropped, indent=1) + "\n")
+    if not kept:
+        return ""
+    handed.write_text(json.dumps(kept, indent=1) + "\n")
+    return (
+        "\n\nBEHAVIOURS THE TASK'S AUTHOR CHECKED. `" + CHECKED_FILE + "` lists "
+        "behaviours the task's author checked against its own solution with a "
+        "scratch checker you are not shown, each with `quote`, the sentence of "
+        "`instruction.md` it rests on, copied verbatim. Your verifier covers each "
+        "one: in `run/verifier-changes.md`, name for every entry the check that "
+        "covers it -- the inherited check where the entry is a retained "
+        "requirement, kept at its strictness, or a check you write where the "
+        "revision changed it. A check for an entry is no stricter than its quote: "
+        "it checks what that sentence states, at the precision the sentence "
+        "states, and nothing the entry's own words add. Where the `behaviour` "
+        "says more than the `quote`, grade the quote and name the difference in "
+        "`run/verifier-changes.md`.\n"
+    )
+
+
 def _read_repairs(pkg: Path) -> list[dict]:
     """The defects a harder or easier rewrite repaired on the way, from run/repair.json.
 
@@ -3499,6 +3727,43 @@ def _read_repairs(pkg: Path) -> list[dict]:
                 f"each repair in run/repair.json needs a kind, one of {', '.join(REPAIR_KINDS)}"
             )
     return repairs
+
+
+# A rollout a strict rule ended is neither a solve nor an attempt
+# (rollouter._RULE_TERMINATED_REASONS); the trainer's signal skips it too.
+_RULE_TERMINATED = frozenset({"format_error", "truncated"})
+
+
+def _trace_counts(traces: Path) -> tuple[int, int] | None:
+    """(solved, attempts) over the attempt records in traces/, counted the way
+    the trainer counts a group: an infra-failed or rule-terminated record is not
+    an attempt, and a reward above 0 is a solve. None when no record is readable.
+
+    The job prompt states these, not the signal's solved/total: the signal's
+    total is the group that triggered the rewrite, and a staged signal can carry
+    the attempts of several groups (the p5 EvolveBench arms said "0 of 5" over
+    traces/ holding 11-12 attempts in 21 of 123 easier prompts), which left the
+    rewriter two denominators to choose between."""
+    solved = attempts = 0
+    for path in sorted(traces.glob("attempt-*.jsonl")):
+        try:
+            head = rollout_record.read_header(path)
+        except (OSError, ValueError):
+            continue
+        if not isinstance(head, dict):
+            continue
+        reward = head.get("reward")
+        if (
+            "turn" in head
+            or head.get("infra_failed")
+            or head.get("finish_reason") in _RULE_TERMINATED
+            or not isinstance(reward, (int, float))
+            or reward != reward  # NaN: the harness could not score it
+        ):
+            continue
+        attempts += 1
+        solved += reward > 0
+    return (solved, attempts) if attempts else None
 
 
 def evolve_agentic(
@@ -3539,9 +3804,9 @@ def evolve_agentic(
     if job == "harder":
         task = {**task, "_harder_mode": "student"}
     pkg = rewrite.package
-    solved = task.get("_solved", 0)
-    attempts_n = task.get(
-        "_attempts", len(list(rewrite.traces.glob("attempt-*.jsonl"))) or 16
+    solved, attempts_n = _trace_counts(rewrite.traces) or (
+        task.get("_solved", 0),
+        task.get("_attempts", len(list(rewrite.traces.glob("attempt-*.jsonl"))) or 16),
     )
     previous = rewrite.traces / "previous-simplify.json"
     calibration = (
@@ -3606,6 +3871,7 @@ def evolve_agentic(
             + (_UNSOLVED_NOTE if task.get("_unsolved") else ""),
             "repair": _REPAIR_JOB.format(exit_code=exit_code),
         }[job]
+        + (_CHECKED_NOTE if blind else "")
         + _traces_spec(rewrite.traces)
         + _budget(author_timeout)
     )

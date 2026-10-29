@@ -31,7 +31,31 @@ In one audited batch, 79 of the 82 easier rewrites judged unfair or broken had
 every confirmed defect in checks the verifier author added this way, not in the
 change the rewrite made. Loosen a retained check only where it rejects a
 representation the instruction permits, and change one otherwise only for a
-defect the rewriter reported (`run/reported-defects.json`, when present).
+defect the rewriter reported (`run/reported-defects.json`, when present) or for
+the defect below.
+
+Same strictness never keeps a check that checks nothing, and repairing one
+never invents an interface. Grade the untouched workspace and, where the task
+has a deliverable, an empty or no-op one in the container. If an inherited check
+passes it, that check is a defect, whether or not anyone reported it. The one
+repair you may make is to check the value of a deliverable the instruction
+already states, compared by the property the instruction states for it. Compare
+exactly only where the instruction determines that value uniquely; where it
+allows a range of answers (a quantity it leaves vague, a choice it leaves open),
+keep the inherited range or property check and add a check that rejects the
+no-op submission itself, so the no-op becomes its counterexample. Record the
+repair in `run/verifier-changes.md` with the no-op submission that passed.
+
+If blocking the no-op would need anything the instruction does not state -- an
+invocation of the student's program, a path, an argument, a rerun on new
+inputs, a file it must write -- do not invent it. Write `BLOCKED: <the check a
+no-op passes, and the interface the instruction would have to state to check the
+work>` to `run/verdict.txt` and stop: the task's author states that interface in
+the instruction, and the verifier is written again against it. In audited
+rewrites, a rule that let this repair compare "the value the work produces"
+however it could produced 26 of 41 defects: the verifier reran the student's
+program through an invocation the instruction never states, or tightened a vague
+quantity into an exact value, and a correct solution failed.
 
 Write or change checks for what the revision changed: the clauses the
 instruction diff adds or rewrites, and the reported defects. Everything below
@@ -52,6 +76,7 @@ solutions or examples. Public tool documentation remains available.
 | `tests/test_state.py` or `tests/test.sh` | the previous revision's verifier, the one the task had before this change (whoever changed the task may have drafted a checker; you are not shown it). Yours replaces it: keep every inherited check whose requirement remains in the instruction, correct or remove one whose requirement changed or went, and add what the new requirement needs. |
 | `run/seed_size.json` | the seed verifier's assertion count. Yours may exceed it by at most 5. |
 | `run/resources.json` | the box the container opens at |
+| `run/checked-behaviours.json` | when present: in words, behaviours the task's author checked against its solution with a scratch checker you are not shown, each with the instruction sentence it rests on, quoted verbatim. Each entry needs a check in your verifier, no stricter than its quoted sentence; your prompt says how. |
 | anything else | the rest of the real package: entrypoints, fixtures, `task.toml` |
 
 Before opening the inherited verifier, read `instruction.md` and list its
@@ -115,6 +140,15 @@ and explores the container. Concretely:
   check to run -- helps the student and adds nothing to grade: test the outcome
   the instruction asks for, never whether the advice was followed. Only a
   sentence that states what the result must be is a requirement.
+- **These two rules shape checks you write; they never license weakening one.**
+  An inherited check of a retained requirement stays as strong as it was: if
+  it demands phrasing the instruction does not give, replace it with a check of
+  the same fact, never delete it. When a reported defect removes a hidden
+  requirement, the check that replaces it must still need the work the task
+  asks for -- a value only doing the work produces, compared exactly or within
+  the stated tolerance -- never a range, a non-empty file or a count that a
+  trivial or copied output also passes. In audited rewrites, checks loosened
+  this way let a student pass without doing the work.
 - **Keep every existing test that still holds under the new instruction.** Remove
   a check only when its requirement was removed or relaxed in the public task;
   simplification does not permit dropping checks for retained requirements.

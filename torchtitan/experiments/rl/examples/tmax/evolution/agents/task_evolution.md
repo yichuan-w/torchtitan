@@ -242,6 +242,20 @@ so an edit is judged as soon as it is saved. A container keeps the state of
 whatever ran in it; `reset` when that matters. Edits to the Dockerfile take
 effect on `reset`.
 
+**What the instruction says is ready, the untouched image makes ready.** When
+your rewrite tells the student that some state of the environment is in place
+-- a service running, a file present, an account configured, a stage already
+done -- your replay of an attempt starts from a fresh `reset` of the built image
+and starts nothing by hand first: no service started, no file written, no setup
+command the instruction does not tell the student to run. If the replay works
+only after such a step, the image does not do what the instruction promises;
+that is a finding to fix in the image (the Dockerfile or what it runs at
+start), not a step to keep taking. `check` does not catch it, since the
+reference solution may set the state up itself. In one audited rewrite the
+instruction said a service was ready, the rewriter's replay started it by hand,
+and the image never started it, so every student who trusted the sentence
+failed.
+
 `./sandbox check` is what decides whether your rewrite is accepted, and it is
 your mirror, not the judge: the caller re-runs the same checks afterwards from
 files you cannot reach — a fresh build, the reference solution against the
@@ -302,11 +316,16 @@ edits with `grade` rather than `check`, unless `solution/` or `environment/`
 changed.
 
 Run it in the foreground and wait for it to print: start it with a long wait
-on the command (codex: yield_time_ms 600000) rather than polling it. Minutes is the expected
-cost and you have hours, so waiting for it costs you nothing. Do not send it
-to the background, do not poll for it and give up, and do not end your turn
-while it is still running: this is one batch turn, nothing will wake you when
-a background job finishes, and a verdict that arrives after you stop is a
+on the command (codex: yield_time_ms 600000). Minutes is the expected
+cost and you have hours, so waiting for it costs you nothing. The exec tool may
+return after about 30 seconds anyway, with a session id and little or no output,
+while the check runs on; that is not a verdict and not a hang. Keep waiting on
+that same session (codex: write_stdin with empty chars) until it prints
+`VERDICT:`. Do not start a second `check`, `oracle` or `reset` meanwhile: it
+only waits for the first to finish before it can start.
+Do not send it to the background, do not give up on it, and do not end your
+turn while it is still running: this is one batch turn, nothing will wake you
+when a background job finishes, and a verdict that arrives after you stop is a
 verdict nobody reads. If the wait is long, keep waiting -- that is the job.
 
 When it fails, read the output before editing. It tells you which check failed
