@@ -456,7 +456,9 @@ gives it the run and carries out its plan.
 
 - **When it is called**: once before training, and whenever a training group ends close to all failed
   or all passed (`--near 1`: at most one attempt away), the groups that teach nothing. Events that
-  arrive while it works are kept for its next round.
+  arrive while it works are kept for its next round. `--every N` also calls it once N groups have
+  finished since its last round, whatever they scored (default 0: off); without it a curriculum whose
+  versions all score in the middle is never revisited.
 - **What it reads**: `AGENTS.md` (`teacher_agents.md`: the goal, how training works with the numbers
   read from `recipe.env`, what it may do, the directory), and the directory: `problems/<label>/` (every
   version that has been in the pool, in full, with `status.json` and `diff.patch` against the original),

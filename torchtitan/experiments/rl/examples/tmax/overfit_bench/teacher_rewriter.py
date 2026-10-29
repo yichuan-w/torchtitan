@@ -63,6 +63,10 @@ PACKAGE = ("instruction.md", "environment", "tests", "solution")
 @dataclass(frozen=True, kw_only=True)
 class Policy:
     near: int = 1
+    # Also call the teacher once this many groups have finished since its last round, whatever
+    # they scored (0: only groups near all failed or all passed). Without it a curriculum whose
+    # versions all score in the middle is never revisited.
+    every: int = 0
     max_active: int = 8
     round_timeout: int = 2400
     check_timeout: int = 1800
@@ -210,6 +214,7 @@ class Teacher:
         self._runs: dict[str, int] = {}  # run -> highest group seen in it
         self._seen: set[tuple] = set()
         self.pending: list[str] = []  # why the teacher should be called, oldest first
+        self._since_round = 0  # groups finished since the last round started
         self.news: list[str] = []
         self._lock = threading.Lock()
         self._ex = ThreadPoolExecutor(policy.workers, thread_name_prefix="teacher")
@@ -265,9 +270,12 @@ class Teacher:
         self.groups[vid].append(g)
         label = self.label(vid)
         self.news.append(f"{label} g{g['group']} finished: {g['passed']}/{g['scored']} passed")
+        self._since_round += 1
         near = self.policy.near
         if g["passed"] <= near or g["passed"] >= g["scored"] - near:
             self.pending.append(f"{label}'s group g{g['group']} ended {g['passed']}/{g['scored']}")
+        elif self.policy.every and self._since_round >= self.policy.every and not self.pending:
+            self.pending.append(f"{self._since_round} groups have finished since your last round")
 
     def _group(self, run: str | None, group: int) -> int:
         run = run or ""
@@ -380,6 +388,7 @@ class Teacher:
         n = len(self.state["rounds"]) + 1
         why = "; ".join(self.pending) if self.pending else "training has not started; the student has made no attempt yet"
         news, self.pending, self.news = self.news, [], []
+        self._since_round = 0
         self.stage()
         # A resumed thread keeps the AGENTS.md it started with; tell it when the file has changed since.
         agents = (self.work / "AGENTS.md").read_text()

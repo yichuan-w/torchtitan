@@ -119,6 +119,20 @@ def test_a_group_near_all_failed_calls_the_teacher_and_a_mixed_group_does_not(jo
     assert _pool(sched)[V0]["weight"] == 0.5
 
 
+def test_every_calls_the_teacher_after_that_many_mixed_groups(job, monkeypatch):
+    root, run, sched, client = job
+    script = Script(lambda w: {}, lambda w: {})
+    t = _setup(job, monkeypatch, script)
+    t.policy = tr.Policy(every=2)
+    _settle(t)
+    _attempts(run, sched, group=0, rewards=[1.0] * 6 + [0.0] * 6)
+    _settle(t, lambda: sum(map(len, t.groups.values())) == 1)
+    assert len(script.prompts) == 1  # one mixed group: not yet
+    _attempts(run, sched, group=1, rewards=[1.0] * 6 + [0.0] * 6)
+    _settle(t, lambda: sum(map(len, t.groups.values())) == 2)
+    assert len(script.prompts) == 2 and "2 groups have finished since your last round" in script.prompts[1]
+
+
 def test_the_directory_holds_every_version_and_compact_attempts(job, monkeypatch):
     root, run, sched, client = job
     script = Script(new_version("v1", "solve a gently"), lambda w: {})
