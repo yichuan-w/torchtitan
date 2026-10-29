@@ -481,6 +481,10 @@ systemd-run --user --unit=offline-$(basename <root>) --collect --working-directo
 $PY $EVO/offline_publish.py --root <root> --out data/seeds/<name>_<mix stamp>.jsonl
 ```
 
+To compare rewriter configurations rather than ship a mix, run each one as
+an EvolveBench arm over a frozen signal set (`EVOLVE_BENCH.md`): the same
+steps, with the student recipe pinned and every input recorded.
+
 `offline_stage.py` copies the chosen signal files and hardlinks their rollout
 records under `<root>/runs/<name>/`; the loop then sees exactly those. A signal
 the ledger closed is never handled again, so every retry round stages the
