@@ -60,6 +60,26 @@ oracle and untouched-state checks establish only candidate validity.
 """
 
 
+# The limits a training attempt runs under, from the launcher's environment
+# (runbook/rltrain.env); a rewrite sized for other limits misses the band.
+STUDENT_TURNS = int(os.environ.get("TMAX_TERMINUS_MAX_TURNS", "120"))
+STUDENT_CONTEXT = int(os.environ.get("SWE_MAX_CONTEXT_LEN", "79872"))
+STUDENT_SECONDS = int(os.environ.get("SWE_TIME_BUDGET_SEC", "7200"))
+
+
+def student_budget() -> str:
+    """One paragraph stating the student's limits, shared by both directions."""
+    return (
+        f"The student works within {STUDENT_TURNS} turns, a {STUDENT_CONTEXT:,}-token\n"
+        f"context and {STUDENT_SECONDS} seconds of wall clock per attempt; each trace\n"
+        "records how its attempt ended (finish_reason). An attempt that ended at the\n"
+        "context, turn or time limit ran out of room before it submitted: it read,\n"
+        "printed or retried more than the budget holds. Help that adds to what the\n"
+        "student must read or run spends the same budget, so for such attempts the\n"
+        "change that helps is one that shortens the work."
+    )
+
+
 def prompt(hint: str) -> str:
     if hint not in ("none", "vague", "specific"):
         raise ValueError(f"unknown simplify hint level: {hint}")
@@ -81,6 +101,8 @@ rollout spent on it; a task that overshoots to k/k gives no signal either,
 until a later hardening withdraws the help. Neither miss is the safe one: size
 the change to what the attempts show.
 
+{student_budget()}
+
 ## Diagnose from the attempts
 
 Read every attempt in traces/ and find where each one first goes wrong; count
@@ -97,7 +119,12 @@ cause, then act on that cause:
   "broken_setup" for an environment missing what the task needs, and "other"
   for anything else. The attempts measured the task with its defect, so they
   cannot show what the repaired task needs: the repair is this rewrite's only change, and the
-  repaired task is measured before any help is added.
+  repaired task is measured before any help is added. A repair moves the task
+  in this rewrite's direction only when it removes an unfair obstacle (a
+  hidden requirement stated, a broken setup fixed, a wrong check corrected).
+  Closing a shortcut an attempt was rewarded for makes the task harder, the
+  opposite of what every-attempt-failed asks for: describe it in your summary
+  for a separate repair and do not record or apply it here.
 - Mechanics around the task: tool use, writing files through the terminal,
   exhausted time or context. Help with the mechanics and leave the task's
   decisions to the student.

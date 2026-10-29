@@ -1895,7 +1895,9 @@ Cite only what you fetched.
 
 The difficulty must be real in this environment. Pin the actual upstream
 artifact it comes from (`package==version`, a repository at a commit, a URL
-with its sha256) in the Dockerfile, and confirm in `./sandbox exec` that the
+with its sha256) in the Dockerfile -- not a distribution package pinned to a
+point release (`git=1:2.34.1-1ubuntu1.18`): the archive drops superseded
+builds and the image stops building -- and confirm in `./sandbox exec` that the
 behavior the source describes happens here: the error, the wrong output, the
 crash. A library, tool, version or bug that does not exist upstream is not
 allowed, and neither is a vendored imitation of one. The environment holds the
@@ -1926,8 +1928,9 @@ way a user would, in a sentence or two -- the goal and the deliverable. Do not
 list the pitfalls; the agent meets them as error messages, logs and behavior
 in the environment, the way the real software presents them.
 
-The student has 2400 seconds of wall clock per attempt, and generating its own
-turns takes most of that: in measured attempts its commands ran for about 100
+The student has """ + str(so.STUDENT_SECONDS) + """ seconds of wall clock, """ + str(so.STUDENT_TURNS) + """ turns
+and a """ + f"{so.STUDENT_CONTEXT:,}" + """-token context per attempt, and generating its own
+turns takes most of that time: in measured attempts its commands ran for about 100
 seconds in total. So the reference solution's commands, as `./sandbox check`
 times them, stay well under 300 seconds, and anything slow that is not the
 point of the task -- a large download, a full build of a dependency -- happens
@@ -2317,7 +2320,9 @@ Confirm with `./sandbox check` before you stop."""
 
 _VERIFIER_JOB = """The task in this package was revised through a change to its
 requirements or workflow. Write the verifier for the task as the
-instruction states it.
+instruction states it, changing the inherited checks only where the revision
+changed the task: a retained requirement keeps its inherited check at the same
+strictness (AGENTS.md says why).
 
 You are shown the instruction, `environment/`, and the previous revision's
 verifier at `{verifier_rel}` -- the one the task had before this change, not a
@@ -2631,7 +2636,11 @@ def _author_independent_probes(
     *,
     allow_repair: bool = True,
     deadline: RewriteDeadline | None = None,
+    previous: Path | None = None,
 ) -> None:
+    """``previous`` is the revision the student was measured on: its
+    instruction diff tells the author which clauses this revision changed, and
+    cases quoting a clause it kept are dropped before replay (_scope_cases)."""
     deadline = deadline or rewrite_deadline(rewrite)
     timeout = _session_timeout(deadline, "independent probe author")
     with session(rewrite, "probe", timeout=timeout) as run:
@@ -2656,6 +2665,7 @@ def _author_independent_probes(
                 run,
                 probe,
                 "Create independent semantic controls from the public task.\n"
+                + (_instruction_diff_text(previous, public_source) if previous else "")
                 + _budget(timeout),
             )
         finally:
@@ -2672,6 +2682,12 @@ def _author_independent_probes(
                 "Independent probe author changed files outside run/: "
                 + ", ".join(changed)
             )
+        if _no_changed_requirement(probe):
+            layout.write_json_atomic(pointer, {
+                "package": str(probe), "skipped": "no changed requirement",
+                "controls_sha256": _probe_hashes(probe / "run/verifier-probes"),
+            })
+            return
         try:
             load_probe_contract(probe)
         except SemanticProbeContract as error:
@@ -2696,13 +2712,80 @@ def _author_independent_probes(
                     returncode=int(repair.meta.get("exit_code") or 0),
                     stderr_path=repair.dir.stderr,
                 ) from repeated
-    layout.write_json_atomic(
-        pointer,
-        {
-            "package": str(probe),
-            "controls_sha256": _probe_hashes(probe / "run/verifier-probes"),
-        },
+    dropped = _scope_cases(probe, previous) if previous else []
+    record = {"package": str(probe), "scoped_out": dropped}
+    if dropped and not json.loads(
+        (probe / "run/verifier-probes/contract.json").read_text()
+    )["cases"]:
+        record["skipped"] = "every case quotes a clause the revision kept"
+    record["controls_sha256"] = _probe_hashes(probe / "run/verifier-probes")
+    layout.write_json_atomic(pointer, record)
+
+
+def _no_changed_requirement(probe: Path) -> bool:
+    """The author found no requirement the revision changed (an empty or
+    guidance-only diff) and said so instead of writing cases."""
+    try:
+        contract = json.loads((probe / "run/verifier-probes/contract.json").read_text())
+    except (OSError, json.JSONDecodeError):
+        return False
+    return (
+        isinstance(contract, dict)
+        and contract.get("cases") == []
+        and isinstance(contract.get("no_changed_requirement"), str)
+        and bool(contract["no_changed_requirement"].strip())
     )
+
+
+def _scope_cases(probe: Path, previous: Path) -> list[dict]:
+    """Drop the cases whose quote stands unchanged in the previous revision.
+
+    A clause the revision kept is graded the way the student was measured on
+    it; a control of it tests the inherited verifier, and a repair made to pass
+    it tightens a retained check (the audited cause of most unfair rewrites).
+    The remaining scripts are renumbered so the contract stays consistent.
+    Returns the dropped cases."""
+    probes = probe / "run/verifier-probes"
+    contract = json.loads((probes / "contract.json").read_text())
+    norm = lambda text: " ".join(text.split())  # noqa: E731
+    kept, dropped = [], []
+    for index, case in enumerate(contract["cases"], 1):
+        old = previous / case.get("source", "instruction.md")
+        try:
+            old_text = norm(old.read_text(errors="replace"))
+        except OSError:
+            old_text = ""
+        quote = norm(case.get("quote", ""))
+        (dropped if quote and quote in old_text else kept).append((index, case))
+    if not dropped:
+        return []
+    scripts = {i: (probes / f"wrong-{i}.sh").read_text() for i, _ in kept}
+    for i, _ in dropped:
+        (probes / f"wrong-{i}.sh").rename(probes / f"out-of-scope-{i}.sh.txt")
+    for i, _ in kept:
+        (probes / f"wrong-{i}.sh").unlink(missing_ok=True)
+    for new, (i, _) in enumerate(kept, 1):
+        (probes / f"wrong-{new}.sh").write_text(scripts[i])
+    contract["cases"] = [case for _, case in kept]
+    contract["out_of_scope"] = [case for _, case in dropped]
+    (probes / "contract.json").write_text(json.dumps(contract, indent=2))
+    return [case for _, case in dropped]
+
+
+def _instruction_diff_text(before: Path, after: Path) -> str:
+    """The instruction diff for the independent probe author."""
+    try:
+        old = (before / "instruction.md").read_text()
+        new = (after / "instruction.md").read_text()
+    except OSError:
+        return ""
+    if old == new:
+        return "\nThe public instruction did not change in this revision.\n"
+    diff = "".join(difflib.unified_diff(
+        old.splitlines(keepends=True), new.splitlines(keepends=True),
+        "previous/instruction.md", "instruction.md",
+    ))
+    return "\nThe public instruction changed in this revision:\n\n```diff\n" + diff + "```\n"
 
 
 _LAYOUT_RUN_INPUTS = (
@@ -2785,6 +2868,8 @@ def _early_independent_replay(
     if cancel is not None and cancel.is_set():
         return None
     pointer = vsession.path / "independent-probes.json"
+    if json.loads(pointer.read_text()).get("skipped"):
+        return None
     probe = Path(json.loads(pointer.read_text())["package"])
     before = _replay_inputs(vsession.package, probe)
     if before is None:
@@ -2849,6 +2934,9 @@ def _independent_verifier(
             deadline=deadline,
         )
     probe = Path(json.loads(pointer.read_text())["package"])
+    if json.loads(pointer.read_text()).get("skipped"):
+        log.info("independent controls not replayed: %s", json.loads(pointer.read_text())["skipped"])
+        return
 
     controls_sha256 = json.loads(pointer.read_text())["controls_sha256"]
     public_sha256 = _probe_hashes(vpkg, ("run", "tests"))
@@ -3025,6 +3113,8 @@ def _blind_verifier(
                 pkg,
                 run.dir.path / "independent-probes.json",
                 deadline=deadline,
+                # Without a seed dir seed_pkg is this revision itself: nothing to scope by.
+                previous=seed_pkg if task.get("_seed_dir") else None,
             )
             try:
                 _run_codex(run, vpkg, prompt)
