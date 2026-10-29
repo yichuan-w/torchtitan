@@ -2736,6 +2736,11 @@ def _author_independent_probes(
 
         before = _probe_hashes(probe, ("run",))
         run.meta["public_inputs_sha256"] = before
+        # The author's package is a private copy; a write outside run/ (a scratch
+        # file, an edit while trying a control) is undone below, not fatal.
+        pristine = run.dir.package.with_name("package.pristine")
+        shutil.rmtree(pristine, ignore_errors=True)
+        shutil.copytree(probe, pristine, symlinks=True, ignore=shutil.ignore_patterns("run"))
         try:
             _run_codex(
                 run,
@@ -2753,11 +2758,17 @@ def _author_independent_probes(
             for name in before.keys() | after.keys()
             if before.get(name) != after.get(name)
         )
+        for name in changed:
+            target, source = probe / name, pristine / name
+            if source.is_file():
+                target.parent.mkdir(parents=True, exist_ok=True)
+                shutil.copy2(source, target)
+            else:
+                target.unlink(missing_ok=True)
         if changed:
-            raise RuntimeError(
-                "Independent probe author changed files outside run/: "
-                + ", ".join(changed)
-            )
+            log.warning("independent probe author changed files outside run/, restored: %s", ", ".join(changed))
+            run.meta["restored_outside_run"] = changed
+        shutil.rmtree(pristine, ignore_errors=True)
         if _no_changed_requirement(probe):
             layout.write_json_atomic(pointer, {
                 "package": str(probe), "skipped": "no changed requirement",
