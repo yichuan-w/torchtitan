@@ -1918,25 +1918,7 @@ with its sha256) in the Dockerfile -- not a distribution package pinned to a
 point release (`git=1:2.34.1-1ubuntu1.18`): the archive drops superseded
 builds and the image stops building -- and confirm in `./sandbox exec` that the
 behavior the source describes happens here: the error, the wrong output, the
-crash.
-
-Then act as the student on what it now meets. In the sandbox, apply the fix
-the error message or tool output itself suggests, and the fix the attempts in
-`traces/` reach for first when a step fails (often upgrading, reinstalling or
-regenerating the thing that broke), and grade each. If either passes, the
-difficulty announces its own fix: such changes stayed at k of k in measured
-groups, so choose another. A planted error must not name its own fix. The work
-has to need a decision the message does not dictate -- a result that is wrong
-without saying so until the student checks it, or a choice between plausible
-fixes that only checking tells apart -- and the output has to give an
-investigating student something to go on: a name, a code, a documented
-message. The intended fix must be reachable without editing a file the task
-protects or pins by digest: when the natural fix is an edit to such a file,
-every attempt that makes it fails the integrity check, and the group fails
-every time. Record both fixes you tried and their grades in
-`run/hardening.md`.
-
-A library, tool, version or bug that does not exist upstream is not
+crash. A library, tool, version or bug that does not exist upstream is not
 allowed, and neither is a vendored imitation of one. The environment holds the
 problem, never its fix: no patch, fixed release, backported file or note that
 names the fix goes into the image or the task's files; the fix lives only in

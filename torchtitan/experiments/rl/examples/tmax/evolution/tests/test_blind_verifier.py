@@ -310,11 +310,6 @@ def test_harder_defaults_to_real_guidance_with_repair_in_the_rewrite(
     assert "starting nothing by hand that the instruction says is ready" in " ".join(
         prompt.split()
     )
-    # The rewriter tries the student's likely fixes on the new obstacle.
-    flat = " ".join(prompt.split())
-    assert "act as the student on what it now meets" in flat
-    assert "A planted error must not name its own fix" in flat
-    assert "without editing a file the task protects or pins by digest" in flat
     assert ec._STUDENT_HARDER_GUIDANCE not in prompt
 
 
