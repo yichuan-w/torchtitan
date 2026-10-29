@@ -1622,6 +1622,21 @@ def test_dry_round_writes_only_the_rewrite_directory(tmp_path, monkeypatch) -> N
     assert status["accepted"] == 0 and status["pending"] == 1
 
 
+def test_the_source_runs_launch_record_is_staged_beside_the_traces(
+    tmp_path, monkeypatch
+) -> None:
+    """traces/launch.json carries the limits the attempts ran under, which the
+    job prompt states beside the student's (ec._trace_limits_note)."""
+    root = _root(tmp_path, monkeypatch)
+    _signal(root)
+    launch = {"run": RUN, "env": {"SWE_MAX_CONTEXT_LEN": "63488"}}
+    layout.write_json_atomic(root.run(RUN).launch_json, launch)
+    _stub(monkeypatch)
+    od.run_round(root, workers=1, dry=True)
+    rw = root.evolution.task("tw_a").rewrite_dirs()[0]
+    assert json.loads((rw.traces / "launch.json").read_text()) == launch
+
+
 def test_replay_handles_a_closed_signal_dry(tmp_path, monkeypatch) -> None:
     root = _root(tmp_path, monkeypatch)
     sid = _signal(root)
