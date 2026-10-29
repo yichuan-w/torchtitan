@@ -2583,6 +2583,10 @@ def main() -> None:
     )
     args = ap.parse_args()
     root = layout.Root.from_env()
+    if os.environ.get("EVOLVE_FUSE_RETRY", "1") != "0":
+        import fuse_retry
+
+        fuse_retry.install(str(root.path))
     # Before the lock and the log: a root whose epoch is shorter than the
     # final-validation reserve would fail every rewrite at its first session.
     budget = ec.rewrite_budget_sec(root, refresh=True)
