@@ -77,10 +77,12 @@ def student_budget() -> str:
         "printed or retried more than the budget holds. Help that adds to what the\n"
         "student must read or run spends the same budget, so for such attempts the\n"
         "change that helps is one that shortens the work: it removes part of the\n"
-        "stage where they ran out, so that they no longer have to do it. A sentence\n"
-        "of direction, a document to consult or an optional starter adds reading and\n"
-        "removes no stage; when most attempts ended at a limit, the change adds\n"
-        "nothing the student has to read."
+        "stage where they ran out, so that they no longer have to do it. Removing\n"
+        "work means delivering its result: the data already extracted or split, the\n"
+        "dependencies installed, the artifacts built, the environment repaired. A\n"
+        "sentence of direction, a document to consult, or a starter or helper the\n"
+        "student must read or extend adds reading and removes no stage; when most\n"
+        "attempts ended at a limit, the change adds nothing the student has to read."
     )
 
 
@@ -206,7 +208,8 @@ something the original task also shows it. Prefer help in this order:
    from it. What the student could have obtained in the original environment
    itself -- a package or tool it can install, a file it can fetch, a setting
    it can change -- is part of the work: help with it by saying what to obtain
-   and how, not by obtaining it for the student.
+   and how, not by obtaining it for the student, unless the attempts ran out of
+   room doing it; then obtaining it is the removal described below.
 
 Help comes in increasing strength within each place, up to a worked instance
 of the hard step on an input other than the graded one. Use the earliest place
@@ -219,7 +222,22 @@ them read -- that a successful attempt fits the budget with room to spare, and
 say in change how much it removes. Direction added to the instruction spends more of the same
 budget: in measured groups, rewrites whose attempts mostly ended at a limit
 stayed at 0 of 16 after instruction-only hints, and moved when the work itself
-shrank. A failed
+shrank.
+
+Removing work means delivering its result. When the stage to remove is work
+the student would otherwise do, the environment holds what that work
+produces: the data already extracted, converted or split, the dependencies
+installed, the artifacts built, the broken setup repaired, the input cut down
+to what the retained skill needs. Code the student must read, adapt or extend
+does not remove the stage: it is one more file to read, and attempts that
+rewrite their program whole re-type it every time (in measured groups every
+rewrite that shipped such a starter or helper for limit deaths stayed at 0 of
+16). Where you do supply code, it goes in a separate file the student calls
+and the instruction tells it not to edit, never one it has to edit in place or
+complete: attempts that rewrite a large file whole lose both the help and
+their context. A change only the grader sees -- a check removed, loosened or
+rewritten -- removes no work from the student and never counts as the
+shortening. A failed
 prediction at one strength needs a reason, from the traces, to stay at that
 strength. When no attempt has a foothold, reduce what the retained decision
 demands -- a smaller instance, fewer cases, feedback that exposes the mistake

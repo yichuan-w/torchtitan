@@ -335,3 +335,17 @@ def test_extra_guidance_missing_file_raises(monkeypatch, tmp_path):
     monkeypatch.setenv("EVOLVE_SIMPLIFY_EXTRA_GUIDANCE_FILE", str(tmp_path / "absent.md"))
     with pytest.raises(FileNotFoundError):
         so.prompt("vague")
+
+
+def test_removing_work_delivers_results_not_code_to_extend():
+    p = " ".join(so.prompt("vague").split())
+    assert "Removing work means delivering its result" in p
+    assert "the dependencies installed, the artifacts built" in p
+    assert "Code the student must read, adapt or extend does not remove the stage" in p
+    assert "a separate file the student calls and the instruction tells it not to edit" in p
+    assert "A change only the grader sees" in p
+    assert "never counts as the shortening" in p
+    # The shared limits paragraph says the same in short.
+    budget = " ".join(so.student_budget().split())
+    assert "Removing work means delivering its result" in budget
+    assert "a starter or helper the student must read or extend" in budget
