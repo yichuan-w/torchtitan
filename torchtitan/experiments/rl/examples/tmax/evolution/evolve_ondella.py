@@ -2391,19 +2391,26 @@ def run_round(
                 below, and its finished signal is never handed out again."""
                 t0 = time.monotonic()
                 running = frozenset(s.task for s in futs.values()) | closer.busy()
-                more = select_work(
-                    root,
-                    load_ledger(root),
-                    result,
-                    only=only,
-                    limit=limit,
-                    dry=dry,
-                    signal=None,
-                    running=running,
-                    stuck=frozenset(stuck),
-                )
                 before = len(futs)
-                fill(more or [])
+                try:
+                    more = select_work(
+                        root,
+                        load_ledger(root),
+                        result,
+                        only=only,
+                        limit=limit,
+                        dry=dry,
+                        signal=None,
+                        running=running,
+                        stuck=frozenset(stuck),
+                    )
+                    fill(more or [])
+                except OSError as e:
+                    # A transient storage error (EPERM/EIO from the FUSE root)
+                    # skips this refill; raising here ended the round and left
+                    # every free slot empty until the running rewrites drained.
+                    log.warning("refill skipped: %s: %s", type(e).__name__, e)
+                    return
                 took = time.monotonic() - t0
                 if len(futs) > before or took >= 5:
                     log.info(
