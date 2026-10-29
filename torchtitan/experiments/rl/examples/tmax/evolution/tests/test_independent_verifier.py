@@ -7,6 +7,7 @@
 import json
 import shutil
 import threading
+from pathlib import Path
 from types import SimpleNamespace
 
 import evolve_codex as ec
@@ -126,19 +127,22 @@ def setup(tmp_path, monkeypatch):
     return rewrite, verifier, calls, author
 
 
-def test_probe_reports_unexpected_file_without_claiming_instruction_changed(
-    setup, monkeypatch
-):
+def test_probe_author_writes_outside_run_are_undone_not_fatal(setup, monkeypatch):
     rewrite, verifier, _, author = setup
 
-    def stray_file(run, package, prompt, resume=None):
+    def stray_writes(run, package, prompt, resume=None):
         result = author(run, package, prompt, resume)
         (package / "contract.json").touch()
+        (package / "instruction.md").write_text("edited by the probe author\n")
         return result
 
-    monkeypatch.setattr(ec, "_run_codex", stray_file)
-    with pytest.raises(RuntimeError, match="outside run/: contract.json"):
-        ec._independent_verifier(rewrite, verifier)
+    monkeypatch.setattr(ec, "_run_codex", stray_writes)
+    ec._independent_verifier(rewrite, verifier)
+    pointer = json.loads((verifier.path / "independent-probes.json").read_text())
+    probe = Path(pointer["package"])
+    assert not (probe / "contract.json").exists()
+    assert "edited by the probe author" not in (probe / "instruction.md").read_text()
+    assert not probe.with_name("package.pristine").exists()
 
 
 def miss(package, case="wrong-1"):
