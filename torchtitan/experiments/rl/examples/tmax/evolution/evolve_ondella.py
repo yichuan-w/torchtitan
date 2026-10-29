@@ -1489,7 +1489,11 @@ def _close(root: layout.Root, h: dict, *, dry: bool) -> None:
             "status": meta["status"],
         },
     )
-    record_outcome(root, rewrite, meta)
+    try:
+        record_outcome(root, rewrite, meta)
+    except OSError as e:
+        # Flow metrics only; a storage error here must not stop the closer.
+        log.warning("outcome record for %s skipped: %s", rewrite.path.name, e)
     _ledger_line(root, h["signal"], "handled", rewrite=_rewrite_ref(root, rewrite))
 
 

@@ -509,3 +509,34 @@ def test_dataset_skips_the_tasks_a_signals_directory_names(tmp_path) -> None:
         "tw_0",
         "tw_2",
     ]
+
+
+def test_write_json_atomic_retries_a_transient_eperm(tmp_path, monkeypatch):
+    """The FUSE root sometimes refuses a write with EPERM; the same write a
+    moment later succeeds, so it is retried rather than raised."""
+    monkeypatch.setattr(layout, "_WRITE_RETRY_SEC", (0.0, 0.0))
+    real_replace = os.replace
+    calls = []
+
+    def flaky_replace(src, dst):
+        calls.append(1)
+        if len(calls) == 1:
+            raise PermissionError(1, "Operation not permitted")
+        return real_replace(src, dst)
+
+    monkeypatch.setattr(layout.os, "replace", flaky_replace)
+    path = tmp_path / "a" / "meta.json"
+    layout.write_json_atomic(path, {"k": 1})
+    assert json.loads(path.read_text()) == {"k": 1}
+    assert len(calls) == 2
+
+
+def test_write_json_atomic_raises_a_lasting_eperm(tmp_path, monkeypatch):
+    monkeypatch.setattr(layout, "_WRITE_RETRY_SEC", (0.0,))
+
+    def refuse(src, dst):
+        raise PermissionError(1, "Operation not permitted")
+
+    monkeypatch.setattr(layout.os, "replace", refuse)
+    with pytest.raises(PermissionError):
+        layout.write_json_atomic(tmp_path / "meta.json", {"k": 1})
