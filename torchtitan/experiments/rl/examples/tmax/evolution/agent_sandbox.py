@@ -53,6 +53,11 @@ of those and timed out. This hands the agent the container itself.
                             caller will: each in its own fresh container, all
                             at once, exec then grade. Prints one line per
                             script; the agent's own container is left as is
+    ./sandbox chars traces/attempt-NN.jsonl [--turns FIRST LAST]
+                            per-turn characters of an attempt record (output
+                            read, text typed, reasoning) and the running share
+                            of the attempt; --turns prints that range's chars
+                            and share. Local: no container
     ./sandbox down          delete the container
     ./sandbox status
 
@@ -1479,6 +1484,11 @@ def main() -> None:
     sub.add_parser("status")
     sub.add_parser("size", help="report local size bounds without starting a container")
     sub.add_parser("grade")
+    p = sub.add_parser(
+        "chars", help="per-turn character counts of an attempt record, without a container"
+    )
+    p.add_argument("trace", help="an attempt record, e.g. traces/attempt-03.jsonl")
+    p.add_argument("--turns", type=int, nargs=2, metavar=("FIRST", "LAST"))
     p = sub.add_parser("exec")
     p.add_argument("command")
     p.add_argument("--timeout", type=int, default=EXEC_TIMEOUT)
@@ -1530,6 +1540,11 @@ def main() -> None:
         sys.exit(cmd_status(pkg))
     if args.cmd == "size":
         sys.exit(cmd_size(pkg))
+    if args.cmd == "chars":
+        import simplify_operators as so  # stdlib-only sibling
+
+        trace = Path(args.trace)
+        sys.exit(so.print_chars(trace if trace.is_absolute() else pkg / trace, args.turns))
     if args.cmd == "exec":
         sys.exit(cmd_exec(pkg, args.command, args.timeout))
     if args.cmd == "oracle":

@@ -196,17 +196,113 @@ def test_budget_covers_every_limit_attempt_with_recorded_turns(tmp_path):
     _limit_traces(tmp_path, ["hit_context_limit", "hit_time_budget", "submit"])
     row = json.loads((tmp_path / "run/simplify.json").read_text())
     row["evidence"] = [dict(attempt="attempt-01.jsonl", turn=2, observation="x")]
-    row["budget"] = [dict(attempt="attempt-01.jsonl", turns=[2, 5], stage="parse")]
+    # Five one-character turns: two of them are 2 chars, 0.4 of the attempt.
+    row["budget"] = [dict(attempt="attempt-01.jsonl", turns=[2, 3], stage="parse",
+                          chars=2, share=0.4)]
     (tmp_path / "run/simplify.json").write_text(json.dumps(row))
     with pytest.raises(ValueError, match="attempt-02.jsonl"):
         so.read_decision(tmp_path, "vague")
-    row["budget"].append(dict(attempt="attempt-02", turns=[1, 9], stage="parse"))
+    row["budget"].append(dict(attempt="attempt-02", turns=[1, 9], stage="parse",
+                              chars=2, share=0.4))
     (tmp_path / "run/simplify.json").write_text(json.dumps(row))
     with pytest.raises(ValueError, match="budget turn absent"):
         so.read_decision(tmp_path, "vague")
-    row["budget"][1]["turns"] = [1, 4]
+    row["budget"][1]["turns"] = [1, 2]
     (tmp_path / "run/simplify.json").write_text(json.dumps(row))
     assert so.read_decision(tmp_path, "vague")["budget"][1]["attempt"] == "attempt-02.jsonl"
+
+
+def _budget_row(pkg, **entry):
+    decision(pkg)
+    (pkg / "traces").mkdir(exist_ok=True)
+    turns = [
+        # output 10 + typed 4 + reasoning 6 = 20
+        {"turn": 1, "keystrokes": ["ls", "pw"], "output": "x" * 10,
+         "think": "abc", "analysis": "de", "plan": "f"},
+        # vanillux/mini-swe style: no keystrokes, the reply under raw = 30 + 10
+        {"turn": 2, "raw": "r" * 30, "output": "o" * 10},
+        {"turn": 3, "keystrokes": [], "output": "y" * 60},
+        {"turn": 4, "keystrokes": ["cat f\n"], "output": "z" * 34},
+    ]
+    (pkg / "traces/attempt-01.jsonl").write_text(
+        json.dumps({"reward": 0, "finish_reason": "hit_context_limit"}) + "\n"
+        + "".join(json.dumps(t) + "\n" for t in turns)
+    )
+    row = json.loads((pkg / "run/simplify.json").read_text())
+    row["budget"] = [dict(attempt="attempt-01.jsonl", stage="parse", **entry)]
+    (pkg / "run/simplify.json").write_text(json.dumps(row))
+
+
+def test_turn_chars_counts_output_typed_and_reasoning():
+    assert so.turn_chars(
+        {"turn": 1, "keystrokes": ["ls", "pw"], "output": "x" * 10,
+         "think": "abc", "analysis": "de", "plan": "f"}
+    ) == {"output": 10, "typed": 4, "reasoning": 6, "total": 20}
+    # No keystrokes: the reply as written is what was typed.
+    assert so.turn_chars({"turn": 2, "raw": "r" * 30, "output": "o" * 10, "think": "t"}) == {
+        "output": 10, "typed": 30, "reasoning": 1, "total": 41}
+    # A closing terminus turn types nothing, even with raw beside it.
+    assert so.turn_chars({"turn": 3, "keystrokes": [], "raw": "zz"})["typed"] == 0
+    records = [{"reward": 0}, {"turn": 1, "output": "ab"}, {"turn": 2, "output": "cdef"}]
+    assert so.stage_chars(records, 2, 2) == (4, 6)
+    assert [t for t, _ in so.attempt_chars(records)] == [1, 2]
+
+
+def test_budget_chars_and_share_are_measured_not_guessed(tmp_path):
+    # Attempt total 20 + 40 + 60 + 40 = 160; turns 1-2 hold 60, share 0.375.
+    _budget_row(tmp_path, turns=[1, 2], chars=60, share=0.375)
+    so.read_decision(tmp_path, "vague")
+    for chars, share in ((90, 0.375), (60, 0.6)):
+        _budget_row(tmp_path, turns=[1, 2], chars=chars, share=share)
+        with pytest.raises(ValueError, match="as measured"):
+            so.read_decision(tmp_path, "vague")
+    for missing in ({"chars": 60}, {"share": 0.375}, {"chars": "60", "share": 0.375}):
+        _budget_row(tmp_path, turns=[1, 2], **missing)
+        with pytest.raises(ValueError, match="requires chars"):
+            so.read_decision(tmp_path, "vague")
+
+
+def test_a_budget_stage_over_half_the_attempt_is_rejected(tmp_path):
+    # Turns 2-4 hold 140 of 160 characters: the whole attempt, not a stage.
+    _budget_row(tmp_path, turns=[2, 4], chars=140, share=0.875)
+    with pytest.raises(ValueError, match="at most 50%"):
+        so.read_decision(tmp_path, "vague")
+    # One turn of 60 characters is 0.375 of the attempt: a stage.
+    _budget_row(tmp_path, turns=[3, 3], chars=60, share=0.375)
+    so.read_decision(tmp_path, "vague")
+
+
+def test_chars_helper_prints_per_turn_counts_and_the_range(tmp_path, capsys):
+    _budget_row(tmp_path, turns=[1, 2], chars=60, share=0.375)
+    assert so.print_chars(tmp_path / "traces/attempt-01.jsonl", (1, 2)) == 0
+    out = capsys.readouterr().out.splitlines()
+    assert out[0].split("\t") == ["turn", "output", "typed", "reasoning", "total",
+                                   "cumulative", "share"]
+    assert out[1].split("\t") == ["1", "10", "4", "6", "20", "20", "0.125"]
+    assert out[4].split("\t")[-2:] == ["160", "1.000"]
+    assert out[5] == "attempt: 160 chars over 4 turns"
+    assert out[6] == "turns 1-2: chars 60 share 0.375"
+    so.print_chars(tmp_path / "traces/attempt-01.jsonl", (2, 4))
+    assert "not a stage" in capsys.readouterr().out
+
+
+def test_sandbox_chars_runs_without_a_container(tmp_path):
+    import subprocess
+
+    _budget_row(tmp_path, turns=[1, 2], chars=60, share=0.375)
+    here = Path(__file__).resolve().parents[1]
+    out = subprocess.run(
+        [sys.executable, str(here / "agent_sandbox.py"), "--pkg", str(tmp_path),
+         "chars", "traces/attempt-01.jsonl", "--turns", "1", "2"],
+        capture_output=True, text=True, check=True,
+    ).stdout
+    assert "turns 1-2: chars 60 share 0.375" in out
+
+
+def test_prompt_asks_for_measured_chars_and_a_stage_under_half():
+    p = " ".join(so.prompt("vague").split())
+    assert "./sandbox chars traces/attempt-03.jsonl" in p
+    assert "more than half of the attempt's characters is rejected" in p
 
 
 def test_budget_is_not_required_when_few_attempts_ended_at_a_limit(tmp_path):

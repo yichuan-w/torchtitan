@@ -282,11 +282,20 @@ grading and the replay show that nothing it failed remains, and you update
 expected after the replay if it moved. When at least half of the scored attempts ended at the context, turn or
 time limit, add budget: a list with one object per such attempt, with attempt
 (named as in evidence), turns (the first and last turn it spent on the stage
-your change removes or shortens, as two integers that file records) and stage
-(what that stage is and how the change removes it). Every such attempt needs
+your change removes or shortens, as two integers that file records), stage
+(what that stage is and how the change removes it), chars (the characters
+those turns put into the attempt's context: output read, text typed and
+reasoning written) and share (chars over the whole attempt's characters, a
+number between 0 and 1). Measure them, do not estimate: `./sandbox chars
+traces/attempt-03.jsonl` prints every turn's characters and the running share,
+and `--turns FIRST LAST` prints the chars and share of that range. A stage is
+one part of the work, not the attempt: an entry whose turns hold more than half
+of the attempt's characters is rejected, because it locates nothing the change
+could remove. Every such attempt needs
 one: if your change shortens nothing an attempt spent its turns on, it only
 adds reading for that attempt, so choose a change that does. Each other field is a nonempty string. The caller checks the
-declaration's form and evidence locations, not the truth of your diagnosis.
+declaration's form, evidence locations and the measured chars and share, not
+the truth of your diagnosis.
 
 Every attempt failing is itself the evidence that help is needed: a teacher
 whose student keeps failing gives a hint, not up. When the traces are thin,
@@ -332,6 +341,75 @@ def _attempt_records(pkg: Path, item: dict) -> tuple[Path, list[dict]]:
         raise ValueError(f"evidence names no file in traces/: {name}")
     with path.open() as stream:
         return path, [json.loads(line) for line in stream if line.strip()]
+
+
+# A budget stage may hold at most this share of its attempt's characters. In the
+# p8 dev arm the declared stages covered a median 92% of each attempt on the 26
+# tasks whose attempts ended at a limit, so they located nothing to remove.
+MAX_STAGE_SHARE = 0.5
+# Declared chars may differ from the measured count by this fraction, and share
+# by SHARE_TOLERANCE; both are printed exactly by `./sandbox chars`.
+CHARS_TOLERANCE = 0.01
+SHARE_TOLERANCE = 0.01
+
+
+def turn_chars(record: dict) -> dict:
+    """Characters one turn record put into the attempt's context: the output it
+    read back, what it typed, and the reasoning it wrote.
+
+    typed is the keystrokes (terminus) or, for a turn without them (a terminus
+    turn with no parseable response, every mini-swe and vanillux turn), raw: the
+    reply as the model wrote it. reasoning is think plus terminus's analysis and
+    plan."""
+    if "keystrokes" in record:
+        keys = record.get("keystrokes") or []
+        typed = "".join(map(str, keys)) if isinstance(keys, list) else str(keys)
+    else:
+        typed = str(record.get("raw") or "")
+    reasoning = sum(len(str(record.get(k) or "")) for k in ("think", "analysis", "plan"))
+    out = len(str(record.get("output") or ""))
+    return {"output": out, "typed": len(typed), "reasoning": reasoning,
+            "total": out + len(typed) + reasoning}
+
+
+def attempt_chars(records: list[dict]) -> list[tuple[int, dict]]:
+    """(turn, turn_chars) for every turn record of an attempt, in file order;
+    the summary line (no "turn") is not a turn."""
+    return [
+        (record["turn"], turn_chars(record))
+        for record in records
+        if isinstance(record, dict) and type(record.get("turn")) is int
+    ]
+
+
+def stage_chars(records: list[dict], first: int, last: int) -> tuple[int, int]:
+    """(characters of turns first..last, characters of the whole attempt)."""
+    turns = attempt_chars(records)
+    stage = sum(c["total"] for t, c in turns if first <= t <= last)
+    return stage, sum(c["total"] for _, c in turns)
+
+
+def print_chars(path: Path, turns: tuple[int, int] | None = None) -> int:
+    """`./sandbox chars`: per-turn character counts of one attempt record, the
+    running share of the attempt, and with ``turns`` the range's chars and
+    share as a budget entry declares them."""
+    with path.open() as stream:
+        records = [json.loads(line) for line in stream if line.strip()]
+    rows = attempt_chars(records)
+    total = sum(c["total"] for _, c in rows) or 1
+    print("turn\toutput\ttyped\treasoning\ttotal\tcumulative\tshare")
+    running = 0
+    for turn, c in rows:
+        running += c["total"]
+        print(f"{turn}\t{c['output']}\t{c['typed']}\t{c['reasoning']}\t"
+              f"{c['total']}\t{running}\t{running / total:.3f}")
+    print(f"attempt: {sum(c['total'] for _, c in rows)} chars over {len(rows)} turns")
+    if turns:
+        chars, whole = stage_chars(records, *turns)
+        share = chars / whole if whole else 0.0
+        print(f"turns {turns[0]}-{turns[1]}: chars {chars} share {share:.3f}"
+              + ("  (over half the attempt: not a stage)" if share > MAX_STAGE_SHARE else ""))
+    return 0
 
 
 def limit_attempts(pkg: Path) -> tuple[list[str], int]:
@@ -393,7 +471,9 @@ def read_decision(pkg: Path, hint: str) -> dict:
 
 def _check_budget(pkg: Path, decision: dict) -> None:
     """When at least half the scored attempts ended at a limit, budget names, for
-    each of them, the turns it spent on the stage the change removes."""
+    each of them, the turns it spent on the stage the change removes, with the
+    characters those turns hold and their share of the attempt, as measured
+    here from the record; a stage holding over half the attempt is refused."""
     ended, scored = limit_attempts(pkg)
     if not ended or 2 * len(ended) < scored:
         return
@@ -422,6 +502,35 @@ def _check_budget(pkg: Path, decision: dict) -> None:
         for turn in turns:
             if turn not in recorded:
                 raise ValueError(f"budget turn absent: {path.name}:{turn}")
+        chars, share = item.get("chars"), item.get("share")
+        if (
+            type(chars) is not int
+            or chars < 0
+            or type(share) not in (int, float)
+            or not 0 <= share <= 1
+        ):
+            raise ValueError(
+                "budget requires chars (an integer) and share (0 to 1), "
+                "measured with ./sandbox chars"
+            )
+        measured, whole = stage_chars(records, *turns)
+        real_share = measured / whole if whole else 0.0
+        if (
+            abs(chars - measured) > CHARS_TOLERANCE * max(measured, 1)
+            or abs(share - real_share) > SHARE_TOLERANCE
+        ):
+            raise ValueError(
+                f"budget chars/share for {path.name} turns {turns[0]}-{turns[1]} "
+                f"are {measured} and {real_share:.3f} as measured, not {chars} "
+                f"and {share}: run ./sandbox chars {path.name} --turns "
+                f"{turns[0]} {turns[1]}"
+            )
+        if real_share > MAX_STAGE_SHARE:
+            raise ValueError(
+                f"budget stage for {path.name} holds {real_share:.0%} of the "
+                f"attempt's characters: a stage is at most "
+                f"{MAX_STAGE_SHARE:.0%}; name the part of the work the change removes"
+            )
         covered.add(path.name)
     missing = sorted(set(ended) - covered)
     if missing:
