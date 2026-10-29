@@ -1,0 +1,204 @@
+{
+ "staged": 181,
+ "judged": 12,
+ "unparseable": [],
+ "tiers": {
+  "FLAGGED": 9,
+  "SEED": 3
+ },
+ "tiers_strict_bootstrap_blocks": {
+  "FLAGGED": 9,
+  "FLAGGED(bootstrap only)": 3
+ },
+ "verdicts": {
+  "INSTR-VERIFIER-MISMATCH": 8,
+  "CLEAN": 3,
+  "ANSWER-LEAK": 1
+ },
+ "fired": {
+  "oracle_reachable": 0,
+  "expectation_revealed": 0,
+  "value_derivable": 1,
+  "overspecific_check": 9,
+  "unstable_reward": 0,
+  "ambiguity": 0,
+  "uncertain_fact": 0
+ },
+ "notes": {
+  "expectation_movable": 11,
+  "weak_verifier_exploit": 5,
+  "core_clause_unenforced": 5
+ },
+ "pin_candidates": 8,
+ "bootstrap": {
+  "staged_with_a_fetch (mechanical)": 174,
+  "by_kind (mechanical)": {
+   "apt": 157,
+   "astral.sh": 166,
+   "pypi:uvx": 167,
+   "pypi:pip": 7
+  },
+  "set_e": 44,
+  "no_fallback_trap": 12,
+  "task_specific_with_packages": {
+   "pypdf": 5,
+   "passlib": 4,
+   "psutil": 4,
+   "pyyaml": 4,
+   "docker": 4,
+   "requests": 3,
+   "jsonschema": 3,
+   "psycopg2-binary": 3,
+   "GitPython": 3,
+   "earthsource": 2,
+   "PyYAML": 2,
+   "tqdm": 1,
+   "tomli": 1,
+   "eth-typing": 1,
+   "web3": 1
+  },
+  "judged_rows_with_a_fetch": 10,
+  "judge_wrote_bootstrap_fetch": 10,
+  "judge_missed_it": [],
+  "leak_or_b3_anchored_in_bootstrap": []
+ },
+ "tier_by_gate": {
+  "oracle_zero": {
+   "FLAGGED": 1
+  },
+  "pass": {
+   "FLAGGED": 8,
+   "SEED": 3
+  }
+ },
+ "seed_and_gate_pass": [
+  "rts_task_05b2a8845b5824d253c5c0fb",
+  "rts_task_06be1ca038c7ec3b4c990f98",
+  "rts_task_2c0b7ae95a28cefa658c4bc3"
+ ],
+ "gate_by_compose (all staged)": {
+  "compose file": {
+   "oracle_zero": 7,
+   "not_in_gate_output": 5
+  },
+  "no compose file": {
+   "pass": 168,
+   "empty_one": 1
+  }
+ },
+ "cmd_never_started (all staged)": {
+  "idle_cmd": 96,
+  "no_cmd": 82,
+  "entrypoint_runs_it": 2,
+  "service_or_script_cmd": 1
+ },
+ "gate_by_cmd_kind (all staged)": {
+  "entrypoint_runs_it": {
+   "not_in_gate_output": 1,
+   "pass": 1
+  },
+  "idle_cmd": {
+   "pass": 85,
+   "oracle_zero": 6,
+   "not_in_gate_output": 4,
+   "empty_one": 1
+  },
+  "no_cmd": {
+   "pass": 81,
+   "oracle_zero": 1
+  },
+  "service_or_script_cmd": {
+   "pass": 1
+  }
+ },
+ "instruction_points_at_pipeline_json (all staged)": {
+  "tasks": 16,
+  "file_absent_from_image": [
+   "rts_task_0a6d1ddf1245375a08107edf",
+   "rts_task_1e9c192c0cc207dc2235958e",
+   "rts_task_2641cd3347920f94c56ee27f",
+   "rts_task_320523b1d794e753ca4c0438",
+   "rts_task_325dd276e40f557ec1fb467e",
+   "rts_task_359a62b537f799ec54773078",
+   "rts_task_5aa260b36bbcdc781ff67d31",
+   "rts_task_61baac53caddc36f17b0c666",
+   "rts_task_6861502e405cdd21e5c3ce65",
+   "rts_task_70973a62de04b95fa960a073",
+   "rts_task_841acb94edb4898e0d0bdb35",
+   "rts_task_c9596d5682ae9b62934b9a99",
+   "rts_task_cf10effdd8d67aea775d62d9",
+   "rts_task_d054fd29e8c62e9f08c7202c",
+   "rts_task_fe9b38379292388dd5e39009"
+  ],
+  "judged_of_those_by_tier": {
+   "FLAGGED": 1
+  }
+ },
+ "harness_compat_tags": {
+  "rts_task_2c0b7ae95a28cefa658c4bc3": [
+   "tmux_lt_2_3"
+  ]
+ },
+ "schema_invalid": {},
+ "rows_with_lint": 9,
+ "lint_distribution": {
+  "L15": 3,
+  "L14": 3,
+  "L3": 2,
+  "L16": 2,
+  "L11": 2,
+  "L7": 1
+ },
+ "lints_by_task": {
+  "rts_task_05b2a8845b5824d253c5c0fb": [
+   "L15"
+  ],
+  "rts_task_0bfc2e5c111a4e5e0cd1becc": [
+   "L7"
+  ],
+  "rts_task_19ab250cbdb30c45a3871a6b": [
+   "L3"
+  ],
+  "rts_task_1e9c192c0cc207dc2235958e": [
+   "L14",
+   "L16"
+  ],
+  "rts_task_22df3891b2862336a40d4ef8": [
+   "L11",
+   "L15"
+  ],
+  "rts_task_2c0b7ae95a28cefa658c4bc3": [
+   "L14"
+  ],
+  "rts_task_4071bf38c5b9047c9468899e": [
+   "L11"
+  ],
+  "rts_task_57521db5f46dbc76c1bbdda0": [
+   "L16",
+   "L3"
+  ],
+  "rts_task_6580a3eee1ad1dc263dd3cba": [
+   "L14",
+   "L15"
+  ]
+ },
+ "expectation_source": {
+  "rollout_material": 11,
+  "hardcoded_literal": 1
+ },
+ "scope": "smoke: 12 tasks chosen one per bootstrap variant or corpus feature; judge glm-5.3 at low effort; the keys marked (all staged) describe the 181 staged tasks, not the 12",
+ "smoke_tasks": {
+  "rts_task_05b2a8845b5824d253c5c0fb": "usual bootstrap, gate pass, easy",
+  "rts_task_020ad1689cad3626497b56fe": "usual bootstrap, nonEasy",
+  "rts_task_06be1ca038c7ec3b4c990f98": "-p 3.13 -w variant",
+  "rts_task_22df3891b2862336a40d4ef8": "set -e and no fallback trap",
+  "rts_task_4071bf38c5b9047c9468899e": "pip variant",
+  "rts_task_6580a3eee1ad1dc263dd3cba": "image virtualenv / no fetch, runs pytest",
+  "rts_task_7ac455a6c387466bbf9a0c75": "runs test_state.py directly",
+  "rts_task_2c0b7ae95a28cefa658c4bc3": "task-specific --with packages",
+  "rts_task_19ab250cbdb30c45a3871a6b": "COPY'd build-context files",
+  "rts_task_1e9c192c0cc207dc2235958e": "gate said oracle_zero",
+  "rts_task_57521db5f46dbc76c1bbdda0": "test_state.py imports a network client",
+  "rts_task_0bfc2e5c111a4e5e0cd1becc": "git repository task"
+ }
+}
