@@ -1925,8 +1925,15 @@ the error message or tool output itself suggests, and the fix the attempts in
 `traces/` reach for first when a step fails (often upgrading, reinstalling or
 regenerating the thing that broke), and grade each. If either passes, the
 difficulty announces its own fix: such changes stayed at k of k in measured
-groups, so choose another. A planted error must not name its own fix. The work
-has to need a decision the message does not dictate -- a result that is wrong
+groups, so choose another. A planted error must not name its own fix, and the
+obstacle itself must be visible to the student: named in the instruction, or
+surfaced by the environment (an error, a wrong result, a failing step) when the
+student does the work the instruction states. An obstacle the student cannot
+observe -- one that appears only when the grader runs, or in an input or
+condition the stated work never touches and the instruction never mentions --
+is unfair: no attempt can know to look for it. In `./sandbox exec`, do the
+stated work the way the attempts in `traces/` do it and confirm the obstacle
+shows itself there. The work has to need a decision the message does not dictate -- a result that is wrong
 without saying so until the student checks it, or a choice between plausible
 fixes that only checking tells apart -- and the output has to give an
 investigating student something to go on: a name, a code, a documented
@@ -2302,30 +2309,6 @@ stands, working from what those attempts did, and get `./sandbox oracle` to pass
 with it. Then harden: step 1 adapts that solution, and the change is one rung
 above it."""
 
-# The blind verifier author never sees the author's scratch tests, so a check
-# that lived only there was lost (M8 of the p5 rewriter-trace analysis: a leak
-# check, an anti-fabrication check, an unchanged-input check). What those tests
-# checked travels as requirements in words, never as code (_checked_behaviours).
-CHECKED_FILE = "run/checked-behaviours.json"
-_CHECKED_NOTE = """
-
-WHAT YOUR SCRATCH TESTS CHECK
-Your `tests/` is discarded, and the verifier that ships is written by a session
-that never sees it. Before you finish, write `run/checked-behaviours.json`: a JSON
-list with one object per behaviour your scratch tests check,
-`{"behaviour": ..., "quote": ...}`. `behaviour` states it in words as a
-requirement on the result ("the report gives each host's open ports", "the
-input files are left unchanged") -- never test code, a value only your solution
-computed, or a name the instruction does not give. `quote` is the sentence of
-`instruction.md` the behaviour rests on, copied verbatim. That verifier's author
-is given the list and must cover every entry, and its check may be no stricter
-than the quoted sentence: a behaviour the sentence does not state is not
-checked. The caller passes on only the entries whose quote appears in
-`instruction.md` (whitespace aside); an entry with no sentence to quote is
-dropped. So a behaviour the task needs checked -- the one your change turns on
-above all -- is lost unless the instruction states it and the entry quotes that
-statement: state it in the instruction, or drop the entry."""
-
 _REPAIR_JOB = """Your rewrite did not survive the caller's check. It rebuilt the
 package from scratch, ran `solution/solve.sh` against the verifier (exit
 {exit_code}) and audited what the verifier demands against what an agent can
@@ -2377,11 +2360,7 @@ If the public task does leave that choice open, state the choice your
 reference solution makes where an agent will read it (the instruction, or a
 file in the image the instruction points at). Stating a choice the grading
 already depends on does not change what the task asks for; change nothing
-else. Where the report says a check would pass an empty or no-op submission
-unless it could reach the work through something the instruction does not
-state (how the program is invoked, a path, an argument, a file it writes),
-state that interface in the instruction as your reference solution provides
-it. If the report is wrong, or the gap cannot be closed without changing
+else. If the report is wrong, or the gap cannot be closed without changing
 what the task asks for, write `GIVE UP: <reason>` to `run/verdict.txt` and stop.
 
 `tests/` here is the previous revision's checker again, a scratch copy for
@@ -2395,10 +2374,7 @@ _VERIFIER_JOB = """The task in this package was revised through a change to its
 requirements or workflow. Write the verifier for the task as the
 instruction states it, changing the inherited checks only where the revision
 changed the task: a retained requirement keeps its inherited check at the same
-strictness (AGENTS.md says why). A check that an empty or no-op submission
-passes is a defect: repair it only by checking a deliverable the instruction
-states, by the property it states; where that needs an interface the
-instruction does not state, report it as BLOCKED (AGENTS.md says how).
+strictness (AGENTS.md says why).
 
 You are shown the instruction, `environment/`, and the previous revision's
 verifier at `{verifier_rel}` -- the one the task had before this change, not a
@@ -3163,7 +3139,6 @@ def _blind_verifier(
                 prompt += _ROLE_PATCH_NOTE
             prompt += _instruction_change_note(seed_pkg, pkg)
             prompt += _reported_defects(pkg, vpkg)
-            prompt += _checked_behaviours(pkg, vpkg)
             prompt += _budget(timeout)
             # A simplification may only add guidance (a hint, a starter file) and
             # keep every requirement; the previous verifier then still checks the
@@ -3243,15 +3218,15 @@ def _refresh_blind_package(pkg: Path, vpkg: Path) -> str:
     """Bring the verifier session's package up to the task as the author left it.
 
     The verifier's package is laid out once, when its session first runs
-    (_blind_layout). A repair-author session that then edits the instruction,
-    the environment or run/checked-behaviours.json changes only the author's
-    package, so the resumed verifier-repair session used to grade a stale copy:
-    in one audited p7 rewrite the repair-author added a receive policy to the
-    environment and a clause to the instruction and to an entry, and the
-    verifier repaired against the old ones and never checked the policy. Every
-    public file is copied again here (the verifier's own tests/, run/,
-    AGENTS.md and sandbox stay), with the run inputs, the reported defects and
-    the quoted checked behaviours. Returns the prompt text naming what moved."""
+    (_blind_layout). A repair-author session that then edits the instruction
+    or the environment changes only the author's package, so the resumed
+    verifier-repair session used to grade a stale copy: in one audited p7
+    rewrite the repair-author added a receive policy to the environment and a
+    clause to the instruction, and the verifier repaired against the old ones
+    and never checked the policy. Every public file is copied again here (the
+    verifier's own tests/, run/, AGENTS.md and sandbox stay), with the run
+    inputs and the reported defects. Returns the prompt text naming what
+    moved."""
     keep = set(HIDDEN_FROM_VERIFIER) | {"tests", "run"}
     before_instruction = (vpkg / "instruction.md").read_text(errors="replace") if (
         vpkg / "instruction.md"
@@ -3303,7 +3278,7 @@ def _refresh_blind_package(pkg: Path, vpkg: Path) -> str:
                 + "```\n"
             )
     (vpkg / "run" / "reported-defects.json").unlink(missing_ok=True)
-    return note + _reported_defects(pkg, vpkg) + _checked_behaviours(pkg, vpkg)
+    return note + _reported_defects(pkg, vpkg)
 
 
 def _blind_repair(
@@ -3638,81 +3613,6 @@ def _reported_defects(pkg: Path, vpkg: Path) -> str:
     )
 
 
-def _quoted_in(quote: str, text: str) -> bool:
-    """Whether ``quote`` is a nonempty substring of ``text``, whitespace aside."""
-    quote = " ".join(quote.split())
-    return bool(quote) and quote in " ".join(text.split())
-
-
-def _checked_behaviours(pkg: Path, vpkg: Path) -> str:
-    """Hand the verifier's author, in words, every behaviour the task's author
-    checked with its scratch tests, so a check that lived only there is not
-    lost; the tests themselves stay hidden.
-
-    Each entry quotes the instruction sentence it rests on, and only entries
-    whose quote is in ``instruction.md`` (whitespace normalised) are passed on:
-    in p7 the entries paraphrased the instruction, the verifier encoded the
-    paraphrase more strictly than the instruction, and the BLOCKED route for an
-    unstated entry never fired (0 of the 41 audited defects). The dropped
-    entries are kept beside the list in the author's package for the record. A
-    malformed list fails the rewrite, as a malformed run/repair.json does; an
-    absent one hands over nothing."""
-    path = pkg / CHECKED_FILE
-    handed = vpkg / CHECKED_FILE
-    dropped_path = pkg / "run" / "checked-behaviours-unquoted.json"
-    handed.unlink(missing_ok=True)
-    dropped_path.unlink(missing_ok=True)
-    if not path.exists():
-        return ""
-    checked = json.loads(path.read_text())
-
-    def well_formed(entry) -> bool:
-        if isinstance(entry, str):  # no quote: dropped below
-            return bool(entry.strip())
-        return (
-            isinstance(entry, dict)
-            and isinstance(entry.get("behaviour"), str)
-            and bool(entry["behaviour"].strip())
-            and isinstance(entry.get("quote", ""), str)
-        )
-
-    if not isinstance(checked, list) or not all(map(well_formed, checked)):
-        raise ValueError(
-            f"{CHECKED_FILE} must be a list of objects with a nonempty "
-            '"behaviour" and a "quote" from instruction.md'
-        )
-    try:
-        instruction = (pkg / "instruction.md").read_text(errors="replace")
-    except OSError:
-        instruction = ""
-    kept, dropped = [], []
-    for entry in checked:
-        if isinstance(entry, str):
-            entry = {"behaviour": entry, "quote": ""}
-        entry = {"behaviour": entry["behaviour"], "quote": entry.get("quote", "")}
-        (kept if _quoted_in(entry["quote"], instruction) else dropped).append(entry)
-    if dropped:
-        log.info("checked behaviours with no quote in instruction.md, not passed on: %d", len(dropped))
-        dropped_path.write_text(json.dumps(dropped, indent=1) + "\n")
-    if not kept:
-        return ""
-    handed.write_text(json.dumps(kept, indent=1) + "\n")
-    return (
-        "\n\nBEHAVIOURS THE TASK'S AUTHOR CHECKED. `" + CHECKED_FILE + "` lists "
-        "behaviours the task's author checked against its own solution with a "
-        "scratch checker you are not shown, each with `quote`, the sentence of "
-        "`instruction.md` it rests on, copied verbatim. Your verifier covers each "
-        "one: in `run/verifier-changes.md`, name for every entry the check that "
-        "covers it -- the inherited check where the entry is a retained "
-        "requirement, kept at its strictness, or a check you write where the "
-        "revision changed it. A check for an entry is no stricter than its quote: "
-        "it checks what that sentence states, at the precision the sentence "
-        "states, and nothing the entry's own words add. Where the `behaviour` "
-        "says more than the `quote`, grade the quote and name the difference in "
-        "`run/verifier-changes.md`.\n"
-    )
-
-
 def _read_repairs(pkg: Path) -> list[dict]:
     """The defects a harder or easier rewrite repaired on the way, from run/repair.json.
 
@@ -3775,6 +3675,70 @@ def _trace_counts(traces: Path) -> tuple[int, int] | None:
         attempts += 1
         solved += reward > 0
     return (solved, attempts) if attempts else None
+
+
+def _trace_limits(traces: Path) -> dict:
+    """The limits the attempts in traces/ ran under: context tokens and turns
+    from the source run's launch record (traces/launch.json, its env), and the
+    wall-clock budget each attempt's header records (budget_sec), else the
+    launch env's. A limit neither records is left out."""
+    try:
+        env = json.loads((traces / "launch.json").read_text()).get("env") or {}
+    except (OSError, ValueError, AttributeError):
+        env = {}
+
+    def number(value) -> int | None:
+        try:
+            return int(float(value))
+        except (TypeError, ValueError):
+            return None
+
+    seconds = set()
+    for path in sorted(traces.glob("attempt-*.jsonl")):
+        try:
+            head = rollout_record.read_header(path)
+        except (OSError, ValueError):
+            continue
+        if isinstance(head, dict) and number(head.get("budget_sec")):
+            seconds.add(number(head["budget_sec"]))
+    if not seconds and number(env.get("SWE_TIME_BUDGET_SEC")):
+        seconds.add(number(env["SWE_TIME_BUDGET_SEC"]))
+    limits = {
+        "context": number(env.get("SWE_MAX_CONTEXT_LEN")),
+        "turns": number(env.get("TMAX_TERMINUS_MAX_TURNS")),
+        "seconds": sorted(seconds),
+    }
+    return {k: v for k, v in limits.items() if v}
+
+
+def _trace_limits_note(traces: Path) -> str:
+    """The traces' limits beside the student's, so the author knows when the
+    attempts it reads had less (or more) room than the next group will: the
+    p8 EvolveBench arms read attempts run at a 63,488-token context while the
+    prompt stated the 79,872 the student gets, and nothing said which was which."""
+    limits = _trace_limits(traces)
+    if not limits:
+        return ""
+    ran = []
+    if "context" in limits:
+        ran.append(f"a {limits['context']:,}-token context")
+    if "turns" in limits:
+        ran.append(f"{limits['turns']} turns")
+    if "seconds" in limits:
+        ran.append(" or ".join(map(str, limits["seconds"])) + " seconds of wall clock")
+    student = (
+        f"a {so.STUDENT_CONTEXT:,}-token context, {so.STUDENT_TURNS} turns and "
+        f"{so.STUDENT_SECONDS} seconds"
+    )
+    return (
+        "\n\nTHE LIMITS THE TRACES RAN UNDER. The attempts in `traces/` ran with "
+        + ", ".join(ran)
+        + " per attempt (their run's launch record and the attempt headers). "
+        "The next group meets your rewrite with " + student + ". Where these "
+        "differ, read every limit death in `traces/` against the student's "
+        "limits: an attempt that ran out of a smaller context may have room under "
+        "the larger one, and one that fit a larger budget may not fit a smaller.\n"
+    )
 
 
 def evolve_agentic(
@@ -3882,7 +3846,7 @@ def evolve_agentic(
             + (_UNSOLVED_NOTE if task.get("_unsolved") else ""),
             "repair": _REPAIR_JOB.format(exit_code=exit_code),
         }[job]
-        + (_CHECKED_NOTE if blind else "")
+        + (_trace_limits_note(rewrite.traces) if job in ("harder", "easier") else "")
         + _traces_spec(rewrite.traces)
         + _budget(author_timeout)
     )

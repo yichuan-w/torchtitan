@@ -314,6 +314,10 @@ def test_harder_defaults_to_real_guidance_with_repair_in_the_rewrite(
     flat = " ".join(prompt.split())
     assert "act as the student on what it now meets" in flat
     assert "A planted error must not name its own fix" in flat
+    # ...and the obstacle is one the student can observe.
+    assert "the obstacle itself must be visible to the student" in flat
+    assert "An obstacle the student cannot observe" in flat
+    assert "confirm the obstacle shows itself there" in flat
     assert "without editing a file the task protects or pins by digest" in flat
     assert ec._STUDENT_HARDER_GUIDANCE not in prompt
 
@@ -347,105 +351,9 @@ def test_the_verifier_author_is_told_the_defects_the_author_repaired(tmp_path, m
     assert "PRIVATE" not in verifier["prompt"]
 
 
-@pytest.mark.parametrize("job", ["harder", "easier"])
-def test_the_verifier_author_must_cover_what_the_authors_scratch_tests_checked(
-    tmp_path, monkeypatch, job
-):
-    """The author's scratch tests stay hidden; what they checked reaches the
-    verifier's author in words, as requirements it must cover."""
-    rw = _rewrite(tmp_path, monkeypatch)
-    sessions, checks = [], []
-    _wire(monkeypatch, sessions, checks)
-    if job == "easier":
-        monkeypatch.setattr(
-            ec.so, "read_decision", lambda *a: {"retained_skill": "compare files"}
-        )
-    wired = ec._run_codex
-    listed = [
-        {"behaviour": "the digest file holds the result's SHA-256",
-         "quote": "Also write its SHA-256 to /app/result.sha."},
-        # Quote spread over lines differently from the instruction: whitespace aside.
-        {"behaviour": "the comparison is written to result.txt",
-         "quote": "Compare /app/a.yml and /app/b.yml\n  with gendiff into /app/result.txt."},
-    ]
-    unquoted = {"behaviour": "the input files are left unchanged",
-                "quote": "The input files must not change."}
-
-    def author_lists_its_checks(run, cwd, prompt, resume=None):
-        out = wired(run, cwd, prompt, resume)
-        if (cwd / "solution").exists():
-            (cwd / "tests" / "test_state.py").write_text("PRIVATE_SCRATCH_CHECK = 1\n")
-            (cwd / "run" / "checked-behaviours.json").write_text(
-                json.dumps(listed + [unquoted])
-            )
-        return out
-
-    monkeypatch.setattr(ec, "_run_codex", author_lists_its_checks)
-    ec.evolve_agentic(rw, dict(SEED), job)
-    author = next(x for x in sessions if x["role"] == "author")
-    verifier = next(x for x in sessions if x["role"] == "verifier")
-    assert "WHAT YOUR SCRATCH TESTS CHECK" in author["prompt"]
-    assert "BEHAVIOURS THE TASK'S AUTHOR CHECKED" in verifier["prompt"]
-    assert "covers each one" in " ".join(verifier["prompt"].split())
-    handed = Path(verifier["cwd"]) / "run/checked-behaviours.json"
-    # Only the entries whose quote is in the instruction reach the verifier.
-    assert json.loads(handed.read_text()) == listed
-    assert "no stricter than its quote" in " ".join(verifier["prompt"].split())
-    assert json.loads(
-        (rw.package / "run/checked-behaviours-unquoted.json").read_text()
-    ) == [unquoted]
-    # Blind to the scratch test code: neither the prompt nor tests/ carries it.
-    assert "PRIVATE_SCRATCH_CHECK" not in verifier["prompt"]
-    assert "PRIVATE_SCRATCH_CHECK" not in (
-        Path(verifier["cwd"]) / "tests/test_state.py"
-    ).read_text()
-
-
-def test_no_checked_list_hands_nothing_and_a_malformed_one_fails(tmp_path):
-    pkg, vpkg = tmp_path / "pkg", tmp_path / "vpkg"
-    (pkg / "run").mkdir(parents=True)
-    (vpkg / "run").mkdir(parents=True)
-    assert ec._checked_behaviours(pkg, vpkg) == ""
-    assert not (vpkg / "run/checked-behaviours.json").exists()
-    for bad in (["ok", ""], {"a": "b"}, [{"quote": "x"}], [{"behaviour": "x", "quote": 3}]):
-        (pkg / "run/checked-behaviours.json").write_text(json.dumps(bad))
-        with pytest.raises(ValueError, match="checked-behaviours"):
-            ec._checked_behaviours(pkg, vpkg)
-
-
-def test_a_checked_behaviour_reaches_the_verifier_only_with_a_verbatim_quote(tmp_path):
-    """The quote must be a substring of instruction.md after whitespace
-    normalisation; an entry without one -- a paraphrase, a bare string, an
-    empty quote -- is not passed on, and a list left with none hands nothing."""
-    pkg, vpkg = tmp_path / "pkg", tmp_path / "vpkg"
-    (pkg / "run").mkdir(parents=True)
-    (vpkg / "run").mkdir(parents=True)
-    (pkg / "instruction.md").write_text(
-        "Write the report to /app/report.txt.\nList every host\tonce,\n"
-        "  sorted by address.\n"
-    )
-    verbatim = {"behaviour": "hosts are sorted", "quote": "List every host once, sorted by address."}
-    paraphrase = {"behaviour": "hosts are sorted", "quote": "List each host exactly once in address order."}
-    empty = {"behaviour": "the report exists", "quote": "  "}
-    entries = [verbatim, paraphrase, empty, "the report exists"]
-    (pkg / "run/checked-behaviours.json").write_text(json.dumps(entries))
-    note = ec._checked_behaviours(pkg, vpkg)
-    assert "BEHAVIOURS THE TASK'S AUTHOR CHECKED" in note
-    assert json.loads((vpkg / "run/checked-behaviours.json").read_text()) == [verbatim]
-    assert json.loads((pkg / "run/checked-behaviours-unquoted.json").read_text()) == [
-        paraphrase, {"behaviour": "the report exists", "quote": "  "},
-        {"behaviour": "the report exists", "quote": ""},
-    ]
-    # Nothing quotable left: nothing handed, and no stale copy stays behind.
-    (pkg / "run/checked-behaviours.json").write_text(json.dumps([paraphrase]))
-    assert ec._checked_behaviours(pkg, vpkg) == ""
-    assert not (vpkg / "run/checked-behaviours.json").exists()
-    assert ec._quoted_in("a  b", "x a\nb y") and not ec._quoted_in("", "anything")
-
-
 def test_verifier_repair_works_on_the_task_the_repair_author_left(tmp_path, monkeypatch):
-    """The repair-author may change the instruction, the environment and the
-    checked behaviours; the resumed verifier-repair session grades that task,
+    """The repair-author may change the instruction and the environment; the
+    resumed verifier-repair session grades that task,
     not the copy laid out when the verifier was first written."""
     rw = _rewrite(tmp_path, monkeypatch)
     sessions, checks = [], []
@@ -456,7 +364,6 @@ def test_verifier_repair_works_on_the_task_the_repair_author_left(tmp_path, monk
         ec, "_harness_check", _failing_check(checks, iter(["fail", "fail", "fail"]))
     )
     policy = "Pushes must satisfy origin's existing receive policy."
-    entry = {"behaviour": "pushed commits pass the receive policy", "quote": policy}
     wired = ec._run_codex
     seen = {}
 
@@ -464,7 +371,6 @@ def test_verifier_repair_works_on_the_task_the_repair_author_left(tmp_path, monk
         if resume and not (cwd / "solution").exists():
             seen["instruction"] = (cwd / "instruction.md").read_text()
             seen["hook"] = (cwd / "environment/pre-receive").read_text()
-            seen["checked"] = json.loads((cwd / "run/checked-behaviours.json").read_text())
             seen["resources"] = (cwd / "run/resources.json").read_text()
             seen["prompt"] = prompt
             seen["solution"] = (cwd / "solution").exists()
@@ -472,7 +378,6 @@ def test_verifier_repair_works_on_the_task_the_repair_author_left(tmp_path, monk
         if resume and (cwd / "solution").exists():
             (cwd / "instruction.md").write_text(NEW_INSTRUCTION + policy + "\n")
             (cwd / "environment/pre-receive").write_text("#!/bin/sh\nexit 0\n")
-            (cwd / "run/checked-behaviours.json").write_text(json.dumps([entry]))
             (cwd / "run/resources.json").write_text('{"cpu": 4}')
         return out
 
@@ -481,14 +386,12 @@ def test_verifier_repair_works_on_the_task_the_repair_author_left(tmp_path, monk
         ec.evolve_agentic(rw, dict(SEED), "harder")
     assert seen["instruction"].endswith(policy + "\n")
     assert seen["hook"] == "#!/bin/sh\nexit 0\n"
-    assert seen["checked"] == [entry]
     assert seen["resources"] == '{"cpu": 4}'
     assert seen["solution"] is False
     prompt = " ".join(seen["prompt"].split())
     assert "repaired the task after you wrote your verifier" in prompt
     assert "environment/pre-receive" in prompt and "instruction.md" in prompt
     assert "+" + policy in seen["prompt"]
-    assert "BEHAVIOURS THE TASK'S AUTHOR CHECKED" in seen["prompt"]
 
 
 def test_disabled_web_search_does_not_tell_the_author_to_search(tmp_path, monkeypatch):
@@ -959,23 +862,14 @@ def test_an_environmental_failure_is_fixed_in_the_environment_not_blocked():
     assert "only when the platform itself fails" in job
 
 
-def test_a_no_op_check_is_repaired_only_through_the_stated_deliverable():
-    """A retained check that an empty or no-op submission passes is still a
-    defect, but the repair checks a deliverable the instruction states, by the
-    property it states; an interface the instruction does not state goes back
-    to the task's author as BLOCKED, and the rule no longer reaches every
-    inherited check."""
+def test_the_verifier_side_has_no_no_op_repair_rule_and_no_checked_list():
+    """The verifier author's instructions read as p6's: no rule that a no-op
+    check must be repaired (p8 audit: 11 of 22 defects invented an unstated
+    invocation, rerun or exact value under it), and no checked-behaviours list
+    from the rewriter (9 of 22)."""
     spec = " ".join(ec.VERIFIER_SPEC.read_text().split())
-    assert "Same strictness never keeps a check that checks nothing" in spec
-    assert "whether or not anyone reported it" in spec
-    assert "The one repair you may make is to check the value of a deliverable the instruction already states" in spec
-    assert "Compare exactly only where the instruction determines that value uniquely" in spec
-    assert "keep the inherited range or property check" in spec
-    assert "do not invent it" in spec
-    assert "inherited ones included" not in spec
-    assert "compared exactly or within the stated tolerance -- and record it" not in spec
-    job = " ".join(ec._VERIFIER_JOB.split())
-    assert "repair it only by checking a deliverable the instruction states" in job
-    assert "report it as BLOCKED" in job
-    blocked = " ".join(ec._VERIFIER_BLOCKED_JOB.split())
-    assert "state that interface in the instruction" in blocked
+    assert "checks nothing" not in spec
+    assert "checked-behaviours" not in spec
+    assert "no-op" not in " ".join(ec._VERIFIER_JOB.split())
+    assert "no-op" not in " ".join(ec._VERIFIER_BLOCKED_JOB.split())
+    assert not hasattr(ec, "_checked_behaviours")

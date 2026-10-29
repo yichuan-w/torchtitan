@@ -1726,3 +1726,41 @@ def test_the_job_prompt_states_the_attempts_traces_hold_not_the_signals_group(
     prompt = sessions[0]["prompt"]
     assert prompt.startswith("This task was solved 0 of 12 attempts.")
     assert "0 of 5" not in prompt
+
+
+def test_trace_limits_come_from_the_launch_record_and_the_headers(tmp_path):
+    assert ec._trace_limits(tmp_path) == {}
+    assert ec._trace_limits_note(tmp_path) == ""
+    (tmp_path / "launch.json").write_text(json.dumps({"env": {
+        "SWE_MAX_CONTEXT_LEN": "63488", "TMAX_TERMINUS_MAX_TURNS": "120",
+        "SWE_TIME_BUDGET_SEC": "3600"}}))
+    # No header budget: the launch env's time budget.
+    assert ec._trace_limits(tmp_path) == {"context": 63488, "turns": 120, "seconds": [3600]}
+    # The attempts' own headers say what each ran under, and win.
+    _attempt(tmp_path / "attempt-01.jsonl", reward=0.0, budget_sec="2400")
+    _attempt(tmp_path / "attempt-02.jsonl", reward=0.0, budget_sec=2400)
+    assert ec._trace_limits(tmp_path)["seconds"] == [2400]
+    (tmp_path / "launch.json").unlink()
+    assert ec._trace_limits(tmp_path) == {"seconds": [2400]}
+
+
+def test_the_job_prompt_states_the_traces_limits_beside_the_students(tmp_path, monkeypatch):
+    """The p8 arms' traces ran at a 63,488-token context while the prompt
+    stated only the student's 79,872."""
+    from test_blind_verifier import SEED, _rewrite, _wire
+
+    for job in ("easier", "harder"):
+        rw = _rewrite(tmp_path / job, monkeypatch)
+        rw.traces.mkdir(parents=True, exist_ok=True)
+        _attempt(rw.traces / "attempt-01.jsonl", reward=0.0, budget_sec=2400,
+                 finish_reason="hit_context_limit")
+        (rw.traces / "launch.json").write_text(json.dumps({"env": {
+            "SWE_MAX_CONTEXT_LEN": "63488", "TMAX_TERMINUS_MAX_TURNS": "120"}}))
+        sessions = []
+        _wire(monkeypatch, sessions, [])
+        monkeypatch.setattr(ec.so, "read_decision", lambda *a: {"retained_skill": "x"})
+        ec.evolve_agentic(rw, dict(SEED), job)
+        prompt = " ".join(sessions[0]["prompt"].split())
+        assert "THE LIMITS THE TRACES RAN UNDER" in prompt
+        assert "ran with a 63,488-token context, 120 turns, 2400 seconds of wall clock" in prompt
+        assert f"meets your rewrite with a {so.STUDENT_CONTEXT:,}-token context" in prompt
