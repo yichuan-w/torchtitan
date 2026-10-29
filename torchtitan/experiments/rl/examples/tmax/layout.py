@@ -52,6 +52,19 @@ def safe(name: str) -> str:
 _WRITE_RETRY_SEC = (1.0, 2.0, 4.0)
 
 
+def exists(path: Path) -> bool:
+    """``path.exists()``, repeated on PermissionError: the FUSE root sometimes
+    answers a stat of a missing path with EPERM instead of ENOENT."""
+    for delay in (*_WRITE_RETRY_SEC, None):
+        try:
+            return path.exists()
+        except PermissionError:
+            if delay is None:
+                raise
+            time.sleep(delay)
+    raise AssertionError("unreachable")
+
+
 def write_json_atomic(path: Path, value: dict) -> None:
     """Write beside, then rename in: a reader never sees a half file.
 
@@ -636,7 +649,7 @@ class TaskDir:
         return self.path / f"r{n}"
 
     def revs(self) -> list[int]:
-        if not self.path.exists():
+        if not exists(self.path):
             return []
         out = []
         for p in self.path.iterdir():

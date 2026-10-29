@@ -540,3 +540,22 @@ def test_write_json_atomic_raises_a_lasting_eperm(tmp_path, monkeypatch):
     monkeypatch.setattr(layout.os, "replace", refuse)
     with pytest.raises(PermissionError):
         layout.write_json_atomic(tmp_path / "meta.json", {"k": 1})
+
+
+def test_exists_retries_an_eperm_for_a_missing_path(tmp_path, monkeypatch):
+    """A stat the FUSE root answers with EPERM is asked again, not raised."""
+    monkeypatch.setattr(layout, "_WRITE_RETRY_SEC", (0.0, 0.0))
+    real_stat = os.stat
+    calls = []
+    missing = tmp_path / "r1"
+
+    def flaky_stat(path, *args, **kwargs):
+        if str(path) == str(missing):
+            calls.append(1)
+            if len(calls) == 1:
+                raise PermissionError(1, "Operation not permitted")
+        return real_stat(path, *args, **kwargs)
+
+    monkeypatch.setattr(os, "stat", flaky_stat)
+    assert layout.exists(missing) is False
+    assert len(calls) == 2

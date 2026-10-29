@@ -1602,7 +1602,7 @@ def fold(root: layout.Root, accepted: list[dict]) -> int | None:
         if tid not in rows:
             _finish(h, "rejected", stage="not_in_mix", reason="no longer in the mix")
             continue
-        if target.exists():
+        if layout.exists(target):
             # Cannot happen while one loop runs: choose() hands out one
             # signal per task per round. A revision is never overwritten.
             _finish(h, "failed", stage="fold", reason=f"{target.name} already exists")
