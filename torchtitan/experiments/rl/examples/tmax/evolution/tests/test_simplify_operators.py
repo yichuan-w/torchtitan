@@ -79,6 +79,18 @@ def test_grading_two_attempts_and_replaying_one_is_required():
     assert "expected rests on the replay" in text
 
 
+def test_a_replay_starts_from_the_untouched_image():
+    """What the instruction says is ready, the built image makes ready: the
+    rewriter's replay starts from a fresh reset and starts nothing by hand."""
+    text = " ".join(so.prompt("vague").split())
+    assert "Start that replay from a fresh ./sandbox reset of the built image" in text
+    assert "a finding to fix in the image" in text
+    spec = Path(so.__file__).resolve().parent / "agents" / "task_evolution.md"
+    harder = " ".join(spec.read_text().split())
+    assert "What the instruction says is ready, the untouched image makes ready" in harder
+    assert "starts nothing by hand first" in harder
+
+
 def test_attempt_named_without_its_suffix_is_that_file(tmp_path):
     row = decision(
         tmp_path, evidence=[dict(attempt="attempt-01", turn=2, observation="x")]

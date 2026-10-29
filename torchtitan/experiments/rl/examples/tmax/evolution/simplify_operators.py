@@ -257,6 +257,10 @@ attempts meet.
 - After editing, replay at least one attempt on the changed task up to the
   point your change targets -- its commands, or its approach where its
   commands no longer apply -- and grade. Record what it now meets there.
+  Start that replay from a fresh ./sandbox reset of the built image and start
+  nothing by hand that the instruction says is ready (a service, a file, a
+  finished stage); a replay that needs such a step is a finding to fix in the
+  image (AGENTS.md).
 
 ## Declare
 

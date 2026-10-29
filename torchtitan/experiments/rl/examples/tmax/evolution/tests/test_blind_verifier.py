@@ -307,6 +307,9 @@ def test_harder_defaults_to_real_guidance_with_repair_in_the_rewrite(
     assert "Record every repair in `run/repair.json`" in prompt
     # The prediction rests on replaying successful attempts on the revised task.
     assert "replay the commands of two successful attempts" in " ".join(prompt.split())
+    assert "starting nothing by hand that the instruction says is ready" in " ".join(
+        prompt.split()
+    )
     # The rewriter tries the student's likely fixes on the new obstacle.
     flat = " ".join(prompt.split())
     assert "act as the student on what it now meets" in flat

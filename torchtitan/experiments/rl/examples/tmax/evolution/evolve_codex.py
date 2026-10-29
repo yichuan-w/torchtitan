@@ -1980,7 +1980,9 @@ Aim for a modest reduction in this student's solve rate toward mixed success,
 not universal failure. Base the prediction on the student's own path, not on
 the shortcut you imagine: after editing, replay the commands of two successful
 attempts from `traces/` against the revised task (`./sandbox exec`, then
-`./sandbox grade`; the verifier's output is in `run/last-grade.json`), and say
+`./sandbox grade`; the verifier's output is in `run/last-grade.json`), each
+from a fresh `./sandbox reset` of the built image, starting nothing by hand
+that the instruction says is ready (AGENTS.md says why), and say
 in `run/hardening.md` where each now stops and every check it fails. If both
 still pass, the change does not touch the path the student takes. Then write
 the solved count you expect from the next group of the same size as a number

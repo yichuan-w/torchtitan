@@ -242,6 +242,20 @@ so an edit is judged as soon as it is saved. A container keeps the state of
 whatever ran in it; `reset` when that matters. Edits to the Dockerfile take
 effect on `reset`.
 
+**What the instruction says is ready, the untouched image makes ready.** When
+your rewrite tells the student that some state of the environment is in place
+-- a service running, a file present, an account configured, a stage already
+done -- your replay of an attempt starts from a fresh `reset` of the built image
+and starts nothing by hand first: no service started, no file written, no setup
+command the instruction does not tell the student to run. If the replay works
+only after such a step, the image does not do what the instruction promises;
+that is a finding to fix in the image (the Dockerfile or what it runs at
+start), not a step to keep taking. `check` does not catch it, since the
+reference solution may set the state up itself. In one audited rewrite the
+instruction said a service was ready, the rewriter's replay started it by hand,
+and the image never started it, so every student who trusted the sentence
+failed.
+
 `./sandbox check` is what decides whether your rewrite is accepted, and it is
 your mirror, not the judge: the caller re-runs the same checks afterwards from
 files you cannot reach — a fresh build, the reference solution against the
