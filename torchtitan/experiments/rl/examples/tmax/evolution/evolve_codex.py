@@ -1644,19 +1644,20 @@ SANDBOX = Path(__file__).resolve().parent / "agent_sandbox.sh"
 # which is what the split was for. "same" remains for comparison.
 VERIFIER_AUTHOR = os.environ.get("SWE_VERIFIER_AUTHOR", "blind")
 
-# EVOLVE_INDEPENDENT_PROBES=1 runs the independent probe author beside the blind
-# verifier author: a third session writing controls from the public task, their
-# replay against the blind verifier, and a probe-repair session when a control
-# is graded against its declared expectation. Off by default. On the p5
-# EvolveBench arms its controls ran on 57 of 175 rewrites and sent 10 to
-# probe-repair, 4 of which the audit then found defective; it caught none of
-# the 11 rewrites the audit labelled LEAKY, and in the sampled rewriter traces
-# (evolve-bench/analysis/p5-rewriter-traces-20261028) probe-repair itself
-# introduced the defect in 3 tasks. Off skips the probe session, its replay
-# and probe-repair; the blind verifier's own replay controls still run.
+# The independent probe author runs beside the blind verifier author unless
+# EVOLVE_INDEPENDENT_PROBES=0: a third session writing controls from the public
+# task, their replay against the blind verifier, and a probe-repair session when
+# a control is graded against its declared expectation. Its cases are scoped to
+# the requirements the revision changed (_scope_cases). p7 turned it off, after
+# probe-repair introduced the defect in 3 sampled p5 tasks; of the 41 defective
+# p7 rewrites (evolve-bench/analysis/p7-defects-20261029), about 12 had a defect
+# a control written from the public task would plausibly have failed on, so the
+# net it removed cost more than the defects it added. =0 skips the probe
+# session, its replay and probe-repair; the blind verifier's own replay
+# controls run either way.
 def independent_probes() -> bool:
     """Read when a rewrite runs, so a test or a caller can set it per process."""
-    return os.environ.get("EVOLVE_INDEPENDENT_PROBES", "0") == "1"
+    return os.environ.get("EVOLVE_INDEPENDENT_PROBES", "1") != "0"
 VERIFIER_SPEC = Path(__file__).resolve().parent / "agents" / "verifier_author.md"
 # Hide author-only files; run metadata is filtered separately in _blind_layout.
 HIDDEN_FROM_VERIFIER = (

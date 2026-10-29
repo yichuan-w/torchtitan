@@ -449,16 +449,42 @@ def test_missing_contract_is_repairable_before_daytona_replay(tmp_path):
 
 
 
-def test_probe_author_is_off_by_default_and_nothing_of_it_runs(tmp_path, monkeypatch):
-    """EVOLVE_INDEPENDENT_PROBES unset: no probe session, no independent
-    replay, no probe-repair; the blind verifier still ships."""
+def test_probe_author_is_on_by_default(tmp_path, monkeypatch):
+    """EVOLVE_INDEPENDENT_PROBES unset: the probe author is written beside the
+    blind verifier, scoped by the previous revision, and its controls are
+    replayed against the verifier before it ships."""
     monkeypatch.delenv("EVOLVE_INDEPENDENT_PROBES")
+    assert ec.independent_probes() is True
+    rewrite = _rewrite(tmp_path, monkeypatch)
+    seed = tmp_path / "r0"
+    (seed / "tests").mkdir(parents=True)
+    (seed / "tests/test_state.py").write_text(SEED["test_state_py"])
+    (seed / "instruction.md").write_text(SEED["instruction"])
+    _wire(monkeypatch, [], [])
+    authored, replayed = [], []
+    monkeypatch.setattr(
+        ec, "_author_independent_probes",
+        lambda *args, **kwargs: authored.append(kwargs.get("previous")),
+    )
+    monkeypatch.setattr(ec, "_early_independent_replay", lambda *args, **kwargs: None)
+    monkeypatch.setattr(
+        ec, "_independent_verifier", lambda *args, **kwargs: replayed.append(args[1])
+    )
+    ec.evolve_agentic(rewrite, {**SEED, "_seed_dir": str(seed)}, "harder")
+    assert authored == [seed]
+    assert len(replayed) == 1
+
+
+def test_probe_author_switched_off_runs_nothing_of_it(tmp_path, monkeypatch):
+    """EVOLVE_INDEPENDENT_PROBES=0: no probe session, no independent
+    replay, no probe-repair; the blind verifier still ships."""
+    monkeypatch.setenv("EVOLVE_INDEPENDENT_PROBES", "0")
     assert ec.independent_probes() is False
     rewrite = _rewrite(tmp_path, monkeypatch)
     _wire(monkeypatch, [], [])
 
     def never(*args, **kwargs):
-        raise AssertionError("probe author ran with EVOLVE_INDEPENDENT_PROBES off")
+        raise AssertionError("probe author ran with EVOLVE_INDEPENDENT_PROBES=0")
 
     monkeypatch.setattr(ec, "_author_independent_probes", never)
     monkeypatch.setattr(ec, "_independent_verifier", never)
@@ -469,7 +495,7 @@ def test_probe_author_is_off_by_default_and_nothing_of_it_runs(tmp_path, monkeyp
     assert not kinds & {"probe", "probe-repair"}
 
 
-@pytest.mark.parametrize("value,on", [("1", True), ("0", False), ("", False)])
+@pytest.mark.parametrize("value,on", [("1", True), ("0", False), ("", True)])
 def test_probe_author_switch_reads_the_environment(monkeypatch, value, on):
     monkeypatch.setenv("EVOLVE_INDEPENDENT_PROBES", value)
     assert ec.independent_probes() is on
