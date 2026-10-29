@@ -1927,13 +1927,21 @@ regenerating the thing that broke), and grade each. If either passes, the
 difficulty announces its own fix: such changes stayed at k of k in measured
 groups, so choose another. A planted error must not name its own fix, and the
 obstacle itself must be visible to the student: named in the instruction, or
-surfaced by the environment (an error, a wrong result, a failing step) when the
-student does the work the instruction states. An obstacle the student cannot
+surfaced by the environment (an error, a failing step, a wrong result) when the
+student does the work the instruction states. A wrong result counts as visible
+only when something the student can run or read in the task shows that it is
+wrong; a silently wrong value is not visible. An obstacle the student cannot
 observe -- one that appears only when the grader runs, or in an input or
 condition the stated work never touches and the instruction never mentions --
 is unfair: no attempt can know to look for it. In `./sandbox exec`, do the
 stated work the way the attempts in `traces/` do it and confirm the obstacle
-shows itself there. The work has to need a decision the message does not dictate -- a result that is wrong
+shows itself there. Then go further than its appearing: try the most natural
+fixes a student would reach for, the first one the obstacle's own symptom
+suggests among them, and run on each every check the student can run. A fix
+that passes all of those checks but fails the grader means the layer that
+decides the grade is still invisible: reject that revision, and pick another
+obstacle or make that layer observable to the student. The work has to need a
+decision the message does not dictate -- a result that is wrong
 without saying so until the student checks it, or a choice between plausible
 fixes that only checking tells apart -- and the output has to give an
 investigating student something to go on: a name, a code, a documented

@@ -318,6 +318,11 @@ def test_harder_defaults_to_real_guidance_with_repair_in_the_rewrite(
     assert "the obstacle itself must be visible to the student" in flat
     assert "An obstacle the student cannot observe" in flat
     assert "confirm the obstacle shows itself there" in flat
+    # A wrong result is visible only when the student can see it is wrong, and
+    # the replay tries the natural fixes against the student's own checks.
+    assert "a silently wrong value is not visible" in flat
+    assert "try the most natural fixes a student would reach for" in flat
+    assert "the layer that decides the grade is still invisible" in flat
     assert "without editing a file the task protects or pins by digest" in flat
     assert ec._STUDENT_HARDER_GUIDANCE not in prompt
 
