@@ -1124,11 +1124,15 @@ def handle(
     processing_started = False
     try:
         workspace.stage_source(src, ignore=SEED_IGNORE)
-        run_dir = root.run(str(d["run"])).path
+        source_run = root.run(str(d["run"]))
+        run_dir = source_run.path
         for i, rel in enumerate(d["attempts"], 1):
             workspace.copy_input(
                 run_dir / rel, rewrite.traces / f"attempt-{i:02d}.jsonl"
             )
+        if source_run.launch_json.is_file():
+            # The limits these attempts ran under (ec._trace_limits_note).
+            workspace.copy_input(source_run.launch_json, rewrite.traces / "launch.json")
         _stage_revision(run_dir, d, rewrite.traces / "revision", workspace)
         n_history = _write_history(
             root, task, rewrite, strict_storage=workspace.is_local, current=d

@@ -3659,6 +3659,70 @@ def _trace_counts(traces: Path) -> tuple[int, int] | None:
     return (solved, attempts) if attempts else None
 
 
+def _trace_limits(traces: Path) -> dict:
+    """The limits the attempts in traces/ ran under: context tokens and turns
+    from the source run's launch record (traces/launch.json, its env), and the
+    wall-clock budget each attempt's header records (budget_sec), else the
+    launch env's. A limit neither records is left out."""
+    try:
+        env = json.loads((traces / "launch.json").read_text()).get("env") or {}
+    except (OSError, ValueError, AttributeError):
+        env = {}
+
+    def number(value) -> int | None:
+        try:
+            return int(float(value))
+        except (TypeError, ValueError):
+            return None
+
+    seconds = set()
+    for path in sorted(traces.glob("attempt-*.jsonl")):
+        try:
+            head = rollout_record.read_header(path)
+        except (OSError, ValueError):
+            continue
+        if isinstance(head, dict) and number(head.get("budget_sec")):
+            seconds.add(number(head["budget_sec"]))
+    if not seconds and number(env.get("SWE_TIME_BUDGET_SEC")):
+        seconds.add(number(env["SWE_TIME_BUDGET_SEC"]))
+    limits = {
+        "context": number(env.get("SWE_MAX_CONTEXT_LEN")),
+        "turns": number(env.get("TMAX_TERMINUS_MAX_TURNS")),
+        "seconds": sorted(seconds),
+    }
+    return {k: v for k, v in limits.items() if v}
+
+
+def _trace_limits_note(traces: Path) -> str:
+    """The traces' limits beside the student's, so the author knows when the
+    attempts it reads had less (or more) room than the next group will: the
+    p8 EvolveBench arms read attempts run at a 63,488-token context while the
+    prompt stated the 79,872 the student gets, and nothing said which was which."""
+    limits = _trace_limits(traces)
+    if not limits:
+        return ""
+    ran = []
+    if "context" in limits:
+        ran.append(f"a {limits['context']:,}-token context")
+    if "turns" in limits:
+        ran.append(f"{limits['turns']} turns")
+    if "seconds" in limits:
+        ran.append(" or ".join(map(str, limits["seconds"])) + " seconds of wall clock")
+    student = (
+        f"a {so.STUDENT_CONTEXT:,}-token context, {so.STUDENT_TURNS} turns and "
+        f"{so.STUDENT_SECONDS} seconds"
+    )
+    return (
+        "\n\nTHE LIMITS THE TRACES RAN UNDER. The attempts in `traces/` ran with "
+        + ", ".join(ran)
+        + " per attempt (their run's launch record and the attempt headers). "
+        "The next group meets your rewrite with " + student + ". Where these "
+        "differ, read every limit death in `traces/` against the student's "
+        "limits: an attempt that ran out of a smaller context may have room under "
+        "the larger one, and one that fit a larger budget may not fit a smaller.\n"
+    )
+
+
 def evolve_agentic(
     rewrite: layout.RewriteDir,
     task: dict,
@@ -3764,6 +3828,7 @@ def evolve_agentic(
             + (_UNSOLVED_NOTE if task.get("_unsolved") else ""),
             "repair": _REPAIR_JOB.format(exit_code=exit_code),
         }[job]
+        + (_trace_limits_note(rewrite.traces) if job in ("harder", "easier") else "")
         + _traces_spec(rewrite.traces)
         + _budget(author_timeout)
     )
