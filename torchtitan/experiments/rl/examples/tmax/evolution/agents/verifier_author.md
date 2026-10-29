@@ -76,7 +76,7 @@ solutions or examples. Public tool documentation remains available.
 | `tests/test_state.py` or `tests/test.sh` | the previous revision's verifier, the one the task had before this change (whoever changed the task may have drafted a checker; you are not shown it). Yours replaces it: keep every inherited check whose requirement remains in the instruction, correct or remove one whose requirement changed or went, and add what the new requirement needs. |
 | `run/seed_size.json` | the seed verifier's assertion count. Yours may exceed it by at most 5. |
 | `run/resources.json` | the box the container opens at |
-| `run/checked-behaviours.json` | when present: in words, every behaviour the task's author checked against its solution with a scratch checker you are not shown. Each entry needs a check in your verifier; your prompt says how. |
+| `run/checked-behaviours.json` | when present: in words, behaviours the task's author checked against its solution with a scratch checker you are not shown, each with the instruction sentence it rests on, quoted verbatim. Each entry needs a check in your verifier, no stricter than its quoted sentence; your prompt says how. |
 | anything else | the rest of the real package: entrypoints, fixtures, `task.toml` |
 
 Before opening the inherited verifier, read `instruction.md` and list its

@@ -2309,14 +2309,19 @@ _CHECKED_NOTE = """
 WHAT YOUR SCRATCH TESTS CHECK
 Your `tests/` is discarded, and the verifier that ships is written by a session
 that never sees it. Before you finish, write `run/checked-behaviours.json`: a JSON
-list with one string per behaviour your scratch tests check, stated in words as
-a requirement on the result, the way the instruction states it ("the report
-gives each host's open ports", "the input files are left unchanged") -- never
-test code, a value only your solution computed, or a name the instruction does
-not give. That verifier's author is given this list and must cover every entry,
-so a behaviour the task needs checked -- the one your change turns on above
-all -- is lost unless it is listed. An entry the public task does not state
-stops that author and comes back to you to state."""
+list with one object per behaviour your scratch tests check,
+`{"behaviour": ..., "quote": ...}`. `behaviour` states it in words as a
+requirement on the result ("the report gives each host's open ports", "the
+input files are left unchanged") -- never test code, a value only your solution
+computed, or a name the instruction does not give. `quote` is the sentence of
+`instruction.md` the behaviour rests on, copied verbatim. That verifier's author
+is given the list and must cover every entry, and its check may be no stricter
+than the quoted sentence: a behaviour the sentence does not state is not
+checked. The caller passes on only the entries whose quote appears in
+`instruction.md` (whitespace aside); an entry with no sentence to quote is
+dropped. So a behaviour the task needs checked -- the one your change turns on
+above all -- is lost unless the instruction states it and the entry quotes that
+statement: state it in the instruction, or drop the entry."""
 
 _REPAIR_JOB = """Your rewrite did not survive the caller's check. It rebuilt the
 package from scratch, ran `solution/solve.sh` against the verifier (exit
@@ -3220,6 +3225,73 @@ def _blind_verifier(
     return run.dir, rel
 
 
+def _refresh_blind_package(pkg: Path, vpkg: Path) -> str:
+    """Bring the verifier session's package up to the task as the author left it.
+
+    The verifier's package is laid out once, when its session first runs
+    (_blind_layout). A repair-author session that then edits the instruction,
+    the environment or run/checked-behaviours.json changes only the author's
+    package, so the resumed verifier-repair session used to grade a stale copy:
+    in one audited p7 rewrite the repair-author added a receive policy to the
+    environment and a clause to the instruction and to an entry, and the
+    verifier repaired against the old ones and never checked the policy. Every
+    public file is copied again here (the verifier's own tests/, run/,
+    AGENTS.md and sandbox stay), with the run inputs, the reported defects and
+    the quoted checked behaviours. Returns the prompt text naming what moved."""
+    keep = set(HIDDEN_FROM_VERIFIER) | {"tests", "run"}
+    before_instruction = (vpkg / "instruction.md").read_text(errors="replace") if (
+        vpkg / "instruction.md"
+    ).is_file() else ""
+    before = _probe_hashes(vpkg, tuple(keep))
+    def remove(path: Path) -> None:
+        if path.is_dir() and not path.is_symlink():
+            shutil.rmtree(path)
+        elif path.exists() or path.is_symlink():
+            path.unlink()
+
+    for child in vpkg.iterdir():
+        if child.name not in keep and not (pkg / child.name).exists():
+            remove(child)
+    for child in pkg.iterdir():
+        if child.name in keep:
+            continue
+        target = vpkg / child.name
+        remove(target)
+        if child.is_dir() and not child.is_symlink():
+            shutil.copytree(child, target, symlinks=True)
+        else:
+            shutil.copy2(child, target, follow_symlinks=False)
+    (vpkg / "run").mkdir(exist_ok=True)
+    for name in _LAYOUT_RUN_INPUTS:
+        if (pkg / "run" / name).is_file():
+            shutil.copy2(pkg / "run" / name, vpkg / "run" / name)
+    after = _probe_hashes(vpkg, tuple(keep))
+    moved = sorted(n for n in before.keys() | after.keys() if before.get(n) != after.get(n))
+    note = ""
+    if moved:
+        note = (
+            "\n\nThe task's author repaired the task after you wrote your verifier. "
+            "This package now holds the task as it stands; these public files "
+            "changed: " + ", ".join(moved) + ". Grade the task as it now reads.\n"
+        )
+        after_instruction = (vpkg / "instruction.md").read_text(errors="replace") if (
+            vpkg / "instruction.md"
+        ).is_file() else ""
+        if after_instruction != before_instruction:
+            note += (
+                "\n```diff\n"
+                + "".join(difflib.unified_diff(
+                    before_instruction.splitlines(keepends=True),
+                    after_instruction.splitlines(keepends=True),
+                    "instruction.md (when you wrote your verifier)",
+                    "instruction.md",
+                ))
+                + "```\n"
+            )
+    (vpkg / "run" / "reported-defects.json").unlink(missing_ok=True)
+    return note + _reported_defects(pkg, vpkg) + _checked_behaviours(pkg, vpkg)
+
+
 def _blind_repair(
     rewrite: layout.RewriteDir,
     vsession: layout.SessionDir,
@@ -3238,9 +3310,14 @@ def _blind_repair(
     (vpkg / "run").mkdir(exist_ok=True)
     (vpkg / "run" / "failure.txt").write_text(observed or "(no output captured)")
     (vpkg / "run" / "verdict.txt").unlink(missing_ok=True)
+    refreshed = _refresh_blind_package(pkg, vpkg)
     timeout = _session_timeout(deadline, "blind verifier repair")
     with session(rewrite, "repair", timeout=timeout, resumes=vsession) as run:
-        prompt = _VERIFIER_REPAIR_JOB.format(exit_code=exit_code) + _budget(timeout)
+        prompt = (
+            _VERIFIER_REPAIR_JOB.format(exit_code=exit_code)
+            + refreshed
+            + _budget(timeout)
+        )
         try:
             _run_codex(run, vpkg, prompt, resume=sid)
         finally:
@@ -3547,33 +3624,78 @@ def _reported_defects(pkg: Path, vpkg: Path) -> str:
     )
 
 
+def _quoted_in(quote: str, text: str) -> bool:
+    """Whether ``quote`` is a nonempty substring of ``text``, whitespace aside."""
+    quote = " ".join(quote.split())
+    return bool(quote) and quote in " ".join(text.split())
+
+
 def _checked_behaviours(pkg: Path, vpkg: Path) -> str:
     """Hand the verifier's author, in words, every behaviour the task's author
     checked with its scratch tests, so a check that lived only there is not
-    lost; the tests themselves stay hidden. A malformed list fails the rewrite,
-    as a malformed run/repair.json does; an absent one hands over nothing."""
+    lost; the tests themselves stay hidden.
+
+    Each entry quotes the instruction sentence it rests on, and only entries
+    whose quote is in ``instruction.md`` (whitespace normalised) are passed on:
+    in p7 the entries paraphrased the instruction, the verifier encoded the
+    paraphrase more strictly than the instruction, and the BLOCKED route for an
+    unstated entry never fired (0 of the 41 audited defects). The dropped
+    entries are kept beside the list in the author's package for the record. A
+    malformed list fails the rewrite, as a malformed run/repair.json does; an
+    absent one hands over nothing."""
     path = pkg / CHECKED_FILE
+    handed = vpkg / CHECKED_FILE
+    dropped_path = pkg / "run" / "checked-behaviours-unquoted.json"
+    handed.unlink(missing_ok=True)
+    dropped_path.unlink(missing_ok=True)
     if not path.exists():
         return ""
     checked = json.loads(path.read_text())
-    if not isinstance(checked, list) or not all(
-        isinstance(entry, str) and entry.strip() for entry in checked
-    ):
-        raise ValueError(f"{CHECKED_FILE} must be a list of nonempty strings")
-    if not checked:
+
+    def well_formed(entry) -> bool:
+        if isinstance(entry, str):  # no quote: dropped below
+            return bool(entry.strip())
+        return (
+            isinstance(entry, dict)
+            and isinstance(entry.get("behaviour"), str)
+            and bool(entry["behaviour"].strip())
+            and isinstance(entry.get("quote", ""), str)
+        )
+
+    if not isinstance(checked, list) or not all(map(well_formed, checked)):
+        raise ValueError(
+            f"{CHECKED_FILE} must be a list of objects with a nonempty "
+            '"behaviour" and a "quote" from instruction.md'
+        )
+    try:
+        instruction = (pkg / "instruction.md").read_text(errors="replace")
+    except OSError:
+        instruction = ""
+    kept, dropped = [], []
+    for entry in checked:
+        if isinstance(entry, str):
+            entry = {"behaviour": entry, "quote": ""}
+        entry = {"behaviour": entry["behaviour"], "quote": entry.get("quote", "")}
+        (kept if _quoted_in(entry["quote"], instruction) else dropped).append(entry)
+    if dropped:
+        log.info("checked behaviours with no quote in instruction.md, not passed on: %d", len(dropped))
+        dropped_path.write_text(json.dumps(dropped, indent=1) + "\n")
+    if not kept:
         return ""
-    (vpkg / CHECKED_FILE).write_text(json.dumps(checked, indent=1) + "\n")
+    handed.write_text(json.dumps(kept, indent=1) + "\n")
     return (
-        "\n\nBEHAVIOURS THE TASK'S AUTHOR CHECKED. `" + CHECKED_FILE + "` lists, "
-        "in words, every behaviour the task's author checked against its own "
-        "solution with a scratch checker you are not shown. Your verifier covers "
-        "each one: in `run/verifier-changes.md`, name for every entry the check "
-        "that covers it -- the inherited check where the entry is a retained "
+        "\n\nBEHAVIOURS THE TASK'S AUTHOR CHECKED. `" + CHECKED_FILE + "` lists "
+        "behaviours the task's author checked against its own solution with a "
+        "scratch checker you are not shown, each with `quote`, the sentence of "
+        "`instruction.md` it rests on, copied verbatim. Your verifier covers each "
+        "one: in `run/verifier-changes.md`, name for every entry the check that "
+        "covers it -- the inherited check where the entry is a retained "
         "requirement, kept at its strictness, or a check you write where the "
-        "revision changed it. An entry is graded as the instruction states it; "
-        "where the instruction and the environment do not state or imply it, "
-        "write `BLOCKED: <the entry> is not stated in the public task` to "
-        "`run/verdict.txt` and stop, so the task's author states it.\n"
+        "revision changed it. A check for an entry is no stricter than its quote: "
+        "it checks what that sentence states, at the precision the sentence "
+        "states, and nothing the entry's own words add. Where the `behaviour` "
+        "says more than the `quote`, grade the quote and name the difference in "
+        "`run/verifier-changes.md`.\n"
     )
 
 

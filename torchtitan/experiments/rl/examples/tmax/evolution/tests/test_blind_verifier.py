@@ -358,13 +358,23 @@ def test_the_verifier_author_must_cover_what_the_authors_scratch_tests_checked(
             ec.so, "read_decision", lambda *a: {"retained_skill": "compare files"}
         )
     wired = ec._run_codex
-    listed = ["the report names every changed file", "the input files are left unchanged"]
+    listed = [
+        {"behaviour": "the digest file holds the result's SHA-256",
+         "quote": "Also write its SHA-256 to /app/result.sha."},
+        # Quote spread over lines differently from the instruction: whitespace aside.
+        {"behaviour": "the comparison is written to result.txt",
+         "quote": "Compare /app/a.yml and /app/b.yml\n  with gendiff into /app/result.txt."},
+    ]
+    unquoted = {"behaviour": "the input files are left unchanged",
+                "quote": "The input files must not change."}
 
     def author_lists_its_checks(run, cwd, prompt, resume=None):
         out = wired(run, cwd, prompt, resume)
         if (cwd / "solution").exists():
             (cwd / "tests" / "test_state.py").write_text("PRIVATE_SCRATCH_CHECK = 1\n")
-            (cwd / "run" / "checked-behaviours.json").write_text(json.dumps(listed))
+            (cwd / "run" / "checked-behaviours.json").write_text(
+                json.dumps(listed + [unquoted])
+            )
         return out
 
     monkeypatch.setattr(ec, "_run_codex", author_lists_its_checks)
@@ -375,7 +385,12 @@ def test_the_verifier_author_must_cover_what_the_authors_scratch_tests_checked(
     assert "BEHAVIOURS THE TASK'S AUTHOR CHECKED" in verifier["prompt"]
     assert "covers each one" in " ".join(verifier["prompt"].split())
     handed = Path(verifier["cwd"]) / "run/checked-behaviours.json"
+    # Only the entries whose quote is in the instruction reach the verifier.
     assert json.loads(handed.read_text()) == listed
+    assert "no stricter than its quote" in " ".join(verifier["prompt"].split())
+    assert json.loads(
+        (rw.package / "run/checked-behaviours-unquoted.json").read_text()
+    ) == [unquoted]
     # Blind to the scratch test code: neither the prompt nor tests/ carries it.
     assert "PRIVATE_SCRATCH_CHECK" not in verifier["prompt"]
     assert "PRIVATE_SCRATCH_CHECK" not in (
@@ -389,12 +404,88 @@ def test_no_checked_list_hands_nothing_and_a_malformed_one_fails(tmp_path):
     (vpkg / "run").mkdir(parents=True)
     assert ec._checked_behaviours(pkg, vpkg) == ""
     assert not (vpkg / "run/checked-behaviours.json").exists()
-    (pkg / "run/checked-behaviours.json").write_text(json.dumps(["ok", ""]))
-    with pytest.raises(ValueError, match="nonempty strings"):
-        ec._checked_behaviours(pkg, vpkg)
-    (pkg / "run/checked-behaviours.json").write_text(json.dumps({"a": "b"}))
-    with pytest.raises(ValueError):
-        ec._checked_behaviours(pkg, vpkg)
+    for bad in (["ok", ""], {"a": "b"}, [{"quote": "x"}], [{"behaviour": "x", "quote": 3}]):
+        (pkg / "run/checked-behaviours.json").write_text(json.dumps(bad))
+        with pytest.raises(ValueError, match="checked-behaviours"):
+            ec._checked_behaviours(pkg, vpkg)
+
+
+def test_a_checked_behaviour_reaches_the_verifier_only_with_a_verbatim_quote(tmp_path):
+    """The quote must be a substring of instruction.md after whitespace
+    normalisation; an entry without one -- a paraphrase, a bare string, an
+    empty quote -- is not passed on, and a list left with none hands nothing."""
+    pkg, vpkg = tmp_path / "pkg", tmp_path / "vpkg"
+    (pkg / "run").mkdir(parents=True)
+    (vpkg / "run").mkdir(parents=True)
+    (pkg / "instruction.md").write_text(
+        "Write the report to /app/report.txt.\nList every host\tonce,\n"
+        "  sorted by address.\n"
+    )
+    verbatim = {"behaviour": "hosts are sorted", "quote": "List every host once, sorted by address."}
+    paraphrase = {"behaviour": "hosts are sorted", "quote": "List each host exactly once in address order."}
+    empty = {"behaviour": "the report exists", "quote": "  "}
+    entries = [verbatim, paraphrase, empty, "the report exists"]
+    (pkg / "run/checked-behaviours.json").write_text(json.dumps(entries))
+    note = ec._checked_behaviours(pkg, vpkg)
+    assert "BEHAVIOURS THE TASK'S AUTHOR CHECKED" in note
+    assert json.loads((vpkg / "run/checked-behaviours.json").read_text()) == [verbatim]
+    assert json.loads((pkg / "run/checked-behaviours-unquoted.json").read_text()) == [
+        paraphrase, {"behaviour": "the report exists", "quote": "  "},
+        {"behaviour": "the report exists", "quote": ""},
+    ]
+    # Nothing quotable left: nothing handed, and no stale copy stays behind.
+    (pkg / "run/checked-behaviours.json").write_text(json.dumps([paraphrase]))
+    assert ec._checked_behaviours(pkg, vpkg) == ""
+    assert not (vpkg / "run/checked-behaviours.json").exists()
+    assert ec._quoted_in("a  b", "x a\nb y") and not ec._quoted_in("", "anything")
+
+
+def test_verifier_repair_works_on_the_task_the_repair_author_left(tmp_path, monkeypatch):
+    """The repair-author may change the instruction, the environment and the
+    checked behaviours; the resumed verifier-repair session grades that task,
+    not the copy laid out when the verifier was first written."""
+    rw = _rewrite(tmp_path, monkeypatch)
+    sessions, checks = [], []
+    _wire(monkeypatch, sessions, checks)
+    monkeypatch.setattr(ec, "REPAIR_ROUNDS", 1)
+    monkeypatch.setattr(ec, "_session_id", lambda _sd: "sid")
+    monkeypatch.setattr(
+        ec, "_harness_check", _failing_check(checks, iter(["fail", "fail", "fail"]))
+    )
+    policy = "Pushes must satisfy origin's existing receive policy."
+    entry = {"behaviour": "pushed commits pass the receive policy", "quote": policy}
+    wired = ec._run_codex
+    seen = {}
+
+    def run_codex(run, cwd, prompt, resume=None):
+        if resume and not (cwd / "solution").exists():
+            seen["instruction"] = (cwd / "instruction.md").read_text()
+            seen["hook"] = (cwd / "environment/pre-receive").read_text()
+            seen["checked"] = json.loads((cwd / "run/checked-behaviours.json").read_text())
+            seen["resources"] = (cwd / "run/resources.json").read_text()
+            seen["prompt"] = prompt
+            seen["solution"] = (cwd / "solution").exists()
+        out = wired(run, cwd, prompt, resume)
+        if resume and (cwd / "solution").exists():
+            (cwd / "instruction.md").write_text(NEW_INSTRUCTION + policy + "\n")
+            (cwd / "environment/pre-receive").write_text("#!/bin/sh\nexit 0\n")
+            (cwd / "run/checked-behaviours.json").write_text(json.dumps([entry]))
+            (cwd / "run/resources.json").write_text('{"cpu": 4}')
+        return out
+
+    monkeypatch.setattr(ec, "_run_codex", run_codex)
+    with pytest.raises(RuntimeError, match="still disagree"):
+        ec.evolve_agentic(rw, dict(SEED), "harder")
+    assert seen["instruction"].endswith(policy + "\n")
+    assert seen["hook"] == "#!/bin/sh\nexit 0\n"
+    assert seen["checked"] == [entry]
+    assert seen["resources"] == '{"cpu": 4}'
+    assert seen["solution"] is False
+    prompt = " ".join(seen["prompt"].split())
+    assert "repaired the task after you wrote your verifier" in prompt
+    assert "environment/pre-receive" in prompt and "instruction.md" in prompt
+    assert "+" + policy in seen["prompt"]
+    assert "BEHAVIOURS THE TASK'S AUTHOR CHECKED" in seen["prompt"]
 
 
 def test_disabled_web_search_does_not_tell_the_author_to_search(tmp_path, monkeypatch):
