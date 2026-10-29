@@ -3,8 +3,11 @@
 Design replay controls for the task described by `instruction.md` and the files
 available in its environment. The grading tests and reference solution are not
 provided. Work inside this package; use the container to investigate the public
-task and test your implementations. The file `tests/test.sh` is a placeholder,
-so `grade`, `check`, and `oracle` cannot validate your work.
+task and test your implementations. The file `tests/test.sh` is a placeholder
+that always scores 0, so `grade`, `check`, and `oracle` cannot validate your
+work and every reward the sandbox prints here is 0 by design. Do not write a
+grader of your own into `tests/`: the caller replays your controls against the
+withheld grader, and anything you change outside `run/` is discarded.
 Use only this package as task evidence. Do not search or read sibling tasks,
 prior experiment outputs, campaign files, or other sessions to recover withheld
 graders, solutions, or examples. Public tool documentation remains available.
@@ -107,9 +110,10 @@ commands, host paths, or an outer launcher in a saved script. Each script must
 be self-contained: sibling control files are not copied into the container.
 To validate the saved scripts, run `./sandbox probes`: it replays `correct.sh` and
 every `wrong-N.sh` the contract declares, each in its own fresh container and all
-at once, the way the caller will, and prints each script's exit code and reward.
-To look into one script, run `./sandbox reset`, then
-`./sandbox exec "$(cat run/verifier-probes/wrong-1.sh)"` and `./sandbox grade`.
+at once, the way the caller will, and prints each script's exit code (its reward
+is the placeholder's 0). To look into one script, run `./sandbox reset`, then
+`./sandbox exec "$(cat run/verifier-probes/wrong-1.sh)"`, and inspect the
+artifacts it left with further `./sandbox exec` commands.
 Run `reset` in the foreground: a background job is killed when the command
 that started it returns.
 Stdin is not forwarded. Execute student scripts only in that container.
