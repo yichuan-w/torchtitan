@@ -240,6 +240,55 @@ readout it came from (torch-tensor-parallelism, v6, 2026-10-23).
 `SYNC_OVERFIT.md` describes a strictly synchronous variant of a job (one group
 in flight, the next group waiting for the rewrites it triggered) and how it is run.
 
+### Running a teacher job end to end
+
+What the v12 job (TB2.1 torch-tensor-parallelism, della-tridao) ran, as commands. Paths are
+placeholders; `<job>` is the job directory, `<tt>` this checkout.
+
+```
+cd <tt>/torchtitan/experiments/rl/examples/tmax/overfit_bench
+
+# 1. the job
+python bench.py new --tasks <tasks dir> --task torch-tensor-parallelism --sources <tb2.1 task tree> \
+    --rewriter teacher --jobs-root <jobs root> --bin <dir with codex and jq>
+cp teacher_runner.env.example <job>/runner.env                 # placement; edit to the free GPUs
+cp reference_rewriter.env.example <job>/evolution/rewriter.env  # DAYTONA_API_KEY, codex account,
+chmod 600 <job>/evolution/rewriter.env                          # SYNTH_MODEL (v12: gpt-6.1-sol)
+
+# 2. the teacher's round before training, seeded into the pool (needs no GPU)
+set -a; . <job>/evolution/rewriter.env; set +a
+TRL_BASE=<job> TRL_TT=<tt> PYTHONPATH=<tt> EVOLVE_WORK_ROOT=<node-local dir> \
+    python teacher_rewriter.py <job> --prepare
+
+# 3. training and the teacher, side by side (in that order or either)
+RL_GPUS=<trainer GPUs>,<generator GPUs>,<readout GPU> TRL_PROFILE=<p> \
+    RUNNER_ENV=<job>/runner.env ./start_training.sh <job>
+REWRITER_MODE=teacher REWRITER_ENV=<job>/evolution/rewriter.env \
+    EVOLVE_WORK_ROOT=<node-local dir> ./start_reference_rewriter.sh <job>
+```
+
+- **The recipe** is `recipe.env` and is the same for every job: 200 steps of one group of 12, groups
+  that all fail or all pass dropped without taking a step, 8 groups in flight with all 96 attempts
+  running at once, groups up to 12 steps old still trained, a 16-attempt readout of the original every
+  5 steps. The runner file only places the work on GPUs.
+- **Which version a group gets**: the teacher's `draw_first` labels first, each once, in its order;
+  otherwise a random active version with probability weight / (sum of active weights).
+- **Resuming**: run step 3 again on the same job. Training restarts from the job's latest
+  `ckpt/step-*` (every 5 steps); the teacher keeps its state (`evolution/teacher/state.json`) and its
+  codex thread, and tells the thread when `AGENTS.md` changed. Groups in flight at the stop are lost.
+- **What to watch**: the training log for `Train | Step`, `Validation | Step` (its
+  `validation/policy_version` is the model the readout tested; the step it is logged at is later) and
+  OOM lines; `evolution/loop.log` for the teacher's rounds; `evolution/teacher/state.json` for each
+  round's assessment, plan and new versions; `evolution/teacher/rounds/NNN/` for its prompts and output;
+  `bench.py readout <job>` for the result.
+- **On a shared box**: other users' processes can arrive on your GPUs at any time.
+  `SWE_TRAINER_RESERVE_GB` protects the trainer; vLLM reserves its own fraction at startup and fails
+  there if the GPU has less free. A GPU's KV cache that sits near full makes every turn re-prefill its
+  context, which is what a second generator relieved (v12: 113 s to 58 s per turn).
+- **Sandboxes** are Daytona's: 10 GiB of disk at most, and the tests run in the student's sandbox
+  after it submits. A student that installs CUDA torch leaves the verifier's own install no room, and
+  the attempt scores 0 however correct its code.
+
 ## The ladder rewriter
 
 `REWRITER_MODE=ladder ./start_reference_rewriter.sh <job>` runs
