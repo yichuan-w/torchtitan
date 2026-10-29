@@ -1925,15 +1925,8 @@ the error message or tool output itself suggests, and the fix the attempts in
 `traces/` reach for first when a step fails (often upgrading, reinstalling or
 regenerating the thing that broke), and grade each. If either passes, the
 difficulty announces its own fix: such changes stayed at k of k in measured
-groups, so choose another. A planted error must not name its own fix, and the
-obstacle itself must be visible to the student: named in the instruction, or
-surfaced by the environment (an error, a wrong result, a failing step) when the
-student does the work the instruction states. An obstacle the student cannot
-observe -- one that appears only when the grader runs, or in an input or
-condition the stated work never touches and the instruction never mentions --
-is unfair: no attempt can know to look for it. In `./sandbox exec`, do the
-stated work the way the attempts in `traces/` do it and confirm the obstacle
-shows itself there. The work has to need a decision the message does not dictate -- a result that is wrong
+groups, so choose another. A planted error must not name its own fix. The work
+has to need a decision the message does not dictate -- a result that is wrong
 without saying so until the student checks it, or a choice between plausible
 fixes that only checking tells apart -- and the output has to give an
 investigating student something to go on: a name, a code, a documented

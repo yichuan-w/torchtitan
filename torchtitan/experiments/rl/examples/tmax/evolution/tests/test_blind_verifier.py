@@ -314,10 +314,6 @@ def test_harder_defaults_to_real_guidance_with_repair_in_the_rewrite(
     flat = " ".join(prompt.split())
     assert "act as the student on what it now meets" in flat
     assert "A planted error must not name its own fix" in flat
-    # ...and the obstacle is one the student can observe.
-    assert "the obstacle itself must be visible to the student" in flat
-    assert "An obstacle the student cannot observe" in flat
-    assert "confirm the obstacle shows itself there" in flat
     assert "without editing a file the task protects or pins by digest" in flat
     assert ec._STUDENT_HARDER_GUIDANCE not in prompt
 
