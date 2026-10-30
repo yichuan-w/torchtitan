@@ -90,7 +90,8 @@ def install(prefix: str) -> None:
     for name in ("stat", "lstat", "listdir", "scandir", "rmdir"):
         setattr(os, name, _retrying(getattr(os, name), prefix))
     os.mkdir = _retrying(os.mkdir, prefix, landed=_exists_now)
-    os.link = _retrying(os.link, prefix, landed=_exists_now)
+    # Not os.link: the root refuses hard links with a lasting EPERM and its
+    # callers fall back to a copy, so retrying only delays every mix publish.
     os.unlink = _retrying(os.unlink, prefix, landed=_gone)
     os.remove = os.unlink
     os.replace = _retrying(os.replace, prefix, landed=_moved)
