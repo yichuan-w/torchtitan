@@ -21,7 +21,7 @@ import cloudpickle
 import torch
 import torch.distributed as dist
 import torchstore as ts
-from monarch.actor import Actor, Channel, current_rank, endpoint, Port, PortReceiver
+from monarch.actor import Actor, Channel, current_rank, Port, PortReceiver
 from torchtitan.components.checkpoint import CheckpointManager
 from torchtitan.config import CompileConfig, Configurable, DebugConfig, OverrideConfig
 from torchtitan.distributed.dp_weight_broadcast import (
@@ -29,6 +29,7 @@ from torchtitan.distributed.dp_weight_broadcast import (
     DPWeightBroadcaster,
 )
 from torchtitan.distributed.utils import set_batch_invariance
+from torchtitan.experiments.rl.actors.monarch_compat import endpoint
 from torchtitan.experiments.rl.batch_invariance import (
     force_logprobs_fn_for_batch_invariance,
     patch_bmm_for_batch_invariance,
@@ -1053,6 +1054,11 @@ def use_assigned_physical_gpu() -> None:
         return
     os.environ["LOCAL_RANK"] = gpu_index
     torch.cuda.set_device(int(gpu_index))
+    # vLLM's uniproc rendezvous otherwise binds port 0, releases it, then binds
+    # the TCPStore: sibling packed engines (and any other socket drawing from
+    # the ephemeral range) can take it in between -> EADDRINUSE.
+    # A per-GPU base below the ephemeral range removes the race.
+    os.environ.setdefault("VLLM_PORT", str(20000 + 100 * int(gpu_index)))
 
 
 class VLLMGenerator(Actor, Configurable):
