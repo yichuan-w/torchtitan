@@ -108,12 +108,17 @@ class RolloutSampleRecorder(Configurable):
         *,
         is_validation: bool,
         rollout_groups: list[RolloutGroup],
+        set_name: str | None = None,
     ) -> None:
-        """Append the filtered rollouts to the JSONL, one JSON object per rollout."""
+        """Append the filtered rollouts to the JSONL, one JSON object per rollout.
+
+        ``set_name`` labels the records of a named validation set
+        (``"validation_set"``); the main set's records carry no label, as before."""
         lines = []
         for rollout in self._filter(rollout_groups):
             record = {
                 "is_validation": is_validation,
+                **({} if set_name is None else {"validation_set": set_name}),
                 **self._encode_rollout(rollout),
             }
             # Rollout messages can hold objects json.dumps can't serialize

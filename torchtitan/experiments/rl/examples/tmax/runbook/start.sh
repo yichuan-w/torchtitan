@@ -24,6 +24,9 @@ test -s "$TRL_BASE/data/mix/live.jsonl"
 test -s "$SWE_TB2_VAL_DATA"
 test "${SWE_VAL_SAMPLES:-0}" -eq 89
 test "${SWE_TB2_VAL_K:-0}" -eq 5
+# Further validation sets (SWE_VAL_SETS="name=path,...") need their files too.
+VAL_SETS=${SWE_VAL_SETS:-}
+for val_set in ${VAL_SETS//,/ }; do test -s "${val_set#*=}"; done
 test "${SWE_NUM_EVAL_GENERATORS:-0}" -eq 1
 test "${SWE_EVAL_GEN_DP:-0}" -eq 1
 test -s "${SYNTH_ENV_FILE:?set SYNTH_ENV_FILE in the run config}"

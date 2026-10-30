@@ -91,9 +91,17 @@ class Rollouter(Configurable):
         """Post-scoring advantage estimator. Default = Dr.GRPO (mean-baseline only);
         set `AdvantageEstimator.Config(should_std_normalize=True)` for standard GRPO."""
 
+        validation_sets: dict[str, Configurable.Config] = field(default_factory=dict)
+        """Further validation datasets by name, scored alongside ``validation_dataset``
+        (the controller's ``ValidationConfig.sets`` says how each one is scored).
+        Empty by default: only ``validation_dataset`` is used."""
+
     def __init__(self, config: Config) -> None:
         self._train_dataset = config.train_dataset.build()
         self._validation_dataset = config.validation_dataset.build()
+        self._validation_sets = {
+            name: dataset.build() for name, dataset in config.validation_sets.items()
+        }
         self.rubric: Rubric = config.rubric.build()
         self.advantage_estimator = config.advantage.build()
         self._message_env_config = config.message_env
@@ -129,9 +137,25 @@ class Rollouter(Configurable):
             )
         load(state)
 
-    def get_validation_sample(self) -> object:
-        """Get one validation sample (the env input) from the validation dataset."""
-        return next(self._validation_dataset)
+    def get_validation_sample(self, set_name: str | None = None) -> object:
+        """Get one validation sample (the env input): from ``validation_dataset``, or
+        from the named entry of ``validation_sets``."""
+        return next(self._validation_dataset_for(set_name))
+
+    def validation_set_size(self, set_name: str | None = None) -> int | None:
+        """Rows in a validation dataset, or None when it does not say."""
+        dataset = self._validation_dataset_for(set_name)
+        return len(dataset) if hasattr(dataset, "__len__") else None
+
+    def _validation_dataset_for(self, set_name: str | None) -> object:
+        if set_name is None:
+            return self._validation_dataset
+        sets = getattr(self, "_validation_sets", {})
+        if set_name not in sets:
+            raise KeyError(
+                f"no validation set {set_name!r}; configured: {sorted(sets) or 'none'}"
+            )
+        return sets[set_name]
 
     # TODO: revisit the Renderer being injected into `make_env_group` once we
     # know whether Rollouter should own a Renderer (per-rollouter chat templates).

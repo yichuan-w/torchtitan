@@ -15,6 +15,10 @@ report sits next to the checkpoint that produced it::
         summary.json  # solve rate, avg@k / pass@k, task and trial counts
         traces/<task>/<task>__g<group>_s<sibling>.md
 
+A named validation set (``ValidationSetConfig``) gets its own tree,
+``<dump_dir>/<dirname>/<set>/step-<policy_version>/``, and every row in its index
+carries ``"set": "<set>"``; the main set's layout and rows are unchanged.
+
 The Markdown layout mirrors the Harbor/terminal-bench readable export so the two
 can be diffed by eye: a field table, then the decoded conversation.
 """
@@ -119,6 +123,7 @@ class ValidationTraceRecorder(Configurable):
         valid: bool = True,
         expected_num_tasks: int | None = None,
         expected_num_trials: int | None = None,
+        set_name: str | None = None,
     ) -> EvalSummary | None:
         """Write the report for one validation pass.
 
@@ -127,27 +132,30 @@ class ValidationTraceRecorder(Configurable):
                 report directory so it lines up with ``checkpoint/step-<N>``.
             task_ids: One task id per group, in the same order as ``groups``.
             decode: ``list[int] -> str`` token decoder (the renderer's tokenizer).
+            set_name: The named validation set this pass scored, or None for the
+                main set. A named set writes under ``<set_name>/step-<N>`` and
+                stamps ``"set"`` on every row.
 
         Returns:
             The pass summary, or None when the recorder is disabled.
         """
         if not self._enabled:
             return None
-        step_dir = self._root / f"step-{policy_version}"
+        set_dir = self._root if set_name is None else self._root / set_name
+        step_dir = set_dir / f"step-{policy_version}"
         (step_dir / "traces").mkdir(parents=True, exist_ok=True)
 
         rows: list[dict] = []
         for task_id, group in zip(task_ids, groups, strict=True):
             for rollout in group.rollouts:
-                rows.append(
-                    self._write_trace(
-                        step_dir=step_dir,
-                        task_id=task_id,
-                        group=group,
-                        rollout=rollout,
-                        decode=decode,
-                    )
+                row = self._write_trace(
+                    step_dir=step_dir,
+                    task_id=task_id,
+                    group=group,
+                    rollout=rollout,
+                    decode=decode,
                 )
+                rows.append(row if set_name is None else {**row, "set": set_name})
 
         summary = self._summarize(
             policy_version=policy_version,
@@ -164,7 +172,9 @@ class ValidationTraceRecorder(Configurable):
         )
         (step_dir / "INDEX.md").write_text(self._render_index(summary, rows))
         logger.info(
-            f"validation trace report (policy_version={policy_version}): "
+            "validation trace report ("
+            + ("" if set_name is None else f"set={set_name} ")
+            + f"policy_version={policy_version}): "
             f"valid={summary.valid} avg@k={summary.avg_at_k} pass@k={summary.pass_at_k} "
             f"-> {step_dir}/INDEX.md"
         )
