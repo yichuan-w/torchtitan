@@ -53,7 +53,11 @@ TOOL_BIN_ENV = "EVOLVE_TOOL_BIN"
 
 # Each write to the durable FUSE mount is a ~0.2-1 s round trip, but calls in
 # flight overlap: 16 threads write 48 files in ~8 s, against ~50 s serially.
-PUBLISH_WORKERS = 16
+PUBLISH_WORKERS = int(os.environ.get("EVOLVE_PUBLISH_WORKERS", "16"))
+# A directory under package/run/ with more files than this is published as
+# one archive: agent scratch such as a copied git tree (15k files in run 1031b)
+# otherwise holds the shared publish pool for an hour on the FUSE root.
+RUN_DIR_PACK_FILES = 200
 # Local workspaces recover() publishes at once; each is independent.
 RECOVER_WORKERS = 8
 # Durable-store limits for one path component and for a whole path.
@@ -189,6 +193,7 @@ class RewriteWorkspace:
         bad: list[str] = []
         try:
             _pack_session_payloads(self.active.path)
+            _pack_bulky_run_dirs(self.active.path)
             # A complete record always has readable metadata. Validate it
             # before anything replaces the claim.
             metadata = json.loads(self.active.meta.read_text())
@@ -347,6 +352,31 @@ def _pack_session_payloads(active: Path) -> None:
                 tar.add(child, arcname=child.name)
             os.replace(partial, archive)
             shutil.rmtree(child)
+
+
+def _pack_bulky_run_dirs(active: Path) -> None:
+    """Archive each ``package/run/<dir>`` holding more than RUN_DIR_PACK_FILES
+    files into ``<dir>.tar.gz``. ``run/`` is harness scratch, stripped from the
+    package at fold, so only its diagnostic copy changes shape."""
+    run = active / "package" / "run"
+    if not run.is_dir() or run.is_symlink():
+        return
+    for child in sorted(run.iterdir()):
+        if child.is_symlink() or not child.is_dir():
+            continue
+        count = 0
+        for _dirpath, _dirnames, filenames in os.walk(child):
+            count += len(filenames)
+            if count > RUN_DIR_PACK_FILES:
+                break
+        if count <= RUN_DIR_PACK_FILES:
+            continue
+        archive = run / f"{child.name}.tar.gz"
+        partial = archive.with_name(f".{archive.name}.partial")
+        with tarfile.open(partial, "w:gz") as tar:
+            tar.add(child, arcname=child.name)
+        os.replace(partial, archive)
+        shutil.rmtree(child)
 
 
 def _unpublishable_name(name: str) -> bool:

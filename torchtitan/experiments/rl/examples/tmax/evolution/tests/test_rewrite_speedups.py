@@ -86,6 +86,26 @@ def test_publication_drops_caches_whose_deletion_never_ran(tmp_path) -> None:
     assert sorted(p.name for p in session.iterdir()) == ["package.tar.gz"]
 
 
+def test_publication_archives_a_bulky_run_directory(tmp_path, monkeypatch) -> None:
+    """Agent scratch under package/run/ (a copied git tree) is published as one
+    archive; small run/ directories and the rest of the package stay as files."""
+    import tarfile
+
+    monkeypatch.setattr(rws, "RUN_DIR_PACK_FILES", 3)
+    run = tmp_path / "active/package/run"
+    for i in range(5):
+        (run / "git-src-debug/src").mkdir(parents=True, exist_ok=True)
+        (run / f"git-src-debug/src/f{i}.py").write_text("x\n")
+    (run / "verifier-probes").mkdir()
+    (run / "verifier-probes/case.json").write_text("{}\n")
+    (tmp_path / "active/package/instruction.md").write_text("do it\n")
+    rws._pack_bulky_run_dirs(tmp_path / "active")
+    assert sorted(p.name for p in run.iterdir()) == ["git-src-debug.tar.gz", "verifier-probes"]
+    with tarfile.open(run / "git-src-debug.tar.gz") as tar:
+        assert len([m for m in tar.getmembers() if m.isfile()]) == 5
+    assert (tmp_path / "active/package/instruction.md").exists()
+
+
 # -- independent replay beside the original replay ------------------------------
 
 
