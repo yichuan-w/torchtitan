@@ -12,6 +12,37 @@ attempt with ``run``, ``group``, ``rev``, ``reward`` and ``infra_failed``.
 
 from __future__ import annotations
 
+import json
+import os
+
+ORIGINAL_SUFFIX = "~orig"
+
+
+def keep_original() -> bool:
+    """EVOLVE_KEEP_ORIGINAL=1: a task's first fold leaves a frozen copy of its
+    original row in the mix (see frozen_original). Default off."""
+    return os.environ.get("EVOLVE_KEEP_ORIGINAL", "0") == "1"
+
+
+def original_id(task: str) -> str:
+    return task + ORIGINAL_SUFFIX
+
+
+def frozen_original(line: str) -> tuple[str, str]:
+    """The pinned copy of a task's original row, as ``(instance_id, line)``.
+
+    The copy gets its own id, so the trainer serves it beside the revision the
+    loop keeps rewriting under the task's id, and ``evolve_frozen``, so its
+    groups raise no rewrite signal; its records land under its own id, which
+    keeps the task's attempt history to the rewritten line."""
+    row = json.loads(line)
+    iid = original_id(row["metadata"]["instance_id"])
+    row["metadata"]["instance_id"] = iid
+    row["metadata"]["evolve_frozen"] = True
+    if "label" in row:
+        row["label"] = iid
+    return iid, json.dumps(row, ensure_ascii=False)
+
 
 def training_groups(index: list[dict]) -> list[dict]:
     """Scored training groups, one dict each: ``rev``, ``run``, ``group``,

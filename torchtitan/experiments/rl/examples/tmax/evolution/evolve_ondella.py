@@ -78,6 +78,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import evolve_codex as ec  # noqa: E402
+import lineage_policy  # noqa: E402
 import feedback_loop as fb  # noqa: E402
 import grader_replay  # noqa: E402
 from finalize_interrupted_traces import finalize_interrupted  # noqa: E402
@@ -1653,6 +1654,15 @@ def fold(root: layout.Root, accepted: list[dict]) -> int | None:
         except Exception as e:  # noqa: BLE001 -- one malformed package, not the round
             _finish(h, "failed", stage="fold", reason=f"{type(e).__name__}: {e}")
             continue
+        if (
+            lineage_policy.keep_original()
+            and n == 0
+            and lineage_policy.original_id(tid) not in rows
+        ):
+            # Right after the task, not at the end: the held-out slice is the
+            # last rows of the file, and a held-out task is never folded.
+            oid, rows[oid] = lineage_policy.frozen_original(rows[tid])
+            order.insert(order.index(tid) + 1, oid)
         rows[tid] = json.dumps(row, ensure_ascii=False)
         folded.append(
             (h, n + 1, {rk: row["metadata"].get(rk) for rk in ROW_KEYS.values()})
