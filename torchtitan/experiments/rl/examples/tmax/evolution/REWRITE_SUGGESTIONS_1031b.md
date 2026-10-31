@@ -44,25 +44,27 @@ seed mix, ~219 steps), against 1022. Numbers come from W&B `evolution/*`,
 
 ## Suggestions, by expected impact
 
-1. **Train a folded task soon.** A fold waits for the task's epoch slot: fold →
-   first train is 20 steps at the median (p90 35). Put freshly folded tasks at the
-   front of the stream; train latency should drop from ~36 to ~12 steps, so a
-   rewrite answers the policy that asked for it.
-2. **Retire easier versions once learned.** When an easier version reaches ~0.5
+1. **Retire easier versions once learned.** When an easier version reaches ~0.5
    solve rate or any 12/12, swap the original (or the parent) back instead of
    asking for a harder rewrite of the hinted text. This keeps hinted tasks a
    minority and costs nothing.
-3. **Cap easier chains.** Freeze a task after two consecutive easier rewrites,
+2. **Cap easier chains.** Freeze a task after two consecutive easier rewrites,
    and give the rewriter the previous version's actual outcome (it often predicts
    "5 of 12" for a version that came back 0/12).
-4. **Keep originals in the batch.** Hold originals at ≥ 50% of trained groups
+3. **Keep originals in the batch.** Hold originals at ≥ 50% of trained groups
    (now 19-23%), e.g. by weighting the sampler by revision.
-5. **Calibrate harder rewrites.** Target 2-9 of 12 and probe the candidate with the
+4. **Calibrate harder rewrites.** Target 2-9 of 12 and probe the candidate with the
    current policy before accepting; reject versions that land at 12/12 or 0/12.
-6. **Do not lose work on restart.** Drain in-flight rewrites before a planned
+5. **Do not lose work on restart.** Drain in-flight rewrites before a planned
    restart or make them resumable, and alert when one stage fails repeatedly (the
    oracle-stage failures at steps 25-50 stalled acceptance for 25 steps unnoticed).
-7. Safety-filter refusals (3.4%) and probe rejects are small; leave them.
+6. Safety-filter refusals (3.4%) and probe rejects are small; leave them.
 
-Items 1-5 change what the policy trains on, so treat them as training changes and
-A/B them; 6 is infrastructure only.
+Items 1-4 change what the policy trains on, so treat them as training changes and
+A/B them; 5 is infrastructure only.
+
+Not pursued: training a folded task ahead of its epoch slot. Fold to first train
+is 20 steps at the median, but every task comes round once per ~23 steps anyway,
+only 68 of ~1300 rewrites were superseded before training, and jumping folded
+tasks to the front would tilt batches further toward rewritten versions, against
+item 3.
