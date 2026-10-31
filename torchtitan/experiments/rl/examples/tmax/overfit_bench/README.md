@@ -470,3 +470,41 @@ gives it the run and carries out its plan.
 - **What this process enforces**: a new version joins only after two checks on Daytona (its reference
   solution passes its tests; its untouched starting state fails them); at most `--max-active` (8)
   versions are in the pool; the teacher never sees the readout or another run's records (see "Two loops").
+
+## Status: what is not solved yet
+
+TB2.1, the 9B policy, as of 2026-10-30; running status is posted on
+https://github.com/yichuan-w/torchtitan/issues/307. "Stable" is the readout's own criterion: pass@5 at or above
+0.5 for three validations in a row. One line per task over every job run so far (`bench.py readout`).
+
+| task | jobs | best result | stable |
+|---|---|---|---|
+| sqlite-db-truncate | 3 | first pass step 160 (k5) | **yes, from step 195** (k5) |
+| dna-insert | 4 | first pass step 5, pass@5 1.0 once (k5) | no |
+| filter-js-from-html | 5 | first pass step 15 (img) | no |
+| llm-inference-batching-scheduler | 10 | first pass step 180 (k5) | no |
+| torch-tensor-parallelism | 22 | first pass step 240, pass@5 1.0 once (reference rewriter, GPT-5.6, 80K) | no |
+| raman-fitting | 4 | never passed (longest job 210 steps) | no |
+| large-scale-text-editing | 6 | never passed (longest job 65 steps) | no |
+| feal-differential-cryptanalysis | 1 | the job never trained | no |
+| torch-pipeline-parallelism | 0 | no job before 2026-10-30 | no |
+
+Not done yet:
+
+- **One task is solved.** Every task but sqlite-db-truncate either never passed or passed and lost it.
+- **No teacher-rewriter job has run to the end.** Every teacher job so far stopped within 5 readout
+  steps; on the 2026-10-29 torch-tensor-parallelism one the teacher process stopped after 90 minutes and
+  training went on without a rewriter.
+- **Many jobs ended before their first readout** (`last_step` None): startup failures, not results.
+- Jobs launched on the shared cluster before 2026-10-30 trained without `SWE_BENCH_TRAIN_BUDGET_SEC`
+  and read without `SWE_BENCH_READOUT_EVAL_BUDGET` (the launcher did not forward them), so their
+  attempts had the default budgets, not the recipe's.
+
+Running from 2026-10-30: the teacher rewriter (GPT-5.6) on torch-tensor-parallelism,
+torch-pipeline-parallelism, raman-fitting, large-scale-text-editing and llm-inference-batching-scheduler,
+one job per task, each on one 4 x GB300 host: trainer FSDP-2 on two GPUs, one rollout engine, one 160K
+readout engine. FSDP-2 fits: a 2026-10-30 job trained 13 steps at 80K on it without an OOM (its peak
+was not recorded). FSDP-1 should need ~300 GiB per rank, extrapolated from the B300 placement's
+92 GiB at FSDP-5 and 105 GiB at FSDP-4, and was not tried. The rollout engine
+at 0.88 memory holds 6.9M tokens with prefix caching; with all 96 attempts in flight it ran at a 33% KV
+peak, no preemption and a 95% prefix-cache hit rate, so turns do not re-prefill.
