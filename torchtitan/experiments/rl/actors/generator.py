@@ -997,6 +997,11 @@ class VLLMGenerator(Actor, Configurable):
         gpu_memory_limit: float = 0.9
         """Fraction of GPU memory to use for the vLLM engine (0.0 to 1.0)."""
 
+        kv_cache_gb: float = 0.0
+        """Fixed KV-cache size in GiB; 0 sizes it from gpu_memory_limit. On a GPU other
+        users share, vLLM's startup profiling counts their allocations as its own and can
+        size the cache negative; a fixed size skips that estimate."""
+
         cudagraph: VLLMCudagraphConfig = field(default_factory=VLLMCudagraphConfig)
         """CUDA graph capture settings for the vLLM engine."""
 
@@ -1318,6 +1323,8 @@ class VLLMGenerator(Actor, Configurable):
             mamba_cache_dtype=config.mamba_cache_dtype,
             mamba_ssm_cache_dtype=config.mamba_ssm_cache_dtype,
         )
+        if config.kv_cache_gb:
+            engine_kwargs["kv_cache_memory_bytes"] = int(config.kv_cache_gb * 2**30)
         engine_kwargs["max_model_len"] = model_spec.model.max_seq_len
         engine_kwargs["max_num_seqs"] = self._max_num_seqs
         has_gdn_layers = any(

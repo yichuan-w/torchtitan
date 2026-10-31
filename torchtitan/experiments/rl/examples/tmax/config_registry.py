@@ -1201,6 +1201,10 @@ def rl_grpo_qwen3_5_9b_tmax(
     _gml = float(os.environ.get("SWE_GPU_MEM_LIMIT", "0"))
     if _gml:
         config.generator = dataclasses.replace(config.generator, gpu_memory_limit=_gml)
+    # Fixed generator KV cache (GiB) for a shared box, see VLLMGenerator.Config.kv_cache_gb.
+    _kvgb = float(os.environ.get("SWE_KV_CACHE_GB", "0"))
+    if _kvgb:
+        config.generator = dataclasses.replace(config.generator, kv_cache_gb=_kvgb)
     # Generator engine-count override. The base bakes DP-8 x TP-1 = 8 engines = 8
     # GPUs, which leaves nothing for the trainer on a single 8-GPU host; pair this
     # with SWE_DP_SHARD so the two sum to the GPUs available.
