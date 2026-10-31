@@ -209,6 +209,10 @@ def _should_drop_group_at_batcher(*, group_age: int, max_offpolicy_steps: int) -
     return group_age > max_offpolicy_steps
 
 
+# Share of completed groups the batcher dropped as past the policy-age limit.
+_STALE_DROP_FRAC = "rollout_buffer/stale_drop_frac"
+
+
 @dataclass(kw_only=True, slots=True)
 class ValidationConfig:
     """Held-out validation that runs at the start and end of training, and
@@ -2792,7 +2796,8 @@ class Controller(Configurable):
                                 m.Metric(
                                     "rollout_buffer/num_groups_dropped_stale",
                                     m.Sum(1.0),
-                                )
+                                ),
+                                m.Metric(_STALE_DROP_FRAC, m.Mean(1.0)),
                             ],
                         )
                     )
@@ -2802,8 +2807,15 @@ class Controller(Configurable):
                 training_sample_group = training_sample_builder.build_from_group(
                     rollout_group=rollout_group
                 )
+                # Every group past the staleness check counts toward the drop
+                # rate, trainable or not, so the rate is over all completed groups.
                 training_sample_group = replace(
-                    training_sample_group, lineage=rollout_group.lineage
+                    training_sample_group,
+                    lineage=rollout_group.lineage,
+                    metrics=[
+                        *training_sample_group.metrics,
+                        m.Metric(_STALE_DROP_FRAC, m.Mean(0.0)),
+                    ],
                 )
 
             if not training_sample_group.training_samples:

@@ -693,6 +693,15 @@ def test_batcher_loop_replenishes_each_group_exactly_once() -> None:
             if metric.key == "rollout_buffer/num_groups_dropped_stale"
         ]
         assert stale == [1.0]
+        # Groups 0 (untrainable), 1 (stale) and 2 (trainable): one of three dropped.
+        drop_frac = [
+            metric.value
+            for metric in packed.metrics
+            if metric.key == "rollout_buffer/stale_drop_frac"
+        ]
+        assert sum(v.value for v in drop_frac) / sum(
+            v.count for v in drop_frac
+        ) == pytest.approx(1 / 3)
         assert await training_batch_queue.get() is None
 
     asyncio.run(run())
