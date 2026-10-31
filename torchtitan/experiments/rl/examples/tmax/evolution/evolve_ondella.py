@@ -1079,6 +1079,15 @@ def handle(
     tid, rev = str(d["task"]), int(d["rev"])
     job = "harder" if d["direction"] == "harder" else "easier"
     task = root.evolution.task(tid)
+    if (
+        lineage_policy.swap_back_enabled()
+        and lineage_policy.keep_original()
+        and not dry
+        and d["direction"] == "harder"
+        and int(d["solved"]) == int(d["total"])
+        and lineage_policy.produced_by(layout.read_jsonl(task.lineage), rev) == "easier"
+    ):
+        return _swap_back(sig, task, rev)
     needed = lineage_policy.retire_after_misses()
     if needed and not dry:
         target = lineage_policy.revert_target(_index_attempts(root, task), rev, needed)
@@ -1372,6 +1381,30 @@ def handle(
     return {"signal": sig, "rewrite": rewrite, "meta": meta, "status": status}
 
 
+def _swap_back(sig: Signal, task: layout.TaskDir, rev: int) -> dict:
+    """An accepted "swap_back": the fold drops the task's evolving row and keeps
+    its pinned original (lineage_policy.frozen_original). No package; the
+    task is paused from then on (_defer_reason)."""
+    rewrite = _new_rewrite_dir(task, "swap_back")
+    rewrite.path.mkdir(parents=True)
+    meta = {
+        "task": str(sig.data["task"]),
+        "job": "swap_back",
+        "signal": sig.sid,
+        "input_rev": rev,
+        "started": layout.stamp(),
+        "finished": layout.stamp(),
+        "status": "running",
+        "route": "swap_back",
+        "reason": f"easier r{rev} solved {sig.data['solved']}/{sig.data['total']}; back to the original",
+        "resources": None,
+        "result_rev": None,
+    }
+    layout.write_json_atomic(rewrite.meta, meta)
+    log.info("%s swap back: easier r%d learned, original stays", meta["task"], rev)
+    return {"signal": sig, "rewrite": rewrite, "meta": meta, "status": "accepted"}
+
+
 def _revert(sig: Signal, task: layout.TaskDir, rev: int, target: int, misses: int) -> dict:
     """An accepted "revert" whose package is a copy of r<target>: the fold
     publishes it as r<rev+1>, so revisions keep counting up, and the task is
@@ -1634,6 +1667,7 @@ def fold(root: layout.Root, accepted: list[dict]) -> int | None:
             rows[iid] = ln
             order.append(iid)
     gated: list[tuple[dict, str, int, dict]] = []
+    swapped: list[dict] = []
     for h in accepted:
         meta = h["meta"]
         tid, n = meta["task"], int(meta["input_rev"])
@@ -1641,6 +1675,12 @@ def fold(root: layout.Root, accepted: list[dict]) -> int | None:
         target = task.rev(n + 1)
         if tid not in rows:
             _finish(h, "rejected", stage="not_in_mix", reason="no longer in the mix")
+            continue
+        if meta.get("job") == "swap_back":
+            if lineage_policy.original_id(tid) in rows:
+                swapped.append(h)
+            else:
+                _finish(h, "kept", stage="swap_back", reason="no pinned original in the mix")
             continue
         if layout.exists(target):
             # Cannot happen while one loop runs: choose() hands out one
@@ -1706,7 +1746,10 @@ def fold(root: layout.Root, accepted: list[dict]) -> int | None:
         folded.append(
             (h, n + 1, {rk: row["metadata"].get(rk) for rk in ROW_KEYS.values()})
         )
-    if not folded:
+    for h in swapped:
+        del rows[h["meta"]["task"]]
+        order.remove(h["meta"]["task"])
+    if not folded and not swapped:
         return None
     # Renamed only once every row is built, so a loop killed while a batch is
     # being packed leaves no r<N+1> on disk without a mix version naming it.
@@ -1742,6 +1785,22 @@ def fold(root: layout.Root, accepted: list[dict]) -> int | None:
             " ".join(f"{k}={v}" for k, v in res.items()),
             (meta.get("resources") or {}).get("source") or "inherited",
         )
+    for h in swapped:
+        meta, rewrite = h["meta"], h["rewrite"]
+        meta.update({"status": "accepted", "finished": layout.stamp()})
+        layout.write_json_atomic(rewrite.meta, meta)
+        h["status"] = "accepted"
+        layout.append_jsonl(
+            root.evolution.task(meta["task"]).lineage,
+            {
+                "stamp": layout.stamp(),
+                "event": "swap_back",
+                "from_rev": meta["input_rev"],
+                "mix_version": version,
+                "rewrite": f"rewrites/{rewrite.path.name}",
+            },
+        )
+        log.info("swap back %s: r%d left the mix", meta["task"], meta["input_rev"])
     log.info(
         "published mix v%04d (%d rows, %d folded) -> %s",
         version,
@@ -2067,10 +2126,11 @@ def _created(s: Signal) -> str:
 def _defer_reason(root: layout.Root, s: Signal) -> str | None:
     """Explain why a signal must not start a rewrite: its task is paused, or
     an easier signal lacks what an easier rewrite needs."""
-    if lineage_policy.retire_after_misses():
-        source = lineage_policy.reverted_at(
-            layout.read_jsonl(root.evolution.task(s.task).lineage), int(s.data["rev"])
-        )
+    if lineage_policy.retire_after_misses() or lineage_policy.swap_back_enabled():
+        lineage = layout.read_jsonl(root.evolution.task(s.task).lineage)
+        if lineage_policy.swapped_back(lineage):
+            return "paused: swapped back to the original"
+        source = lineage_policy.reverted_at(lineage, int(s.data["rev"]))
         if source is not None:
             return f"paused: r{s.data['rev']} is the retire copy of r{source}"
     if s.data["direction"] != "easier":

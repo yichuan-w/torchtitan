@@ -120,3 +120,24 @@ def reverted_at(lineage: list[dict], rev: int) -> int | None:
         if e.get("event") == "fold" and e.get("to_rev") == rev and "reverted_to" in e:
             return int(e["reverted_to"])
     return None
+
+
+def swap_back_enabled() -> bool:
+    """EVOLVE_SWAP_BACK=1: once the policy solves a whole group of an easier
+    revision, the task's evolving row leaves the mix and its pinned original
+    stays (#306 item 4). Needs EVOLVE_KEEP_ORIGINAL. Default off."""
+    return os.environ.get("EVOLVE_SWAP_BACK", "0") == "1"
+
+
+def produced_by(lineage: list[dict], rev: int) -> str | None:
+    """The job of the rewrite whose fold made ``rev`` (``easier``, ``harder``,
+    ``revert``); None for r0 or an unrecorded fold. Read off the rewrite
+    directory's name, ``<stamp>--<job>``."""
+    for e in lineage:
+        if e.get("event") == "fold" and e.get("to_rev") == rev and e.get("rewrite"):
+            return str(e["rewrite"]).rsplit("--", 1)[-1]
+    return None
+
+
+def swapped_back(lineage: list[dict]) -> bool:
+    return any(e.get("event") == "swap_back" for e in lineage)
