@@ -77,10 +77,10 @@ version that lands keeps collecting groups):
   direction hits .54-.74, against .33-.54 for a same-direction chain, because the
   rewriter then sits between a too-hard and a too-easy version.
 - Inside one version, a mixed group is followed by another mixed group 81-89% of
-  the time. After a boundary group the next group is mixed only 12-38% of the time,
-  while a fresh rewrite lands at .54-.65, so rewriting on the first boundary group
-  is right. Harder is the softer case: after a 12/12 the next group is mixed
-  31-46% of the time.
+  the time. After a 0/12 group the next group is mixed only 12-29% of the time,
+  while a fresh rewrite lands at .40-.65, so rewriting an easier version on its
+  first 0/12 is right. Harder is closer: after a 12/12 the next group of the same
+  version is mixed 31-46% of the time, against .61-.65 for a fresh harder rewrite.
 - Share of rollout time that ends up in a trained gradient group: harder
   .58 / .65 / .72, easier .42 / .55 / .66, originals .45 / .51 / .61 (1022 /
   1026b / 1031b). Groups dropped as stale are 13-22% in 1022 / 1026b (5-11% in
