@@ -1079,6 +1079,11 @@ def handle(
     tid, rev = str(d["task"]), int(d["rev"])
     job = "harder" if d["direction"] == "harder" else "easier"
     task = root.evolution.task(tid)
+    needed = lineage_policy.retire_after_misses()
+    if needed and not dry:
+        target = lineage_policy.revert_target(_index_attempts(root, task), rev, needed)
+        if target is not None:
+            return _revert(sig, task, rev, target, needed)
     src = task.rev(rev)
     if not src.exists():
         if rev != 0:
@@ -1367,6 +1372,40 @@ def handle(
     return {"signal": sig, "rewrite": rewrite, "meta": meta, "status": status}
 
 
+def _revert(sig: Signal, task: layout.TaskDir, rev: int, target: int, misses: int) -> dict:
+    """An accepted "revert" whose package is a copy of r<target>: the fold
+    publishes it as r<rev+1>, so revisions keep counting up, and the task is
+    paused from then on (_defer_reason). Resources are the ones r<target> was
+    folded with; for r0 the replaced row's carry across."""
+    resources = None
+    for previous in task.rewrite_dirs():
+        try:
+            prev = json.loads(previous.meta.read_text())
+        except (OSError, ValueError):
+            continue
+        if prev.get("status") == "accepted" and prev.get("result_rev") == target:
+            resources = prev.get("resources")
+    rewrite = _new_rewrite_dir(task, "revert")
+    shutil.copytree(task.rev(target), rewrite.package, ignore=SEED_IGNORE)
+    meta = {
+        "task": str(sig.data["task"]),
+        "job": "revert",
+        "signal": sig.sid,
+        "input_rev": rev,
+        "reverted_to": target,
+        "started": layout.stamp(),
+        "finished": layout.stamp(),
+        "status": "running",
+        "route": "retire",
+        "reason": f"{misses} revisions in a row missed on their first group; back to r{target}",
+        "resources": resources,
+        "result_rev": None,
+    }
+    layout.write_json_atomic(rewrite.meta, meta)
+    log.info("%s retire: r%d -> copy of r%d (%d first-group misses)", meta["task"], rev, target, misses)
+    return {"signal": sig, "rewrite": rewrite, "meta": meta, "status": "accepted"}
+
+
 def _grader_replay(
     root: layout.Root,
     task: layout.TaskDir,
@@ -1608,10 +1647,10 @@ def fold(root: layout.Root, accepted: list[dict]) -> int | None:
             # signal per task per round. A revision is never overwritten.
             _finish(h, "failed", stage="fold", reason=f"{target.name} already exists")
             continue
-        policy_canary = (
-            (meta.get("policy_canary") or {}) if policy_admission_enabled else {}
-        )
-        if policy_admission_enabled:
+        # A revert republishes a revision training already measured.
+        admission = policy_admission_enabled and meta.get("job") != "revert"
+        policy_canary = (meta.get("policy_canary") or {}) if admission else {}
+        if admission:
             if not policy_canary.get("ok") or "expires_at" not in policy_canary:
                 _finish(h, "kept", stage="policy_canary_missing", reason="no passing current-policy admission check")
                 continue
@@ -1692,6 +1731,7 @@ def fold(root: layout.Root, accepted: list[dict]) -> int | None:
                 "to_rev": to_rev,
                 "mix_version": version,
                 "rewrite": f"rewrites/{rewrite.path.name}",
+                **({"reverted_to": meta["reverted_to"]} if "reverted_to" in meta else {}),
             },
         )
         log.info(
@@ -2025,7 +2065,14 @@ def _created(s: Signal) -> str:
 
 
 def _defer_reason(root: layout.Root, s: Signal) -> str | None:
-    """Explain why an easier signal must not start a rewrite."""
+    """Explain why a signal must not start a rewrite: its task is paused, or
+    an easier signal lacks what an easier rewrite needs."""
+    if lineage_policy.retire_after_misses():
+        source = lineage_policy.reverted_at(
+            layout.read_jsonl(root.evolution.task(s.task).lineage), int(s.data["rev"])
+        )
+        if source is not None:
+            return f"paused: r{s.data['rev']} is the retire copy of r{source}"
     if s.data["direction"] != "easier":
         return None
     if not SIMPLIFY_ENABLED and not unsolved(root, s.task, int(s.data["rev"])):
