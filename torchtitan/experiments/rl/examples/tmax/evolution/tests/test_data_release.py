@@ -122,7 +122,10 @@ def test_selection_is_exact_and_reproducible(tmp_path, monkeypatch):
     first = release.build(config, tmp_path / "first")
     second = release.build(config, tmp_path / "second")
     assert first.name == second.name
-    assert len((first / "mix.jsonl").read_text().splitlines()) == 1
+    rows = [json.loads(line) for line in (first / "mix.jsonl").read_text().splitlines()]
+    assert len(rows) == 1
+    source = first / "sources" / config["sources"][0]["name"] / "tasks"
+    assert {p.name for p in source.iterdir()} == {rows[0]["metadata"]["instance_id"]}
 
 
 def test_archive_cannot_escape_destination(tmp_path):

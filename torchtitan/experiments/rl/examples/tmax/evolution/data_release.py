@@ -357,12 +357,19 @@ def prepare_source(source, files, stage, checkpoints, log):
     if count is not None:
         if count > len(rows):
             raise ValueError("requested source count exceeds available tasks")
-        rows = sorted(
+        ranked = sorted(
             rows,
             key=lambda row: hashlib.sha256(
                 encoded([source["name"], row["label"], source["selection_seed"]])
             ).hexdigest(),
-        )[:count]
+        )
+        rows = ranked[:count]
+        # Evolution seeds from the source packages, so they must match the mix.
+        home = stage / "sources" / source["name"] / "tasks"
+        for row in ranked[count:]:
+            tid = row["metadata"]["instance_id"]
+            shutil.rmtree(home / tid)
+            log(source=source["name"], task=tid, status="skipped", reason="not_selected")
     return rows
 
 
