@@ -180,6 +180,15 @@ _RULE_TERMINATED_REASONS = frozenset({"format_error", "truncated"})
 # See TMaxRollouter.Config.reward_mode.
 _REWARD_MODES = frozenset({"sparse", "dense"})
 
+# Script drift in the policy's own output. Run 1031b degenerated into CJK /
+# Arabic / Hangul / Thai / kana tokens inside English reasoning and code
+# ("upper恩velope"); a Latin letter touching a CJK character is the in-word form
+# that legitimate Chinese text (copied from a task file) rarely produces.
+_NON_LATIN_RE = re.compile(
+    "[\u4e00-\u9fff\u0600-\u06ff\uac00-\ud7af\u0e00-\u0e7f\u3040-\u30ff]"
+)
+_LATIN_CJK_ADJACENT_RE = re.compile("[A-Za-z][\u4e00-\u9fff]|[\u4e00-\u9fff][A-Za-z]")
+
 # Canonical RTS check names (``test_check_01_required_evidence`` and its shorter
 # variants), matched as substrings of the CTRF test names. They separate "wrong
 # answer" (final_semantics) from "right answer via a shortcut" (no_shortcut), which
@@ -573,6 +582,54 @@ def _rule_termination_metrics(rollouts: list[Rollout]) -> list[m.Metric]:
             m.Metric("rollout/rule_terminated_turn_mean", m.Mean.from_list(turns))
         )
     return out
+
+
+def _message_text(value) -> str:
+    """Every string in a completion message (content blocks, thinking, text),
+    skipping the ``role`` / ``type`` tags."""
+    if isinstance(value, str):
+        return value
+    if isinstance(value, Mapping):
+        return "\n".join(
+            _message_text(v) for k, v in value.items() if k not in ("role", "type")
+        )
+    if isinstance(value, (list, tuple)):
+        return "\n".join(_message_text(v) for v in value)
+    return ""
+
+
+def _script_mix_metrics(rollouts: list[Rollout]) -> list[m.Metric]:
+    """Non-Latin script in the policy's completions, per sibling then averaged.
+
+    ``nonlatin_per_1k_chars_mean`` is the character density; the two turn
+    fractions count turns with any non-Latin character and with a Latin letter
+    touching a CJK character. Siblings without completed turns are skipped.
+    """
+    density, nonlatin_turns, adjacent_turns = [], [], []
+    for rollout in rollouts:
+        messages = [getattr(turn, "completion_message", None) for turn in rollout.turns]
+        texts = [_message_text(message) for message in messages if message]
+        if not texts:
+            continue
+        chars = sum(len(t) for t in texts)
+        density.append(
+            1000.0 * sum(len(_NON_LATIN_RE.findall(t)) for t in texts) / max(chars, 1)
+        )
+        nonlatin_turns.append(
+            sum(bool(_NON_LATIN_RE.search(t)) for t in texts) / len(texts)
+        )
+        adjacent_turns.append(
+            sum(bool(_LATIN_CJK_ADJACENT_RE.search(t)) for t in texts) / len(texts)
+        )
+    if not density:
+        return []
+    return [
+        m.Metric("rollout/nonlatin_per_1k_chars_mean", m.Mean.from_list(density)),
+        m.Metric("rollout/nonlatin_turn_frac", m.Mean.from_list(nonlatin_turns)),
+        m.Metric(
+            "rollout/latin_cjk_adjacent_turn_frac", m.Mean.from_list(adjacent_turns)
+        ),
+    ]
 
 
 def _timing_metrics(timings: list[Mapping[str, float]]) -> list[m.Metric]:
@@ -1702,6 +1759,7 @@ class TMaxRollouter(Rollouter):
             ),
             *finish_metrics,
             *_rule_termination_metrics(rollouts),
+            *_script_mix_metrics(rollouts),
             *sandbox_metrics,
             *timing_metrics,
         ]
