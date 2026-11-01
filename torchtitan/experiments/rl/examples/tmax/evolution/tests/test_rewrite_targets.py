@@ -356,3 +356,68 @@ def test_a_recorded_harder_expected_is_the_prediction(tmp_path) -> None:
         json.dumps({"status": "accepted", "result_rev": 2, "harder_expected": "5 of 12"})
     )
     assert od._prediction_for(task, 2) == (5, 12)
+
+
+# -- item 6b: harder share of the rewrite slots ------------------------------
+
+
+def _sig(name: str) -> od.Signal:
+    direction = "harder" if name.startswith("h") else "easier"
+    return od.Signal(None, Path(name), name, {"direction": direction})
+
+
+def _names(signals) -> list[str]:
+    return [s.sid for s in signals]
+
+
+BATCH = [_sig(n) for n in ("e1", "e2", "h1", "e3", "h2", "h3")]  # newest first
+
+
+def test_slot_order_without_the_flag_is_newest_first(monkeypatch) -> None:
+    assert od.harder_slot_frac() is None
+    for running in (0, 5):
+        got = od.slot_order(BATCH, 4, running_harder=running, workers=10, frac=None)
+        assert _names(got) == ["e1", "e2", "h1", "e3"]
+    assert od.slot_order(BATCH, 0, running_harder=0, workers=10, frac=None) == []
+
+
+def test_slot_order_prefers_harder_up_to_the_share() -> None:
+    # ceil(0.6 * 10) = 6 harder wanted, none running: all three harder first.
+    got = od.slot_order(BATCH, 4, running_harder=0, workers=10, frac=0.6)
+    assert _names(got) == ["h1", "h2", "h3", "e1"]
+    # Five harder already running: one more harder, then newest first.
+    got = od.slot_order(BATCH, 4, running_harder=5, workers=10, frac=0.6)
+    assert _names(got) == ["h1", "e1", "e2", "e3"]
+    # At the share: newest first, as without the flag.
+    got = od.slot_order(BATCH, 4, running_harder=6, workers=10, frac=0.6)
+    assert _names(got) == ["e1", "e2", "h1", "e3"]
+
+
+def test_slot_order_never_leaves_a_slot_idle_for_a_missing_direction() -> None:
+    easier = [s for s in BATCH if s.sid.startswith("e")]
+    harder = [s for s in BATCH if s.sid.startswith("h")]
+    assert _names(od.slot_order(easier, 5, running_harder=0, workers=10, frac=1.0)) == [
+        "e1", "e2", "e3"]
+    assert _names(od.slot_order(harder, 5, running_harder=9, workers=10, frac=0.2)) == [
+        "h1", "h2", "h3"]
+    assert _names(od.slot_order(BATCH, 6, running_harder=0, workers=10, frac=0.0)) == _names(BATCH)
+
+
+def test_slot_order_share_is_not_rounded_up_by_float_error() -> None:
+    batch = [_sig(n) for n in ("e1", "e2", "e3")] + [_sig(f"h{i}") for i in range(10)]
+    got = _names(od.slot_order(batch, 10, running_harder=0, workers=10, frac=0.7))
+    # 0.7 * 10 wants 7 harder, not 8; the three slots left go newest first.
+    assert got == [f"h{i}" for i in range(7)] + ["e1", "e2", "e3"]
+
+
+@pytest.mark.parametrize("value,frac", [("", None), ("0.6", 0.6), ("1", 1.0), ("0", 0.0)])
+def test_harder_slot_frac_reads_the_env(monkeypatch, value, frac) -> None:
+    monkeypatch.setenv("EVOLVE_HARDER_SLOT_FRAC", value)
+    assert od.harder_slot_frac() == frac
+
+
+@pytest.mark.parametrize("value", ["1.5", "-0.1"])
+def test_harder_slot_frac_rejects_out_of_range(monkeypatch, value) -> None:
+    monkeypatch.setenv("EVOLVE_HARDER_SLOT_FRAC", value)
+    with pytest.raises(ValueError, match="EVOLVE_HARDER_SLOT_FRAC"):
+        od.harder_slot_frac()

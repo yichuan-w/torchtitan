@@ -26,7 +26,8 @@ A round:
      is no longer the task's measured a policy input that is gone; both get a
      `superseded` line and the reason. A task with a rewrite in progress is
      skipped until it ends; then its signals are judged against its new
-     revision. Picks start newest signal first. A signal whose task has
+     revision. Picks start newest signal first (EVOLVE_HARDER_SLOT_FRAC can
+     reserve a share of the workers for harder ones). A signal whose task has
      since finished another whole group at the same revision without a
      signal gets a `resolved` line instead of a rewrite: that group came out
      mixed, so the task no longer needs one.
@@ -2324,6 +2325,40 @@ def select_work(
     return todo
 
 
+def harder_slot_frac() -> float | None:
+    """EVOLVE_HARDER_SLOT_FRAC (#306 item 6): the share of the rewrite workers
+    harder signals are preferred for (slot_order). Unset, the default, keeps
+    newest-first regardless of direction. Harder is the most
+    gradient-efficient direction: .58-.72 of its rollout time ended in a
+    trained group in runs 1022/1026b/1031b, against .42-.66 for easier."""
+    v = os.environ.get("EVOLVE_HARDER_SLOT_FRAC", "").strip()
+    if not v:
+        return None
+    frac = float(v)
+    if not 0.0 <= frac <= 1.0:
+        raise ValueError("EVOLVE_HARDER_SLOT_FRAC must be within [0, 1]")
+    return frac
+
+
+def slot_order(
+    batch: list[Signal], free: int, *, running_harder: int, workers: int, frac: float | None
+) -> list[Signal]:
+    """The signals of ``batch`` (newest first) to start in ``free`` slots.
+
+    Without ``frac``, the first ``free``. With it, harder signals first, newest
+    first, until the harder rewrites in flight reach ceil(frac * workers); the
+    remaining slots take what is left newest first, of either direction, so a
+    slot stays empty only when the batch runs out."""
+    free = max(0, free)
+    if frac is None:
+        return batch[:free]
+    # The epsilon keeps 0.7 * 10 at 7: in floating point it is 7.000000000000001.
+    want = max(0, math.ceil(frac * workers - 1e-9) - running_harder)
+    harder = [s for s in batch if s.data["direction"] == "harder"][: min(want, free)]
+    taken = {s.sid for s in harder}
+    return harder + [s for s in batch if s.sid not in taken][: free - len(harder)]
+
+
 class _Closer:
     """Folds and closes finished rewrites on one thread of its own, in order.
 
@@ -2555,10 +2590,19 @@ def run_round(
                 return declared_cache["value"]
 
             def fill(batch: list[Signal]) -> None:
-                """Submit up to the free slots, newest mix in hand."""
+                """Submit up to the free slots, newest mix in hand; which
+                signals fill them is slot_order's."""
                 if not admission_is_open(dry=dry):
                     return
-                batch = batch[: workers - len(futs)]
+                batch = slot_order(
+                    batch,
+                    workers - len(futs),
+                    running_harder=sum(
+                        s.data["direction"] == "harder" for s in futs.values()
+                    ),
+                    workers=workers,
+                    frac=harder_slot_frac(),
+                )
                 if not batch:
                     return
                 declared, pretests, protecteds, input_rows = declared_now()
