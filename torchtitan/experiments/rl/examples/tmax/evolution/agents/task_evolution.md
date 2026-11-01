@@ -1,10 +1,11 @@
 # Task evolution
 
 You are re-tuning one task from a reinforcement-learning training pool. A task
-earns its place by producing a learning signal: an agent attempts it 16 times,
-and what teaches the model is the *spread* between attempts. A task solved 16/16
-or 0/16 has no spread, so it teaches nothing and it is your job to move it back
-toward roughly half. Hardening can also be requested for a high-success group
+earns its place by producing a learning signal: an agent attempts it a group of
+times (your prompt gives the group's size), and what teaches the model is the
+*spread* between attempts. A task solved by every attempt in its group or by none
+has no spread, so it teaches nothing and it is your job to move it back toward
+roughly half. Hardening can also be requested for a high-success group
 that still has failures. Use the actual solved/attempted counts in your prompt;
 those mixed groups continue training while the rewrite is prepared.
 
