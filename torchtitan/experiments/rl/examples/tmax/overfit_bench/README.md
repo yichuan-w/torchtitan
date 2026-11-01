@@ -255,7 +255,9 @@ cp teacher_runner.env.example <job>/runner.env                 # placement; edit
 cp reference_rewriter.env.example <job>/evolution/rewriter.env  # DAYTONA_API_KEY, codex account,
 chmod 600 <job>/evolution/rewriter.env                          # SYNTH_MODEL (v12: gpt-6.1-sol)
 
-# 2. the teacher's round before training, seeded into the pool (needs no GPU)
+# 2. the teacher's round before training, seeded into the pool (needs no GPU). Do not skip it:
+#    without it the pool is the original alone, and the first 8 groups (about an hour) all draw the
+#    original, which the base model rarely passes, so they take no step.
 set -a; . <job>/evolution/rewriter.env; set +a
 TRL_BASE=<job> TRL_TT=<tt> PYTHONPATH=<tt> EVOLVE_WORK_ROOT=<node-local dir> \
     python teacher_rewriter.py <job> --prepare
@@ -489,7 +491,24 @@ https://github.com/yichuan-w/torchtitan/issues/307. "Stable" is the readout's ow
 | feal-differential-cryptanalysis | 1 | the job never trained | no |
 | torch-pipeline-parallelism | 0 | no job before 2026-10-30 | no |
 
-Not done yet:
+What 2026-11-01 showed (pure RL, 0/1 reward, teacher rewriter, one GB300 host per job; #307):
+
+- **The original has to stay in the pool.** Before `--original-share`, every teacher retired the
+  original after its first 8 groups (torch-pipeline-parallelism: 8 of 378 groups), so a pass on it
+  could only appear in the readout, which trains nothing. Held at 1/8, sqlite-db-truncate passed the
+  original in training (four 1/12 or 1/10 groups) and then in the readout: 1/16 at steps 60, 65, 70
+  and 80, after 0 at every readout before.
+- **Training on the original alone gets no gradient when the base model cannot pass it.** dna-insert:
+  0 of about 1500 attempts on the original (base readouts 0/78), so its original-only jobs took no step,
+  at G=12 or G=32, at LR 3e-6 or 1e-5.
+- **LR 1e-5 degrades the policy** (see `recipe.env`).
+- **Two teacher failure modes**, now rules in `teacher_agents.md`: a full task with a runnable checker
+  gave 2-5/12 and the same task without it 0/12 (withdraw a checker in steps); a teacher retired the
+  versions that still gave mixed groups for harder ones that all failed, and its job took no step for
+  2.5 h (keep a mixed version).
+- **Once the original gives mixed groups, give it more of the draws.** sqlite-db-truncate at 1/2
+  (`--original-share 0.5`): its next original group passed 4/11, against 1/12 at 1/8.
+
 
 - **One task is solved.** Every task but sqlite-db-truncate either never passed or passed and lost it.
 - **No teacher-rewriter job has run to the end.** Every teacher job so far stopped within 5 readout
