@@ -788,6 +788,77 @@ def _collapse_echo(text: str, typed: str, min_lines: int) -> tuple[str, int]:
     return "\n".join(out), removed
 
 
+# Keys typed while a program that does not read its input holds the pane's
+# foreground pile up in the pty's input queue. Once it is full (4 KiB) every
+# later key waits behind it, C-c included, so no signal is ever raised and the
+# screen stops changing -- 7% of a TB-2.1 eval's trials froze this way for 5+
+# turns, and 3.7% of late training rollouts. Each key delivery therefore probes
+# the foreground first, in the same exec: text for a program that has left
+# earlier input unread is held back and the model told why; C-c / C-\ against a
+# full queue discard the unread input and signal the foreground process group
+# directly; and C-c sent on _UNFREEZE_ESCALATE_TURNS turns while the same
+# program holds the foreground (qemu -nographic, ``vim -Es``, a handler that
+# swallows SIGINT) is delivered as INT, then TERM, then KILL. TMAX_TERMINUS_UNFREEZE=0 turns it off.
+_UNFREEZE = os.environ.get("TMAX_TERMINUS_UNFREEZE", "1") == "1"
+_INTERRUPT_SIGNALS = {"C-c": "INT", "C-\\": "QUIT"}
+# n_tty buffers 4095 bytes; past this a key may not get in.
+_UNFREEZE_FULL_QUEUE_BYTES = 3000
+_UNFREEZE_ESCALATE_TURNS = 3
+_UNFREEZE_ESCALATION = ("INT", "TERM", "KILL")
+_UNFREEZE_MARK = "__torchtitan_unfreeze__"
+# Unread bytes in, and discarding, the pane tty's input queue. Opened O_NOCTTY so
+# the probing shell never adopts the pane's terminal. perl-base ships in every
+# Debian-family image; python3 covers the rest. Both missing reads as 0 unread.
+_TTY_QUEUE_BYTES = (
+    "{ perl -MFcntl -e 'sysopen(F,$ARGV[0],O_RDWR|O_NOCTTY) or exit 1; "
+    '$b=pack("L",0); ioctl(F,0x541B,$b) or exit 1; print unpack("L",$b)\' "$tty" '
+    "|| python3 -c 'import fcntl,os,struct,sys,termios; "
+    "fd=os.open(sys.argv[1],os.O_RDWR|os.O_NOCTTY); "
+    'print(struct.unpack("i",fcntl.ioctl(fd,termios.FIONREAD,b"0000"))[0])\' "$tty"; '
+    "} 2>/dev/null"
+)
+_TTY_FLUSH_INPUT = (
+    "{ perl -MFcntl -MPOSIX -e 'sysopen(F,$ARGV[0],O_RDWR|O_NOCTTY) or exit 1; "
+    "POSIX::tcflush(fileno(F),POSIX::TCIFLUSH()) or exit 1' \"$tty\" "
+    "|| python3 -c 'import os,sys,termios; "
+    "termios.tcflush(os.open(sys.argv[1],os.O_RDWR|os.O_NOCTTY),termios.TCIFLUSH)' "
+    '"$tty"; } 2>/dev/null'
+)
+
+
+def _sent_keys(command: str) -> list[str]:
+    """The key arguments of one ``tmux send-keys`` command ([] for anything else)."""
+    try:
+        tokens = shlex.split(command)
+    except ValueError:
+        return []
+    if tokens[:1] == ["timeout"]:
+        tokens = tokens[2:]
+    if tokens[:2] != ["tmux", "send-keys"]:
+        return []
+    keys = tokens[2:]
+    if keys[:1] == ["-t"]:
+        keys = keys[2:]
+    if keys[:1] == ["--"]:
+        keys = keys[1:]
+    return keys
+
+
+def _foreground_probe(pane_pid: str) -> str:
+    """Shell that sets ``tp`` (the pane tty's foreground process group, empty when
+    it is the pane's own shell), ``q`` (unread input bytes) and ``fg`` (its
+    command line), and prints them after _UNFREEZE_MARK."""
+    return (
+        f"pp={shlex.quote(pane_pid)}; tp=; q=0; fg=; "
+        "tp=$(sed 's/.*) //' /proc/$pp/stat 2>/dev/null | cut -d ' ' -f 6); "
+        'case "$tp" in ""|0|-*|"$pp") tp= ;; esac; '
+        'if [ -n "$tp" ]; then tty=$(readlink /proc/$pp/fd/0 2>/dev/null); '
+        f"q=$({_TTY_QUEUE_BYTES}); "
+        "fg=$(tr '\\0' ' ' < /proc/$tp/cmdline 2>/dev/null | cut -c 1-120); fi; "
+        f'printf "{_UNFREEZE_MARK}|%s|%s|%s\\n" "$tp" "${{q:-0}}" "$fg"; '
+    )
+
+
 def _tmux_client_kind(command: str) -> str:
     """"query", "keys", or "" for anything that is not one simple tmux client."""
     try:
@@ -855,6 +926,17 @@ class _SandboxEnvironment:
         # Returns the context-budget line for this turn ("" for none); set to
         # _AdapterLLM.context_notice once the session's LLM exists.
         self.context_notice: Callable[[], str] | None = None
+        # Foreground unfreezing (_UNFREEZE): notes for the next observation,
+        # whether this turn's text is being held, the process group the
+        # interrupts are aimed at, and on how many turns it was interrupted
+        # while it held the foreground (other keys in between do not reset it:
+        # the model mixes C-c with q, :q! and Enter).
+        self._unfreeze_notes: list[str] = []
+        self._holding_keys = False
+        self._held_chars = 0
+        self._interrupt_target = ""
+        self._interrupt_turns = 0
+        self._interrupted_this_turn = False
         from .terminus_terminal import TerminalLifecycle
 
         self.terminal = TerminalLifecycle(self._terminal_exec)
@@ -888,9 +970,25 @@ class _SandboxEnvironment:
         command = self._end_send_keys_options(command)
         # Classified before the turn-start prefix makes it a compound command.
         kind = _tmux_client_kind(command)
+        typed = _typed_keys(command) if kind == "keys" else ""
+        signal = ""
         if kind == "keys":
-            self._typed_now += _typed_keys(command)
+            signal = next(
+                (_INTERRUPT_SIGNALS[k] for k in _sent_keys(command) if k in _INTERRUPT_SIGNALS),
+                "",
+            )
         command = self._record_turn_start(command)
+        guarded = None
+        if kind == "keys" and _UNFREEZE and self.terminal.pane_pid:
+            if self._holding_keys and typed and not signal:
+                # Text after held text would land out of order, or alone.
+                self._held_chars += len(typed)
+                from harbor.environments.base import ExecResult  # type: ignore
+
+                return ExecResult(stdout="", stderr="", return_code=0)
+            guarded = self._guard_keys(command, typed, signal)
+        if kind == "keys":
+            self._typed_now += typed
 
         async def run(cmd: str):
             try:
@@ -917,7 +1015,105 @@ class _SandboxEnvironment:
                     return ExecResult(stdout="", stderr="", return_code=0)
                 raise
 
-        return await self.terminal.run(command, run)
+        if guarded is None:
+            return await self.terminal.run(command, run)
+        # The lifecycle reads the plain key delivery (a Harbor client it may
+        # check and replay); the guarded form is what runs.
+        result = await self.terminal.run(command, lambda _command: run(guarded))
+        return self._read_guard(result, typed)
+
+    def _guard_keys(self, command: str, typed: str, signal: str) -> str | None:
+        """``command`` wrapped in the foreground probe and what it decides."""
+        probe = _foreground_probe(self.terminal.pane_pid)
+        if not signal:
+            if not typed:
+                return None
+            # Text for a program that has left earlier input unread, and would
+            # bring the queue to where a key can no longer get in, only adds to
+            # the pile.
+            return (
+                f'{probe}if [ -n "$tp" ] && [ "${{q:-0}}" -gt 0 ] && '
+                f'[ $(( ${{q:-0}} + {len(typed.encode("utf-8", "replace"))} )) -ge '
+                f'{_UNFREEZE_FULL_QUEUE_BYTES} ]; then '
+                f'echo "{_UNFREEZE_MARK}held"; else {command}; fi'
+            )
+        if not self._interrupted_this_turn:
+            self._interrupted_this_turn = True
+            self._interrupt_turns += 1
+        # Repeated C-c against one program escalates; otherwise a full queue is
+        # the one case the key cannot reach it, so discard what is waiting and
+        # raise the signal ourselves. The key still follows; reaching the
+        # program (or the shell, once it is gone) it is harmless.
+        escalate = ""
+        if self._interrupt_target and self._interrupt_turns >= _UNFREEZE_ESCALATE_TURNS:
+            level = min(
+                self._interrupt_turns - _UNFREEZE_ESCALATE_TURNS,
+                len(_UNFREEZE_ESCALATION) - 1,
+            )
+            escalate = (
+                f'if [ "$tp" = {shlex.quote(self._interrupt_target)} ]; then '
+                f"sig={_UNFREEZE_ESCALATION[level]}; fi; "
+            )
+        return (
+            f'{probe}sig=; if [ -n "$tp" ]; then '
+            f'if [ "${{q:-0}}" -ge {_UNFREEZE_FULL_QUEUE_BYTES} ]; then sig={signal}; fi; '
+            f"{escalate}"
+            f'if [ -n "$sig" ]; then {_TTY_FLUSH_INPUT}; kill -s "$sig" -- "-$tp" '
+            f'2>/dev/null; echo "{_UNFREEZE_MARK}signal|$sig"; fi; fi; {command}'
+        )
+
+    def _read_guard(self, result: Any, typed: str) -> Any:
+        """Strip the probe's lines from ``result`` and act on what they say."""
+        stdout = result.stdout or ""
+        fields: list[str] = []
+        action = ""
+        kept = []
+        for line in stdout.split("\n"):
+            if line.startswith(_UNFREEZE_MARK + "|"):
+                fields = line.split("|", 3)[1:]
+            elif line.startswith(_UNFREEZE_MARK):
+                action = line[len(_UNFREEZE_MARK) :]
+            else:
+                kept.append(line)
+        result.stdout = "\n".join(kept)
+        if len(fields) < 3:
+            return result
+        target, unread, program = fields[0], fields[1], fields[2].strip() or "?"
+        if target != self._interrupt_target:
+            self._interrupt_target = target
+            self._interrupt_turns = 1 if (target and self._interrupted_this_turn) else 0
+        if action == "held":
+            self._holding_keys = True
+            self._held_chars += len(typed)
+            self.terminal._event("keys_held", pgrp=target, unread=unread, program=program)
+            self._unfreeze_notes.append(
+                f"`{program}` (pid {target}) is running in the foreground and has "
+                f"not read the last {unread} bytes typed to it"
+            )
+        elif action.startswith("signal|"):
+            sig = action.split("|", 1)[1]
+            self.terminal._event(
+                "foreground_signaled", pgrp=target, unread=unread, program=program, signal=sig
+            )
+            self._unfreeze_notes.append(
+                f"`{program}` (pid {target}) was not responding to keys, so its "
+                f"unread input ({unread} bytes) was discarded and it was sent SIG{sig}"
+            )
+        return result
+
+    def _take_unfreeze_note(self) -> str:
+        """The harness note for this turn's observation, and a fresh turn."""
+        notes = self._unfreeze_notes
+        if self._holding_keys:
+            notes = notes + [
+                f"so {self._held_chars} characters you typed after that were not "
+                "sent; wait for it to finish, or stop it with C-c"
+            ]
+        self._unfreeze_notes = []
+        self._holding_keys = False
+        self._held_chars = 0
+        self._interrupted_this_turn = False
+        return f"[Terminal note: {'; '.join(notes)}.]" if notes else ""
 
     # ---- the turn's observation: new output by tmux line offsets ----------
     #
@@ -1078,6 +1274,9 @@ class _SandboxEnvironment:
         else:
             observation = f"Current Terminal Screen:\n{screen}"
         shown = "new" if observation.startswith("New") else "screen"
+        unfreeze_note = self._take_unfreeze_note()
+        if unfreeze_note:
+            observation = f"{observation.rstrip()}\n\n{unfreeze_note}\n"
         notice = self.context_notice() if self.context_notice else ""
         if notice:
             if _CONTEXT_NOTICE_STYLE in _APPENDED_NOTICE_STYLES:
