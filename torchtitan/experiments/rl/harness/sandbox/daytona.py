@@ -677,7 +677,7 @@ class DaytonaSandbox:
                                                per-task request is clamped to it
                                                rather than refused at create.
       ``TT_DAYTONA_MAX_DISK_GB``           -- per-sandbox disk cap, the same way
-                                               (default 10).
+                                               (default 20).
       ``TT_DAYTONA_MAX_CPU``               -- per-sandbox vCPU cap, the same way
                                                (default 4).
       ``TT_DAYTONA_GPU_MAX_{CPU,MEM_GB,DISK_GB}`` -- the same three caps for a
@@ -1010,7 +1010,7 @@ class DaytonaSandbox:
         cap_default = (
             {"CPU": "16", "MEM_GB": "192", "DISK_GB": "512"}
             if self.gpu
-            else {"CPU": "4", "MEM_GB": "8", "DISK_GB": "10"}
+            else {"CPU": "4", "MEM_GB": "8", "DISK_GB": "20"}
         )
         cpu = (
             self.cpu
@@ -1055,8 +1055,9 @@ class DaytonaSandbox:
             else int(_getenv("TT_DAYTONA_DISK_GB", default="6"))
         )
         # The same cap for disk, for the same reason: Daytona refuses a create
-        # over 10 GiB ("Disk request 20GB exceeds maximum allowed per sandbox"),
-        # and 18 of the 66 TB4 tasks declare 15-1000 GiB. At the cap a task that
+        # over its per-sandbox maximum (10 GiB until the account limit was raised;
+        # a 20 GiB create verified 2026-11-01), and 18 of the 66 TB4 tasks
+        # declare 15-1000 GiB. At the cap a task that
         # really needs more fills its disk, which the disk issue kinds report.
         disk_cap = int(_getenv(cap_env + "DISK_GB", default=cap_default["DISK_GB"]))
         if disk > disk_cap:

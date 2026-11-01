@@ -83,12 +83,12 @@ def test_network_block_all(monkeypatch):
 
 
 def test_cpu_rows_keep_the_cpu_clamp(monkeypatch):
-    # #242's clamp, unchanged: 4 vCPU / 8 GiB / 10 GiB, a request above is shrunk.
+    # #242's clamp: 4 vCPU / 8 GiB / 20 GiB (disk was 10); a request above is shrunk.
     params, _seen = _create(
         monkeypatch, DaytonaSandbox("img", cpu=16, memory=32, disk_gb=1000)
     )
     r = params.resources
-    assert (r.cpu, r.memory, r.disk) == (4, 8, 10)
+    assert (r.cpu, r.memory, r.disk) == (4, 8, 20)
 
 
 @pytest.mark.parametrize(
