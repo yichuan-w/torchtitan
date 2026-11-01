@@ -220,7 +220,9 @@ class Teacher:
         self._futs: dict[Future, tuple[str, str]] = {}
 
     def _save(self) -> None:
-        layout.write_json_atomic(self.dir / "state.json", self.state)
+        # which_version writes the same file from the client's thread; one temp name, so one writer at a time.
+        with self._lock:
+            layout.write_json_atomic(self.dir / "state.json", self.state)
 
     def label(self, vid: str) -> str:
         v = self.versions.get(vid)
