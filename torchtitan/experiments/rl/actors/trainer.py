@@ -674,9 +674,15 @@ class PolicyTrainer(Actor, Configurable):
         )
         _maybe_regional_compile(model)
 
-        model.to_empty(device=device_type)
+        # As core torchtitan's Trainer: with FSDP CPU offload the sharded parameters
+        # live on the CPU, so they are materialized there and only buffers on the GPU.
+        if config.training.enable_cpu_offload:
+            init_device, buffer_device = "cpu", torch.device(device_type)
+        else:
+            init_device, buffer_device = device_type, None
+        model.to_empty(device=init_device)
         with torch.no_grad():
-            model.init_weights(buffer_device=None)
+            model.init_weights(buffer_device=buffer_device)
 
         return model
 
