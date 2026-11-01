@@ -35,7 +35,8 @@ Each round, decide, and write `plan.json`:
   solution/), usually starting from a copy of one in `problems/`. You may change anything: the
   instruction, the environment, what is already in place when the student starts, the tests, the
   reference solution. Write as many as you see fit.
-- **Retire** versions, the original included.
+- **Retire** versions other than the original. The original stays in the pool at {share} of the
+  draw weight; the platform holds that share whatever weight you give it.
 - **Weights** of the versions in the pool, and which versions the next groups draw first
   (`draw_first`; it replaces the previous list).
 At most {cap} versions can be in the pool at once, because only {slots} groups run at a time.
@@ -55,9 +56,9 @@ to an action the student takes, not to the conclusion. What that means in practi
 - **A version is worth its groups only if what it trains carries over to the original.** Once a
   version gives mixed groups, write the next one closer to the original (less help, more of the
   task); once it is mastered, retire it. Do not keep a mastered version in the pool.
-- **Look at the original now and then.** Draw it at a small weight so its attempts show what still
-  fails on it; its groups are all-fail until the student can solve it, which costs a slot but not
-  a step.
+- **Read the original's attempts.** Its groups are all-fail until the student can solve it, which
+  costs a slot but not a step; the first group with one pass trains the student on the original
+  itself. Its attempts show what still fails on it, which is what the next version should train.
 
 ## This directory
 

@@ -58,7 +58,7 @@ def check_ok(package, *, shortcut, timeout, sandbox):
     return {"reward": 0.0 if shortcut else 1.0}
 
 
-def _setup(job, monkeypatch, script, check=check_ok):
+def _setup(job, monkeypatch, script, check=check_ok, original_share=0.0):
     root, run, sched, client = job
     (root.path / "job.json").write_text(json.dumps({"task": "a"}))
     r0 = root.evolution.task("a").rev(0)
@@ -66,7 +66,8 @@ def _setup(job, monkeypatch, script, check=check_ok):
                       ("tests/test.sh", "exit 0\n"), ("solution/solve.sh", "true\n")]:
         (r0 / rel).parent.mkdir(parents=True, exist_ok=True)
         (r0 / rel).write_text(text)
-    t = tr.Teacher(root, client, _ev(), ask=script, check=check)
+    t = tr.Teacher(root, client, _ev(), ask=script, check=check,
+                   policy=tr.Policy(original_share=original_share))
     t.start()
     return t
 
@@ -173,6 +174,27 @@ def test_retire_and_weights_follow_the_plan(job, monkeypatch):
     pool = _pool(sched)
     assert [v["status"] for v in pool.values() if v["rev"] == 1] == ["retired"] and pool[V0]["weight"] == 2.0
     assert "weight r9: not an active version" in t.state["rounds"][1]["done"]
+
+
+def test_the_original_keeps_its_share_and_cannot_be_retired(job, monkeypatch):
+    root, run, sched, client = job
+    script = Script(new_version("v1", "x"), lambda w: {"retire": ["r0"], "weights": {"r0": 0.0, "r1": 3.0}})
+    t = _setup(job, monkeypatch, script, original_share=0.25)
+    _settle(t, lambda: len(_pool(sched)) == 2)
+    assert abs(_pool(sched)[V0]["weight"] - 1.0 / 3) < 1e-6  # r1 at 1.0: r0 holds 25% of draws
+    _attempts(run, sched, group=0, rewards=[0.0] * 12)
+    _settle(t, lambda: len(script.prompts) == 2)
+    pool = _pool(sched)
+    assert pool[V0]["status"] == "active" and abs(pool[V0]["weight"] - 1.0) < 1e-6  # 3.0 / 3
+    assert "retire r0: the original stays in the pool" in t.state["rounds"][1]["done"]
+    assert "25% of the\n  draw weight" in (t.work / "AGENTS.md").read_text()
+
+
+def test_a_retired_original_is_added_back(job, monkeypatch):
+    root, run, sched, client = job
+    sched.pool.retire(V0)
+    t = _setup(job, monkeypatch, Script(), original_share=0.25)
+    assert _pool(sched)[V0]["status"] == "active" and _pool(sched)[V0]["weight"] == 1.0
 
 
 def test_a_resumed_run_numbers_its_groups_after_the_earlier_runs(job, monkeypatch):
