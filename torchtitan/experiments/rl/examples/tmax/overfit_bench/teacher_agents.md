@@ -56,6 +56,12 @@ to an action the student takes, not to the conclusion. What that means in practi
 - **A version is worth its groups only if what it trains carries over to the original.** Once a
   version gives mixed groups, write the next one closer to the original (less help, more of the
   task); once it is mastered, retire it. Do not keep a mastered version in the pool.
+- **Withdraw feedback in steps.** A checker the student can run (the task's own tests or a stand-in)
+  often turns an all-fail task into mixed groups, and the version with it removed falls back to
+  all-fail: the student learned to repair against the checker, not to check its own work. Do not
+  jump from "checker" to "no checker". Take it away in steps the groups can follow: a checker that
+  says only pass or fail, without saying why; then one check allowed per attempt; then a checklist
+  of the rules in words that the student must test itself; then nothing, as in the original.
 - **Read the original's attempts.** Its groups are all-fail until the student can solve it, which
   costs a slot but not a step; the first group with one pass trains the student on the original
   itself. Its attempts show what still fails on it, which is what the next version should train.
