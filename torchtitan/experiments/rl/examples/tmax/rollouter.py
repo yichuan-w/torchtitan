@@ -32,7 +32,7 @@ last turn's ``env_rewards`` (key ``tmax_reward``) and read back by ``RewardTMax`
 
 Knobs read from env (the launcher sets these; see ``submit_swe_tmax_9b.sh``):
   ``SHIM_BIND_HOST`` / ``SHIM_PORT``  adapter bind address (default 127.0.0.1:18001)
-  ``SWE_TIME_BUDGET_SEC``             per-agent wallclock (default 2400)
+  ``SWE_TIME_BUDGET_SEC``             per-agent wallclock (default 1900)
   ``TMAX_EVAL_TIMEOUT_SEC``           verifier (test.sh) run timeout, applied to
                                       TRAINING and validation rollouts alike
                                       (default 600)
@@ -1302,7 +1302,7 @@ class TMaxRollouter(Rollouter):
         num_rollout_workers x this. Each completed sibling immediately releases its
         slot to the next waiting rollout."""
 
-        time_budget_sec: int = 2400
+        time_budget_sec: int = 1900
         """Per-rollout agent wall-clock budget (the vanillux loop stops after this)."""
 
         agent_budget_floor_sec: int = _DECLARED_AGENT_BUDGET_FLOOR_SEC

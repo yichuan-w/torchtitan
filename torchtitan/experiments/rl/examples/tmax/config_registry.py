@@ -202,7 +202,11 @@ def _tmax_rollouter(*, validation_from_caller: bool = False) -> TMaxRollouter.Co
         # names + defaults as before; the RolloutWorker pool splits
         # rollout_concurrency across workers.
         rollout_concurrency=int(os.environ.get("SWE_ROLLOUT_CONCURRENCY", "16")),
-        time_budget_sec=int(os.environ.get("SWE_TIME_BUDGET_SEC", "2400")),
+        # 1900 keeps a group's slowest rollout (plus ~50 s boot) inside the 5-step
+        # off-policy window at ~7 min/step: in run 1030c (budget 2400), groups whose
+        # slowest rollout passed 2300 s were dropped stale 86% of the time, while
+        # rollouts past 1900 s held under 1% of all solves.
+        time_budget_sec=int(os.environ.get("SWE_TIME_BUDGET_SEC", "1900")),
         eval_timeout_sec=int(os.environ.get("TMAX_EVAL_TIMEOUT_SEC", "600")),
         max_context_tokens=int(
             os.environ.get(
