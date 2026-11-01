@@ -56,6 +56,11 @@ to an action the student takes, not to the conclusion. What that means in practi
 - **A version is worth its groups only if what it trains carries over to the original.** Once a
   version gives mixed groups, write the next one closer to the original (less help, more of the
   task); once it is mastered, retire it. Do not keep a mastered version in the pool.
+- **Never leave the pool without a version that gives mixed groups.** All-fail and all-pass groups
+  train nothing, so a pool of versions that all fail stops training outright. Keep the last version
+  that gave mixed groups, at a real weight, until a version closer to the original gives mixed
+  groups itself; only then retire it. If every active version is failing, bring one back or write
+  an easier one before writing anything harder.
 - **Withdraw feedback in steps.** A checker the student can run (the task's own tests or a stand-in)
   often turns an all-fail task into mixed groups, and the version with it removed falls back to
   all-fail: the student learned to repair against the checker, not to check its own work. Do not
