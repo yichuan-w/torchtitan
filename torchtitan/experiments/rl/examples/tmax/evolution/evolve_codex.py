@@ -3777,6 +3777,35 @@ def _trace_counts(traces: Path) -> tuple[int, int] | None:
     return (solved, attempts) if attempts else None
 
 
+def _rewrite_context(traces: Path) -> tuple[str, str]:
+    """The author prompt's first line and its LAST MIXED VERSION paragraph,
+    from traces/context.json (evolve_ondella._stage_rewrite_context, staged
+    under EVOLVE_REWRITE_CONTEXT); empty strings for what it does not hold,
+    and both empty without it."""
+    try:
+        context = json.loads((traces / "context.json").read_text())
+    except (OSError, ValueError):
+        return "", ""
+    head = para = ""
+    if p := context.get("prediction"):
+        head = (
+            f"The version you are rewriting (r{p['rev']}) was predicted to solve "
+            f"{p['expected']}, and its first training group solved {p['solved']} of "
+            f"{p['total']}.\n\n"
+        )
+    if m := context.get("last_mixed"):
+        para = (
+            "\n\nTHE LAST MIXED VERSION\n"
+            f"r{m['rev']} is the latest version of this task that produced a mixed "
+            f"group: {m['solved']} of {m['total']} solved (run {m['run']}, group "
+            f"{m['group']}). Its instruction is {m['instruction']}. Compare it with "
+            "the current one: what changed between the two is the first candidate "
+            "for what moved this task out of the learnable band. It is read-only "
+            "evidence, not part of the task.\n"
+        )
+    return head, para
+
+
 def evolve_agentic(
     rewrite: layout.RewriteDir,
     task: dict,
@@ -3887,6 +3916,9 @@ def evolve_agentic(
         + _budget(author_timeout)
     )
 
+    if job in ("harder", "easier"):
+        head, last_mixed = _rewrite_context(rewrite.traces)
+        prompt = head + prompt
     history = rewrite.traces / "history"
     if job in ("harder", "easier") and history.is_dir() and any(history.iterdir()):
         prompt += (
@@ -3912,6 +3944,9 @@ def evolve_agentic(
             "revision failed -- open the records that answer it. They are "
             "read-only, and none of it goes into the task.\n"
         )
+
+    if job in ("harder", "easier"):
+        prompt += last_mixed
 
     if job in ("harder", "easier") and task.get("_student_feedback"):
         feedback = task["_student_feedback"]

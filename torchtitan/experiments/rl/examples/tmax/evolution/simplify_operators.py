@@ -350,6 +350,22 @@ def extra_guidance() -> str:
 
 
 EXPECTED = re.compile(r"^\s*\d+\s+of\s+\d+\s*$")
+# A harder rewrite's prediction in run/hardening.md, on a line of its own:
+# expected: "k of n" (EVOLVE_HARDER_TARGET asks for it). A list marker or
+# backticks around the line are tolerated; prose with a count in it is not.
+HARDER_EXPECTED = re.compile(
+    r'^[ \t>*`-]*expected:[ \t]*"?[ \t]*(\d+)[ \t]+of[ \t]+(\d+)[ \t]*"?`?[ \t]*$',
+    re.MULTILINE | re.IGNORECASE,
+)
+
+
+def harder_expected(text: str) -> str | None:
+    """The ``expected: "k of n"`` line of a hardening.md, as "k of n"; None
+    when there is none or k exceeds n."""
+    m = HARDER_EXPECTED.search(text)
+    if m is None or int(m[1]) > int(m[2]):
+        return None
+    return f"{int(m[1])} of {int(m[2])}"
 
 # How an attempt that ran out of room ends (rollouter._FINISH_REASONS).
 LIMIT_REASONS = frozenset({"hit_context_limit", "hit_max_turns", "hit_time_budget"})

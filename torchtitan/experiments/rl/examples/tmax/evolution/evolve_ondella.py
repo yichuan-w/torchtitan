@@ -66,6 +66,7 @@ import json
 import logging
 import math
 import os
+import re
 import shutil
 import socket
 import subprocess
@@ -513,6 +514,78 @@ def _runs_of(counts: list[str]) -> str:
         else:
             out.append([c, 1])
     return " ".join(c if n == 1 else f"{c} x{n}" for c, n in out)
+
+
+def rewrite_context_enabled() -> bool:
+    """EVOLVE_REWRITE_CONTEXT=1 (#306 item 2): stage traces/context.json, the
+    last revision that produced a mixed group and what the revision being
+    rewritten was predicted to score (_stage_rewrite_context). Default off."""
+    return os.environ.get("EVOLVE_REWRITE_CONTEXT", "0") == "1"
+
+
+_K_OF_N = re.compile(r"(\d+)\s+of\s+(\d+)")
+
+
+def _prediction_for(task: layout.TaskDir, rev: int) -> tuple[int, int] | None:
+    """What the accepted rewrite that made ``rev`` expected from its next
+    group, as (k, n): an easier rewrite's simplify.json ``expected``, a
+    harder rewrite's ``expected: "k of n"`` line in hardening.md
+    (EVOLVE_HARDER_TARGET asks for it). None for r0, a revert, or a
+    prediction in free text."""
+    for earlier in task.rewrite_dirs():
+        try:
+            meta = json.loads(earlier.meta.read_text())
+        except (OSError, ValueError):
+            continue
+        if meta.get("status") != "accepted" or meta.get("result_rev") != rev:
+            continue
+        expected = (meta.get("simplify") or {}).get("expected")
+        if not expected:
+            for path in (earlier.notes / "hardening.md", earlier.package / "run" / "hardening.md"):
+                if path.is_file():
+                    expected = ec.so.harder_expected(path.read_text(errors="replace"))
+                    break
+        m = _K_OF_N.search(expected or "")
+        return (int(m[1]), int(m[2])) if m else None
+    return None
+
+
+def _stage_rewrite_context(
+    root: layout.Root, task: layout.TaskDir, rewrite: layout.RewriteDir, signal: dict
+) -> dict:
+    """traces/context.json for the author's prompt (evolve_codex
+    _rewrite_context), and the context it holds.
+
+    ``last_mixed``: the latest revision whose training group came out mixed
+    (lineage_policy.last_mixed_rev), when it is not the revision being
+    rewritten, with its instruction copied to traces/last-mixed/. A copy, not
+    a link, so an edit there cannot reach the revision. ``prediction``: what
+    the rewrite that made this revision expected, beside that revision's first
+    training group. Each is left out when its data is missing. Under traces/,
+    so the blind verifier never sees it."""
+    rev = int(signal["rev"])
+    index = _index_attempts(root, task)
+    context: dict = {}
+    mixed = lineage_policy.last_mixed_rev(index)
+    if mixed is not None and mixed["rev"] != rev:
+        src = task.rev(mixed["rev"]) / "instruction.md"
+        if src.is_file():
+            out = rewrite.traces / "last-mixed"
+            out.mkdir(parents=True, exist_ok=True)
+            shutil.copyfile(src, out / "instruction.md")
+            context["last_mixed"] = {**mixed, "instruction": "traces/last-mixed/instruction.md"}
+    predicted = _prediction_for(task, rev)
+    first = next((g for g in lineage_policy.training_groups(index) if g["rev"] == rev), None)
+    if predicted is not None and first is not None:
+        context["prediction"] = {
+            "rev": rev,
+            "expected": f"{predicted[0]} of {predicted[1]}",
+            **{k: first[k] for k in ("run", "group", "solved", "total")},
+        }
+    if context:
+        rewrite.traces.mkdir(parents=True, exist_ok=True)
+        layout.write_json_atomic(rewrite.traces / "context.json", context)
+    return context
 
 
 def _write_record(root: layout.Root, task: layout.TaskDir, rewrite: layout.RewriteDir) -> int:
@@ -1149,6 +1222,8 @@ def handle(
             root, task, rewrite, strict_storage=workspace.is_local, current=d
         )
         _write_record(root, task, rewrite)
+        if rewrite_context_enabled():
+            _stage_rewrite_context(root, task, rewrite, d)
         if n_history:
             log.info("%s history: %d earlier rewrites in traces/history", tid, n_history)
         parent_snapshot = None

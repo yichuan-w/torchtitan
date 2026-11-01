@@ -68,3 +68,156 @@ def test_target_band_rejects_a_malformed_band(monkeypatch, spec) -> None:
     monkeypatch.setenv("EVOLVE_EASIER_TARGET", spec)
     with pytest.raises(ValueError, match="EVOLVE_EASIER_TARGET"):
         so.prompt("vague", 12)
+
+
+# -- item 2: rewriter context ------------------------------------------------
+
+import json  # noqa: E402
+
+import evolve_codex as ec  # noqa: E402
+import evolve_ondella as od  # noqa: E402
+import test_blind_verifier as tb  # noqa: E402
+import test_evolve_lineage as tl  # noqa: E402
+from torchtitan.experiments.rl.examples.tmax import rollout_record  # noqa: E402
+
+
+def _group(root, group: int, rev: int, rewards) -> None:
+    r = root.run(tl.RUN)
+    for i, reward in enumerate(rewards):
+        rollout_record.write_record(
+            r.rollout_record("tw_a", group, i),
+            {"task": "tw_a", "rev": rev, "run": tl.RUN, "group": group, "rollout": i,
+             "reward": reward},
+            [{"turn": 1, "keystrokes": ["ls\n"], "output": ""}],
+        )
+
+
+def _capture_context(monkeypatch) -> list:
+    """What each process_one call found under traces/: context.json and the
+    last-mixed instruction, or None."""
+    seen = []
+    stub = od.fb.process_one
+
+    def wrapped(rewrite, signal, **kw):
+        ctx = rewrite.traces / "context.json"
+        mixed = rewrite.traces / "last-mixed" / "instruction.md"
+        seen.append({
+            "context": json.loads(ctx.read_text()) if ctx.exists() else None,
+            "last_mixed": mixed.read_text() if mixed.exists() else None,
+        })
+        return stub(rewrite, signal, **kw)
+
+    monkeypatch.setattr(od.fb, "process_one", wrapped)
+    return seen
+
+
+def _handle(root, group: int, rev: int, *, fold: bool = True) -> dict:
+    tl._signal(root, group=group, rev=rev)
+    h = od.handle(root, od._replay_signal(root, f"{tl.RUN}/tw_a--g{group}"), declared={})
+    assert h["status"] == "accepted"
+    if fold:
+        od.fold(root, [h])
+    return h
+
+
+@pytest.mark.parametrize("flag", [False, True])
+def test_context_names_the_last_mixed_revision_and_the_prediction(tmp_path, monkeypatch, flag):
+    root = tl._root(tmp_path, monkeypatch)
+    monkeypatch.setenv("SWE_POLICY_CANARY_K", "0")
+    if flag:
+        monkeypatch.setenv("EVOLVE_REWRITE_CONTEXT", "1")
+    tl._stub(monkeypatch, simplify={"expected": "1 of 2"})
+    seen = _capture_context(monkeypatch)
+    _group(root, 6, 0, [1.0, 0.0])  # r0 came out mixed once
+    _handle(root, 7, 0)  # r1, predicted 1 of 2
+    _handle(root, 8, 1, fold=False)  # r1's first group: 2 of 2
+    task = root.evolution.task("tw_a")
+    if not flag:
+        assert seen == [{"context": None, "last_mixed": None}] * 2
+        return
+    # r0 is the input of the first rewrite: it is the current version there.
+    first, second = seen
+    assert first == {"context": None, "last_mixed": None}
+    assert second["last_mixed"] == (task.rev(0) / "instruction.md").read_text()
+    assert second["context"] == {
+        "last_mixed": {"rev": 0, "run": tl.RUN, "group": 6, "solved": 1, "total": 2,
+                       "instruction": "traces/last-mixed/instruction.md"},
+        "prediction": {"rev": 1, "expected": "1 of 2", "run": tl.RUN, "group": 8,
+                       "solved": 2, "total": 2},
+    }
+
+
+def test_context_without_a_mixed_group_or_a_prediction_is_not_written(tmp_path, monkeypatch):
+    root = tl._root(tmp_path, monkeypatch)
+    monkeypatch.setenv("SWE_POLICY_CANARY_K", "0")
+    monkeypatch.setenv("EVOLVE_REWRITE_CONTEXT", "1")
+    tl._stub(monkeypatch)  # no simplify.json, no hardening.md: no prediction
+    seen = _capture_context(monkeypatch)
+    _handle(root, 7, 0)
+    _handle(root, 8, 1, fold=False)
+    assert seen == [{"context": None, "last_mixed": None}] * 2
+
+
+def test_prediction_reads_a_harder_expected_line_and_skips_free_text(tmp_path) -> None:
+    from torchtitan.experiments.rl.examples.tmax import layout
+
+    task = layout.Root(tmp_path).evolution.task("tw_a")
+    rw = task.rewrite("harder", "20261031-000000Z")
+    rw.notes.mkdir(parents=True)
+    rw.meta.write_text(json.dumps({"status": "accepted", "result_rev": 3}))
+    (rw.notes / "hardening.md").write_text("I expect 5 of 8 to pass.\n")
+    assert od._prediction_for(task, 3) is None
+    (rw.notes / "hardening.md").write_text('# Plan\n\nexpected: "4 of 12"\n')
+    assert od._prediction_for(task, 3) == (4, 12)
+    assert od._prediction_for(task, 2) is None
+
+
+def _author_prompt(tmp_path, monkeypatch, job, context=None) -> str:
+    rw = tb._rewrite(tmp_path, monkeypatch)
+    sessions = []
+    tb._wire(monkeypatch, sessions, [])
+    monkeypatch.setattr(ec.so, "read_decision", lambda *_: {"operator": "x"})
+    rw.traces.mkdir(parents=True, exist_ok=True)
+    if context is not None:
+        (rw.traces / "context.json").write_text(json.dumps(context))
+    try:
+        ec.evolve_agentic(rw, dict(tb.SEED), job)
+    except Exception:  # noqa: BLE001 -- only the author's prompt is under test
+        pass
+    return sessions[0]["prompt"]
+
+
+CONTEXT = {
+    "last_mixed": {"rev": 2, "run": "r", "group": 9, "solved": 5, "total": 12,
+                   "instruction": "traces/last-mixed/instruction.md"},
+    "prediction": {"rev": 4, "expected": "6 of 12", "run": "r", "group": 11,
+                   "solved": 1, "total": 12},
+}
+
+
+@pytest.mark.parametrize("job", ["harder", "easier"])
+def test_author_prompt_opens_with_the_prediction_and_names_the_last_mixed(
+    tmp_path, monkeypatch, job
+):
+    prompt = _author_prompt(tmp_path, monkeypatch, job, CONTEXT)
+    assert prompt.startswith(
+        "The version you are rewriting (r4) was predicted to solve 6 of 12, and its "
+        "first training group solved 1 of 12.\n\nThis task was solved"
+    )
+    assert "THE LAST MIXED VERSION\nr2 is the latest version" in prompt
+    assert "5 of 12 solved (run r, group 9)" in prompt
+
+
+def test_author_prompt_takes_what_the_context_holds(tmp_path, monkeypatch):
+    only_mixed = {"last_mixed": CONTEXT["last_mixed"]}
+    prompt = _author_prompt(tmp_path / "a", monkeypatch, "harder", only_mixed)
+    assert prompt.startswith("This task was solved")
+    assert "THE LAST MIXED VERSION" in prompt
+    bare = _author_prompt(tmp_path / "b", monkeypatch, "harder")
+    assert "THE LAST MIXED VERSION" not in bare and "was predicted" not in bare
+
+
+def test_rewrite_context_tolerates_a_missing_or_broken_file(tmp_path) -> None:
+    assert ec._rewrite_context(tmp_path) == ("", "")
+    (tmp_path / "context.json").write_text("{not json")
+    assert ec._rewrite_context(tmp_path) == ("", "")
