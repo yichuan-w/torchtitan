@@ -589,41 +589,115 @@ class Teacher:
         return rows
 
 
+# A refusal, as the CLI or the model words it: the round ends without plan.json (or with a nonzero exit
+# that is not a provider hiccup) and its output says it will not do the work, e.g. a cyber-safety block.
+REFUSAL = re.compile(
+    r"cyber|safety (?:system|policy|filter)|content (?:policy|filter)|usage polic|flagged|"
+    r"violat\w* (?:our|the|its) polic|(?:can't|cannot|can not|unable to|won't|will not) (?:help|assist|comply)",
+    re.I)
+
+
+@dataclass(frozen=True, kw_only=True)
+class Backend:
+    """How one teacher thread reaches its model. ``primary`` is the evolve harness's (EVOLVE_CODEX_*);
+    ``fallback`` (TEACHER_FALLBACK_BIN / _MODEL / _CONFIG) takes over a run whose primary refused."""
+    name: str
+    home: str
+    state_key: str
+    bin: str | None = None
+    model: str | None = None
+    overrides: tuple[str, ...] = ()
+
+
+PRIMARY = Backend(name="primary", home="thread", state_key="thread")
+
+
+def fallback_backend() -> Backend | None:
+    model = os.environ.get("TEACHER_FALLBACK_MODEL")
+    if not model:
+        return None
+    return Backend(name="fallback", home="thread-fallback", state_key="fallback_thread",
+                   bin=os.environ.get("TEACHER_FALLBACK_BIN") or shutil.which("codex"), model=model,
+                   overrides=tuple(os.environ.get("TEACHER_FALLBACK_CONFIG", "").split()))
+
+
+def _cmd(ec, backend: Backend, cwd: Path, sid: str | None) -> list[str]:
+    if backend.bin is None:
+        return ec._codex_cmd(cwd, ec.CODEX_MODEL, resume=sid)
+    cmd = [backend.bin, "exec", *(["resume", sid] if sid else []),
+           "--dangerously-bypass-approvals-and-sandbox", "--skip-git-repo-check"]
+    for override in (*backend.overrides, f"model_reasoning_effort={ec.CODEX_EFFORT}"):
+        cmd += ["-c", override]
+    return cmd + ([] if sid else ["-C", str(cwd)]) + ["-m", backend.model, "-"]
+
+
 def run_codex(teacher: Teacher, prompt: str) -> None:
     """One round of the teacher's codex thread: the first round starts it, later rounds resume it. Its
     CODEX_HOME is the teacher's own, kept across rounds so the thread can be resumed; each round's
-    prompt and output are kept under rounds/."""
+    prompt and output are kept under rounds/.
+
+    A round the primary refuses is run again on the fallback backend, in a thread of its own (a codex
+    thread cannot change provider once started), and every later round stays there. The new thread
+    is told it takes over; history.md and summary.md carry what came before."""
+    fallback = fallback_backend()
+    rd = teacher.dir / "rounds" / f"{len(teacher.state['rounds']):03d}"
+    rd.mkdir(parents=True, exist_ok=True)
+    (rd / "prompt.md").write_text(prompt)
+    if fallback is not None and teacher.state.get("backend") == "fallback":
+        _run_thread(teacher, fallback, prompt, rd)
+        return
+    text = _run_thread(teacher, PRIMARY, prompt, rd, may_refuse=fallback is not None)
+    if text is None:
+        return
+    log.warning("the primary backend refused round %s; the fallback (%s) takes over", rd.name, fallback.model)
+    teacher.state["backend"] = "fallback"
+    teacher._save()
+    (rd / "refused.txt").write_text(text[-20000:])
+    takeover = ("You take over as this run's teacher from an earlier session that stopped. AGENTS.md "
+                "says what the job is; history.md and summary.md hold every earlier round and what "
+                "happened after it.\n\n")
+    _run_thread(teacher, fallback, takeover + prompt, rd)
+
+
+def _run_thread(teacher: Teacher, backend: Backend, prompt: str, rd: Path, *,
+                may_refuse: bool = False) -> str | None:
+    """Run the round on ``backend``. With ``may_refuse``, a refusal returns the output instead of
+    raising; any other outcome returns None or raises as before."""
     ec = teacher.ev.ec
-    home = layout.SessionDir(teacher.dir / "thread")
+    home = layout.SessionDir(teacher.dir / backend.home)
     home.codex_home.mkdir(parents=True, exist_ok=True)
     if ec.ACCOUNT_HOME:
         (home.codex_home / "auth.json").unlink(missing_ok=True)
     env = ec._codex_env(home)
-    sid = teacher.state.get("thread")
-    cmd = ec._codex_cmd(teacher.work, ec.CODEX_MODEL, resume=sid)
-    rd = teacher.dir / "rounds" / f"{len(teacher.state['rounds']):03d}"
-    rd.mkdir(parents=True, exist_ok=True)
-    (rd / "prompt.md").write_text(prompt)
+    sid = teacher.state.get(backend.state_key)
+    cmd = _cmd(ec, backend, teacher.work, sid)
+    tag = "" if backend is PRIMARY else f"{backend.name}-"
     for attempt in range(6):
-        with (rd / f"stdout-{attempt}.txt").open("w") as out, (rd / f"stderr-{attempt}.txt").open("w") as err:
+        out_path, err_path = rd / f"{tag}stdout-{attempt}.txt", rd / f"{tag}stderr-{attempt}.txt"
+        with out_path.open("w") as out, err_path.open("w") as err:
             p = subprocess.run(cmd, input=prompt, stdout=out, stderr=err, text=True, cwd=str(teacher.work), env=env,
                                timeout=teacher.policy.round_timeout, check=False)
+        text = out_path.read_text(errors="replace") + err_path.read_text(errors="replace")
         if p.returncode == 0:
+            if may_refuse and not (teacher.work / "plan.json").is_file() and REFUSAL.search(text):
+                return text
             break
-        text = (rd / f"stdout-{attempt}.txt").read_text(errors="replace") + (rd / f"stderr-{attempt}.txt").read_text(errors="replace")
         if ec._agent_failure_type(text, "").startswith("provider_") or "at capacity" in text:
             # The provider cut the thread off; continue it rather than lose the round.
             time.sleep(min(120 * 2 ** attempt, 900))
             sid = sid or _thread_id(ec, home)
-            cmd = ec._codex_cmd(teacher.work, ec.CODEX_MODEL, resume=sid)
+            cmd = _cmd(ec, backend, teacher.work, sid)
             prompt = "The model provider cut your session off; nothing you did caused it. Continue where you stopped."
             continue
+        if may_refuse and REFUSAL.search(text):
+            return text
         raise RuntimeError(f"codex exited {p.returncode}; see {rd}")
     if ec.ACCOUNT_HOME:
         (home.codex_home / "auth.json").unlink(missing_ok=True)
-    if not teacher.state.get("thread"):
-        teacher.state["thread"] = _thread_id(ec, home)
+    if not teacher.state.get(backend.state_key):
+        teacher.state[backend.state_key] = _thread_id(ec, home)
         teacher._save()
+    return None
 
 
 def _thread_id(ec, home: layout.SessionDir) -> str | None:
