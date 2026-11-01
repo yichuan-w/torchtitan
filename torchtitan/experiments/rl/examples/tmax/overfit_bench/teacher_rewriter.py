@@ -68,6 +68,10 @@ class Policy:
     check_timeout: int = 1800
     output_chars: int = 4000
     workers: int = 8
+    # The original's share of the draw weight, held after every plan and new version; it cannot be
+    # retired. Without it the teacher dropped the original after its first groups, so a solve on it
+    # could only show in the readout, which trains nothing. 0 leaves the original to the teacher.
+    original_share: float = 0.125
 
 
 def recipe() -> dict[str, str]:
@@ -88,7 +92,7 @@ def agents_md(policy: Policy, sandbox: dict) -> str:
         context=r.get("SWE_MAX_CONTEXT_LEN", "?"),
         hours=f"{int(r.get('SWE_BENCH_TRAIN_BUDGET_SEC', '0')) / 3600:g}",
         stale=r.get("SWE_OFFPOLICY_STEPS", "?"), val_every=r.get("SWE_VAL_INTERVAL", "?"),
-        cap=policy.max_active, cpu=sandbox.get("daytona_cpu") or "?",
+        cap=policy.max_active, share=f"{policy.original_share:.0%}", cpu=sandbox.get("daytona_cpu") or "?",
         mem=sandbox.get("daytona_mem_gb") or "?", disk=sandbox.get("daytona_disk_gb") or "?")
 
 
@@ -421,6 +425,9 @@ class Teacher:
             if v is None or v["status"] != "active":
                 done.append(f"retire {label}: not an active version")
                 continue
+            if int(v["rev"]) == 0 and self.policy.original_share > 0:
+                done.append(f"retire {label}: the original stays in the pool")
+                continue
             self._call("retire", v["id"])
             v["status"] = "retired"
             done.append(f"retired {label}")
@@ -432,6 +439,9 @@ class Teacher:
             self._call("reweight", v["id"], float(w))
             v["weight"] = float(w)
             done.append(f"{label} weight {w:g}")
+        held = self.hold_original()
+        if held:
+            done.append(held)
         # draw_first replaces the queue; a new version's name stands for its label once it joins.
         names = {m["name"] for m in plan["new"]}
         with self._lock:
@@ -451,11 +461,35 @@ class Teacher:
         self._save()
         log.info("teacher round %d: %s", n, r["done"] or "no changes")
 
-    def _call(self, op: str, *args) -> None:
+    def hold_original(self) -> str:
+        """Give the original ``original_share`` of the active draw weight, re-adding it if it was
+        retired; returns what changed, or ""."""
+        share = self.policy.original_share
+        original = next((v for v in self.versions.values() if int(v["rev"]) == 0), None)
+        if share <= 0 or original is None or self.client is None:
+            return ""
+        others = sum(float(v.get("weight") or 0) for v in self.versions.values()
+                     if v["status"] == "active" and int(v["rev"]) != 0)
+        w = share / (1 - share) * others if others > 0 else 1.0
+        if original["status"] == "active" and abs(float(original.get("weight") or 0) - w) <= 0.05 * w:
+            return ""
+        if original["status"] == "active":
+            self._call("reweight", original["id"], w)
+        elif original.get("row") is None:
+            log.warning("the original is retired and its row is unknown; not re-added")
+            return ""
+        else:
+            self._call("add", original["row"], weight=w)
+            original["status"] = "active"
+        original["weight"] = w
+        log.info("original held at weight %.3g (%.0f%% of draws)", w, 100 * share)
+        return f"r0 weight {w:.3g} (held at {share:.0%} of draws)"
+
+    def _call(self, op: str, *args, **kwargs) -> None:
         if self.client is None:
             return
         try:
-            getattr(self.client, op)(*args)
+            getattr(self.client, op)(*args, **kwargs)
         except RewriterError as e:
             log.warning("%s %s not applied: %s", op, args, e)
 
@@ -512,6 +546,7 @@ class Teacher:
                 with self._lock:
                     self.state.setdefault("draw_first", []).append(label)
             self.news.append(f"new version {name} joined the pool as {label}")
+            self.hold_original()
             layout.append_jsonl(task.lineage, {"stamp": layout.stamp(), "event": "fold", "from_rev": 0,
                                                "to_rev": rev, "version": info["id"], "teacher": name})
         self._save()
@@ -543,6 +578,7 @@ class Teacher:
 
     def start(self) -> None:
         self.refresh()
+        self.hold_original()
         for run in self.root.run_dirs():
             for e in layout.read_jsonl(run.scheduler / "events.jsonl"):
                 self.on_event({**e, "run": e.get("run") or run.name})
