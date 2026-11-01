@@ -114,37 +114,56 @@ def test_full_queue_is_the_trigger_for_a_first_interrupt(tmp_path):
     assert env._take_unfreeze_note() == ""
 
 
-def test_repeated_interrupts_at_one_program_escalate_int_term_kill(tmp_path):
+def test_unanswered_interrupts_at_one_program_escalate_int_term_kill(tmp_path):
     env = _env(tmp_path)
     seen = []
     for _turn in range(6):
-        _, scripts = _send(env, "C-c", _probe("321", 0, "qemu-system-x86_64"))
+        _, scripts = _send(env, "C-c", _probe("321", 0, "vim -Es"))
         seen.append(scripts[0])
-        env._take_unfreeze_note()
+        env._take_unfreeze_note(drew_output=False)
     assert '[ "$tp" = ' not in seen[0] and '[ "$tp" = ' not in seen[1]
     assert "sig=INT; fi" in seen[2].split('[ "$tp" = 321 ]')[1]
     assert "sig=TERM; fi" in seen[3]
     assert "sig=KILL; fi" in seen[4] and "sig=KILL; fi" in seen[5]
 
 
-def test_escalation_counts_interrupt_turns_until_the_foreground_changes(tmp_path):
+def test_a_program_that_answers_interrupts_is_never_escalated(tmp_path):
+    # A live guest console (qemu -nographic, telnet) prints after each C-c.
+    env = _env(tmp_path)
+    for _turn in range(6):
+        _, scripts = _send(env, "C-c", _probe("321", 0, "qemu-system-x86_64"))
+        assert '[ "$tp" = ' not in scripts[0]
+        env._take_unfreeze_note(drew_output=True)
+
+
+def test_drew_output_ignores_echo_of_typed_text_and_control_keys():
+    from torchtitan.experiments.rl.harness.agents.terminus import _drew_output
+
+    assert not _drew_output("^C^C:q!\n", ":q!\n")
+    assert not _drew_output("^C^C^C", "")
+    assert not _drew_output("", "")
+    assert _drew_output("^C\nlocalhost:~# ", "")
+    assert _drew_output("KeyboardInterrupt", "")
+
+
+def test_escalation_counts_unanswered_turns_until_the_foreground_changes(tmp_path):
     env = _env(tmp_path)
     # C-c, then other keys at the same program (vim -Es: C-c, Enter, :q!).
     _send(env, "C-c", _probe("321", 0, "vim -Es"))
-    env._take_unfreeze_note()
+    env._take_unfreeze_note(drew_output=False)
     _send(env, "':q!' Enter", _probe("321", 0, "vim -Es"))
-    env._take_unfreeze_note()
+    env._take_unfreeze_note(drew_output=False)
     _send(env, "C-c", _probe("321", 0, "vim -Es"))
-    env._take_unfreeze_note()
+    env._take_unfreeze_note(drew_output=False)
     _, scripts = _send(env, "C-c", _probe("321", 0, "vim -Es"))
     assert '[ "$tp" = 321 ]; then sig=INT' in scripts[0]
-    env._take_unfreeze_note()
+    env._take_unfreeze_note(drew_output=False)
     # The shell came back: the next program starts from zero.
     _send(env, "'ls' Enter", _probe())
     env._take_unfreeze_note()
     for _turn in range(2):
         _, scripts = _send(env, "C-c", _probe("999", 0, "b"))
-        env._take_unfreeze_note()
+        env._take_unfreeze_note(drew_output=False)
     assert '[ "$tp" = ' not in scripts[0]
 
 

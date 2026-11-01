@@ -796,9 +796,11 @@ def _collapse_echo(text: str, typed: str, min_lines: int) -> tuple[str, int]:
 # the foreground first, in the same exec: text for a program that has left
 # earlier input unread is held back and the model told why; C-c / C-\ against a
 # full queue discard the unread input and signal the foreground process group
-# directly; and C-c sent on _UNFREEZE_ESCALATE_TURNS turns while the same
-# program holds the foreground (qemu -nographic, ``vim -Es``, a handler that
-# swallows SIGINT) is delivered as INT, then TERM, then KILL. TMAX_TERMINUS_UNFREEZE=0 turns it off.
+# directly; and once C-c has drawn nothing but its own echo on
+# _UNFREEZE_ESCALATE_TURNS - 1 turns while the same program holds the
+# foreground (``vim -Es``, a hung qemu guest, a handler that swallows SIGINT),
+# the next one is delivered as INT, then TERM, then KILL. A program that
+# answers C-c with output (a live guest console, telnet) is never escalated. TMAX_TERMINUS_UNFREEZE=0 turns it off.
 _UNFREEZE = os.environ.get("TMAX_TERMINUS_UNFREEZE", "1") == "1"
 _INTERRUPT_SIGNALS = {"C-c": "INT", "C-\\": "QUIT"}
 # n_tty buffers 4095 bytes; past this a key may not get in.
@@ -806,6 +808,8 @@ _UNFREEZE_FULL_QUEUE_BYTES = 3000
 _UNFREEZE_ESCALATE_TURNS = 3
 _UNFREEZE_ESCALATION = ("INT", "TERM", "KILL")
 _UNFREEZE_MARK = "__torchtitan_unfreeze__"
+# What the terminal echoes for a control key in cooked mode.
+_CONTROL_ECHO = re.compile(r"\^[A-Z\\\[\]]")
 # Unread bytes in, and discarding, the pane tty's input queue. Opened O_NOCTTY so
 # the probing shell never adopts the pane's terminal. perl-base ships in every
 # Debian-family image; python3 covers the rest. Both missing reads as 0 unread.
@@ -842,6 +846,17 @@ def _sent_keys(command: str) -> list[str]:
     if keys[:1] == ["--"]:
         keys = keys[1:]
     return keys
+
+
+def _drew_output(text: str, typed: str) -> bool:
+    """Whether ``text`` (a turn's new terminal output) holds anything besides the
+    echo of what was typed and of control keys -- i.e. the program answered."""
+    typed_lines = {line.strip() for line in typed.split("\n") if line.strip()}
+    for line in text.split("\n"):
+        line = _CONTROL_ECHO.sub("", line).strip()
+        if line and line not in typed_lines:
+            return True
+    return False
 
 
 def _foreground_probe(pane_pid: str) -> str:
@@ -928,15 +943,16 @@ class _SandboxEnvironment:
         self.context_notice: Callable[[], str] | None = None
         # Foreground unfreezing (_UNFREEZE): notes for the next observation,
         # whether this turn's text is being held, the process group the
-        # interrupts are aimed at, and on how many turns it was interrupted
-        # while it held the foreground (other keys in between do not reset it:
-        # the model mixes C-c with q, :q! and Enter).
+        # interrupts are aimed at, and on how many turns an interrupt drew no
+        # output from it (keys in between that draw none do not reset it: the
+        # model mixes C-c with q, :q! and Enter; any output does).
         self._unfreeze_notes: list[str] = []
         self._holding_keys = False
         self._held_chars = 0
         self._interrupt_target = ""
         self._interrupt_turns = 0
         self._interrupted_this_turn = False
+        self._last_screen = ""
         from .terminus_terminal import TerminalLifecycle
 
         self.terminal = TerminalLifecycle(self._terminal_exec)
@@ -1037,18 +1053,16 @@ class _SandboxEnvironment:
                 f'{_UNFREEZE_FULL_QUEUE_BYTES} ]; then '
                 f'echo "{_UNFREEZE_MARK}held"; else {command}; fi'
             )
-        if not self._interrupted_this_turn:
-            self._interrupted_this_turn = True
-            self._interrupt_turns += 1
-        # Repeated C-c against one program escalates; otherwise a full queue is
-        # the one case the key cannot reach it, so discard what is waiting and
-        # raise the signal ourselves. The key still follows; reaching the
-        # program (or the shell, once it is gone) it is harmless.
+        self._interrupted_this_turn = True
+        # C-c that keeps drawing nothing from one program escalates; otherwise
+        # a full queue is the one case the key cannot reach it, so discard what
+        # is waiting and raise the signal ourselves. The key still follows;
+        # reaching the program (or the shell, once it is gone) it is harmless.
         escalate = ""
-        if self._interrupt_target and self._interrupt_turns >= _UNFREEZE_ESCALATE_TURNS:
+        unanswered = _UNFREEZE_ESCALATE_TURNS - 1
+        if self._interrupt_target and self._interrupt_turns >= unanswered:
             level = min(
-                self._interrupt_turns - _UNFREEZE_ESCALATE_TURNS,
-                len(_UNFREEZE_ESCALATION) - 1,
+                self._interrupt_turns - unanswered, len(_UNFREEZE_ESCALATION) - 1
             )
             escalate = (
                 f'if [ "$tp" = {shlex.quote(self._interrupt_target)} ]; then '
@@ -1081,7 +1095,7 @@ class _SandboxEnvironment:
         target, unread, program = fields[0], fields[1], fields[2].strip() or "?"
         if target != self._interrupt_target:
             self._interrupt_target = target
-            self._interrupt_turns = 1 if (target and self._interrupted_this_turn) else 0
+            self._interrupt_turns = 0
         if action == "held":
             self._holding_keys = True
             self._held_chars += len(typed)
@@ -1101,8 +1115,14 @@ class _SandboxEnvironment:
             )
         return result
 
-    def _take_unfreeze_note(self) -> str:
-        """The harness note for this turn's observation, and a fresh turn."""
+    def _take_unfreeze_note(self, drew_output: bool = True) -> str:
+        """The harness note for this turn's observation, and a fresh turn.
+
+        ``drew_output``: the turn's terminal output held more than echo."""
+        if drew_output:
+            self._interrupt_turns = 0
+        elif self._interrupted_this_turn:
+            self._interrupt_turns += 1
         notes = self._unfreeze_notes
         if self._holding_keys:
             notes = notes + [
@@ -1263,6 +1283,13 @@ class _SandboxEnvironment:
             mode = "screen"
         echo_collapsed = 0
         if mode == "new":
+            drew_output = _drew_output(new_text, self._typed_now)
+        else:
+            drew_output = _CONTROL_ECHO.sub("", screen) != _CONTROL_ECHO.sub(
+                "", self._last_screen
+            )
+        self._last_screen = screen
+        if mode == "new":
             new_text, echo_collapsed = _collapse_echo(
                 new_text,
                 self._typed_before + "\n" + self._typed_now,
@@ -1274,7 +1301,7 @@ class _SandboxEnvironment:
         else:
             observation = f"Current Terminal Screen:\n{screen}"
         shown = "new" if observation.startswith("New") else "screen"
-        unfreeze_note = self._take_unfreeze_note()
+        unfreeze_note = self._take_unfreeze_note(drew_output)
         if unfreeze_note:
             observation = f"{observation.rstrip()}\n\n{unfreeze_note}\n"
         notice = self.context_notice() if self.context_notice else ""
