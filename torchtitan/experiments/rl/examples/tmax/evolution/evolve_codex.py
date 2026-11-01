@@ -3877,7 +3877,7 @@ def evolve_agentic(
             "easier": (_PLAN_JOB if task.get("_intervention_plan") else _EASIER_JOB).format(
                 solved=solved,
                 attempts=attempts_n,
-                guidance=so.prompt(task.get("_simplify_hint", "vague")),
+                guidance=so.prompt(task.get("_simplify_hint", "vague"), attempts_n),
             )
             + (_UNSOLVED_NOTE if task.get("_unsolved") else ""),
             "repair": _REPAIR_JOB.format(exit_code=exit_code),
