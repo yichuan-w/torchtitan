@@ -529,9 +529,9 @@ _K_OF_N = re.compile(r"(\d+)\s+of\s+(\d+)")
 def _prediction_for(task: layout.TaskDir, rev: int) -> tuple[int, int] | None:
     """What the accepted rewrite that made ``rev`` expected from its next
     group, as (k, n): an easier rewrite's simplify.json ``expected``, a
-    harder rewrite's ``expected: "k of n"`` line in hardening.md
-    (EVOLVE_HARDER_TARGET asks for it). None for r0, a revert, or a
-    prediction in free text."""
+    harder rewrite's ``harder_expected`` or, failing that, the
+    ``expected: "k of n"`` line in its hardening.md (EVOLVE_HARDER_TARGET
+    asks for both). None for r0, a revert, or a prediction in free text."""
     for earlier in task.rewrite_dirs():
         try:
             meta = json.loads(earlier.meta.read_text())
@@ -539,7 +539,7 @@ def _prediction_for(task: layout.TaskDir, rev: int) -> tuple[int, int] | None:
             continue
         if meta.get("status") != "accepted" or meta.get("result_rev") != rev:
             continue
-        expected = (meta.get("simplify") or {}).get("expected")
+        expected = (meta.get("simplify") or {}).get("expected") or meta.get("harder_expected")
         if not expected:
             for path in (earlier.notes / "hardening.md", earlier.package / "run" / "hardening.md"):
                 if path.is_file():

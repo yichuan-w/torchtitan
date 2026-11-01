@@ -221,3 +221,138 @@ def test_rewrite_context_tolerates_a_missing_or_broken_file(tmp_path) -> None:
     assert ec._rewrite_context(tmp_path) == ("", "")
     (tmp_path / "context.json").write_text("{not json")
     assert ec._rewrite_context(tmp_path) == ("", "")
+
+
+# -- item 6a: harder target and a scorable prediction ------------------------
+
+
+@pytest.mark.parametrize(
+    "text,expected",
+    [('expected: "4 of 12"', "4 of 12"), ('- `expected: "4 of 12"`', "4 of 12"),
+     ("## Prediction\n\nExpected: 3 of 12\n", "3 of 12"), ("expected:  5  of  8", "5 of 8"),
+     ("I expect 4 of 12 to pass.", None), ('expected: "about half"', None),
+     ('expected: "13 of 12"', None), ('the expected: "4 of 12" line', None), ("", None)],
+)
+def test_harder_expected_takes_only_the_line(text, expected) -> None:
+    assert so.harder_expected(text) == expected
+
+
+def _harder_traces(rw, n=12) -> None:
+    rw.traces.mkdir(parents=True, exist_ok=True)
+    for i in range(1, n + 1):
+        (rw.traces / f"attempt-{i:02d}.jsonl").write_text('{"reward": 1.0}\n')
+
+
+def _hardening_author(monkeypatch, first: str, repaired: str | None, edit_task=False):
+    """The harder author writes ``first`` as run/hardening.md; resumed, it
+    writes ``repaired`` (and, if asked, edits the task). Returns the prompts."""
+    real = ec._run_codex
+    seen = []
+
+    def run_codex(run, cwd, prompt, resume=None):
+        p = real(run, cwd, prompt, resume)
+        if (cwd / "solution").exists():
+            seen.append(prompt)
+            text = repaired if resume else first
+            if text is not None:
+                (cwd / "run/hardening.md").write_text(text)
+            if resume and edit_task:
+                (cwd / "instruction.md").write_text("something else\n")
+        return p
+
+    monkeypatch.setattr(ec, "_run_codex", run_codex)
+    monkeypatch.setattr(ec, "_session_id", lambda _sd: "sid")
+    return seen
+
+
+@pytest.mark.parametrize("blind", [True, False])
+def test_harder_prompt_without_the_flag_keeps_the_half_aim(tmp_path, monkeypatch, blind):
+    rw = tb._rewrite(tmp_path, monkeypatch)
+    sessions = []
+    tb._wire(monkeypatch, sessions, [])
+    if not blind:
+        monkeypatch.setattr(ec, "VERIFIER_AUTHOR", "same")
+    _harder_traces(rw)
+    seen = _hardening_author(monkeypatch, "I expect 5 of 12.\n", None)
+    out = ec.evolve_agentic(rw, dict(tb.SEED), "harder")
+    assert ec._HALF_AIM in seen[0] and 'expected: "k of' not in seen[0]
+    assert len(seen) == 1 and "_harder_expected" not in out
+
+
+@pytest.mark.parametrize("blind", [True, False])
+def test_harder_target_replaces_the_half_aim(tmp_path, monkeypatch, blind):
+    monkeypatch.setenv("EVOLVE_HARDER_TARGET", "3-5")
+    rw = tb._rewrite(tmp_path, monkeypatch)
+    sessions = []
+    tb._wire(monkeypatch, sessions, [])
+    if not blind:
+        monkeypatch.setattr(ec, "VERIFIER_AUTHOR", "same")
+    _harder_traces(rw)
+    seen = _hardening_author(monkeypatch, 'Plan.\n\nexpected: "4 of 12"\n', None)
+    out = ec.evolve_agentic(rw, dict(tb.SEED), "harder")
+    assert ec._HALF_AIM not in seen[0]
+    assert "Aim for a task the next group of 12 attempts solves 3 to 5 times." in seen[0]
+    assert '`expected: "k of 12"`' in seen[0]
+    assert len(seen) == 1  # the line was there: no repair session
+    assert out["_harder_expected"] == "4 of 12"
+
+
+def test_harder_target_scales_to_the_group(tmp_path, monkeypatch):
+    monkeypatch.setenv("EVOLVE_HARDER_TARGET", "3-5")
+    rw = tb._rewrite(tmp_path, monkeypatch)
+    tb._wire(monkeypatch, [], [])
+    _harder_traces(rw, 8)
+    seen = _hardening_author(monkeypatch, 'expected: "3 of 8"\n', None)
+    ec.evolve_agentic(rw, dict(tb.SEED), "harder")
+    assert "next group of 8 attempts solves 2 to 3 times" in seen[0]
+
+
+def test_a_free_text_prediction_goes_back_to_the_author(tmp_path, monkeypatch):
+    monkeypatch.setenv("EVOLVE_HARDER_TARGET", "3-5")
+    rw = tb._rewrite(tmp_path, monkeypatch)
+    sessions = []
+    tb._wire(monkeypatch, sessions, [])
+    _harder_traces(rw)
+    seen = _hardening_author(
+        monkeypatch, "I expect 4 of 12.\n", 'I expect 4 of 12.\nexpected: "4 of 12"\n'
+    )
+    out = ec.evolve_agentic(rw, dict(tb.SEED), "harder")
+    assert [s["role"] for s in sessions] == ["author", "author", "verifier"]
+    assert sessions[1]["resume"] == "sid"
+    assert seen[1].startswith("The caller cannot read your prediction")
+    assert out["_harder_expected"] == "4 of 12"
+
+
+@pytest.mark.parametrize("edit_task", [False, True])
+def test_a_prediction_still_missing_or_a_repair_that_edits_discards(
+    tmp_path, monkeypatch, edit_task
+):
+    monkeypatch.setenv("EVOLVE_HARDER_TARGET", "3-5")
+    rw = tb._rewrite(tmp_path, monkeypatch)
+    sessions = []
+    tb._wire(monkeypatch, sessions, [])
+    _harder_traces(rw)
+    _hardening_author(
+        monkeypatch, "about half\n",
+        'expected: "4 of 12"\n' if edit_task else "still about half\n", edit_task,
+    )
+    error, match = (
+        (RuntimeError, "harder expected repair changed task files")
+        if edit_task
+        else (ValueError, 'requires a line expected: "k of n"')
+    )
+    with pytest.raises(error, match=match):
+        ec.evolve_agentic(rw, dict(tb.SEED), "harder")
+    assert [s["role"] for s in sessions] == ["author", "author"]
+
+
+def test_a_recorded_harder_expected_is_the_prediction(tmp_path) -> None:
+    from torchtitan.experiments.rl.examples.tmax import layout
+
+    task = layout.Root(tmp_path).evolution.task("tw_a")
+    rw = task.rewrite("harder", "20261031-000000Z")
+    rw.path.mkdir(parents=True)
+    rw.meta.write_text(
+        json.dumps({"status": "accepted", "result_rev": 2, "harder_expected": "5 of 12"})
+    )
+    assert od._prediction_for(task, 2) == (5, 12)

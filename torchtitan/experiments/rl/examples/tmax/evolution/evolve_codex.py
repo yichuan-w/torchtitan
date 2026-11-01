@@ -2246,6 +2246,68 @@ never states, "broken_setup" for an environment missing what the task needs,
 and "other" for anything else. An attempt that solved the task the intended
 way is not a defect, however quickly it did so."""
 
+# EVOLVE_HARDER_TARGET="lo-hi" (#306 item 6, default unset): the last sentence
+# of both harder jobs becomes an explicit band out of a group of 12, scaled to
+# this group (so.target_band), and the prediction becomes a line the caller can
+# score, checked like an easier rewrite's expected (_require_harder_expected).
+_HALF_AIM = "Aim for a task a capable agent lands about half the time."
+assert _HARDER_JOB.endswith(_HALF_AIM) and _HARDER_JOB_BLIND.endswith(_HALF_AIM)
+_HARDER_TARGET = """Aim for a task the next group of {n} attempts solves {lo} to {hi} times.
+In `run/hardening.md`, put that prediction on a line of its own, exactly
+`expected: "k of {n}"` with k the solved count you expect; the caller reads that
+line and returns a hardening.md without it to you."""
+
+
+def _harder_aim(job_text: str, attempts: int) -> str:
+    """A harder job with EVOLVE_HARDER_TARGET's band in place of its last
+    sentence; unchanged when the flag is unset."""
+    band = so.target_band("EVOLVE_HARDER_TARGET", attempts)
+    if band is None:
+        return job_text
+    return job_text.replace(
+        _HALF_AIM, _HARDER_TARGET.format(n=attempts, lo=band[0], hi=band[1]), 1
+    )
+
+
+_HARDER_EXPECTED_JOB = """The caller cannot read your prediction: `run/hardening.md`
+has no line of its own reading exactly `expected: "k of n"`, with k the solved
+count you expect from the next group of the same size and n that size. Add that
+line, keeping the prediction you already wrote. Change nothing else: the task,
+the reference solution and the environment stay as they are, and your last
+`./sandbox check` still stands."""
+
+
+def _require_harder_expected(
+    rewrite: layout.RewriteDir,
+    author: layout.SessionDir,
+    deadline: RewriteDeadline,
+) -> str:
+    """The harder author's ``expected: "k of n"`` line, under
+    EVOLVE_HARDER_TARGET; one resume of the author when it is missing, as
+    _require_declaration does for simplify.json. Raises ValueError when the
+    line is still missing, RuntimeError when the resume edited the task."""
+    pkg = rewrite.package
+    path = pkg / "run" / "hardening.md"
+
+    def read() -> str | None:
+        return so.harder_expected(path.read_text(errors="replace")) if path.is_file() else None
+
+    if (expected := read()) is not None:
+        return expected
+    before = _probe_hashes(pkg, ("run", "traces"))
+    timeout = _session_timeout(deadline, "harder expected repair")
+    with session(rewrite, "declaration", timeout=timeout, resumes=author) as run:
+        _run_codex(
+            run, pkg, _HARDER_EXPECTED_JOB + _budget(timeout), resume=_session_id(author)
+        )
+    _check_verdict(pkg)
+    if _probe_hashes(pkg, ("run", "traces")) != before:
+        raise RuntimeError("harder expected repair changed task files")
+    if (expected := read()) is None:
+        raise ValueError('run/hardening.md requires a line expected: "k of n"')
+    return expected
+
+
 _EASIER_JOB = """This task was solved {solved} of {attempts} attempts.
 Diagnose the attempts and reduce one obstacle while retaining a stated skill.
 {guidance}"""
@@ -3877,7 +3939,7 @@ def evolve_agentic(
     blind = job in ("harder", "easier") and VERIFIER_AUTHOR == "blind" and not keep_verifier
     prompt = (
         {
-            "harder": (_HARDER_JOB_BLIND if blind else _HARDER_JOB).format(
+            "harder": _harder_aim((_HARDER_JOB_BLIND if blind else _HARDER_JOB).format(
                 solved=solved,
                 attempts=attempts_n,
                 guidance=_calibration_guidance(solved, attempts_n)
@@ -3900,7 +3962,7 @@ def evolve_agentic(
                     "Do not add code to meet a minimum length."
                 ),
                 max_asserts=ts.MAX_ADDED_ASSERTS,
-            )
+            ), attempts_n)
             + _HARDER_REPAIR_NOTE
             + (_UNSOLVED_HARDER_NOTE if task.get("_unsolved") else ""),
             "easier": (_PLAN_JOB if task.get("_intervention_plan") else _EASIER_JOB).format(
@@ -4003,6 +4065,8 @@ def evolve_agentic(
             _require_declaration(
                 rewrite, run.dir, task.get("_simplify_hint", "vague"), deadline
             )
+        if job == "harder" and so.target_band("EVOLVE_HARDER_TARGET", attempts_n):
+            _require_harder_expected(rewrite, run.dir, deadline)
         _add_time(timings, "agent", time.monotonic() - stage_start)
         if blind:
             author_check = _last_check(pkg)
@@ -4048,6 +4112,13 @@ def evolve_agentic(
         out["_agent_exit_code"] = agent_error.returncode
     if job == "harder":
         out["_harder_mode"] = "student"
+        if so.target_band("EVOLVE_HARDER_TARGET", attempts_n):
+            hardening = pkg / "run" / "hardening.md"
+            out["_harder_expected"] = (
+                so.harder_expected(hardening.read_text(errors="replace"))
+                if hardening.is_file()
+                else None
+            )
     if job == "easier":
         decision = so.read_decision(pkg, task.get("_simplify_hint", "vague"))
         decision["hint_level"] = task.get("_simplify_hint", "vague")
