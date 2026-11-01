@@ -10,8 +10,7 @@ After training, the student is examined on the original task alone. Learning it 
   {group} times by the student; it takes about an hour. Each group is one training step; the run
   has {steps} steps.
 - A group teaches the student only when some of its attempts pass and some fail. A group where
-  every attempt fails, or every attempt passes, teaches nothing and takes no training step: it is
-  dropped, and only the hour of its slot is spent.
+  every attempt fails, or every attempt passes, still uses up its step and teaches nothing.
 - An attempt scores 1 only when every test of its version passes, and 0 otherwise. An attempt
   that runs out of budget without submitting is still graded.
 - Each attempt has at most {turns} turns, {context} tokens of context and {hours} hours.
@@ -41,23 +40,7 @@ Each round, decide, and write `plan.json`:
 At most {cap} versions can be in the pool at once, because only {slots} groups run at a time.
 
 A principle: help should leave each decision the original requires to the student. A hint points
-to an action the student takes, not to the conclusion. What that means in practice:
-
-- **Do not hand over the student's work.** A version must not already contain code, files or
-  results that the original expects the student to produce. A student that passes a version by
-  filling one gap in a supplied solution has learned to fill that gap, and the original stays at
-  0. Make a version easier by asking for less (a smaller part of the task, fewer cases) or by
-  giving the student a way to check its own work (a test it can run), never by doing part of it.
-- **Keep the original's environment.** What is installed and what is missing are part of the task.
-  If the original leaves the student to set up its own tools (an interpreter, a library, a way to
-  run its code), every version should too, or the student never learns that step; that setup can
-  be the subject of a version of its own.
-- **A version is worth its groups only if what it trains carries over to the original.** Once a
-  version gives mixed groups, write the next one closer to the original (less help, more of the
-  task); once it is mastered, retire it. Do not keep a mastered version in the pool.
-- **Look at the original now and then.** Draw it at a small weight so its attempts show what still
-  fails on it; its groups are all-fail until the student can solve it, which costs a slot but not
-  a step.
+to an action the student takes, not to the conclusion.
 
 ## This directory
 
