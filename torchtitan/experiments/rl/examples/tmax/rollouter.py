@@ -375,6 +375,9 @@ class _SandboxRolloutDiagnostics:
     # so a run on a cluster with a different egress policy leaves a record of
     # what tasks that use the network were facing.
     net_probe: dict = field(default_factory=dict)
+    # Disk and memory the sandbox used (_resource_probe), at boot and after
+    # grading; what per-task resource rows are sized from.
+    resource_probe: dict = field(default_factory=dict)
 
 
 # Network probe run inside every sandbox right after boot, before the agent's
@@ -437,6 +440,43 @@ async def _net_probe(sandbox) -> dict:
         out["targets"][host] = dict(f.split("=", 1) for f in fields if "=" in f)
     if stderr:
         out["stderr"] = stderr[-200:]
+    return out
+
+
+# Disk/memory probe run at boot and again after grading, so a task's resource
+# row can be sized from what rollouts actually used (agent + verifier), not
+# from a reference solution's replay. Disk is the root filesystem's used bytes
+# at that moment (files are rarely deleted, so the post-grade reading is close
+# to the peak; on Daytona the image layers are not counted, as the quota
+# isn't); memory is the cgroup's lifetime peak (page cache included) plus its
+# OOM-kill count. Recorded only; never affects reward. TT_SANDBOX_RESOURCE_PROBE=0 turns it off.
+_RESOURCE_PROBE_SEC = int(os.environ.get("TT_SANDBOX_RESOURCE_PROBE_SEC", "15"))
+_RESOURCE_PROBE_SCRIPT = r"""
+df -B1 -P / 2>/dev/null | awk 'NR==2 {print "disk_used=" $3; print "disk_total=" $2}'
+for f in memory.peak memory.max memory.current memory/memory.max_usage_in_bytes memory/memory.limit_in_bytes memory/memory.usage_in_bytes; do
+  [ -r "/sys/fs/cgroup/$f" ] && echo "cg_$(basename $f)=$(cat /sys/fs/cgroup/$f)"
+done
+awk '$1 == "oom_kill" {print "cg_oom_kill=" $2}' /sys/fs/cgroup/memory.events 2>/dev/null
+exit 0
+"""
+
+
+async def _resource_probe(sandbox) -> dict:
+    """Read the sandbox's disk and memory use into a dict of byte counts.
+    Never raises: a failed probe records its error instead."""
+    if os.environ.get("TT_SANDBOX_RESOURCE_PROBE", "1") == "0":
+        return {}
+    out: dict = {}
+    try:
+        _, stdout, _ = await sandbox.exec(
+            _RESOURCE_PROBE_SCRIPT, user="root", timeout=_RESOURCE_PROBE_SEC
+        )
+    except Exception as e:  # noqa: BLE001 -- the record carries the failure
+        return {"error": f"{type(e).__name__}: {e}"[:200]}
+    for line in (stdout or "").splitlines():
+        key, sep, val = line.strip().partition("=")
+        if sep and val.isdigit():
+            out[key] = int(val)
     return out
 
 
@@ -1139,6 +1179,8 @@ def _write_rollout_record(
             # What the sandbox could reach at boot: per target dns/http and
             # their milliseconds, plus icmp. Empty when the probe is off.
             "net_probe": dict(sandbox_diagnostics.net_probe),
+            # Bytes of disk/memory in use at boot and after grading.
+            "resource_probe": dict(sandbox_diagnostics.resource_probe),
             "secs": round(secs, 1),
             "budget_sec": int(budget_sec),
             "turns": len(turns),
@@ -2313,6 +2355,7 @@ class TMaxRollouter(Rollouter):
         # finish_reason=hit_time_budget.
         timing: dict = {}
         net_probe: dict = {}
+        resource_probe: dict = {}
         # Where this rollout's record goes; None writes nothing (said once).
         run = _run_dir()
         collect_pane = (
@@ -2373,6 +2416,9 @@ class TMaxRollouter(Rollouter):
                     # system paths); the faithful Vanillux loop dispatches bash here.
                     root_sb = _RootSandbox(sandbox, exec_timing)
                     net_probe = await _net_probe(sandbox)
+                    boot_resources = await _resource_probe(sandbox)
+                    if boot_resources:
+                        resource_probe["boot"] = boot_resources
                     if net_probe:
                         logger.info(
                             "[tmax_net_probe] %s",
@@ -2613,6 +2659,27 @@ class TMaxRollouter(Rollouter):
                                 )
                             timing["shadow_grade_secs"] = time.monotonic() - grade_at
                             verifier["shadow"] = {"reward": shadow_reward, **shadow}
+                    if resource_probe:
+                        resource_probe["end"] = await _resource_probe(sandbox)
+                        logger.info(
+                            "[tmax_resource_probe] %s",
+                            json.dumps(
+                                {
+                                    "event": "tmax_resource_probe",
+                                    "instance_id": sample.instance_id,
+                                    "group_id": group_id,
+                                    "rollout_id": rollout_idx,
+                                    "finish_reason": finish_reason,
+                                    "declared": {
+                                        "cpu": sample.daytona_cpu,
+                                        "mem_gb": sample.daytona_mem_gb,
+                                        "disk_gb": sample.daytona_disk_gb,
+                                    },
+                                    **resource_probe,
+                                },
+                                sort_keys=True,
+                            ),
+                        )
                 status = RolloutStatus.COMPLETED
         except (TimeoutError, asyncio.TimeoutError):
             infra_failed = True
@@ -2743,6 +2810,7 @@ class TMaxRollouter(Rollouter):
             terminal_events=terminal_events,
             timing=dict(timing),
             net_probe=dict(net_probe),
+            resource_probe=dict(resource_probe),
         )
 
         turns = _captured_to_turns(captured, group_id, rollout_idx)
@@ -2815,6 +2883,7 @@ class TMaxRollouter(Rollouter):
                         "issue_counts": diagnostics.issue_counts,
                         "num_dropped_details": diagnostics.num_dropped_details,
                         "net_probe": diagnostics.net_probe,
+                        "resource_probe": diagnostics.resource_probe,
                     },
                     sort_keys=True,
                 ),
