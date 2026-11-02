@@ -90,6 +90,8 @@ issue claims it. That account's listener leaves new mentions there to the
 holding session, wherever it runs, and takes them over only once one has gone
 30 minutes without a reply. A listener's session answers only the mentions its
 `pending` command prints, which leaves out those another session is holding. A
+listener's session does its code work in a git worktree of its own and never
+switches the branch of the checkout the listener runs from. A
 session that finds a later session line of its own account than its own has
 handed the issue over and posts there again only when its owner asks.
 

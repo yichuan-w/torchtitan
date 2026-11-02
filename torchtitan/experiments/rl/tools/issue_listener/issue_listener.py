@@ -157,6 +157,8 @@ def hook_start():
           "unless it has left your context. Handle the request, reply in the issue, then start `wait` again. "
           f"Answer only the mentions `wait` or `python3 {SELF} pending {issue}` prints: a mention you see in the "
           "thread that neither prints is being answered by another session of this account, and is not yours. "
+          "Do code work in a git worktree of your own (`git worktree add`): never switch this checkout's branch, and "
+          "never leave it mid-merge or mid-rebase, because the listener runs from it. "
           "Background tasks have a time limit, so `wait` can also end with nothing printed when that limit stops it; "
           "restart it then too. Restarting `wait` is always yours to do, whatever stopped it: this session exists to "
           "keep it running.")
