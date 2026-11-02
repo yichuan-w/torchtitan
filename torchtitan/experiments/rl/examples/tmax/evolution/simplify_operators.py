@@ -80,7 +80,11 @@ def student_budget() -> str:
         "stage where they ran out, so that they no longer have to do it. A sentence\n"
         "of direction, a document to consult or an optional starter adds reading and\n"
         "removes no stage; when most attempts ended at a limit, the change adds\n"
-        "nothing the student has to read."
+        "nothing the student has to read. Students write files by typing them whole\n"
+        "and type them again after each failed run, so code the student must edit or\n"
+        "complete costs its length on every rewrite: a short runnable file with one\n"
+        "marked gap costs little, a long one costs more than the stage it was meant\n"
+        "to remove."
     )
 
 
@@ -139,7 +143,8 @@ cause, then act on that cause:
   exhausted time or context. Help with the mechanics and leave the task's
   decisions to the student.
 - A missing capability at a decision the task requires: reduce what that
-  decision demands.
+  decision demands. This is the cause when a check on the decision the task
+  trains fails in every graded attempt, whatever else they also fail.
 An attempt the harness marks infra_failed (a sandbox or provider failure), or
 one with no trace, is not a measurement: leave it out. An attempt whose
 grading failed on the state it left behind -- a disk it filled, a package lock
@@ -221,7 +226,10 @@ budget: in measured groups, rewrites whose attempts mostly ended at a limit
 stayed at 0 of 16 after instruction-only hints, and moved when the work itself
 shrank. A failed
 prediction at one strength needs a reason, from the traces, to stay at that
-strength. When no attempt has a foothold, reduce what the retained decision
+strength. A failing check the change leaves in place fails the attempt
+after the change, so when every graded attempt fails a check on the retained
+decision itself, removing a stage before that decision cannot produce a
+success: the attempts have no foothold there. When no attempt has a foothold, reduce what the retained decision
 demands -- a smaller instance, fewer cases, feedback that exposes the mistake
 where it is made -- and leave the decision itself to the student; when the
 student cannot make it in any form the task can still grade, write GIVE UP
@@ -257,6 +265,17 @@ attempts meet.
 - After editing, replay at least one attempt on the changed task up to the
   point your change targets -- its commands, or its approach where its
   commands no longer apply -- and grade. Record what it now meets there.
+  The replay uses only what the attempt typed or wrote. Commands from
+  solution/, or code you write to finish what the attempt left undone, show
+  what the reference or you can do, not what the attempt meets, and the
+  result counts for no attempt. Record the next command the attempt ran in
+  its trace after the point you changed, and whether it uses the change.
+- Then look past that point at the stages no trace reached: what the student
+  still has to produce there, how long that is when written the way the
+  attempts write (whole files typed again after each failed run), and
+  whether the image gives it what that stage needs where an attempt would
+  look first (the interpreter and tools first on PATH). Attempts that died
+  early never showed these costs; the next group meets them.
   Start that replay from a fresh ./sandbox reset of the built image and start
   nothing by hand that the instruction says is ready (a service, a file, a
   finished stage); a replay that needs such a step is a finding to fix in the
@@ -279,19 +298,29 @@ used, every check that failed, and what the replay reached -- in the
 observation of the evidence item for the attempt whose state or approach you
 ran. expected rests on the replay: an attempt counts toward it only when the
 grading and the replay show that nothing it failed remains, and you update
-expected after the replay if it moved. When at least half of the scored attempts ended at the context, turn or
+expected after the replay if it moved. expected is at least 1 of n: a change
+under which no attempt counts is too small, so strengthen it at the decision
+the attempts fail, or write GIVE UP when the student cannot make that decision
+in any form the task can still grade. When at least half of the scored attempts ended at the context, turn or
 time limit, add budget: a list with one object per such attempt, with attempt
 (named as in evidence), turns (the first and last turn it spent on the stage
 your change removes or shortens, as two integers that file records), stage
 (what that stage is and how the change removes it), chars (the characters
 those turns put into the attempt's context: output read, text typed and
-reasoning written) and share (chars over the whole attempt's characters, a
-number between 0 and 1). Measure them, do not estimate: `./sandbox chars
+reasoning written), share (chars over the whole attempt's characters, a
+number between 0 and 1) and rest (below). Measure them, do not estimate: `./sandbox chars
 traces/attempt-03.jsonl` prints every turn's characters and the running share,
 and `--turns FIRST LAST` prints the chars and share of that range. A stage is
 one part of the work, not the attempt: an entry whose turns hold more than half
 of the attempt's characters is rejected, because it locates nothing the change
-could remove. Every such attempt needs
+could remove. rest is an integer: the characters you estimate a successful
+attempt still spends on the changed task, on the stages the change leaves --
+the files it must write times the rewrites the attempts made of their own
+files, the output it must read -- including the stages no trace reached. It
+must fit in two thirds of what a limit-ended attempt held when it ended
+(./sandbox chars prints the attempt's total), scaled by the student's context
+over the context the traces ran under; when it does not, the change
+leaves the stage that holds the budget in place. Every such attempt needs
 one: if your change shortens nothing an attempt spent its turns on, it only
 adds reading for that attempt, so choose a change that does. Each other field is a nonempty string. The caller checks the
 declaration's form, evidence locations and the measured chars and share, not
@@ -444,6 +473,11 @@ def read_decision(pkg: Path, hint: str) -> dict:
             raise ValueError(f"simplify decision requires {field}")
     if not EXPECTED.match(decision["expected"]):
         raise ValueError('simplify decision expected must read "k of n"')
+    if int(decision["expected"].split()[0]) < 1:
+        raise ValueError(
+            "simplify decision expected is 0: the change leaves every attempt "
+            "failing; strengthen it at the decision they fail, or GIVE UP"
+        )
     evidence = decision.get("evidence")
     if not isinstance(evidence, list) or not evidence:
         raise ValueError("simplify decision requires trace evidence")
@@ -512,6 +546,11 @@ def _check_budget(pkg: Path, decision: dict) -> None:
             raise ValueError(
                 "budget requires chars (an integer) and share (0 to 1), "
                 "measured with ./sandbox chars"
+            )
+        if type(item.get("rest")) is not int or item["rest"] < 0:
+            raise ValueError(
+                "budget requires rest: the characters a successful attempt "
+                "still spends on the stages the change leaves, an integer"
             )
         measured, whole = stage_chars(records, *turns)
         real_share = measured / whole if whole else 0.0

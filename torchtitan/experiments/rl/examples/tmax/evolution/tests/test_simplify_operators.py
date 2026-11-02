@@ -121,6 +121,8 @@ def test_unicode_output_does_not_split_json_records(tmp_path, separator):
         ("expected", ""),
         ("expected", "3/12"),
         ("expected", "about half"),
+        # A change under which no attempt counts is too small to ship.
+        ("expected", "0 of 12"),
         ("evidence", []),
         ("evidence", [dict(attempt="../secret", turn=2, observation="x")]),
         ("evidence", [dict(attempt="attempt-01.jsonl", turn=99, observation="x")]),
@@ -198,12 +200,12 @@ def test_budget_covers_every_limit_attempt_with_recorded_turns(tmp_path):
     row["evidence"] = [dict(attempt="attempt-01.jsonl", turn=2, observation="x")]
     # Five one-character turns: two of them are 2 chars, 0.4 of the attempt.
     row["budget"] = [dict(attempt="attempt-01.jsonl", turns=[2, 3], stage="parse",
-                          chars=2, share=0.4)]
+                          chars=2, share=0.4, rest=100)]
     (tmp_path / "run/simplify.json").write_text(json.dumps(row))
     with pytest.raises(ValueError, match="attempt-02.jsonl"):
         so.read_decision(tmp_path, "vague")
     row["budget"].append(dict(attempt="attempt-02", turns=[1, 9], stage="parse",
-                              chars=2, share=0.4))
+                              chars=2, share=0.4, rest=100))
     (tmp_path / "run/simplify.json").write_text(json.dumps(row))
     with pytest.raises(ValueError, match="budget turn absent"):
         so.read_decision(tmp_path, "vague")
@@ -229,7 +231,7 @@ def _budget_row(pkg, **entry):
         + "".join(json.dumps(t) + "\n" for t in turns)
     )
     row = json.loads((pkg / "run/simplify.json").read_text())
-    row["budget"] = [dict(attempt="attempt-01.jsonl", stage="parse", **entry)]
+    row["budget"] = [dict(attempt="attempt-01.jsonl", stage="parse", **{"rest": 100, **entry})]
     (pkg / "run/simplify.json").write_text(json.dumps(row))
 
 
@@ -335,3 +337,19 @@ def test_extra_guidance_missing_file_raises(monkeypatch, tmp_path):
     monkeypatch.setenv("EVOLVE_SIMPLIFY_EXTRA_GUIDANCE_FILE", str(tmp_path / "absent.md"))
     with pytest.raises(FileNotFoundError):
         so.prompt("vague")
+
+
+def test_a_budget_entry_states_the_work_the_change_leaves(tmp_path):
+    for rest in (None, "4000", -1):
+        _budget_row(tmp_path, turns=[1, 2], chars=60, share=0.375, rest=rest)
+        with pytest.raises(ValueError, match="requires rest"):
+            so.read_decision(tmp_path, "vague")
+    _budget_row(tmp_path, turns=[1, 2], chars=60, share=0.375, rest=4000)
+    assert so.read_decision(tmp_path, "vague")["budget"][0]["rest"] == 4000
+
+
+def test_the_replay_uses_only_the_attempts_own_work():
+    text = so.prompt("vague")
+    assert "The replay uses only what the attempt typed or wrote." in text
+    assert "expected is at least 1 of n" in text
+    assert "stages no trace reached" in text
