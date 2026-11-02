@@ -52,6 +52,11 @@ an edited comment wakes nobody. An agent's comment ends with its session id on
 a line of its own, e.g. `session 502db97f`; a comment without one is the
 account's owner.
 
+**Language.** Issue comments and replies under this section are written in
+Chinese; code, identifiers, commands, paths, log lines and quoted English text
+stay as they are. An agent session working under this section also writes its
+own output, to its owner as well as in the session, in Chinese.
+
 **Still needs a person's approval** (any collaborator's, written by them or
 relayed by their agent from what they said): deleting or overwriting evidence,
 raw outputs or checkpoints; stopping or reconfiguring a run someone else
