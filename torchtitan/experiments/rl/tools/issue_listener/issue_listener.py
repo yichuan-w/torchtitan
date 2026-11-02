@@ -17,6 +17,9 @@ hook-stop     Stop hook: in an issue session, keep the turn going while a mentio
 
 A reply is a later comment in the same issue from this account that carries a `session <id>` line or does not mention
 the account. Only askers (LISTEN_ASKERS, or the collaborators) count; this account's own agent comments (with a session line) never do.
+An issue belongs to whichever of this account's agent sessions posted in it last (the issue body counts, so opening an
+issue claims it). A mention in an issue another session holds is left to that session, here or on another machine, for
+LISTEN_CLAIM_GRACE seconds (default 1800); after that the listener's session takes it, and by replying holds it.
 """
 import json
 import os
@@ -27,7 +30,7 @@ import time
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
-SESSION_LINE = re.compile(r"(^|\n)session [0-9a-f]{8}\b")
+SESSION_LINE = re.compile(r"(^|\n)session ([0-9a-f]{8})\b")
 LOOKBACK_DAYS = 14
 SELF = Path(__file__).resolve()
 _static = {}  # own login never changes within one process; the collaborator list is refreshed every 10 min
@@ -80,14 +83,25 @@ def pending(issue=None):
     items += [{"id": f"i{i['id']}", "issue": str(i["number"]), "author": i["user"]["login"], "at": i["created_at"],
                "url": i["html_url"], "body": i["body"] or ""} for i in issues if "pull_request" not in i]
     mention = re.compile(rf"@{re.escape(me)}\b", re.I)
-    last_reply = {}
-    for it in items:
-        if it["author"] == me and (SESSION_LINE.search(it["body"]) or not mention.search(it["body"])):
-            last_reply[it["issue"]] = max(last_reply.get(it["issue"], ""), it["at"])
+    last_reply, holder = {}, {}
+    for it in sorted(items, key=lambda it: it["at"]):
+        line = SESSION_LINE.search(it["body"]) if it["author"] == me else None
+        if it["author"] == me and (line or not mention.search(it["body"])):
+            last_reply[it["issue"]] = it["at"]
+        if line:
+            holder[it["issue"]] = line.group(2)
+    grace_end = (datetime.now(timezone.utc) - timedelta(seconds=int(os.environ.get("LISTEN_CLAIM_GRACE", "1800")))
+                 ).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+    def held_elsewhere(n):  # another session of this account holds issue n; the listener's own session does not count
+        own = state_dir() / f"issue-{n}.session"
+        return n in holder and not (own.exists() and own.read_text().startswith(holder[n]))
+
     return sorted((it for it in items
                    if mention.search(it["body"]) and it["author"] in askers
                    and not (it["author"] == me and SESSION_LINE.search(it["body"]))
-                   and it["at"] > last_reply.get(it["issue"], "")),
+                   and it["at"] > last_reply.get(it["issue"], "")
+                   and not (it["at"] > grace_end and held_elsewhere(it["issue"]))),
                   key=lambda it: it["at"])
 
 
