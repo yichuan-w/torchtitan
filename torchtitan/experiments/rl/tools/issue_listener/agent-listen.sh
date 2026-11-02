@@ -56,8 +56,9 @@ for s in $(tmux list-sessions -F '#S' 2>/dev/null | grep -E "^$p-[0-9]+\$" || tr
   tmux capture-pane -p -t "=$s:" | grep -qE '… \([0-9]+(m [0-9]+)?s' && continue  # Claude Code's busy spinner line
   [ $((now - $(tmux display -p -t "=$s:" '#{session_created}'))) -lt 180 ] && continue
   [ -f "$state/nudge-$n" ] && [ $((now - $(cat "$state/nudge-$n"))) -lt 600 ] && continue
-  tmux send-keys -t "=$s:" -l "The wait for issue #$n is not running. Start it again and handle anything pending."
-  tmux send-keys -t "=$s:" C-m
+  tmux send-keys -t "=$s:" -l "The wait for issue #$n is not running. Start it again and handle what pending prints."
+  sleep 1  # Enter sent right behind the text is taken as a newline inside a paste, and the nudge is never submitted
+  tmux send-keys -t "=$s:" Enter
   echo "$now" > "$state/nudge-$n"
   echo "$(date '+%F %T') nudged $s"
 done

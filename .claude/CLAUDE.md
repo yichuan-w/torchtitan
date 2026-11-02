@@ -83,9 +83,10 @@ down restarts it without asking.
 account's agent sessions posted in it last, by its session line; opening an
 issue claims it. That account's listener leaves new mentions there to the
 holding session, wherever it runs, and takes them over only once one has gone
-30 minutes without a reply. A session that finds a later session line of its
-own account than its own has handed the issue over and posts there again only
-when its owner asks.
+30 minutes without a reply. A listener's session answers only the mentions its
+`pending` command prints, which leaves out those another session is holding. A
+session that finds a later session line of its own account than its own has
+handed the issue over and posts there again only when its owner asks.
 
 **Pause.** When any collaborator asks the agents to pause, every agent starts
 nothing new under this section until one of them says to carry on.

@@ -155,6 +155,8 @@ def hook_start():
           f"`gh`. Post with `gh issue comment {issue} --repo {repo}`. Keep `python3 {SELF} wait {issue}` running as a "
           "background task; when it exits it prints each new mention in full, so you need not re-read the thread "
           "unless it has left your context. Handle the request, reply in the issue, then start `wait` again. "
+          f"Answer only the mentions `wait` or `python3 {SELF} pending {issue}` prints: a mention you see in the "
+          "thread that neither prints is being answered by another session of this account, and is not yours. "
           "Background tasks have a time limit, so `wait` can also end with nothing printed when that limit stops it; "
           "restart it then too. Restarting `wait` is always yours to do, whatever stopped it: this session exists to "
           "keep it running.")
