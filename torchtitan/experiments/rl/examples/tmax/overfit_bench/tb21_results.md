@@ -52,11 +52,11 @@ in run 1030c solved it (#309). A box is ticked once the task is overfit (rule ab
 ### Never solved, by the base or a trained model (27)
 
 - [x] db-wal-recovery (base 0/75) - overfit at step ~95; 64-attempt confirm 17/64 at step 90
-- [ ] raman-fitting (0/74) - running (160K/300 turns); readouts 3/16, 2/16; confirm at step 60 3/64
+- [ ] raman-fitting (0/74) - running (back on the recipe: 160K/300 turns gave 5 groups in 2.4 h); readouts 3/16, 2/16; confirm at step 60 3/64
 - [ ] install-windows-3.11 (0/71) - running; original passed 2 training groups
 - [ ] filter-js-from-html (0/75) - running; original passed 2 training groups
-- [ ] torch-tensor-parallelism (0/75) - running (160K/300 turns)
-- [ ] torch-pipeline-parallelism (0/75) - running (160K/300 turns)
+- [ ] torch-tensor-parallelism (0/75) - running (back on the recipe)
+- [ ] torch-pipeline-parallelism (0/75) - running (back on the recipe: at 300 turns most attempts hit the 2 h budget)
 - [ ] path-tracing (0/75) - running (160K/300 turns)
 - [ ] path-tracing-reverse (0/75) - running (160K/300 turns)
 - [ ] write-compressor (0/74) - running (160K/300 turns)
