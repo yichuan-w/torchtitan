@@ -1507,6 +1507,9 @@ class VLLMGenerator(Actor, Configurable):
         if config.kv_offload_gb:
             engine_kwargs["kv_offloading_size"] = config.kv_offload_gb
             engine_kwargs["kv_offloading_backend"] = "native"
+            # vLLM rejects a KV connector under expandable_segments:True unless
+            # the KV cache comes from the cumem pool, which pins its pages.
+            engine_kwargs["enable_cumem_allocator"] = True
         # Continuous batching requires FCFS scheduling: admission order must equal the
         # broadcast order on every rank
         engine_kwargs["scheduling_policy"] = "fcfs"
