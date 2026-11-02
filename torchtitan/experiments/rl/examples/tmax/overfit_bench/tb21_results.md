@@ -1,14 +1,20 @@
 # TB-2.1 overfit bench: results
 
-Tasks from `tb21_tasks.txt` (the 48 the starting 9B never solved at step 0). A task counts as
-overfit once the original task passes reliably: a training group on the original at half or more
-of its attempts, or a readout of 4/16 or more. The 64-attempt confirm (README) is the stricter
-check where it has run.
+Tasks from `tb21_tasks.txt` (the 48 the starting 9B never solved at step 0). Two bars, recorded
+side by side:
 
-| task | overfit at | evidence | arm |
-|---|---|---|---|
-| sqlite-db-truncate | step 100 | readout 10/16 (pass@5 1.0); training groups on the original up to 11/12 | recipe, original share 1/2 once it passed |
-| db-wal-recovery | step ~95 | training group on the original 8/12 (others 7/12, 6/12, 5/12); readout 4/16 at step 90; 64-attempt confirm at step 90: **17/64** (passes the strict bar of 13/64) | recipe |
+- **Overfit (lenient, for tracking):** a training group on the original at half or more of its
+  attempts, or a readout of 4/16 or more. Boxes in the Tracker are ticked on this bar.
+- **Solved (two-stage):** a readout of 2/16 or more passes the screen; the checkpoint of that same
+  step then gets the 64-attempt confirm (README), and 13/64 or more counts as solved, the
+  pass@5 >= 0.5 line. A single readout at 4/16 is not enough on its own: read every 5 steps, a task
+  at a 10% per-attempt rate (pass@5 0.41) crosses 4/16 within 50 steps about half the time, against
+  ~5% under the two stages (#307).
+
+| task | overfit at | evidence | 64-attempt confirm | arm |
+|---|---|---|---|---|
+| sqlite-db-truncate | step 100 | readout 10/16 (pass@5 1.0); training groups on the original up to 11/12 | not run yet | recipe, original share 1/2 once it passed |
+| db-wal-recovery | step ~95 | training group on the original 8/12 (others 7/12, 6/12, 5/12); readout 4/16 at step 90 | step 90: **17/64**, solved | recipe |
 
 Learned what made db-wal-recovery pass: XOR the WAL with 0x42 (or copy it aside) before any
 sqlite call, since opening the database while the WAL is still encrypted deletes it. Its

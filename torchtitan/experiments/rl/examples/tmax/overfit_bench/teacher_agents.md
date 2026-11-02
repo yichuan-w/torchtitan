@@ -56,6 +56,12 @@ requires to the student. A hint points to an action the student takes, not to th
 - **Read the original's attempts.** Its groups are all-fail until the student can solve it, which
   costs its attempts but not a step; the first group with one pass trains the student on the original
   itself. Its attempts show what still fails on it, which is what the next version should train.
+- **A group on the original buys information, a group on a version buys practice.** Whatever a
+  version trains is worth only what it changes on the original, and only the original's own groups
+  show that. A group spent on the original may teach nothing if every attempt fails, but it tells
+  you what the student still lacks there; without such groups a run can spend most of its steps
+  refining versions whose skill never reaches the original. Once the original gives mixed groups,
+  each of its groups trains the student on the examination itself.
 
 ## This directory
 
