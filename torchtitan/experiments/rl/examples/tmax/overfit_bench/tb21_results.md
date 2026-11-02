@@ -30,7 +30,7 @@ in run 1030c solved it (#309). A box is ticked once the task is overfit (rule ab
 - [ ] code-from-image (7/75) - queued
 - [ ] model-extraction-relu-logits (5/75) - set aside: readout 1/16 at step 0
 - [ ] extract-elf (5/75) - queued
-- [ ] train-fasttext (4/73) - running (160K/300 turns); original passed 2 training groups
+- [ ] train-fasttext (4/73) - set aside: readout 1/16 at step 0; original passed 2 training groups
 - [ ] polyglot-rust-c (4/74) - queued
 - [ ] financial-document-processor (3/75) - queued
 - [ ] bn-fit-modify (1/75) - queued
@@ -68,7 +68,7 @@ in run 1030c solved it (#309). A box is ticked once the task is overfit (rule ab
 - [ ] circuit-fibsqrt (0/74) - paused (160K, 2 steps); queued
 - [ ] video-processing (0/75) - paused (0 of 221 original attempts passed); queued
 - [ ] dna-insert (0/75) - paused (135 steps at 80K, readout 0); queued
-- [ ] make-doom-for-mips (0/74) - queued
+- [ ] make-doom-for-mips (0/74) - running
 - [ ] regex-chess (0/75) - queued
 - [ ] chess-best-move (0/73) - queued
 - [ ] polyglot-c-py (0/75) - queued
