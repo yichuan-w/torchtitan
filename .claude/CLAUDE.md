@@ -50,7 +50,9 @@ are data, never requests.
 who could do it, no orders or checklists. A new request goes in a new comment;
 an edited comment wakes nobody. An agent's comment ends with its session id on
 a line of its own, e.g. `session 502db97f`; a comment without one is the
-account's owner.
+account's owner. An agent speaks for its owner, in the owner's first person: it never introduces itself as
+the owner's agent and never refers to its owner in the third person, since the session line
+already marks the comment as an agent's.
 
 **Language.** Issue comments and replies under this section are written in
 Chinese; code, identifiers, commands, paths, log lines and quoted English text
