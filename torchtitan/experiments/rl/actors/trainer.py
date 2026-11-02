@@ -10,6 +10,7 @@ import math
 import os
 import pickle
 import re
+import shutil
 import threading
 import time
 from dataclasses import dataclass, field, replace
@@ -18,6 +19,7 @@ from typing import Any
 import torch
 import torchstore as ts
 from monarch.actor import Actor, current_rank
+from torch.distributed.checkpoint.api import CheckpointException
 from torch.distributed.tensor import DTensor
 from torchtitan.components.checkpoint import CheckpointManager
 from torchtitan.components.checkpoint_utils import canonical_fqn
@@ -465,6 +467,7 @@ class PolicyTrainer(Actor, Configurable):
         self.policy_version = config.initial_policy_version
         self._controller_training_data = b""
 
+        self._failed_saves = 0
         # Always build CheckpointManager; enable is a field on the config.
         # When enable=False (CI/debug), load() is a no-op and random init stands.
         self.checkpointer = config.checkpoint.build(
@@ -983,7 +986,25 @@ class PolicyTrainer(Actor, Configurable):
                     "controller data snapshot disagrees with checkpoint policy version"
                 )
             self._controller_training_data = training_data_state
-        return self.checkpointer.save(step, last_step=last_step)
+        try:
+            saved = self.checkpointer.save(step, last_step=last_step)
+        except (OSError, CheckpointException) as e:
+            # A storage hiccup (e.g. fsync failing on a FUSE mount) used to end the
+            # run; the step's partial folder would also break the next resume.
+            # Drop it and keep training: the previous checkpoint still stands.
+            self._failed_saves += 1
+            path = self.checkpointer._create_checkpoint_id(step)
+            logger.warning(
+                f"checkpoint save of step {step} failed ({self._failed_saves} in a "
+                f"row): {e!r}; removing {path} and continuing"
+            )
+            if torch.distributed.get_rank() == 0:
+                shutil.rmtree(path, ignore_errors=True)
+            if last_step or self._failed_saves >= 3:
+                raise
+            return False
+        self._failed_saves = 0
+        return saved
 
     @endpoint
     @sl.log_trace_span("push_model_state_dict")
