@@ -72,6 +72,10 @@ class Policy:
     # retired. Without it the teacher dropped the original after its first groups, so a solve on it
     # could only show in the readout, which trains nothing. 0 leaves the original to the teacher.
     original_share: float = 0.125
+    # The share once the original has passed in one of its last 3 groups: from then on the original
+    # trains the student directly (sqlite-db-truncate, 2026-11-01: 1/12 groups at 1/8, then 4/11, 7/12
+    # and 11/12 at 1/2).
+    original_share_passing: float = 0.5
 
 
 def recipe() -> dict[str, str]:
@@ -92,7 +96,8 @@ def agents_md(policy: Policy, sandbox: dict) -> str:
         context=r.get("SWE_MAX_CONTEXT_LEN", "?"),
         hours=f"{int(r.get('SWE_BENCH_TRAIN_BUDGET_SEC', '0')) / 3600:g}",
         stale=r.get("SWE_OFFPOLICY_STEPS", "?"), val_every=r.get("SWE_VAL_INTERVAL", "?"),
-        cap=policy.max_active, share=f"{policy.original_share:.0%}", cpu=sandbox.get("daytona_cpu") or "?",
+        cap=policy.max_active, share=f"{policy.original_share:.0%}",
+        share_passing=f"{policy.original_share_passing:.0%}", cpu=sandbox.get("daytona_cpu") or "?",
         mem=sandbox.get("daytona_mem_gb") or "?", disk=sandbox.get("daytona_disk_gb") or "?")
 
 
@@ -269,6 +274,8 @@ class Teacher:
             return
         g = {"group": group, "passed": int(e["passed"]), "scored": int(e["scored"]), "at": e.get("stamp")}
         self.groups[vid].append(g)
+        if self.versions.get(vid, {}).get("rev") in (0, "0"):
+            self.hold_original()
         label = self.label(vid)
         self.news.append(f"{label} g{g['group']} finished: {g['passed']}/{g['scored']} passed")
         near = self.policy.near
@@ -470,6 +477,8 @@ class Teacher:
         original = next((v for v in self.versions.values() if int(v["rev"]) == 0), None)
         if share <= 0 or original is None or self.client is None:
             return ""
+        if any(g["passed"] > 0 for g in self.groups.get(original["id"], [])[-3:]):
+            share = max(share, self.policy.original_share_passing)
         others = sum(float(v.get("weight") or 0) for v in self.versions.values()
                      if v["status"] == "active" and int(v["rev"]) != 0)
         w = share / (1 - share) * others if others > 0 else 1.0

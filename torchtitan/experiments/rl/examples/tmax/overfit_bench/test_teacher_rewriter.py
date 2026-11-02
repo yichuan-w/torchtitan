@@ -58,7 +58,7 @@ def check_ok(package, *, shortcut, timeout, sandbox):
     return {"reward": 0.0 if shortcut else 1.0}
 
 
-def _setup(job, monkeypatch, script, check=check_ok, original_share=0.0):
+def _setup(job, monkeypatch, script, check=check_ok, original_share=0.0, original_share_passing=0.5):
     root, run, sched, client = job
     (root.path / "job.json").write_text(json.dumps({"task": "a"}))
     r0 = root.evolution.task("a").rev(0)
@@ -67,7 +67,7 @@ def _setup(job, monkeypatch, script, check=check_ok, original_share=0.0):
         (r0 / rel).parent.mkdir(parents=True, exist_ok=True)
         (r0 / rel).write_text(text)
     t = tr.Teacher(root, client, _ev(), ask=script, check=check,
-                   policy=tr.Policy(original_share=original_share))
+                   policy=tr.Policy(original_share=original_share, original_share_passing=original_share_passing))
     t.start()
     return t
 
@@ -188,6 +188,16 @@ def test_the_original_keeps_its_share_and_cannot_be_retired(job, monkeypatch):
     assert pool[V0]["status"] == "active" and abs(pool[V0]["weight"] - 1.0) < 1e-6  # 3.0 / 3
     assert "retire r0: the original stays in the pool" in t.state["rounds"][1]["done"]
     assert "25% of the\n  draw weight" in (t.work / "AGENTS.md").read_text()
+
+
+def test_the_original_gets_more_of_the_draws_once_it_passes(job, monkeypatch):
+    root, run, sched, client = job
+    t = _setup(job, monkeypatch, Script(new_version("v1", "x")), original_share=0.25)
+    _settle(t, lambda: len(_pool(sched)) == 2)
+    assert abs(_pool(sched)[V0]["weight"] - 1.0 / 3) < 1e-6  # 25% beside r1 at 1.0
+    _attempts(run, sched, group=0, rewards=[1.0] + [0.0] * 11)
+    _settle(t, lambda: sum(map(len, t.groups.values())) == 1)
+    assert abs(_pool(sched)[V0]["weight"] - 1.0) < 1e-6  # passed once: 50%
 
 
 def test_a_retired_original_is_added_back(job, monkeypatch):
