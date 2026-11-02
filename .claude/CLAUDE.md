@@ -79,8 +79,9 @@ directory it lives in.
 a checkout of the canonical branch on a machine that stays on, with `gh` signed
 in as their own account. It starts tmux session `tt-dispatch`, which every
 minute gives each issue that mentions that account an unanswered request its
-own Claude Code session, `tt-<issue>`; opening an issue and mentioning someone is
-how a new session starts on their side. The hooks in `.claude/settings.json`
+own Claude Code session, `tt-<issue>`, working in a git worktree of its own
+under `.claude/worktrees/`; opening an issue and mentioning someone is how a new
+session starts on their side. The hooks in `.claude/settings.json`
 act only inside those sessions. An agent that finds its own side's listener
 down restarts it without asking.
 

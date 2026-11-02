@@ -20,10 +20,15 @@ here="$(cd "$(dirname "$0")" && pwd)"
 self="$here/$(basename "$0")"
 p=$LISTEN_PREFIX
 repo=$(git rev-parse --show-toplevel)
-state="$(git -C "$repo" rev-parse --absolute-git-dir)/agent-listen-$p"
+# State is shared by the dispatcher and every issue session, so it lives in the common git dir that all their
+# worktrees share. A listener from before issue worktrees kept it in its own worktree's git dir; move it over once.
+state="$(git -C "$repo" rev-parse --path-format=absolute --git-common-dir)/agent-listen-$p"
+old="$(git -C "$repo" rev-parse --absolute-git-dir)/agent-listen-$p"
+[ "$old" != "$state" ] && [ -d "$old" ] && [ ! -d "$state" ] && mv "$old" "$state"
 mkdir -p "$state"
 cd "$repo"
-envs=(-e "LISTEN_REPO=$LISTEN_REPO" -e "LISTEN_PREFIX=$p" -e "LISTEN_ASKERS=$LISTEN_ASKERS" -e "LISTEN_RULES=$LISTEN_RULES")
+envs=(-e "LISTEN_REPO=$LISTEN_REPO" -e "LISTEN_PREFIX=$p" -e "LISTEN_ASKERS=$LISTEN_ASKERS" -e "LISTEN_RULES=$LISTEN_RULES"
+      -e "LISTEN_HOME=$repo")
 
 if [ "${1:-}" != --once ]; then
   if tmux has-session -t "=$p-dispatch" 2>/dev/null; then
@@ -38,12 +43,20 @@ fi
 
 for n in $(python3 "$here/issue_listener.py" issues); do
   tmux has-session -t "=$p-$n" 2>/dev/null && continue
+  # A new issue session starts in a git worktree of its own (`claude -w`, the same .claude/worktrees/<name> a
+  # subagent's isolation uses), so nothing it checks out or edits reaches the code this dispatcher runs. A restarted
+  # session resumes in the directory its SessionStart hook recorded, since Claude Code finds a session by its
+  # directory; one from before issue worktrees recorded none and started in this checkout.
   if [ -s "$state/issue-$n.session" ]; then
+    wt=$(cat "$state/issue-$n.cwd" 2>/dev/null || echo "$repo")
     start="claude --dangerously-skip-permissions --resume $(cat "$state/issue-$n.session") 'You were restarted. Start the wait for issue #$n again and handle anything pending.'"
   else
-    start="claude --dangerously-skip-permissions 'Take issue #$n of $LISTEN_REPO.'"
+    wt=$repo
+    # baseRef head: the worktree starts from this checkout's commit; the default is the remote's default branch,
+    # which in a fork can be a line with no listener on it. --settings keeps that to these sessions.
+    start="claude --dangerously-skip-permissions --settings '{\"worktree\":{\"baseRef\":\"head\"}}' -w $p-$n 'Take issue #$n of $LISTEN_REPO.'"
   fi
-  tmux new-session -d -s "$p-$n" -c "$repo" "${envs[@]}" -e "LISTEN_ISSUE=$n" bash -c "$start"
+  tmux new-session -d -s "$p-$n" -c "$wt" "${envs[@]}" -e "LISTEN_ISSUE=$n" bash -c "$start"
   echo "$(date '+%F %T') started $p-$n"
 done
 
@@ -56,6 +69,7 @@ for s in $(tmux list-sessions -F '#S' 2>/dev/null | grep -E "^$p-[0-9]+\$" || tr
   tmux capture-pane -p -t "=$s:" | grep -qE '… \([0-9]+(m [0-9]+)?s' && continue  # Claude Code's busy spinner line
   [ $((now - $(tmux display -p -t "=$s:" '#{session_created}'))) -lt 180 ] && continue
   [ -f "$state/nudge-$n" ] && [ $((now - $(cat "$state/nudge-$n"))) -lt 600 ] && continue
+  python3 "$here/issue_listener.py" held "$n" && continue  # another session holds the issue: leave this one idle
   tmux send-keys -t "=$s:" -l "The wait for issue #$n is not running. Start it again and handle what pending prints."
   sleep 1  # Enter sent right behind the text is taken as a newline inside a paste, and the nudge is never submitted
   tmux send-keys -t "=$s:" Enter

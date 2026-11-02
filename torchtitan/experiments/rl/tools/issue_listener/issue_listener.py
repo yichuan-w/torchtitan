@@ -7,10 +7,12 @@ work in; agent-listen.sh sets these and passes them into every session:
   LISTEN_PREFIX   tmux/session prefix; state lives in <git dir>/agent-listen-<prefix>/
   LISTEN_ASKERS   comma list of accounts whose mentions count; empty means the repository's collaborators
   LISTEN_RULES    a sentence naming where the session's collaboration rules live (used in the hook-start text)
+  LISTEN_HOME     the dispatcher's own checkout, which issue sessions never write into (each has a worktree)
   LISTEN_ISSUE    set per issue session only; the hooks do nothing without it
 
 pending [N]   print @-mentions of this gh account that no later reply from it answers (only issue N if given)
 issues        print the issue numbers that have such a mention, one per line (agent-listen.sh starts a session each)
+held N        exit 0 when another session of this account holds issue N and nothing in it is left to the listener
 wait N        poll every 60 s until issue N has a mention not reported before; print it in full and exit
 hook-start    SessionStart hook: in an issue session, record the session id and say how to work
 hook-stop     Stop hook: in an issue session, keep the turn going while a mention is unanswered or `wait` is not running
@@ -52,9 +54,9 @@ def gh_pages(path):
     return [item for page in json.loads(out) for item in page]
 
 
-def state_dir():
-    git_dir = subprocess.run(["git", "rev-parse", "--absolute-git-dir"], check=True, capture_output=True,
-                             text=True).stdout.strip()
+def state_dir():  # in the common git dir, shared by the dispatcher's checkout and every issue worktree
+    git_dir = subprocess.run(["git", "rev-parse", "--path-format=absolute", "--git-common-dir"], check=True,
+                             capture_output=True, text=True).stdout.strip()
     d = Path(git_dir) / f"agent-listen-{env('LISTEN_PREFIX')}"
     d.mkdir(exist_ok=True)
     return d
@@ -97,6 +99,7 @@ def pending(issue=None):
         own = state_dir() / f"issue-{n}.session"
         return n in holder and not (own.exists() and own.read_text().startswith(holder[n]))
 
+    _static["held"] = {n for n in holder if held_elsewhere(n)}
     return sorted((it for it in items
                    if mention.search(it["body"]) and it["author"] in askers
                    and not (it["author"] == me and SESSION_LINE.search(it["body"]))
@@ -146,8 +149,11 @@ def hook_start():
     if not issue:
         return
     repo, rules = env("LISTEN_REPO"), env("LISTEN_RULES")
+    home = os.environ.get("LISTEN_HOME") or subprocess.run(["git", "rev-parse", "--show-toplevel"],
+                                                           capture_output=True, text=True).stdout.strip()
     sid = json.load(sys.stdin)["session_id"]
     (state_dir() / f"issue-{issue}.session").write_text(sid)
+    (state_dir() / f"issue-{issue}.cwd").write_text(str(Path.cwd()))  # where agent-listen.sh resumes it
     print(f"You are this checkout's agent for issue #{issue} of the GitHub repository {repo}. Your session id is {sid}; "
           f"end every comment you post with the line `session {sid[:8]}`. {rules} Read the whole thread once "
           f"(`gh api repos/{repo}/issues/{issue}` for the issue body, `gh api --paginate "
@@ -157,8 +163,10 @@ def hook_start():
           "unless it has left your context. Handle the request, reply in the issue, then start `wait` again. "
           f"Answer only the mentions `wait` or `python3 {SELF} pending {issue}` prints: a mention you see in the "
           "thread that neither prints is being answered by another session of this account, and is not yours. "
-          "Do code work in a git worktree of your own (`git worktree add`): never switch this checkout's branch, and "
-          "never leave it mid-merge or mid-rebase, because the listener runs from it. "
+          f"The listener runs from {home}: never write into it, check out a branch there or leave it mid-merge. "
+          + ("This directory is that checkout, so do code work in a git worktree of your own (`git worktree add`). "
+             if Path.cwd().resolve() == Path(home).resolve() else
+             "This directory is a worktree of your own for this issue; branch, commit and push from it freely. ") +
           "Background tasks have a time limit, so `wait` can also end with nothing printed when that limit stops it; "
           "restart it then too. Restarting `wait` is always yours to do, whatever stopped it: this session exists to "
           "keep it running.")
@@ -190,6 +198,8 @@ if __name__ == "__main__":
         show(pending(arg or None))
     elif cmd == "issues":
         print("\n".join(sorted({it["issue"] for it in pending()}, key=int)))
+    elif cmd == "held" and arg:
+        sys.exit(0 if not pending(arg) and arg in _static["held"] else 1)
     elif cmd == "wait" and arg:
         wait(arg)
     elif cmd == "hook-start":

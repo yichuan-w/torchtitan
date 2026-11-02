@@ -65,3 +65,4 @@ CLAUDE_CONTEXT/
 
 # Local slide decks
 *.pptx
+/.claude/worktrees/
