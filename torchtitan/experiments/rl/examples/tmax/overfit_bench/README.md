@@ -9,6 +9,9 @@ measured. Learning the task by heart counts: the question is only whether the
 original task gets solved.
 
 Tasks: every Terminal-Bench 2.1 task (89) and every Terminal-Bench 4 task (66).
+The TB-2.1 bench list is `tb21_tasks.txt`: the 48 tasks the starting Qwen3.5-9B
+solved in none of its step-0 rollouts in run 1031b (5 per task). A task there is
+overfit once a readout passes the 64-attempt confirm.
 
 ## What the bench fixes
 
