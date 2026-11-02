@@ -1154,6 +1154,12 @@ class VLLMGenerator(Actor, Configurable):
         users share, vLLM's startup profiling counts their allocations as its own and can
         size the cache negative; a fixed size skips that estimate."""
 
+        kv_offload_gb: float = 0.0
+        """CPU memory (GiB, summed over the engine's TP ranks) for vLLM's native KV
+        offload; 0 disables it. Prefix-cache blocks evicted from GPU are kept in host
+        memory and copied back on a later hit, so multi-turn sessions that sit idle on
+        tool calls do not re-prefill. A CPU hit restores the same bytes as a GPU hit."""
+
         cudagraph: VLLMCudagraphConfig = field(default_factory=VLLMCudagraphConfig)
         """CUDA graph capture settings for the vLLM engine."""
 
@@ -1498,6 +1504,9 @@ class VLLMGenerator(Actor, Configurable):
         # 'align'-mode prefix caching so multi-turn rollouts reuse the shared prefix.
         if config.enable_prefix_caching is not None:
             engine_kwargs["enable_prefix_caching"] = config.enable_prefix_caching
+        if config.kv_offload_gb:
+            engine_kwargs["kv_offloading_size"] = config.kv_offload_gb
+            engine_kwargs["kv_offloading_backend"] = "native"
         # Continuous batching requires FCFS scheduling: admission order must equal the
         # broadcast order on every rank
         engine_kwargs["scheduling_policy"] = "fcfs"
