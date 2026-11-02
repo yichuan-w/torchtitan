@@ -8,7 +8,7 @@ check where it has run.
 | task | overfit at | evidence | arm |
 |---|---|---|---|
 | sqlite-db-truncate | step 100 | readout 10/16 (pass@5 1.0); training groups on the original up to 11/12 | recipe, original share 1/2 once it passed |
-| db-wal-recovery | step ~95 | training group on the original 8/12 (others 7/12, 6/12, 5/12); readout 4/16 at step 90 | recipe |
+| db-wal-recovery | step ~95 | training group on the original 8/12 (others 7/12, 6/12, 5/12); readout 4/16 at step 90; 64-attempt confirm at step 90: **17/64** (passes the strict bar of 13/64) | recipe |
 
 Learned what made db-wal-recovery pass: XOR the WAL with 0x42 (or copy it aside) before any
 sqlite call, since opening the database while the WAL is still encrypted deletes it. Its
@@ -51,7 +51,7 @@ in run 1030c solved it (#309). A box is ticked once the task is overfit (rule ab
 
 ### Never solved, by the base or a trained model (27)
 
-- [x] db-wal-recovery (base 0/75) - overfit at step ~95
+- [x] db-wal-recovery (base 0/75) - overfit at step ~95; 64-attempt confirm 17/64 at step 90
 - [ ] raman-fitting (0/74) - running (160K/300 turns); readouts 3/16, 2/16; confirm at step 60 3/64
 - [ ] install-windows-3.11 (0/71) - running; original passed 2 training groups
 - [ ] filter-js-from-html (0/75) - running; original passed 2 training groups
@@ -69,7 +69,7 @@ in run 1030c solved it (#309). A box is ticked once the task is overfit (rule ab
 - [ ] video-processing (0/75) - paused (0 of 221 original attempts passed); queued
 - [ ] dna-insert (0/75) - paused (135 steps at 80K, readout 0); queued
 - [ ] make-doom-for-mips (0/74) - running
-- [ ] regex-chess (0/75) - queued
+- [ ] regex-chess (0/75) - running
 - [ ] chess-best-move (0/73) - queued
 - [ ] polyglot-c-py (0/75) - queued
 - [ ] gpt2-codegolf (0/75) - queued
