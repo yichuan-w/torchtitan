@@ -1510,6 +1510,7 @@ class VLLMGenerator(Actor, Configurable):
             # vLLM rejects a KV connector under expandable_segments:True unless
             # the KV cache comes from the cumem pool, which pins its pages.
             engine_kwargs["enable_cumem_allocator"] = True
+            _patch_offload_metrics_for_inprocess_engine()
         # Continuous batching requires FCFS scheduling: admission order must equal the
         # broadcast order on every rank
         engine_kwargs["scheduling_policy"] = "fcfs"
@@ -2657,3 +2658,36 @@ class LoopDecision:
     # lockstep. An orphaned RUNNING request is not benign: it decodes to its
     # full max_tokens (32K on this recipe) for nobody, squatting a decode slot
     # for hours -- measured 08-29, ~500 orphans against 768 slots.
+
+
+def _patch_offload_metrics_for_inprocess_engine() -> None:
+    """vLLM's offload stats assume ops were msgpack-serialized into dicts on the
+    way from an engine-core process; our engine is in-process, so they arrive as
+    OffloadingOperationMetrics objects and an assert kills the engine loop.
+    Normalize them to dicts before vLLM reads them. Stats only."""
+    import dataclasses
+
+    from vllm.distributed.kv_transfer.kv_connector.v1.offloading import metrics
+
+    if getattr(metrics, "_tt_inprocess_patched", False):
+        return
+
+    def _as_dicts(data):
+        return {
+            k: [dataclasses.asdict(op) if dataclasses.is_dataclass(op) else op for op in ops]
+            for k, ops in data.items()
+        }
+
+    observe = metrics.OffloadPromMetrics.observe
+    reduce = metrics.OffloadingConnectorStats.reduce
+
+    def _observe(self, transfer_stats_data, engine_idx=0):
+        return observe(self, _as_dicts(transfer_stats_data), engine_idx)
+
+    def _reduce(self):
+        self.data = _as_dicts(self.data)
+        return reduce(self)
+
+    metrics.OffloadPromMetrics.observe = _observe
+    metrics.OffloadingConnectorStats.reduce = _reduce
+    metrics._tt_inprocess_patched = True
