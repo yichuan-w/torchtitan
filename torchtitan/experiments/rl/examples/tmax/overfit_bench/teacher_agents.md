@@ -7,8 +7,8 @@ After training, the student is examined on the original task alone. Learning it 
 ## How training works
 
 - {slots} groups run at once. A group is one version of the task, drawn from the pool, attempted
-  {group} times by the student; it takes about an hour. Each group is one training step; the run
-  has {steps} steps.
+  {group} times by the student; it takes about an hour. Each group that trains is one training
+  step; the run has {steps} steps.
 - A group teaches the student only when some of its attempts pass and some fail. A group where
   every attempt fails, or every attempt passes, teaches nothing and takes no training step: it is
   dropped, but its {group} attempts were still spent. Attempts are what the run is short of: the
@@ -44,34 +44,16 @@ Each round, decide, and write `plan.json`:
   (`draw_first`; it replaces the previous list).
 At most {cap} versions can be in the pool at once, because only {slots} groups run at a time.
 
-A principle: help should leave each decision the original requires to the student. A hint points
-to an action the student takes, not to the conclusion. What that means in practice:
+The examination is the original alone: its instruction, its environment, its own tests, which the
+student does not see. A version trains the student only as far as what it practises is something
+the original asks of the student there. A principle: help should leave each decision the original
+requires to the student. A hint points to an action the student takes, not to the conclusion.
 
-- **Do not hand over the student's work.** A version must not already contain code, files or
-  results that the original expects the student to produce. A student that passes a version by
-  filling one gap in a supplied solution has learned to fill that gap, and the original stays at
-  0. Make a version easier by asking for less (a smaller part of the task, fewer cases) or by
-  giving the student a way to check its own work (a test it can run), never by doing part of it.
-- **Keep the original's environment.** What is installed and what is missing are part of the task.
-  If the original leaves the student to set up its own tools (an interpreter, a library, a way to
-  run its code), every version should too, or the student never learns that step; that setup can
-  be the subject of a version of its own.
 - **A version is worth its groups only if what it trains carries over to the original.** Once a
   version gives mixed groups, write the next one closer to the original (less help, more of the
   task); once it is mastered, retire it. Do not keep a mastered version in the pool.
-- **Never leave the pool without a version that gives mixed groups.** All-fail and all-pass groups
-  train nothing, so a pool of versions that all fail stops training outright. Keep the last version
-  that gave mixed groups, at a real weight, until a version closer to the original gives mixed
-  groups itself; only then retire it. If every active version is failing, bring one back or write
-  an easier one before writing anything harder.
-- **Withdraw feedback in steps.** A checker the student can run (the task's own tests or a stand-in)
-  often turns an all-fail task into mixed groups, and the version with it removed falls back to
-  all-fail: the student learned to repair against the checker, not to check its own work. Do not
-  jump from "checker" to "no checker". Take it away in steps the groups can follow: a checker that
-  says only pass or fail, without saying why; then one check allowed per attempt; then a checklist
-  of the rules in words that the student must test itself; then nothing, as in the original.
 - **Read the original's attempts.** Its groups are all-fail until the student can solve it, which
-  costs a slot but not a step; the first group with one pass trains the student on the original
+  costs its attempts but not a step; the first group with one pass trains the student on the original
   itself. Its attempts show what still fails on it, which is what the next version should train.
 
 ## This directory

@@ -509,10 +509,14 @@ What 2026-11-01 showed (pure RL, 0/1 reward, teacher rewriter, one GB300 host pe
   0 of about 1500 attempts on the original (base readouts 0/78), so its original-only jobs took no step,
   at G=12 or G=32, at LR 3e-6 or 1e-5.
 - **LR 1e-5 degrades the policy** (see `recipe.env`).
-- **Two teacher failure modes**, now rules in `teacher_agents.md`: a full task with a runnable checker
-  gave 2-5/12 and the same task without it 0/12 (withdraw a checker in steps); a teacher retired the
-  versions that still gave mixed groups for harder ones that all failed, and its job took no step for
-  2.5 h (keep a mixed version).
+- **What teachers did that did not carry over to the original**, each seen in one job, so findings
+  and not rules for the teacher (`teacher_agents.md` states the goal and the setup instead; #307):
+  a version that shipped most of the solution reached 12/12 while the original stayed 0/12
+  (torch-pipeline-parallelism r12); versions on a bare image, where the student has to set up its own
+  tools to test, and almost no readout attempt did (1 of 48 ran its code under a process group); a full
+  task with a runnable checker gave 2-5/12 and the same task without it 0/12 (dna-insert); a teacher
+  retired the versions that still gave mixed groups for harder ones that all failed, and its job took
+  no step for 2.5 h (large-scale-text-editing).
 - **Once the original gives mixed groups, give it more of the draws.** sqlite-db-truncate at 1/2
   (`--original-share 0.5`): its next original group passed 4/11, against 1/12 at 1/8.
 
