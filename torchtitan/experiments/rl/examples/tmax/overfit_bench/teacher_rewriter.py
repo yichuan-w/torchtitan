@@ -72,9 +72,11 @@ class Policy:
     # retired. Without it the teacher dropped the original after its first groups, so a solve on it
     # could only show in the readout, which trains nothing. 0 leaves the original to the teacher.
     original_share: float = 0.125
-    # The share once the original has passed in one of its last 3 groups: from then on the original
-    # trains the student directly (sqlite-db-truncate, 2026-11-01: 1/12 groups at 1/8, then 4/11, 7/12
-    # and 11/12 at 1/2).
+    # The share once the original has passed in a training group: from then on the original trains
+    # the student directly (sqlite-db-truncate, 2026-11-01: 1/12 groups at 1/8, then 4/11, 7/12 and
+    # 11/12 at 1/2). It stays once reached: keyed to the last 3 groups it flipped back to 1/8 after
+    # a single 1/12 (install-windows-3.11, 2026-11-02). Both shares are floors: the teacher may give
+    # the original more, up to the whole draw.
     original_share_passing: float = 0.5
 
 
@@ -448,6 +450,12 @@ class Teacher:
             self._call("reweight", v["id"], float(w))
             v["weight"] = float(w)
             done.append(f"{label} weight {w:g}")
+        original = next((v for v in self.versions.values() if int(v["rev"]) == 0), None)
+        if original is not None and "r0" in plan["weights"]:
+            # The share the teacher asked for, kept as the other weights change; below the floor
+            # the floor wins.
+            total = sum(float(v.get("weight") or 0) for v in self.versions.values() if v["status"] == "active")
+            original["teacher_share"] = float(original.get("weight") or 0) / total if total > 0 else 0.0
         held = self.hold_original()
         if held:
             done.append(held)
@@ -471,14 +479,15 @@ class Teacher:
         log.info("teacher round %d: %s", n, r["done"] or "no changes")
 
     def hold_original(self) -> str:
-        """Give the original ``original_share`` of the active draw weight, re-adding it if it was
-        retired; returns what changed, or ""."""
+        """Give the original ``original_share`` of the active draw weight, or the larger share the
+        teacher gave it, re-adding it if it was retired; returns what changed, or ""."""
         share = self.policy.original_share
         original = next((v for v in self.versions.values() if int(v["rev"]) == 0), None)
         if share <= 0 or original is None or self.client is None:
             return ""
-        if any(g["passed"] > 0 for g in self.groups.get(original["id"], [])[-3:]):
+        if any(g["passed"] > 0 for g in self.groups.get(original["id"], [])):
             share = max(share, self.policy.original_share_passing)
+        share = max(share, min(float(original.get("teacher_share") or 0), 0.99))
         others = sum(float(v.get("weight") or 0) for v in self.versions.values()
                      if v["status"] == "active" and int(v["rev"]) != 0)
         w = share / (1 - share) * others if others > 0 else 1.0

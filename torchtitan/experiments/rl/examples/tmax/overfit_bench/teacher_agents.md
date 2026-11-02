@@ -37,9 +37,10 @@ Each round, decide, and write `plan.json`:
   solution/), usually starting from a copy of one in `problems/`. You may change anything: the
   instruction, the environment, what is already in place when the student starts, the tests, the
   reference solution. Write as many as you see fit.
-- **Retire** versions other than the original. The original stays in the pool at {share} of the
-  draw weight, {share_passing} once it has passed in one of its last three groups; the platform holds
-  that share whatever weight you give it.
+- **Retire** versions other than the original. The original stays in the pool with at least {share}
+  of the draw weight, and at least {share_passing} once it has passed in a training group; the
+  platform raises it to that share when you give it less. You may give it more, up to the whole
+  draw (a large weight, or every other version retired).
 - **Weights** of the versions in the pool, and which versions the next groups draw first
   (`draw_first`; it replaces the previous list).
 At most {cap} versions can be in the pool at once, because only {slots} groups run at a time.

@@ -187,7 +187,7 @@ def test_the_original_keeps_its_share_and_cannot_be_retired(job, monkeypatch):
     pool = _pool(sched)
     assert pool[V0]["status"] == "active" and abs(pool[V0]["weight"] - 1.0) < 1e-6  # 3.0 / 3
     assert "retire r0: the original stays in the pool" in t.state["rounds"][1]["done"]
-    assert "25% of the\n  draw weight" in (t.work / "AGENTS.md").read_text()
+    assert "at least 25%\n  of the draw weight" in (t.work / "AGENTS.md").read_text()
 
 
 def test_the_original_gets_more_of_the_draws_once_it_passes(job, monkeypatch):
@@ -198,6 +198,28 @@ def test_the_original_gets_more_of_the_draws_once_it_passes(job, monkeypatch):
     _attempts(run, sched, group=0, rewards=[1.0] + [0.0] * 11)
     _settle(t, lambda: sum(map(len, t.groups.values())) == 1)
     assert abs(_pool(sched)[V0]["weight"] - 1.0) < 1e-6  # passed once: 50%
+
+
+def test_the_original_share_is_a_floor_the_teacher_can_exceed(job, monkeypatch):
+    root, run, sched, client = job
+    script = Script(new_version("v1", "x"), lambda w: {"weights": {"r0": 9.0, "r1": 1.0}})
+    t = _setup(job, monkeypatch, script, original_share=0.25)
+    _settle(t, lambda: len(_pool(sched)) == 2)
+    _attempts(run, sched, group=0, rewards=[0.0] * 12)
+    _settle(t, lambda: len(script.prompts) == 2)
+    assert abs(_pool(sched)[V0]["weight"] - 9.0) < 1e-6  # 90% of draws, above the 25% floor: kept
+
+
+def test_the_passing_share_stays_after_later_failed_groups(job, monkeypatch):
+    root, run, sched, client = job
+    t = _setup(job, monkeypatch, Script(new_version("v1", "x")), original_share=0.25)
+    _settle(t, lambda: len(_pool(sched)) == 2)
+    _attempts(run, sched, group=0, rewards=[1.0] + [0.0] * 11)
+    for g in (1, 2, 3):
+        _attempts(run, sched, group=g, rewards=[0.0] * 12)
+    _settle(t, lambda: sum(map(len, t.groups.values())) == 4)
+    t.hold_original()
+    assert abs(_pool(sched)[V0]["weight"] - 1.0) < 1e-6  # still 50%: the pass is 3 groups back
 
 
 def test_a_retired_original_is_added_back(job, monkeypatch):
