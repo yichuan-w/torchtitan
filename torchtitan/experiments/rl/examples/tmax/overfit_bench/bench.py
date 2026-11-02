@@ -40,6 +40,9 @@ layout = new_root.layout
 
 EVALSET = "original.jsonl"
 JOB_JSON = "job.json"
+# A job that left the recipe part way records it here: [{"from_step", "env", "why"}, ...]. Its
+# results are a recipe arm, not the bench's, since the bench holds the recipe fixed.
+OVERRIDES = "recipe_overrides.json"
 
 
 def _sha256(text: str) -> str:
@@ -274,6 +277,9 @@ def readout(job: Path, threshold: float = 0.5, hold: int = 3) -> dict:
     )
     versions = layout.Root(job).mix.versions()
     total = spend(job)
+    overrides = (
+        json.loads((job / OVERRIDES).read_text()) if (job / OVERRIDES).is_file() else []
+    )
     return {
         "bench": meta["bench"],
         "task": meta["task"],
@@ -284,6 +290,8 @@ def readout(job: Path, threshold: float = 0.5, hold: int = 3) -> dict:
         "best_pass_at_5": max((p for *_, p in curve), default=None),
         "last_pass_at_5": curve[-1][3] if curve else None,
         "mix_versions": len(versions),
+        "arm": "recipe" if not overrides else f"off-recipe from step {overrides[0]['from_step']}",
+        "recipe_overrides": overrides,
         "train_attempts": total.get("attempts", 0),
         "train_groups": total.get("groups", 0),
         "trained_groups": total.get("trained_groups", 0),
@@ -355,7 +363,7 @@ def main() -> None:
             print(json.dumps(results, indent=2))
             return
         cols = (
-            "bench", "task", "rewriter", "last_step", "first_pass_step",
+            "bench", "task", "rewriter", "arm", "last_step", "first_pass_step",
             "stable_solve_step", "best_pass_at_5", "last_pass_at_5",
             "mix_versions", "train_attempts", "trained_groups", "train_groups",
             "train_hours", "attempts_to_stable_solve", "readout_attempts",

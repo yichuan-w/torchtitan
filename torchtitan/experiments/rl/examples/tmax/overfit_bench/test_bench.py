@@ -136,3 +136,13 @@ def test_readout_counts_every_training_attempt_and_the_ones_to_a_stable_solve(jo
     assert r["readout_attempts"] == 48
     assert r["attempts_to_stable_solve"] == 24
     assert r["train_hours"] == round((90 + 90) / 3600, 2)
+
+
+def test_a_job_that_left_the_recipe_reads_out_as_its_own_arm(job):
+    assert bench.readout(job)["arm"] == "recipe"
+    (job / bench.OVERRIDES).write_text(
+        json.dumps([{"from_step": 15, "env": {"SWE_TMAX_CONTEXT": "163840"}, "why": "x"}])
+    )
+    r = bench.readout(job)
+    assert r["arm"] == "off-recipe from step 15"
+    assert r["recipe_overrides"][0]["env"] == {"SWE_TMAX_CONTEXT": "163840"}

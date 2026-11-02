@@ -190,6 +190,10 @@ attempts of rollout-engine time), groups and how many trained, wall clock,
 and the attempts and hours up to `stable_solve_step`. Readout attempts are
 counted apart: they measure and do not train. Compare rewriters on attempts
 to a stable solve, not on steps; a step only counts the groups that trained.
+A job that leaves the recipe part way (e.g. a larger training context for a task
+whose attempts all ran out of it) records the change in `recipe_overrides.json`;
+`readout` then marks it `off-recipe from step N`, a recipe arm whose results do not
+count as the bench's.
 
 For TB2.1 the eval JSONL is `data/evalsets/tb2_1_tmux_f1640f428d48.jsonl`
 (built by `../prepare_tb2_1_data.py`, tmux preinstalled) and the task tree is
