@@ -208,6 +208,9 @@ def test_the_original_share_is_a_floor_the_teacher_can_exceed(job, monkeypatch):
     _attempts(run, sched, group=0, rewards=[0.0] * 12)
     _settle(t, lambda: len(script.prompts) == 2)
     assert abs(_pool(sched)[V0]["weight"] - 9.0) < 1e-6  # 90% of draws, above the 25% floor: kept
+    t.refresh()
+    t.hold_original()
+    assert abs(_pool(sched)[V0]["weight"] - 9.0) < 1e-6  # and still after the pool is re-read
 
 
 def test_the_passing_share_stays_after_later_failed_groups(job, monkeypatch):

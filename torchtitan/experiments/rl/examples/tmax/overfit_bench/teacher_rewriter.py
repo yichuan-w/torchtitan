@@ -455,7 +455,8 @@ class Teacher:
             # The share the teacher asked for, kept as the other weights change; below the floor
             # the floor wins.
             total = sum(float(v.get("weight") or 0) for v in self.versions.values() if v["status"] == "active")
-            original["teacher_share"] = float(original.get("weight") or 0) / total if total > 0 else 0.0
+            # Kept in the saved state: refresh() rebuilds the version dicts from the pool.
+            self.state["original_teacher_share"] = float(original.get("weight") or 0) / total if total > 0 else 0.0
         held = self.hold_original()
         if held:
             done.append(held)
@@ -487,7 +488,7 @@ class Teacher:
             return ""
         if any(g["passed"] > 0 for g in self.groups.get(original["id"], [])):
             share = max(share, self.policy.original_share_passing)
-        share = max(share, min(float(original.get("teacher_share") or 0), 0.99))
+        share = max(share, min(float(self.state.get("original_teacher_share") or 0), 0.99))
         others = sum(float(v.get("weight") or 0) for v in self.versions.values()
                      if v["status"] == "active" and int(v["rev"]) != 0)
         w = share / (1 - share) * others if others > 0 else 1.0
