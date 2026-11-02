@@ -5,7 +5,7 @@ Generalized from andylizf/simulator-kernel bench/tools/issue_listener.py. Run fr
 work in; agent-listen.sh sets these and passes them into every session:
   LISTEN_REPO     owner/name of the GitHub repository whose issues are read (never derived from the checkout's remote)
   LISTEN_PREFIX   tmux/session prefix; state lives in <git dir>/agent-listen-<prefix>/
-  LISTEN_ASKERS   comma list of accounts whose mentions count
+  LISTEN_ASKERS   comma list of accounts whose mentions count; empty means the repository's collaborators
   LISTEN_RULES    a sentence naming where the session's collaboration rules live (used in the hook-start text)
   LISTEN_ISSUE    set per issue session only; the hooks do nothing without it
 
@@ -16,7 +16,7 @@ hook-start    SessionStart hook: in an issue session, record the session id and 
 hook-stop     Stop hook: in an issue session, keep the turn going while a mention is unanswered or `wait` is not running
 
 A reply is a later comment in the same issue from this account that carries a `session <id>` line or does not mention
-the account. Only LISTEN_ASKERS count as askers; this account's own agent comments (with a session line) never do.
+the account. Only askers (LISTEN_ASKERS, or the collaborators) count; this account's own agent comments (with a session line) never do.
 """
 import json
 import os
@@ -30,7 +30,7 @@ from pathlib import Path
 SESSION_LINE = re.compile(r"(^|\n)session [0-9a-f]{8}\b")
 LOOKBACK_DAYS = 14
 SELF = Path(__file__).resolve()
-_static = {}  # own login never changes within one process
+_static = {}  # own login never changes within one process; the collaborator list is refreshed every 10 min
 
 
 def env(name):
@@ -59,7 +59,12 @@ def state_dir():
 
 def pending(issue=None):
     repo = env("LISTEN_REPO")
-    askers = {a.strip() for a in env("LISTEN_ASKERS").split(",") if a.strip()}
+    askers = {a.strip() for a in os.environ.get("LISTEN_ASKERS", "").split(",") if a.strip()}
+    if not askers:
+        if time.time() - _static.get("collab_at", 0) > 600:
+            _static["collab"] = {c["login"] for c in gh_pages(f"repos/{repo}/collaborators?per_page=100")}
+            _static["collab_at"] = time.time()
+        askers = _static["collab"]
     if "me" not in _static:
         _static["me"] = gh("api", "user")["login"]
     me = _static["me"]

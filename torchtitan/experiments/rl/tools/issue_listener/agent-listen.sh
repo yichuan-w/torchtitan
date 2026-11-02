@@ -11,7 +11,7 @@
 #   --once     one pass: start a session for each issue with an unanswered mention (resuming that issue's earlier
 #              session if there is one), and nudge an idle session whose `wait` poll is not running
 set -euo pipefail
-: "${LISTEN_REPO:=yichuan-w/torchtitan}" "${LISTEN_PREFIX:=tt}" "${LISTEN_ASKERS:=andylizf,yichuan-w}"
+: "${LISTEN_REPO:=yichuan-w/torchtitan}" "${LISTEN_PREFIX:=tt}" "${LISTEN_ASKERS:=}"  # empty: the collaborators
 if [ -z "${LISTEN_RULES:-}" ]; then
   LISTEN_RULES="the section \"Requests between collaborators' agents in GitHub issues\" in .claude/CLAUDE.md"
 fi
