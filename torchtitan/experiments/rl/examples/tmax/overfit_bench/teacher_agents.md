@@ -11,7 +11,9 @@ After training, the student is examined on the original task alone. Learning it 
   has {steps} steps.
 - A group teaches the student only when some of its attempts pass and some fail. A group where
   every attempt fails, or every attempt passes, teaches nothing and takes no training step: it is
-  dropped, and only the hour of its slot is spent.
+  dropped, but its {group} attempts were still spent. Attempts are what the run is short of: the
+  student's engine runs every attempt of every group, so a version that gives mixed groups trains
+  the student with fewer of them.
 - An attempt scores 1 only when every test of its version passes, and 0 otherwise. An attempt
   that runs out of budget without submitting is still graded.
 - Each attempt has at most {turns} turns, {context} tokens of context and {hours} hours.

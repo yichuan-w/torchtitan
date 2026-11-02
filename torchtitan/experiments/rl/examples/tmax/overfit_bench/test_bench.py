@@ -104,3 +104,35 @@ def test_readout_takes_the_original_task_from_every_run(job):
     assert r["curve"][0]["pass_at_5"] == 0.0
     assert bench.pass_at_k(16, 16) == 1.0
     assert abs(bench.pass_at_k(16, 1) - 5 / 16) < 1e-9
+
+
+def test_readout_counts_every_training_attempt_and_the_ones_to_a_stable_solve(job):
+    def run(name, events):
+        d = job / "runs" / name / "scheduler"
+        d.mkdir(parents=True)
+        (d / "events.jsonl").write_text(
+            "".join(json.dumps({**e, "run": name}) + "\n" for e in events) + '{"event": "rollout_d'
+        )
+
+    def group(minute, passed):
+        stamp = f"20261001-00{minute:02d}00Z"
+        done = [{"event": "rollout_done", "stamp": stamp} for _ in range(12)]
+        return done + [{"event": "group_done", "passed": passed, "scored": 12, "stamp": stamp}]
+
+    def step(minute, n):
+        return [{"event": "step_done", "step": n, "stamp": f"20261001-00{minute:02d}30Z"}]
+
+    # an all-fail group trains nothing but still costs its 12 attempts
+    run("tmax-9b--20261001-000000Z--attempt-1", group(1, 0) + group(2, 3) + step(2, 1))
+    run("tmax-9b--20261001-000000Z--attempt-2", group(10, 12) + group(11, 5) + step(11, 2))
+    for s in (0, 1, 2):
+        d = job / "runs" / "tmax-9b--20261001-000000Z" / "trainer/validation_traces" / f"step-{s}"
+        d.mkdir(parents=True)
+        rows = [f"| a | [t{i}](x) | {'PASS' if s and i < 12 else 'FAIL'} | 1 |" for i in range(16)]
+        (d / "INDEX.md").write_text("\n".join(rows) + "\n")
+    r = bench.readout(job, hold=2)
+    assert r["stable_solve_step"] == 1
+    assert (r["train_attempts"], r["train_groups"], r["trained_groups"]) == (48, 4, 2)
+    assert r["readout_attempts"] == 48
+    assert r["attempts_to_stable_solve"] == 24
+    assert r["train_hours"] == round((90 + 90) / 3600, 2)

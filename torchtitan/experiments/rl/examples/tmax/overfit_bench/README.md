@@ -184,6 +184,13 @@ evolution/daytona_revalidate.py <task package> --row <tasks dir>/<id>.jsonl
 bench.py readout <job> [<job> ...]
 ```
 
+`readout` also reports what a job spent: training attempts (dropped
+all-pass and all-fail groups included, since each still took its 12
+attempts of rollout-engine time), groups and how many trained, wall clock,
+and the attempts and hours up to `stable_solve_step`. Readout attempts are
+counted apart: they measure and do not train. Compare rewriters on attempts
+to a stable solve, not on steps; a step only counts the groups that trained.
+
 For TB2.1 the eval JSONL is `data/evalsets/tb2_1_tmux_f1640f428d48.jsonl`
 (built by `../prepare_tb2_1_data.py`, tmux preinstalled) and the task tree is
 `terminal-bench-2-1/`. TB4: `data/evalsets/tb4_tmux_493ef156d.jsonl` (66 tasks,

@@ -203,6 +203,60 @@ def validations(job: Path) -> dict[int, tuple[int, int]]:
     return found
 
 
+def _stamp(event: dict) -> float:
+    from datetime import datetime, timezone
+
+    return (
+        datetime.strptime(event["stamp"], "%Y%m%d-%H%M%SZ")
+        .replace(tzinfo=timezone.utc)
+        .timestamp()
+    )
+
+
+def spend(job: Path, upto_step: int | None = None) -> dict:
+    """What training cost, from every run's scheduler events: attempts
+    (dropped all-pass / all-fail groups included, since each still takes the
+    rollout engine for its 12 attempts), groups and how many of them trained,
+    and wall clock (each run from its first event to its last). With
+    ``upto_step``, attempts and wall clock stop at the first time that step
+    was reached."""
+    events = []
+    for run in layout.Root(job).run_dirs():
+        path = run.path / "scheduler" / "events.jsonl"
+        if not path.is_file():
+            continue
+        for line in path.read_text(encoding="utf-8").splitlines():
+            try:
+                events.append(json.loads(line))
+            except json.JSONDecodeError:
+                continue  # a run killed mid-write
+    events = [e for e in events if "stamp" in e]
+    events.sort(key=_stamp)
+    if upto_step is not None:
+        end = next(
+            (
+                i
+                for i, e in enumerate(events)
+                if e["event"] == "step_done" and e["step"] >= upto_step
+            ),
+            None,
+        )
+        if end is None:
+            return {}
+        events = events[: end + 1]
+    by_run: dict[str, list[float]] = {}
+    for e in events:
+        by_run.setdefault(e.get("run", ""), []).append(_stamp(e))
+    groups = [e for e in events if e["event"] == "group_done"]
+    return {
+        "attempts": sum(e["event"] == "rollout_done" for e in events),
+        "groups": len(groups),
+        "trained_groups": sum(0 < g["passed"] < g["scored"] for g in groups),
+        "steps": max((e["step"] for e in events if e["event"] == "step_done"), default=0),
+        "hours": round(sum(max(t) - min(t) for t in by_run.values()) / 3600, 2),
+    }
+
+
 def readout(job: Path, threshold: float = 0.5, hold: int = 3) -> dict:
     """The job's curve and its first stable solve: the first validated step
     whose pass@5 and the next ``hold - 1`` validations' are all >= threshold."""
@@ -219,6 +273,7 @@ def readout(job: Path, threshold: float = 0.5, hold: int = 3) -> dict:
         None,
     )
     versions = layout.Root(job).mix.versions()
+    total = spend(job)
     return {
         "bench": meta["bench"],
         "task": meta["task"],
@@ -229,6 +284,18 @@ def readout(job: Path, threshold: float = 0.5, hold: int = 3) -> dict:
         "best_pass_at_5": max((p for *_, p in curve), default=None),
         "last_pass_at_5": curve[-1][3] if curve else None,
         "mix_versions": len(versions),
+        "train_attempts": total.get("attempts", 0),
+        "train_groups": total.get("groups", 0),
+        "trained_groups": total.get("trained_groups", 0),
+        "train_hours": total.get("hours", 0.0),
+        # Readout attempts measure and do not train, so they are counted apart.
+        "readout_attempts": sum(n for _, n, _, _ in curve),
+        "attempts_to_stable_solve": (
+            spend(job, stable).get("attempts") if stable is not None else None
+        ),
+        "hours_to_stable_solve": (
+            spend(job, stable).get("hours") if stable is not None else None
+        ),
         "curve": [
             {"step": s, "attempts": n, "passes": c, "pass_at_5": round(p, 4)}
             for s, n, c, p in curve
@@ -287,16 +354,18 @@ def main() -> None:
         if a.json:
             print(json.dumps(results, indent=2))
             return
-        print("bench\ttask\trewriter\tlast_step\tfirst_pass\tstable_solve\tbest_p@5\tlast_p@5\tmix_versions")
+        cols = (
+            "bench", "task", "rewriter", "last_step", "first_pass_step",
+            "stable_solve_step", "best_pass_at_5", "last_pass_at_5",
+            "mix_versions", "train_attempts", "trained_groups", "train_groups",
+            "train_hours", "attempts_to_stable_solve", "readout_attempts",
+        )
+        print("\t".join(cols))
         for x in results:
             print(
                 "\t".join(
                     str(x[k])
-                    for k in (
-                        "bench", "task", "rewriter", "last_step", "first_pass_step",
-                        "stable_solve_step", "best_pass_at_5", "last_pass_at_5",
-                        "mix_versions",
-                    )
+                    for k in cols
                 )
             )
 
