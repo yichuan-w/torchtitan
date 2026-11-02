@@ -279,3 +279,23 @@ def test_without_a_fallback_a_round_without_a_plan_is_left_to_fail_as_before(tmp
     tr.run_codex(t, "round one")
     assert not (t.work / "plan.json").exists()
     assert "backend" not in t.state and t.state["thread"] == "sid-thread"
+
+
+def test_an_add_that_timed_out_but_went_through_is_found_in_the_pool():
+    from torchtitan.experiments.rl.examples.tmax.overfit_bench.rewriter_client import RewriterError
+
+    calls = []
+
+    class Client:
+        def add(self, row, *, weight, parent, timeout_sec):
+            calls.append(timeout_sec)
+            raise RewriterError("no reply to add from the scheduler")
+
+        def get_state(self):
+            return {"versions": [{"id": "v-r0", "rev": 0}, {"id": "v-r7", "rev": 7}]}
+
+    t = types.SimpleNamespace(client=Client())
+    assert tr.Teacher._add(t, {"x": 1}, 1.0, "v-r0", 7) == {"id": "v-r7", "rev": 7}
+    assert calls == [300]
+    assert tr.Teacher._add(t, {"x": 1}, 1.0, "v-r0", 8) is None
+    assert calls == [300, 300, 300]

@@ -142,8 +142,11 @@ class RewriterClient:
 
     # -- pool calls --------------------------------------------------------
 
-    def add(self, row: dict, *, weight: float = 1.0, parent: str | None = None) -> dict:
-        return self.call("add", row=row, weight=weight, parent=parent)
+    def add(
+        self, row: dict, *, weight: float = 1.0, parent: str | None = None,
+        timeout_sec: float | None = None,
+    ) -> dict:
+        return self.call("add", timeout_sec=timeout_sec, row=row, weight=weight, parent=parent)
 
     def reweight(self, version: str, weight: float) -> dict:
         return self.call("reweight", version=version, weight=weight)
@@ -154,12 +157,12 @@ class RewriterClient:
     def get_state(self, *, with_rows: bool = False) -> dict:
         return self.call("get_state", with_rows=with_rows)
 
-    def call(self, name: str, **args):
+    def call(self, name: str, *, timeout_sec: float | None = None, **args):
         with self._replies_cv:
             rid = self._next_id
             self._next_id += 1
         self._send({"op": "pool", "id": rid, "call": name, "args": args})
-        deadline = time.monotonic() + self._call_timeout_sec
+        deadline = time.monotonic() + (timeout_sec or self._call_timeout_sec)
         with self._replies_cv:
             while rid not in self._replies:
                 left = deadline - time.monotonic()

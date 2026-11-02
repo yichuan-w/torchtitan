@@ -522,6 +522,23 @@ class Teacher:
                     "reason": f"its untouched starting state did not fail its tests: {json.dumps(bare)[:300]}"}
         return {"ok": True, "package": str(package)}
 
+    def _add(self, row: dict, weight: float, parent: str, rev: int) -> dict | None:
+        """Add a version, allowing the scheduler several minutes to write the pool (it can take longer
+        than an ordinary call's timeout on a slow shared mount). After a timeout, the add may still have
+        gone through, so look for the rev in the pool before trying once more."""
+        for attempt in range(2):
+            try:
+                return self.client.add(row, weight=weight, parent=parent, timeout_sec=300)
+            except RewriterError as e:
+                log.warning("add of r%d failed (attempt %d): %s", rev, attempt + 1, e)
+            try:
+                found = [v for v in self.client.get_state()["versions"] if int(v.get("rev", -1)) == rev]
+            except RewriterError:
+                found = []
+            if found:
+                return found[0]
+        return None
+
     def on_version(self, key: str, result: dict) -> None:
         n, name = int(key.split("/")[0]), key.split("/", 1)[1]
         made = self.state["rounds"][n - 1]["made"][name]
@@ -550,7 +567,13 @@ class Teacher:
                 with self._lock:
                     self.state.setdefault("draw_first", []).append(label)
         else:
-            info = self.client.add(row, weight=made["weight"], parent=original["id"])
+            info = self._add(row, made["weight"], original["id"], rev)
+            if info is None:
+                made["outcome"] = "passed its checks, but the platform did not take it into the pool"
+                self.pending.append(f"your new version {name} passed its checks but could not be added; "
+                                    "write it again if you still want it")
+                self._save()
+                return
             self.versions[info["id"]] = {**info, "row": row}
             made.update({"outcome": "in the pool", "label": label})
             if name in self.state["rounds"][n - 1].get("draw_first_pending", []):
