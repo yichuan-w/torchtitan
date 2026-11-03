@@ -38,6 +38,7 @@ teacher retires such versions from the pool (a25621c8).
 | sanitize-git-repo (hint flag) | step 10 | readout 3/16 at step 10, 4/16 at steps 25 and 30 (step 0: 1/15, step 5: 0/16; base 1/75 across earlier step-0 runs); training groups on the original up to 4/12 | not run | fast arm, original share 0.5 |
 | mteb-retrieve (hint flag) | step 16 | readout 4/16 at step 16 (step 0: 0/16, step 5: 1/16; base 1/75 across earlier step-0 runs); training groups on the original up to 4/12 | not run | fast arm, original share 0.5 |
 | bn-fit-modify | step 20 | readout 3/16 at step 20 (step 0: 0/16; base 1/75 across earlier step-0 runs); training groups on the original up to 2/12 | not run | fast arm, original share 0.5 |
+| overfull-hbox | step ~54 | training group on the original 7/12 at step ~54 (earlier groups 5/11, 5/12, 4/12 from step ~40); readout 1/16 at steps 0-30, 2/16 at step 41; base 0/75 | not run | fast arm, original share 0.25, then 0.5 once it passed; teacher from 9d033b16 on |
 
 Learned what made db-wal-recovery pass: XOR the WAL with 0x42 (or copy it aside) before any
 sqlite call, since opening the database while the WAL is still encrypted deletes it. Its
@@ -73,7 +74,7 @@ in run 1030c solved it (#309). A box is ticked once the task is overfit (rule ab
 - [ ] llm-inference-batching-scheduler (0/75) - paused at step 42 (160K/300 turns; node budget 8 from 2026-11-02 09:00)
 - [ ] mailman (0/70) - queued
 - [ ] mteb-leaderboard (0/73) - queued
-- [ ] overfull-hbox (0/75) - queued
+- [x] overfull-hbox (0/75) - overfit at step ~54 (training group on the original 7/12; base 0/75)
 - [ ] regex-log (0/75) - queued
 - [ ] sparql-university (0/75) - queued
 - [ ] winning-avg-corewars (0/74) - queued
