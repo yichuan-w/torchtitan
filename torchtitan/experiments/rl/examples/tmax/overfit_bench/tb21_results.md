@@ -26,6 +26,7 @@ side by side:
 | financial-document-processor | step 15 | readout 5/16 at step 15 and 6/16 at step 20 (step 0: 0/16, step 10: 1/15; base 3/75 across earlier step-0 runs); training groups on the original up to 5/12 | not run | fast arm, original share 0.5 |
 | sanitize-git-repo | step 10 | readout 3/16 at step 10, 4/16 at steps 25 and 30 (step 0: 1/15, step 5: 0/16; base 1/75 across earlier step-0 runs); training groups on the original up to 4/12 | not run | fast arm, original share 0.5 |
 | mteb-retrieve | step 16 | readout 4/16 at step 16 (step 0: 0/16, step 5: 1/16; base 1/75 across earlier step-0 runs); training groups on the original up to 4/12 | not run | fast arm, original share 0.5 |
+| bn-fit-modify | step 20 | readout 3/16 at step 20 (step 0: 0/16; base 1/75 across earlier step-0 runs); training groups on the original up to 2/12 | not run | fast arm, original share 0.5 |
 
 Learned what made db-wal-recovery pass: XOR the WAL with 0x42 (or copy it aside) before any
 sqlite call, since opening the database while the WAL is still encrypted deletes it. Its
@@ -50,7 +51,7 @@ in run 1030c solved it (#309). A box is ticked once the task is overfit (rule ab
 - [ ] train-fasttext (4/73) - paused 2026-11-03 at step 6: readout 1/16 at step 0, original passed training groups up to 1/12; attempts run ~1 h each (model training in the sandbox, 18% flagged OOM), ~8 generations in flight, 6 steps in 3 h
 - [ ] polyglot-rust-c (4/74) - queued
 - [x] financial-document-processor (3/75) - overfit at step 15 (readout 5/16, then 6/16 at step 20; step 0 was 0/16)
-- [ ] bn-fit-modify (1/75) - queued
+- [x] bn-fit-modify (1/75) - overfit at step 20 (readout 3/16; step 0 was 0/16)
 - [x] mteb-retrieve (1/75) - overfit at step 16 (readout 4/16; step 0 was 0/16)
 - [x] sanitize-git-repo (1/75) - overfit at step 10 (readout 3/16, then 4/16 at steps 25 and 30; step 0 was 1/15)
 - [ ] schemelike-metacircular-eval (1/75) - queued
