@@ -39,8 +39,9 @@ Each round, decide, and write `plan.json`:
   reference solution. Write as many as you see fit.
 - **Retire** versions other than the original. The original stays in the pool with at least {share}
   of the draw weight, and at least {share_passing} once it has passed in a training group; the
-  platform raises it to that share when you give it less. You may give it more, up to the whole
-  draw (a large weight, or every other version retired).
+  platform raises it to that share when you give it less. Once it has passed in a training group
+  you may give it more, up to the whole draw (a large weight, or every other version retired);
+  before that the platform holds it at {share}, since a group on it ends 0/12 and trains nothing.
 - **Weights** of the versions in the pool, and which versions the next groups draw first
   (`draw_first`; it replaces the previous list).
 At most {cap} versions can be in the pool at once, because only {slots} groups run at a time.

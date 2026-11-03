@@ -483,15 +483,18 @@ class Teacher:
         log.info("teacher round %d: %s", n, r["done"] or "no changes")
 
     def hold_original(self) -> str:
-        """Give the original ``original_share`` of the active draw weight, or the larger share the
-        teacher gave it, re-adding it if it was retired; returns what changed, or ""."""
+        """Give the original ``original_share`` of the active draw weight, or, once it has passed in a
+        training group, the larger share the teacher gave it, re-adding it if it was retired; returns
+        what changed, or ""."""
         share = self.policy.original_share
         original = next((v for v in self.versions.values() if int(v["rev"]) == 0), None)
         if share <= 0 or original is None or self.client is None:
             return ""
         if any(g["passed"] > 0 for g in self.groups.get(original["id"], [])):
             share = max(share, self.policy.original_share_passing)
-        share = max(share, min(float(self.state.get("original_teacher_share") or 0), 0.99))
+            # A larger share only once the original has passed: until then its groups end 0/n and
+            # drop_zero_std trains on none of them (polyglot-rust-c: 83% of draws, 0/404, no step).
+            share = max(share, min(float(self.state.get("original_teacher_share") or 0), 0.99))
         others = sum(float(v.get("weight") or 0) for v in self.versions.values()
                      if v["status"] == "active" and int(v["rev"]) != 0)
         w = share / (1 - share) * others if others > 0 else 1.0
