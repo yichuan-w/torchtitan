@@ -207,7 +207,7 @@ def test_the_original_share_is_a_floor_the_teacher_can_exceed_once_it_passes(job
     _settle(t, lambda: len(_pool(sched)) == 2)
     _attempts(run, sched, group=0, rewards=[1.0] + [0.0] * 11)
     _attempts(run, sched, group=1, rewards=[0.0] * 12)
-    _settle(t, lambda: len(script.prompts) == 2)
+    _settle(t, lambda: len(script.prompts) == 2 and t.state["rounds"][1].get("status") == "done")
     assert abs(_pool(sched)[V0]["weight"] - 9.0) < 1e-6  # 90% of draws, above the 25% floor: kept
     t.refresh()
     t.hold_original()

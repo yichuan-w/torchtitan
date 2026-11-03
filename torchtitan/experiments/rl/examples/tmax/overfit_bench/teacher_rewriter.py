@@ -511,6 +511,32 @@ class Teacher:
         self._save()
         log.info("teacher round %d: %s", n, r["done"] or "no changes")
 
+    def retire_leaking(self) -> list[str]:
+        """Retire the versions in the pool that show the student lines of the original's tests or
+        solution (written before validate() refused them); returns their labels."""
+        task = self.root.evolution.task(self.task_id)
+        r0 = task.rev(0)
+        if not r0.exists():
+            return []
+        out = []
+        for v in self.versions.values():
+            rev = int(v.get("rev") or 0)
+            if rev == 0 or v.get("status") != "active" or not task.rev(rev).exists():
+                continue
+            leaked = leaked_lines(r0, task.rev(rev))
+            if not leaked:
+                continue
+            if self.client is not None:
+                self._call("retire", v["id"])
+            v["status"] = "retired"
+            out.append(f"r{rev}")
+            log.info("retired r%d: it shows the student %d line(s) of the original's tests or solution",
+                     rev, len(leaked))
+        if out:
+            self.news.append(f"retired {', '.join(out)}: they showed the student the original's grading "
+                             "material, which no version may carry")
+        return out
+
     def hold_original(self) -> str:
         """Give the original ``original_share`` of the active draw weight, or, once it has passed in a
         training group, the larger share the teacher gave it, re-adding it if it was retired; returns
@@ -665,6 +691,7 @@ class Teacher:
 
     def start(self) -> None:
         self.refresh()
+        self.retire_leaking()
         self.hold_original()
         for run in self.root.run_dirs():
             for e in layout.read_jsonl(run.scheduler / "events.jsonl"):
