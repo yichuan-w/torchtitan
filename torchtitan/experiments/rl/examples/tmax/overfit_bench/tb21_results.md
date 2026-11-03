@@ -22,6 +22,7 @@ side by side:
 | pytorch-model-recovery | step 0 | readout 4/16 at step 0 and a training group on the original 8/12 before any update reached the rollouts; the base already meets the bar | not run | fast arm, original share 0.5 |
 | adaptive-rejection-sampler | step 10 | readout 4/16 at step 10 (step 0: 2/16, step 5: 1/16; base 7/73 across earlier step-0 runs); training groups on the original up to 4/12 | not run | fast arm, original share 0.5 |
 | model-extraction-relu-logits | step ~37 | training groups on the original 6/12 and 6/12 at steps ~36-37 (earlier groups 4/12 and 5/12 from step ~24); readout 1/16 at step 0, 2/16 at step 15 | not run | fast arm, original share 0.5 |
+| extract-elf | step 5 | readout 4/16 at step 5 (step 0: 0/16; base 5/75 across earlier step-0 runs); training groups on the original up to 4/12 | not run | fast arm, original share 0.5 |
 
 Learned what made db-wal-recovery pass: XOR the WAL with 0x42 (or copy it aside) before any
 sqlite call, since opening the database while the WAL is still encrypted deletes it. Its
@@ -42,7 +43,7 @@ in run 1030c solved it (#309). A box is ticked once the task is overfit (rule ab
 - [x] adaptive-rejection-sampler (7/73) - overfit at step 10 (readout 4/16; step 0 was 2/16)
 - [x] code-from-image (7/75) - at the bar at step 0, untrained (readout 4/16)
 - [x] model-extraction-relu-logits (5/75) - overfit at step ~37 (training groups on the original 6/12 twice; readout 1/16 at step 0)
-- [ ] extract-elf (5/75) - queued
+- [x] extract-elf (5/75) - overfit at step 5 (readout 4/16; step 0 was 0/16)
 - [ ] train-fasttext (4/73) - paused 2026-11-03 at step 6: readout 1/16 at step 0, original passed training groups up to 1/12; attempts run ~1 h each (model training in the sandbox, 18% flagged OOM), ~8 generations in flight, 6 steps in 3 h
 - [ ] polyglot-rust-c (4/74) - queued
 - [ ] financial-document-processor (3/75) - queued
