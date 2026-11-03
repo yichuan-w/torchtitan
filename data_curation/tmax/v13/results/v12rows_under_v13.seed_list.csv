@@ -1,0 +1,651 @@
+task_id,run,v12_tier,v13_tier,blocking,notes,pin_candidates,pin_review,v12_lints,empty_run,solve_record,expectation_source,n_assertions
+task_000151_eed227cf,run50_virgin,REPAIR,SEED,,core_clause_unenforced,,,,ok,never_attempted,test_only,11
+task_000170_451ae330,run50_virgin,REPAIR,SEED,,core_clause_unenforced,,,,ok,never_attempted,test_only,8
+task_000362_49123067,run50_virgin,REPAIR,FLAGGED,oracle_reachable | expectation_revealed,,,,L15 | L3,ok,never_attempted,rollout_material,5
+task_000418_8342ff6e,run50_virgin,REPAIR,FLAGGED,oracle_reachable | expectation_revealed,,,,L3,ok,never_attempted,rollout_material,5
+task_000609_c095fc34,run50_virgin,REVIEW,SEED,,,,,,ok,never_attempted,hardcoded_literal,4
+task_000629_640a6cba,run50_virgin,PASS,SEED,,,,,,ok,never_attempted,hardcoded_literal,8
+task_000629_77078536,run50_virgin,REPAIR,FLAGGED,oracle_reachable | expectation_revealed | value_derivable,,,,L3,ok,never_attempted,rollout_material,3
+task_000919_10837ef0,run50_virgin,REPAIR,FLAGGED,overspecific_check,,,,,ok,never_attempted,hardcoded_literal,7
+task_001262_1ff6b6f1,run50_virgin,REPAIR,SEED,,expectation_movable,/app/surveillance.mp4,,,ok,never_attempted,rollout_material,10
+task_001357_1454ebc9,run50_virgin,REPAIR,FLAGGED,oracle_reachable | expectation_revealed,core_clause_unenforced,,,L3,ok,never_attempted,rollout_material,4
+task_001555_6c5b46dd,run50_virgin,PASS,SEED,,,,,,ok,never_attempted,hardcoded_literal,7
+task_001582_8805c46a,run50_virgin,REPAIR,SEED,,expectation_movable,/home/user/sensor_A.log | /home/user/sensor_B.csv,,,ok,never_attempted,rollout_material,4
+task_001692_7fdf7642,run50_virgin,REPAIR,SEED,,core_clause_unenforced,,,L13,ok,never_attempted,hardcoded_literal,5
+task_001749_3b8c6910,run50_virgin,REPAIR,FLAGGED,oracle_reachable | expectation_revealed,,,,L3,ok,never_attempted,rollout_material,4
+task_001758_c784b11a,run50_virgin,REPAIR,SEED,,core_clause_unenforced,,,L13,ok,never_attempted,hardcoded_literal,6
+task_001784_a5c84886,run50_virgin,REPAIR,FLAGGED,oracle_reachable | expectation_revealed,,,,L14,ok,never_attempted,rollout_material,7
+task_002044_b5aed6ea,run50_virgin,REJECT-PROVEN,FLAGGED,value_derivable,,,,L14,ok,never_attempted,hardcoded_literal,10
+task_002196_145dcbba,run50_virgin,REPAIR,FLAGGED,oracle_reachable | expectation_revealed,,,,L4,ok,never_attempted,rollout_material,5
+task_002366_067ceb2b,run50_virgin,PASS,SEED,,,,,,ok,never_attempted,hardcoded_literal,18
+task_002485_65437461,run50_virgin,PASS,SEED,,,,,L8,ok,never_attempted,hardcoded_literal,7
+task_002952_2abd6301,run50_virgin,REPAIR,SEED,,core_clause_unenforced,,,L13,ok,never_attempted,hardcoded_literal,15
+task_003191_9eb19219,run50_virgin,PASS,SEED,,,,,,ok,never_attempted,hardcoded_literal,5
+task_003445_847aab9f,run50_virgin,REPAIR,SEED,,expectation_movable,/home/user/input.pdb,,,ok,never_attempted,rollout_material,6
+task_003492_2c74596d,run50_virgin,REPAIR,SEED,,expectation_movable,/home/user/corpus.txt | /home/user/queries.txt,,L7,ok,never_attempted,rollout_material,15
+task_003583_03df5520,run50_virgin,REVIEW,SEED,,,,,,ok,never_attempted,hardcoded_literal,5
+task_003725_ca08757c,run50_virgin,REVIEW,UNSURE,,core_clause_unenforced,,,L13,ok,never_attempted,hardcoded_literal,9
+task_004150_11ef4099,run50_virgin,REPAIR,SEED,,weak_verifier_exploit,,,,ok,never_attempted,hardcoded_literal,11
+task_004227_00e8d97f,run50_virgin,PASS,SEED,,,,,L15,ok,never_attempted,hardcoded_literal,5
+task_004374_60302170,run50_virgin,REPAIR,SEED,,core_clause_unenforced,,,,ok,never_attempted,shape_only,7
+task_004518_99f02e33,run50_virgin,REPAIR,FLAGGED,overspecific_check,,,,,ok,never_attempted,hardcoded_literal,4
+task_004677_12d8c701,run50_virgin,PASS,SEED,,,,,,ok,never_attempted,hardcoded_literal,4
+task_004874_dd948629,run50_virgin,REPAIR,SEED,,core_clause_unenforced,,,,ok,never_attempted,hardcoded_literal,6
+task_005093_10649346,run50_virgin,REPAIR,FLAGGED,oracle_reachable | expectation_revealed,,,,,ok,never_attempted,rollout_material,4
+task_005304_5817af6b,run50_virgin,REPAIR,FLAGGED,value_derivable | overspecific_check,core_clause_unenforced,,,,ok,never_attempted,hardcoded_literal,9
+task_005324_64d68510,run50_virgin,REPAIR,FLAGGED,overspecific_check,,,,L15,ok,never_attempted,hardcoded_literal,9
+task_005362_cbc0550e,run50_virgin,REPAIR,FLAGGED,value_derivable,core_clause_unenforced,,,L11,ok,never_attempted,hardcoded_literal,10
+task_006188_eb12b107,run50_virgin,PASS,SEED,,,,,,ok,never_attempted,hardcoded_literal,7
+task_006663_1060cac9,run50_virgin,PASS,SEED,,,,,,ok,never_attempted,hardcoded_literal,7
+task_006781_c7f5ec7b,run50_virgin,PASS,SEED,,,,,,ok,never_attempted,hardcoded_literal,5
+task_007499_d063a294,run50_virgin,REPAIR,SEED,,expectation_movable,/home/user/company.db,,,ok,never_attempted,rollout_material,7
+task_007547_60fe668e,run50_virgin,REPAIR,SEED,,expectation_movable,/home/user/dataset.db,,,ok,never_attempted,rollout_material,8
+task_007562_d9c17033,run50_virgin,REPAIR,SEED,,expectation_movable,/home/user/data/raw_metrics.csv | /home/user/data/model_weights.json,,,ok,never_attempted,rollout_material,7
+task_007819_5197236a,run50_virgin,REPAIR,FLAGGED,overspecific_check,,,,L11 | L7,ok,never_attempted,hardcoded_literal,3
+task_008016_313e9a61,run50_virgin,REPAIR,FLAGGED,oracle_reachable,,,,,ok,never_attempted,hardcoded_literal,8
+task_008158_b4e693fe,run50_virgin,PASS,SEED,,,,,,ok,never_attempted,hardcoded_literal,5
+task_008604_898e6887,run50_virgin,REPAIR,FLAGGED,value_derivable | overspecific_check,,,,L11 | L3,ok,never_attempted,hardcoded_literal,6
+task_009177_2918cf64,run50_virgin,REPAIR,FLAGGED,expectation_revealed | value_derivable | unstable_reward,,,,,ok,never_attempted,rollout_material,8
+task_009391_084c6181,run50_virgin,REPAIR,SEED,,expectation_movable,/home/user/raw_sensor.csv,,,ok,never_attempted,rollout_material,11
+task_009525_81436280,run50_virgin,PASS,SEED,,,,,,ok,never_attempted,hardcoded_literal,5
+task_009962_92bf3dfc,run50_virgin,REPAIR,SEED,,expectation_movable,/home/user/drift_data/*.csv,/home/user/drift_data/*.csv is a glob: expand it against the built image,L13 | L7,ok,never_attempted,rollout_material,8
+task_000001_1a03ebc5,run600,REPAIR,SEED,,expectation_movable,/home/user/data.csv,,L7,ok,solved,rollout_material,5
+task_000002_81d660f3,run600,REPAIR,UNSURE,,weak_verifier_exploit,,,,ok,never_attempted,hardcoded_literal,9
+task_000007_654ab1c7,run600,PASS,SEED,,,,,,ok,solved,hardcoded_literal,7
+task_000009_dbc34e08,run600,REPAIR,FLAGGED,overspecific_check,,,,,ok,solved,hardcoded_literal,10
+task_000010_7c427a6f,run600,PASS,SEED,,,,,,ok,solved,hardcoded_literal,6
+task_000011_24e54d45,run600,REPAIR,SEED,,expectation_movable,/home/user/sequences.fasta,,,ok,solved,rollout_material,3
+task_000014_3d9789ba,run600,PASS,SEED,,,,,,ok,solved,hardcoded_literal,11
+task_000015_6615e8e8,run600,REJECT-PROVEN,FLAGGED,expectation_revealed | overspecific_check,core_clause_unenforced,,,L3 | L4,ok,never_attempted,rollout_material,10
+task_000015_802ac83d,run600,PASS,SEED,,,,,,ok,solved,hardcoded_literal,9
+task_000016_3ffaf505,run600,PASS,SEED,,,,,,ok,solved,hardcoded_literal,7
+task_000018_3997ce32,run600,REPAIR,FLAGGED,overspecific_check,,,,,ok,never_attempted,hardcoded_literal,4
+task_000019_d40ae014,run600,PASS,SEED,,,,,,ok,solved,hardcoded_literal,14
+task_000021_ab956b8c,run600,REPAIR,FLAGGED,overspecific_check,core_clause_unenforced,,,L7,ok,never_attempted,hardcoded_literal,4
+task_000023_004a85b4,run600,REPAIR,SEED,,core_clause_unenforced,,,,ok,solved,hardcoded_literal,7
+task_000024_5288b9fe,run600,REPAIR,SEED,,expectation_movable | core_clause_unenforced,/app/test_audio.wav,,L7,ok,never_attempted,rollout_material,5
+task_000025_b3c538ae,run600,REPAIR,SEED,,core_clause_unenforced,,,L13 | L8,ok,solved,hardcoded_literal,9
+task_000029_1714328f,run600,REPAIR,SEED,,core_clause_unenforced,,,,ok,never_attempted,hardcoded_literal,6
+task_000032_5b0167e2,run600,REVIEW,SEED,,expectation_movable,/home/user/data.txt,,,ok,solved,rollout_material,7
+task_000033_0b133897,run600,REPAIR,SEED,,weak_verifier_exploit,,,,ok,0_of_3,hardcoded_literal,3
+task_000043_12653d83,run600,REPAIR,FLAGGED,oracle_reachable | expectation_revealed,core_clause_unenforced,,,L3,ok,never_attempted,rollout_material,2
+task_000046_69d56d65,run600,REPAIR,SEED,,expectation_movable | core_clause_unenforced,/home/user/config_changes.jsonl,,,ok,never_attempted,rollout_material,10
+task_000048_b0bd6829,run600,PASS,SEED,,,,,,ok,solved,test_only,13
+task_000054_af9a5eff,run600,PASS,SEED,,,,,,ok,never_attempted,hardcoded_literal,2
+task_000056_f726766b,run600,REPAIR,SEED,,expectation_movable,/app/vibration_data.wav,,,ok,solved,rollout_material,11
+task_000057_e980d518,run600,REPAIR,FLAGGED,overspecific_check,,,,,ok,never_attempted,hardcoded_literal,10
+task_000063_e9329728,run600,REJECT-PROVEN,FLAGGED,value_derivable,,,,,ok,never_attempted,hardcoded_literal,6
+task_000070_a7d62d01,run600,PASS,SEED,,,,,,ok,solved,test_only,10
+task_000075_827b7baa,run600,PASS,SEED,,,,,,ok,solved,hardcoded_literal,4
+task_000075_862ad640,run600,REVIEW,SEED,,weak_verifier_exploit,,,,ok,never_attempted,hardcoded_literal,7
+task_000079_76a46e77,run600,REVIEW,SEED,,weak_verifier_exploit,,,,ok,never_attempted,shape_only,3
+task_000081_ee7d0114,run600,PASS,SEED,,,,,,ok,solved,hardcoded_literal,2
+task_000083_53332680,run600,REPAIR,FLAGGED,value_derivable,,,,L1,ok,solved,hardcoded_literal,4
+task_000085_f540b211,run600,PASS,SEED,,,,,,ok,solved,hardcoded_literal,2
+task_000087_44bd3ded,run600,PASS,SEED,,,,,,ok,solved,hardcoded_literal,3
+task_000094_77feb9f0,run600,REPAIR,SEED,,core_clause_unenforced,,,,ok,never_attempted,shape_only,4
+task_000094_87018798,run600,REPAIR,FLAGGED,overspecific_check,,,,,ok,solved,hardcoded_literal,5
+task_000100_29669868,run600,PASS,SEED,,,,,,ok,0_of_3,hardcoded_literal,15
+task_000100_49c09ea0,run600,REPAIR,FLAGGED,overspecific_check,,,,,ok,solved,hardcoded_literal,10
+task_000102_23d0bca1,run600,REPAIR,FLAGGED,value_derivable,,,,,ok,never_attempted,hardcoded_literal,10
+task_000106_92ab4e12,run600,REPAIR,SEED,,expectation_movable,/home/user/backups.db,,,ok,solved,rollout_material,8
+task_000109_9dcdc97b,run600,REPAIR,SEED,,core_clause_unenforced,,,,ok,solved,hardcoded_literal,10
+task_000112_fefb47b8,run600,PASS,SEED,,,,,,ok,solved,hardcoded_literal,4
+task_000116_71d174fa,run600,PASS,SEED,,,,,,ok,0_of_3,hardcoded_literal,6
+task_000117_7c63eddc,run600,PASS,SEED,,,,,,ok,0_of_3,hardcoded_literal,7
+task_000118_430dd329,run600,PASS,SEED,,,,,,ok,solved,hardcoded_literal,2
+task_000119_84a08499,run600,REPAIR,FLAGGED,value_derivable | overspecific_check,core_clause_unenforced,,,,ok,solved,hardcoded_literal,10
+task_000121_a56b5844,run600,REPAIR,SEED,,weak_verifier_exploit,,,,ok,solved,hardcoded_literal,3
+task_000122_19e84c46,run600,REPAIR,SEED,,expectation_movable,/home/user/latency_profiles.json,,,ok,solved,rollout_material,15
+task_000123_4fbab6a2,run600,REPAIR,FLAGGED,oracle_reachable | expectation_revealed,,,,L3,ok,never_attempted,rollout_material,9
+task_000125_99ca1102,run600,PASS,SEED,,,,,,ok,solved,hardcoded_literal,10
+task_000128_6a68aa1d,run600,REPAIR,SEED,,expectation_movable,/home/user/raw_logs.jsonl,,L7,ok,solved,rollout_material,14
+task_000132_72484cb9,run600,REPAIR,SEED,,core_clause_unenforced,,,L11 | L13,ok,never_attempted,hardcoded_literal,15
+task_000134_39daeb5b,run600,REPAIR,SEED,,core_clause_unenforced,,,,ok,solved,hardcoded_literal,18
+task_000138_e5f9026c,run600,PASS,SEED,,,,,,ok,solved,hardcoded_literal,13
+task_000141_f776aa78,run600,REPAIR,SEED,,core_clause_unenforced,,,,ok,0_of_3,shape_only,17
+task_000142_395c1c7f,run600,REPAIR,FLAGGED,overspecific_check,,,,,ok,never_attempted,hardcoded_literal,6
+task_000144_8d5c2762,run600,REJECT-PROVEN,FLAGGED,expectation_revealed | value_derivable,,,,L3,ok,never_attempted,rollout_material,8
+task_000145_d9cedde9,run600,PASS,SEED,,,,,L11,ok,solved,hardcoded_literal,5
+task_000146_33815312,run600,PASS,SEED,,,,,,ok,0_of_3,hardcoded_literal,14
+task_000154_679ac95d,run600,PASS,SEED,,,,,L9,ok,solved,hardcoded_literal,15
+task_000155_91b6fb26,run600,REVIEW,FLAGGED,value_derivable,,,,,ok,solved,hardcoded_literal,16
+task_000156_2f395118,run600,REPAIR,FLAGGED,oracle_reachable | overspecific_check,core_clause_unenforced,,,,ok,solved,test_only,2
+task_000159_f8924fdb,run600,PASS,SEED,,,,,,ok,solved,hardcoded_literal,8
+task_000160_121a396b,run600,REPAIR,FLAGGED,value_derivable | unstable_reward,expectation_movable | core_clause_unenforced,/data/configs.db,,L13,ok,never_attempted,rollout_material,4
+task_000161_a8d0d6f0,run600,PASS,SEED,,,,,,ok,0_of_3,hardcoded_literal,14
+task_000169_c9d4134e,run600,REJECT-PROVEN,FLAGGED,expectation_revealed,,,,,ok,never_attempted,rollout_material,4
+task_000175_c33a0c15,run600,PASS,SEED,,,,,,ok,solved,hardcoded_literal,10
+task_000178_a84e9599,run600,REPAIR,FLAGGED,overspecific_check,core_clause_unenforced,,,,ok,solved,hardcoded_literal,14
+task_000179_d9d1d25c,run600,REPAIR,SEED,,core_clause_unenforced,,,,ok,never_attempted,hardcoded_literal,9
+task_000183_2ce41474,run600,REPAIR,FLAGGED,overspecific_check,,,,,ok,0_of_3,hardcoded_literal,5
+task_000184_1ce10692,run600,PASS,SEED,,,,,L14,ok,never_attempted,hardcoded_literal,12
+task_000189_231156cd,run600,PASS,SEED,,,,,,ok,0_of_3,hardcoded_literal,13
+task_000191_43b277e0,run600,REPAIR,SEED,,core_clause_unenforced,,,,ok,solved,hardcoded_literal,7
+task_000192_5daa80df,run600,REPAIR,FLAGGED,unstable_reward,,,,,ok,never_attempted,hardcoded_literal,10
+task_000194_accd9d89,run600,REJECT-PROVEN,FLAGGED,expectation_revealed | value_derivable,core_clause_unenforced,,,L7,ok,solved,rollout_material,8
+task_000196_903490f1,run600,REPAIR,SEED,,expectation_movable | core_clause_unenforced,/home/user/manager/artifacts/alpha.bin,,L13 | L7,ok,solved,rollout_material,10
+task_000196_bb8c67cf,run600,REPAIR,FLAGGED,oracle_reachable | expectation_revealed,,,,,ok,0_of_3,rollout_material,9
+task_000198_288f5d77,run600,REVIEW,SEED,,,,,,ok,0_of_3,hardcoded_literal,7
+task_000207_ad508e7c,run600,PASS,SEED,,,,,,ok,solved,hardcoded_literal,3
+task_000209_cecbee3d,run600,REPAIR,SEED,,core_clause_unenforced,,,,ok,never_attempted,hardcoded_literal,4
+task_000213_02e842d1,run600,REPAIR,SEED,,weak_verifier_exploit,,,,ok,never_attempted,shape_only,3
+task_000214_723bf7c4,run600,PASS,SEED,,,,,,ok,solved,hardcoded_literal,5
+task_000217_6e764f81,run600,REJECT-PROVEN,FLAGGED,value_derivable,,,,,ok,never_attempted,hardcoded_literal,3
+task_000220_ab2204ea,run600,REPAIR,FLAGGED,overspecific_check,,,,,ok,never_attempted,hardcoded_literal,8
+task_000221_0d2825d8,run600,REJECT-PROVEN,FLAGGED,value_derivable,core_clause_unenforced,,,,ok,never_attempted,hardcoded_literal,2
+task_000221_fb2fd737,run600,REPAIR,FLAGGED,oracle_reachable,core_clause_unenforced,,,,ok,solved,hardcoded_literal,3
+task_000222_0820de08,run600,PASS,SEED,,,,,,ok,solved,hardcoded_literal,5
+task_000226_18a13697,run600,REJECT-PROVEN,FLAGGED,expectation_revealed | value_derivable,,,,,ok,never_attempted,rollout_material,5
+task_000229_d0789852,run600,REPAIR,FLAGGED,oracle_reachable | expectation_revealed,,,,,ok,solved,rollout_material,5
+task_000232_ca1072ad,run600,REPAIR,SEED,,core_clause_unenforced,,,,ok,solved,hardcoded_literal,9
+task_000234_e28751fb,run600,REPAIR,SEED,,weak_verifier_exploit,,,,ok,never_attempted,hardcoded_literal,13
+task_000235_d861beea,run600,REPAIR,SEED,,expectation_movable | core_clause_unenforced,/home/user/perf_data.csv,,L7,ok,solved,rollout_material,11
+task_000236_4626f947,run600,REPAIR,FLAGGED,overspecific_check,,,,,ok,never_attempted,hardcoded_literal,10
+task_000237_a4f6b704,run600,REPAIR,SEED,,expectation_movable,/home/user/dataset_organizer/data/embeddings.csv,,L7,ok,solved,rollout_material,4
+task_000241_547763df,run600,REPAIR,SEED,,core_clause_unenforced,,,,ok,solved,hardcoded_literal,2
+task_000244_5126f863,run600,REPAIR,SEED,,weak_verifier_exploit,,,,ok,never_attempted,hardcoded_literal,9
+task_000245_e94e81ce,run600,PASS,SEED,,,,,,ok,solved,hardcoded_literal,13
+task_000247_8bbba731,run600,PASS,SEED,,,,,,ok,solved,hardcoded_literal,12
+task_000248_ea207306,run600,REPAIR,SEED,,core_clause_unenforced,,,L10 | L13,ok,never_attempted,hardcoded_literal,6
+task_000250_312c1dbc,run600,REPAIR,FLAGGED,oracle_reachable | expectation_revealed | value_derivable,,,,L3,ok,never_attempted,rollout_material,4
+task_000251_a957ff95,run600,PASS,SEED,,,,,,ok,never_attempted,hardcoded_literal,4
+task_000254_1f7650f6,run600,PASS,SEED,,,,,,ok,never_attempted,test_only,10
+task_000256_17f8ca77,run600,PASS,SEED,,,,,,ok,solved,hardcoded_literal,8
+task_000257_3aa7e8dc,run600,REPAIR,FLAGGED,overspecific_check,,,,L7,ok,never_attempted,shape_only,8
+task_000259_9b13e0e3,run600,PASS,SEED,,,,,,ok,0_of_3,hardcoded_literal,11
+task_000261_c4b6db13,run600,REPAIR,SEED,,core_clause_unenforced,,,,ok,0_of_3,hardcoded_literal,9
+task_000263_6600ff80,run600,REJECT-PROVEN,FLAGGED,value_derivable,,,,,ok,solved,hardcoded_literal,16
+task_000265_23b37d70,run600,REVIEW,UNSURE,,,,,,ok,never_attempted,hardcoded_literal,7
+task_000267_71b0b1ad,run600,REJECT-PROVEN,FLAGGED,expectation_revealed,,,,L3 | L7,ok,never_attempted,rollout_material,5
+task_000272_5966f420,run600,REPAIR,UNSURE,,,,,,ok,never_attempted,test_only,9
+task_000285_3604e31b,run600,REPAIR,SEED,,core_clause_unenforced,,,,ok,never_attempted,hardcoded_literal,12
+task_000288_67890451,run600,REVIEW,SEED,,,,,,ok,never_attempted,hardcoded_literal,4
+task_000296_4acc6587,run600,REPAIR,FLAGGED,value_derivable,,,,,ok,solved,hardcoded_literal,5
+task_000297_dd740392,run600,REPAIR,SEED,,core_clause_unenforced,,,L13,ok,solved,hardcoded_literal,7
+task_000303_d84e5ea0,run600,REPAIR,FLAGGED,overspecific_check,,,,,ok,never_attempted,hardcoded_literal,6
+task_000305_0d6321e1,run600,PASS,SEED,,,,,,ok,solved,hardcoded_literal,10
+task_000307_8c39a016,run600,PASS,SEED,,,,,L15,ok,0_of_3,hardcoded_literal,8
+task_000311_9e22fec5,run600,REPAIR,FLAGGED,value_derivable,,,,L3,ok,solved,hardcoded_literal,2
+task_000314_7c80811b,run600,REPAIR,FLAGGED,unstable_reward,core_clause_unenforced,,,,ok,never_attempted,hardcoded_literal,13
+task_000314_931a6afc,run600,PASS,SEED,,,,,,ok,solved,hardcoded_literal,14
+task_000315_b639cdb7,run600,REPAIR,FLAGGED,overspecific_check,,,,,ok,never_attempted,test_only,5
+task_000316_02020782,run600,PASS,SEED,,,,,,ok,never_attempted,test_only,9
+task_000319_d105c709,run600,REPAIR,SEED,,core_clause_unenforced,,,,ok,solved,hardcoded_literal,12
+task_000322_52e0a9fe,run600,REPAIR,FLAGGED,overspecific_check,,,,L11,ok,never_attempted,hardcoded_literal,14
+task_000325_376957fb,run600,REPAIR,FLAGGED,overspecific_check,,,,,ok,0_of_3,hardcoded_literal,10
+task_000330_e670f9a0,run600,REPAIR,SEED,,core_clause_unenforced,,,,ok,never_attempted,hardcoded_literal,4
+task_000331_cc450fdc,run600,REPAIR,FLAGGED,value_derivable | overspecific_check,core_clause_unenforced,,,L3,ok,never_attempted,hardcoded_literal,5
+task_000334_af1152bf,run600,REPAIR,SEED,,expectation_movable,/home/user/app_restore/data,,,ok,solved,rollout_material,3
+task_000346_e7303109,run600,REPAIR,SEED,,weak_verifier_exploit,,,L15,ok,never_attempted,hardcoded_literal,3
+task_000349_9cf5e9b2,run600,REPAIR,FLAGGED,value_derivable | overspecific_check,core_clause_unenforced,,,,ok,never_attempted,hardcoded_literal,3
+task_000354_4e76c087,run600,PASS,SEED,,,,,,ok,0_of_3,hardcoded_literal,4
+task_000360_30733dd8,run600,PASS,SEED,,,,,,ok,solved,hardcoded_literal,4
+task_000365_5c156f87,run600,REPAIR,FLAGGED,overspecific_check,,,,,ok,never_attempted,hardcoded_literal,8
+task_000366_9b36f7fb,run600,REPAIR,FLAGGED,overspecific_check,,,,,ok,never_attempted,hardcoded_literal,7
+task_000368_4536bebb,run600,PASS,SEED,,,,,L8,ok,solved,test_only,7
+task_000368_ab47f3b0,run600,REPAIR,SEED,,expectation_movable,/home/user/sensor_data.csv,,L7,ok,solved,rollout_material,6
+task_000371_24753c75,run600,REPAIR,SEED,,expectation_movable | core_clause_unenforced,/app/traffic.mp4,,L7,ok,0_of_3,rollout_material,6
+task_000371_d0ff3ecb,run600,REVIEW,SEED,,core_clause_unenforced,,,,ok,never_attempted,hardcoded_literal,7
+task_000372_03367714,run600,PASS,SEED,,,,,,ok,never_attempted,hardcoded_literal,6
+task_000373_9507bc2c,run600,REVIEW,FLAGGED,expectation_revealed | value_derivable,,,,,ok,never_attempted,rollout_material,4
+task_000376_21cd4272,run600,REVIEW,SEED,,core_clause_unenforced,,,,ok,solved,hardcoded_literal,9
+task_000377_613e2e38,run600,REPAIR,SEED,,expectation_movable | core_clause_unenforced,/home/user/target.fasta,,L7,ok,solved,rollout_material,13
+task_000380_413c0eac,run600,REPAIR,SEED,,core_clause_unenforced,,,L11,ok,solved,hardcoded_literal,7
+task_000381_3cdf2def,run600,REPAIR,SEED,,core_clause_unenforced,,,,ok,never_attempted,hardcoded_literal,18
+task_000385_5d3a44e7,run600,PASS,SEED,,,,,,ok,0_of_3,hardcoded_literal,5
+task_000387_5cbd2f2c,run600,REVIEW,FLAGGED,expectation_revealed | value_derivable,,,,L7,ok,solved,rollout_material,6
+task_000397_d04a33da,run600,PASS,SEED,,,,,,ok,never_attempted,hardcoded_literal,5
+task_000399_25b6e161,run600,REPAIR,SEED,,core_clause_unenforced,,,,ok,never_attempted,hardcoded_literal,14
+task_000401_0e6a6c50,run600,PASS,SEED,,,,,,ok,never_attempted,hardcoded_literal,9
+task_000402_bd6a39f6,run600,PASS,SEED,,,,,,ok,0_of_3,hardcoded_literal,3
+task_000408_cc562346,run600,REPAIR,FLAGGED,expectation_revealed | value_derivable,core_clause_unenforced,,,L3,ok,never_attempted,rollout_material,4
+task_000416_754609f9,run600,REPAIR,FLAGGED,value_derivable,core_clause_unenforced,,,,ok,never_attempted,hardcoded_literal,4
+task_000417_e5e5874b,run600,REPAIR,SEED,,,,,,ok,never_attempted,hardcoded_literal,4
+task_000420_2c758b19,run600,REPAIR,FLAGGED,oracle_reachable | value_derivable,,,,L3,ok,never_attempted,hardcoded_literal,2
+task_000420_e89f8dcd,run600,REPAIR,FLAGGED,overspecific_check,,,,,ok,never_attempted,hardcoded_literal,2
+task_000427_bfb3d39e,run600,PASS,SEED,,,,,L11,ok,solved,hardcoded_literal,3
+task_000432_d7579cdb,run600,REPAIR,FLAGGED,oracle_reachable | expectation_revealed,,,,,ok,never_attempted,rollout_material,5
+task_000433_86c283e1,run600,REPAIR,FLAGGED,value_derivable | overspecific_check,core_clause_unenforced,,,,ok,never_attempted,hardcoded_literal,7
+task_000434_3584987b,run600,REJECT-PROVEN,FLAGGED,value_derivable,core_clause_unenforced,,,,ok,never_attempted,hardcoded_literal,6
+task_000436_19287803,run600,PASS,SEED,,,,,,ok,never_attempted,hardcoded_literal,5
+task_000437_6cb600f8,run600,REVIEW,UNSURE,value_derivable,,,,L13,ok,solved,hardcoded_literal,4
+task_000438_8a389262,run600,REPAIR,SEED,,expectation_movable | core_clause_unenforced,/home/user/data/raw_measurements.csv,,L11,ok,never_attempted,rollout_material,19
+task_000441_46ca3e85,run600,REPAIR,SEED,,expectation_movable | core_clause_unenforced,/home/user/ecommerce.db,,L7,ok,solved,rollout_material,17
+task_000443_90a5ee10,run600,REPAIR,SEED,,core_clause_unenforced,,,L11,ok,solved,hardcoded_literal,12
+task_000445_9ff81d3c,run600,REJECT-PROVEN,FLAGGED,value_derivable,,,,,ok,never_attempted,test_only,5
+task_000456_86365763,run600,PASS,SEED,,,,,,ok,0_of_3,hardcoded_literal,14
+task_000458_f497a0ac,run600,REPAIR,SEED,,core_clause_unenforced,,,L11,ok,solved,hardcoded_literal,12
+task_000459_7f1989b6,run600,REPAIR,FLAGGED,expectation_revealed | value_derivable | unstable_reward,core_clause_unenforced,,,,ok,solved,rollout_material,6
+task_000461_77825b56,run600,PASS,SEED,,,,,,ok,never_attempted,hardcoded_literal,5
+task_000461_94f6168a,run600,REPAIR,UNSURE,,core_clause_unenforced,,,,ok,solved,hardcoded_literal,11
+task_000465_61c53d5b,run600,REPAIR,SEED,,core_clause_unenforced,,,,ok,never_attempted,hardcoded_literal,3
+task_000467_5793d509,run600,REPAIR,FLAGGED,value_derivable,core_clause_unenforced,,,,ok,solved,hardcoded_literal,3
+task_000468_a55bef32,run600,REPAIR,SEED,,core_clause_unenforced,,,,ok,0_of_3,hardcoded_literal,7
+task_000469_6610bd81,run600,PASS,SEED,,,,,,ok,0_of_3,test_only,9
+task_000478_952a65d3,run600,PASS,SEED,,,,,,ok,solved,hardcoded_literal,7
+task_000479_cf71224b,run600,REPAIR,FLAGGED,oracle_reachable | expectation_revealed | value_derivable | overspecific_check,,,,L3,ok,never_attempted,rollout_material,8
+task_000486_8ed674fd,run600,REVIEW,UNSURE,,,,,,ok,solved,hardcoded_literal,16
+task_000501_3c7739f3,run600,REJECT-PROVEN,FLAGGED,value_derivable,,,,,ok,never_attempted,hardcoded_literal,4
+task_000503_f77c4cd7,run600,REPAIR,FLAGGED,overspecific_check,,,,,ok,solved,hardcoded_literal,10
+task_000504_d57286d9,run600,PASS,SEED,,,,,,ok,solved,test_only,8
+task_000514_f6d0d50b,run600,REPAIR,SEED,,core_clause_unenforced,,,,ok,never_attempted,hardcoded_literal,9
+task_000517_a4dfb7c4,run600,REVIEW,UNSURE,,core_clause_unenforced,,,,ok,solved,hardcoded_literal,4
+task_000519_2f0b3d5d,run600,REJECT-PROVEN,FLAGGED,value_derivable,expectation_movable,/home/user/data.npy,,,ok,never_attempted,rollout_material,9
+task_000524_1b573147,run600,PASS,SEED,,,,,L11,ok,never_attempted,hardcoded_literal,4
+task_000532_575eee22,run600,REPAIR,FLAGGED,value_derivable,,,,L3,ok,never_attempted,hardcoded_literal,5
+task_000534_692babf2,run600,REPAIR,SEED,,core_clause_unenforced,,,,ok,0_of_3,hardcoded_literal,6
+task_000536_f7740fe0,run600,REPAIR,FLAGGED,overspecific_check,,,,,ok,0_of_3,hardcoded_literal,10
+task_000542_e983679c,run600,REPAIR,SEED,,expectation_movable,/home/user/data/historical_context.csv,/home/user/data/historical_context.csv is also listed as expected_edit (the agent is asked to write it),,ok,0_of_3,rollout_material,8
+task_000546_6753499a,run600,REPAIR,FLAGGED,oracle_reachable,,,,,ok,0_of_3,test_only,8
+task_000547_867da96b,run600,REPAIR,SEED,,core_clause_unenforced,,,,ok,never_attempted,test_only,14
+task_000551_2966ebc4,run600,REPAIR,SEED,,expectation_movable,/app/stress_test.wav,,L8,ok,solved,rollout_material,9
+task_000569_a45c9979,run600,PASS,SEED,,,,,,ok,solved,hardcoded_literal,6
+task_000570_6738f509,run600,REPAIR,SEED,,core_clause_unenforced,,,,ok,never_attempted,hardcoded_literal,8
+task_000585_2fd259d3,run600,REPAIR,FLAGGED,overspecific_check,,,,L13 | L8,ok,solved,test_only,8
+task_000589_21509b0c,run600,REVIEW,UNSURE,unstable_reward,core_clause_unenforced,,,L13,ok,never_attempted,hardcoded_literal,7
+task_000592_801a8bd4,run600,REPAIR,FLAGGED,oracle_reachable | expectation_revealed,,,,L3,ok,never_attempted,rollout_material,9
+task_000594_5b77893b,run600,REPAIR,SEED,,core_clause_unenforced,,,,ok,solved,hardcoded_literal,10
+task_000599_8259e466,run600,REPAIR,FLAGGED,value_derivable,core_clause_unenforced,,,L13,ok,never_attempted,hardcoded_literal,5
+task_000601_fbd9ab23,run600,REPAIR,FLAGGED,oracle_reachable | expectation_revealed,,,,,ok,solved,rollout_material,4
+task_000616_c813b919,run600,REPAIR,SEED,,,,,,ok,never_attempted,hardcoded_literal,13
+task_000617_8f5395ac,run600,PASS,SEED,,,,,,ok,solved,hardcoded_literal,3
+task_000625_0ddc4695,run600,REPAIR,SEED,,weak_verifier_exploit,,,,ok,0_of_3,hardcoded_literal,13
+task_000627_353cec5c,run600,REPAIR,SEED,,weak_verifier_exploit,,,,ok,solved,hardcoded_literal,4
+task_000630_d08a5512,run600,REPAIR,SEED,,weak_verifier_exploit,,,,ok,solved,hardcoded_literal,11
+task_000631_aa3e6699,run600,REPAIR,FLAGGED,overspecific_check,expectation_movable | core_clause_unenforced,/app/corpora/clean/clean1.csv | /app/corpora/clean/*.csv,/app/corpora/clean/clean1.csv is also listed as expected_edit (the agent is asked to write it) | /app/corpora/clean/*.csv is a glob: expand it against the built image,L7,ok,never_attempted,rollout_material,5
+task_000633_f78f498b,run600,PASS,SEED,,,,,,ok,solved,test_only,6
+task_000635_a1f35bfc,run600,PASS,SEED,,,,,,ok,solved,hardcoded_literal,3
+task_000636_421439f0,run600,REPAIR,SEED,,core_clause_unenforced,,,,ok,solved,hardcoded_literal,4
+task_000646_b7bdbdd0,run600,REPAIR,FLAGGED,overspecific_check,,,,,ok,never_attempted,hardcoded_literal,3
+task_000648_4ebaf515,run600,REPAIR,SEED,,core_clause_unenforced,,,,ok,never_attempted,hardcoded_literal,3
+task_000653_be14580f,run600,REPAIR,SEED,,core_clause_unenforced,,,,ok,0_of_3,hardcoded_literal,8
+task_000655_7937a6d9,run600,REPAIR,FLAGGED,value_derivable,,,,L3,ok,never_attempted,hardcoded_literal,6
+task_000663_dff2c340,run600,REPAIR,SEED,,expectation_movable,/home/user/backup_catalog.db,,,ok,solved,rollout_material,8
+task_000665_be4595ae,run600,REPAIR,FLAGGED,overspecific_check,,,,,ok,never_attempted,hardcoded_literal,6
+task_000668_2ead812a,run600,REPAIR,SEED,,weak_verifier_exploit,,,,ok,0_of_3,hardcoded_literal,6
+task_000668_885c3719,run600,REPAIR,SEED,,expectation_movable,/home/user/pipeline/raw_artifacts,,,ok,solved,rollout_material,7
+task_000669_8fcceacc,run600,REPAIR,FLAGGED,expectation_revealed,,,,L11 | L7,ok,solved,rollout_material,5
+task_000670_2a677465,run600,PASS,SEED,,,,,L14 | L2b | L9,ok,never_attempted,test_only,8
+task_000672_0f6d1fb1,run600,REPAIR,SEED,,weak_verifier_exploit,,,,ok,never_attempted,hardcoded_literal,4
+task_000675_fdb1f415,run600,REPAIR,FLAGGED,value_derivable,,,,,ok,never_attempted,hardcoded_literal,6
+task_000678_09ffae1d,run600,REPAIR,SEED,,weak_verifier_exploit,,,,ok,solved,hardcoded_literal,5
+task_000678_a219819a,run600,PASS,SEED,,,,,L11 | L9,ok,solved,hardcoded_literal,6
+task_000681_0f80cbd5,run600,REPAIR,FLAGGED,overspecific_check,weak_verifier_exploit,,,L13 | L7,ok,solved,hardcoded_literal,9
+task_000681_6f824421,run600,REPAIR,SEED,,expectation_movable,/home/user/raw_syslogs.txt,,,ok,0_of_3,rollout_material,5
+task_000684_b3cc1d2c,run600,REPAIR,FLAGGED,overspecific_check,,,,,ok,never_attempted,test_only,10
+task_000687_63e8810c,run600,PASS,SEED,,,,,,ok,0_of_3,hardcoded_literal,9
+task_000692_819d76c8,run600,PASS,SEED,,,,,,ok,0_of_3,hardcoded_literal,13
+task_000693_5283d8b9,run600,PASS,SEED,,,,,,ok,solved,hardcoded_literal,7
+task_000694_a387c519,run600,REVIEW,SEED,,weak_verifier_exploit,,,,ok,0_of_3,hardcoded_literal,5
+task_000698_192dc1ff,run600,REPAIR,SEED,,core_clause_unenforced,,,,ok,never_attempted,hardcoded_literal,4
+task_000698_4faa0030,run600,REPAIR,FLAGGED,oracle_reachable | expectation_revealed,,,,L11 | L3,ok,never_attempted,rollout_material,3
+task_000702_d3ff2109,run600,REPAIR,FLAGGED,value_derivable | overspecific_check,,,,,ok,never_attempted,hardcoded_literal,4
+task_000702_fdbf9e18,run600,PASS,SEED,,,,,,ok,solved,hardcoded_literal,7
+task_000704_c7a8b5a2,run600,REPAIR,FLAGGED,expectation_revealed | value_derivable,,,,,ok,never_attempted,rollout_material,11
+task_000705_dd1c4aef,run600,REPAIR,FLAGGED,value_derivable,expectation_movable | core_clause_unenforced,/home/user/async_service,,,ok,never_attempted,rollout_material,13
+task_000706_c338fab9,run600,PASS,SEED,,,,,,ok,never_attempted,hardcoded_literal,11
+task_000708_72b3a3a9,run600,PASS,SEED,,,,,,ok,solved,hardcoded_literal,23
+task_000712_80fafc0b,run600,REPAIR,SEED,,expectation_movable,/home/user/sequences.fasta,,,ok,solved,rollout_material,7
+task_000713_4d9b0f30,run600,REPAIR,FLAGGED,oracle_reachable | expectation_revealed | value_derivable,,,,L8,ok,never_attempted,rollout_material,4
+task_000716_79efa168,run600,REPAIR,FLAGGED,overspecific_check,,,,,ok,never_attempted,hardcoded_literal,5
+task_000716_f8a3c63f,run600,REPAIR,SEED,,expectation_movable,/home/user/logs/syslog.legacy.z | /app/bin/zdecoder,,,ok,solved,rollout_material,11
+task_000720_9486599c,run600,REPAIR,SEED,,weak_verifier_exploit,,,L14,ok,never_attempted,hardcoded_literal,10
+task_000724_bbe6869c,run600,REPAIR,FLAGGED,overspecific_check,expectation_movable,/home/user/data/protein.pdb | /home/user/results/*.score,/home/user/results/*.score is a glob: expand it against the built image,L11,ok,0_of_3,rollout_material,11
+task_000726_659328e5,run600,REPAIR,SEED,,core_clause_unenforced,,,,ok,never_attempted,shape_only,9
+task_000733_b15c531f,run600,REPAIR,FLAGGED,oracle_reachable,,,,L3 | L7,ok,never_attempted,hardcoded_literal,12
+task_000740_487424b2,run600,REPAIR,SEED,,expectation_movable,/home/user/deps.json,,,ok,solved,rollout_material,9
+task_000741_4b5cf757,run600,REPAIR,SEED,,core_clause_unenforced,,,L11,ok,never_attempted,hardcoded_literal,11
+task_000746_64acb63d,run600,REPAIR,FLAGGED,value_derivable,expectation_movable,/app/corpus/evil | /app/corpus/clean,,,ok,solved,rollout_material,3
+task_000747_81a0c459,run600,PASS,SEED,,,,,L11,ok,never_attempted,hardcoded_literal,3
+task_000760_51cc6794,run600,REJECT-PROVEN,FLAGGED,value_derivable,,,,,ok,never_attempted,hardcoded_literal,2
+task_000767_884d306c,run600,REPAIR,FLAGGED,oracle_reachable | expectation_revealed,,,,L3,ok,solved,rollout_material,5
+task_000768_d61aa5c8,run600,REPAIR,SEED,,core_clause_unenforced,,,,ok,solved,hardcoded_literal,4
+task_000770_d3a78c7a,run600,REVIEW,SEED,,core_clause_unenforced,,,L11,ok,solved,hardcoded_literal,4
+task_000772_a01897c5,run600,PASS,SEED,,,,,,ok,never_attempted,hardcoded_literal,8
+task_000774_42eb5426,run600,REJECT-PROVEN,FLAGGED,value_derivable,,,,,ok,never_attempted,hardcoded_literal,2
+task_000775_bd33c1eb,run600,REPAIR,FLAGGED,value_derivable | overspecific_check,core_clause_unenforced,,,,ok,never_attempted,hardcoded_literal,5
+task_000783_7329b10a,run600,PASS,SEED,,,,,,ok,never_attempted,hardcoded_literal,5
+task_000784_69e63107,run600,PASS,SEED,,,,,,ok,solved,hardcoded_literal,5
+task_000789_f56595dc,run600,PASS,SEED,,,,,,ok,never_attempted,hardcoded_literal,2
+task_000792_16bc86f2,run600,REPAIR,SEED,,expectation_movable,/app/security_cam.mp4,,L7,ok,0_of_3,rollout_material,4
+task_000792_f3d67730,run600,PASS,SEED,,,,,L11,ok,solved,hardcoded_literal,6
+task_000793_6c3b0054,run600,REPAIR,SEED,,weak_verifier_exploit,,,L15,ok,0_of_3,hardcoded_literal,7
+task_000793_ad9531f0,run600,REVIEW,FLAGGED,oracle_reachable | expectation_revealed,,,,L3 | L4,ok,never_attempted,rollout_material,5
+task_000804_7a80e07c,run600,REPAIR,FLAGGED,overspecific_check,core_clause_unenforced,,,L7,ok,never_attempted,hardcoded_literal,5
+task_000808_e27c21c6,run600,PASS,SEED,,,,,,ok,0_of_3,test_only,6
+task_000810_805f1317,run600,REJECT-PROVEN,FLAGGED,value_derivable,,,,L7,ok,never_attempted,hardcoded_literal,2
+task_000812_72e31313,run600,PASS,SEED,,,,,,ok,never_attempted,hardcoded_literal,8
+task_000814_cb6b8d2f,run600,REJECT-PROVEN,FLAGGED,overspecific_check,,,,,ok,solved,hardcoded_literal,4
+task_000815_39b94713,run600,PASS,SEED,,,,,,ok,solved,hardcoded_literal,4
+task_000817_8bb8f36e,run600,PASS,SEED,,,,,,ok,solved,hardcoded_literal,8
+task_000819_1a6de1ed,run600,REPAIR,FLAGGED,oracle_reachable | expectation_revealed,,,,,ok,never_attempted,rollout_material,3
+task_000823_a91ad1e6,run600,PASS,SEED,,,,,,ok,never_attempted,hardcoded_literal,10
+task_000844_bc7c813f,run600,REPAIR,FLAGGED,oracle_reachable | expectation_revealed,,,,,ok,never_attempted,rollout_material,3
+task_000846_c66cf208,run600,REPAIR,SEED,,core_clause_unenforced,,,,ok,solved,hardcoded_literal,9
+task_000848_dd60a3ee,run600,REPAIR,FLAGGED,expectation_revealed,,,,,ok,never_attempted,rollout_material,6
+task_000854_5a8ded74,run600,PASS,SEED,,,,,,ok,0_of_3,hardcoded_literal,11
+task_000856_db36e060,run600,REPAIR,SEED,,expectation_movable,/home/user/sim_data/run_*.npy | /home/user/sim_data,"/home/user/sim_data/run_*.npy is a glob: expand it against the built image | /home/user/sim_data is a directory above another pin: pin the files, not the directory",,ok,solved,rollout_material,6
+task_000857_e97782f9,run600,REPAIR,FLAGGED,expectation_revealed,,,,,ok,never_attempted,rollout_material,9
+task_000859_f7c43583,run600,REPAIR,SEED,,core_clause_unenforced,,,,ok,never_attempted,shape_only,4
+task_000863_07d9663b,run600,REJECT-PROVEN,FLAGGED,overspecific_check,,,,,ok,never_attempted,hardcoded_literal,6
+task_000866_c0b75485,run600,PASS,SEED,,,,,L9,ok,never_attempted,hardcoded_literal,3
+task_000872_cf99cb19,run600,REPAIR,FLAGGED,oracle_reachable,core_clause_unenforced,,,,ok,never_attempted,test_only,6
+task_000873_a7f964b2,run600,REPAIR,FLAGGED,oracle_reachable | expectation_revealed | value_derivable,core_clause_unenforced,,,,ok,never_attempted,rollout_material,5
+task_000875_0cec6314,run600,REJECT-PROVEN,FLAGGED,value_derivable,,,,,ok,never_attempted,hardcoded_literal,6
+task_000876_b7db1995,run600,REVIEW,UNSURE,,,,,,ok,never_attempted,hardcoded_literal,8
+task_000886_9c1067c9,run600,REPAIR,SEED,,core_clause_unenforced,,,,ok,0_of_3,hardcoded_literal,5
+task_000888_971a54af,run600,REPAIR,SEED,,expectation_movable,/home/user/pop_A.fasta | /home/user/pop_B.fasta,,L7,ok,never_attempted,rollout_material,6
+task_000889_7b1141aa,run600,REPAIR,FLAGGED,value_derivable,expectation_movable | core_clause_unenforced,/home/user/raw_sensor_data.csv,,,ok,never_attempted,rollout_material,6
+task_000897_96178d62,run600,REVIEW,UNSURE,,core_clause_unenforced,,,L13,ok,never_attempted,hardcoded_literal,3
+task_000897_a0926896,run600,REVIEW,FLAGGED,overspecific_check | unstable_reward,,,,L10 | L13,ok,never_attempted,hardcoded_literal,6
+task_000900_6dfdf084,run600,PASS,SEED,,,,,,ok,0_of_3,hardcoded_literal,3
+task_000902_c122671d,run600,PASS,SEED,,,,,L6,ok,solved,hardcoded_literal,9
+task_000903_b32e21d6,run600,PASS,SEED,,,,,,ok,0_of_3,hardcoded_literal,16
+task_000904_2c065869,run600,REPAIR,SEED,,core_clause_unenforced,,,,ok,solved,hardcoded_literal,7
+task_000904_e95508b0,run600,PASS,SEED,,,,,,ok,0_of_3,hardcoded_literal,11
+task_000905_deaae61a,run600,REPAIR,SEED,,core_clause_unenforced,,,,ok,solved,hardcoded_literal,8
+task_000906_a5614541,run600,PASS,SEED,,,,,L8,ok,0_of_3,test_only,11
+task_000907_bae9f0c2,run600,PASS,SEED,,,,,,ok,never_attempted,hardcoded_literal,11
+task_000908_8c2c4ac5,run600,PASS,SEED,,,,,,ok,solved,hardcoded_literal,12
+task_000911_851d3bd6,run600,REPAIR,SEED,,core_clause_unenforced,,,,ok,never_attempted,shape_only,14
+task_000912_7e958a77,run600,PASS,SEED,,,,,,ok,0_of_3,hardcoded_literal,9
+task_000912_e0140389,run600,REPAIR,SEED,,expectation_movable,/home/user/sensor_data.csv,,,ok,never_attempted,rollout_material,7
+task_000917_208c26f5,run600,REPAIR,FLAGGED,expectation_revealed,,,,,ok,never_attempted,rollout_material,8
+task_000920_6becf2b8,run600,PASS,SEED,,,,,,ok,never_attempted,hardcoded_literal,16
+task_000923_29049c74,run600,PASS,SEED,,,,,,ok,solved,hardcoded_literal,13
+task_000927_43407097,run600,REPAIR,SEED,,expectation_movable,/home/user/logs/app_,,L13,ok,0_of_3,rollout_material,5
+task_000928_25aac00f,run600,REPAIR,SEED,,core_clause_unenforced,,,,ok,never_attempted,hardcoded_literal,13
+task_000934_e69a9d76,run600,REPAIR,FLAGGED,overspecific_check,,,,,ok,0_of_3,hardcoded_literal,23
+task_000938_3435ad2e,run600,REPAIR,SEED,,,,,,ok,never_attempted,hardcoded_literal,15
+task_000941_1fff2a40,run600,REPAIR,SEED,,expectation_movable,/home/user/backup_catalog.db,,L7,ok,solved,rollout_material,11
+task_000943_c79aef33,run600,REPAIR,SEED,,weak_verifier_exploit,,,,ok,solved,hardcoded_literal,4
+task_000944_a561b537,run600,PASS,SEED,,,,,,ok,0_of_3,hardcoded_literal,8
+task_000944_bd55a239,run600,REPAIR,SEED,,core_clause_unenforced,,,,ok,solved,hardcoded_literal,11
+task_000947_ae2e14dc,run600,REPAIR,FLAGGED,overspecific_check,expectation_movable,/home/user/etc_mock/app1/db.conf | /home/user/etc_mock/nginx/nginx.conf,,,ok,0_of_3,rollout_material,10
+task_000952_edc2f62a,run600,REPAIR,FLAGGED,overspecific_check,,,,,ok,solved,hardcoded_literal,11
+task_000953_1d76c7c3,run600,REPAIR,FLAGGED,value_derivable | overspecific_check,,,,,ok,0_of_3,hardcoded_literal,10
+task_000957_0a574c0d,run600,PASS,SEED,,,,,,ok,solved,hardcoded_literal,2
+task_000966_374a6040,run600,PASS,SEED,,,,,,ok,solved,hardcoded_literal,6
+task_000968_81194fc1,run600,REPAIR,FLAGGED,overspecific_check,core_clause_unenforced,,,,ok,never_attempted,hardcoded_literal,5
+task_000968_db4a2431,run600,REPAIR,FLAGGED,oracle_reachable | expectation_revealed,,,,L3,ok,never_attempted,rollout_material,6
+task_000970_e2ae4e8e,run600,PASS,SEED,,,,,L15,ok,never_attempted,hardcoded_literal,5
+task_000984_7f090cee,run600,PASS,SEED,,,,,L11,ok,solved,hardcoded_literal,5
+task_000984_cbd7f3c9,run600,REVIEW,FLAGGED,value_derivable,core_clause_unenforced,,,L13,ok,never_attempted,hardcoded_literal,5
+task_000987_ced77b3c,run600,REVIEW,FLAGGED,value_derivable,,,,,ok,never_attempted,hardcoded_literal,9
+task_000992_eb40997f,run600,PASS,SEED,,,,,L9,ok,never_attempted,hardcoded_literal,6
+task_000997_7c67da94,run600,REPAIR,SEED,,expectation_movable | core_clause_unenforced,/home/user/data.txt,,,ok,never_attempted,rollout_material,10
+task_000997_ccd13ab9,run600,REPAIR,SEED,,core_clause_unenforced,,,,ok,0_of_3,hardcoded_literal,8
+task_000998_a59d4fb3,run600,REPAIR,SEED,,core_clause_unenforced,,,L13,ok,solved,hardcoded_literal,5
+task_001005_435d16bf,run600,REPAIR,SEED,,core_clause_unenforced,,,,ok,solved,test_only,3
+task_001008_f40ef19f,run600,REPAIR,SEED,,core_clause_unenforced,,,,ok,solved,hardcoded_literal,8
+task_001011_daf5764a,run600,REPAIR,SEED,,weak_verifier_exploit,,,,ok,0_of_3,hardcoded_literal,7
+task_001012_6fe260fe,run600,REPAIR,SEED,,core_clause_unenforced,,,,ok,never_attempted,shape_only,9
+task_001028_f24e9bb1,run600,REPAIR,SEED,,core_clause_unenforced,,,,ok,solved,test_only,8
+task_001031_8c0bbebe,run600,REPAIR,SEED,,core_clause_unenforced,,,,ok,never_attempted,hardcoded_literal,5
+task_001035_3c25e10e,run600,REJECT-PROVEN,FLAGGED,value_derivable,,,,,ok,never_attempted,hardcoded_literal,7
+task_001043_14bf6c57,run600,PASS,SEED,,,,,,ok,solved,hardcoded_literal,10
+task_001047_323eea51,run600,REPAIR,SEED,,core_clause_unenforced,,,,ok,solved,hardcoded_literal,3
+task_001048_cd123073,run600,REJECT-PROVEN,FLAGGED,value_derivable,core_clause_unenforced,,,L11,ok,never_attempted,hardcoded_literal,3
+task_001058_15bb2cd8,run600,REPAIR,FLAGGED,value_derivable,core_clause_unenforced,,,L13,ok,solved,hardcoded_literal,12
+task_001063_afc38090,run600,REPAIR,SEED,,core_clause_unenforced,,,L13,ok,never_attempted,hardcoded_literal,14
+task_001068_ba585e13,run600,REPAIR,FLAGGED,oracle_reachable,expectation_movable,/app/test_sequence.mp4,,,ok,0_of_3,rollout_material,4
+task_001069_671fbea8,run600,PASS,SEED,,,,,,ok,solved,hardcoded_literal,8
+task_001069_a9182649,run600,REPAIR,FLAGGED,oracle_reachable | expectation_revealed,,,,L3,ok,solved,rollout_material,2
+task_001080_5c6b3d64,run600,REPAIR,FLAGGED,value_derivable | overspecific_check,,,,,ok,never_attempted,hardcoded_literal,5
+task_001080_cde45556,run600,REPAIR,SEED,,core_clause_unenforced,,,,ok,0_of_3,hardcoded_literal,6
+task_001086_9b03aaeb,run600,REPAIR,FLAGGED,value_derivable,,,,,ok,never_attempted,hardcoded_literal,2
+task_001086_fb3ded6a,run600,REPAIR,FLAGGED,unstable_reward,expectation_movable,,no absolute path in expectation_movable,L1 | L13,ok,solved,rollout_material,6
+task_001092_06783d36,run600,PASS,SEED,,,,,L8,ok,0_of_3,test_only,10
+task_001093_6983315e,run600,PASS,SEED,,,,,,ok,never_attempted,hardcoded_literal,13
+task_001094_464e290b,run600,REPAIR,SEED,,core_clause_unenforced,,,,ok,never_attempted,hardcoded_literal,10
+task_001094_dca23eb9,run600,REPAIR,FLAGGED,value_derivable,,,,L15,ok,solved,hardcoded_literal,11
+task_001096_b47b5172,run600,PASS,SEED,,,,,,ok,never_attempted,hardcoded_literal,11
+task_001098_4e7b2055,run600,REPAIR,FLAGGED,value_derivable,expectation_movable,/app/forensic_logs.txt,,,ok,never_attempted,rollout_material,7
+task_001101_e1f7be7b,run600,PASS,SEED,,,,,,ok,never_attempted,hardcoded_literal,9
+task_001104_dffa14ac,run600,PASS,SEED,,,,,,ok,0_of_3,hardcoded_literal,9
+task_001105_4e1dd7b1,run600,REPAIR,FLAGGED,overspecific_check,core_clause_unenforced,,,,ok,solved,hardcoded_literal,17
+task_001107_5cea9fe1,run600,PASS,SEED,,,,,,ok,0_of_3,hardcoded_literal,17
+task_001118_3306824d,run600,REVIEW,UNSURE,,,,,L11,ok,never_attempted,hardcoded_literal,21
+task_001119_09e64320,run600,REPAIR,SEED,,core_clause_unenforced,,,,ok,0_of_3,hardcoded_literal,8
+task_001119_d6ec668c,run600,REPAIR,FLAGGED,overspecific_check,core_clause_unenforced,,,,ok,solved,shape_only,17
+task_001125_015b6ff8,run600,REPAIR,SEED,,weak_verifier_exploit,,,,ok,solved,hardcoded_literal,11
+task_001128_45291ecf,run600,PASS,SEED,,,,,,ok,solved,hardcoded_literal,13
+task_001129_a70ffa72,run600,REPAIR,SEED,,weak_verifier_exploit,,,,ok,solved,hardcoded_literal,9
+task_001136_0554d1fb,run600,PASS,SEED,,,,,,ok,solved,hardcoded_literal,10
+task_001152_69ba78fe,run600,REPAIR,FLAGGED,value_derivable,,,,,ok,never_attempted,hardcoded_literal,9
+task_001155_8876cd82,run600,REPAIR,SEED,,core_clause_unenforced,,,,ok,solved,hardcoded_literal,10
+task_001156_9f8ed4b7,run600,PASS,SEED,,,,,L11,ok,solved,hardcoded_literal,6
+task_001156_be184bb9,run600,REJECT-PROVEN,FLAGGED,expectation_revealed,,,,L7,ok,never_attempted,rollout_material,8
+task_001159_bbb01ad0,run600,REPAIR,FLAGGED,oracle_reachable | expectation_revealed,,,,,ok,never_attempted,rollout_material,6
+task_001161_a1961431,run600,REPAIR,SEED,,core_clause_unenforced,,,,ok,never_attempted,hardcoded_literal,17
+task_001164_6da7cdd1,run600,PASS,SEED,,,,,,ok,solved,hardcoded_literal,5
+task_001167_83b72956,run600,REPAIR,FLAGGED,value_derivable,core_clause_unenforced,,,,ok,never_attempted,hardcoded_literal,5
+task_001168_1e4fca90,run600,PASS,SEED,,,,,,ok,solved,hardcoded_literal,4
+task_001171_b770bca7,run600,REPAIR,FLAGGED,oracle_reachable | expectation_revealed,,,,,ok,solved,rollout_material,4
+task_001172_1330d331,run600,REPAIR,UNSURE,,core_clause_unenforced,,,L13 | L15 | L6,ok,never_attempted,hardcoded_literal,14
+task_001173_7ed72bd4,run600,PASS,SEED,,,,,,ok,solved,hardcoded_literal,14
+task_001175_247c0751,run600,REPAIR,SEED,,core_clause_unenforced,,,,ok,never_attempted,hardcoded_literal,20
+task_001176_c96f1c32,run600,PASS,SEED,,,,,L15,ok,never_attempted,hardcoded_literal,19
+task_001179_b6dae579,run600,PASS,SEED,,,,,L11,ok,never_attempted,hardcoded_literal,9
+task_001183_91beb53f,run600,REPAIR,SEED,,core_clause_unenforced,,,,ok,never_attempted,shape_only,12
+task_001190_844a8799,run600,PASS,SEED,,,,,,ok,solved,hardcoded_literal,5
+task_001195_b9e36867,run600,PASS,SEED,,,,,,ok,never_attempted,hardcoded_literal,6
+task_001196_b829f104,run600,REPAIR,FLAGGED,oracle_reachable | expectation_revealed,,,,,ok,never_attempted,rollout_material,6
+task_001197_680abe08,run600,PASS,SEED,,,,,,ok,never_attempted,hardcoded_literal,16
+task_001199_bbd48659,run600,REPAIR,FLAGGED,overspecific_check,,,,,ok,never_attempted,hardcoded_literal,6
+task_001200_9245c609,run600,REPAIR,SEED,,core_clause_unenforced,,,,ok,never_attempted,hardcoded_literal,6
+task_001201_a004352a,run600,REJECT-PROVEN,FLAGGED,value_derivable,,,,L11 | L3,ok,never_attempted,hardcoded_literal,4
+task_001204_94e4cb2b,run600,REPAIR,FLAGGED,value_derivable,,,,,ok,solved,hardcoded_literal,4
+task_001209_961bfa9d,run600,REVIEW,UNSURE,,,,,,ok,solved,test_only,4
+task_001213_032dc5ed,run600,REPAIR,SEED,,core_clause_unenforced,,,,ok,never_attempted,hardcoded_literal,7
+task_001220_f5b57353,run600,REPAIR,SEED,,core_clause_unenforced,,,,ok,never_attempted,hardcoded_literal,9
+task_001221_157b68d4,run600,REPAIR,SEED,,core_clause_unenforced,,,,ok,never_attempted,hardcoded_literal,12
+task_001223_4fd9b2d2,run600,REPAIR,FLAGGED,value_derivable,,,,L3,ok,never_attempted,hardcoded_literal,8
+task_001225_556cc66b,run600,REVIEW,FLAGGED,value_derivable,core_clause_unenforced,,,,ok,never_attempted,hardcoded_literal,9
+task_001237_3bb323ec,run600,REPAIR,SEED,,core_clause_unenforced,,,,ok,never_attempted,hardcoded_literal,11
+task_001250_55a32d92,run600,REPAIR,SEED,,core_clause_unenforced,,,,ok,never_attempted,hardcoded_literal,3
+task_001257_21489dc1,run600,REPAIR,FLAGGED,oracle_reachable,core_clause_unenforced,,,,ok,never_attempted,hardcoded_literal,5
+task_001267_5765e50d,run600,REPAIR,FLAGGED,expectation_revealed,core_clause_unenforced,,,,ok,never_attempted,rollout_material,5
+task_001270_ecef6e54,run600,REPAIR,FLAGGED,expectation_revealed | overspecific_check,core_clause_unenforced,,,,ok,never_attempted,rollout_material,5
+task_001280_f21f87d7,run600,REVIEW,UNSURE,,core_clause_unenforced,,,,ok,never_attempted,hardcoded_literal,6
+task_001291_369c3f4f,run600,REPAIR,FLAGGED,overspecific_check,,,,,ok,solved,hardcoded_literal,3
+task_001297_7daf19d8,run600,REPAIR,FLAGGED,unstable_reward,weak_verifier_exploit,,,,ok,never_attempted,hardcoded_literal,5
+task_001297_cbe1aaa0,run600,REPAIR,SEED,,core_clause_unenforced,,,,ok,solved,hardcoded_literal,5
+task_001318_fc0f9faa,run600,PASS,SEED,,,,,L11,ok,solved,hardcoded_literal,12
+task_001356_e7d2988c,run600,REPAIR,FLAGGED,unstable_reward,core_clause_unenforced,,,,ok,never_attempted,shape_only,3
+task_001364_19fa3618,run600,REPAIR,SEED,,expectation_movable | core_clause_unenforced,/home/user/data,,L7,ok,never_attempted,rollout_material,10
+task_001372_52718284,run600,REPAIR,FLAGGED,oracle_reachable | expectation_revealed,,,,L3,ok,never_attempted,rollout_material,5
+task_001397_2e056b01,run600,REPAIR,FLAGGED,oracle_reachable | expectation_revealed,,,,L3 | L4,ok,never_attempted,rollout_material,5
+task_001410_2da4ca67,run600,REPAIR,FLAGGED,overspecific_check,core_clause_unenforced,,,,ok,solved,hardcoded_literal,12
+task_001493_5c3c4c9f,run600,REPAIR,SEED,,core_clause_unenforced,,,,ok,never_attempted,hardcoded_literal,5
+task_001498_7fe1184d,run600,REPAIR,FLAGGED,oracle_reachable | expectation_revealed,,,,L3 | L7,ok,never_attempted,rollout_material,2
+task_001575_c87be32c,run600,REPAIR,FLAGGED,value_derivable,core_clause_unenforced,,,L3,ok,never_attempted,hardcoded_literal,2
+task_001581_0a92633e,run600,REPAIR,FLAGGED,oracle_reachable | expectation_revealed,core_clause_unenforced,,,L3,ok,never_attempted,rollout_material,3
+task_001607_be90baaf,run600,REPAIR,FLAGGED,oracle_reachable | expectation_revealed,,,,L3,ok,never_attempted,rollout_material,3
+task_001626_d64d39ee,run600,REPAIR,SEED,,weak_verifier_exploit,,,,ok,never_attempted,hardcoded_literal,8
+task_001682_2d8cb342,run600,REPAIR,FLAGGED,value_derivable,,,,,ok,never_attempted,hardcoded_literal,8
+task_001703_4a3af2c3,run600,REPAIR,FLAGGED,expectation_revealed | unstable_reward,,,,L7,ok,never_attempted,rollout_material,8
+task_001720_91663aaf,run600,REPAIR,FLAGGED,value_derivable,,,,L3,ok,never_attempted,hardcoded_literal,10
+task_001741_122fbc18,run600,REPAIR,SEED,,expectation_movable,/home/user/gcode_current/partA.gcode,,L13,ok,never_attempted,rollout_material,6
+task_001760_7aae427b,run600,REPAIR,SEED,,core_clause_unenforced,,,,ok,never_attempted,shape_only,12
+task_001781_b5183c50,run600,REPAIR,FLAGGED,oracle_reachable | expectation_revealed,,,,L3,ok,never_attempted,rollout_material,5
+task_001798_ec1be804,run600,PASS,SEED,,,,,,ok,never_attempted,hardcoded_literal,5
+task_001847_2a65645a,run600,REPAIR,FLAGGED,oracle_reachable | expectation_revealed,,,,L14 | L3,ok,never_attempted,rollout_material,5
+task_001855_bfb918d6,run600,REPAIR,SEED,,expectation_movable,/home/user/raw_data.bin,,L7,ok,never_attempted,rollout_material,13
+task_001894_cdb2f937,run600,REPAIR,FLAGGED,value_derivable,core_clause_unenforced,,,,ok,never_attempted,hardcoded_literal,9
+task_001909_c566c4ed,run600,PASS,SEED,,,,,,ok,never_attempted,hardcoded_literal,3
+task_001935_550ff694,run600,REVIEW,SEED,,core_clause_unenforced,,,,ok,never_attempted,hardcoded_literal,6
+task_001966_b4afc42f,run600,PASS,SEED,,,,,,ok,never_attempted,hardcoded_literal,9
+task_002042_a8f9688e,run600,REVIEW,SEED,,expectation_movable,/app/artifact_raw.wav,,,ok,never_attempted,rollout_material,5
+task_002119_e871c336,run600,REPAIR,FLAGGED,oracle_reachable | expectation_revealed,,,,L4,ok,solved,rollout_material,4
+task_002187_0391608d,run600,PASS,SEED,,,,,,ok,never_attempted,hardcoded_literal,3
+task_002220_5ff0a0d8,run600,REVIEW,UNSURE,,expectation_movable,/home/user/access_logs.db,,L7,ok,never_attempted,rollout_material,4
+task_002223_e0a30625,run600,REPAIR,FLAGGED,oracle_reachable | expectation_revealed,,,,,ok,solved,rollout_material,6
+task_002224_352f4b22,run600,REVIEW,UNSURE,,,,,,ok,never_attempted,hardcoded_literal,7
+task_002285_8832c858,run600,REPAIR,SEED,,core_clause_unenforced,,,L11,ok,never_attempted,hardcoded_literal,4
+task_002349_eede212a,run600,REPAIR,SEED,,expectation_movable,/home/user/perf_logs.csv,,L7,ok,never_attempted,rollout_material,6
+task_002378_139ea7d2,run600,REPAIR,FLAGGED,overspecific_check,,,,,ok,never_attempted,hardcoded_literal,6
+task_002392_c7a06198,run600,REPAIR,FLAGGED,oracle_reachable | expectation_revealed | value_derivable,,,,L3,ok,never_attempted,rollout_material,4
+task_002408_f3ad7d68,run600,REVIEW,SEED,,expectation_movable | core_clause_unenforced,/home/user/server_logs.csv,,L15,ok,never_attempted,rollout_material,6
+task_002412_6057c77f,run600,PASS,SEED,,,,,,ok,solved,hardcoded_literal,6
+task_002420_5800a55a,run600,PASS,SEED,,,,,,ok,never_attempted,test_only,6
+task_002436_00fb49b2,run600,REPAIR,FLAGGED,value_derivable,,,,L3,ok,never_attempted,hardcoded_literal,9
+task_002446_bf4c3680,run600,PASS,SEED,,,,,,ok,never_attempted,hardcoded_literal,9
+task_002466_0552bfa5,run600,PASS,SEED,,,,,,ok,never_attempted,hardcoded_literal,4
+task_002488_cad7a82a,run600,PASS,SEED,,,,,,ok,never_attempted,hardcoded_literal,5
+task_002493_1814cebd,run600,REJECT-PROVEN,FLAGGED,value_derivable,expectation_movable,/home/user/chat_stream.jsonl,,,ok,never_attempted,rollout_material,6
+task_002506_40e40061,run600,REVIEW,SEED,,expectation_movable | core_clause_unenforced,/home/user/service_config.txt,,,ok,never_attempted,rollout_material,5
+task_002507_30102bd4,run600,REPAIR,SEED,,expectation_movable | core_clause_unenforced,/home/user/data_volume,,L13,ok,never_attempted,rollout_material,9
+task_002523_9cd07c05,run600,PASS,SEED,,,,,,ok,never_attempted,hardcoded_literal,6
+task_002533_b00df75a,run600,REPAIR,FLAGGED,oracle_reachable | expectation_revealed,core_clause_unenforced,,,,ok,never_attempted,rollout_material,5
+task_002555_33e8e5b7,run600,PASS,SEED,,,,,,ok,never_attempted,hardcoded_literal,5
+task_002562_0b8c0409,run600,REPAIR,FLAGGED,oracle_reachable | expectation_revealed,,,,L11 | L3,ok,never_attempted,rollout_material,5
+task_002720_29a52b70,run600,PASS,SEED,,,,,L15,ok,solved,hardcoded_literal,4
+task_002776_52d84968,run600,REPAIR,FLAGGED,oracle_reachable | expectation_revealed,core_clause_unenforced,,,L3,ok,never_attempted,rollout_material,5
+task_002887_0332588a,run600,REPAIR,FLAGGED,overspecific_check,,,,,ok,never_attempted,hardcoded_literal,3
+task_002906_64dd9031,run600,PASS,SEED,,,,,,ok,never_attempted,hardcoded_literal,8
+task_002918_3e5568e4,run600,REPAIR,FLAGGED,oracle_reachable | expectation_revealed,,,,L3,ok,solved,rollout_material,4
+task_002974_c4c1008a,run600,PASS,SEED,,,,,,ok,never_attempted,hardcoded_literal,7
+task_003033_f6c0c4cb,run600,REPAIR,FLAGGED,oracle_reachable | expectation_revealed,,,,L14 | L3,ok,solved,rollout_material,4
+task_003085_1a0362f4,run600,REPAIR,SEED,,core_clause_unenforced,,,,ok,never_attempted,hardcoded_literal,5
+task_003090_073c9355,run600,REPAIR,FLAGGED,oracle_reachable | expectation_revealed,core_clause_unenforced,,,L3,ok,never_attempted,rollout_material,5
+task_003126_38faf196,run600,REPAIR,SEED,,expectation_movable | core_clause_unenforced,/home/user/signal.txt,,,ok,never_attempted,rollout_material,3
+task_003204_699866e1,run600,REPAIR,UNSURE,,core_clause_unenforced,,,,ok,never_attempted,hardcoded_literal,10
+task_003207_4cab79ae,run600,REPAIR,SEED,,core_clause_unenforced,,,,ok,never_attempted,test_only,3
+task_003228_e90de514,run600,REVIEW,SEED,,,,,L11,ok,never_attempted,hardcoded_literal,8
+task_003232_8eda3668,run600,REPAIR,FLAGGED,oracle_reachable | expectation_revealed,,,,,ok,never_attempted,rollout_material,4
+task_003276_93126d88,run600,PASS,SEED,,,,,,ok,never_attempted,hardcoded_literal,11
+task_003280_ccd04de0,run600,REJECT-PROVEN,FLAGGED,value_derivable,core_clause_unenforced,,,L13,ok,never_attempted,hardcoded_literal,7
+task_003294_f438d955,run600,REPAIR,FLAGGED,overspecific_check,,,,,ok,never_attempted,hardcoded_literal,8
+task_003334_ffc4e355,run600,REPAIR,SEED,,expectation_movable,/home/user/locales_wide.csv,,L7,ok,never_attempted,rollout_material,19
+task_003343_affc5f4a,run600,REPAIR,FLAGGED,oracle_reachable | expectation_revealed,,,,,ok,never_attempted,rollout_material,4
+task_003527_074eacd5,run600,REPAIR,FLAGGED,overspecific_check,,,,,ok,never_attempted,hardcoded_literal,5
+task_003581_b898080c,run600,REPAIR,FLAGGED,overspecific_check,core_clause_unenforced,,,L11,ok,never_attempted,hardcoded_literal,7
+task_003632_134e8b65,run600,REPAIR,FLAGGED,oracle_reachable | expectation_revealed,,,,,ok,never_attempted,rollout_material,4
+task_003647_d7d08094,run600,PASS,SEED,,,,,,ok,never_attempted,hardcoded_literal,7
+task_003656_dbb80065,run600,REPAIR,FLAGGED,oracle_reachable | expectation_revealed | value_derivable,,,,L3,ok,never_attempted,rollout_material,5
+task_003720_a81876de,run600,REPAIR,FLAGGED,overspecific_check,,,,,ok,never_attempted,hardcoded_literal,8
+task_003739_81e3140d,run600,PASS,SEED,,,,,L15,ok,never_attempted,test_only,10
+task_003759_74019aa4,run600,REPAIR,FLAGGED,oracle_reachable | expectation_revealed,,,,L14 | L15,ok,never_attempted,rollout_material,4
+task_003777_18839590,run600,REPAIR,SEED,,weak_verifier_exploit,,,L14,ok,never_attempted,hardcoded_literal,7
+task_003789_d84e56c9,run600,PASS,SEED,,,,,,ok,never_attempted,hardcoded_literal,5
+task_003797_09bd372a,run600,REPAIR,SEED,,expectation_movable,/home/user/graph_db/edges.csv,,L14,ok,never_attempted,rollout_material,9
+task_003806_e0a15150,run600,REPAIR,FLAGGED,expectation_revealed,,,,,ok,never_attempted,rollout_material,6
+task_003855_b641b2c8,run600,PASS,SEED,,,,,,ok,never_attempted,hardcoded_literal,12
+task_003899_3e4bce86,run600,PASS,SEED,,,,,,ok,never_attempted,test_only,6
+task_003904_132e149d,run600,PASS,SEED,,,,,,ok,never_attempted,hardcoded_literal,3
+task_003945_a35a0473,run600,PASS,SEED,,,,,,ok,never_attempted,hardcoded_literal,7
+task_003946_cb7e9725,run600,REJECT-PROVEN,FLAGGED,oracle_reachable | expectation_revealed,,,,,ok,never_attempted,rollout_material,6
+task_003971_8f8b3b8c,run600,REPAIR,SEED,,expectation_movable,/home/user/data/signal.h5,,L7,ok,never_attempted,rollout_material,10
+task_004010_08097313,run600,REPAIR,FLAGGED,oracle_reachable | expectation_revealed,,,,,ok,never_attempted,rollout_material,6
+task_004012_3b73fde6,run600,PASS,SEED,,,,,,ok,never_attempted,test_only,10
+task_004023_975dd0db,run600,REPAIR,FLAGGED,expectation_revealed | value_derivable,,,,,ok,never_attempted,rollout_material,12
+task_004031_32a489fa,run600,REPAIR,FLAGGED,oracle_reachable | expectation_revealed,,,,L3,ok,never_attempted,rollout_material,9
+task_004046_c60f9ea5,run600,PASS,SEED,,,,,,ok,never_attempted,hardcoded_literal,14
+task_004061_00a8d006,run600,REVIEW,FLAGGED,expectation_revealed,,,,,ok,never_attempted,rollout_material,9
+task_004072_aeabd216,run600,REPAIR,SEED,,core_clause_unenforced,,,,ok,never_attempted,hardcoded_literal,10
+task_004174_33d6e62f,run600,PASS,SEED,,,,,,ok,never_attempted,hardcoded_literal,9
+task_004245_279ad801,run600,REPAIR,FLAGGED,oracle_reachable | expectation_revealed,,,,L3,ok,never_attempted,rollout_material,5
+task_004277_511121b0,run600,REPAIR,FLAGGED,oracle_reachable,,,,,ok,never_attempted,test_only,7
+task_004294_0a6599df,run600,PASS,SEED,,,,,,ok,never_attempted,test_only,6
+task_004359_6fe9df65,run600,REPAIR,SEED,,expectation_movable,/tmp/hidden_test.jsonl,,,ok,never_attempted,rollout_material,14
+task_004385_22bc02f2,run600,REPAIR,FLAGGED,oracle_reachable | expectation_revealed,,,,,ok,never_attempted,rollout_material,4
+task_004391_ef299335,run600,REPAIR,SEED,,weak_verifier_exploit,,,,ok,never_attempted,shape_only,3
+task_004420_ce2bb4a2,run600,REJECT-PROVEN,FLAGGED,expectation_revealed | value_derivable,,,,L3 | L7,ok,never_attempted,rollout_material,10
+task_004465_bc443ae5,run600,REPAIR,FLAGGED,oracle_reachable | expectation_revealed,,,,L3,ok,never_attempted,rollout_material,3
+task_004474_85f0dd0d,run600,REPAIR,FLAGGED,value_derivable,expectation_movable,/app/corpora/evil | /app/corpora/clean,,L7,ok,never_attempted,rollout_material,9
+task_004481_450cca8e,run600,PASS,SEED,,,,,L9,ok,never_attempted,hardcoded_literal,4
+task_004564_57be5bca,run600,REJECT-PROVEN,FLAGGED,expectation_revealed,core_clause_unenforced,,,L3 | L7,ok,never_attempted,rollout_material,5
+task_004602_cc8f00c8,run600,REPAIR,FLAGGED,oracle_reachable | expectation_revealed,,,,,ok,never_attempted,rollout_material,6
+task_004744_4a70d389,run600,REPAIR,FLAGGED,oracle_reachable | expectation_revealed,,,,,ok,never_attempted,rollout_material,8
+task_004773_d500c3c4,run600,REPAIR,SEED,,core_clause_unenforced,,,,ok,never_attempted,hardcoded_literal,6
+task_004843_a9d25880,run600,REPAIR,SEED,,core_clause_unenforced,,,,ok,never_attempted,hardcoded_literal,7
+task_004863_67089cd4,run600,REPAIR,FLAGGED,oracle_reachable | expectation_revealed,,,,,ok,solved,rollout_material,2
+task_004886_10504160,run600,REPAIR,FLAGGED,expectation_revealed | value_derivable | unstable_reward,,,,L3,free_reward,never_attempted,rollout_material,4
+task_004896_cec84a8c,run600,PASS,SEED,,,,,,ok,never_attempted,hardcoded_literal,7
+task_004917_0f6cfa70,run600,REPAIR,SEED,,expectation_movable,/home/user/logs/auth.jsonl | /home/user/logs/api.csv | /home/user/logs/db.log,,,ok,never_attempted,rollout_material,4
+task_004961_88df19d1,run600,REPAIR,SEED,,core_clause_unenforced,,,,ok,never_attempted,hardcoded_literal,8
+task_005042_071a51df,run600,PASS,SEED,,,,,L11,ok,solved,test_only,4
+task_005078_df66e37d,run600,PASS,SEED,,,,,,ok,never_attempted,hardcoded_literal,6
+task_005084_af94922a,run600,PASS,SEED,,,,,,ok,never_attempted,hardcoded_literal,10
+task_005112_a15181e9,run600,REPAIR,UNSURE,,core_clause_unenforced,,,,ok,never_attempted,hardcoded_literal,19
+task_005125_ab8d11f3,run600,PASS,SEED,,,,,,ok,never_attempted,hardcoded_literal,4
+task_005249_f1dd665d,run600,REPAIR,SEED,,expectation_movable,/home/user/dataset.csv,,,ok,never_attempted,rollout_material,7
+task_005264_3cd0d339,run600,PASS,SEED,,,,,,ok,never_attempted,hardcoded_literal,8
+task_005279_8bcea342,run600,REJECT-PROVEN,UNSURE,oracle_reachable | expectation_revealed,,,,L3,ok,never_attempted,rollout_material,9
+task_005327_eef03982,run600,REPAIR,SEED,,expectation_movable,/home/user/api_response.json,,,ok,never_attempted,rollout_material,6
+task_005380_f0733200,run600,REPAIR,FLAGGED,overspecific_check,,,,,ok,never_attempted,hardcoded_literal,7
+task_005402_739289ed,run600,PASS,SEED,,,,,L11,ok,never_attempted,hardcoded_literal,7
+task_005435_15c19859,run600,REPAIR,FLAGGED,oracle_reachable | expectation_revealed,,,,L3,ok,never_attempted,rollout_material,4
+task_005501_6fa829d1,run600,REPAIR,FLAGGED,value_derivable | overspecific_check,,,,,ok,never_attempted,hardcoded_literal,8
+task_005548_93090bcc,run600,REPAIR,SEED,,core_clause_unenforced,,,L11,ok,never_attempted,test_only,12
+task_005585_697e2ecc,run600,PASS,SEED,,,,,,ok,never_attempted,hardcoded_literal,9
+task_005680_ab6232e8,run600,REPAIR,SEED,,expectation_movable | core_clause_unenforced,/home/user/source_data,,,ok,never_attempted,rollout_material,13
+task_005742_4e0ba8d1,run600,REVIEW,SEED,,,,,,ok,never_attempted,hardcoded_literal,5
+task_005778_c54a55da,run600,PASS,SEED,,,,,,ok,never_attempted,hardcoded_literal,11
+task_005807_41b83867,run600,PASS,SEED,,,,,,ok,never_attempted,hardcoded_literal,4
+task_005844_b301e223,run600,PASS,SEED,,,,,,ok,never_attempted,hardcoded_literal,10
+task_005866_ea10a0d7,run600,PASS,SEED,,,,,,ok,never_attempted,hardcoded_literal,10
+task_005909_4d8203db,run600,REPAIR,FLAGGED,overspecific_check,,,,L14,ok,never_attempted,hardcoded_literal,15
+task_005916_27c4458f,run600,PASS,SEED,,,,,,ok,never_attempted,hardcoded_literal,7
+task_005972_3425b2a9,run600,REPAIR,SEED,,core_clause_unenforced,,,,ok,solved,hardcoded_literal,18
+task_006081_dfe5192a,run600,PASS,SEED,,,,,L11,ok,never_attempted,hardcoded_literal,4
+task_006210_e9532fdc,run600,REPAIR,FLAGGED,value_derivable,,,,L15,ok,never_attempted,hardcoded_literal,5
+task_006224_79d7a6a5,run600,REPAIR,SEED,,expectation_movable,/home/user/spectroscopy_data.csv,,,ok,solved,rollout_material,7
+task_006308_d9508e6b,run600,REPAIR,FLAGGED,overspecific_check,,,,L11,ok,never_attempted,hardcoded_literal,5
+task_006370_24b20c85,run600,PASS,SEED,,,,,,ok,never_attempted,hardcoded_literal,13
+task_006489_8faf7389,run600,PASS,SEED,,,,,,ok,never_attempted,hardcoded_literal,7
+task_006569_32beb2fd,run600,PASS,SEED,,,,,,ok,never_attempted,hardcoded_literal,4
+task_006688_a15dea16,run600,REPAIR,SEED,,core_clause_unenforced,,,,ok,never_attempted,test_only,12
+task_006856_a420cedd,run600,PASS,SEED,,,,,,ok,never_attempted,hardcoded_literal,8
+task_006885_3800a9bf,run600,REPAIR,FLAGGED,overspecific_check,,,,,ok,never_attempted,hardcoded_literal,4
+task_007030_d64c5046,run600,PASS,SEED,,,,,,ok,never_attempted,hardcoded_literal,7
+task_007032_d362e926,run600,REPAIR,FLAGGED,overspecific_check,,,,,ok,never_attempted,hardcoded_literal,6
+task_007088_00ca8c40,run600,REVIEW,SEED,,expectation_movable,/home/user/app_data/node1,,L13,ok,never_attempted,rollout_material,11
+task_007102_d981ab89,run600,REPAIR,FLAGGED,overspecific_check,core_clause_unenforced,,,,ok,never_attempted,test_only,9
+task_007122_d2ab6c50,run600,PASS,SEED,,,,,,ok,never_attempted,hardcoded_literal,3
+task_007136_b72326f7,run600,REPAIR,FLAGGED,overspecific_check,,,,,ok,never_attempted,hardcoded_literal,9
+task_007181_f3fdfca7,run600,PASS,SEED,,,,,,ok,never_attempted,hardcoded_literal,2
+task_007213_3d102c5b,run600,PASS,SEED,,,,,L15,ok,never_attempted,hardcoded_literal,7
+task_007231_e025e3a6,run600,PASS,SEED,,,,,,ok,never_attempted,hardcoded_literal,14
+task_007242_5ddef570,run600,REPAIR,FLAGGED,overspecific_check,,,,L15 | L7,ok,never_attempted,hardcoded_literal,2
+task_007446_3dcb34fb,run600,REPAIR,SEED,,core_clause_unenforced,,,,ok,solved,hardcoded_literal,16
+task_007774_78a9589f,run600,REPAIR,SEED,,core_clause_unenforced,,,L11 | L13,ok,never_attempted,hardcoded_literal,8
+task_007777_43e467ff,run600,PASS,SEED,,,,,,ok,never_attempted,test_only,8
+task_007797_769d1c84,run600,PASS,SEED,,,,,,ok,never_attempted,hardcoded_literal,9
+task_007847_8420fed2,run600,REPAIR,SEED,,expectation_movable,/home/user/project/raw_features.csv,,,ok,never_attempted,rollout_material,13
+task_007907_0293649a,run600,PASS,SEED,,,,,,ok,never_attempted,hardcoded_literal,6
+task_007950_6dba22a9,run600,REPAIR,SEED,,core_clause_unenforced,,,,ok,never_attempted,hardcoded_literal,7
+task_008056_73776e23,run600,REPAIR,FLAGGED,overspecific_check,,,,,ok,never_attempted,hardcoded_literal,6
+task_008081_5855211a,run600,REPAIR,FLAGGED,overspecific_check,,,,,ok,never_attempted,hardcoded_literal,4
+task_008127_657be1f9,run600,REJECT-PROVEN,FLAGGED,value_derivable,,,,,ok,never_attempted,hardcoded_literal,4
+task_008246_1c7a68df,run600,REVIEW,SEED,,expectation_movable | core_clause_unenforced,/home/user/times.txt,,,ok,never_attempted,rollout_material,7
+task_008303_988ee7d3,run600,PASS,SEED,,,,,L9,ok,never_attempted,hardcoded_literal,4
+task_008379_9f0b3392,run600,PASS,SEED,,,,,L9,ok,never_attempted,hardcoded_literal,8
+task_008423_e40cf17f,run600,PASS,SEED,,,,,L9,ok,never_attempted,test_only,8
+task_008452_2f7dd135,run600,REPAIR,SEED,,core_clause_unenforced,,,,ok,never_attempted,hardcoded_literal,6
+task_008469_eaf5618e,run600,PASS,SEED,,,,,,ok,never_attempted,hardcoded_literal,9
+task_008528_d0c1b508,run600,PASS,SEED,,,,,,ok,never_attempted,hardcoded_literal,13
+task_008531_d22ebcf4,run600,REPAIR,SEED,,core_clause_unenforced,,,L11,ok,never_attempted,hardcoded_literal,8
+task_008583_788d0622,run600,PASS,SEED,,,,,L2,ok,never_attempted,hardcoded_literal,9
+task_008633_a476735e,run600,REPAIR,SEED,,expectation_movable,/home/user/nodes.tsv | /home/user/edges.tsv,,,ok,never_attempted,rollout_material,2
+task_008680_465d3251,run600,REJECT-PROVEN,FLAGGED,overspecific_check,core_clause_unenforced,,,L15,ok,never_attempted,hardcoded_literal,4
+task_008687_9f5b5da3,run600,PASS,SEED,,,,,,ok,never_attempted,hardcoded_literal,3
+task_008749_30b9f9d6,run600,REPAIR,FLAGGED,value_derivable,core_clause_unenforced,,,,ok,never_attempted,hardcoded_literal,12
+task_008765_8cbd8eda,run600,PASS,SEED,,,,,,ok,never_attempted,hardcoded_literal,2
+task_008768_943d87e0,run600,REPAIR,FLAGGED,overspecific_check,,,,,ok,never_attempted,hardcoded_literal,5
+task_008799_f9d60ee9,run600,PASS,SEED,,,,,,ok,never_attempted,hardcoded_literal,8
+task_008811_3e86bbc3,run600,PASS,SEED,,,,,,ok,never_attempted,hardcoded_literal,12
+task_009107_188c740b,run600,PASS,SEED,,,,,,ok,never_attempted,hardcoded_literal,3
+task_009195_41e66dca,run600,REPAIR,FLAGGED,value_derivable,core_clause_unenforced,,,L3,ok,never_attempted,hardcoded_literal,6
+task_009251_e6b02c75,run600,PASS,SEED,,,,,,ok,never_attempted,hardcoded_literal,5
+task_009307_974e369f,run600,PASS,SEED,,,,,L15,ok,never_attempted,hardcoded_literal,6
+task_009394_d2232ffb,run600,PASS,SEED,,,,,,ok,never_attempted,hardcoded_literal,3
+task_009407_4bf4231f,run600,REPAIR,FLAGGED,overspecific_check,,,,,ok,solved,hardcoded_literal,9
+task_009549_16b74a4d,run600,REPAIR,SEED,,expectation_movable,/home/user/sensor_data.csv,,,ok,never_attempted,rollout_material,2
+task_009683_c219e942,run600,PASS,SEED,,,,,,ok,never_attempted,hardcoded_literal,6
+task_009719_f76db0bf,run600,PASS,SEED,,,,,,ok,never_attempted,hardcoded_literal,4
+task_009745_64b4d06b,run600,REPAIR,SEED,,expectation_movable,/home/user/transactions/batch_1.csv | /home/user/transactions,"/home/user/transactions is a directory above another pin: pin the files, not the directory",,ok,never_attempted,rollout_material,2
+task_009789_17749e90,run600,REPAIR,SEED,,core_clause_unenforced,,,,ok,never_attempted,hardcoded_literal,3
+task_009948_c66ef8d7,run600,PASS,SEED,,,,,,ok,solved,hardcoded_literal,7

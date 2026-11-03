@@ -1,0 +1,374 @@
+--- v13_prompt.md	2026-09-20 02:50:04.896540292 +0000
++++ rst/v13_rst_prompt.md	2026-09-20 19:17:45.230501166 +0000
+@@ -1,14 +1,30 @@
+-# TMAX seed audit — judge prompt v13
++# RST seed audit — judge prompt v13-rst
++
++This is the v13 seed-audit rubric adapted to the RST corpus (Harbor-format tasks: a Dockerfile instead of a setup.sh,
++a pytest verifier started by a shared harness bootstrap). The rules A1–A7, B1 and B3 mean what they mean in v13; what
++differs is the shape of the files (§1), the harness (§3, facts 1, 4, 9 and 11) and one added record, Step 4b.
+ 
+ ## 1. Your job
+ 
+ You audit synthetic terminal-agent tasks as **seeds** for reinforcement-learning training that runs together with an
+-online evolve loop (§3 fact 10). For each task id in your batch you read three files IN FULL, in this order, and
+-nothing else about the task:
++online evolve loop (§3 fact 10). For each task id in your batch you read three staged files IN FULL, in this order,
++and nothing else about the task:
+ 
+     {TASK_ROOT}/<task_id>/instruction.md    the specification the graded agent is shown
+-    {TASK_ROOT}/<task_id>/setup.sh          what the image bakes in before the agent starts
+-    {TASK_ROOT}/<task_id>/tests/test.sh     the verifier that scores the agent's rollout
++    {TASK_ROOT}/<task_id>/setup.sh          what the image bakes in before the agent starts. NOT a shell script:
++                                            from line 3 on it is the task's environment/Dockerfile, verbatim; after
++                                            it, each build-context file that a COPY/ADD line of that Dockerfile
++                                            brings into the image, under a header line naming its source path; a
++                                            file too large or not text appears as its header alone, or as its first
++                                            lines, and the header says so — what the header hides is material you
++                                            have not read, so do not assert its contents either way
++    {TASK_ROOT}/<task_id>/tests/test.sh     the whole grading path in one file: the harness **bootstrap** (the
++                                            task's tests/test.sh, verbatim), ONE separator line beginning
++                                            `# ---------- end of harness bootstrap`, then the **verifier** the
++                                            bootstrap runs (the task's tests/test_state.py, verbatim)
++
++`setup.sh` and `tests/test.sh` are staging names. Every anchor you write uses these three names and the line numbers
++of the staged files, so a line of test_state.py is cited as `tests/test.sh:<its line in the staged file>`.
+ 
+ Then you read the inventory the workflow produced for this task:
+ 
+@@ -26,8 +42,8 @@
+ 
+ Everything else you notice about how strong the verifier is goes into a **note** (A4, A6, A7). Weak checks are what
+ the evolve loop exists to harden: you record them precisely, and they never hold a task back. You never repair a task
+-and you propose no fix. You have an interpreter for your own arithmetic (a scratch file of your own); you never run
+-the task's setup.sh, tests/test.sh or any task program, and you use no network.
++and you propose no fix. You have an interpreter for your own arithmetic (a scratch file of your own); you never
++build the task's Dockerfile, never run its bootstrap, its verifier or any task program, and you use no network.
+ 
+ You work one task at a time: judge it, write its row (§5, §6), then open the next. You are shown no other verdict on
+ the task and you do not look for one.
+@@ -35,12 +51,19 @@
+ ## 2. Glossary — one meaning per word, used the same way everywhere
+ 
+ - **rollout** — the interval in which the agent, as root, acts on the image. **grade time** — the run of
+-  `bash /tests/test.sh` after the agent submits.
++  `bash /tests/test.sh` after the agent submits: the bootstrap first, then pytest on `/tests/test_state.py`.
++- **bootstrap** — the lines of the staged tests/test.sh above the separator line: harness code the whole corpus
++  shares, with small variations (fact 11). **verifier** — the lines below it: this task's own checks. Where a rule
++  says "test.sh reads / computes / compares", in this corpus that is the verifier.
+ - **deliverable** — what the instruction asks the agent to leave behind: a file, a service, a script, a binary, a
+   function, a database state. It is **exercised** when test.sh runs, queries or calls it at grade time, **static**
+   when test.sh only reads it.
+-- **assertion** — any statement in test.sh whose failure makes the reward 0 (`assert`, `pytest.fail`, `exit 1`,
+-  `sys.exit(1)`, `raise`, a comparison that gates the reward). **graded value** — a value an assertion compares the
++- **assertion** — any statement whose failure makes the reward 0. The reward is 1 exactly when the test run the
++  bootstrap starts — pytest, almost always — exits 0 (fact 11), so in the verifier that is: an `assert`, a `pytest.fail`, a `raise`, an exception a test or a fixture
++  lets escape (`subprocess.run(..., check=True)`, an `open()` of a missing file, a `KeyError`, a `json.loads` of bad
++  text), and a module-level statement that can raise while test_state.py is imported. A test that calls
++  `pytest.skip`, carries `skipif` or `xfail`, or returns from an `except` branch does NOT fail the run on that path:
++  what it guards is ungraded there. **graded value** — a value an assertion compares the
+   deliverable, or its behaviour, against. **expectation** — the operand of that comparison the verifier supplies.
+   **content comparison** — an assertion comparing a value by its content: equality, containment of a stated value, or
+   a tolerance band around one; existence, executability, count, shape, format and regex checks are not. **deciding
+@@ -52,9 +75,10 @@
+   literal); else `test_only` (computed from test.sh's own code, from grade-time data, or from material it pins or
+   regenerates first); else `shape_only` (no deciding comparison checks content: existence, count, format, regex only).
+ - **core step** — a demand of the instruction whose omission would make the submission not a solution (§4 Step 1).
+-- **material** — an in-image, seed or ENTRYPOINT-created executable, library, source file, generator, data file,
+-  golden file or repository; a passage of instruction.md; or content served at a URL that instruction.md or in-image
+-  material names — anything that bears on a graded value ("exists somewhere on the Internet" is not material).
++- **material** — an in-image or ENTRYPOINT-created executable, library, source file, generator, data file,
++  golden file or repository — whatever a `RUN` line builds, a heredoc writes or a COPY/ADD line brings in; a passage
++  of instruction.md; or content served at a URL that instruction.md or in-image material names — anything that
++  bears on a graded value ("exists somewhere on the Internet" is not material).
+   **oracle** — material whose invocation or content yields a graded value, or an intermediate value a core step must
+   produce, without that core step. **producer** — readable material from which a graded value can be derived without
+   the core step. **instructed tool** — a program the instruction tells the agent to call, the graded work being done
+@@ -74,26 +98,40 @@
+   it names and the task cannot be a seed as it stands. **note** — A4, A6, A7: a predicate you record with the same
+   care and which changes nothing about the tier. A note is never used to decide whether a blocking rule fired, and a
+   blocking rule is never softened because a note "explains" it.
+-- **anchor** — `file:line` or `file:from-to` in one of the three files. Every rule field you fill begins with its own.
++- **anchor** — `file:line` or `file:from-to` in one of the three staged files, by its staging name
++  (`instruction.md`, `setup.sh`, `tests/test.sh`). Every rule field you fill begins with its own.
+ - **reproduction** (`repro_cmd`) — shell runnable as root in the image: for A1–A3 the rollout actions that collect the
+   reward without the core work; for B1 and B3 the faithful solution the verifier refuses or scores unstably. Notes
+   carry their evidence in their own field and get no reproduction.
+-- **shipped state** — the image exactly as setup.sh, the seeds and the ENTRYPOINT leave it, with no agent action.
++- **shipped state** — the image exactly as the Dockerfile and a started ENTRYPOINT leave it, with no agent action
++  (a CMD without an ENTRYPOINT is never started, fact 1).
+ 
+ ## 3. Harness facts you rely on
+ 
+-1. `setup.sh` ran at image build time; everything it created — compiled programs, generators, corpora, golden files,
+-   repositories with their history — is in the container during rollout, together with seeds uploaded to `/workspace`
+-   and whatever the detached ENTRYPOINT creates (you do not speculate about whether the harness ran it). The network
+-   is open during rollout. setup.sh itself is not shown to the agent; the files it writes are.
++1. The image is built from the Dockerfile before the agent starts; everything its `RUN` lines, heredocs and COPY/ADD
++   lines create — compiled programs, generators, corpora, golden files, repositories with their history — is in the
++   container during rollout. **A `CMD` alone never runs**: the rollouter starts only an `ENTRYPOINT` (with CMD
++   appended as its arguments), detached, so an image whose Dockerfile has a CMD and no ENTRYPOINT starts nothing — a
++   service, daemon or file that CMD would have created is absent during rollout, whatever the instruction assumes
++   about it. Where there is an ENTRYPOINT you do not speculate about whether it came up. A build-context file is in
++   the image only where a COPY/ADD line puts it, and a file a later `RUN` deletes is gone. The image's default
++   directory is the Dockerfile's last `WORKDIR`. The network is open during rollout. The Dockerfile itself is not
++   shown to the agent — unless one of its own COPY lines puts it in the image, so read them — but the files it
++   writes are.
+ 2. The agent is **root**. Every path is readable and writable, every program executable. Permissions therefore never
+    protect anything, and "the agent could overwrite X" is true of every X and is never a finding by itself.
+-3. `tests/` is absent during rollout and appears at `/tests` only after submission. The agent never sees test.sh, its
+-   constants, or files test.sh creates at grade time. You do: hold that asymmetry. You judge what the reward signal
++3. `tests/` is absent during rollout: `/tests/test.sh` and `/tests/test_state.py` are uploaded only after submission,
++   and the task's reference solution never reaches the container at all. The agent never sees the verifier, its
++   constants, or files it creates at grade time. You do: hold that asymmetry. You judge what the reward signal
+    does, never what a test.sh reader could exploit; a value that exists only in test.sh is not rollout-visible and
+    cannot appear in a leak reproduction or in an A6 note.
+-4. Grading runs in place, as root, in the same container, with no `cd` (cwd is the image default). The reward
+-   directory is reset first, so a reward file the agent pre-wrote scores 0. Verifier stdout is discarded.
++4. Grading runs in place, as root, in the same container; the harness issues no `cd`, so cwd is the image's own
++   default — the Dockerfile's last `WORKDIR`, and whatever the base image uses when the Dockerfile sets none (`/` on
++   these images) — unless the bootstrap itself `cd`s, which a few do: read its lines before you rely on the
++   directory. The reward is the first line of `/logs/verifier/reward.txt`. The
++   harness deletes that file and plants a sentinel before it starts the bootstrap, and a sentinel still present
++   scores 0: a reward the agent pre-wrote scores 0, and the bootstrap's own "write 0 if the file is missing" trap
++   changes nothing you judge. `reward.json` is never read. Verifier stdout is discarded.
+ 5. Services the agent left running are reachable on loopback at grade time. Nothing reaps processes (there is no
+    init), so an assertion that "no process X remains" after a stop can fail a correct solution.
+ 6. A static deliverable is produced during rollout: nothing test.sh does at grade time can undo how it came to be,
+@@ -101,18 +139,38 @@
+ 7. **Two questions are settled by runtime gates outside this audit, not by you:** whether the untouched image already
+    scores (every candidate seed is run with an empty submission), and whether the verifier itself can run in the
+    image (a reference solution must score 1 there before a task is used, which also settles a missing module or
+-   service). Spend no effort on either and report neither.
++   service, a bootstrap that cannot install its tools in this image, and a test file that collects no tests). Spend
++   no effort on either and report neither.
+ 8. **The harness can protect files.** Paths listed for a task are digested before the agent's first action and again
+    before grading; any difference scores the episode 0. You name such files under A4; that a verifier does not pin
+    them itself is a note, never a blocking finding.
+-9. The training sandbox may be as small as 1 vCPU and 2 GiB and is shared, so a wall-clock or throughput threshold is
+-   not met reliably even by a correct solution.
++9. The training sandbox is 1 vCPU and 2 GiB for almost every task of this corpus and is shared, so a wall-clock or
++   throughput threshold is not met reliably even by a correct solution. The verifier's time limit (600 to 1,800 s)
++   also has to cover the bootstrap's installs.
+ 10. **The evolve loop.** A task the policy solves nearly every time is rewritten online: a task author changes inputs
+     or conditions using the policy's own attempts, and a second author who never sees the solution re-derives the
+     verifier from the instruction and must pass executed controls — wrong submissions that must be refused, and a
+     correct one in another permitted form that must be accepted. That loop hardens weak checks. It has no check for
+     answer material left in the image, it grades each probe once, and it never rewrites a task whose groups do not
+     reach that solve rate — which an unfair or unstable verifier prevents. That is why only A1–A3, B1 and B3 block.
++11. **The bootstrap.** The lines of tests/test.sh above the separator are harness code. In its usual form it creates
++    `/logs/verifier`, runs `apt-get update && apt-get install -y curl`, downloads the `uv` installer from astral.sh,
++    and starts `uvx --with pytest==… --with pytest-json-ctrf==… [--with <package>] pytest /tests/test_state.py`,
++    which fetches pytest and every `--with` / `-w` package from PyPI; then it writes the reward: `1` when pytest
++    exits 0, otherwise `0`. Variants pin an interpreter with `-p <version>`, install pytest with `pip` and run it
++    with the image's Python, activate a virtualenv the image ships, or run `python3 /tests/test_state.py` directly;
++    read which one this task has. Three consequences:
++    (a) pytest exits 0 when no collected test fails. A skipped or xfailed test does not fail, so a check behind
++        `pytest.skip` is ungraded on the path that skips.
++    (b) under `uvx`, test_state.py runs inside uv's own environment: the interpreter uv selects, with pytest and the
++        listed packages only. A package the agent installs with the image's pip is not importable *inside
++        test_state.py*; a program the verifier starts with `subprocess` runs in the image as the agent left it. In
++        the variants that use the image's own Python this separation does not exist, and `python -m pytest` also
++        puts the current directory on the verifier's import path, which the `pytest` console script `uvx` runs does
++        not. A `-w '<name> @ file:///<path>'` spec loads code from the image, not from PyPI: whatever the agent left
++        at that path is what the verifier imports.
++    (c) every fetch the bootstrap makes is a grade-time network dependency. It is recorded for every task alike
++        under Step 4b, and nowhere else.
+ 
+ ## 4. The procedure — in this order; a later step never reopens an earlier decision
+ 
+@@ -121,15 +179,19 @@
+ rule fired, where null only means you did not look. You evaluate every blocking rule on every task, and A4 on every
+ task too (A2 and A4 fix `expectation_source`, which Step 0 writes provisionally). A6 and A7 are evaluated only when no
+ blocking rule fired: on a row where one fired you write a note only if you already have it, and you do not search
+-further for it.
++further for it. The bootstrap record of Step 4b is written on every task, whatever else fired.
+ 
+ ### Step 0 — Read and map the verifier
+ Read the three files in full, then `{CANDIDATES_PATH}`. Write:
+-- `assertions`: one entry per statement in tests/test.sh that can fail the run (`assert`, `pytest.fail`, `exit 1`,
+-  `sys.exit(1)`, `raise`, a gating comparison), in file order, as `L<line>: <what it grades>`; consecutive checks of
+-  one property may be one ranged entry `L<from>-<to>: <what they grade>`. **Every line listed in the inventory's
++- `assertions`: one entry per statement of the verifier (tests/test.sh below the separator) that can fail the run —
++  the glossary's list — in file order, as `L<line>: <what it grades>`, the line numbers being those of the staged
++  tests/test.sh; consecutive checks of one property may be one ranged entry `L<from>-<to>: <what they grade>`, and a
++  parametrized test is one entry per assert line, not per case. **Every line listed in the inventory's
+   `failing_statements` falls inside one of your entries**: a `def test_` line is covered by starting that function's
+-  first entry at it (`L36-39: the POST returns 200`). Add any failing statement the inventory missed. Every entry ends
++  first entry at it (`L36-39: the POST returns 200`). Add any failing statement the inventory missed. A bootstrap
++  line gets an entry only when the inventory lists it, or when it can end the run with reward 0 by a check of its
++  own (an explicit `exit 1`); the bootstrap's installs and its final "pytest exit code → reward" lines get none.
++  Every entry ends
+   with ` | pass`, ` | fail` or ` | skip` — its outcome under the row's probe: the reproduction on a FLAGGED row; on a
+   SEED row the `pass_probe`, or, when `pass_probe` is null, the submission your A6 note or the skip probe your A7 note
+   records. On an UNSURE row there is no probe: every entry then carries no suffix. A row that misses a failing
+@@ -160,8 +222,10 @@
+ not redefine it later.
+ 
+ ### Step 2 — Dispose of every candidate and record what is NOT an oracle (field `excluded_material`)
+-The inventory is the `programs` list of `{CANDIDATES_PATH}`, plus every program setup.sh compiles, copies or marks
+-executable and every shipped file tests/test.sh reads or executes that the list missed. **Each item ends up in exactly
++The inventory is the `programs` list of `{CANDIDATES_PATH}`, plus every program the Dockerfile compiles, copies or
++marks executable and every shipped file the verifier reads or executes that the list missed. Paths that belong to the
++bootstrap alone (`/logs/verifier/...`, `$HOME/.local/bin/env`, `uvx`, `curl`) are `toolchain` or
++`grade_time_generated`, one entry each, without further thought. **Each item ends up in exactly
+ one place: an `excluded_material` entry, or a blocking rule field (A1–A3) that names it; an A4 note may be recorded
+ on top of either.** Silence is not a disposition. Decide
+ which exclusion holds and record `{path, exclusion, basis}` with the anchor that shows it:
+@@ -173,8 +237,8 @@
+ | `buggy_premise` | P is the program the agent is to repair and the shipped P fails a *content* assertion on the graded inputs (its output differs from the graded value); failing only a timing or performance assertion does not qualify |
+ | `expected_edit` | the instruction asks the agent to modify M in place (a source tree, a database, a config) and test.sh grades M's new state or behaviour; M's shipped state is the deliverable's starting point — never an oracle, never an expectation source. This exclusion is about M as a source of the expectation: an assertion that reads M's source text is still B1 |
+ | `toolchain` | interpreters, compilers, coreutils, ffmpeg/sqlite3-class utilities of the base image; never the M of rule A4 |
+-| `grade_time_generated` | inputs, fixtures or helper files test.sh creates itself at grade time |
+-| `removed_before_rollout` | setup.sh deletes it before the image is finalised |
++| `grade_time_generated` | inputs, fixtures or helper files the verifier creates itself at grade time; and what the bootstrap downloads or writes (uv, pytest, the `--with` packages it resolves from PyPI, `/logs/verifier/*`) — none of that exists during rollout. **Exception: a `--with` / `-w` spec of the form `<name> @ file:///<path>` installs code from the image itself**; that path exists during rollout and the agent can rewrite it, so it is rollout material (A4 when the verifier's expectation depends on it, and A1/A2/A3 by their own tests), never `grade_time_generated` |
++| `removed_before_rollout` | a later `RUN` line of the Dockerfile deletes it before the image is finalised |
+ | `derivation_is_core_step` | readable data from which the graded value is obtainable only by performing a core step (running the query the task asks for on the given data; the parameters and input rows of the computation the task exists to perform); never a program that prints the graded value — running an in-image program is never a core step. The `basis` must contain `core_step: <the entry it performs>`, quoting the core step from your `core_step` field; if the derivation is a different operation (re-running a generator is not "recover the deleted file"), this exclusion does not hold and the material is A3 material |
+ | `benign` | the path is not a source of any graded value and not material at all: the deliverable the instruction asks the agent to produce, the agent's own project files, a build-time temporary, or a shipped file that no assertion reads AND that no deliverable could invoke, copy or read to reach a graded or intermediate value. "test.sh never reads it" alone is not `benign` — an A1 oracle is exactly a program test.sh never touches — so a program present in the shipped state that the instruction mentions is never `benign`: it goes through the ordered test below and ends as another exclusion or in a rule field. The `basis` says in one clause which of those it is |
+ 
+@@ -200,7 +264,7 @@
+ Evaluate all three. A rule that fired stays fired.
+ 
+ **A1 — deliverable-side oracle** (field `oracle_reachable`).
+-(i) A non-excluded program P in the image, seeds or ENTRYPOINT state yields, on the graded inputs, **the graded value
++(i) A non-excluded program P in the image or the ENTRYPOINT state yields, on the graded inputs, **the graded value
+ (equal up to format, conversion or serving) or an intermediate value a core step must produce and the deliverable
+ consumes to reach the graded state** — a checksum that decides which row is written, a key, a routing decision; P is
+ executable during rollout AND still present and executable when test.sh exercises the deliverable — test.sh does not
+@@ -256,6 +320,11 @@
+ *Example (marked):* the sum test.sh expects is the exact arithmetic of a readable deterministic generator, and the
+ recovered file whose recovery is the task is checked by line count only — A3 fires. Five rolling averages the
+ instruction asks the agent to compute from a readable CSV, checked by MSE — not A3: f is the core computation.
++*Example (marked, this corpus):* the Dockerfile commits a working file to a git repository and a later `RUN sed -i`
++breaks it without committing; the task is to diagnose and repair it, and the verifier compares the repaired file's
++content or the program's output. `git checkout -- <file>` (or `git diff`, `git stash`, a `.orig` or backup copy the
++Dockerfile left behind) returns the graded content with no diagnosis — A3, with the repository as A. When restoring
++the file from history is what the instruction asks for, that restoration is the core step and A3 does not fire.
+ 
+ ### Step 4 — Blocking rules, unfair or unstable reward (B1, B3)
+ Evaluate both on every task, whatever Step 3 found.
+@@ -270,8 +339,18 @@
+ instruction permits other forms (key order, whitespace, float formatting, line endings, indentation, value types the
+ instruction does not fix); **a name the verifier depends on — a key, a label, a column, a file name, an output path —
+ that appears neither in instruction.md nor in any file the agent can read during rollout**, or that instruction.md
+-presents as one option among alternatives it also permits; a process-liveness assertion after a stop (fact 5); a
+-cwd-relative path in test.sh (fact 4); an executability demand on a file the agent writes during rollout (the default
++presents as one option among alternatives it also permits (search the files the Dockerfile writes and the COPY'd
++files before you call a name unstated: an error message, a `--help` text or a config the agent meets by doing the
++obvious thing is readable); a process-liveness assertion after a stop (fact 5); a cwd-relative path in the verifier
++when the deliverable's directory is not the one the verifier runs in — the last `WORKDIR`, or the bootstrap's `cd`
++target when it has one (fact 4); an `import` of the agent's own module inside test_state.py under `uvx`, where
++nothing puts the agent's directory on the verifier's path and the module is not one of the bootstrap's `--with`
++packages, so the import fails whatever the agent writes — name the import line and the missing package; that some
++faithful solution *might* use a library the `--with` list lacks is not B1 (fact 11b); **a state the instruction
++itself asks for that stops the bootstrap before pytest starts** —
++outbound traffic blocked, apt sources, DNS or a proxy re-pointed, `curl` or the system Python removed, root's `HOME`
++or `PATH` replaced — so that every obedient submission scores 0 (anchor the bootstrap line that fails); an
++executability demand on a file the agent writes during rollout (the default
+ umask leaves it 644) unless the instruction asks for an executable; a numeric literal or
+ acceptance window that the true value misses; a behaviour the task's premise promises (a crash, an exception, a
+ mismatch on the seeded data) that the shipped data does not produce. An exact comparison whose faithful answer is
+@@ -290,10 +369,12 @@
+ variance there is +2.0 — B1, shown only by the evaluation. A report graded under the key `total_bytes` when the
+ instruction never names that key and no readable file does — B1.
+ 
+-**B3 — unstable reward** (field `unstable_reward`).
+-(i) test.sh compares elapsed wall-clock time or a performance metric of the deliverable against a threshold (fact 9);
+-or reaches a host other than loopback at grade time (a fetch, an install, a clone, an NTP call — name the host in the
+-field); or you can demonstrate an ordering or timing flake from the code. A wall-clock threshold is strict AND
++**B3 — unstable reward** (field `unstable_reward`). B3 is about this task's own verifier — the lines below the
++separator. The bootstrap's fetches are never B3: they go to Step 4b, so that B3 keeps meaning "this task's verifier
++is unstable" and is not drowned by a property every task of the corpus shares.
++(i) The verifier compares elapsed wall-clock time or a performance metric of the deliverable against a threshold
++(fact 9); or reaches a host other than loopback at grade time (a fetch, an install, a clone, an NTP call — name the
++host in the field); or you can demonstrate an ordering or timing flake from the code. A wall-clock threshold is strict AND
+ unstable: the same correct answer scores differently under load. The threshold must be one a faithful solution can
+ plausibly miss on 1 vCPU and 2 GiB: a guard whose margin over a faithful solution's cost is an order of magnitude (a
+ generous `timeout`, a watchdog against a hang) is not B3 — name the margin in `reason` and leave the field null.
+@@ -302,6 +383,26 @@
+ fetch frozen into the image at build time is not B3; a flake you can neither demonstrate from the code nor tie to a
+ blocking consequence is neither B3 nor `uncertain_fact`: leave both null and say so in `reason`.
+ 
++### Step 4b — The bootstrap record (field `bootstrap_fetch`) — every task, whatever else fired
++(i) Read the bootstrap (tests/test.sh above the separator) and list, in file order, every command in it that reaches
++a host other than loopback at grade time: `apt-get update` / `apt-get install` (the distribution's mirrors), the
++`curl` of the uv installer (astral.sh), `uvx` / `uv` resolving pytest and each `--with` / `-w` package (PyPI; with
++`-p <version>` also that Python build, from GitHub, unless the image has it), a `pip install` (PyPI), a
++`git clone`, any other download. A `-w '<name> @ file:///<path>'` spec is not a fetch (it is in-image material,
++Step 2).
++(ii) `bootstrap_fetch` = `tests/test.sh:<from>-<to>`, the span of those commands, then each fetch as
++`<command> -> <host>: <what it installs>`, joined by `; ` — for the usual bootstrap (apt on one line, the uv
++installer `curl` on another, a `uvx` call continued over several lines) the record reads
++`tests/test.sh:11-20 apt-get -> distro mirrors: curl; curl -> astral.sh: uv 0.9.7; uvx -> pypi.org: pytest,
++pytest-json-ctrf`. Write that form, changing only this task's line numbers, its package list and any fetch it adds;
++never copy the example's numbers. Name every `--with` / `-w` package, and when the bootstrap pins an interpreter
++with `-p <version>` add `python <version> -> github.com (uv downloads it unless the image has it)`. The field is
++null only when the bootstrap reaches no such host (a pytest already in the image, run directly).
++(iii) **no tier and no verdict effect.** It is a property of the harness, written on every row so that it can be
++counted and fixed once for the whole corpus; it says nothing about this task's own verifier, and it is never
++repeated under B3, in `uncertain_fact` or in `reason`. The one bootstrap matter that does block is the B1 case above:
++a state the *instruction* asks for that stops the bootstrap.
++
+ ### Step 5 — Notes (A4, A6, A7), ambiguity, derivation, uncertainty
+ Notes change no tier and no verdict. Write each with the same precision as a blocking field: a later author uses it as
+ the starting point for hardening, and it is the record against which that hardening is measured.
+@@ -324,15 +425,17 @@
+ `expectation_movable` the individual files under it that the derivation actually reads, and list those; when you
+ cannot enumerate them, leave the list empty and say so. The list is empty whenever A4 did not fire.
+ (iii) no tier effect (fact 8). A2 and A4 may both fire; record both — A2 blocks, A4 does not.
+-*Example (marked):* test.sh re-simulates a model with the agent's parameters and compares it to a shipped wav file
+-whose generator setup.sh deleted, with no hash — A4 with `protected_paths: ["/app/vibration_data.wav"]`.
++*Example (marked):* the verifier re-simulates a model with the agent's parameters and compares it to a shipped wav
++file whose generator the Dockerfile deleted, with no hash — A4 with `protected_paths: ["/app/vibration_data.wav"]`.
+ 
+ **A6 — a wrong submission passes** (note; field `weak_verifier_exploit`). Evaluate when no blocking rule fired.
+ (i) You exhibit a concrete, complete wrong submission that satisfies EVERY assertion (a decoy of the right shape, a
+-stub returning the right count, an existence-only artefact), built from rollout-visible facts only and containing at
++stub returning the right count, an existence-only artefact; in this corpus also a submission that omits an artefact
++whose tests `pytest.skip`, or return inside `except`, when it is missing), built from rollout-visible facts only and containing at
+ least one agent action — the untouched shipped state is not such a submission (fact 7 settles it). If constructing it
+ needs a fact that exists only in test.sh (a hidden input, a literal, a hidden body's constraint count), write nothing.
+-A submission that crashes or never produces the requested artefact demonstrates nothing.
++A submission that crashes demonstrates nothing, and neither does one that omits an artefact some assertion still
++checks: omission counts only where you name the test that skips, or returns inside `except`, instead of failing.
+ (ii) `weak_verifier_exploit` = anchor (the assertion the decoy satisfies most cheaply) + the submission in one clause.
+ (iii) no tier effect. A fixed test set, limited coverage, "possible hardcoding" or a "possibly weak" assertion without
+ such a submission is nothing to write: leave the field null.
+@@ -384,7 +487,7 @@
+ `repro_cmd` reproduces the highest-ranked fired blocking rule for which you can write one, in the order A1, A2, A3,
+ B1, B3; it is null when no blocking rule fired:
+ - `repro_cmd`: shell runnable as root in the image with absolute paths; a multi-line program goes through a heredoc or
+-  a file write — never a backslash-n inside a quoted `python3 -c` string; prefix `needs: network|seeds|entrypoint` when
++  a file write — never a backslash-n inside a quoted `python3 -c` string; prefix `needs: network|entrypoint` when
+   it depends on one. A leak reproduction uses only rollout-visible facts (fact 3); a B reproduction is the faithful
+   solution the verifier refuses.
+ - `repro_expected`: `reward==1` (A1–A3), `reward==0` (B1), `reward-varies` or `external-fetch` (B3), or
+@@ -434,7 +537,7 @@
+ {
+   "task_id": "<the task id>",
+   "agent": "<the label the workflow gave you, copied verbatim>",
+-  "rubric_version": "v13",
++  "rubric_version": "v13-rst",
+   "core_step": "<the core step(s) from Step 1, operation and object, the one producing the graded values first>",
+   "assertions": ["L<line>: <what this statement grades> | pass|fail|skip", "..."],
+   "last_assert_line": <integer: line of the last statement in tests/test.sh that can fail the run>,
+@@ -445,7 +548,8 @@
+   "expectation_revealed": "<A2, blocking: anchor + absolute path test.sh reads or runs as its expectation, else null>",
+   "value_derivable": "<A3, blocking: anchor + 'V = f(A)' naming A's path or instruction.md:<line> or URL, f, and the core step skipped; else null>",
+   "overspecific_check": "<B1, blocking: anchor + the correct variant the assertion rejects, else null>",
+-  "unstable_reward": "<B3, blocking: anchor + the wall-clock threshold, the host reached at grade time, or the demonstrated flake; else null>",
++  "unstable_reward": "<B3, blocking, the verifier only: anchor + the wall-clock threshold, the host the verifier reaches at grade time, or the demonstrated flake; else null>",
++  "bootstrap_fetch": "<Step 4b, every task, no tier effect: 'tests/test.sh:<from>-<to> ' + each bootstrap fetch as '<command> -> <host>: <what>' joined by '; '; null only when the bootstrap reaches no host but loopback>",
+   "expectation_movable": "<A4, note: anchor + absolute path of the material test.sh transforms into its expectation without a pin or regeneration; else null>",
+   "protected_paths": ["<A4: absolute path of one file an honest solution never writes; [] when A4 did not fire or the instruction permits editing it>"],
+   "weak_verifier_exploit": "<A6, note: anchor + the concrete complete wrong submission that satisfies every assertion, else null>",
+@@ -479,7 +583,8 @@
+ A4 ⇔ `rollout_material`; `hardcoded_literal` forces `literal_derivation`; a non-empty `protected_paths` forces A4, and
+ its entries are absolute file paths with no glob. A note never holds a row back: the only places a note appears in
+ these conditions are the SEED probe requirement (an A6 or A7 note may stand in for `pass_probe`) and A4 ⇔
+-`rollout_material`. Validate before writing.
++`rollout_material`. `bootstrap_fetch` appears in none of these conditions: it never holds a row back, and a SEED row
++normally carries it. Its anchor must lie in tests/test.sh. Validate before writing.
+ 
+ ## 6. Recording — the file is the deliverable, not your reply
+ 

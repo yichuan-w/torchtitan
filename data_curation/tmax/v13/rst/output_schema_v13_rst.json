@@ -1,0 +1,1920 @@
+{
+ "$schema": "https://json-schema.org/draft/2020-12/schema",
+ "$id": "rst-seed-audit-row-v13-rst",
+ "title": "RST seed audit row, rubric v13-rst",
+ "description": "One row per task. Blocking: A1 A2 A3 B1 B3. Notes (no tier or verdict effect): A4 A6 A7. bootstrap_fetch: harness record, no tier or verdict effect, in no cross-field rule.",
+ "type": "object",
+ "additionalProperties": false,
+ "required": [
+  "task_id",
+  "agent",
+  "rubric_version",
+  "core_step",
+  "assertions",
+  "last_assert_line",
+  "expectation_source",
+  "literal_derivation",
+  "excluded_material",
+  "oracle_reachable",
+  "expectation_revealed",
+  "value_derivable",
+  "overspecific_check",
+  "unstable_reward",
+  "bootstrap_fetch",
+  "expectation_movable",
+  "protected_paths",
+  "weak_verifier_exploit",
+  "core_clause_unenforced",
+  "ambiguity",
+  "uncertain_fact",
+  "evidence",
+  "evidence_file",
+  "evidence_line",
+  "reason",
+  "repro_cmd",
+  "repro_expected",
+  "exploit_status",
+  "pass_probe",
+  "verdict",
+  "tier"
+ ],
+ "properties": {
+  "task_id": {
+   "type": "string",
+   "pattern": "^rts_task_[0-9a-f]{8,32}$"
+  },
+  "agent": {
+   "type": "string",
+   "minLength": 1
+  },
+  "rubric_version": {
+   "const": "v13-rst"
+  },
+  "core_step": {
+   "type": "string",
+   "minLength": 8
+  },
+  "assertions": {
+   "type": "array",
+   "minItems": 1,
+   "items": {
+    "type": "string",
+    "pattern": "^L[0-9]+(-[0-9]+)?: "
+   }
+  },
+  "last_assert_line": {
+   "type": "integer",
+   "minimum": 1
+  },
+  "expectation_source": {
+   "enum": [
+    "test_only",
+    "hardcoded_literal",
+    "rollout_material",
+    "shape_only"
+   ]
+  },
+  "literal_derivation": {
+   "anyOf": [
+    {
+     "type": "null"
+    },
+    {
+     "type": "string",
+     "pattern": "^(derived|unverified): "
+    }
+   ]
+  },
+  "excluded_material": {
+   "type": "array",
+   "items": {
+    "type": "object",
+    "additionalProperties": false,
+    "required": [
+     "path",
+     "exclusion",
+     "basis"
+    ],
+    "properties": {
+     "path": {
+      "type": "string",
+      "minLength": 1
+     },
+     "exclusion": {
+      "enum": [
+       "instructed_tool",
+       "library_to_wrap",
+       "buggy_premise",
+       "expected_edit",
+       "toolchain",
+       "grade_time_generated",
+       "removed_before_rollout",
+       "derivation_is_core_step",
+       "benign"
+      ]
+     },
+     "basis": {
+      "type": "string",
+      "pattern": "^(instruction\\.md|setup\\.sh|tests/test\\.sh):[0-9]+(-[0-9]+)?\\b"
+     }
+    }
+   }
+  },
+  "oracle_reachable": {
+   "anyOf": [
+    {
+     "type": "null"
+    },
+    {
+     "type": "string",
+     "pattern": "^(instruction\\.md|setup\\.sh|tests/test\\.sh):[0-9]+(-[0-9]+)?\\b"
+    }
+   ]
+  },
+  "expectation_revealed": {
+   "anyOf": [
+    {
+     "type": "null"
+    },
+    {
+     "type": "string",
+     "pattern": "^(instruction\\.md|setup\\.sh|tests/test\\.sh):[0-9]+(-[0-9]+)?\\b"
+    }
+   ]
+  },
+  "value_derivable": {
+   "anyOf": [
+    {
+     "type": "null"
+    },
+    {
+     "type": "string",
+     "pattern": "^(instruction\\.md|setup\\.sh|tests/test\\.sh):[0-9]+(-[0-9]+)?\\b"
+    }
+   ]
+  },
+  "overspecific_check": {
+   "anyOf": [
+    {
+     "type": "null"
+    },
+    {
+     "type": "string",
+     "pattern": "^(instruction\\.md|setup\\.sh|tests/test\\.sh):[0-9]+(-[0-9]+)?\\b"
+    }
+   ]
+  },
+  "unstable_reward": {
+   "anyOf": [
+    {
+     "type": "null"
+    },
+    {
+     "type": "string",
+     "pattern": "^(instruction\\.md|setup\\.sh|tests/test\\.sh):[0-9]+(-[0-9]+)?\\b"
+    }
+   ]
+  },
+  "bootstrap_fetch": {
+   "anyOf": [
+    {
+     "type": "null"
+    },
+    {
+     "type": "string",
+     "pattern": "^tests/test\\.sh:[0-9]+(-[0-9]+)?\\b",
+     "minLength": 24
+    }
+   ]
+  },
+  "expectation_movable": {
+   "anyOf": [
+    {
+     "type": "null"
+    },
+    {
+     "type": "string",
+     "pattern": "^(instruction\\.md|setup\\.sh|tests/test\\.sh):[0-9]+(-[0-9]+)?\\b"
+    }
+   ]
+  },
+  "protected_paths": {
+   "type": "array",
+   "uniqueItems": true,
+   "items": {
+    "type": "string",
+    "pattern": "^/[^\\s*?]*[^\\s*?/]$",
+    "not": {
+     "enum": [
+      "/",
+      "/app",
+      "/home",
+      "/home/user",
+      "/opt",
+      "/tmp",
+      "/workspace",
+      "/srv",
+      "/var",
+      "/root",
+      "/usr",
+      "/usr/local",
+      "/data",
+      "/mnt",
+      "/etc"
+     ]
+    }
+   }
+  },
+  "weak_verifier_exploit": {
+   "anyOf": [
+    {
+     "type": "null"
+    },
+    {
+     "type": "string",
+     "pattern": "^(instruction\\.md|setup\\.sh|tests/test\\.sh):[0-9]+(-[0-9]+)?\\b"
+    }
+   ]
+  },
+  "core_clause_unenforced": {
+   "anyOf": [
+    {
+     "type": "null"
+    },
+    {
+     "type": "string",
+     "pattern": "^(instruction\\.md|setup\\.sh|tests/test\\.sh):[0-9]+(-[0-9]+)?\\b"
+    }
+   ]
+  },
+  "ambiguity": {
+   "anyOf": [
+    {
+     "type": "null"
+    },
+    {
+     "type": "string",
+     "pattern": "^(instruction\\.md|setup\\.sh|tests/test\\.sh):[0-9]+(-[0-9]+)?\\b"
+    }
+   ]
+  },
+  "uncertain_fact": {
+   "anyOf": [
+    {
+     "type": "null"
+    },
+    {
+     "type": "string",
+     "pattern": "^(instruction\\.md|setup\\.sh|tests/test\\.sh):[0-9]+(-[0-9]+)?\\b"
+    }
+   ]
+  },
+  "evidence": {
+   "type": "string",
+   "minLength": 1,
+   "maxLength": 200
+  },
+  "evidence_file": {
+   "enum": [
+    "instruction.md",
+    "setup.sh",
+    "tests/test.sh"
+   ]
+  },
+  "evidence_line": {
+   "type": "integer",
+   "minimum": 1
+  },
+  "reason": {
+   "type": "string",
+   "minLength": 20,
+   "maxLength": 600
+  },
+  "repro_cmd": {
+   "anyOf": [
+    {
+     "type": "null"
+    },
+    {
+     "type": "string",
+     "minLength": 1
+    }
+   ]
+  },
+  "repro_expected": {
+   "anyOf": [
+    {
+     "type": "null"
+    },
+    {
+     "enum": [
+      "reward==1",
+      "reward==0",
+      "reward-varies",
+      "external-fetch"
+     ]
+    },
+    {
+     "type": "string",
+     "pattern": "^none: "
+    }
+   ]
+  },
+  "exploit_status": {
+   "enum": [
+    "none_found",
+    "static_trace",
+    "not_driven"
+   ]
+  },
+  "pass_probe": {
+   "anyOf": [
+    {
+     "type": "null"
+    },
+    {
+     "type": "string",
+     "pattern": "^(instruction\\.md|setup\\.sh|tests/test\\.sh):[0-9]+(-[0-9]+)?\\b"
+    }
+   ]
+  },
+  "verdict": {
+   "enum": [
+    "CLEAN",
+    "ANSWER-LEAK",
+    "INSTR-VERIFIER-MISMATCH",
+    "UNSTABLE-REWARD",
+    "INSTR-AMBIGUOUS"
+   ]
+  },
+  "tier": {
+   "enum": [
+    "SEED",
+    "FLAGGED",
+    "UNSURE"
+   ]
+  }
+ },
+ "allOf": [
+  {
+   "$comment": "R1 SEED: nothing blocking, nothing unsettled, and a defeated probe or the note that stands in for it",
+   "if": {
+    "properties": {
+     "tier": {
+      "const": "SEED"
+     }
+    },
+    "required": [
+     "tier"
+    ]
+   },
+   "then": {
+    "allOf": [
+     {
+      "allOf": [
+       {
+        "properties": {
+         "oracle_reachable": {
+          "type": "null"
+         }
+        },
+        "required": [
+         "oracle_reachable"
+        ]
+       },
+       {
+        "properties": {
+         "expectation_revealed": {
+          "type": "null"
+         }
+        },
+        "required": [
+         "expectation_revealed"
+        ]
+       },
+       {
+        "properties": {
+         "value_derivable": {
+          "type": "null"
+         }
+        },
+        "required": [
+         "value_derivable"
+        ]
+       },
+       {
+        "properties": {
+         "overspecific_check": {
+          "type": "null"
+         }
+        },
+        "required": [
+         "overspecific_check"
+        ]
+       },
+       {
+        "properties": {
+         "unstable_reward": {
+          "type": "null"
+         }
+        },
+        "required": [
+         "unstable_reward"
+        ]
+       },
+       {
+        "properties": {
+         "ambiguity": {
+          "type": "null"
+         }
+        },
+        "required": [
+         "ambiguity"
+        ]
+       },
+       {
+        "properties": {
+         "uncertain_fact": {
+          "type": "null"
+         }
+        },
+        "required": [
+         "uncertain_fact"
+        ]
+       },
+       {
+        "properties": {
+         "repro_cmd": {
+          "type": "null"
+         }
+        },
+        "required": [
+         "repro_cmd"
+        ]
+       },
+       {
+        "properties": {
+         "repro_expected": {
+          "type": "null"
+         }
+        },
+        "required": [
+         "repro_expected"
+        ]
+       }
+      ]
+     },
+     {
+      "properties": {
+       "verdict": {
+        "const": "CLEAN"
+       }
+      },
+      "required": [
+       "verdict"
+      ]
+     },
+     {
+      "properties": {
+       "exploit_status": {
+        "const": "none_found"
+       }
+      },
+      "required": [
+       "exploit_status"
+      ]
+     },
+     {
+      "anyOf": [
+       {
+        "properties": {
+         "pass_probe": {
+          "type": "string"
+         }
+        },
+        "required": [
+         "pass_probe"
+        ]
+       },
+       {
+        "properties": {
+         "weak_verifier_exploit": {
+          "type": "string"
+         }
+        },
+        "required": [
+         "weak_verifier_exploit"
+        ]
+       },
+       {
+        "properties": {
+         "core_clause_unenforced": {
+          "type": "string"
+         }
+        },
+        "required": [
+         "core_clause_unenforced"
+        ]
+       }
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "$comment": "R2 a blocking field or ambiguity forbids SEED and CLEAN",
+   "if": {
+    "anyOf": [
+     {
+      "anyOf": [
+       {
+        "properties": {
+         "oracle_reachable": {
+          "type": "string"
+         }
+        },
+        "required": [
+         "oracle_reachable"
+        ]
+       },
+       {
+        "properties": {
+         "expectation_revealed": {
+          "type": "string"
+         }
+        },
+        "required": [
+         "expectation_revealed"
+        ]
+       },
+       {
+        "properties": {
+         "value_derivable": {
+          "type": "string"
+         }
+        },
+        "required": [
+         "value_derivable"
+        ]
+       },
+       {
+        "properties": {
+         "overspecific_check": {
+          "type": "string"
+         }
+        },
+        "required": [
+         "overspecific_check"
+        ]
+       },
+       {
+        "properties": {
+         "unstable_reward": {
+          "type": "string"
+         }
+        },
+        "required": [
+         "unstable_reward"
+        ]
+       }
+      ]
+     },
+     {
+      "properties": {
+       "ambiguity": {
+        "type": "string"
+       }
+      },
+      "required": [
+       "ambiguity"
+      ]
+     }
+    ]
+   },
+   "then": {
+    "not": {
+     "anyOf": [
+      {
+       "properties": {
+        "tier": {
+         "const": "SEED"
+        }
+       },
+       "required": [
+        "tier"
+       ]
+      },
+      {
+       "properties": {
+        "verdict": {
+         "const": "CLEAN"
+        }
+       },
+       "required": [
+        "verdict"
+       ]
+      }
+     ]
+    }
+   }
+  },
+  {
+   "$comment": "R3 FLAGGED needs a blocking field with a traced reproduction; a note alone never flags",
+   "if": {
+    "properties": {
+     "tier": {
+      "const": "FLAGGED"
+     }
+    },
+    "required": [
+     "tier"
+    ]
+   },
+   "then": {
+    "allOf": [
+     {
+      "anyOf": [
+       {
+        "properties": {
+         "oracle_reachable": {
+          "type": "string"
+         }
+        },
+        "required": [
+         "oracle_reachable"
+        ]
+       },
+       {
+        "properties": {
+         "expectation_revealed": {
+          "type": "string"
+         }
+        },
+        "required": [
+         "expectation_revealed"
+        ]
+       },
+       {
+        "properties": {
+         "value_derivable": {
+          "type": "string"
+         }
+        },
+        "required": [
+         "value_derivable"
+        ]
+       },
+       {
+        "properties": {
+         "overspecific_check": {
+          "type": "string"
+         }
+        },
+        "required": [
+         "overspecific_check"
+        ]
+       },
+       {
+        "properties": {
+         "unstable_reward": {
+          "type": "string"
+         }
+        },
+        "required": [
+         "unstable_reward"
+        ]
+       }
+      ]
+     },
+     {
+      "properties": {
+       "repro_cmd": {
+        "type": "string"
+       }
+      },
+      "required": [
+       "repro_cmd"
+      ]
+     },
+     {
+      "properties": {
+       "exploit_status": {
+        "const": "static_trace"
+       }
+      },
+      "required": [
+       "exploit_status"
+      ]
+     },
+     {
+      "properties": {
+       "repro_expected": {
+        "enum": [
+         "reward==1",
+         "reward==0",
+         "reward-varies",
+         "external-fetch"
+        ]
+       }
+      },
+      "required": [
+       "repro_expected"
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "$comment": "R4 a driven blocking finding is FLAGGED whatever uncertain_fact says",
+   "if": {
+    "allOf": [
+     {
+      "anyOf": [
+       {
+        "properties": {
+         "oracle_reachable": {
+          "type": "string"
+         }
+        },
+        "required": [
+         "oracle_reachable"
+        ]
+       },
+       {
+        "properties": {
+         "expectation_revealed": {
+          "type": "string"
+         }
+        },
+        "required": [
+         "expectation_revealed"
+        ]
+       },
+       {
+        "properties": {
+         "value_derivable": {
+          "type": "string"
+         }
+        },
+        "required": [
+         "value_derivable"
+        ]
+       },
+       {
+        "properties": {
+         "overspecific_check": {
+          "type": "string"
+         }
+        },
+        "required": [
+         "overspecific_check"
+        ]
+       },
+       {
+        "properties": {
+         "unstable_reward": {
+          "type": "string"
+         }
+        },
+        "required": [
+         "unstable_reward"
+        ]
+       }
+      ]
+     },
+     {
+      "properties": {
+       "exploit_status": {
+        "const": "static_trace"
+       }
+      },
+      "required": [
+       "exploit_status"
+      ]
+     }
+    ]
+   },
+   "then": {
+    "properties": {
+     "tier": {
+      "const": "FLAGGED"
+     }
+    },
+    "required": [
+     "tier"
+    ]
+   }
+  },
+  {
+   "$comment": "R5 a blocking finding that could not be driven is UNSURE",
+   "if": {
+    "allOf": [
+     {
+      "anyOf": [
+       {
+        "properties": {
+         "oracle_reachable": {
+          "type": "string"
+         }
+        },
+        "required": [
+         "oracle_reachable"
+        ]
+       },
+       {
+        "properties": {
+         "expectation_revealed": {
+          "type": "string"
+         }
+        },
+        "required": [
+         "expectation_revealed"
+        ]
+       },
+       {
+        "properties": {
+         "value_derivable": {
+          "type": "string"
+         }
+        },
+        "required": [
+         "value_derivable"
+        ]
+       },
+       {
+        "properties": {
+         "overspecific_check": {
+          "type": "string"
+         }
+        },
+        "required": [
+         "overspecific_check"
+        ]
+       },
+       {
+        "properties": {
+         "unstable_reward": {
+          "type": "string"
+         }
+        },
+        "required": [
+         "unstable_reward"
+        ]
+       }
+      ]
+     },
+     {
+      "properties": {
+       "exploit_status": {
+        "const": "not_driven"
+       }
+      },
+      "required": [
+       "exploit_status"
+      ]
+     }
+    ]
+   },
+   "then": {
+    "properties": {
+     "tier": {
+      "const": "UNSURE"
+     }
+    },
+    "required": [
+     "tier"
+    ]
+   }
+  },
+  {
+   "$comment": "R6 UNSURE has exactly these two routes",
+   "if": {
+    "properties": {
+     "tier": {
+      "const": "UNSURE"
+     }
+    },
+    "required": [
+     "tier"
+    ]
+   },
+   "then": {
+    "anyOf": [
+     {
+      "allOf": [
+       {
+        "anyOf": [
+         {
+          "properties": {
+           "oracle_reachable": {
+            "type": "string"
+           }
+          },
+          "required": [
+           "oracle_reachable"
+          ]
+         },
+         {
+          "properties": {
+           "expectation_revealed": {
+            "type": "string"
+           }
+          },
+          "required": [
+           "expectation_revealed"
+          ]
+         },
+         {
+          "properties": {
+           "value_derivable": {
+            "type": "string"
+           }
+          },
+          "required": [
+           "value_derivable"
+          ]
+         },
+         {
+          "properties": {
+           "overspecific_check": {
+            "type": "string"
+           }
+          },
+          "required": [
+           "overspecific_check"
+          ]
+         },
+         {
+          "properties": {
+           "unstable_reward": {
+            "type": "string"
+           }
+          },
+          "required": [
+           "unstable_reward"
+          ]
+         }
+        ]
+       },
+       {
+        "properties": {
+         "exploit_status": {
+          "const": "not_driven"
+         }
+        },
+        "required": [
+         "exploit_status"
+        ]
+       }
+      ]
+     },
+     {
+      "allOf": [
+       {
+        "allOf": [
+         {
+          "properties": {
+           "oracle_reachable": {
+            "type": "null"
+           }
+          },
+          "required": [
+           "oracle_reachable"
+          ]
+         },
+         {
+          "properties": {
+           "expectation_revealed": {
+            "type": "null"
+           }
+          },
+          "required": [
+           "expectation_revealed"
+          ]
+         },
+         {
+          "properties": {
+           "value_derivable": {
+            "type": "null"
+           }
+          },
+          "required": [
+           "value_derivable"
+          ]
+         },
+         {
+          "properties": {
+           "overspecific_check": {
+            "type": "null"
+           }
+          },
+          "required": [
+           "overspecific_check"
+          ]
+         },
+         {
+          "properties": {
+           "unstable_reward": {
+            "type": "null"
+           }
+          },
+          "required": [
+           "unstable_reward"
+          ]
+         }
+        ]
+       },
+       {
+        "anyOf": [
+         {
+          "properties": {
+           "ambiguity": {
+            "type": "string"
+           }
+          },
+          "required": [
+           "ambiguity"
+          ]
+         },
+         {
+          "properties": {
+           "uncertain_fact": {
+            "type": "string"
+           }
+          },
+          "required": [
+           "uncertain_fact"
+          ]
+         }
+        ]
+       }
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "$comment": "R7 a blocking finding is driven or not driven",
+   "if": {
+    "anyOf": [
+     {
+      "properties": {
+       "oracle_reachable": {
+        "type": "string"
+       }
+      },
+      "required": [
+       "oracle_reachable"
+      ]
+     },
+     {
+      "properties": {
+       "expectation_revealed": {
+        "type": "string"
+       }
+      },
+      "required": [
+       "expectation_revealed"
+      ]
+     },
+     {
+      "properties": {
+       "value_derivable": {
+        "type": "string"
+       }
+      },
+      "required": [
+       "value_derivable"
+      ]
+     },
+     {
+      "properties": {
+       "overspecific_check": {
+        "type": "string"
+       }
+      },
+      "required": [
+       "overspecific_check"
+      ]
+     },
+     {
+      "properties": {
+       "unstable_reward": {
+        "type": "string"
+       }
+      },
+      "required": [
+       "unstable_reward"
+      ]
+     }
+    ]
+   },
+   "then": {
+    "properties": {
+     "exploit_status": {
+      "enum": [
+       "static_trace",
+       "not_driven"
+      ]
+     }
+    }
+   }
+  },
+  {
+   "$comment": "R8 no blocking finding: nothing to reproduce (notes get no reproduction)",
+   "if": {
+    "allOf": [
+     {
+      "properties": {
+       "oracle_reachable": {
+        "type": "null"
+       }
+      },
+      "required": [
+       "oracle_reachable"
+      ]
+     },
+     {
+      "properties": {
+       "expectation_revealed": {
+        "type": "null"
+       }
+      },
+      "required": [
+       "expectation_revealed"
+      ]
+     },
+     {
+      "properties": {
+       "value_derivable": {
+        "type": "null"
+       }
+      },
+      "required": [
+       "value_derivable"
+      ]
+     },
+     {
+      "properties": {
+       "overspecific_check": {
+        "type": "null"
+       }
+      },
+      "required": [
+       "overspecific_check"
+      ]
+     },
+     {
+      "properties": {
+       "unstable_reward": {
+        "type": "null"
+       }
+      },
+      "required": [
+       "unstable_reward"
+      ]
+     }
+    ]
+   },
+   "then": {
+    "allOf": [
+     {
+      "properties": {
+       "exploit_status": {
+        "const": "none_found"
+       }
+      },
+      "required": [
+       "exploit_status"
+      ]
+     },
+     {
+      "properties": {
+       "repro_cmd": {
+        "type": "null"
+       }
+      },
+      "required": [
+       "repro_cmd"
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "$comment": "R9 a written reproduction is a static trace with a definite outcome",
+   "if": {
+    "properties": {
+     "repro_cmd": {
+      "type": "string"
+     }
+    },
+    "required": [
+     "repro_cmd"
+    ]
+   },
+   "then": {
+    "allOf": [
+     {
+      "properties": {
+       "exploit_status": {
+        "const": "static_trace"
+       }
+      },
+      "required": [
+       "exploit_status"
+      ]
+     },
+     {
+      "properties": {
+       "repro_expected": {
+        "enum": [
+         "reward==1",
+         "reward==0",
+         "reward-varies",
+         "external-fetch"
+        ]
+       }
+      },
+      "required": [
+       "repro_expected"
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "$comment": "R10 no reproduction: no definite outcome, no static trace",
+   "if": {
+    "properties": {
+     "repro_cmd": {
+      "type": "null"
+     }
+    },
+    "required": [
+     "repro_cmd"
+    ]
+   },
+   "then": {
+    "properties": {
+     "repro_expected": {
+      "anyOf": [
+       {
+        "type": "null"
+       },
+       {
+        "type": "string",
+        "pattern": "^none: "
+       }
+      ]
+     },
+     "exploit_status": {
+      "enum": [
+       "none_found",
+       "not_driven"
+      ]
+     }
+    }
+   }
+  },
+  {
+   "$comment": "R11 a reward-1 reproduction is a leak reproduction",
+   "if": {
+    "properties": {
+     "repro_expected": {
+      "const": "reward==1"
+     }
+    },
+    "required": [
+     "repro_expected"
+    ]
+   },
+   "then": {
+    "anyOf": [
+     {
+      "properties": {
+       "oracle_reachable": {
+        "type": "string"
+       }
+      },
+      "required": [
+       "oracle_reachable"
+      ]
+     },
+     {
+      "properties": {
+       "expectation_revealed": {
+        "type": "string"
+       }
+      },
+      "required": [
+       "expectation_revealed"
+      ]
+     },
+     {
+      "properties": {
+       "value_derivable": {
+        "type": "string"
+       }
+      },
+      "required": [
+       "value_derivable"
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "$comment": "R12 a reward-0 / varying reproduction belongs to B1 or B3",
+   "if": {
+    "properties": {
+     "repro_expected": {
+      "enum": [
+       "reward==0",
+       "reward-varies",
+       "external-fetch"
+      ]
+     }
+    },
+    "required": [
+     "repro_expected"
+    ]
+   },
+   "then": {
+    "anyOf": [
+     {
+      "properties": {
+       "overspecific_check": {
+        "type": "string"
+       }
+      },
+      "required": [
+       "overspecific_check"
+      ]
+     },
+     {
+      "properties": {
+       "unstable_reward": {
+        "type": "string"
+       }
+      },
+      "required": [
+       "unstable_reward"
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "$comment": "R13 rank 1",
+   "if": {
+    "anyOf": [
+     {
+      "properties": {
+       "oracle_reachable": {
+        "type": "string"
+       }
+      },
+      "required": [
+       "oracle_reachable"
+      ]
+     },
+     {
+      "properties": {
+       "expectation_revealed": {
+        "type": "string"
+       }
+      },
+      "required": [
+       "expectation_revealed"
+      ]
+     },
+     {
+      "properties": {
+       "value_derivable": {
+        "type": "string"
+       }
+      },
+      "required": [
+       "value_derivable"
+      ]
+     }
+    ]
+   },
+   "then": {
+    "properties": {
+     "verdict": {
+      "const": "ANSWER-LEAK"
+     }
+    },
+    "required": [
+     "verdict"
+    ]
+   }
+  },
+  {
+   "$comment": "R14 rank 2",
+   "if": {
+    "allOf": [
+     {
+      "allOf": [
+       {
+        "properties": {
+         "oracle_reachable": {
+          "type": "null"
+         }
+        },
+        "required": [
+         "oracle_reachable"
+        ]
+       },
+       {
+        "properties": {
+         "expectation_revealed": {
+          "type": "null"
+         }
+        },
+        "required": [
+         "expectation_revealed"
+        ]
+       },
+       {
+        "properties": {
+         "value_derivable": {
+          "type": "null"
+         }
+        },
+        "required": [
+         "value_derivable"
+        ]
+       }
+      ]
+     },
+     {
+      "properties": {
+       "overspecific_check": {
+        "type": "string"
+       }
+      },
+      "required": [
+       "overspecific_check"
+      ]
+     }
+    ]
+   },
+   "then": {
+    "properties": {
+     "verdict": {
+      "const": "INSTR-VERIFIER-MISMATCH"
+     }
+    },
+    "required": [
+     "verdict"
+    ]
+   }
+  },
+  {
+   "$comment": "R15 rank 3",
+   "if": {
+    "allOf": [
+     {
+      "allOf": [
+       {
+        "properties": {
+         "oracle_reachable": {
+          "type": "null"
+         }
+        },
+        "required": [
+         "oracle_reachable"
+        ]
+       },
+       {
+        "properties": {
+         "expectation_revealed": {
+          "type": "null"
+         }
+        },
+        "required": [
+         "expectation_revealed"
+        ]
+       },
+       {
+        "properties": {
+         "value_derivable": {
+          "type": "null"
+         }
+        },
+        "required": [
+         "value_derivable"
+        ]
+       }
+      ]
+     },
+     {
+      "properties": {
+       "overspecific_check": {
+        "type": "null"
+       }
+      },
+      "required": [
+       "overspecific_check"
+      ]
+     },
+     {
+      "properties": {
+       "unstable_reward": {
+        "type": "string"
+       }
+      },
+      "required": [
+       "unstable_reward"
+      ]
+     }
+    ]
+   },
+   "then": {
+    "properties": {
+     "verdict": {
+      "const": "UNSTABLE-REWARD"
+     }
+    },
+    "required": [
+     "verdict"
+    ]
+   }
+  },
+  {
+   "$comment": "R16 rank 4",
+   "if": {
+    "allOf": [
+     {
+      "allOf": [
+       {
+        "properties": {
+         "oracle_reachable": {
+          "type": "null"
+         }
+        },
+        "required": [
+         "oracle_reachable"
+        ]
+       },
+       {
+        "properties": {
+         "expectation_revealed": {
+          "type": "null"
+         }
+        },
+        "required": [
+         "expectation_revealed"
+        ]
+       },
+       {
+        "properties": {
+         "value_derivable": {
+          "type": "null"
+         }
+        },
+        "required": [
+         "value_derivable"
+        ]
+       },
+       {
+        "properties": {
+         "overspecific_check": {
+          "type": "null"
+         }
+        },
+        "required": [
+         "overspecific_check"
+        ]
+       },
+       {
+        "properties": {
+         "unstable_reward": {
+          "type": "null"
+         }
+        },
+        "required": [
+         "unstable_reward"
+        ]
+       }
+      ]
+     },
+     {
+      "properties": {
+       "ambiguity": {
+        "type": "string"
+       }
+      },
+      "required": [
+       "ambiguity"
+      ]
+     }
+    ]
+   },
+   "then": {
+    "properties": {
+     "verdict": {
+      "const": "INSTR-AMBIGUOUS"
+     }
+    },
+    "required": [
+     "verdict"
+    ]
+   }
+  },
+  {
+   "$comment": "R17 nothing ranked: CLEAN",
+   "if": {
+    "allOf": [
+     {
+      "allOf": [
+       {
+        "properties": {
+         "oracle_reachable": {
+          "type": "null"
+         }
+        },
+        "required": [
+         "oracle_reachable"
+        ]
+       },
+       {
+        "properties": {
+         "expectation_revealed": {
+          "type": "null"
+         }
+        },
+        "required": [
+         "expectation_revealed"
+        ]
+       },
+       {
+        "properties": {
+         "value_derivable": {
+          "type": "null"
+         }
+        },
+        "required": [
+         "value_derivable"
+        ]
+       },
+       {
+        "properties": {
+         "overspecific_check": {
+          "type": "null"
+         }
+        },
+        "required": [
+         "overspecific_check"
+        ]
+       },
+       {
+        "properties": {
+         "unstable_reward": {
+          "type": "null"
+         }
+        },
+        "required": [
+         "unstable_reward"
+        ]
+       }
+      ]
+     },
+     {
+      "properties": {
+       "ambiguity": {
+        "type": "null"
+       }
+      },
+      "required": [
+       "ambiguity"
+      ]
+     }
+    ]
+   },
+   "then": {
+    "properties": {
+     "verdict": {
+      "const": "CLEAN"
+     }
+    },
+    "required": [
+     "verdict"
+    ]
+   }
+  },
+  {
+   "$comment": "R18 rollout_material implies A2 or A4",
+   "if": {
+    "properties": {
+     "expectation_source": {
+      "const": "rollout_material"
+     }
+    },
+    "required": [
+     "expectation_source"
+    ]
+   },
+   "then": {
+    "anyOf": [
+     {
+      "properties": {
+       "expectation_revealed": {
+        "type": "string"
+       }
+      },
+      "required": [
+       "expectation_revealed"
+      ]
+     },
+     {
+      "properties": {
+       "expectation_movable": {
+        "type": "string"
+       }
+      },
+      "required": [
+       "expectation_movable"
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "$comment": "R19 A2 or A4 implies rollout_material",
+   "if": {
+    "anyOf": [
+     {
+      "properties": {
+       "expectation_revealed": {
+        "type": "string"
+       }
+      },
+      "required": [
+       "expectation_revealed"
+      ]
+     },
+     {
+      "properties": {
+       "expectation_movable": {
+        "type": "string"
+       }
+      },
+      "required": [
+       "expectation_movable"
+      ]
+     }
+    ]
+   },
+   "then": {
+    "properties": {
+     "expectation_source": {
+      "const": "rollout_material"
+     }
+    },
+    "required": [
+     "expectation_source"
+    ]
+   }
+  },
+  {
+   "$comment": "R20 a hardcoded literal carries its derivation (derived or unverified; neither affects the tier)",
+   "if": {
+    "properties": {
+     "expectation_source": {
+      "const": "hardcoded_literal"
+     }
+    },
+    "required": [
+     "expectation_source"
+    ]
+   },
+   "then": {
+    "properties": {
+     "literal_derivation": {
+      "type": "string"
+     }
+    },
+    "required": [
+     "literal_derivation"
+    ]
+   }
+  },
+  {
+   "$comment": "R21 protected paths exist only under A4",
+   "if": {
+    "properties": {
+     "protected_paths": {
+      "minItems": 1
+     }
+    },
+    "required": [
+     "protected_paths"
+    ]
+   },
+   "then": {
+    "properties": {
+     "expectation_movable": {
+      "type": "string"
+     }
+    },
+    "required": [
+     "expectation_movable"
+    ]
+   }
+  },
+  {
+   "$comment": "R22 pass_probe is written on SEED rows only",
+   "if": {
+    "properties": {
+     "pass_probe": {
+      "type": "string"
+     }
+    },
+    "required": [
+     "pass_probe"
+    ]
+   },
+   "then": {
+    "properties": {
+     "tier": {
+      "const": "SEED"
+     }
+    },
+    "required": [
+     "tier"
+    ]
+   }
+  },
+  {
+   "$comment": "R23 no blocking finding: no expected outcome either",
+   "if": {
+    "allOf": [
+     {
+      "properties": {
+       "oracle_reachable": {
+        "type": "null"
+       }
+      },
+      "required": [
+       "oracle_reachable"
+      ]
+     },
+     {
+      "properties": {
+       "expectation_revealed": {
+        "type": "null"
+       }
+      },
+      "required": [
+       "expectation_revealed"
+      ]
+     },
+     {
+      "properties": {
+       "value_derivable": {
+        "type": "null"
+       }
+      },
+      "required": [
+       "value_derivable"
+      ]
+     },
+     {
+      "properties": {
+       "overspecific_check": {
+        "type": "null"
+       }
+      },
+      "required": [
+       "overspecific_check"
+      ]
+     },
+     {
+      "properties": {
+       "unstable_reward": {
+        "type": "null"
+       }
+      },
+      "required": [
+       "unstable_reward"
+      ]
+     }
+    ]
+   },
+   "then": {
+    "properties": {
+     "repro_expected": {
+      "type": "null"
+     }
+    },
+    "required": [
+     "repro_expected"
+    ]
+   }
+  }
+ ]
+}
