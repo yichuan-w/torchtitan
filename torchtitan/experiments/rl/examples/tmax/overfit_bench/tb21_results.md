@@ -58,10 +58,10 @@ in run 1030c solved it (#309). A box is ticked once the task is overfit (rule ab
 ### Never solved, by the base or a trained model (27)
 
 - [x] db-wal-recovery (base 0/75) - overfit at step ~95; 64-attempt confirm 17/64 at step 90
-- [ ] raman-fitting (0/74) - running (recipe); original passed 3 training groups; readouts 3/16, 2/16; confirm at step 60 3/64
+- [ ] raman-fitting (0/74) - running; original passed 8+ training groups (best 3/12); readouts 2/16 (100, 120, 140), 3/16 (105, 161); 64-attempt confirm at step 60: 3/64, at step 160: running
 - [ ] install-windows-3.11 (0/71) - running; original passed 2 training groups, readout 1/16 at step 10
-- [ ] filter-js-from-html (0/75) - running; original passed 2 training groups
-- [ ] torch-tensor-parallelism (0/75) - running (back on the recipe)
+- [ ] filter-js-from-html (0/75) - ran the full 200 steps; original passed 2 training groups, every readout 0/16; retired 2026-11-03
+- [ ] torch-tensor-parallelism (0/75) - ran the full 200 steps, every readout 0/16; retired 2026-11-03
 - [ ] torch-pipeline-parallelism (0/75) - running (back on the recipe: at 300 turns most attempts hit the 2 h budget)
 - [ ] path-tracing (0/75) - paused at step 32 (160K)
 - [ ] path-tracing-reverse (0/75) - running (160K/300 turns)
@@ -70,7 +70,7 @@ in run 1030c solved it (#309). A box is ticked once the task is overfit (rule ab
 - [ ] gcode-to-text (0/75) - running
 - [ ] extract-moves-from-video (0/73) - paused at step 24
 - [ ] large-scale-text-editing (0/73) - running
-- [ ] make-mips-interpreter (0/74) - paused at step 15 (17 of 66 groups mixed)
+- [ ] make-mips-interpreter (0/74) - running again from 2026-11-03 (resumed from step 5)
 - [ ] circuit-fibsqrt (0/74) - paused (160K, 2 steps); queued
 - [ ] video-processing (0/75) - paused (0 of 221 original attempts passed); queued
 - [ ] dna-insert (0/75) - paused (135 steps at 80K, readout 0); queued
