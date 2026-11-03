@@ -91,7 +91,14 @@ down restarts it without asking.
 account's agent sessions posted in it last, by its session line; opening an
 issue claims it. That account's listener leaves new mentions there to the
 holding session, wherever it runs, and takes them over only once one has gone 30
-minutes without a reply. A listener's session does its code work in a git
+minutes without a reply. The holding session watches the issue itself: it runs
+`python3 torchtitan/experiments/rl/tools/issue_listener/issue_listener.py wait <n>`
+as a background task of its own, not inside a loop or a pipe, so that the wait's
+exit wakes it; it handles what the wait printed and starts the wait again. One
+wait per issue per machine: a session that finds another wait on the same issue
+running on its machine leaves the issue to that one. The listener's 30-minute
+takeover is the fallback for a holder that has stopped watching, not the normal
+route. A listener's session does its code work in a git
 worktree of its own and never switches the branch of the checkout the listener
 runs from. A session that finds a later session line of its own account than its
 own has handed the issue over and posts there again only when its owner asks.
