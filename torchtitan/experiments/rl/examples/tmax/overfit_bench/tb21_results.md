@@ -41,7 +41,7 @@ in run 1030c solved it (#309). A box is ticked once the task is overfit (rule ab
 - [x] code-from-image (7/75) - at the bar at step 0, untrained (readout 4/16)
 - [ ] model-extraction-relu-logits (5/75) - set aside: readout 1/16 at step 0
 - [ ] extract-elf (5/75) - queued
-- [ ] train-fasttext (4/73) - set aside: readout 1/16 at step 0; original passed 2 training groups
+- [ ] train-fasttext (4/73) - paused 2026-11-03 at step 6: readout 1/16 at step 0, original passed training groups up to 1/12; attempts run ~1 h each (model training in the sandbox, 18% flagged OOM), ~8 generations in flight, 6 steps in 3 h
 - [ ] polyglot-rust-c (4/74) - queued
 - [ ] financial-document-processor (3/75) - queued
 - [ ] bn-fit-modify (1/75) - queued
