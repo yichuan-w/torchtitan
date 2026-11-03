@@ -324,3 +324,14 @@ def test_an_add_that_timed_out_but_went_through_is_found_in_the_pool():
     assert calls == [300]
     assert tr.Teacher._add(t, {"x": 1}, 1.0, "v-r0", 8) is None
     assert calls == [300, 300, 300]
+
+
+def test_a_failed_attempt_carries_the_assertion_behind_the_cut_summary(tmp_path):
+    tail = ("E   RuntimeError: The size of tensor a (16) must match the size of tensor b (64)\n"
+            "FAILED tests/test_outputs.py::test_column[2] - RuntimeError: The size of tensor a...\n")
+    rec = tmp_path / "r.jsonl"
+    for reward, name in ((0.0, "fail"), (1.0, "pass")):
+        rec.write_text(json.dumps({"reward": reward, "verifier": {"output_tail": tail}}) + "\n")
+        head = json.loads(tr.compact_attempt(rec, "r0", 4000).splitlines()[0])
+        assert head["tests"] == {"test_column[2]": "FAILED: RuntimeError: The size of tensor a..."}
+        assert ("must match the size of tensor b (64)" in head.get("verifier_output", "")) == (name == "fail")

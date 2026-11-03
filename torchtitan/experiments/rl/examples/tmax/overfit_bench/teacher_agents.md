@@ -63,6 +63,26 @@ requires to the student. A hint points to an action the student takes, not to th
   refining versions whose skill never reaches the original. Once the original gives mixed groups,
   each of its groups trains the student on the examination itself.
 
+What earlier runs showed about which versions carried over to the original:
+
+- **Find the check the original fails on.** Each failed attempt on the original carries its verifier
+  output. The first failing assertion is usually the same across attempts: on
+  torch-tensor-parallelism 0 of 650 originals passed, nearly all at the weight-slice assertion,
+  because the student sharded the `[out, in]` weight of a linear layer along the wrong axis. Its
+  versions never trained that, and 200 steps left the original at 0.
+- **Show the convention, then take it away.** A torch-tensor-parallelism run that did pass the
+  original gave versions whose starter code already sharded one class the way the tests expect,
+  then removed that help. Versions that left the student to discover it by running a checker the
+  version shipped did not carry over: the original has hidden tests only.
+- **Keep the student on the skill, not the setup.** Install in a version's image what the original's
+  tests need (runtime, libraries). Installing a toolchain took about a quarter of the version
+  attempts' output there and pushed most of them into the context limit. Keep instructions short and
+  test output brief.
+- **Checkers early, hidden tests after.** A runnable checker trains reading a failure and fixing it,
+  which the original never offers. On filter-js-from-html the version with no checker and a subset of
+  the original's cases passed about 40% while the original stayed near 0; widening that subset step
+  by step towards the original's full set is the path, not more checker versions.
+
 ## This directory
 
 - `problems/<label>/`: every version that has been in the pool, with `status.json` (in the pool

@@ -125,7 +125,10 @@ def compact_attempt(src: Path, label: str, chars: int) -> str:
     summary = {"problem": label, "group": head.get("group"), "attempt": head.get("rollout"),
                "reward": head.get("reward"), "end": head.get("finish_reason"), "submitted": head.get("submitted"),
                "turns": head.get("turns"), "tests": test_results(verifier_output(head))}
-    if not summary["tests"]:
+    # pytest's summary lines cut the error to the terminal width ("FAILED: torch...."), so a failed
+    # attempt also carries the output tail, where the assertion and its values are: torch-tensor's
+    # teacher never saw "size of tensor a (16) must match ... (64)" behind 650 failed originals.
+    if not summary["tests"] or not head.get("reward"):
         summary["verifier_output"] = verifier_output(head)[-chars:]
     out = [json.dumps(summary, ensure_ascii=False)]
     for line in lines[1:]:
