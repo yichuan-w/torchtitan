@@ -14,7 +14,7 @@ import pytest
 STAGE = Path(__file__).resolve().parent.parent / "offline_stage.py"
 
 
-def _source_run(base: Path, direction: str = "harder") -> Path:
+def _source_run(base: Path, direction: str = "harder", rev: int = 0) -> Path:
     run = base / "runs" / "tmax-9b--20260911-000700Z"
     (run / "signals").mkdir(parents=True)
     (run / "rollouts" / "task_a").mkdir(parents=True)
@@ -27,7 +27,7 @@ def _source_run(base: Path, direction: str = "harder") -> Path:
                 "direction": direction,
                 "run": run.name,
                 "group": 7,
-                "rev": 0,
+                "rev": rev,
                 "solved": 12 if direction == "harder" else 0,
                 "total": 12,
                 "attempts": ["rollouts/task_a/g7-r0.jsonl"],
@@ -72,3 +72,28 @@ def test_staged_signal_names_the_staged_copy(tmp_path, direction):
     assert (
         staged / "rollouts" / "task_a" / "g7-r0.jsonl"
     ).read_text() == '{"reward": 1}\n'
+
+
+@pytest.mark.parametrize(
+    "signal_rev,revs,staged",
+    [(0, [], True), (0, [1], False), (1, [1], True), (1, [1, 2], False)],
+)
+def test_skip_accepted_compares_with_the_signal_rev(tmp_path, signal_rev, revs, staged):
+    """A signal from attempts on r1 asks for a rewrite of r1, so the r1 that
+    answered the first signal does not make --skip-accepted drop it; only a
+    revision newer than the one the attempts ran on does."""
+    run = _source_run(tmp_path / "src", "easier", rev=signal_rev)
+    root = tmp_path / "root"
+    for r in revs:
+        (root / "evolution" / "tasks" / "task_a" / f"r{r}").mkdir(parents=True)
+    root.mkdir(exist_ok=True)
+    selected = tmp_path / "selected.json"
+    selected.write_text(json.dumps({"task_a": {"group": 7}}))
+    out = subprocess.run(
+        [sys.executable, str(STAGE), "--run", str(run), "--selected", str(selected),
+         "--root", str(root), "--name", "staged-1", "--skip-accepted"],
+        check=True,
+        capture_output=True,
+        text=True,
+    ).stdout
+    assert out.startswith(f"staged {int(staged)} signals")
