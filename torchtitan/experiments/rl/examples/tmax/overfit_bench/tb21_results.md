@@ -12,6 +12,17 @@ side by side:
   at a 10% per-attempt rate (pass@5 0.41) crosses 4/16 within 50 steps about half the time, against
   ~5% under the two stages (#307).
 
+**Leak audit (2026-11-03).** After 068e24a0 told the teacher to show the tests' convention and ship
+checkers early, model-extraction-relu-logits got two versions carrying the original's grading
+network, so its solve is void. An audit of every version behind the solved rows found no grading
+material elsewhere; three rows are flagged for hints that state hidden-check specifics: extract-elf
+(one version spells out the reference's section/word convention), mteb-retrieve (one version names
+the reference's `SciFact`/`PromptType` arguments), sanitize-git-repo (versions name the edge cases
+the hidden tests probe). From 9d033b16 the teacher may not put the original's tests, verifier,
+hidden data, seeds, reference solution or hidden-check specifics where the student sees them,
+validate() refuses versions carrying lines of the original's tests or solution, and a restarted
+teacher retires such versions from the pool (a25621c8).
+
 | task | overfit at | evidence | 64-attempt confirm | arm |
 |---|---|---|---|---|
 | sqlite-db-truncate | step 100 | readout 10/16 (pass@5 1.0); training groups on the original up to 11/12 | not run yet | recipe, original share 1/2 once it passed |
@@ -21,11 +32,11 @@ side by side:
 | tune-mjcf | step 0 | training group on the original 6/12 in the first steps, before any update reached the rollouts (others 5/12, 3/12); the base already meets the bar (base 16/73 across earlier step-0 runs) | not run | fast arm, original share 0.5 |
 | pytorch-model-recovery | step 0 | readout 4/16 at step 0 and a training group on the original 8/12 before any update reached the rollouts; the base already meets the bar | not run | fast arm, original share 0.5 |
 | adaptive-rejection-sampler | step 10 | readout 4/16 at step 10 (step 0: 2/16, step 5: 1/16; base 7/73 across earlier step-0 runs); training groups on the original up to 4/12 | not run | fast arm, original share 0.5 |
-| model-extraction-relu-logits | step ~37 | training groups on the original 6/12 and 6/12 at steps ~36-37 (earlier groups 4/12 and 5/12 from step ~24); readout 1/16 at step 0, 2/16 at step 15 | not run | fast arm, original share 0.5 |
-| extract-elf | step 5 | readout 4/16 at step 5 (step 0: 0/16; base 5/75 across earlier step-0 runs); training groups on the original up to 4/12 | not run | fast arm, original share 0.5 |
+| model-extraction-relu-logits (void: leaked) | step ~37 | training groups on the original 6/12 and 6/12 at steps ~36-37 (earlier groups 4/12 and 5/12 from step ~24); readout 1/16 at step 0, 2/16 at step 15 | not run | fast arm, original share 0.5 |
+| extract-elf (hint flag) | step 5 | readout 4/16 at step 5 (step 0: 0/16; base 5/75 across earlier step-0 runs); training groups on the original up to 4/12 | not run | fast arm, original share 0.5 |
 | financial-document-processor | step 15 | readout 5/16 at step 15 and 6/16 at step 20 (step 0: 0/16, step 10: 1/15; base 3/75 across earlier step-0 runs); training groups on the original up to 5/12 | not run | fast arm, original share 0.5 |
-| sanitize-git-repo | step 10 | readout 3/16 at step 10, 4/16 at steps 25 and 30 (step 0: 1/15, step 5: 0/16; base 1/75 across earlier step-0 runs); training groups on the original up to 4/12 | not run | fast arm, original share 0.5 |
-| mteb-retrieve | step 16 | readout 4/16 at step 16 (step 0: 0/16, step 5: 1/16; base 1/75 across earlier step-0 runs); training groups on the original up to 4/12 | not run | fast arm, original share 0.5 |
+| sanitize-git-repo (hint flag) | step 10 | readout 3/16 at step 10, 4/16 at steps 25 and 30 (step 0: 1/15, step 5: 0/16; base 1/75 across earlier step-0 runs); training groups on the original up to 4/12 | not run | fast arm, original share 0.5 |
+| mteb-retrieve (hint flag) | step 16 | readout 4/16 at step 16 (step 0: 0/16, step 5: 1/16; base 1/75 across earlier step-0 runs); training groups on the original up to 4/12 | not run | fast arm, original share 0.5 |
 | bn-fit-modify | step 20 | readout 3/16 at step 20 (step 0: 0/16; base 1/75 across earlier step-0 runs); training groups on the original up to 2/12 | not run | fast arm, original share 0.5 |
 
 Learned what made db-wal-recovery pass: XOR the WAL with 0x42 (or copy it aside) before any
@@ -46,7 +57,7 @@ in run 1030c solved it (#309). A box is ticked once the task is overfit (rule ab
 - [x] pytorch-model-recovery (9/74) - at the bar at step 0, untrained (readout 4/16)
 - [x] adaptive-rejection-sampler (7/73) - overfit at step 10 (readout 4/16; step 0 was 2/16)
 - [x] code-from-image (7/75) - at the bar at step 0, untrained (readout 4/16)
-- [x] model-extraction-relu-logits (5/75) - overfit at step ~37 (training groups on the original 6/12 twice; readout 1/16 at step 0)
+- [ ] model-extraction-relu-logits (5/75) - solve at step ~37 voided 2026-11-03: two versions trained on showed the student the original's grading network (original_checker_fix shipped the verifier as /app/check.py; seed_hint_original wrote seed 5 and the 30x10 draw into the instruction); queued to rerun under the fixed teacher (9d033b16)
 - [x] extract-elf (5/75) - overfit at step 5 (readout 4/16; step 0 was 0/16)
 - [ ] train-fasttext (4/73) - paused 2026-11-03 at step 6: readout 1/16 at step 0, original passed training groups up to 1/12; attempts run ~1 h each (model training in the sandbox, 18% flagged OOM), ~8 generations in flight, 6 steps in 3 h
 - [ ] polyglot-rust-c (4/74) - queued
