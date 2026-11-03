@@ -16,7 +16,7 @@ side by side:
 |---|---|---|---|---|
 | sqlite-db-truncate | step 100 | readout 10/16 (pass@5 1.0); training groups on the original up to 11/12 | not run yet | recipe, original share 1/2 once it passed |
 | db-wal-recovery | step ~95 | training group on the original 8/12 (others 7/12, 6/12, 5/12); readout 4/16 at step 90 | step 90: **17/64**, solved | recipe |
-| raman-fitting | step 55 | readout 3/16 at steps 55, 105, 115 and 161 (base 1/16 at step 0, 0/74 across earlier step-0 runs); training groups on the original up to 3/10 and 3/12 | step 60: 3/64; step 160: running | recipe, then from step 135 the fast arm (16 groups, 2 rollout engines, default compile); original share 0.5 and a teacher-set share above it |
+| raman-fitting | step 55 | readout 3/16 at steps 55, 105, 115 and 161 (base 1/16 at step 0, 0/74 across earlier step-0 runs); training groups on the original up to 3/10 and 3/12 | step 60: 3/64; step 160: 5/64 | recipe, then from step 135 the fast arm (16 groups, 2 rollout engines, default compile); original share 0.5 and a teacher-set share above it |
 | code-from-image | step 0 | readout 4/16 at step 0, before any training: the base already meets the bar (base 7/75 across earlier step-0 runs, 0/5 in 1031b) | not run | fast arm, original share 0.5 |
 | tune-mjcf | step 0 | training group on the original 6/12 in the first steps, before any update reached the rollouts (others 5/12, 3/12); the base already meets the bar (base 16/73 across earlier step-0 runs) | not run | fast arm, original share 0.5 |
 | pytorch-model-recovery | step 0 | readout 4/16 at step 0 and a training group on the original 8/12 before any update reached the rollouts; the base already meets the bar | not run | fast arm, original share 0.5 |
