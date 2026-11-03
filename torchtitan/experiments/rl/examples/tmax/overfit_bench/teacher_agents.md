@@ -70,8 +70,8 @@ What earlier runs showed about which versions carried over to the original:
   torch-tensor-parallelism 0 of 650 originals passed, nearly all at the weight-slice assertion,
   because the student sharded the `[out, in]` weight of a linear layer along the wrong axis. Its
   versions never trained that, and 200 steps left the original at 0.
-- **Show the convention, then take it away.** A torch-tensor-parallelism run that did pass the
-  original gave versions whose starter code already sharded one class the way the tests expect,
+- **Show the convention, then take it away.** The only torch-tensor-parallelism run that ever passed
+  the original (once, in 551 readout attempts) gave versions whose starter code already sharded one class the way the tests expect,
   then removed that help. Versions that left the student to discover it by running a checker the
   version shipped did not carry over: the original has hidden tests only.
 - **Keep the student on the skill, not the setup.** Install in a version's image what the original's
