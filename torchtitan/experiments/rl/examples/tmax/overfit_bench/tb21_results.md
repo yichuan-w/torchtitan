@@ -4,7 +4,8 @@ Tasks from `tb21_tasks.txt` (the 48 the starting 9B never solved at step 0). Two
 side by side:
 
 - **Overfit (lenient, for tracking):** a training group on the original at half or more of its
-  attempts, or a readout of 4/16 or more. Boxes in the Tracker are ticked on this bar.
+  attempts, or a single readout of 3/16 or more (pass@5 about 0.71 on that readout; the user's bar
+  from 2026-11-03, down from 4/16). Boxes in the Tracker are ticked on this bar.
 - **Solved (two-stage):** a readout of 2/16 or more passes the screen; the checkpoint of that same
   step then gets the 64-attempt confirm (README), and 13/64 or more counts as solved, the
   pass@5 >= 0.5 line. A single readout at 4/16 is not enough on its own: read every 5 steps, a task
@@ -15,6 +16,7 @@ side by side:
 |---|---|---|---|---|
 | sqlite-db-truncate | step 100 | readout 10/16 (pass@5 1.0); training groups on the original up to 11/12 | not run yet | recipe, original share 1/2 once it passed |
 | db-wal-recovery | step ~95 | training group on the original 8/12 (others 7/12, 6/12, 5/12); readout 4/16 at step 90 | step 90: **17/64**, solved | recipe |
+| raman-fitting | step 55 | readout 3/16 at steps 55, 105, 115 and 161 (base 1/16 at step 0, 0/74 across earlier step-0 runs); training groups on the original up to 3/10 and 3/12 | step 60: 3/64; step 160: running | recipe, then from step 135 the fast arm (16 groups, 2 rollout engines, default compile); original share 0.5 and a teacher-set share above it |
 
 Learned what made db-wal-recovery pass: XOR the WAL with 0x42 (or copy it aside) before any
 sqlite call, since opening the database while the WAL is still encrypted deletes it. Its
@@ -58,7 +60,7 @@ in run 1030c solved it (#309). A box is ticked once the task is overfit (rule ab
 ### Never solved, by the base or a trained model (27)
 
 - [x] db-wal-recovery (base 0/75) - overfit at step ~95; 64-attempt confirm 17/64 at step 90
-- [ ] raman-fitting (0/74) - running; original passed 8+ training groups (best 3/12); readouts 2/16 (100, 120, 140), 3/16 (105, 161); 64-attempt confirm at step 60: 3/64, at step 160: running
+- [x] raman-fitting (0/74) - overfit at step 55 on the 3/16 bar (readout 3/16 at 55, 105, 115, 161); 64-attempt confirms: step 60 3/64, step 160 running
 - [ ] install-windows-3.11 (0/71) - running; original passed 2 training groups, readout 1/16 at step 10
 - [ ] filter-js-from-html (0/75) - ran the full 200 steps; original passed 2 training groups, every readout 0/16; retired 2026-11-03
 - [ ] torch-tensor-parallelism (0/75) - ran the full 200 steps, every readout 0/16; retired 2026-11-03
