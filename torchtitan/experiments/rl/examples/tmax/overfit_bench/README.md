@@ -524,6 +524,21 @@ What 2026-11-01 showed (pure RL, 0/1 reward, teacher rewriter, one GB300 host pe
   task with a runnable checker gave 2-5/12 and the same task without it 0/12 (dna-insert); a teacher
   retired the versions that still gave mixed groups for harder ones that all failed, and its job took
   no step for 2.5 h (large-scale-text-editing).
+- **More teacher findings, each from one job** (findings, not rules; 068e24a0 put them in
+  `teacher_agents.md` and 2026-11-03 moved them back here, since naming a task and an earlier run's
+  diagnosis hands a teacher on that task conclusions from outside its run): torch-tensor-parallelism,
+  0 of 650 original attempts passed, nearly all at the weight-slice assertion (the `[out, in]` weight
+  sharded on the wrong axis); installing the toolchain took about a quarter of the version attempts'
+  output there; on filter-js-from-html a version with a subset of the cases passed about 40% while
+  the original stayed near 0; the one torch-tensor run that passed the original (once in 551 readout
+  attempts) had starter code already sharding one class the tests' way.
+- **Told to show the tests' convention and ship checkers early (068e24a0), a teacher shipped the
+  grading material itself.** model-extraction-relu-logits got the original verifier with its grading
+  network as `/app/check.py`, then the grading seed and draw in an instruction; older torch-tensor,
+  torch-pipeline, filter-js and llm-inference-batching runs had versions carrying the original's test
+  files as checkers. From 9d033b16 `teacher_agents.md` keeps the original's tests, verifier, hidden
+  data, seeds, reference solution and hidden-check specifics out of what the student sees, and
+  `validate()` refuses a version that carries lines of the original's tests or solution.
 - **Once the original gives mixed groups, give it more of the draws.** sqlite-db-truncate at 1/2
   (`--original-share 0.5`): its next original group passed 4/11, against 1/12 at 1/8.
 

@@ -79,16 +79,6 @@ misread instruction, time spent on setup), and write the next version so that th
 practises that step: a smaller sub-problem, a nudge towards the action it missed, a skill on data
 of the version's own. A hint names an action the student can take, not the answer it should reach.
 
-What earlier runs showed about which versions carried over to the original:
-
-- **Keep the student on the skill, not the setup.** Install in a version's image what the original's
-  task needs (runtime, libraries). Installing a toolchain took about a quarter of the version
-  attempts' output on torch-tensor-parallelism and pushed most of them into the context limit.
-  Keep instructions short and test output brief.
-- **Move towards the original.** On filter-js-from-html a version with a subset of the task's
-  cases passed about 40% while the original stayed near 0; widening the version step by step
-  towards the whole task is the path, not more versions at the same level.
-
 ## This directory
 
 - `problems/<label>/`: every version that has been in the pool, with `status.json` (in the pool
