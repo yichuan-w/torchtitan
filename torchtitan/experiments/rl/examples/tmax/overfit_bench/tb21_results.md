@@ -20,6 +20,7 @@ side by side:
 | code-from-image | step 0 | readout 4/16 at step 0, before any training: the base already meets the bar (base 7/75 across earlier step-0 runs, 0/5 in 1031b) | not run | fast arm, original share 0.5 |
 | tune-mjcf | step 0 | training group on the original 6/12 in the first steps, before any update reached the rollouts (others 5/12, 3/12); the base already meets the bar (base 16/73 across earlier step-0 runs) | not run | fast arm, original share 0.5 |
 | pytorch-model-recovery | step 0 | readout 4/16 at step 0 and a training group on the original 8/12 before any update reached the rollouts; the base already meets the bar | not run | fast arm, original share 0.5 |
+| adaptive-rejection-sampler | step 10 | readout 4/16 at step 10 (step 0: 2/16, step 5: 1/16; base 7/73 across earlier step-0 runs); training groups on the original up to 4/12 | not run | fast arm, original share 0.5 |
 
 Learned what made db-wal-recovery pass: XOR the WAL with 0x42 (or copy it aside) before any
 sqlite call, since opening the database while the WAL is still encrypted deletes it. Its
@@ -37,7 +38,7 @@ in run 1030c solved it (#309). A box is ticked once the task is overfit (rule ab
 
 - [x] tune-mjcf (base 16/73) - at the bar at step 0, untrained (original group 6/12)
 - [x] pytorch-model-recovery (9/74) - at the bar at step 0, untrained (readout 4/16)
-- [ ] adaptive-rejection-sampler (7/73) - queued
+- [x] adaptive-rejection-sampler (7/73) - overfit at step 10 (readout 4/16; step 0 was 2/16)
 - [x] code-from-image (7/75) - at the bar at step 0, untrained (readout 4/16)
 - [ ] model-extraction-relu-logits (5/75) - set aside: readout 1/16 at step 0
 - [ ] extract-elf (5/75) - queued
