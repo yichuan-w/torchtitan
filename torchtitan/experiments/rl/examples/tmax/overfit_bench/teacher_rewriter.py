@@ -103,6 +103,35 @@ def agents_md(policy: Policy, sandbox: dict) -> str:
         mem=sandbox.get("daytona_mem_gb") or "?", disk=sandbox.get("daytona_disk_gb") or "?")
 
 
+def _graded_lines(paths: list[Path], min_len: int = 30) -> set[str]:
+    """Substantive lines (stripped, at least ``min_len`` characters, not a comment or import) of the
+    text files under ``paths``."""
+    out: set[str] = set()
+    for root in paths:
+        files = [root] if root.is_file() else sorted(p for p in root.rglob("*") if p.is_file()) if root.is_dir() else []
+        for f in files:
+            if "__pycache__" in f.parts or f.stat().st_size > 2_000_000:
+                continue
+            try:
+                text = f.read_text(errors="strict")
+            except (UnicodeDecodeError, OSError):
+                continue
+            for line in text.splitlines():
+                line = line.strip()
+                if len(line) >= min_len and not line.startswith(("#", "//", "import ", "from ")):
+                    out.add(line)
+    return out
+
+
+def leaked_lines(original: Path, package: Path) -> list[str]:
+    """Lines of the original's tests/ and solution/ that a version puts where the student sees them
+    (its instruction.md and environment/), less those the original itself already shows there."""
+    graded = _graded_lines([original / "tests", original / "solution"])
+    public = _graded_lines([original / "instruction.md", original / "environment"])
+    seen = _graded_lines([package / "instruction.md", package / "environment"])
+    return sorted((graded - public) & seen)
+
+
 def verifier_output(head: dict) -> str:
     """The verifier's output for a training attempt: its grade, or the grade run for the record on an
     attempt that did not submit (verifier.shadow)."""
@@ -527,6 +556,14 @@ class Teacher:
         return {k: original["row"]["metadata"].get(k) for k in SANDBOX.values()}
 
     def validate(self, package: Path) -> dict:
+        # What grades the original never reaches the student: a version whose instruction or
+        # environment carries lines of the original's tests or solution is refused unbuilt.
+        leaked = leaked_lines(self.work / "problems" / "r0", package)
+        if leaked:
+            return {"ok": False, "package": str(package),
+                    "reason": f"it shows the student {len(leaked)} line(s) of the original's tests or "
+                              f"solution, e.g. {leaked[0][:120]!r}; the original's grading material "
+                              "stays out of every version"}
         sandbox = self._sandbox()
         solved = self.check(package, shortcut=None, timeout=self.policy.check_timeout, sandbox=sandbox)
         if reward_of(solved) != 1.0:

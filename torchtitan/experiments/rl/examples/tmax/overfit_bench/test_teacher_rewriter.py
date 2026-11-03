@@ -346,3 +346,18 @@ def test_a_failed_attempt_carries_the_assertion_behind_the_cut_summary(tmp_path)
         head = json.loads(tr.compact_attempt(rec, "r0", 4000).splitlines()[0])
         assert head["tests"] == {"test_column[2]": "FAILED: RuntimeError: The size of tensor a..."}
         assert ("must match the size of tensor b (64)" in head.get("verifier_output", "")) == (name == "fail")
+
+
+def test_a_version_carrying_the_originals_grading_lines_is_flagged(tmp_path):
+    from torchtitan.experiments.rl.examples.tmax.overfit_bench.teacher_rewriter import leaked_lines
+
+    orig, ver = tmp_path / "r0", tmp_path / "v"
+    for d in (orig, ver):
+        (d / "tests").mkdir(parents=True)
+        (d / "environment").mkdir()
+        (d / "instruction.md").write_text("Recover the hidden matrix by querying forward().\n")
+    (orig / "tests" / "test_outputs.py").write_text("zA1 = np.random.randn(30, 10) * 0.3  # grading net\n")
+    (ver / "environment" / "starter.py").write_text("def steal():\n    return None  # write your own\n")
+    assert leaked_lines(orig, ver) == []
+    (ver / "environment" / "check.py").write_text("zA1 = np.random.randn(30, 10) * 0.3  # grading net\n")
+    assert leaked_lines(orig, ver) == ["zA1 = np.random.randn(30, 10) * 0.3  # grading net"]
