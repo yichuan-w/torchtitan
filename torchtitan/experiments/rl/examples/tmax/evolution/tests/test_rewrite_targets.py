@@ -292,7 +292,7 @@ def test_harder_target_replaces_the_half_aim(tmp_path, monkeypatch, blind):
     out = ec.evolve_agentic(rw, dict(tb.SEED), "harder")
     assert ec._HALF_AIM not in seen[0]
     assert "Aim for a task the next group of 12 attempts solves 3 to 5 times." in seen[0]
-    assert "238 of the\n349" in seen[0]
+    assert "238 of the\n349" in seen[0] and "220 of those 238" in seen[0]
     assert ec._MODEST_AIM not in seen[0]
     assert "Aim for 3 to 5 of 12 solved in the next group" in seen[0]
     assert '`expected: "k of 12"`' in seen[0]

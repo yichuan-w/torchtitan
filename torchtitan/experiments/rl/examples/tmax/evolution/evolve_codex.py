@@ -2256,8 +2256,8 @@ _HALF_AIM = "Aim for a task a capable agent lands about half the time."
 assert _HARDER_JOB.endswith(_HALF_AIM) and _HARDER_JOB_BLIND.endswith(_HALF_AIM)
 _HARDER_TARGET = """Aim for a task the next group of {n} attempts solves {lo} to {hi} times.
 Past harder rewrites for this student were too small: in run 111e, 238 of the
-349 whose next group was measured were solved by every attempt of it, although
-their authors predicted a mixed result and reported that both replayed
+349 whose first training group was measured were solved by every attempt of
+it, and the authors of 220 of those 238 had reported that both replayed
 attempts now stopped. A change that looks sufficient to you is usually not.
 In `run/hardening.md`, put that prediction on a line of its own, exactly
 `expected: "k of {n}"` with k the solved count you expect; the caller reads that
