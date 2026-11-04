@@ -275,6 +275,21 @@ task asks only for a final artifact or state, check that result without inventin
 a requirement to save a script. Accept alternative paths, formats and implementations
 wherever the public task leaves them open.
 
+A grader-owned input is valid, and a boundary case permitted, only where the
+instruction admits it. Every way a check's input or invocation differs from what
+the package ships -- a nested directory, a record wrapped or ordered differently,
+an empty or absent input, a value outside the shipped range, a second distinct
+owner or key, another working directory, other arguments, a rerun after its
+outputs are deleted -- needs a sentence of the instruction that a solver reading
+only the instruction and the shipped files would take to cover it. So does any
+behaviour a check requires that nothing shipped shows: raising rather than
+returning, an integer rather than a string, recursion, a property of how the
+code is written. List each such difference with the sentence that admits it.
+Where none does, state it in the instruction if the revision is meant to require
+it, and otherwise use an input of the kind the shipped files already show. In one
+audited batch, checks on inputs or behaviour the instruction never admitted were
+the largest class of confirmed defects, about 10 of 28.
+
 Cover valid boundary cases of the changed requirements. For reusable
 programs, test empty inputs when permitted and nonempty inputs with no qualifying
 results; these exercise different behavior. In each case, check retained output

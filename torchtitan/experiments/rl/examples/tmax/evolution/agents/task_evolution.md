@@ -133,6 +133,21 @@ without inventing a requirement to save a script. Never invoke `solution/solve.s
 from the verifier: it is absent during training. Do not accept solver-written claims
 as proof that a required execution, measurement or tool interaction occurred.
 
+A grader-owned input is valid, and a boundary case permitted, only where the
+instruction admits it. Every way a check's input or invocation differs from what
+the package ships -- a nested directory, a record wrapped or ordered differently,
+an empty or absent input, a value outside the shipped range, a second distinct
+owner or key, another working directory, other arguments, a rerun after its
+outputs are deleted -- needs a sentence of the instruction that a solver reading
+only the instruction and the shipped files would take to cover it. So does any
+behaviour a check requires that nothing shipped shows: raising rather than
+returning, an integer rather than a string, recursion, a property of how the
+code is written. List each such difference with the sentence that admits it.
+Where none does, state it in the instruction if the revision is meant to require
+it, and otherwise use an input of the kind the shipped files already show. In one
+audited batch, checks on inputs or behaviour the instruction never admitted were
+the largest class of confirmed defects, about 10 of 28.
+
 Before finishing a verifier edit, inspect whether a no-op, a hardcoded answer or
 fabricated evidence could still pass, and whether an equivalent legal solution could
 fail. Choose examples relevant to this task. Accept alternative paths, formats and
