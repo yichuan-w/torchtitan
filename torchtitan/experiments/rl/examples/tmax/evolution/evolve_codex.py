@@ -2250,22 +2250,37 @@ way is not a defect, however quickly it did so."""
 # of both harder jobs becomes an explicit band out of a group of 12, scaled to
 # this group (so.target_band), and the prediction becomes a line the caller can
 # score, checked like an easier rewrite's expected (_require_harder_expected).
+# The band also replaces the guidance's "modest reduction", and the job states
+# how far 111e's harder rewrites fell short of their predictions.
 _HALF_AIM = "Aim for a task a capable agent lands about half the time."
 assert _HARDER_JOB.endswith(_HALF_AIM) and _HARDER_JOB_BLIND.endswith(_HALF_AIM)
 _HARDER_TARGET = """Aim for a task the next group of {n} attempts solves {lo} to {hi} times.
+Past harder rewrites for this student were too small: in run 111e, 238 of the
+349 whose next group was measured were solved by every attempt of it, although
+their authors predicted a mixed result and reported that both replayed
+attempts now stopped. A change that looks sufficient to you is usually not.
 In `run/hardening.md`, put that prediction on a line of its own, exactly
 `expected: "k of {n}"` with k the solved count you expect; the caller reads that
 line and returns a hardening.md without it to you."""
+# The guidance's own aim, which the band replaces: "modest" is the step the
+# 111e audit (issue #313) found too small for a 122B student.
+_MODEST_AIM = """Aim for a modest reduction in this student's solve rate toward mixed success,
+not universal failure."""
+assert _MODEST_AIM in _REAL_HARDER_GUIDANCE
+_BAND_AIM = """Aim for {lo} to {hi} of {n} solved in the next group, not universal
+failure."""
 
 
 def _harder_aim(job_text: str, attempts: int) -> str:
     """A harder job with EVOLVE_HARDER_TARGET's band in place of its last
-    sentence; unchanged when the flag is unset."""
+    sentence and of the guidance's "modest reduction"; unchanged when the
+    flag is unset."""
     band = so.target_band("EVOLVE_HARDER_TARGET", attempts)
     if band is None:
         return job_text
-    return job_text.replace(
-        _HALF_AIM, _HARDER_TARGET.format(n=attempts, lo=band[0], hi=band[1]), 1
+    fields = {"n": attempts, "lo": band[0], "hi": band[1]}
+    return job_text.replace(_MODEST_AIM, _BAND_AIM.format(**fields)).replace(
+        _HALF_AIM, _HARDER_TARGET.format(**fields), 1
     )
 
 
