@@ -224,12 +224,26 @@ def parse_results(path: Path) -> dict[str, dict]:
             rows[m.group(2)] = {"lenient": m.group(1) != " ", "base": (int(m.group(3)), int(m.group(4))),
                                 "step": int(step.group(1)) if step and m.group(1) != " " else None,
                                 "untrained": "untrained" in note, "two_stage": None}
+    header: list[str] = []
     for line in path.read_text(encoding="utf-8").splitlines():
         cols = [c.strip() for c in line.split("|")]
-        if len(cols) > 5 and cols[1].split(" ")[0] in rows:
-            for s, k in _CONFIRM.findall(cols[4]):
-                if int(k) >= 13:
-                    rows[cols[1].split(" ")[0]]["two_stage"] = int(s)
+        if len(cols) > 2 and cols[1] == "task":
+            header = cols
+            continue
+        task = cols[1].split(" ")[0] if len(cols) > 2 else ""
+        if not header or task not in rows or len(cols) != len(header):
+            continue
+        # the two-stage column when the table has one, else any confirm of 13/64 or more
+        two = next((c for h, c in zip(header, cols) if h.startswith("two-stage")), None)
+        if two is not None:
+            m = re.search(r"step (\d+)", two)
+            rows[task]["two_stage"] = int(m.group(1)) if m else None
+            continue
+        for h, c in zip(header, cols):
+            if "confirm" in h:
+                for s, k in _CONFIRM.findall(c):
+                    if int(k) >= 13:
+                        rows[task]["two_stage"] = int(s)
     return rows
 
 
