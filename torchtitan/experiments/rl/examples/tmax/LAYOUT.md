@@ -233,6 +233,10 @@ sentence; both are null on an accepted one. An easier rewrite checked by
 `evolution/grader_replay.py` (`EVOLVE_EASIER_GRADER_REPLAY=1`) carries
 `grader_replay`: what was replayed under its grader and each verdict, and
 stage `grader_stricter` when a solution the parent's grader passed fails it.
+A harder rewrite checked the same way (`EVOLVE_HARDER_GRADER_REPLAY=record`
+or `reject`) carries `harder_replay`: how many of the parent's passing finals
+it broke and how many still pass, and, under `reject`, stage `not_harder`
+when none broke.
 The three deadline fields record
 the frozen end-to-end budget, its Unix expiration time, and the portion held
 back from authoring and repair for final validation. `status` is `running`, `accepted`, `rejected`, `failed`,

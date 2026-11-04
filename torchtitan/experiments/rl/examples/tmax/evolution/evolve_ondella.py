@@ -119,6 +119,10 @@ SIMPLIFY_ENABLED = os.environ.get("SWE_EVOLVE_SIMPLIFY", "0").lower() not in (
 # original's reference solutions, replayed under the rewrite's grader. Off by
 # default here; the overfit bench's rewriters turn it on.
 EASIER_GRADER_REPLAY = grader_replay.enabled()
+# A harder rewrite should break some of the parent's passing finals; the same
+# replay, verdict turned round (grader_replay.harder_verdict). "" (default)
+# runs nothing, "record" records it, "reject" also rejects as not_harder.
+HARDER_GRADER_REPLAY = grader_replay.harder_mode()
 EASIER_MIN_SCORED_ATTEMPTS = int(
     os.environ.get("EVOLVE_EASIER_MIN_SCORED_ATTEMPTS", "2")
 )
@@ -1344,6 +1348,27 @@ def handle(
                     stage="grader_stricter",
                     reason=rec["grader_replay"]["why"],
                 )
+        if (
+            job == "harder"
+            and HARDER_GRADER_REPLAY
+            and rec.get("status") == "accepted"
+            and not dry
+        ):
+            if rec.get("changed") == ["instruction"]:
+                # Grader and environment are the parent's, so every replay
+                # passes whatever the instruction now withholds; the replay
+                # cannot see this kind of hardening.
+                rec["harder_replay"] = {"ok": True, "skipped": "instruction_only"}
+            else:
+                rec["harder_replay"] = grader_replay.harder_verdict(
+                    _grader_replay(root, task, tid, rev, src, rewrite, declared, stage=None)
+                )
+            if not rec["harder_replay"]["ok"] and HARDER_GRADER_REPLAY == "reject":
+                rec.update(
+                    status="rejected",
+                    stage="not_harder",
+                    reason=rec["harder_replay"]["why"],
+                )
         canary_config = PolicyCanaryConfig.from_env()
         if rec.get("status") == "accepted" and canary_config.group_size:
             if dry:
@@ -1409,6 +1434,7 @@ def handle(
         "calibration",
         "simplify_context",
         "grader_replay",
+        "harder_replay",
         "stage",
         "reason",
         "verdicts",
@@ -1526,7 +1552,7 @@ def _grader_replay(
     *,
     stage: str | None,
 ) -> dict:
-    """grader_replay.check for an accepted easier rewrite of ``src`` (r<rev>)."""
+    """grader_replay.check for an accepted easier or harder rewrite of ``src`` (r<rev>)."""
     if stage == "instruction_only":
         # Only the instruction moved: grader, environment and solution are
         # the parent's, so nothing it passed can fail now.
