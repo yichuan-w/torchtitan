@@ -12,7 +12,8 @@ original task's readout, and every accepted rewrite.
 
 The two views agreed in #321 are HTML pages (plot_pages.py):
 
-    plot_curve.py --timeline <job dir> [<job dir> ...] --out timeline.html
+    plot_curve.py --timeline <job dir> [<job dir> ...] --out timeline.html [--lang en]
+    plot_curve.py --timeline <jobs root> --results tb21_results.md --out timeline.html
     plot_curve.py --heatmap <jobs root> --results tb21_results.md --out heatmap.html
 
 Training points come from each run's training_lineage (a group's finalized
@@ -113,7 +114,10 @@ def main() -> None:
     view = ap.add_mutually_exclusive_group()
     view.add_argument("--timeline", action="store_true", help="HTML lane timeline of each job given")
     view.add_argument("--heatmap", action="store_true", help="HTML heatmap of every task; job is the jobs root")
-    ap.add_argument("--results", type=Path, help="tb21_results.md, for --heatmap")
+    ap.add_argument("--results", type=Path, help="tb21_results.md: needed by --heatmap, and by --timeline on a jobs root")
+    ap.add_argument("--lang", choices=("cn", "en"), default="cn", help="language of the HTML pages")
+    ap.add_argument("--wrap", type=int, default=0,
+                    help="--timeline: rows of this many steps (for printing), 0 for one row that scrolls")
     a = ap.parse_args()
     if a.timeline or a.heatmap:
         import plot_pages
@@ -121,9 +125,9 @@ def main() -> None:
         if a.heatmap:
             if not a.results:
                 ap.error("--heatmap needs --results")
-            page = plot_pages.heatmap_page(a.job[0].resolve(), a.results)
+            page = plot_pages.heatmap_page(a.job[0].resolve(), a.results, lang=a.lang)
         else:
-            page = plot_pages.timeline_page([j.resolve() for j in a.job])
+            page = plot_pages.timeline_page([j.resolve() for j in a.job], a.lang, a.results, a.wrap)
         out = a.out or Path("heatmap.html" if a.heatmap else "timeline.html")
         out.write_text(page, encoding="utf-8")
         print(f"wrote {out}")
