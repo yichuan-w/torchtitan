@@ -41,6 +41,7 @@ teacher retires such versions from the pool (a25621c8).
 | overfull-hbox | step ~54 | training group on the original 7/12 at step ~54 (earlier groups 5/11, 5/12, 4/12 from step ~40); readout 1/16 at steps 0-30, 2/16 at step 41; base 0/75 | not run | fast arm, original share 0.25, then 0.5 once it passed; teacher on the 068e24a0 guidance until 12:11, then 9d033b16 (no version of it carried lines of the original's tests or solution) |
 | polyglot-rust-c | step 10 | readout 8/16 at step 10 (steps 0 and 5: 1/16; base 4/74); training groups on the original up to 4/12 | not run | fast arm, original share 0.5, then 0.25 from 07:17 (093dd27c); its one version that repeated a line of the original's solution (a bare C `main` signature) was retired at 12:12 |
 | model-extraction-relu-logits (clean rerun) | step ~34 | training group on the original 6/12 at step ~34 (earlier groups 2/12-3/12 from step 2); readout 1/16 at step 0, 2/16 at step 5; fresh job dir `--teacherv4-gb300`, teacher from 9d033b16 with no earlier rounds; its 2 versions carry no line of the original's tests or solution and state no hidden-check specifics | not run | fast arm, original share 0.5 |
+| schemelike-metacircular-eval | step 15 | readout 6/16 at step 15 (step 0: 1/16, step 5: 2/16; base 1/75); training groups on the original up to 3/12 | not run | fast arm, original share 0.5; trained versions r3-r6 (sub-skills such as evaluating arithmetic expression data, on practice samples of their own) carry no line of the original's tests or solution; two seed versions that did (r1, r2) never ran a group |
 
 Learned what made db-wal-recovery pass: XOR the WAL with 0x42 (or copy it aside) before any
 sqlite call, since opening the database while the WAL is still encrypted deletes it. Its
@@ -68,7 +69,7 @@ in run 1030c solved it (#309). A box is ticked once the task is overfit (rule ab
 - [x] bn-fit-modify (1/75) - overfit at step 20 (readout 3/16; step 0 was 0/16)
 - [x] mteb-retrieve (1/75) - overfit at step 16 (readout 4/16; step 0 was 0/16)
 - [x] sanitize-git-repo (1/75) - overfit at step 10 (readout 3/16, then 4/16 at steps 25 and 30; step 0 was 1/15)
-- [ ] schemelike-metacircular-eval (1/75) - queued
+- [x] schemelike-metacircular-eval (1/75) - overfit at step 15 (readout 6/16; steps 0 and 5 were 1/16 and 2/16)
 
 ### Base never, a trained model sometimes (8)
 
