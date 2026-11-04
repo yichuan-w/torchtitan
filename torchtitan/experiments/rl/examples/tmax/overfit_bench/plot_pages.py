@@ -36,9 +36,9 @@ layout = bench.layout
 
 STYLE = """<style>
 :root{--bg:#fcfcfb;--fg:#0b0b0b;--muted:#52514e;--line:#e4e3df;--orig:#eb6834;--ver:#2a78d6;--ro:#1baf7a;
-  --born:#6250d6;--h0:#eef4fc;--h1:#9cc3ef;--h2:#2a78d6;--h3:#0d3b75}
+  --born:#6250d6;--h0:#eef4fc;--h1:#9cc3ef;--h2:#2a78d6;--h3:#0d3b75;--hfg:#fcfcfb}
 @media (prefers-color-scheme: dark){:root{--bg:#1a1a19;--fg:#f0efec;--muted:#c3c2b7;--line:#33322f;--orig:#d95926;
-  --ver:#3987e5;--ro:#199e70;--born:#9085e9;--h0:#20262e;--h1:#2a4a72;--h2:#3987e5;--h3:#a9cdf5}}
+  --ver:#3987e5;--ro:#199e70;--born:#9085e9;--h0:#20262e;--h1:#2a4a72;--h2:#3987e5;--h3:#a9cdf5;--hfg:#0b0b0b}}
 body{background:var(--bg);color:var(--fg);font-family:"Noto Sans SC","Noto Sans CJK SC",system-ui,sans-serif;
   margin:0;padding:20px 16px 48px}
 .wrap{max-width:1180px;margin:0 auto;display:flex;flex-direction:column;gap:28px}
@@ -54,7 +54,7 @@ svg .flat{fill:none;stroke:var(--ver);stroke-width:1.3} svg .flat.orig{stroke:va
 svg .cnt{font-size:10.5px}
 svg .ro{fill:none;stroke:var(--ro);stroke-width:1.6} svg .ro.hit{fill:var(--ro)}
 svg .born{fill:none;stroke:var(--born);stroke-width:2.6;stroke-dasharray:6 4}
-svg .cell text{font-size:9.5px} svg .cell.dark text{fill:#fcfcfb}
+svg .cell text{font-size:9.5px} svg .cell.dark text{fill:var(--hfg)}
 svg .mark{font-size:13px}
 </style>"""
 
@@ -280,7 +280,9 @@ def heatmap_page(jobs_root: Path, results: Path, width: int = 10, cells: int = 2
         data[t] = (job, acc)
     left, top, cw, rh = 250, 50, 50, 24
     w, h = left + cw * cells + 20, top + rh * len(order) + 40
-    o = [f'<svg viewBox="0 0 {w} {h}" role="img" aria-label="每道题原题通过率随训练的变化">']
+    # drawn at its own pixel width so the cell counts stay readable on a phone; the page scrolls it sideways
+    o = [f'<svg viewBox="0 0 {w} {h}" style="width:{w}px;min-width:{w}px" role="img" '
+         'aria-label="每道题原题通过率随训练的变化">']
     for b in range(cells):
         o.append(f'<text class="small" x="{left + cw * b + cw / 2}" y="{top - 8}" text-anchor="middle">{b * width}</text>')
     o.append(f'<text class="small" x="{left + cw * cells}" y="{h - 8}" text-anchor="end">训练步（每 {width} 步一格）</text>')
@@ -310,6 +312,6 @@ def heatmap_page(jobs_root: Path, results: Path, width: int = 10, cells: int = 2
              "readout 和原题训练组合在一起算，颜色按通过率分四档，空白是没跑到。"
              f"◆ = 两段式解出（64 次 confirm ≥ 13/64），标在 confirm 的那一步；★ = 训练后过了宽松线（readout ≥ 3/16 或原题训练组过半）；"
              f"☆ = 第 0 步就已经在宽松线上（{untrained} 道），不算训练的功劳。每行用这道题最近一次开的 job。")
-    caption = "从浅到深的行是学会了的题；整行接近白色、尝试数很大的，是版本练了很久但原题一直不过的题。"
+    caption = "通过率越高，格子的颜色离背景色越远；整行都是 0/n、尝试数很大的，是版本练了很久但原题一直不过的题。"
     return _page(title, intro, f'<figure><div class="figscroll">{"".join(o)}</div>'
                                f'<figcaption>{caption}</figcaption></figure>')
