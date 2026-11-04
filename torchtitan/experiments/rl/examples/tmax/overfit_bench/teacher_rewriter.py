@@ -368,7 +368,7 @@ class Teacher:
                 if int(v["rev"]):
                     diff = subprocess.run(["diff", "-ruN", "--exclude=.*", "--exclude=status.json",
                                            "--exclude=diff.patch", "../r0", "."], cwd=d,
-                                          capture_output=True, text=True, check=False).stdout
+                                          capture_output=True, text=True, errors="replace", check=False).stdout
                     (d / "diff.patch").write_text(diff)
             info = self.state["versions"].get(label, {})
             layout.write_json_atomic(d / "status.json", {
