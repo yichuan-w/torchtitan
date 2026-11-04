@@ -67,7 +67,7 @@ in run 1030c solved it (#309). A box is ticked once the task is overfit (rule ab
 - [x] code-from-image (7/75) - at the bar at step 0, untrained (readout 4/16)
 - [x] model-extraction-relu-logits (5/75) - overfit at step ~34 in a clean rerun (original group 6/12); the earlier solve at step ~37 stays void (its versions leaked the grading network)
 - [x] extract-elf (5/75) - overfit at step 5 (readout 4/16; step 0 was 0/16)
-- [ ] train-fasttext (4/73) - paused 2026-11-03 at step 6: readout 1/16 at step 0, original passed training groups up to 1/12; attempts run ~1 h each (model training in the sandbox, 18% flagged OOM), ~8 generations in flight, 6 steps in 3 h
+- [ ] train-fasttext (4/73) - relaunched 2026-11-04 06:40 from step 0 (no checkpoint before step 20) on a fresh teacher (`--teacherv4-gb300`, original share 0.5, 160K / 120 turns) in mailman's place; earlier run paused 2026-11-03 at step 6: readout 1/16 at step 0, original passed training groups up to 1/12; attempts run ~1 h each (model training in the sandbox, 18% flagged OOM), ~8 generations in flight, 6 steps in 3 h
 - [x] polyglot-rust-c (4/74) - overfit at step 10 (readout 8/16; steps 0 and 5 were 1/16)
 - [x] financial-document-processor (3/75) - overfit at step 15 (readout 5/16, then 6/16 at step 20; step 0 was 0/16)
 - [x] bn-fit-modify (1/75) - overfit at step 20 (readout 3/16; step 0 was 0/16)
@@ -79,7 +79,7 @@ in run 1030c solved it (#309). A box is ticked once the task is overfit (rule ab
 
 - [x] sqlite-db-truncate (base 0/74) - overfit at step 100
 - [ ] llm-inference-batching-scheduler (0/75) - paused at step 42 (160K/300 turns; node budget 8 from 2026-11-02 09:00)
-- [ ] mailman (0/70) - running (fresh teacher); readouts 0/16 through step 90; resumed at 160K / 120 turns from step 80 on 2026-11-04 (64% of original attempts had hit the 80K context)
+- [ ] mailman (0/70) - retired 2026-11-04 06:40 at step ~115 (~20 h): the original 0 in every training group and readout (steps 0-100), also after the switch to 160K at step 80; versions reached 8/12 but did not carry over
 - [ ] mteb-leaderboard (0/73) - queued
 - [x] overfull-hbox (0/75) - overfit at step ~54 (training group on the original 7/12; base 0/75)
 - [ ] regex-log (0/75) - running (fresh teacher); readout 1/16 at step 30, otherwise 0/16 through step 70
