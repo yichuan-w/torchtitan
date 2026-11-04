@@ -33,7 +33,8 @@
 #                `paste-buffer -p`, 0.4 s, Enter
 #
 #   (no args)  start the keeper, `tt-hub`, which runs --once every minute; does nothing if it is already running.
-#              Stop it with: tmux kill-session -t tt-hub. After a reboot, start it again by hand.
+#              Stop it with: tmux kill-session -t =tt-hub (the = keeps tmux from taking tt-hub-session, the hub,
+#              by prefix when the keeper is not running). After a reboot, start it again by hand.
 #   --once     one keeper pass, logged to hub.log in the state directory
 #   --dry-run  one pass that only prints what it would do
 set -euo pipefail
@@ -43,8 +44,8 @@ cd "$repo"
 
 case "${1:-}" in
   "")
-    if tmux has-session -t tt-hub 2>/dev/null; then
-      echo "keeper already running: tmux attach -t tt-hub"
+    if tmux has-session -t =tt-hub 2>/dev/null; then
+      echo "keeper already running: tmux attach -t =tt-hub"
     else
       # -e: a session takes the tmux server's environment, not this shell's, so these are passed on explicitly.
       # bash -c: tmux runs a command through the user's own shell, which may not be bash (fish, for one).
@@ -52,7 +53,7 @@ case "${1:-}" in
         ${HUB_FREEZE_SECONDS:+-e "HUB_FREEZE_SECONDS=$HUB_FREEZE_SECONDS"} \
         ${HUB_LAUNCH:+-e "HUB_LAUNCH=$HUB_LAUNCH"} ${HUB_DELIVER:+-e "HUB_DELIVER=$HUB_DELIVER"} \
         bash -c "while true; do bash '$self' --once; sleep 60; done"
-      echo "keeper started: tmux attach -t tt-hub"
+      echo "keeper started: tmux attach -t =tt-hub"
     fi
     exit 0 ;;
   --once) python3 torchtitan/experiments/rl/tools/issue_listener/issue_listener.py hub-check || true; exit 0 ;;
