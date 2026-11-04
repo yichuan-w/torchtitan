@@ -83,7 +83,7 @@ in run 1030c solved it (#309). A box is ticked once the task is overfit (rule ab
 - [ ] mailman (0/70) - retired 2026-11-04 06:40 at step ~115 (~20 h): the original 0 in every training group and readout (steps 0-100), also after the switch to 160K at step 80; versions reached 8/12 but did not carry over
 - [ ] mteb-leaderboard (0/73) - queued
 - [x] overfull-hbox (0/75) - overfit at step ~54 (training group on the original 7/12; base 0/75)
-- [ ] regex-log (0/75) - running (fresh teacher); readout 1/16 at step 30, otherwise 0/16 through step 70
+- [ ] regex-log (0/75) - retired 2026-11-04 09:20 at step 76 (~25 h): the original passed 1 of 1455 training attempts and one readout (1/16 at step 30), 0/16 otherwise; versions reached 8/11 but did not carry over
 - [ ] sparql-university (0/75) - retired 2026-11-04 01:20 at step 118 (~16 h): the original 0 of 970 attempts (92% submitted, not cut by the context) while versions on graphs of their own reached 8-11/12
 - [x] winning-avg-corewars (0/74) - overfit at step 35 (readout 3/16; earlier readouts 2/16 at steps 5 and 20)
 
