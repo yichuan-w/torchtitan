@@ -111,6 +111,19 @@ in a log, or agreement between two solver-written reports cannot alone establish
 correctness. A reference solution passing does not establish that incorrect solutions
 are rejected.
 
+An expected value may be a literal in the verifier only if every fresh build of
+the environment and every correct solution produce it: the instruction fixes it,
+or it comes from a file stored in the task package. A value you observed once while
+working is a sample, not an answer: a key, certificate, hash, ID or timestamp
+generated when the image builds or the task starts; the state of a repository,
+package or page fetched without a pinned revision; the result of a computation
+whose random seed, hash seed or thread count is not fixed. Either pin its source
+(commit the file, fix the seed, revision or ID) or compute the expectation at
+grading time from what the build actually produced, and allow a tolerance only
+where the instruction states one. Trace every literal you add or keep to one of
+these sources; where the build can be repeated, confirm the literal on a second
+fresh build.
+
 For a task that requires a reusable program, invoke the submitted program through
 the entry point specified by the task on fresh valid inputs prepared by the grader,
 with expected outputs derived before invoking the submitted program.
