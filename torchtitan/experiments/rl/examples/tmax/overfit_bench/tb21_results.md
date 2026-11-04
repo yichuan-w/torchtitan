@@ -79,11 +79,11 @@ in run 1030c solved it (#309). A box is ticked once the task is overfit (rule ab
 
 - [x] sqlite-db-truncate (base 0/74) - overfit at step 100
 - [ ] llm-inference-batching-scheduler (0/75) - paused at step 42 (160K/300 turns; node budget 8 from 2026-11-02 09:00)
-- [ ] mailman (0/70) - queued
+- [ ] mailman (0/70) - running (fresh teacher); readouts 0/16 through step 90; resumed at 160K / 120 turns from step 80 on 2026-11-04 (64% of original attempts had hit the 80K context)
 - [ ] mteb-leaderboard (0/73) - queued
 - [x] overfull-hbox (0/75) - overfit at step ~54 (training group on the original 7/12; base 0/75)
-- [ ] regex-log (0/75) - queued
-- [ ] sparql-university (0/75) - queued
+- [ ] regex-log (0/75) - running (fresh teacher); readout 1/16 at step 30, otherwise 0/16 through step 70
+- [ ] sparql-university (0/75) - retired 2026-11-04 01:20 at step 118 (~16 h): the original 0 of 970 attempts (92% submitted, not cut by the context) while versions on graphs of their own reached 8-11/12
 - [ ] winning-avg-corewars (0/74) - queued
 
 ### Never solved, by the base or a trained model (27)
