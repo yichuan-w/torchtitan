@@ -46,6 +46,7 @@ teacher retires such versions from the pool (a25621c8).
 | polyglot-rust-c | 4/74 | step 10 | - | readout 8/16 at step 10 (steps 0 and 5: 1/16; base 4/74); training groups on the original up to 4/12 | not run | fast arm, original share 0.5, then 0.25 from 07:17 (093dd27c); its one version that repeated a line of the original's solution (a bare C `main` signature) was retired at 12:12 |
 | model-extraction-relu-logits (clean rerun) | 5/75 | step ~34 | - | training group on the original 6/12 at step ~34 (earlier groups 2/12-3/12 from step 2); readout 1/16 at step 0, 2/16 at step 5; fresh job dir `--teacherv4-gb300`, teacher from 9d033b16 with no earlier rounds; its 2 versions carry no line of the original's tests or solution and state no hidden-check specifics | not run | fast arm, original share 0.5 |
 | schemelike-metacircular-eval | 1/75 | step 15 | - | readout 6/16 at step 15 (step 0: 1/16, step 5: 2/16; base 1/75); training groups on the original up to 3/12 | not run | fast arm, original share 0.5; trained versions r3-r6 (sub-skills such as evaluating arithmetic expression data, on practice samples of their own) carry no line of the original's tests or solution; two seed versions that did (r1, r2) never ran a group |
+| winning-avg-corewars | 0/74 | step 35 | - | readout 3/16 at step 35 (step 5: 2/16, step 20: 2/16, step 30: 1/16); training groups on the original up to 2/12, passing in 1/12-2/12 groups from step ~5 | not run | fast arm, fresh job dir `--teacherv4-gb300`, original share 0.25, then 0.5 once it passed; resumed at 160K / 120 turns from step 20 on 2026-11-04 (24% of original attempts had hit the 80K context); trained versions use opponents and win thresholds of their own, none carries a line of the original's tests or solution |
 
 Learned what made db-wal-recovery pass: XOR the WAL with 0x42 (or copy it aside) before any
 sqlite call, since opening the database while the WAL is still encrypted deletes it. Its
@@ -84,7 +85,7 @@ in run 1030c solved it (#309). A box is ticked once the task is overfit (rule ab
 - [x] overfull-hbox (0/75) - overfit at step ~54 (training group on the original 7/12; base 0/75)
 - [ ] regex-log (0/75) - running (fresh teacher); readout 1/16 at step 30, otherwise 0/16 through step 70
 - [ ] sparql-university (0/75) - retired 2026-11-04 01:20 at step 118 (~16 h): the original 0 of 970 attempts (92% submitted, not cut by the context) while versions on graphs of their own reached 8-11/12
-- [ ] winning-avg-corewars (0/74) - queued
+- [x] winning-avg-corewars (0/74) - overfit at step 35 (readout 3/16; earlier readouts 2/16 at steps 5 and 20)
 
 ### Never solved, by the base or a trained model (27)
 
