@@ -4,7 +4,9 @@ Claude Code session per side, the hub, handles every issue of yichuan-w/torchtit
 Ported from andylizf/simulator-kernel bench/tools/issue_listener.py.
 
 watch          poll all open issues every 60 s for comment and issue-body versions from a collaborator account other
-               than this one that are not acked, mention or not; print them in full and exit (a background task of the hub)
+               than this one that are not acked, mention or not; print them in full and exit
+watch --stream the same poll, never exiting: each item is printed once per run, as one JSON line, for the hub's
+               watcher subagent to read through the Monitor tool
 watch --init   mark everything that exists now as handled, so the first watch does not print the backlog
 ack N ID       mark item ID of issue N (a comment id, or `body`) handled at the version watch printed; also
                `watch --ack N ID`
@@ -12,10 +14,9 @@ route list | get N | set N [--name S] [--id S] [--last ID] [--status S]
                the hub's issue -> subagent table
 hub-set SID [CWD]
                record the hub's Claude session id, and the directory it is launched in, for agent-listen.sh
-hub-check [--dry-run]
-               one pass of agent-listen.sh's keeper: launch the hub when no process has its session open, restart it
-               when it is frozen or stopped at a usage limit, and while it is idle with no `watch` running, poll once
-               and deliver the new items with a request to restart `watch`
+hub-launch     launch the hub once, in tmux session tt-hub-session, unless a process already has its session open
+               (then print where); agent-listen.sh with no arguments runs this
+watcher-prompt print the prompt the hub gives its watcher subagent
 """
 import argparse
 import fcntl
@@ -23,14 +24,13 @@ import hashlib
 import json
 import os
 import re
-import signal
 import subprocess
 import sys
 import time
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
-# Every process here (the hub's `watch`, the keeper's poll, a person's manual run) asks GitHub for the same
+# Every process here (the watcher's `watch`, a person's manual run, the other worktrees) asks GitHub for the same
 # URLs through gh's on-disk response cache, so the machine makes about one request per URL per POLL_CACHE however many
 # run: polling per process once used up the 5000/h core limit.
 POLL_CACHE = "60s"
@@ -59,7 +59,7 @@ def gh_pages(path, cache=POLL_CACHE):
     return [item for page in gh_json(["--paginate", "--slurp", path], cache) for item in page]
 
 
-def state_dir():  # in the common git dir, shared by the checkout the keeper runs from and every worktree
+def state_dir():  # in the common git dir, shared by the hub's checkout and every worktree
     git_dir = subprocess.run(["git", "rev-parse", "--path-format=absolute", "--git-common-dir"], check=True,
                              capture_output=True, text=True).stdout.strip()
     d = Path(git_dir) / "agent-listen-hub"
@@ -73,7 +73,7 @@ def context():  # (repository, this gh account, collaborator accounts)
     return repo, me, {c["login"] for c in gh_pages(f"repos/{repo}/collaborators?per_page=100", "600s")}
 
 
-# ---- Hub form: one watcher over the whole repository, acks, the routing table, and agent-listen.sh's hub check ----
+# ---- One watch over the whole repository, acks, and the hub's routing table ----
 
 def read_json(path):
     return json.loads(path.read_text()) if path.exists() else {}
@@ -132,9 +132,9 @@ def key_of(it):
     return f"{it['issue']}:{it['id']}"
 
 
-def poll(d, record=True):
+def poll(d):
     """One poll: the items whose current version is not acked, each tagged against what was printed before, or None
-    when the poll failed. With record, this poll's versions are recorded as printed."""
+    when the poll failed. This poll's versions are recorded as printed."""
     printed_file, handled_file = d / "watch-printed.json", d / "watch-handled.json"
     started = stamp(datetime.now(timezone.utc))
     handled, printed = read_json(handled_file), read_json(printed_file)
@@ -160,8 +160,7 @@ def poll(d, record=True):
             old = p["items"].get(key_of(it))
             if not old or old["version"] != it["version"]:
                 p["items"][key_of(it)] = {"version": it["version"], "at": started}
-    if record:
-        update_json(printed_file, change)
+    update_json(printed_file, change)
     return new
 
 
@@ -175,7 +174,6 @@ def watch(interval=60, once=False):
     `interval` s. An item printed by an earlier run and never acked prints again at once: a hub that died before
     acking it gets it back. So the hub acks an item as soon as it has handed it to a subagent."""
     d = state_dir()
-    (d / "watch.pid").write_text(str(os.getpid()))
     while True:
         new = poll(d)
         if new:
@@ -185,6 +183,23 @@ def watch(interval=60, once=False):
             return 0
         if once:
             return 1
+        time.sleep(interval)
+
+
+STREAM_FIELDS = ("issue", "id", "author", "created", "updated", "tags", "url", "body")
+
+
+def watch_stream(interval=60):
+    """The watcher's Monitor command: poll every `interval` s, never exit, and print each item as one JSON line (Monitor
+    makes each stdout line a notification) the first time this run sees its current version. An item still unacked
+    therefore prints once per run, so every re-arm of the monitor hands the hub again what it has not acked."""
+    d = state_dir()
+    sent = {}
+    while True:
+        for it in poll(d) or []:
+            if sent.get(key_of(it)) != it["version"]:
+                sent[key_of(it)] = it["version"]
+                print(json.dumps({k: it[k] for k in STREAM_FIELDS}, ensure_ascii=False), flush=True)
         time.sleep(interval)
 
 
@@ -242,20 +257,28 @@ def route(argv):
                   f"\t{r.get('status', '')}")
 
 
-# ---- The keeper (agent-listen.sh): keeps the hub running, and delivers in its place while its `watch` is down ----
-# It reads only what Claude Code itself keeps: the per-process session records in ~/.claude/sessions and the hub's
-# transcript. Starting the hub and handing it a message are two commands, HUB_LAUNCH and HUB_DELIVER ({sid} is replaced
-# by the hub's session id; each gets its text on stdin). Unset, the hub is an interactive `claude` in tmux session
-# HUB_PANE and a message is pasted into it.
+# ---- Launching the hub (agent-listen.sh with no arguments): once, never while a process has its session open ----
+# Nothing here keeps running. The hub keeps itself listening through its watcher subagent's monitor; if the hub itself exits or
+# stops at a usage limit, nothing restarts it until agent-listen.sh is run again.
 CLAUDE_HOME = Path(os.environ.get("CLAUDE_CONFIG_DIR", "~/.claude")).expanduser()
 HUB_PANE = "tt-hub-session"
-HUB_FREEZE = int(os.environ.get("HUB_FREEZE_SECONDS", "600"))
-HUB_ACT_GAP = 600  # at most one restart, and one delivery, per 10 minutes, so a hub that keeps failing is not hammered
-REDELIVER_AFTER = 600  # an item delivered and still unacked this long after is delivered once more
-FIRST_PROMPT = ("You are this side's hub (.claude/CLAUDE.md, \"Keeping a listener up\"). Before anything else, start "
-                f"`python3 {LISTENER} watch` as a background task. Hand each item it prints to that issue's subagent "
-                f"(`python3 {LISTENER} route list`), ack it with `issue_listener.py ack <issue> <id>`, and start "
-                "`watch` again whenever it exits.")
+WATCHER_PROMPT = (
+    "You are the hub's watcher (.claude/CLAUDE.md, \"Keeping a listener up\"). Your one job is to keep "
+    f"`python3 {LISTENER} watch --stream` running under the Monitor tool and pass on what it prints. Load Monitor and "
+    "SendMessage with ToolSearch (`select:Monitor,SendMessage`) if they are not loaded. Arm Monitor on that command, "
+    "in the directory you start in, with timeout_ms 1800000, the longest it allows. Each line it prints is one item, "
+    "a JSON object: send the lines of each notification, and of notifications that arrive together, to the main agent "
+    "in one message (SendMessage to \"main\"), verbatim. When the monitor expires or its stream ends, arm it again "
+    "the same way and tell nobody. Do nothing else: no acks, no GitHub replies, no other commands, and never end a "
+    "turn without the monitor armed.")
+FIRST_PROMPT = (
+    "You are this side's hub (.claude/CLAUDE.md, \"Keeping a listener up\"). Before anything else, start the "
+    "watcher: one background subagent (Agent tool, model \"sonnet\") whose prompt is the output of "
+    f"`python3 {LISTENER} watcher-prompt`, word for word. Do not run `watch` yourself. The watcher sends you each "
+    "new or edited comment and issue body as a JSON line; hand each to that issue's subagent "
+    f"(`python3 {LISTENER} route list`), ack it with `issue_listener.py ack <issue> <id>` once the subagent has it "
+    "(an unacked item comes back each time the watcher re-arms, every 30 minutes), and start a new watcher whenever "
+    "you are told the watcher has finished.")
 
 
 def alive(pid):
@@ -279,91 +302,22 @@ def session_records(sid):
     return sorted(out, key=lambda r: r.get("updatedAt", 0), reverse=True)
 
 
-def process_table():
-    """{pid: (parent pid, command line)} of every process."""
-    rows = subprocess.run(["ps", "-axo", "pid=,ppid=,command="], check=True, capture_output=True, text=True).stdout
-    table = {}
-    for line in rows.splitlines():
-        parts = line.split(None, 2)
-        if len(parts) == 3:
-            table[int(parts[0])] = (int(parts[1]), parts[2])
-    return table
-
-
-def holders(sid, table=None):
+def holders(sid):
     """Every live process that has the hub's session open (a session record) or was started to open it (`--resume
-    <sid>` in its command line, as a wrapper that starts claude has). tmux's own processes are left out: a tmux server
-    keeps the command line of the session that started it."""
-    table = process_table() if table is None else table
+    <sid>` or `--session-id <sid>` in its command line, as a wrapper that starts claude has). tmux's own processes are
+    left out: a tmux server keeps the command line of the session that started it."""
+    rows = subprocess.run(["ps", "-axo", "pid=,command="], check=True, capture_output=True, text=True).stdout
     pids = {int(r["pid"]) for r in session_records(sid)}
-    for pid, (_, command) in table.items():
-        if (re.search(rf"--resume[ =]{re.escape(sid)}\b", command) and pid != os.getpid()
-                and Path(command.split()[0]).name != "tmux"):
-            pids.add(pid)
+    for line in rows.splitlines():
+        parts = line.split(None, 1)
+        if (len(parts) == 2 and re.search(rf"--(resume|session-id)[ =]{re.escape(sid)}\b", parts[1])
+                and int(parts[0]) != os.getpid() and Path(parts[1].split()[0]).name != "tmux"):
+            pids.add(int(parts[0]))
     return pids
-
-
-def instances(sid):
-    """The holders grouped into independent instances, {top pid: [its holders]}: a holder whose ancestor is also a
-    holder (the claude a wrapper started) belongs to that ancestor's instance. Two instances is the duplicate case."""
-    table = process_table()
-    held = holders(sid, table)
-    groups = {}
-    for pid in held:
-        top, up = pid, table.get(pid, (0, ""))[0]
-        while up in table and up > 1:
-            if up in held:
-                top = up
-            up = table[up][0]
-        groups.setdefault(top, []).append(pid)
-    return {top: sorted(members) for top, members in groups.items()}
-
-
-def describe(groups):
-    return "; ".join(f"pid {top}" + (f" (with {', '.join(str(p) for p in members if p != top)})" if len(members) > 1
-                                     else "") for top, members in sorted(groups.items()))
-
-
-def transcript(sid):
-    found = list((CLAUDE_HOME / "projects").glob(f"*/{sid}.jsonl"))
-    return found[0] if found else None
-
-
-def transcript_age(sid):
-    """Seconds since the hub's transcript, or a transcript of one of its subagents, was last written."""
-    files = list((CLAUDE_HOME / "projects").glob(f"*/{sid}.jsonl"))
-    files += list((CLAUDE_HOME / "projects").glob(f"*/{sid}/subagents/*.jsonl"))
-    return time.time() - max(f.stat().st_mtime for f in files) if files else None
-
-
-def quota_stop(path, since):
-    """True when the transcript's last assistant entry is Claude Code's usage-limit stop ("You've hit your … limit"),
-    written after `since`: a synthetic entry with isApiErrorMessage and error rate_limit or billing_error."""
-    if not path:
-        return False
-    with open(path, "rb") as f:
-        f.seek(max(0, f.seek(0, os.SEEK_END) - 256 * 1024))
-        lines = f.read().decode("utf-8", "replace").splitlines()
-    for line in reversed(lines):
-        try:
-            e = json.loads(line)
-        except ValueError:
-            continue
-        if e.get("type") != "assistant":
-            continue
-        at = datetime.fromisoformat(e.get("timestamp", "1970-01-01T00:00:00+00:00").replace("Z", "+00:00"))
-        return bool(e.get("isApiErrorMessage") and e.get("error") in ("rate_limit", "billing_error")
-                    and at.timestamp() > since)
-    return False
 
 
 def tmux(*args, **kw):
     return subprocess.run(["tmux", *args], capture_output=True, text=True, **kw)
-
-
-def pane_dead():
-    r = tmux("display", "-p", "-t", HUB_PANE, "#{pane_dead}")
-    return r.returncode != 0 or r.stdout.strip() == "1"
 
 
 # Read from --settings ("flagSettings") as from user settings. baseRef head: a subagent's worktree starts from the
@@ -372,7 +326,7 @@ HUB_SETTINGS = {"skipDangerousModePermissionPrompt": True, "worktree": {"baseRef
 
 
 def preset_gates(d, cwd, say):
-    """Answer the dialogs a fresh interactive claude would stop at, so a relaunch in a detached pane reaches its prompt.
+    """Answer the dialogs a fresh interactive claude would stop at, so a launch in a detached pane reaches its prompt.
     The --dangerously-skip-permissions confirmation is answered in a settings file of the hub's own, passed with
     --settings; the folder-trust question in the hub directory's own entry of ~/.claude.json, written only when it is
     missing, since every running claude rewrites that file. Nothing user-wide is written: an install that has never
@@ -382,8 +336,7 @@ def preset_gates(d, cwd, say):
     path = Path(os.environ.get("CLAUDE_CONFIG_DIR", "~")).expanduser() / ".claude.json"
     data = json.loads(path.read_text()) if path.exists() else {}
     if not data.get("hasCompletedOnboarding"):
-        say("this Claude Code install has not finished onboarding; run `claude` once by hand, then the keeper's "
-            "launches reach the prompt")
+        say("this Claude Code install has not finished onboarding; run `claude` once by hand, then launch the hub")
     entry = data.setdefault("projects", {}).setdefault(cwd, {})
     if not (entry.get("hasTrustDialogAccepted") and entry.get("hasCompletedProjectOnboarding")):
         entry.update(hasTrustDialogAccepted=True, hasCompletedProjectOnboarding=True)
@@ -394,195 +347,34 @@ def preset_gates(d, cwd, say):
     return settings
 
 
-def launch(d, sid, cwd, say, dry_run):
-    """Start the hub with FIRST_PROMPT, refusing while any process has its session open: two processes on one session
-    answer everything twice. The CLI process is killed before a relaunch, so a holder here is another runner."""
-    groups = instances(sid)
-    if groups:
-        say(f"hub {sid[:8]}: not launching, session open in {describe(groups)}; stop that first, then the keeper "
-            f"launches it")
-        return 1
-    custom = os.environ.get("HUB_LAUNCH")
-    if dry_run:
-        say(f"hub {sid[:8]}: would launch " + (f"`{custom.format(sid=sid)}`" if custom else f"claude in tmux {HUB_PANE}"))
-        return 0
-    if custom:
-        r = subprocess.run(custom.format(sid=sid), shell=True, input=FIRST_PROMPT, capture_output=True, text=True,
-                           timeout=300)
-        say(f"hub {sid[:8]}: HUB_LAUNCH exit {r.returncode}: {(r.stdout + r.stderr).strip()[-300:]}")
-    else:
-        settings = preset_gates(d, cwd, say)
-        command = ["claude", "--dangerously-skip-permissions", "--settings", str(settings), "--resume", sid,
-                   FIRST_PROMPT]
-        if tmux("has-session", "-t", HUB_PANE).returncode == 0:
-            r = tmux("respawn-pane", "-k", "-t", HUB_PANE, "-c", cwd, *command)
-        else:
-            r = tmux("new-session", "-d", "-s", HUB_PANE, "-c", cwd, *command)
-            tmux("set-option", "-t", HUB_PANE, "remain-on-exit", "on")  # a dead pane stays, so pane_dead can see it
-        say(f"hub {sid[:8]}: launched claude in tmux {HUB_PANE} (exit {r.returncode}) {r.stderr.strip()[:200]}")
-    update_json(d / "hub.json", lambda h: h.__setitem__("launched", time.time()))
-    return 0
-
-
-def deliver(sid, text):
-    """Hand `text` to the hub; returns what happened. HUB_DELIVER if set, otherwise a bracketed paste into HUB_PANE."""
-    custom = os.environ.get("HUB_DELIVER")
-    if custom:
-        r = subprocess.run(custom.format(sid=sid), shell=True, input=text, capture_output=True, text=True, timeout=120)
-        return f"HUB_DELIVER exit {r.returncode} {(r.stdout + r.stderr).strip()[-200:]}"
-    if pane_dead():  # tmux takes keys into a dead pane without complaint
-        return "dead"
-    tmux("load-buffer", "-b", "tt-hub", "-", input=text)
-    tmux("paste-buffer", "-p", "-d", "-b", "tt-hub", "-t", HUB_PANE)
-    time.sleep(0.4)  # an Enter sent right behind the paste races it and is swallowed
-    tmux("send-keys", "-t", HUB_PANE, "Enter")
-    return "pasted"
-
-
-def in_pane(pid):
-    """True when pid runs inside HUB_PANE (the pane's process or one of its descendants)."""
-    r = tmux("display", "-p", "-t", HUB_PANE, "#{pane_pid}")
-    top = r.stdout.strip()
-    pid = str(pid)
-    while r.returncode == 0 and pid not in ("", "0", "1"):
-        if pid == top:
-            return True
-        pid = subprocess.run(["ps", "-o", "ppid=", "-p", pid], capture_output=True, text=True).stdout.strip()
-    return False
-
-
-def kill(pids):
-    for sig in (signal.SIGTERM, signal.SIGKILL):
-        for pid in pids:
-            try:
-                os.kill(pid, sig)
-            except ProcessLookupError:
-                pass
-        for _ in range(30):
-            if not any(alive(p) for p in pids):
-                return
-            time.sleep(1)
-
-
-def gate(d, name, dry_run):
-    """True when the action `name` last ran over HUB_ACT_GAP ago; a live run records this one."""
-    path = d / "hub-act.json"
-    last = read_json(path).get(name, 0)
-    if time.time() - last < HUB_ACT_GAP:
-        return False
-    if not dry_run:
-        update_json(path, lambda g: g.__setitem__(name, time.time()))
-    return True
-
-
-def delivery_text(items, again=False):
-    head = (f"agent-listen: `watch` is not running. Start `python3 {LISTENER} watch` as a background "
-            "task again" + (", then handle these items and ack each:" if items else "."))
-    if again:
-        head = "agent-listen: these items were delivered over 10 minutes ago and are still not acked:"
-    return head + "\n\n" + "\n".join(item_text(it) for it in items)
-
-
-def hub_check(dry_run=False):
+def hub_launch():
+    """Start the hub with FIRST_PROMPT in tmux session HUB_PANE, unless a process already has its session open (two
+    processes on one session answer everything twice); then say where it runs."""
     d = state_dir()
-    say = lambda line: hub_log(d, line, dry_run)  # noqa: E731
     hub = read_json(d / "hub.json")
     sid = hub.get("session")
     if not sid:
-        say(f"no hub recorded: run `python3 {LISTENER} hub-set <session id> [<cwd>]`")
+        print(f"no hub recorded: run `python3 {LISTENER} hub-set <session id> [<cwd>]`")
         return 1
-    records = session_records(sid)
-    if records and records[0].get("cwd") and records[0]["cwd"] != hub.get("cwd") and not dry_run:
-        update_json(d / "hub.json", lambda h: h.__setitem__("cwd", records[0]["cwd"]))
-    cwd = (records[0].get("cwd") if records else None) or hub.get("cwd") or os.getcwd()
-    groups = instances(sid)
-    held = {pid for members in groups.values() for pid in members}
-    if len(groups) > 1:
-        say(f"hub {sid[:8]}: DUPLICATE, its session is open in {len(groups)} independent instances: {describe(groups)}. "
-            "Both answer everything; stop all but one")
-        return 1
-    if not held:
-        if gate(d, "launch", dry_run):
-            return launch(d, sid, cwd, say, dry_run)
-        say(f"hub {sid[:8]}: no process has its session open; relaunched under 10 min ago, waiting")
+    held = holders(sid)
+    if held:
+        records = session_records(sid)
+        where = f", cwd {records[0]['cwd']}" if records and records[0].get("cwd") else ""
+        print(f"hub {sid[:8]} is already open in pid {', '.join(str(p) for p in sorted(held))}{where}; not launching"
+              + (f" (tmux session {HUB_PANE} exists: tmux attach -t ={HUB_PANE})"
+                 if tmux("has-session", "-t", f"={HUB_PANE}").returncode == 0 else ""))
         return 0
-    status = records[0].get("status") if records else None
-    age = transcript_age(sid)
-    why = None
-    if quota_stop(transcript(sid), hub.get("launched", 0)):
-        why = "stopped at a usage limit"
-    elif status == "busy" and age is not None and age > HUB_FREEZE:
-        why = f"frozen: busy, transcript last written {age / 60:.0f} min ago"
-    if why:
-        if not gate(d, "launch", dry_run):
-            say(f"hub {sid[:8]} {why}; restarted under 10 min ago, waiting")
-            return 0
-        targets = {int(r["pid"]) for r in records} or held
-        if not os.environ.get("HUB_LAUNCH") and not all(in_pane(pid) for pid in targets):
-            # The default launcher would move the hub into tmux while its runner might start it again: two processes.
-            say(f"hub {sid[:8]} {why}, but it runs outside tmux {HUB_PANE} (pid {sorted(targets)}), so it is left "
-                "alone; stop that runner and the keeper launches it here")
-            return 0
-        say(f"hub {sid[:8]} {why}: " + ("would stop" if dry_run else "stopping") + f" pid {sorted(targets)} and relaunch")
-        if not dry_run:
-            kill(targets)
-            for _ in range(30):  # a wrapper that started claude exits once claude does
-                if not holders(sid):
-                    break
-                time.sleep(1)
-        return launch(d, sid, cwd, say, dry_run) if not dry_run else 0
-    delivered_file = d / "hub-delivered.json"
-    handled = read_json(d / "watch-handled.json")
-    delivered = read_json(delivered_file)
-    unacked = {k: v for k, v in delivered.items() if handled.get(k) != v["version"]}
-    if unacked != delivered and not dry_run:
-        update_json(delivered_file, lambda m: [m.pop(k) for k in list(m) if k not in unacked])
-    late = [v["item"] for k, v in unacked.items() if not v.get("again") and time.time() - v["at"] > REDELIVER_AFTER]
-    if late:
-        result = "would deliver" if dry_run else deliver(sid, delivery_text(late, again=True))
-        say(f"hub {sid[:8]}: {len(late)} item(s) unacked 10 min after delivery, delivered once more: {result}")
-        if not dry_run:
-            update_json(delivered_file, lambda m: [m[key_of(it)].__setitem__("again", True) for it in late])
-    watch_pid = read_text(d / "watch.pid")
-    if status == "idle" and not (watch_pid.isdigit() and alive(int(watch_pid))):
-        if not gate(d, "deliver", dry_run):
-            return 0
-        items = poll(d, record=not dry_run)
-        if items is None:
-            return 1
-        items = [it for it in items if key_of(it) not in unacked]
-        if dry_run:
-            say(f"hub {sid[:8]} idle without watch: would deliver {len(items)} item(s) and ask it to restart watch")
-            return 0
-        result = deliver(sid, delivery_text(items))
-        if result == "dead":
-            say(f"hub {sid[:8]}: pane {HUB_PANE} is dead; relaunching instead of pasting")
-            return launch(d, sid, cwd, say, dry_run)
-        update_json(delivered_file, lambda m: m.update(
-            {key_of(it): {"version": it["version"], "at": time.time(), "item": it} for it in items}))
-        say(f"hub {sid[:8]} idle without watch: delivered {len(items)} item(s) and a restart of watch: {result}")
-        return 0
-    say(f"hub {sid[:8]} ok ({status})" + (f", transcript written {age:.0f} s ago" if dry_run and age is not None else ""))
-    return 0
-
-
-def read_text(path):
-    return path.read_text().strip() if path.exists() else ""
-
-
-def hub_log(d, line, dry_run):
-    """Print the line; a live run also appends it to hub.log, skipping a repeat of the line before it."""
-    if dry_run:
-        print("DRY RUN " + line)
-        return
-    last = d / "hub-last.txt"
-    if read_text(last) == line:
-        return
-    last.write_text(line)
-    out = f"{datetime.now():%F %T} {line}"
-    print(out)
-    with open(d / "hub.log", "a") as f:
-        f.write(out + "\n")
+    cwd = hub.get("cwd") or os.getcwd()
+    settings = preset_gates(d, cwd, print)
+    command = ["claude", "--dangerously-skip-permissions", "--settings", str(settings), "--resume", sid, FIRST_PROMPT]
+    if tmux("has-session", "-t", f"={HUB_PANE}").returncode == 0:
+        r = tmux("respawn-pane", "-k", "-t", f"={HUB_PANE}", "-c", cwd, *command)
+    else:
+        r = tmux("new-session", "-d", "-s", HUB_PANE, "-c", cwd, *command)
+        tmux("set-option", "-t", f"={HUB_PANE}", "remain-on-exit", "on")  # a hub that exits leaves its last screen
+    print(f"hub {sid[:8]}: launched claude in tmux {HUB_PANE} (exit {r.returncode}) {r.stderr.strip()[:200]}"
+          f"\nattach: tmux attach -t ={HUB_PANE}")
+    return r.returncode
 
 
 if __name__ == "__main__":
@@ -593,6 +385,8 @@ if __name__ == "__main__":
         ack(sys.argv[3], sys.argv[4])
     elif cmd == "watch" and not arg:
         sys.exit(watch())
+    elif cmd == "watch" and arg == "--stream":
+        watch_stream()
     elif cmd == "ack" and len(sys.argv) == 4:
         ack(sys.argv[2], sys.argv[3])
     elif cmd == "route":
@@ -601,7 +395,9 @@ if __name__ == "__main__":
         cwd = sys.argv[3] if len(sys.argv) > 3 else os.getcwd()
         update_json(state_dir() / "hub.json", lambda h: h.update(session=arg, cwd=cwd))
         print(f"hub session {arg}, launched in {cwd}; state in {state_dir()}")
-    elif cmd == "hub-check":
-        sys.exit(hub_check(dry_run=arg == "--dry-run"))
+    elif cmd == "hub-launch":
+        sys.exit(hub_launch())
+    elif cmd == "watcher-prompt":
+        print(WATCHER_PROMPT)
     else:
         sys.exit(__doc__)

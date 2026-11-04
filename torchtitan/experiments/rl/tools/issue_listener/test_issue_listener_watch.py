@@ -1,5 +1,5 @@
-"""Offline test of issue_listener.py: watch, ack and route state against fake gh responses, and the keeper's
-launch, paste and redelivery against a fake tmux and a fake ~/.claude.
+"""Offline test of issue_listener.py: watch, ack and route state against fake gh responses, and the one-shot hub
+launch against a fake tmux and a fake ~/.claude.
 
 Run: python3 torchtitan/experiments/rl/tools/issue_listener/test_issue_listener_watch.py
 """
@@ -7,8 +7,8 @@ import contextlib
 import io
 import json
 import os
+import subprocess
 import sys
-import time
 import tempfile
 import unittest
 from datetime import datetime, timedelta, timezone
@@ -148,6 +148,35 @@ class WatchTest(unittest.TestCase):
         self.assertEqual(il.watch_since(printed, {}), "2026-11-03T00:00:00Z")
         self.assertEqual(il.watch_since(printed, {"51:3": "2026-11-03T11:02:00Z"}), "2026-11-09T00:00:00Z")
 
+    def test_stream_prints_each_item_once_per_run_as_one_json_line(self):
+        self.gh.comment(3, 51, PEER, "two\nlines", at(58))
+        polls = []
+
+        def sleep(_):
+            polls.append(1)
+            if len(polls) == 2:
+                self.gh.comment(4, 51, PEER, "later", at(1))
+            if len(polls) == 3:
+                raise KeyboardInterrupt
+
+        def run():
+            out = io.StringIO()
+            saved, il.time.sleep = il.time.sleep, sleep
+            try:
+                with contextlib.redirect_stdout(out), self.assertRaises(KeyboardInterrupt):
+                    il.watch_stream()
+            finally:
+                il.time.sleep = saved
+            return [json.loads(line) for line in out.getvalue().splitlines()]
+
+        lines = run()  # three polls: 3 once, not again on the second poll; 4 once it appears
+        self.assertEqual([(it["issue"], it["id"]) for it in lines], [("51", "3"), ("51", "4")])
+        self.assertEqual(lines[0]["body"], "two\nlines")
+        self.quiet(il.ack, "51", "4")
+        polls.clear()
+        lines = run()  # a re-armed stream hands back only what is still unacked
+        self.assertEqual([(it["id"], it["tags"][-1].split(",")[0]) for it in lines], [("3", "again")])
+
     def test_route_set_get_list_and_ack_moves_last(self):
         self.quiet(il.route, ["set", "51", "--name", "issue-51", "--id", "a123", "--status", "running E181 ladder"])
         self.gh.comment(7, 51, PEER, "next step", at(58))
@@ -161,55 +190,41 @@ class WatchTest(unittest.TestCase):
         self.assertIn("#51\tissue-51\ta123\tlast=7", out.getvalue())
 
 
-
 FAKE_TMUX = """#!/bin/sh
-# Stand-in for tmux: logs each call (time, arguments, and stdin for load-buffer) and answers display and has-session.
+# Stand-in for tmux: logs each call and answers has-session.
+printf '%s\\n' "$*" >> "$FAKE_TMUX_LOG"
 case "$1" in
-  load-buffer) printf '%s %s <<%s>>\\n' "$(python3 -c 'import time; print(time.time())')" "$*" "$(cat | tr "\\n" "|")" >> "$FAKE_TMUX_LOG" ;;
-  *) printf '%s %s\\n' "$(python3 -c 'import time; print(time.time())')" "$*" >> "$FAKE_TMUX_LOG" ;;
-esac
-case "$1" in
-  display) echo "${FAKE_PANE_DEAD:-0}" ;;
   has-session) exit "${FAKE_HAS:-0}" ;;
 esac
 exit 0
 """
 
 SID = "0123abcd-0000-4000-8000-000000000000"
+HERE = Path(__file__).resolve().parent
 
 
-class KeeperTest(unittest.TestCase):
+class LaunchTest(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
         root = Path(self.tmp.name)
         self.state, self.home, bin_dir = root / "state", root / "claude", root / "bin"
-        for p in (self.state, self.home / "sessions", self.home / "projects" / "-repo", bin_dir):
+        for p in (self.state, self.home / "sessions", bin_dir):
             p.mkdir(parents=True)
         (bin_dir / "tmux").write_text(FAKE_TMUX)
         (bin_dir / "tmux").chmod(0o755)
         self.log = root / "tmux.log"
         self.log.touch()
-        self.env = {k: os.environ.get(k) for k in ("PATH", "FAKE_TMUX_LOG", "FAKE_PANE_DEAD", "CLAUDE_CONFIG_DIR",
-                                                    "HUB_LAUNCH", "HUB_DELIVER")}
+        self.env = {k: os.environ.get(k) for k in ("PATH", "FAKE_TMUX_LOG", "FAKE_HAS", "CLAUDE_CONFIG_DIR")}
         os.environ.update(PATH=f"{bin_dir}:{os.environ['PATH']}", FAKE_TMUX_LOG=str(self.log),
-                          CLAUDE_CONFIG_DIR=str(self.home))
-        for k in ("FAKE_PANE_DEAD", "HUB_LAUNCH", "HUB_DELIVER"):
-            os.environ.pop(k, None)
-        self.gh = FakeGitHub()
-        self.gh.issue(51, ME, "opened by us")
-        self.saved = il.gh_json, il.state_dir, il.CLAUDE_HOME, il.holders, il.kill, il.in_pane, il.instances
-        il.in_pane = lambda pid: True
-        il.instances = lambda sid: {pid: [pid] for pid in self.held}
-        il.gh_json, il.state_dir, il.CLAUDE_HOME = self.gh.gh_json, (lambda: self.state), self.home
-        self.held, self.killed = {os.getpid()}, []
+                          CLAUDE_CONFIG_DIR=str(self.home), FAKE_HAS="1")
+        self.saved = il.state_dir, il.CLAUDE_HOME, il.holders
+        il.state_dir, il.CLAUDE_HOME = (lambda: self.state), self.home
+        self.held = set()
         il.holders = lambda sid: set(self.held)
-        il.kill = lambda pids: (self.killed.append(sorted(pids)), self.held.clear())
         il.update_json(self.state / "hub.json", lambda h: h.update(session=SID, cwd="/repo"))
-        self.transcript = self.home / "projects" / "-repo" / f"{SID}.jsonl"
-        self.transcript.write_text(json.dumps({"type": "assistant", "timestamp": at(1)}) + "\n")
 
     def tearDown(self):
-        il.gh_json, il.state_dir, il.CLAUDE_HOME, il.holders, il.kill, il.in_pane, il.instances = self.saved
+        il.state_dir, il.CLAUDE_HOME, il.holders = self.saved
         for k, v in self.env.items():
             if v is None:
                 os.environ.pop(k, None)
@@ -217,141 +232,62 @@ class KeeperTest(unittest.TestCase):
                 os.environ[k] = v
         self.tmp.cleanup()
 
-    def record(self, status):
-        (self.home / "sessions" / f"{os.getpid()}.json").write_text(json.dumps(
-            {"pid": os.getpid(), "sessionId": SID, "cwd": "/repo", "status": status, "updatedAt": 1}))
-
-    def calls(self):
-        return [line.split(" ", 1)[1] for line in self.log.read_text().splitlines()]
-
-    def check(self):
+    def launch(self):
         out = io.StringIO()
         with contextlib.redirect_stdout(out):
-            il.hub_check()
-        return out.getvalue()
+            code = il.hub_launch()
+        return code, out.getvalue()
 
-    def test_paste_is_bracketed_and_enter_waits(self):
-        self.assertEqual(il.deliver(SID, "hello hub"), "pasted")
-        lines = self.log.read_text().splitlines()
-        self.assertTrue(lines[0].split(" ", 1)[1].startswith("display -p -t tt-hub-session #{pane_dead}"))
-        self.assertIn("load-buffer -b tt-hub - <<hello hub>>", lines[1])
-        self.assertIn("paste-buffer -p -d -b tt-hub -t tt-hub-session", lines[2])
-        self.assertIn("send-keys -t tt-hub-session Enter", lines[3])
-        self.assertGreaterEqual(float(lines[3].split()[0]) - float(lines[2].split()[0]), 0.35)
-
-    def test_dead_pane_gets_no_paste(self):
-        os.environ["FAKE_PANE_DEAD"] = "1"
-        self.assertEqual(il.deliver(SID, "hello hub"), "dead")
-        self.assertFalse(any(c.startswith(("load-buffer", "paste-buffer", "send-keys")) for c in self.calls()))
-
-    def test_custom_deliver_gets_the_text_on_stdin(self):
-        out = Path(self.tmp.name) / "delivered.txt"
-        os.environ["HUB_DELIVER"] = f"cat > {out}; echo {{sid}} >> {out}"
-        il.deliver(SID, "hello hub\n")
-        self.assertEqual(out.read_text(), f"hello hub\n{SID}\n")
-
-    def test_launch_refused_while_another_process_has_the_session(self):
-        self.held = {4242}
-        lines = []
-        self.assertEqual(il.launch(self.state, SID, "/repo", lines.append, dry_run=False), 1)
-        self.assertIn("not launching, session open in pid 4242", lines[0])
-        self.assertEqual(self.calls(), [])
-
-    def test_no_process_launches_claude_in_the_pane_with_the_first_prompt(self):
-        self.held = set()
-        os.environ["FAKE_HAS"] = "1"
-        try:
-            self.check()
-        finally:
-            os.environ.pop("FAKE_HAS")
-        new = next(c for c in self.calls() if c.startswith("new-session"))
+    def test_no_process_launches_claude_once_with_the_watcher_prompt(self):
+        code, out = self.launch()
+        self.assertEqual(code, 0)
+        calls = self.log.read_text().splitlines()
+        new = next(c for c in calls if c.startswith("new-session"))
         settings = self.state / "hub-settings.json"
         self.assertIn(f"-s tt-hub-session -c /repo claude --dangerously-skip-permissions --settings {settings} "
                       f"--resume {SID}", new)
-        self.assertIn("Before anything else, start `python3 torchtitan/experiments/rl/tools/issue_listener/issue_listener.py watch`", new)
+        self.assertIn('start the watcher: one background subagent (Agent tool, model "sonnet")', new)
+        self.assertIn(f"`python3 {il.LISTENER} watcher-prompt`", new)
+        self.assertIn("Do not run `watch` yourself", new)
         self.assertTrue(json.loads(settings.read_text())["skipDangerousModePermissionPrompt"])
         cfg = json.loads((self.home / ".claude.json").read_text())
         self.assertEqual(cfg["projects"]["/repo"], {"hasTrustDialogAccepted": True, "hasCompletedProjectOnboarding": True})
         self.assertNotIn("hasCompletedOnboarding", cfg)  # user-wide: reported, never written
-        self.assertFalse((self.home / "settings.json").exists())
-        self.assertIn("has not finished onboarding", il.read_text(self.state / "hub.log"))
+        self.assertIn("has not finished onboarding", out)
+        self.assertFalse(any(c.startswith(("load-buffer", "paste-buffer", "send-keys")) for c in calls))
 
-    def test_frozen_hub_is_stopped_and_relaunched(self):
-        self.record("busy")
-        old = time.time() - il.HUB_FREEZE - 60
-        os.utime(self.transcript, (old, old))
-        out = self.check()
-        self.assertIn("frozen", out)
-        self.assertEqual(self.killed, [[os.getpid()]])
-        self.assertTrue(any(c.startswith("respawn-pane -k -t tt-hub-session") for c in self.calls()))
+    def test_open_session_is_left_alone_and_reported(self):
+        self.held = {4242}
+        (self.home / "sessions" / f"{os.getpid()}.json").write_text(json.dumps(
+            {"pid": os.getpid(), "sessionId": SID, "cwd": "/somewhere", "updatedAt": 1}))
+        code, out = self.launch()
+        self.assertEqual(code, 0)
+        self.assertIn("is already open in pid 4242, cwd /somewhere; not launching", out)
+        self.assertFalse(any(c.startswith(("new-session", "respawn-pane")) for c in self.log.read_text().splitlines()))
 
-    def test_a_launcher_and_its_claude_are_one_instance_two_independent_are_two(self):
-        table = {100: (1, f"python -m wrapper --resume {SID}"), 101: (100, "claude-real -p"),
-                 200: (1, f"claude --resume {SID}")}
-        saved = il.process_table, il.session_records, il.holders, il.instances
-        try:
-            il.holders, il.instances = self.saved[3], self.saved[6]
-            il.process_table = lambda: {k: v for k, v in table.items() if k in self.keep}
-            il.session_records = lambda sid: [{"pid": pid} for pid in (101, 200) if pid in self.keep]
-            self.keep = {100, 101}
-            self.assertEqual(il.instances(SID), {100: [100, 101]})
-            self.keep = {100, 101, 200}
-            self.assertEqual(il.instances(SID), {100: [100, 101], 200: [200]})
-        finally:
-            il.process_table, il.session_records, il.holders, il.instances = saved
+    def test_holders_see_a_wrapper_by_resume_or_session_id(self):
+        il.holders = self.saved[2]
+        for flag in ("--resume", "--session-id"):
+            proc = subprocess.Popen([sys.executable, "-c", "import time; time.sleep(30)", flag, SID])
+            try:
+                self.assertIn(proc.pid, il.holders(SID))
+            finally:
+                proc.kill()
+                proc.wait()
 
-    def test_two_independent_instances_are_reported_and_left_alone(self):
-        il.instances = lambda sid: {100: [100, 101], 200: [200]}
-        self.record("busy")
-        old = time.time() - il.HUB_FREEZE - 60
-        os.utime(self.transcript, (old, old))
-        out = self.check()
-        self.assertIn("DUPLICATE, its session is open in 2 independent instances: pid 100 (with 101); pid 200", out)
-        self.assertEqual(self.killed, [])
-        self.assertEqual(self.calls(), [])
+    def test_watcher_prompt_rearms_silently_and_sends_items_to_main(self):
+        prompt = il.WATCHER_PROMPT
+        self.assertIn(f"`python3 {il.LISTENER} watch --stream` running under the Monitor tool", prompt)
+        self.assertIn("timeout_ms 1800000", prompt)
+        self.assertIn("arm it again the same way and tell nobody", prompt)
+        self.assertIn('(SendMessage to "main"), verbatim', prompt)
 
-    def test_frozen_hub_outside_the_pane_is_left_alone(self):
-        il.in_pane = lambda pid: False
-        self.record("busy")
-        old = time.time() - il.HUB_FREEZE - 60
-        os.utime(self.transcript, (old, old))
-        self.assertIn("runs outside tmux tt-hub-session", self.check())
-        self.assertEqual(self.killed, [])
-        self.assertFalse(any(c.startswith(("respawn-pane", "new-session")) for c in self.calls()))
+    def test_once_is_a_no_op_that_says_the_keeper_is_gone(self):
+        r = subprocess.run(["bash", str(HERE / "agent-listen.sh"), "--once"], capture_output=True, text=True)
+        self.assertEqual(r.returncode, 0)
+        self.assertIn("the keeper was removed", r.stdout)
+        self.assertEqual(self.log.read_text(), "")
 
-    def test_usage_limit_stop_is_relaunched(self):
-        self.record("idle")
-        with open(self.transcript, "a") as f:
-            f.write(json.dumps({"type": "assistant", "timestamp": at(0), "isApiErrorMessage": True,
-                                "error": "rate_limit", "message": {"content": [
-                                    {"type": "text", "text": "You've hit your session limit"}]}}) + "\n")
-        out = self.check()
-        self.assertIn("stopped at a usage limit", out)
-        self.assertEqual(self.killed, [[os.getpid()]])
-
-    def test_idle_without_watch_delivers_then_redelivers_once_until_acked(self):
-        self.record("idle")
-        self.gh.comment(3, 51, PEER, "a request while watch is down", at(2))
-        self.check()
-        pasted = [c for c in self.calls() if c.startswith("load-buffer")]
-        self.assertEqual(len(pasted), 1)
-        self.assertIn("a request while watch is down", pasted[0])
-        self.assertIn("Start `python3 torchtitan/experiments/rl/tools/issue_listener/issue_listener.py watch`", pasted[0])
-        il.update_json(self.state / "hub-delivered.json",
-                       lambda m: m["51:3"].__setitem__("at", time.time() - il.REDELIVER_AFTER - 1))
-        il.update_json(self.state / "hub-act.json", lambda g: g.clear())
-        self.check()
-        again = [c for c in self.calls() if c.startswith("load-buffer")]
-        self.assertEqual(len(again), 3)  # the redelivery, then this pass's restart-watch delivery
-        self.assertIn("still not acked", again[1])
-        il.update_json(self.state / "hub-act.json", lambda g: g.clear())
-        self.check()
-        self.assertFalse(any("still not acked" in c for c in self.calls()[len(self.calls()) - 4:]))
-        with contextlib.redirect_stdout(io.StringIO()):
-            il.ack("51", "3")
-        il.update_json(self.state / "hub-act.json", lambda g: g.clear())
-        self.check()
-        self.assertEqual(il.read_json(self.state / "hub-delivered.json"), {})
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)

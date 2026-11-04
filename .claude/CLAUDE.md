@@ -79,23 +79,31 @@ directory it lives in.
 **Keeping a listener up.** Each collaborator runs one hub, so that a request
 from another collaborator reaches an agent session on their side without anyone
 watching the thread. The hub is one Claude Code session that handles every issue
-on that side and gives each issue a subagent of its own. It keeps `python3
-torchtitan/experiments/rl/tools/issue_listener/issue_listener.py watch` running as a
-background task: `watch` prints every new or edited comment and issue body from
-another collaborator's account, mentioned or not, then exits, and its exit wakes
-the hub. The hub acks each printed item (`issue_listener.py ack <issue> <id>`)
-as soon as it has handed the item to a subagent, and starts `watch` again.
-`bash torchtitan/experiments/rl/tools/issue_listener/agent-listen.sh`, started once with
-`gh` signed in as that collaborator's own account, from a checkout of the
-canonical branch on a machine that stays on, is the hub's keeper (tmux session
-`tt-hub`); it installs nothing outside the repository. Once `issue_listener.py
-hub-set <session id>` has named the hub, the keeper launches it when no process
-has its session open, restarts it when it freezes during a turn or stops at a
-usage limit, and while the hub's `watch` is not running, delivers new items to
-the hub itself. Only after a reboot does the keeper have to be started again by
-hand; it then launches the hub. An agent that finds its own side's hub or keeper
-down restarts it without asking, and may ask another collaborator's agent to do
-the same.
+on that side and gives each issue a subagent of its own. It listens through one
+more background subagent, the watcher, started with model `sonnet` and, word for
+word, the prompt that `python3
+torchtitan/experiments/rl/tools/issue_listener/issue_listener.py watcher-prompt`
+prints. The watcher keeps `issue_listener.py watch --stream` running under the
+Monitor tool with the longest timeout it allows (30 minutes): the stream polls
+every minute and prints every new or edited comment and issue body from another
+collaborator's account, mentioned or not, as one JSON line. The watcher sends
+each batch of lines verbatim to the hub (`SendMessage` to `main`) and keeps
+running; when the monitor expires, it arms it again without contacting the
+hub. The hub never runs `watch` itself. It acks each item (`issue_listener.py
+ack <issue> <id>`) as soon as it has handed the item to a subagent; an item it
+has not acked comes back each time the watcher re-arms. It starts a new watcher
+whenever it is told the watcher has finished. `bash
+torchtitan/experiments/rl/tools/issue_listener/agent-listen.sh`, run with `gh`
+signed in as that collaborator's own account, from a checkout of the canonical
+branch on a machine that stays on, launches the hub once (tmux session
+`tt-hub-session`) when no process has its session open, and otherwise says
+where it runs; `issue_listener.py hub-set <session id>` names the hub first. It
+installs nothing outside the repository and leaves nothing running besides the
+hub. Nothing restarts the hub itself: after it exits, stops at a usage limit, or
+the machine reboots, that side hears nothing until someone runs
+`agent-listen.sh` again. An agent that finds its own side's hub or watcher down
+restarts it without asking, and may ask another collaborator's agent to do the
+same.
 
 **One voice per issue on each side.** Each side has one hub and one `watch`, and
 speaks with one voice in each issue. An issue belongs to whichever of an
@@ -106,7 +114,7 @@ minutes while that side's hub is up; a side whose hub was down answers what
 issue (`issue_listener.py route` records which subagent has which issue) posts
 there, and it ends each comment with the hub's session line. A subagent does its
 code work in a git worktree of its own and never switches the branch of the
-checkout the keeper runs from. A session that finds a later session line of its
+checkout the hub runs from. A session that finds a later session line of its
 own account than its own has handed the issue over and posts there again only
 when its owner asks.
 
