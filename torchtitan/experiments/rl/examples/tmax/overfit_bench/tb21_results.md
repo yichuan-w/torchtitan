@@ -85,7 +85,7 @@ in run 1030c solved it (#309). A box is ticked once the task is overfit (rule ab
 
 - [x] db-wal-recovery (base 0/75) - overfit at step ~95; 64-attempt confirm 17/64 at step 90
 - [x] raman-fitting (0/74) - overfit at step 55 on the 3/16 bar (readout 3/16 at 55, 105, 115, 161); 64-attempt confirms: step 60 3/64, step 160 running
-- [ ] install-windows-3.11 (0/71) - running; original passed 2 training groups, readout 1/16 at step 10
+- [ ] install-windows-3.11 (0/71) - retired 2026-11-04 at step 129: every readout 0/16 (steps 55-120); the original passed 2 training groups early on and none since; one mixed group in its last 3 h; ~20 min per step (QEMU in a 1-CPU sandbox) and many short groups from errored attempts
 - [ ] filter-js-from-html (0/75) - ran the full 200 steps; original passed 2 training groups, every readout 0/16; retired 2026-11-03
 - [ ] torch-tensor-parallelism (0/75) - ran the full 200 steps, every readout 0/16; retired 2026-11-03. Rerun from step 0 on 2026-11-03 (c6adef) under the 068e24a0 teacher_agents.md, which named this task with an earlier run's diagnosis: not comparable with other jobs (#307); its versions carrying the original's tests were retired at 12:12
 - [ ] torch-pipeline-parallelism (0/75) - running (back on the recipe: at 300 turns most attempts hit the 2 h budget)
