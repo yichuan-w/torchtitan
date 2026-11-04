@@ -12,8 +12,9 @@
 
 The teacher is a codex session continued round after round in one working directory (teacher_agents.md
 becomes its AGENTS.md). It is called before training and whenever a training group ends close to all
-failed or all passed (at most --near attempts away), the groups that teach nothing; events that arrive
-while it works are kept for its next round. Each round it reads the directory this process keeps:
+failed or all passed (at most --near attempts away), the groups that teach nothing, and when a new
+version's first --first-fails attempts all fail; events that arrive while it works are kept for its
+next round. Each round it reads the directory this process keeps:
 every version of the pool in full, every training attempt of the run, a summary and its own history.
 It writes plan.json and any new versions under new/. This process checks each new version on Daytona
 (its reference solution passes its tests; its untouched state fails them), adds those that pass to the
@@ -78,6 +79,11 @@ class Policy:
     # a single 1/12 (install-windows-3.11, 2026-11-02). Both shares are floors: the teacher may give
     # the original more, up to the whole draw.
     original_share_passing: float = 0.5
+    # A new version whose first this many scored attempts all fail calls the teacher once, while its
+    # group runs on: a group takes about an hour, and most new versions of a hard task end 0/12, so
+    # the teacher can start on an easier one without waiting for the rest (#307: the group is not
+    # stopped, since one at a 10% rate still passes in the other 8 attempts 57% of the time). 0: off.
+    first_fails: int = 4
 
 
 def recipe() -> dict[str, str]:
@@ -302,6 +308,11 @@ class Teacher:
         if kind == "rollout_done":
             self.attempts[vid].append({"run": e.get("run"), "path": e["record_path"], "group": group,
                                        "idx": e.get("idx"), "reward": e.get("reward"), "end": e.get("finish_reason")})
+            n = self.policy.first_fails
+            scored = [a for a in self.attempts[vid] if a["reward"] is not None]
+            if (n and len(scored) == n and not self.groups.get(vid) and all(float(a["reward"]) <= 0 for a in scored)
+                    and self.versions.get(vid, {}).get("rev") not in (0, "0")):
+                self.pending.append(f"{self.label(vid)}'s first {n} attempts all failed (its group runs on)")
             return
         if not e.get("scored"):
             return

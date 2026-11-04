@@ -72,7 +72,7 @@ def _setup(job, monkeypatch, script, check=check_ok, original_share=0.0, origina
     return t
 
 
-def _attempts(run, sched, *, group, rewards, version=V0, rev=0):
+def _attempts(run, sched, *, group, rewards, version=V0, rev=0, done=True):
     for i, r in enumerate(rewards):
         rel = f"rollouts/a/g{group}-r{i}.jsonl"
         (run.path / rel).parent.mkdir(parents=True, exist_ok=True)
@@ -83,8 +83,9 @@ def _attempts(run, sched, *, group, rewards, version=V0, rev=0):
             {"turn": 1, "keystrokes": ["ls\n"], "output": "x" * 10000, "think": "hm"}) + "\n")
         sched.submit(events.make(events.ROLLOUT_DONE, version=version, task="a", rev=rev, group=group, idx=i,
                                  reward=r, finish_reason="submit", record_path=rel, policy_versions=[0, 0]))
-    sched.submit(events.make(events.GROUP_DONE, version=version, task="a", rev=rev, group=group,
-                             passed=int(sum(rewards)), scored=len(rewards), policy_version=0))
+    if done:
+        sched.submit(events.make(events.GROUP_DONE, version=version, task="a", rev=rev, group=group,
+                                 passed=int(sum(rewards)), scored=len(rewards), policy_version=0))
 
 
 def _settle(t, cond=lambda: True):
@@ -118,6 +119,31 @@ def test_a_group_near_all_failed_calls_the_teacher_and_a_mixed_group_does_not(jo
     _settle(t, lambda: sum(map(len, t.groups.values())) == 2)
     assert len(script.prompts) == 2 and "g1 ended 1/12" in script.prompts[1]
     assert _pool(sched)[V0]["weight"] == 0.5
+
+
+def test_only_a_new_versions_first_attempts_all_failing_call_the_teacher(job, monkeypatch):
+    root, run, sched, client = job
+    script = Script(new_version("v1", "solve a gently"), lambda w: {})
+    t = _setup(job, monkeypatch, script)
+    _settle(t, lambda: len(_pool(sched)) == 2)
+    v1 = next(v["id"] for v in _pool(sched).values() if v["rev"] == 1)
+    _attempts(run, sched, group=0, rewards=[0.0] * 4, done=False)  # the original
+    _attempts(run, sched, group=1, rewards=[0.0, 1.0, 0.0, 0.0], version=v1, rev=1, done=False)
+    _attempts(run, sched, group=2, rewards=[0.0] * 6, version=v1, rev=1, done=False)  # not its first 4
+    _settle(t, lambda: len(t.attempts[v1]) == 10 and len(t.attempts[V0]) == 4)
+    assert len(script.prompts) == 1
+
+
+def test_a_new_version_failing_its_first_attempts_calls_the_teacher_once(job, monkeypatch):
+    root, run, sched, client = job
+    script = Script(new_version("v1", "solve a gently"), lambda w: {}, lambda w: {})
+    t = _setup(job, monkeypatch, script)
+    _settle(t, lambda: len(_pool(sched)) == 2)
+    v1 = next(v["id"] for v in _pool(sched).values() if v["rev"] == 1)
+    _attempts(run, sched, group=0, rewards=[0.0] * 8, version=v1, rev=1, done=False)
+    _settle(t, lambda: len(t.attempts[v1]) == 8 and len(script.prompts) == 2)
+    assert "r1's first 4 attempts all failed (its group runs on)" in script.prompts[1]
+    assert len(script.prompts) == 2
 
 
 def test_the_directory_holds_every_version_and_compact_attempts(job, monkeypatch):
