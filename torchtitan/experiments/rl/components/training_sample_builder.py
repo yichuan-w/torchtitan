@@ -347,7 +347,9 @@ class TrainingSampleBuilder(Configurable):
                 training_sample.max_policy_version, rollout_turn.max_policy_version
             )
             training_sample.token_ids += rollout_turn.completion_token_ids
-            training_sample.loss_mask += [True] * num_completion
+            training_sample.loss_mask += [
+                not rollout_turn.mask_completion_from_loss
+            ] * num_completion
             training_sample.logprobs += rollout_turn.completion_logprobs
             training_sample.advantage += [rollout_advantage] * num_completion
             topk_parts[-1].append((num_delta, None))
@@ -359,9 +361,9 @@ class TrainingSampleBuilder(Configurable):
             training_sample.topk = _concat_topk(parts)
 
         # TITO integrity. NOTE: counting loss_mask=True vs sum(completion lengths) is
-        # TAUTOLOGICAL -- the loop above sets [True]*len(completion) and
-        # [False]*len(prompt_delta) by construction, so that equality always holds and
-        # can never catch a dedup error (the old assert here was a no-op). The real,
+        # TAUTOLOGICAL -- the loop above sets the completion's mask from the turn and
+        # [False]*len(prompt_delta) by construction, so that equality cannot catch a
+        # dedup error (the old assert here was a no-op). The real,
         # non-tautological corruption is a per-turn completion token/logprob length
         # mismatch from capture: the loss pairs trainer-vs-generator logprobs 1:1, so a
         # mismatch shifts the ratio. Warn (don't crash a live rollout) if it happens.

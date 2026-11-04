@@ -278,6 +278,28 @@ _PLATFORM_FAILURE = re.compile(
     r"|ActorError|SupervisionError|command too long",
     re.I,
 )
+# Training only: keep the turns the harness could not parse (AgentRun.
+# format_error_turns) in the context but out of the loss. Such a turn earns no
+# penalty of its own -- the harness warns and the agent retries -- so inside a
+# solved rollout it shares the positive advantage, which is how a misspelled
+# <keystrokes> tag grew from 2% to 18% of 111e rollouts in ten steps.
+# TMAX_MASK_FORMAT_ERROR_CATEGORIES picks which labels count; the default leaves
+# out "truncated", which strict truncation and the per-turn cap already cover.
+_MASK_FORMAT_ERROR_TURNS = os.environ.get("TMAX_MASK_FORMAT_ERROR_TURNS", "0") == "1"
+_MASK_FORMAT_ERROR_CATEGORIES = frozenset(
+    c.strip()
+    for c in os.environ.get(
+        "TMAX_MASK_FORMAT_ERROR_CATEGORIES",
+        ",".join(c for c in FORMAT_ERROR_CATEGORIES if c != "truncated"),
+    ).split(",")
+    if c.strip()
+)
+_unknown = _MASK_FORMAT_ERROR_CATEGORIES - set(FORMAT_ERROR_CATEGORIES)
+if _unknown:
+    raise ValueError(
+        f"TMAX_MASK_FORMAT_ERROR_CATEGORIES has unknown labels {sorted(_unknown)}; "
+        f"choose from {FORMAT_ERROR_CATEGORIES}"
+    )
 _DEBCONF_NONINTERACTIVE_CMD = (
     "command -v debconf-set-selections >/dev/null 2>&1 && "
     "echo 'debconf debconf/frontend select Noninteractive' | debconf-set-selections"
@@ -294,7 +316,10 @@ async def _set_debconf_noninteractive(sandbox: _RootSandbox) -> None:
 
 
 def _captured_to_turns(
-    captured: list[CapturedTurn], group_id: str, rollout_idx: int
+    captured: list[CapturedTurn],
+    group_id: str,
+    rollout_idx: int,
+    masked_captures: frozenset[int] = frozenset(),
 ) -> list[RolloutTurn]:
     """Lay the adapter's captured turns out as RolloutTurns.
 
@@ -310,10 +335,13 @@ def _captured_to_turns(
     reassembled here into the shape RolloutTurn documents: ``prompt_messages``
     is the conversation up to a turn, ``env_messages`` is what the environment
     replied afterwards.
+
+    ``masked_captures`` holds indices into ``captured`` whose completions stay out
+    of the loss (``RolloutTurn.mask_completion_from_loss``).
     """
     turns: list[RolloutTurn] = []
     pending_env: list[Message] = []
-    for ct in captured:
+    for capture_idx, ct in enumerate(captured):
         if not ct.completion_token_ids:
             # An over-budget turn is dropped, but the environment output that
             # pushed it over budget is the episode's last observation. Hold it
@@ -343,6 +371,7 @@ def _captured_to_turns(
                 completion_topk=ct.completion_topk,
                 min_policy_version=ct.min_policy_version,
                 max_policy_version=ct.max_policy_version,
+                mask_completion_from_loss=capture_idx in masked_captures,
                 prompt_messages=prompt_messages,
                 completion_message=ct.completion_message,
                 metrics=ct.metrics,
@@ -770,6 +799,28 @@ def _format_breakdown_metrics(
         m.Metric(
             "rollout/truncated_turns_mean",
             mean(b.get("truncated_turns", 0) for b in present),
+        ),
+        # Token-drift early warnings, per reply: a misspelled <keystrokes> tag
+        # (the turn runs nothing) and CJK text inside <commands>.
+        m.Metric(
+            "rollout/keystrokes_typo_turn_frac_mean",
+            mean(
+                b.get("keystrokes_typo_turns", 0) / b["replies"]
+                if b.get("replies")
+                else 0.0
+                for b in present
+            ),
+        ),
+        m.Metric(
+            "rollout/cjk_command_turn_frac_mean",
+            mean(
+                b.get("cjk_command_turns", 0) / b["replies"] if b.get("replies") else 0.0
+                for b in present
+            ),
+        ),
+        m.Metric(
+            "rollout/format_error_masked_turns_mean",
+            mean(b.get("masked_turns", 0) for b in present),
         ),
         m.Metric(
             "rollout/confirm_asks_mean",
@@ -2268,6 +2319,8 @@ class TMaxRollouter(Rollouter):
         fmt_errors = 0  # total format errors this rollout (from run_vanillux_loop)
         # Per-category split (AgentRun.format_breakdown); empty when not tracked.
         format_breakdown: dict[str, int] = {}
+        # AgentRun.format_error_turns: model-call index -> category.
+        format_error_turns: dict[int, str] = {}
         # Default for the timeout/exception paths where run_vanillux_loop never
         # returned (it sets its own reason on the normal path).
         finish_reason = "error"
@@ -2528,6 +2581,7 @@ class TMaxRollouter(Rollouter):
                     submitted = agent_run.submitted is not False
                     fmt_errors = agent_run.format_errors
                     format_breakdown = dict(agent_run.format_breakdown)
+                    format_error_turns = dict(agent_run.format_error_turns)
                     finish_reason = agent_run.finish_reason
                     violation_turn = agent_run.violation_turn
                     # The harness's own turn count, which is what decides
@@ -2813,7 +2867,18 @@ class TMaxRollouter(Rollouter):
             resource_probe=dict(resource_probe),
         )
 
-        turns = _captured_to_turns(captured, group_id, rollout_idx)
+        masked_captures = frozenset(
+            idx
+            for idx, category in format_error_turns.items()
+            if category in _MASK_FORMAT_ERROR_CATEGORIES and idx < len(captured)
+        )
+        if not (_MASK_FORMAT_ERROR_TURNS and group_id >= 0):
+            masked_captures = frozenset()
+        if format_breakdown:
+            format_breakdown["masked_turns"] = sum(
+                1 for idx in masked_captures if captured[idx].completion_token_ids
+            )
+        turns = _captured_to_turns(captured, group_id, rollout_idx, masked_captures)
         if grade_unsubmitted and group_id >= 0 and finish_reason == "hit_context_limit":
             _drop_context_wall_turn(turns, captured)
 

@@ -142,3 +142,18 @@ def test_generator_metrics_ride_through_to_the_rollout_turn() -> None:
     turns = _captured_to_turns([first, _turn(messages=[])], group_id="g", rollout_idx=0)
     assert turns[0].metrics == [hit_rate]
     assert turns[1].metrics == []
+
+
+def test_masked_captures_index_the_captured_list_not_the_kept_turns() -> None:
+    captured = [
+        _turn(messages=[{"role": "user", "content": "task"}], full=True),
+        _turn(messages=[{"role": "user", "content": "out1"}], completion=None, ids=[]),
+        _turn(messages=[{"role": "user", "content": "out2"}]),
+        _turn(messages=[{"role": "user", "content": "out3"}]),
+    ]
+    turns = _captured_to_turns(captured, "g", 0, masked_captures=frozenset({2}))
+    # Capture 1 is empty and dropped, so capture 2 becomes kept turn 1.
+    assert [t.mask_completion_from_loss for t in turns] == [False, True, False]
+    assert not any(
+        t.mask_completion_from_loss for t in _captured_to_turns(captured, "g", 0)
+    )

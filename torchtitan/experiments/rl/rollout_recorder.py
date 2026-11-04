@@ -141,6 +141,7 @@ class RolloutSampleRecorder(Configurable):
             "turn_id": turn.rollout_id.turn_id,
             "min_policy_version": turn.min_policy_version,
             "max_policy_version": turn.max_policy_version,
+            "mask_completion_from_loss": turn.mask_completion_from_loss,
             "prompt_messages": turn.prompt_messages,
             "completion_message": turn.completion_message,
             "env_messages": turn.env_messages,

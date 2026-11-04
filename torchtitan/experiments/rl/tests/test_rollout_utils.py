@@ -32,6 +32,7 @@ def _turn(
     version: int,
     max_version: int | None = None,
     content: str = "x",
+    masked: bool = False,
 ) -> RolloutTurn:
     return RolloutTurn(
         rollout_id=RolloutTurnID(group_id=_GROUP_ID, rollout_id=0, turn_id=0),
@@ -40,6 +41,7 @@ def _turn(
         completion_logprobs=[-0.1] * len(completion_token_ids),
         min_policy_version=version,
         max_policy_version=version if max_version is None else max_version,
+        mask_completion_from_loss=masked,
         completion_message={"role": "assistant", "content": content},
     )
 
@@ -213,3 +215,39 @@ def test_builder_can_keep_scored_empty_sibling_without_training_its_tokens() -> 
     metric_by_key = {metric.key: metric for metric in result.metrics}
     assert "training_sample_builder/num_groups_dropped_untrainable" not in metric_by_key
     assert "training_sample_builder/num_untrainable_rollouts" in metric_by_key
+
+
+def test_masked_turn_stays_in_context_but_out_of_the_loss() -> None:
+    rollout = _scored_rollout(
+        [
+            _turn(prompt_token_ids=[1, 2], completion_token_ids=[4], version=2),
+            _turn(
+                prompt_token_ids=[1, 2, 4, 8],
+                completion_token_ids=[5, 6],
+                version=2,
+                masked=True,
+            ),
+            _turn(
+                prompt_token_ids=[1, 2, 4, 8, 5, 6, 9],
+                completion_token_ids=[7],
+                version=2,
+            ),
+        ],
+        reward=1.0,
+        advantage=0.5,
+    )
+    [training_sample] = rollout_to_training_samples(rollout)
+    assert training_sample.token_ids == [1, 2, 4, 8, 5, 6, 9, 7]
+    #               P      P      a0    E1     a1(masked)    E2     a2
+    assert training_sample.loss_mask == [
+        False,
+        False,
+        True,
+        False,
+        False,
+        False,
+        False,
+        True,
+    ]
+    # Logprobs and advantage are still laid out; loss_mask alone excludes them.
+    assert training_sample.logprobs == [0.0, 0.0, -0.1, 0.0, -0.1, -0.1, 0.0, -0.1]

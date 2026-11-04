@@ -112,6 +112,11 @@ class RolloutTurn:
     max_policy_version: int | None = None
     """Newest policy version this turn was sampled under; `None` if no generation happened."""
 
+    mask_completion_from_loss: bool = False
+    """Keep this turn's completion in the packed sequence but out of the loss
+    (``loss_mask`` False), e.g. a reply the harness could not parse. Its tokens stay
+    in the context the later turns are trained on."""
+
     # Logging
     prompt_messages: list[Message] = field(
         default_factory=list

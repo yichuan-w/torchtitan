@@ -260,6 +260,8 @@ class _AdapterLLM:
         self.violation: str | None = None
         self.violation_category: str | None = None
         self.violation_turn = 0
+        # 0-based model-call index -> format-error category (_CountingParser).
+        self.format_error_turns: dict[int, str] = {}
 
     def flag_violation(self, kind: str, category: str) -> None:
         """Record that the latest reply broke a strict rule; the first one wins."""
@@ -496,6 +498,11 @@ _WRAPPER_TAG_RE = re.compile(
     r"</?(response|analysis|plan|commands|task_complete|think)\s*/?>"
 )
 _DEGENERATE_MAX_CHARS = 25
+# An opening tag that starts like <keystrokes> but is not it (<keystrakes>,
+# <keystrashes>): the parser finds no command, so the turn runs nothing.
+_KEYSTROKES_LIKE_TAG_RE = re.compile(r"<(key\w*)")
+_COMMANDS_RE = re.compile(r"<commands>(.*?)(?:</commands>|$)", re.S)
+_CJK_RE = re.compile(r"[\u3040-\u30ff\u3400-\u4dbf\u4e00-\u9fff\uac00-\ud7af]")
 
 
 class _CountingParser:
@@ -548,6 +555,10 @@ class _CountingParser:
         self._streak = 0
         self._acted = False
         self._prev: str | None = None
+        # Replies with a misspelled <keystrokes> tag, and replies whose <commands>
+        # section contains CJK text: early signs of token-level drift.
+        self.keystrokes_typo_turns = 0
+        self.cjk_command_turns = 0
 
     def __getattr__(self, name: str) -> Any:
         return getattr(self._inner, name)
@@ -567,6 +578,12 @@ class _CountingParser:
         self.replies += 1
         self.repeat_turns += repeat
         self._prev = text
+        self.keystrokes_typo_turns += any(
+            tag != "keystrokes" for tag in _KEYSTROKES_LIKE_TAG_RE.findall(text)
+        )
+        self.cjk_command_turns += any(
+            _CJK_RE.search(section) for section in _COMMANDS_RE.findall(text)
+        )
         category = "other"
         if not getattr(result, "commands", None) and not getattr(
             result, "is_task_complete", False
@@ -578,6 +595,10 @@ class _CountingParser:
             self.max_streak = max(self.max_streak, self._streak)
             if not self._acted:
                 self.opening_streak += 1
+            if self._llm is not None and self._llm.calls > 0:
+                # Model call k is the adapter's k-th captured turn. A truncated
+                # turn re-parsed by Terminus-2 keeps its first label.
+                self._llm.format_error_turns.setdefault(self._llm.calls - 1, category)
         else:
             self._streak = 0
             self._acted = True
@@ -628,6 +649,8 @@ class _CountingParser:
             "repeat_turns": self.repeat_turns,
             "replies": self.replies,
             "truncated_turns": truncated_turns,
+            "keystrokes_typo_turns": self.keystrokes_typo_turns,
+            "cjk_command_turns": self.cjk_command_turns,
         }
 
 
@@ -1751,6 +1774,13 @@ async def terminus_agent(
         finish_reason=finish_reason,
         violation_category=violation_category,
         violation_turn=violation_turn,
+        # A summarization subagent call is captured too, which would shift the
+        # call -> captured-turn mapping; report nothing rather than mislabel.
+        format_error_turns=(
+            dict(llm.format_error_turns)
+            if llm is not None and not llm.subagent_calls
+            else {}
+        ),
         exec_trace=env.exec_trace,
         # The pane lives in the sandbox, which is still up when this returns;
         # the rollouter reads it if this run collects transcripts.

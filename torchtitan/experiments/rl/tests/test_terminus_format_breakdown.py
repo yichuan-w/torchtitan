@@ -218,3 +218,61 @@ def test_terminus_asks_the_adapter_for_plain_text():
     )
     asyncio.run(llm.call(prompt="go"))
     assert payloads[0]["plain_text"] is True
+
+
+def _replying_llm(replies: list[str]) -> _AdapterLLM:
+    pending = list(replies)
+
+    class _Adapter:
+        async def complete(self, _session_id, _payload):
+            return {
+                "content": [{"type": "text", "text": pending.pop(0)}],
+                "stop_reason": "end_turn",
+                "usage": {"input_tokens": 10, "output_tokens": 10},
+            }
+
+    return _AdapterLLM(
+        _Adapter(),
+        session_id="group=0/rollout=0",
+        max_context=63488,
+        turn_max_tokens=16384,
+    )
+
+
+def test_format_error_turns_are_keyed_by_model_call():
+    replies = [VALID, CASES["silent_noop"], VALID, CASES["plain_text"]]
+    llm = _replying_llm(replies)
+    parser = _parser(llm)
+    for _ in replies:
+        reply = asyncio.run(llm.call(prompt="go"))
+        parser.parse_response(reply.content)
+    assert llm.format_error_turns == {1: "silent_noop", 3: "plain_text"}
+
+
+def test_misspelled_keystrokes_tag_is_a_silent_noop_and_counted():
+    typo = _resp(
+        '<commands><keystrakes duration="0.1">ls -la\n</keystrakes></commands>'
+    )
+    other_typo = _resp(
+        '<commands><keystrashes duration="0.1">pwd\n</keystrashes></commands>'
+    )
+    parser = _drive([VALID, typo, other_typo])
+    assert parser.categories["silent_noop"] == 2
+    breakdown = parser.breakdown()
+    assert breakdown["keystrokes_typo_turns"] == 2
+    assert breakdown["cjk_command_turns"] == 0
+
+
+def test_cjk_inside_commands_is_counted_but_not_in_analysis():
+    cjk_cmd = _resp(
+        '<commands><keystrokes duration="0.1">echo 当前\n</keystrokes></commands>'
+    )
+    cjk_analysis = (
+        "<response>\n<analysis>文件需要修复。</analysis>\n"
+        f"{_PLAN}\n"
+        '<commands><keystrokes duration="0.1">ls\n</keystrokes></commands>\n'
+        "</response>"
+    )
+    breakdown = _drive([cjk_cmd, cjk_analysis, VALID]).breakdown()
+    assert breakdown["cjk_command_turns"] == 1
+    assert breakdown["keystrokes_typo_turns"] == 0

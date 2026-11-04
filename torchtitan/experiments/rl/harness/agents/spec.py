@@ -140,6 +140,11 @@ class AgentRun:
     violation_turn: int = 0
     """1-based model turn on which a strict rule ended the episode; 0 if none."""
 
+    format_error_turns: dict[int, str] = field(default_factory=dict)
+    """0-based model-call index -> ``FORMAT_ERROR_CATEGORIES`` label for each reply
+    the harness could not use. Model call k is the adapter's k-th captured turn, so
+    a rollouter can mask those turns out of the loss. Empty when not tracked."""
+
     exec_trace: list[dict] = field(default_factory=list)
     """Every sandbox command the harness ran, in order, as
     ``{"t", "secs", "exit", "cmd"}`` (``cmd`` cut to 400 characters). A rollout's
