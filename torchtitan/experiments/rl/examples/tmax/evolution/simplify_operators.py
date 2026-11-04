@@ -316,7 +316,16 @@ of the attempt's characters is rejected, because it locates nothing the change
 could remove. rest is an integer: the characters you estimate a successful
 attempt still spends on the changed task, on the stages the change leaves --
 the files it must write times the rewrites the attempts made of their own
-files, the output it must read -- including the stages no trace reached. It
+files, the output it must read -- including the stages no trace reached. A
+limit-ended attempt stopped before it finished, so what it spent minus the
+stage you remove is only the part of the work it reached; the stages after the
+point where it stopped come on top of that, at the rate the attempts worked
+(the characters an attempt spent on a stage it did finish, over the length of
+what that stage produced), not at the length of the reference solution. In one
+measured batch of 74 easier rewrites, attempts that succeeded spent a median
+1.5 times the rest their rewrite declared, and in each of the 25 rewrites that
+stayed at 0 of 16 the attempts ended at a limit having spent more than the
+declared rest, although every one of those rests was within the bound below. It
 must fit in two thirds of what a limit-ended attempt held when it ended
 (./sandbox chars prints the attempt's total), scaled by the student's context
 over the context the traces ran under; when it does not, the change
