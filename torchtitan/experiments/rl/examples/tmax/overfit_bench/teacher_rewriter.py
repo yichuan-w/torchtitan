@@ -12,8 +12,9 @@
 
 The teacher is a codex session continued round after round in one working directory (teacher_agents.md
 becomes its AGENTS.md). It is called before training and whenever a training group ends close to all
-failed or all passed (at most --near attempts away), the groups that teach nothing; events that arrive
-while it works are kept for its next round. Each round it reads the directory this process keeps:
+failed or all passed (at most --near attempts away), the groups that teach nothing, and when a new
+version's first --first-fails attempts all fail; events that arrive while it works are kept for its
+next round. Each round it reads the directory this process keeps:
 every version of the pool in full, every training attempt of the run, a summary and its own history.
 It writes plan.json and any new versions under new/. This process checks each new version on Daytona
 (its reference solution passes its tests; its untouched state fails them), adds those that pass to the
@@ -68,6 +69,21 @@ class Policy:
     check_timeout: int = 1800
     output_chars: int = 4000
     workers: int = 8
+    # The original's share of the draw weight, held after every plan and new version; it cannot be
+    # retired. Without it the teacher dropped the original after its first groups, so a solve on it
+    # could only show in the readout, which trains nothing. 0 leaves the original to the teacher.
+    original_share: float = 0.125
+    # The share once the original has passed in a training group: from then on the original trains
+    # the student directly (sqlite-db-truncate, 2026-11-01: 1/12 groups at 1/8, then 4/11, 7/12 and
+    # 11/12 at 1/2). It stays once reached: keyed to the last 3 groups it flipped back to 1/8 after
+    # a single 1/12 (install-windows-3.11, 2026-11-02). Both shares are floors: the teacher may give
+    # the original more, up to the whole draw.
+    original_share_passing: float = 0.5
+    # A new version whose first this many scored attempts all fail calls the teacher once, while its
+    # group runs on: a group takes about an hour, and most new versions of a hard task end 0/12, so
+    # the teacher can start on an easier one without waiting for the rest (#307: the group is not
+    # stopped, since one at a 10% rate still passes in the other 8 attempts 57% of the time). 0: off.
+    first_fails: int = 4
 
 
 def recipe() -> dict[str, str]:
@@ -88,8 +104,38 @@ def agents_md(policy: Policy, sandbox: dict) -> str:
         context=r.get("SWE_MAX_CONTEXT_LEN", "?"),
         hours=f"{int(r.get('SWE_BENCH_TRAIN_BUDGET_SEC', '0')) / 3600:g}",
         stale=r.get("SWE_OFFPOLICY_STEPS", "?"), val_every=r.get("SWE_VAL_INTERVAL", "?"),
-        cap=policy.max_active, cpu=sandbox.get("daytona_cpu") or "?",
+        cap=policy.max_active, share=f"{policy.original_share:.0%}",
+        share_passing=f"{policy.original_share_passing:.0%}", cpu=sandbox.get("daytona_cpu") or "?",
         mem=sandbox.get("daytona_mem_gb") or "?", disk=sandbox.get("daytona_disk_gb") or "?")
+
+
+def _graded_lines(paths: list[Path], min_len: int = 30) -> set[str]:
+    """Substantive lines (stripped, at least ``min_len`` characters, not a comment or import) of the
+    text files under ``paths``."""
+    out: set[str] = set()
+    for root in paths:
+        files = [root] if root.is_file() else sorted(p for p in root.rglob("*") if p.is_file()) if root.is_dir() else []
+        for f in files:
+            if "__pycache__" in f.parts or f.stat().st_size > 2_000_000:
+                continue
+            try:
+                text = f.read_text(errors="strict")
+            except (UnicodeDecodeError, OSError):
+                continue
+            for line in text.splitlines():
+                line = line.strip()
+                if len(line) >= min_len and not line.startswith(("#", "//", "import ", "from ")):
+                    out.add(line)
+    return out
+
+
+def leaked_lines(original: Path, package: Path) -> list[str]:
+    """Lines of the original's tests/ and solution/ that a version puts where the student sees them
+    (its instruction.md and environment/), less those the original itself already shows there."""
+    graded = _graded_lines([original / "tests", original / "solution"])
+    public = _graded_lines([original / "instruction.md", original / "environment"])
+    seen = _graded_lines([package / "instruction.md", package / "environment"])
+    return sorted((graded - public) & seen)
 
 
 def verifier_output(head: dict) -> str:
@@ -114,7 +160,9 @@ def compact_attempt(src: Path, label: str, chars: int) -> str:
     summary = {"problem": label, "group": head.get("group"), "attempt": head.get("rollout"),
                "reward": head.get("reward"), "end": head.get("finish_reason"), "submitted": head.get("submitted"),
                "turns": head.get("turns"), "tests": test_results(verifier_output(head))}
-    if not summary["tests"]:
+    # pytest's summary lines cut the error to the terminal width ("FAILED: <test>...."), so a failed
+    # attempt also carries the output tail, where the assertion and its values are.
+    if not summary["tests"] or not head.get("reward"):
         summary["verifier_output"] = verifier_output(head)[-chars:]
     out = [json.dumps(summary, ensure_ascii=False)]
     for line in lines[1:]:
@@ -216,7 +264,9 @@ class Teacher:
         self._futs: dict[Future, tuple[str, str]] = {}
 
     def _save(self) -> None:
-        layout.write_json_atomic(self.dir / "state.json", self.state)
+        # which_version writes the same file from the client's thread; one temp name, so one writer at a time.
+        with self._lock:
+            layout.write_json_atomic(self.dir / "state.json", self.state)
 
     def label(self, vid: str) -> str:
         v = self.versions.get(vid)
@@ -258,11 +308,19 @@ class Teacher:
         if kind == "rollout_done":
             self.attempts[vid].append({"run": e.get("run"), "path": e["record_path"], "group": group,
                                        "idx": e.get("idx"), "reward": e.get("reward"), "end": e.get("finish_reason")})
+            n = self.policy.first_fails
+            # A format error ends an attempt before it tries the task: it says nothing about difficulty.
+            scored = [a for a in self.attempts[vid] if a["reward"] is not None and a["end"] != "format_error"]
+            if (n and len(scored) == n and not self.groups.get(vid) and all(float(a["reward"]) <= 0 for a in scored)
+                    and self.versions.get(vid, {}).get("rev") not in (0, "0")):
+                self.pending.append(f"{self.label(vid)}'s first {n} attempts all failed (its group runs on)")
             return
         if not e.get("scored"):
             return
         g = {"group": group, "passed": int(e["passed"]), "scored": int(e["scored"]), "at": e.get("stamp")}
         self.groups[vid].append(g)
+        if self.versions.get(vid, {}).get("rev") in (0, "0"):
+            self.hold_original()
         label = self.label(vid)
         self.news.append(f"{label} g{g['group']} finished: {g['passed']}/{g['scored']} passed")
         near = self.policy.near
@@ -311,7 +369,7 @@ class Teacher:
                 if int(v["rev"]):
                     diff = subprocess.run(["diff", "-ruN", "--exclude=.*", "--exclude=status.json",
                                            "--exclude=diff.patch", "../r0", "."], cwd=d,
-                                          capture_output=True, text=True, check=False).stdout
+                                          capture_output=True, text=True, errors="replace", check=False).stdout
                     (d / "diff.patch").write_text(diff)
             info = self.state["versions"].get(label, {})
             layout.write_json_atomic(d / "status.json", {
@@ -421,6 +479,9 @@ class Teacher:
             if v is None or v["status"] != "active":
                 done.append(f"retire {label}: not an active version")
                 continue
+            if int(v["rev"]) == 0 and self.policy.original_share > 0:
+                done.append(f"retire {label}: the original stays in the pool")
+                continue
             self._call("retire", v["id"])
             v["status"] = "retired"
             done.append(f"retired {label}")
@@ -432,6 +493,16 @@ class Teacher:
             self._call("reweight", v["id"], float(w))
             v["weight"] = float(w)
             done.append(f"{label} weight {w:g}")
+        original = next((v for v in self.versions.values() if int(v["rev"]) == 0), None)
+        if original is not None and "r0" in plan["weights"]:
+            # The share the teacher asked for, kept as the other weights change; below the floor
+            # the floor wins.
+            total = sum(float(v.get("weight") or 0) for v in self.versions.values() if v["status"] == "active")
+            # Kept in the saved state: refresh() rebuilds the version dicts from the pool.
+            self.state["original_teacher_share"] = float(original.get("weight") or 0) / total if total > 0 else 0.0
+        held = self.hold_original()
+        if held:
+            done.append(held)
         # draw_first replaces the queue; a new version's name stands for its label once it joins.
         names = {m["name"] for m in plan["new"]}
         with self._lock:
@@ -451,11 +522,67 @@ class Teacher:
         self._save()
         log.info("teacher round %d: %s", n, r["done"] or "no changes")
 
-    def _call(self, op: str, *args) -> None:
+    def retire_leaking(self) -> list[str]:
+        """Retire the versions in the pool that show the student lines of the original's tests or
+        solution (written before validate() refused them); returns their labels."""
+        task = self.root.evolution.task(self.task_id)
+        r0 = task.rev(0)
+        if not r0.exists():
+            return []
+        out = []
+        for v in self.versions.values():
+            rev = int(v.get("rev") or 0)
+            if rev == 0 or v.get("status") != "active" or not task.rev(rev).exists():
+                continue
+            leaked = leaked_lines(r0, task.rev(rev))
+            if not leaked:
+                continue
+            if self.client is not None:
+                self._call("retire", v["id"])
+            v["status"] = "retired"
+            out.append(f"r{rev}")
+            log.info("retired r%d: it shows the student %d line(s) of the original's tests or solution",
+                     rev, len(leaked))
+        if out:
+            self.news.append(f"retired {', '.join(out)}: they showed the student the original's grading "
+                             "material, which no version may carry")
+        return out
+
+    def hold_original(self) -> str:
+        """Give the original ``original_share`` of the active draw weight, or, once it has passed in a
+        training group, the larger share the teacher gave it, re-adding it if it was retired; returns
+        what changed, or ""."""
+        share = self.policy.original_share
+        original = next((v for v in self.versions.values() if int(v["rev"]) == 0), None)
+        if share <= 0 or original is None or self.client is None:
+            return ""
+        if any(g["passed"] > 0 for g in self.groups.get(original["id"], [])):
+            share = max(share, self.policy.original_share_passing)
+            # A larger share only once the original has passed: until then its groups end 0/n and
+            # drop_zero_std trains on none of them (polyglot-rust-c: 83% of draws, 0/404, no step).
+            share = max(share, min(float(self.state.get("original_teacher_share") or 0), 0.99))
+        others = sum(float(v.get("weight") or 0) for v in self.versions.values()
+                     if v["status"] == "active" and int(v["rev"]) != 0)
+        w = share / (1 - share) * others if others > 0 else 1.0
+        if original["status"] == "active" and abs(float(original.get("weight") or 0) - w) <= 0.05 * w:
+            return ""
+        if original["status"] == "active":
+            self._call("reweight", original["id"], w)
+        elif original.get("row") is None:
+            log.warning("the original is retired and its row is unknown; not re-added")
+            return ""
+        else:
+            self._call("add", original["row"], weight=w)
+            original["status"] = "active"
+        original["weight"] = w
+        log.info("original held at weight %.3g (%.0f%% of draws)", w, 100 * share)
+        return f"r0 weight {w:.3g} (held at {share:.0%} of draws)"
+
+    def _call(self, op: str, *args, **kwargs) -> None:
         if self.client is None:
             return
         try:
-            getattr(self.client, op)(*args)
+            getattr(self.client, op)(*args, **kwargs)
         except RewriterError as e:
             log.warning("%s %s not applied: %s", op, args, e)
 
@@ -466,6 +593,14 @@ class Teacher:
         return {k: original["row"]["metadata"].get(k) for k in SANDBOX.values()}
 
     def validate(self, package: Path) -> dict:
+        # What grades the original never reaches the student: a version whose instruction or
+        # environment carries lines of the original's tests or solution is refused unbuilt.
+        leaked = leaked_lines(self.work / "problems" / "r0", package)
+        if leaked:
+            return {"ok": False, "package": str(package),
+                    "reason": f"it shows the student {len(leaked)} line(s) of the original's tests or "
+                              f"solution, e.g. {leaked[0][:120]!r}; the original's grading material "
+                              "stays out of every version"}
         sandbox = self._sandbox()
         solved = self.check(package, shortcut=None, timeout=self.policy.check_timeout, sandbox=sandbox)
         if reward_of(solved) != 1.0:
@@ -476,6 +611,23 @@ class Teacher:
             return {"ok": False, "package": str(package),
                     "reason": f"its untouched starting state did not fail its tests: {json.dumps(bare)[:300]}"}
         return {"ok": True, "package": str(package)}
+
+    def _add(self, row: dict, weight: float, parent: str, rev: int) -> dict | None:
+        """Add a version, allowing the scheduler several minutes to write the pool (it can take longer
+        than an ordinary call's timeout on a slow shared mount). After a timeout, the add may still have
+        gone through, so look for the rev in the pool before trying once more."""
+        for attempt in range(2):
+            try:
+                return self.client.add(row, weight=weight, parent=parent, timeout_sec=300)
+            except RewriterError as e:
+                log.warning("add of r%d failed (attempt %d): %s", rev, attempt + 1, e)
+            try:
+                found = [v for v in self.client.get_state()["versions"] if int(v.get("rev", -1)) == rev]
+            except RewriterError:
+                found = []
+            if found:
+                return found[0]
+        return None
 
     def on_version(self, key: str, result: dict) -> None:
         n, name = int(key.split("/")[0]), key.split("/", 1)[1]
@@ -505,13 +657,20 @@ class Teacher:
                 with self._lock:
                     self.state.setdefault("draw_first", []).append(label)
         else:
-            info = self.client.add(row, weight=made["weight"], parent=original["id"])
+            info = self._add(row, made["weight"], original["id"], rev)
+            if info is None:
+                made["outcome"] = "passed its checks, but the platform did not take it into the pool"
+                self.pending.append(f"your new version {name} passed its checks but could not be added; "
+                                    "write it again if you still want it")
+                self._save()
+                return
             self.versions[info["id"]] = {**info, "row": row}
             made.update({"outcome": "in the pool", "label": label})
             if name in self.state["rounds"][n - 1].get("draw_first_pending", []):
                 with self._lock:
                     self.state.setdefault("draw_first", []).append(label)
             self.news.append(f"new version {name} joined the pool as {label}")
+            self.hold_original()
             layout.append_jsonl(task.lineage, {"stamp": layout.stamp(), "event": "fold", "from_rev": 0,
                                                "to_rev": rev, "version": info["id"], "teacher": name})
         self._save()
@@ -543,6 +702,8 @@ class Teacher:
 
     def start(self) -> None:
         self.refresh()
+        self.retire_leaking()
+        self.hold_original()
         for run in self.root.run_dirs():
             for e in layout.read_jsonl(run.scheduler / "events.jsonl"):
                 self.on_event({**e, "run": e.get("run") or run.name})
@@ -589,41 +750,119 @@ class Teacher:
         return rows
 
 
+# A refusal, as the CLI or the model words it: the round ends without plan.json (or with a nonzero exit
+# that is not a provider hiccup) and its output says it will not do the work, e.g. a cyber-safety block.
+REFUSAL = re.compile(
+    r"cyber|safety (?:system|policy|filter)|content (?:policy|filter)|usage polic|flagged|"
+    r"violat\w* (?:our|the|its) polic|(?:can't|cannot|can not|unable to|won't|will not) (?:help|assist|comply)",
+    re.I)
+
+
+@dataclass(frozen=True, kw_only=True)
+class Backend:
+    """How one teacher thread reaches its model. ``primary`` is the evolve harness's (EVOLVE_CODEX_*);
+    ``fallback`` (TEACHER_FALLBACK_BIN / _MODEL / _CONFIG) takes over a run whose primary refused."""
+    name: str
+    home: str
+    state_key: str
+    bin: str | None = None
+    model: str | None = None
+    overrides: tuple[str, ...] = ()
+
+
+PRIMARY = Backend(name="primary", home="thread", state_key="thread")
+
+
+def fallback_backend() -> Backend | None:
+    model = os.environ.get("TEACHER_FALLBACK_MODEL")
+    if not model:
+        return None
+    return Backend(name="fallback", home="thread-fallback", state_key="fallback_thread",
+                   bin=os.environ.get("TEACHER_FALLBACK_BIN") or shutil.which("codex"), model=model,
+                   overrides=tuple(os.environ.get("TEACHER_FALLBACK_CONFIG", "").split()))
+
+
+def _cmd(ec, backend: Backend, cwd: Path, sid: str | None) -> list[str]:
+    if backend.bin is None:
+        return ec._codex_cmd(cwd, ec.CODEX_MODEL, resume=sid)
+    cmd = [backend.bin, "exec", *(["resume", sid] if sid else []),
+           "--dangerously-bypass-approvals-and-sandbox", "--skip-git-repo-check"]
+    for override in (*backend.overrides, f"model_reasoning_effort={ec.CODEX_EFFORT}"):
+        cmd += ["-c", override]
+    return cmd + ([] if sid else ["-C", str(cwd)]) + ["-m", backend.model, "-"]
+
+
 def run_codex(teacher: Teacher, prompt: str) -> None:
     """One round of the teacher's codex thread: the first round starts it, later rounds resume it. Its
     CODEX_HOME is the teacher's own, kept across rounds so the thread can be resumed; each round's
-    prompt and output are kept under rounds/."""
+    prompt and output are kept under rounds/.
+
+    A round the primary refuses is run again on the fallback backend, in a thread of its own (a codex
+    thread cannot change provider once started), and every later round stays there. The new thread
+    is told it takes over; history.md and summary.md carry what came before."""
+    fallback = fallback_backend()
+    rd = teacher.dir / "rounds" / f"{len(teacher.state['rounds']):03d}"
+    rd.mkdir(parents=True, exist_ok=True)
+    (rd / "prompt.md").write_text(prompt)
+    if fallback is not None and teacher.state.get("backend") == "fallback":
+        _run_thread(teacher, fallback, prompt, rd)
+        return
+    text = _run_thread(teacher, PRIMARY, prompt, rd, may_refuse=fallback is not None)
+    if text is None:
+        return
+    log.warning("the primary backend refused round %s; the fallback (%s) takes over", rd.name, fallback.model)
+    teacher.state["backend"] = "fallback"
+    teacher._save()
+    (rd / "refused.txt").write_text(text[-20000:])
+    # The teacher model is one of the things jobs are compared on, so every switch goes on the record.
+    with (teacher.dir / "backend_switches.jsonl").open("a") as f:
+        f.write(json.dumps({"round": rd.name, "time": time.strftime("%Y-%m-%dT%H:%M:%S%z"),
+                            "from": "primary", "to": fallback.model}) + "\n")
+    takeover = ("You take over as this run's teacher from an earlier session that stopped. AGENTS.md "
+                "says what the job is; history.md and summary.md hold every earlier round and what "
+                "happened after it.\n\n")
+    _run_thread(teacher, fallback, takeover + prompt, rd)
+
+
+def _run_thread(teacher: Teacher, backend: Backend, prompt: str, rd: Path, *,
+                may_refuse: bool = False) -> str | None:
+    """Run the round on ``backend``. With ``may_refuse``, a refusal returns the output instead of
+    raising; any other outcome returns None or raises as before."""
     ec = teacher.ev.ec
-    home = layout.SessionDir(teacher.dir / "thread")
+    home = layout.SessionDir(teacher.dir / backend.home)
     home.codex_home.mkdir(parents=True, exist_ok=True)
     if ec.ACCOUNT_HOME:
         (home.codex_home / "auth.json").unlink(missing_ok=True)
     env = ec._codex_env(home)
-    sid = teacher.state.get("thread")
-    cmd = ec._codex_cmd(teacher.work, ec.CODEX_MODEL, resume=sid)
-    rd = teacher.dir / "rounds" / f"{len(teacher.state['rounds']):03d}"
-    rd.mkdir(parents=True, exist_ok=True)
-    (rd / "prompt.md").write_text(prompt)
+    sid = teacher.state.get(backend.state_key)
+    cmd = _cmd(ec, backend, teacher.work, sid)
+    tag = "" if backend is PRIMARY else f"{backend.name}-"
     for attempt in range(6):
-        with (rd / f"stdout-{attempt}.txt").open("w") as out, (rd / f"stderr-{attempt}.txt").open("w") as err:
+        out_path, err_path = rd / f"{tag}stdout-{attempt}.txt", rd / f"{tag}stderr-{attempt}.txt"
+        with out_path.open("w") as out, err_path.open("w") as err:
             p = subprocess.run(cmd, input=prompt, stdout=out, stderr=err, text=True, cwd=str(teacher.work), env=env,
                                timeout=teacher.policy.round_timeout, check=False)
+        text = out_path.read_text(errors="replace") + err_path.read_text(errors="replace")
         if p.returncode == 0:
+            if may_refuse and not (teacher.work / "plan.json").is_file() and REFUSAL.search(text):
+                return text
             break
-        text = (rd / f"stdout-{attempt}.txt").read_text(errors="replace") + (rd / f"stderr-{attempt}.txt").read_text(errors="replace")
         if ec._agent_failure_type(text, "").startswith("provider_") or "at capacity" in text:
             # The provider cut the thread off; continue it rather than lose the round.
             time.sleep(min(120 * 2 ** attempt, 900))
             sid = sid or _thread_id(ec, home)
-            cmd = ec._codex_cmd(teacher.work, ec.CODEX_MODEL, resume=sid)
+            cmd = _cmd(ec, backend, teacher.work, sid)
             prompt = "The model provider cut your session off; nothing you did caused it. Continue where you stopped."
             continue
+        if may_refuse and REFUSAL.search(text):
+            return text
         raise RuntimeError(f"codex exited {p.returncode}; see {rd}")
     if ec.ACCOUNT_HOME:
         (home.codex_home / "auth.json").unlink(missing_ok=True)
-    if not teacher.state.get("thread"):
-        teacher.state["thread"] = _thread_id(ec, home)
+    if not teacher.state.get(backend.state_key):
+        teacher.state[backend.state_key] = _thread_id(ec, home)
         teacher._save()
+    return None
 
 
 def _thread_id(ec, home: layout.SessionDir) -> str | None:

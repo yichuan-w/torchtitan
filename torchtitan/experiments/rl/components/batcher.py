@@ -147,6 +147,13 @@ class Batcher(Configurable):
         row with room, which leaves fewer padded rows (fewer microbatches). Only the
         sample-to-row assignment changes; per-sample loss terms do not."""
 
+        spread_pad_token_ids: bool = False
+        """Fill each row's tail padding with varied token ids instead of repeating
+        ``pad_id``. An MoE router sends identical tokens to the same experts, so a
+        pad-only row (a batch with fewer real rows than DP ranks) floods one EP rank
+        and runs it out of memory. Pad positions carry no loss and sit in their own
+        segment, so real tokens are unaffected."""
+
     def __init__(
         self,
         config: Config,
@@ -163,6 +170,7 @@ class Batcher(Configurable):
         if config.packing not in ("next_fit", "first_fit_decreasing"):
             raise ValueError(f"unknown packing {config.packing!r}")
         self._packing = config.packing
+        self._spread_pad_token_ids = config.spread_pad_token_ids
         self._skip_zero_advantage_samples = config.skip_zero_advantage_samples
         self._zero_advantage_tokens_in_loss_denominator = (
             config.zero_advantage_tokens_in_loss_denominator
@@ -617,6 +625,8 @@ class Batcher(Configurable):
         if pad_len > 0:
             for key in keys:
                 row[key].extend([pad_values[key]] * pad_len)
+            if self._spread_pad_token_ids:
+                row["input_ids"][-pad_len:] = [i % 1024 for i in range(pad_len)]
             positions.extend(range(pad_len))
 
         # Stack lists into [1, L] tensors.

@@ -10,6 +10,7 @@ import math
 import os
 import pickle
 import re
+import shutil
 import threading
 import time
 from dataclasses import dataclass, field, replace
@@ -18,6 +19,7 @@ from typing import Any
 import torch
 import torchstore as ts
 from monarch.actor import Actor, current_rank
+from torch.distributed.checkpoint.api import CheckpointException
 from torch.distributed.tensor import DTensor
 from torchtitan.components.checkpoint import CheckpointManager
 from torchtitan.components.checkpoint_utils import canonical_fqn
@@ -465,6 +467,8 @@ class PolicyTrainer(Actor, Configurable):
         self.policy_version = config.initial_policy_version
         self._controller_training_data = b""
 
+        self._failed_saves = 0
+        self._pending_save_step: int | None = None
         # Always build CheckpointManager; enable is a field on the config.
         # When enable=False (CI/debug), load() is a no-op and random init stands.
         self.checkpointer = config.checkpoint.build(
@@ -983,7 +987,46 @@ class PolicyTrainer(Actor, Configurable):
                     "controller data snapshot disagrees with checkpoint policy version"
                 )
             self._controller_training_data = training_data_state
-        return self.checkpointer.save(step, last_step=last_step)
+        # A storage hiccup (fsync failing on a FUSE mount) used to end the run, and
+        # the step's partial folder would also break the next resume. Drop that
+        # folder and keep training: the previous checkpoint still stands. With
+        # async saves a background write fails at the next save's wait, so that
+        # wait runs first, on its own, to tell whose write failed.
+        should_save = self.checkpointer._should_save(step, last_step=last_step)
+        if should_save and self._pending_save_step is not None:
+            try:
+                self.checkpointer.maybe_wait_for_saving()
+                self._failed_saves = 0
+            except (OSError, CheckpointException) as e:
+                self.checkpointer.save_future = None
+                self._drop_failed_save(self._pending_save_step, e)
+            self._pending_save_step = None
+        try:
+            saved = self.checkpointer.save(step, last_step=last_step)
+        except (OSError, CheckpointException) as e:
+            self.checkpointer.save_future = None
+            self._drop_failed_save(step, e)
+            if last_step:
+                raise
+            return False
+        if saved and self.checkpointer.save_future is not None:
+            self._pending_save_step = step
+        elif saved:
+            self._failed_saves = 0
+        return saved
+
+    def _drop_failed_save(self, step: int, error: BaseException) -> None:
+        """Remove a failed save's folder; three failures in a row still raise."""
+        self._failed_saves += 1
+        path = self.checkpointer._create_checkpoint_id(step)
+        logger.warning(
+            f"checkpoint save of step {step} failed ({self._failed_saves} in a row): "
+            f"{error!r}; removing {path} and continuing"
+        )
+        if torch.distributed.get_rank() == 0:
+            shutil.rmtree(path, ignore_errors=True)
+        if self._failed_saves >= 3:
+            raise error
 
     @endpoint
     @sl.log_trace_span("push_model_state_dict")

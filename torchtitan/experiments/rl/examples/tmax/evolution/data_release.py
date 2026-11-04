@@ -174,8 +174,8 @@ def resources(source, record):
 
         result = {"daytona_cpu": int(record["req_cpus"])}
         for column, field, cap in (
-            ("req_memory_mb", "daytona_mem_gb", 8),
-            ("est_disk_mb", "daytona_disk_gb", 10),
+            ("req_memory_mb", "daytona_mem_gb", 16),
+            ("est_disk_mb", "daytona_disk_gb", 50),
         ):
             value = record[column]
             if (
@@ -192,8 +192,8 @@ def resources(source, record):
         return result
     result = {"daytona_cpu": 1}
     for column, field, cap in (
-        ("peak_ram_mb", "daytona_mem_gb", 8),
-        ("peak_disk_mb", "daytona_disk_gb", 10),
+        ("peak_ram_mb", "daytona_mem_gb", 16),
+        ("peak_disk_mb", "daytona_disk_gb", 50),
     ):
         size = sizing.measured_gib(record[column], cap)
         result[field] = size if size is not None else 2

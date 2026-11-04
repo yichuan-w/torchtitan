@@ -102,6 +102,31 @@ def test_published_allocations_are_not_scaled_again():
     assert result == {"daytona_cpu": 1, "daytona_mem_gb": 6, "daytona_disk_gb": 8}
 
 
+def test_resource_caps_match_measured_daytona_max():
+    # 2026-11-01 probe measured a per-sandbox max of 16 CPU / 16 GB RAM / 50 GB disk.
+    # The disk-starved #309 tasks are raised to 20 GB, which must now pass (was capped at 10).
+    assert release.resources(
+        {"adapter": "tmax_reaudit"},
+        {"req_cpus": 1, "req_memory_mb": 4096, "est_disk_mb": 20480},
+    ) == {"daytona_cpu": 1, "daytona_mem_gb": 4, "daytona_disk_gb": 20}
+    # 16 GB RAM and 50 GB disk sit exactly at the new caps and pass.
+    assert release.resources(
+        {"adapter": "tmax_reaudit"},
+        {"req_cpus": 2, "req_memory_mb": 16384, "est_disk_mb": 51200},
+    ) == {"daytona_cpu": 2, "daytona_mem_gb": 16, "daytona_disk_gb": 50}
+    # Above the measured max still raises.
+    with pytest.raises(ValueError, match="exceeds platform cap"):
+        release.resources(
+            {"adapter": "tmax_reaudit"},
+            {"req_cpus": 1, "req_memory_mb": 4096, "est_disk_mb": 52224},  # 51 GB disk
+        )
+    with pytest.raises(ValueError, match="exceeds platform cap"):
+        release.resources(
+            {"adapter": "tmax_reaudit"},
+            {"req_cpus": 1, "req_memory_mb": 17408, "est_disk_mb": 10240},  # 17 GB RAM
+        )
+
+
 def test_configuration_rejects_floating_revision(tmp_path, monkeypatch):
     config = fixture(tmp_path, monkeypatch)
     config["sources"][0]["revision"] = "main"

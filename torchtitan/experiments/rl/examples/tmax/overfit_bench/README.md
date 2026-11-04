@@ -9,6 +9,9 @@ measured. Learning the task by heart counts: the question is only whether the
 original task gets solved.
 
 Tasks: every Terminal-Bench 2.1 task (89) and every Terminal-Bench 4 task (66).
+The TB-2.1 bench list is `tb21_tasks.txt`: the 48 tasks the starting Qwen3.5-9B
+solved in none of its step-0 rollouts in run 1031b (5 per task). A task there is
+overfit once a readout passes the 64-attempt confirm.
 
 ## What the bench fixes
 
@@ -184,6 +187,17 @@ evolution/daytona_revalidate.py <task package> --row <tasks dir>/<id>.jsonl
 bench.py readout <job> [<job> ...]
 ```
 
+`readout` also reports what a job spent: training attempts (dropped
+all-pass and all-fail groups included, since each still took its 12
+attempts of rollout-engine time), groups and how many trained, wall clock,
+and the attempts and hours up to `stable_solve_step`. Readout attempts are
+counted apart: they measure and do not train. Compare rewriters on attempts
+to a stable solve, not on steps; a step only counts the groups that trained.
+A job that leaves the recipe part way (e.g. a larger training context for a task
+whose attempts all ran out of it) records the change in `recipe_overrides.json`;
+`readout` then marks it `off-recipe from step N`, a recipe arm whose results do not
+count as the bench's.
+
 For TB2.1 the eval JSONL is `data/evalsets/tb2_1_tmux_f1640f428d48.jsonl`
 (built by `../prepare_tb2_1_data.py`, tmux preinstalled) and the task tree is
 `terminal-bench-2-1/`. TB4: `data/evalsets/tb4_tmux_493ef156d.jsonl` (66 tasks,
@@ -255,7 +269,9 @@ cp teacher_runner.env.example <job>/runner.env                 # placement; edit
 cp reference_rewriter.env.example <job>/evolution/rewriter.env  # DAYTONA_API_KEY, codex account,
 chmod 600 <job>/evolution/rewriter.env                          # SYNTH_MODEL (v12: gpt-6.1-sol)
 
-# 2. the teacher's round before training, seeded into the pool (needs no GPU)
+# 2. the teacher's round before training, seeded into the pool (needs no GPU). Do not skip it:
+#    without it the pool is the original alone, and the first 8 groups (about an hour) all draw the
+#    original, which the base model rarely passes, so they take no step.
 set -a; . <job>/evolution/rewriter.env; set +a
 TRL_BASE=<job> TRL_TT=<tt> PYTHONPATH=<tt> EVOLVE_WORK_ROOT=<node-local dir> \
     python teacher_rewriter.py <job> --prepare
@@ -489,7 +505,43 @@ https://github.com/yichuan-w/torchtitan/issues/307. "Stable" is the readout's ow
 | feal-differential-cryptanalysis | 1 | the job never trained | no |
 | torch-pipeline-parallelism | 0 | no job before 2026-10-30 | no |
 
-Not done yet:
+What 2026-11-01 showed (pure RL, 0/1 reward, teacher rewriter, one GB300 host per job; #307):
+
+- **The original has to stay in the pool.** Before `--original-share`, every teacher retired the
+  original after its first 8 groups (torch-pipeline-parallelism: 8 of 378 groups), so a pass on it
+  could only appear in the readout, which trains nothing. Held at 1/8, sqlite-db-truncate passed the
+  original in training (four 1/12 or 1/10 groups) and then in the readout: 1/16 at steps 60, 65, 70
+  and 80, after 0 at every readout before.
+- **Training on the original alone gets no gradient when the base model cannot pass it.** dna-insert:
+  0 of about 1500 attempts on the original (base readouts 0/78), so its original-only jobs took no step,
+  at G=12 or G=32, at LR 3e-6 or 1e-5.
+- **LR 1e-5 degrades the policy** (see `recipe.env`).
+- **What teachers did that did not carry over to the original**, each seen in one job, so findings
+  and not rules for the teacher (`teacher_agents.md` states the goal and the setup instead; #307):
+  a version that shipped most of the solution reached 12/12 while the original stayed 0/12
+  (torch-pipeline-parallelism r12); versions on a bare image, where the student has to set up its own
+  tools to test, and almost no readout attempt did (1 of 48 ran its code under a process group); a full
+  task with a runnable checker gave 2-5/12 and the same task without it 0/12 (dna-insert); a teacher
+  retired the versions that still gave mixed groups for harder ones that all failed, and its job took
+  no step for 2.5 h (large-scale-text-editing).
+- **More teacher findings, each from one job** (findings, not rules; 068e24a0 put them in
+  `teacher_agents.md` and 2026-11-03 moved them back here, since naming a task and an earlier run's
+  diagnosis hands a teacher on that task conclusions from outside its run): torch-tensor-parallelism,
+  0 of 650 original attempts passed, nearly all at the weight-slice assertion (the `[out, in]` weight
+  sharded on the wrong axis); installing the toolchain took about a quarter of the version attempts'
+  output there; on filter-js-from-html a version with a subset of the cases passed about 40% while
+  the original stayed near 0; the one torch-tensor run that passed the original (once in 551 readout
+  attempts) had starter code already sharding one class the tests' way.
+- **Told to show the tests' convention and ship checkers early (068e24a0), a teacher shipped the
+  grading material itself.** model-extraction-relu-logits got the original verifier with its grading
+  network as `/app/check.py`, then the grading seed and draw in an instruction; older torch-tensor,
+  torch-pipeline, filter-js and llm-inference-batching runs had versions carrying the original's test
+  files as checkers. From 9d033b16 `teacher_agents.md` keeps the original's tests, verifier, hidden
+  data, seeds, reference solution and hidden-check specifics out of what the student sees, and
+  `validate()` refuses a version that carries lines of the original's tests or solution.
+- **Once the original gives mixed groups, give it more of the draws.** sqlite-db-truncate at 1/2
+  (`--original-share 0.5`): its next original group passed 4/11, against 1/12 at 1/8.
+
 
 - **One task is solved.** Every task but sqlite-db-truncate either never passed or passed and lost it.
 - **No teacher-rewriter job has run to the end.** Every teacher job so far stopped within 5 readout

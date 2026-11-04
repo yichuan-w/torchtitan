@@ -791,7 +791,7 @@ these are the variables that touch them.
 | `SWE_GEN_PREFIX_CACHE` | `1` | unset (vLLM's choice) | prefix caching. ~2x prefill on this hybrid, byte-identical outputs in a local smoke. |
 | `SWE_GEN_CUDAGRAPH` | unset | `1` in tmax, `0` in swe_r2e | ~3x GDN decode. Note the families disagree. |
 | `SWE_DISABLE_CUSTOM_ALL_REDUCE` | `1` | unset | falls back to NCCL. |
-| `SWE_TIME_BUDGET_SEC` | `7200` | `2400` | agent wall clock per rollout for rows that declare no budget (all training rows). `rltrain.env` carries the team's 2 h training cap; the reference run had 2400. |
+| `SWE_TIME_BUDGET_SEC` | `7200` | `1900` | agent wall clock per rollout for rows that declare no budget (all training rows). `rltrain.env` carries the team's 2 h training cap; the reference run had 2400. The default was 2400 until run 1030c showed a group is dropped stale when its slowest rollout outlasts the off-policy window (5 steps at ~7 min): groups whose slowest rollout passed 2300 s were dropped 86% of the time, none under 1700 s were, and rollouts past 1900 s held under 1% of solves. Keep the budget plus sandbox boot under `SWE_OFFPOLICY_STEPS` x step time. |
 | `TMAX_EXEC_TIMEOUT_SEC` | `120` | `120` | per-command timeout inside the sandbox. |
 | `TMAX_TERMINUS_MAX_TURNS` | `120` | `64` | turn ceiling; the team's 120-turn training cap. |
 | `TMAX_TURN_MAX_TOKENS` | `16384` | `16384` (terminus) | per-turn generation cap. 32768 lets one turn overrun the context warning into the wall. |

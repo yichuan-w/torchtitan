@@ -7,10 +7,13 @@ After training, the student is examined on the original task alone. Learning it 
 ## How training works
 
 - {slots} groups run at once. A group is one version of the task, drawn from the pool, attempted
-  {group} times by the student; it takes about an hour. Each group is one training step; the run
-  has {steps} steps.
+  {group} times by the student; it takes about an hour. Each group that trains is one training
+  step; the run has {steps} steps.
 - A group teaches the student only when some of its attempts pass and some fail. A group where
-  every attempt fails, or every attempt passes, still uses up its step and teaches nothing.
+  every attempt fails, or every attempt passes, teaches nothing and takes no training step: it is
+  dropped, but its {group} attempts were still spent. Attempts are what the run is short of: the
+  student's engine runs every attempt of every group, so a version that gives mixed groups trains
+  the student with fewer of them.
 - An attempt scores 1 only when every test of its version passes, and 0 otherwise. An attempt
   that runs out of budget without submitting is still graded.
 - Each attempt has at most {turns} turns, {context} tokens of context and {hours} hours.
@@ -34,13 +37,47 @@ Each round, decide, and write `plan.json`:
   solution/), usually starting from a copy of one in `problems/`. You may change anything: the
   instruction, the environment, what is already in place when the student starts, the tests, the
   reference solution. Write as many as you see fit.
-- **Retire** versions, the original included.
+- **Retire** versions other than the original. The original stays in the pool with at least {share}
+  of the draw weight, and at least {share_passing} once it has passed in a training group; the
+  platform raises it to that share when you give it less. Once it has passed in a training group
+  you may give it more, up to the whole draw (a large weight, or every other version retired);
+  before that the platform holds it at {share}, since a group on it ends 0/12 and trains nothing.
 - **Weights** of the versions in the pool, and which versions the next groups draw first
   (`draw_first`; it replaces the previous list).
 At most {cap} versions can be in the pool at once, because only {slots} groups run at a time.
 
-A principle: help should leave each decision the original requires to the student. A hint points
-to an action the student takes, not to the conclusion.
+The examination is the original alone: its instruction, its environment, its own tests, which the
+student does not see. A version trains the student only as far as what it practises is something
+the original asks of the student there. A principle: help should leave each decision the original
+requires to the student. A hint points to an action the student takes, not to the conclusion.
+
+- **A version is worth its groups only if what it trains carries over to the original.** Once a
+  version gives mixed groups, write the next one closer to the original (less help, more of the
+  task); once it is mastered, retire it. Do not keep a mastered version in the pool.
+- **Read the original's attempts.** Its groups are all-fail until the student can solve it, which
+  costs its attempts but not a step; the first group with one pass trains the student on the original
+  itself. Its attempts show what still fails on it, which is what the next version should train.
+- **A group on the original buys information, a group on a version buys practice.** Whatever a
+  version trains is worth only what it changes on the original, and only the original's own groups
+  show that. A group spent on the original may teach nothing if every attempt fails, but it tells
+  you what the student still lacks there; without such groups a run can spend most of its steps
+  refining versions whose skill never reaches the original. Once the original gives mixed groups,
+  each of its groups trains the student on the examination itself.
+
+Nothing the original grades with reaches the student. You read the original's tests/ and solution/
+to understand the task; what the student sees (a version's instruction and its environment) must
+not carry them. No version ships the original's tests or verifier, or a copy or paraphrase of them;
+its hidden data, fixtures, expected outputs or the seeds and parameters that generate them; its
+reference solution or the non-obvious arguments in it; or the specifics of its hidden checks
+(thresholds, tolerances, counts, the cases they probe). A version that does trains the student to
+reproduce the examination, not to solve it, and its solve does not count. A version's own checker
+checks the version's own data, never the original's.
+
+Hints come from the student's failed attempts, not from the tests. Read what the student did on
+the original and on the versions, where it went wrong (a wrong approach, a step it skipped, a
+misread instruction, time spent on setup), and write the next version so that the student
+practises that step: a smaller sub-problem, a nudge towards the action it missed, a skill on data
+of the version's own. A hint names an action the student can take, not the answer it should reach.
 
 ## This directory
 
