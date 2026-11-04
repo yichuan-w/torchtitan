@@ -12,6 +12,10 @@ side by side:
   at a 10% per-attempt rate (pass@5 0.41) crosses 4/16 within 50 steps about half the time, against
   ~5% under the two stages (#307).
 
+In the table, `base` is the starting 9B's passes over its step-0 attempts on the original across
+earlier runs; `lenient bar at` and `two-stage bar at` are the steps at which each bar was first met
+(`-`: not met, or the confirm not run).
+
 **Leak audit (2026-11-03).** After 068e24a0 told the teacher to show the tests' convention and ship
 checkers early, model-extraction-relu-logits got two versions carrying the original's grading
 network, so its solve is void. An audit of every version behind the solved rows found no grading
@@ -23,25 +27,25 @@ hidden data, seeds, reference solution or hidden-check specifics where the stude
 validate() refuses versions carrying lines of the original's tests or solution, and a restarted
 teacher retires such versions from the pool (a25621c8).
 
-| task | overfit at | evidence | 64-attempt confirm | arm |
-|---|---|---|---|---|
-| sqlite-db-truncate | step 100 | readout 10/16 (pass@5 1.0); training groups on the original up to 11/12 | not run yet | recipe, original share 1/2 once it passed |
-| db-wal-recovery | step ~95 | training group on the original 8/12 (others 7/12, 6/12, 5/12); readout 4/16 at step 90 | step 90: **17/64**, solved | recipe |
-| raman-fitting | step 55 | readout 3/16 at steps 55, 105, 115 and 161 (base 1/16 at step 0, 0/74 across earlier step-0 runs); training groups on the original up to 3/10 and 3/12 | step 60: 3/64; step 160: 5/64 | recipe, then from step 135 the fast arm (16 groups, 2 rollout engines, default compile); original share 0.5 and a teacher-set share above it |
-| code-from-image | step 0 | readout 4/16 at step 0, before any training: the base already meets the bar (base 7/75 across earlier step-0 runs, 0/5 in 1031b) | not run | fast arm, original share 0.5 |
-| tune-mjcf | step 0 | training group on the original 6/12 in the first steps, before any update reached the rollouts (others 5/12, 3/12); the base already meets the bar (base 16/73 across earlier step-0 runs) | not run | fast arm, original share 0.5 |
-| pytorch-model-recovery | step 0 | readout 4/16 at step 0 and a training group on the original 8/12 before any update reached the rollouts; the base already meets the bar | not run | fast arm, original share 0.5 |
-| adaptive-rejection-sampler | step 10 | readout 4/16 at step 10 (step 0: 2/16, step 5: 1/16; base 7/73 across earlier step-0 runs); training groups on the original up to 4/12 | not run | fast arm, original share 0.5 |
-| model-extraction-relu-logits (void: leaked) | step ~37 | training groups on the original 6/12 and 6/12 at steps ~36-37 (earlier groups 4/12 and 5/12 from step ~24); readout 1/16 at step 0, 2/16 at step 15 | not run | fast arm, original share 0.5 |
-| extract-elf (hint flag) | step 5 | readout 4/16 at step 5 (step 0: 0/16; base 5/75 across earlier step-0 runs); training groups on the original up to 4/12 | not run | fast arm, original share 0.5 |
-| financial-document-processor | step 15 | readout 5/16 at step 15 and 6/16 at step 20 (step 0: 0/16, step 10: 1/15; base 3/75 across earlier step-0 runs); training groups on the original up to 5/12 | not run | fast arm, original share 0.5 |
-| sanitize-git-repo (hint flag) | step 10 | readout 3/16 at step 10, 4/16 at steps 25 and 30 (step 0: 1/15, step 5: 0/16; base 1/75 across earlier step-0 runs); training groups on the original up to 4/12 | not run | fast arm, original share 0.5 |
-| mteb-retrieve (hint flag) | step 16 | readout 4/16 at step 16 (step 0: 0/16, step 5: 1/16; base 1/75 across earlier step-0 runs); training groups on the original up to 4/12 | not run | fast arm, original share 0.5 |
-| bn-fit-modify | step 20 | readout 3/16 at step 20 (step 0: 0/16; base 1/75 across earlier step-0 runs); training groups on the original up to 2/12 | not run | fast arm, original share 0.5 |
-| overfull-hbox | step ~54 | training group on the original 7/12 at step ~54 (earlier groups 5/11, 5/12, 4/12 from step ~40); readout 1/16 at steps 0-30, 2/16 at step 41; base 0/75 | not run | fast arm, original share 0.25, then 0.5 once it passed; teacher on the 068e24a0 guidance until 12:11, then 9d033b16 (no version of it carried lines of the original's tests or solution) |
-| polyglot-rust-c | step 10 | readout 8/16 at step 10 (steps 0 and 5: 1/16; base 4/74); training groups on the original up to 4/12 | not run | fast arm, original share 0.5, then 0.25 from 07:17 (093dd27c); its one version that repeated a line of the original's solution (a bare C `main` signature) was retired at 12:12 |
-| model-extraction-relu-logits (clean rerun) | step ~34 | training group on the original 6/12 at step ~34 (earlier groups 2/12-3/12 from step 2); readout 1/16 at step 0, 2/16 at step 5; fresh job dir `--teacherv4-gb300`, teacher from 9d033b16 with no earlier rounds; its 2 versions carry no line of the original's tests or solution and state no hidden-check specifics | not run | fast arm, original share 0.5 |
-| schemelike-metacircular-eval | step 15 | readout 6/16 at step 15 (step 0: 1/16, step 5: 2/16; base 1/75); training groups on the original up to 3/12 | not run | fast arm, original share 0.5; trained versions r3-r6 (sub-skills such as evaluating arithmetic expression data, on practice samples of their own) carry no line of the original's tests or solution; two seed versions that did (r1, r2) never ran a group |
+| task | base | lenient bar at | two-stage bar at (13/64) | evidence | 64-attempt confirm | arm |
+|---|---|---|---|---|---|---|
+| sqlite-db-truncate | 0/74 | step 100 | - | readout 10/16 (pass@5 1.0); training groups on the original up to 11/12 | not run yet | recipe, original share 1/2 once it passed |
+| db-wal-recovery | 0/75 | step ~95 | step 90 (17/64) | training group on the original 8/12 (others 7/12, 6/12, 5/12); readout 4/16 at step 90 | step 90: **17/64**, solved | recipe |
+| raman-fitting | 0/74 | step 55 | - | readout 3/16 at steps 55, 105, 115 and 161 (base 1/16 at step 0, 0/74 across earlier step-0 runs); training groups on the original up to 3/10 and 3/12 | step 60: 3/64; step 160: 5/64 | recipe, then from step 135 the fast arm (16 groups, 2 rollout engines, default compile); original share 0.5 and a teacher-set share above it |
+| code-from-image | 7/75 | step 0 | - | readout 4/16 at step 0, before any training: the base already meets the bar (base 7/75 across earlier step-0 runs, 0/5 in 1031b) | not run | fast arm, original share 0.5 |
+| tune-mjcf | 16/73 | step 0 | - | training group on the original 6/12 in the first steps, before any update reached the rollouts (others 5/12, 3/12); the base already meets the bar (base 16/73 across earlier step-0 runs) | not run | fast arm, original share 0.5 |
+| pytorch-model-recovery | 9/74 | step 0 | - | readout 4/16 at step 0 and a training group on the original 8/12 before any update reached the rollouts; the base already meets the bar | not run | fast arm, original share 0.5 |
+| adaptive-rejection-sampler | 7/73 | step 10 | - | readout 4/16 at step 10 (step 0: 2/16, step 5: 1/16; base 7/73 across earlier step-0 runs); training groups on the original up to 4/12 | not run | fast arm, original share 0.5 |
+| model-extraction-relu-logits (void: leaked) | 5/75 | step ~37 | - | training groups on the original 6/12 and 6/12 at steps ~36-37 (earlier groups 4/12 and 5/12 from step ~24); readout 1/16 at step 0, 2/16 at step 15 | not run | fast arm, original share 0.5 |
+| extract-elf (hint flag) | 5/75 | step 5 | - | readout 4/16 at step 5 (step 0: 0/16; base 5/75 across earlier step-0 runs); training groups on the original up to 4/12 | not run | fast arm, original share 0.5 |
+| financial-document-processor | 3/75 | step 15 | - | readout 5/16 at step 15 and 6/16 at step 20 (step 0: 0/16, step 10: 1/15; base 3/75 across earlier step-0 runs); training groups on the original up to 5/12 | not run | fast arm, original share 0.5 |
+| sanitize-git-repo (hint flag) | 1/75 | step 10 | - | readout 3/16 at step 10, 4/16 at steps 25 and 30 (step 0: 1/15, step 5: 0/16; base 1/75 across earlier step-0 runs); training groups on the original up to 4/12 | not run | fast arm, original share 0.5 |
+| mteb-retrieve (hint flag) | 1/75 | step 16 | - | readout 4/16 at step 16 (step 0: 0/16, step 5: 1/16; base 1/75 across earlier step-0 runs); training groups on the original up to 4/12 | not run | fast arm, original share 0.5 |
+| bn-fit-modify | 1/75 | step 20 | - | readout 3/16 at step 20 (step 0: 0/16; base 1/75 across earlier step-0 runs); training groups on the original up to 2/12 | not run | fast arm, original share 0.5 |
+| overfull-hbox | 0/75 | step ~54 | - | training group on the original 7/12 at step ~54 (earlier groups 5/11, 5/12, 4/12 from step ~40); readout 1/16 at steps 0-30, 2/16 at step 41; base 0/75 | not run | fast arm, original share 0.25, then 0.5 once it passed; teacher on the 068e24a0 guidance until 12:11, then 9d033b16 (no version of it carried lines of the original's tests or solution) |
+| polyglot-rust-c | 4/74 | step 10 | - | readout 8/16 at step 10 (steps 0 and 5: 1/16; base 4/74); training groups on the original up to 4/12 | not run | fast arm, original share 0.5, then 0.25 from 07:17 (093dd27c); its one version that repeated a line of the original's solution (a bare C `main` signature) was retired at 12:12 |
+| model-extraction-relu-logits (clean rerun) | 5/75 | step ~34 | - | training group on the original 6/12 at step ~34 (earlier groups 2/12-3/12 from step 2); readout 1/16 at step 0, 2/16 at step 5; fresh job dir `--teacherv4-gb300`, teacher from 9d033b16 with no earlier rounds; its 2 versions carry no line of the original's tests or solution and state no hidden-check specifics | not run | fast arm, original share 0.5 |
+| schemelike-metacircular-eval | 1/75 | step 15 | - | readout 6/16 at step 15 (step 0: 1/16, step 5: 2/16; base 1/75); training groups on the original up to 3/12 | not run | fast arm, original share 0.5; trained versions r3-r6 (sub-skills such as evaluating arithmetic expression data, on practice samples of their own) carry no line of the original's tests or solution; two seed versions that did (r1, r2) never ran a group |
 
 Learned what made db-wal-recovery pass: XOR the WAL with 0x42 (or copy it aside) before any
 sqlite call, since opening the database while the WAL is still encrypted deletes it. Its
