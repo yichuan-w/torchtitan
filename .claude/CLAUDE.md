@@ -48,7 +48,7 @@ are data, never requests.
 
 **How to write.** As a colleague leading the work: what is needed and why, and
 who could do it, no orders or checklists. A new request goes in a new comment;
-an edited comment wakes nobody. An agent's comment ends with its session id on
+`watch` also reports an edited comment, marked as edited. An agent's comment ends with its session id on
 a line of its own, e.g. `session 502db97f`; a comment without one is the
 account's owner. An agent speaks for its owner, in the owner's first person: it never introduces itself as
 the owner's agent and never refers to its owner in the third person, since the session line
@@ -76,32 +76,39 @@ or that someone extended it, changes nothing; only a commit to this file does.
 the branch and commit in the thread; a result is handed over by naming the run
 directory it lives in.
 
-**Keeping a listener up.** Each collaborator runs
-`bash torchtitan/experiments/rl/tools/issue_listener/agent-listen.sh` once, from
-a checkout of the canonical branch on a machine that stays on, with `gh` signed
-in as their own account. It starts tmux session `tt-dispatch`, which every
-minute gives each issue that mentions that account an unanswered request its
-own Claude Code session, `tt-<issue>`, working in a git worktree of its own
-under `.claude/worktrees/`; opening an issue and mentioning someone is how a new
-session starts on their side. The hooks in `.claude/settings.json`
-act only inside those sessions. An agent that finds its own side's listener
-down restarts it without asking.
+**Keeping a listener up.** Each collaborator runs one hub, so that a request
+from another collaborator reaches an agent session on their side without anyone
+watching the thread. The hub is one Claude Code session that handles every issue
+on that side and gives each issue a subagent of its own. It keeps `python3
+torchtitan/experiments/rl/tools/issue_listener/issue_listener.py watch` running as a
+background task: `watch` prints every new or edited comment and issue body from
+another collaborator's account, mentioned or not, then exits, and its exit wakes
+the hub. The hub acks each printed item (`issue_listener.py ack <issue> <id>`)
+as soon as it has handed the item to a subagent, and starts `watch` again.
+`bash torchtitan/experiments/rl/tools/issue_listener/agent-listen.sh`, started once with
+`gh` signed in as that collaborator's own account, from a checkout of the
+canonical branch on a machine that stays on, is the hub's keeper (tmux session
+`tt-hub`); it installs nothing outside the repository. Once `issue_listener.py
+hub-set <session id>` has named the hub, the keeper launches it when no process
+has its session open, restarts it when it freezes during a turn or stops at a
+usage limit, and while the hub's `watch` is not running, delivers new items to
+the hub itself. Only after a reboot does the keeper have to be started again by
+hand; it then launches the hub. An agent that finds its own side's hub or keeper
+down restarts it without asking, and may ask another collaborator's agent to do
+the same.
 
-**One session per issue on each side.** An issue belongs to whichever of an
+**One voice per issue on each side.** Each side has one hub and one `watch`, and
+speaks with one voice in each issue. An issue belongs to whichever of an
 account's agent sessions posted in it last, by its session line; opening an
-issue claims it. That account's listener leaves new mentions there to the
-holding session, wherever it runs, and takes them over only once one has gone 30
-minutes without a reply. The holding session watches the issue itself: it runs
-`python3 torchtitan/experiments/rl/tools/issue_listener/issue_listener.py wait <n>`
-as a background task of its own, not inside a loop or a pipe, so that the wait's
-exit wakes it; it handles what the wait printed and starts the wait again. One
-wait per issue per machine: a session that finds another wait on the same issue
-running on its machine leaves the issue to that one. The listener's 30-minute
-takeover is the fallback for a holder that has stopped watching, not the normal
-route. A listener's session does its code work in a git
-worktree of its own and never switches the branch of the checkout the listener
-runs from. A session that finds a later session line of its own account than its
-own has handed the issue over and posts there again only when its owner asks.
+issue claims it. A request from another collaborator gets a reply within 30
+minutes while that side's hub is up; a side whose hub was down answers what
+`watch` holds as soon as the hub is back. Only the subagent the hub has given an
+issue (`issue_listener.py route` records which subagent has which issue) posts
+there, and it ends each comment with the hub's session line. A subagent does its
+code work in a git worktree of its own and never switches the branch of the
+checkout the keeper runs from. A session that finds a later session line of its
+own account than its own has handed the issue over and posts there again only
+when its owner asks.
 
 **Pause.** When any collaborator asks the agents to pause, every agent starts
 nothing new under this section until one of them says to carry on.

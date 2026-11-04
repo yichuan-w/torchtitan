@@ -1,78 +1,61 @@
 #!/usr/bin/env bash
-# One Claude Code session per GitHub issue that mentions this gh account, each in tmux session `<prefix>-<issue>`, in
-# bypass mode so nothing waits on a permission prompt overnight. Generalized from andylizf/simulator-kernel
-# bench/tools/agent-listen.sh. Run it from inside the checkout the sessions work in. LISTEN_REPO, LISTEN_PREFIX,
-# LISTEN_ASKERS and LISTEN_RULES (see issue_listener.py) default to this repository's setup; the dispatcher and every
-# session get them, and each session also gets LISTEN_ISSUE. The SessionStart and Stop hooks in .claude/settings.json
-# act only in such a session. State lives under <git dir>/agent-listen-<prefix>; everything that runs is a tmux session.
-#   (no args)  start the dispatcher, tmux session `<prefix>-dispatch`, which runs `--once` every minute; does nothing
-#              if it is already running. Stop everything with: tmux kill-session -t <prefix>-dispatch, then each
-#              <prefix>-<issue>.
-#   --once     one pass: start a session for each issue with an unanswered mention (resuming that issue's earlier
-#              session if there is one), and nudge an idle session whose `wait` poll is not running
+# Keeps this side's GitHub issue traffic answered (.claude/CLAUDE.md, "Keeping a listener up"). One Claude Code
+# session per side, the hub, handles every issue through a subagent per issue and keeps
+# `python3 torchtitan/experiments/rl/tools/issue_listener/issue_listener.py watch` running as a background task,
+# so the watch's exit wakes it. This script is the hub's keeper, ported from andylizf/simulator-kernel
+# bench/tools/agent-listen.sh. Nothing is installed outside this repository: state lives under agent-listen-hub in the
+# common git dir, and the keeper is tmux session `tt-hub`. Run the keeper from a worktree that belongs to this tooling
+# alone: no subagent works in it and nothing switches its branch, because the keeper runs whatever version of this
+# script that checkout holds.
+#
+# Name the hub once: `python3 torchtitan/experiments/rl/tools/issue_listener/issue_listener.py hub-set <session id>
+# [<directory it runs in>]`. Each pass then reads Claude Code's own session records (~/.claude/sessions) and the hub's
+# transcript:
+#   - no process has the session open: launch the hub;
+#   - its last assistant entry is a usage-limit stop, or it is busy with no transcript write for HUB_FREEZE_SECONDS
+#     (600): stop its claude process and launch it again;
+#   - idle with no `watch` running: poll once, as `watch` would, and deliver the new items with a request to restart
+#     `watch`; an item still unacked 10 minutes after delivery is delivered once more.
+# At most one launch and one delivery per 10 minutes. The hub is never launched while any process has its session
+# open (a launcher and the claude it started count as one instance; two independent instances are reported as a
+# duplicate and left alone), since two processes on one session answer everything twice; and with the default
+# launcher it stops only a
+# hub running inside `tt-hub-session`. Moving a hub from another runner is therefore: stop that runner, then let the
+# keeper launch it.
+#
+# Launching and delivering are two commands, each given its text on stdin with {sid} replaced by the session id:
+#   HUB_LAUNCH   default: interactive `claude --dangerously-skip-permissions --resume {sid}` in tmux session
+#                `tt-hub-session`, its first prompt asking it to start `watch`. The skip-permissions dialog is
+#                answered in hub-settings.json in the state directory, passed with --settings; the folder-trust
+#                question in the hub directory's own entry of ~/.claude.json. Nothing user-wide is written: an
+#                install that never finished onboarding needs one `claude` run by hand
+#   HUB_DELIVER  default: check that pane is alive (a dead one is relaunched), then `tmux load-buffer`,
+#                `paste-buffer -p`, 0.4 s, Enter
+#
+#   (no args)  start the keeper, `tt-hub`, which runs --once every minute; does nothing if it is already running.
+#              Stop it with: tmux kill-session -t tt-hub. After a reboot, start it again by hand.
+#   --once     one keeper pass, logged to hub.log in the state directory
+#   --dry-run  one pass that only prints what it would do
 set -euo pipefail
-: "${LISTEN_REPO:=yichuan-w/torchtitan}" "${LISTEN_PREFIX:=tt}" "${LISTEN_ASKERS:=}"  # empty: the collaborators
-if [ -z "${LISTEN_RULES:-}" ]; then
-  LISTEN_RULES="the section \"Requests between collaborators' agents in GitHub issues\" in .claude/CLAUDE.md"
-fi
-export LISTEN_REPO LISTEN_PREFIX LISTEN_ASKERS LISTEN_RULES
-here="$(cd "$(dirname "$0")" && pwd)"
-self="$here/$(basename "$0")"
-p=$LISTEN_PREFIX
-repo=$(git rev-parse --show-toplevel)
-# State is shared by the dispatcher and every issue session, so it lives in the common git dir that all their
-# worktrees share. A listener from before issue worktrees kept it in its own worktree's git dir; move it over once.
-state="$(git -C "$repo" rev-parse --path-format=absolute --git-common-dir)/agent-listen-$p"
-old="$(git -C "$repo" rev-parse --absolute-git-dir)/agent-listen-$p"
-[ "$old" != "$state" ] && [ -d "$old" ] && [ ! -d "$state" ] && mv "$old" "$state"
-mkdir -p "$state"
+self="$(cd "$(dirname "$0")" && pwd)/$(basename "$0")"
+repo=$(git -C "$(dirname "$self")" rev-parse --show-toplevel)
 cd "$repo"
-envs=(-e "LISTEN_REPO=$LISTEN_REPO" -e "LISTEN_PREFIX=$p" -e "LISTEN_ASKERS=$LISTEN_ASKERS" -e "LISTEN_RULES=$LISTEN_RULES"
-      -e "LISTEN_HOME=$repo")
 
-if [ "${1:-}" != --once ]; then
-  if tmux has-session -t "=$p-dispatch" 2>/dev/null; then
-    echo "dispatcher already running: tmux attach -t $p-dispatch"
-  else
-    # bash -c: tmux runs a command through the user's own shell, which may not be bash (fish, for one)
-    tmux new-session -d -s "$p-dispatch" -c "$repo" "${envs[@]}" bash -c "while true; do bash '$self' --once; sleep 60; done"
-    echo "dispatcher started: tmux attach -t $p-dispatch"
-  fi
-  exit 0
-fi
-
-for n in $(python3 "$here/issue_listener.py" issues); do
-  tmux has-session -t "=$p-$n" 2>/dev/null && continue
-  # A new issue session starts in a git worktree of its own (`claude -w`, the same .claude/worktrees/<name> a
-  # subagent's isolation uses), so nothing it checks out or edits reaches the code this dispatcher runs. A restarted
-  # session resumes in the directory its SessionStart hook recorded, since Claude Code finds a session by its
-  # directory; one from before issue worktrees recorded none and started in this checkout.
-  if [ -s "$state/issue-$n.session" ]; then
-    wt=$(cat "$state/issue-$n.cwd" 2>/dev/null || echo "$repo")
-    start="claude --dangerously-skip-permissions --resume $(cat "$state/issue-$n.session") 'You were restarted. Start the wait for issue #$n again and handle anything pending.'"
-  else
-    wt=$repo
-    # baseRef head: the worktree starts from this checkout's commit; the default is the remote's default branch,
-    # which in a fork can be a line with no listener on it. --settings keeps that to these sessions.
-    start="claude --dangerously-skip-permissions --settings '{\"worktree\":{\"baseRef\":\"head\"}}' -w $p-$n 'Take issue #$n of $LISTEN_REPO.'"
-  fi
-  tmux new-session -d -s "$p-$n" -c "$wt" "${envs[@]}" -e "LISTEN_ISSUE=$n" bash -c "$start"
-  echo "$(date '+%F %T') started $p-$n"
-done
-
-now=$(date +%s)
-for s in $(tmux list-sessions -F '#S' 2>/dev/null | grep -E "^$p-[0-9]+\$" || true); do
-  n=${s#"$p"-}
-  pid="$state/wait-$n.pid"
-  [ -s "$pid" ] && kill -0 "$(cat "$pid")" 2>/dev/null && continue
-  # Not polling is normal while the session is working on a request, or just after it started.
-  tmux capture-pane -p -t "=$s:" | grep -qE '… \([0-9]+(m [0-9]+)?s' && continue  # Claude Code's busy spinner line
-  [ $((now - $(tmux display -p -t "=$s:" '#{session_created}'))) -lt 180 ] && continue
-  [ -f "$state/nudge-$n" ] && [ $((now - $(cat "$state/nudge-$n"))) -lt 600 ] && continue
-  python3 "$here/issue_listener.py" held "$n" && continue  # another session holds the issue: leave this one idle
-  tmux send-keys -t "=$s:" -l "The wait for issue #$n is not running. Start it again and handle what pending prints."
-  sleep 1  # Enter sent right behind the text is taken as a newline inside a paste, and the nudge is never submitted
-  tmux send-keys -t "=$s:" Enter
-  echo "$now" > "$state/nudge-$n"
-  echo "$(date '+%F %T') nudged $s"
-done
+case "${1:-}" in
+  "")
+    if tmux has-session -t tt-hub 2>/dev/null; then
+      echo "keeper already running: tmux attach -t tt-hub"
+    else
+      # -e: a session takes the tmux server's environment, not this shell's, so these are passed on explicitly.
+      # bash -c: tmux runs a command through the user's own shell, which may not be bash (fish, for one).
+      tmux new-session -d -s tt-hub -c "$repo" \
+        ${HUB_FREEZE_SECONDS:+-e "HUB_FREEZE_SECONDS=$HUB_FREEZE_SECONDS"} \
+        ${HUB_LAUNCH:+-e "HUB_LAUNCH=$HUB_LAUNCH"} ${HUB_DELIVER:+-e "HUB_DELIVER=$HUB_DELIVER"} \
+        bash -c "while true; do bash '$self' --once; sleep 60; done"
+      echo "keeper started: tmux attach -t tt-hub"
+    fi
+    exit 0 ;;
+  --once) python3 torchtitan/experiments/rl/tools/issue_listener/issue_listener.py hub-check || true; exit 0 ;;
+  --dry-run) exec python3 torchtitan/experiments/rl/tools/issue_listener/issue_listener.py hub-check --dry-run ;;
+  *) sed -n '2,/^set -euo/p' "$self" | sed '$d'; exit 2 ;;
+esac
