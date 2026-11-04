@@ -72,6 +72,9 @@ class WatchTest(unittest.TestCase):
         il.gh_json, il.state_dir = self.saved
         self.tmp.cleanup()
 
+    def gh_state(self):
+        return Path(self.tmp.name)
+
     def run_watch(self):
         out = io.StringIO()
         with contextlib.redirect_stdout(out):
@@ -148,7 +151,7 @@ class WatchTest(unittest.TestCase):
         self.assertEqual(il.watch_since(printed, {}), "2026-11-03T00:00:00Z")
         self.assertEqual(il.watch_since(printed, {"51:3": "2026-11-03T11:02:00Z"}), "2026-11-09T00:00:00Z")
 
-    def test_stream_prints_each_item_once_per_run_as_one_json_line(self):
+    def test_stream_prints_each_item_once_per_run_as_one_line_with_its_text_file(self):
         self.gh.comment(3, 51, PEER, "two\nlines", at(58))
         polls = []
 
@@ -167,15 +170,19 @@ class WatchTest(unittest.TestCase):
                     il.watch_stream()
             finally:
                 il.time.sleep = saved
-            return [json.loads(line) for line in out.getvalue().splitlines()]
+            return out.getvalue().splitlines()
 
         lines = run()  # three polls: 3 once, not again on the second poll; 4 once it appears
-        self.assertEqual([(it["issue"], it["id"]) for it in lines], [("51", "3"), ("51", "4")])
-        self.assertEqual(lines[0]["body"], "two\nlines")
+        self.assertEqual([line.split()[:3] for line in lines], [["===", "#51", "3"], ["===", "#51", "4"]])
+        path = Path(lines[0].split("full text: ")[1])
+        self.assertEqual(path, self.gh_state() / "items" / "51-3.txt")
+        self.assertIn("two\nlines", path.read_text())
         self.quiet(il.ack, "51", "4")
         polls.clear()
         lines = run()  # a re-armed stream hands back only what is still unacked
-        self.assertEqual([(it["id"], it["tags"][-1].split(",")[0]) for it in lines], [("3", "again")])
+        self.assertEqual(len(lines), 1)
+        self.assertIn("=== #51 3 yichuan-w", lines[0])
+        self.assertIn("[again, first printed", lines[0])
 
     def test_route_set_get_list_and_ack_moves_last(self):
         self.quiet(il.route, ["set", "51", "--name", "issue-51", "--id", "a123", "--status", "running E181 ladder"])
@@ -279,8 +286,10 @@ class LaunchTest(unittest.TestCase):
         prompt = il.WATCHER_PROMPT
         self.assertIn(f"`python3 {il.LISTENER} watch --stream` running under the Monitor tool", prompt)
         self.assertIn("timeout_ms 1800000", prompt)
-        self.assertIn("arm it again the same way and tell nobody", prompt)
+        self.assertIn("Arm it again, the same way and without telling anyone, only when", prompt)
         self.assertIn('(SendMessage to "main"), verbatim', prompt)
+        self.assertIn("an item notification does not end it", prompt)
+        self.assertIn("never have two monitors armed", prompt)
 
     def test_once_is_a_no_op_that_says_the_keeper_is_gone(self):
         r = subprocess.run(["bash", str(HERE / "agent-listen.sh"), "--once"], capture_output=True, text=True)

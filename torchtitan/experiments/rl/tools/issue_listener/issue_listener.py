@@ -5,8 +5,8 @@ Ported from andylizf/simulator-kernel bench/tools/issue_listener.py.
 
 watch          poll all open issues every 60 s for comment and issue-body versions from a collaborator account other
                than this one that are not acked, mention or not; print them in full and exit
-watch --stream the same poll, never exiting: each item is printed once per run, as one JSON line, for the hub's
-               watcher subagent to read through the Monitor tool
+watch --stream the same poll, never exiting: each item is printed once per run as one line naming a file that holds
+               its full text, for the hub's watcher subagent to read through the Monitor tool
 watch --init   mark everything that exists now as handled, so the first watch does not print the backlog
 ack N ID       mark item ID of issue N (a comment id, or `body`) handled at the version watch printed; also
                `watch --ack N ID`
@@ -186,20 +186,22 @@ def watch(interval=60, once=False):
         time.sleep(interval)
 
 
-STREAM_FIELDS = ("issue", "id", "author", "created", "updated", "tags", "url", "body")
-
-
 def watch_stream(interval=60):
-    """The watcher's Monitor command: poll every `interval` s, never exit, and print each item as one JSON line (Monitor
-    makes each stdout line a notification) the first time this run sees its current version. An item still unacked
-    therefore prints once per run, so every re-arm of the monitor hands the hub again what it has not acked."""
+    """The watcher's Monitor command: poll every `interval` s, never exit, and print each item as one line (Monitor makes
+    each stdout line a notification, and cuts a long one short) the first time this run sees its current version: its
+    header and the path of a file in the state directory holding its full text. An item still unacked therefore prints
+    once per run, so every re-arm of the monitor hands the hub again what it has not acked."""
     d = state_dir()
+    (d / "items").mkdir(exist_ok=True)
     sent = {}
     while True:
         for it in poll(d) or []:
             if sent.get(key_of(it)) != it["version"]:
                 sent[key_of(it)] = it["version"]
-                print(json.dumps({k: it[k] for k in STREAM_FIELDS}, ensure_ascii=False), flush=True)
+                text = item_text(it)
+                path = d / "items" / f"{it['issue']}-{it['id']}.txt"
+                path.write_text(text)
+                print(f"{text.splitlines()[0]} {it['url']} full text: {path}", flush=True)
         time.sleep(interval)
 
 
@@ -266,16 +268,18 @@ WATCHER_PROMPT = (
     "You are the hub's watcher (.claude/CLAUDE.md, \"Keeping a listener up\"). Your one job is to keep "
     f"`python3 {LISTENER} watch --stream` running under the Monitor tool and pass on what it prints. Load Monitor and "
     "SendMessage with ToolSearch (`select:Monitor,SendMessage`) if they are not loaded. Arm Monitor on that command, "
-    "in the directory you start in, with timeout_ms 1800000, the longest it allows. Each line it prints is one item, "
-    "a JSON object: send the lines of each notification, and of notifications that arrive together, to the main agent "
-    "in one message (SendMessage to \"main\"), verbatim. When the monitor expires or its stream ends, arm it again "
-    "the same way and tell nobody. Do nothing else: no acks, no GitHub replies, no other commands, and never end a "
-    "turn without the monitor armed.")
+    "in the directory you start in, with timeout_ms 1800000, the longest it allows. Each line it prints is one item: "
+    "send the lines of each notification, and of notifications that arrive together, to the main agent in one message "
+    "(SendMessage to \"main\"), verbatim. The command never exits by itself: an item notification does not end it, "
+    "so after forwarding items do not arm anything. Arm it again, the same way and without telling anyone, only when "
+    "you get the monitor's expiry notice or a notice that its stream ended; never have two monitors armed. Do nothing "
+    "else: no acks, no GitHub replies, no other commands, and never end a turn without the monitor armed.")
 FIRST_PROMPT = (
     "You are this side's hub (.claude/CLAUDE.md, \"Keeping a listener up\"). Before anything else, start the "
     "watcher: one background subagent (Agent tool, model \"sonnet\") whose prompt is the output of "
     f"`python3 {LISTENER} watcher-prompt`, word for word. Do not run `watch` yourself. The watcher sends you each "
-    "new or edited comment and issue body as a JSON line; hand each to that issue's subagent "
+    "new or edited comment and issue body as a line that ends with the path of a file holding its full text; hand "
+    "each to that issue's subagent "
     f"(`python3 {LISTENER} route list`), ack it with `issue_listener.py ack <issue> <id>` once the subagent has it "
     "(an unacked item comes back each time the watcher re-arms, every 30 minutes), and start a new watcher whenever "
     "you are told the watcher has finished.")

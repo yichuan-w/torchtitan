@@ -86,10 +86,10 @@ torchtitan/experiments/rl/tools/issue_listener/issue_listener.py watcher-prompt`
 prints. The watcher keeps `issue_listener.py watch --stream` running under the
 Monitor tool with the longest timeout it allows (30 minutes): the stream polls
 every minute and prints every new or edited comment and issue body from another
-collaborator's account, mentioned or not, as one JSON line. The watcher sends
-each batch of lines verbatim to the hub (`SendMessage` to `main`) and keeps
-running; when the monitor expires, it arms it again without contacting the
-hub. The hub never runs `watch` itself. It acks each item (`issue_listener.py
+collaborator's account, mentioned or not, as one line naming a file that holds
+its full text. The watcher sends each batch of lines verbatim to the hub
+(`SendMessage` to `main`) and keeps running with one monitor armed; when that
+monitor expires, it arms it again without contacting the hub. The hub never runs `watch` itself. It acks each item (`issue_listener.py
 ack <issue> <id>`) as soon as it has handed the item to a subagent; an item it
 has not acked comes back each time the watcher re-arms. It starts a new watcher
 whenever it is told the watcher has finished. `bash
