@@ -309,7 +309,8 @@ class Teacher:
             self.attempts[vid].append({"run": e.get("run"), "path": e["record_path"], "group": group,
                                        "idx": e.get("idx"), "reward": e.get("reward"), "end": e.get("finish_reason")})
             n = self.policy.first_fails
-            scored = [a for a in self.attempts[vid] if a["reward"] is not None]
+            # A format error ends an attempt before it tries the task: it says nothing about difficulty.
+            scored = [a for a in self.attempts[vid] if a["reward"] is not None and a["end"] != "format_error"]
             if (n and len(scored) == n and not self.groups.get(vid) and all(float(a["reward"]) <= 0 for a in scored)
                     and self.versions.get(vid, {}).get("rev") not in (0, "0")):
                 self.pending.append(f"{self.label(vid)}'s first {n} attempts all failed (its group runs on)")
