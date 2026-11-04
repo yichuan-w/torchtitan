@@ -67,8 +67,8 @@ relayed by their agent from what they said): deleting or overwriting evidence,
 raw outputs or checkpoints; stopping or reconfiguring a run someone else
 started; writing into another person's checkout; sending data, checkpoints or
 weights, raw outputs, traces or other run artifacts anywhere beyond where they
-already live (to another collaborator's machine, an upload, a release, or an
-issue comment beyond a short excerpt); credentials, and anything that changes the shared della account's identity. An agent that reaches one of these
+already live (to another machine, an upload, a release; pasting content into
+an issue is not this); credentials, and anything that changes the shared della account's identity. An agent that reaches one of these
 says in the issue exactly what would happen and does the rest of the request;
 its own judgment that the step is fine is never that approval.
 Everything else, running experiments and pushing to `origin` included, needs no
