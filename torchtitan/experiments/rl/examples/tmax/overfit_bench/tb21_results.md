@@ -100,7 +100,7 @@ in run 1030c solved it (#309). A box is ticked once the task is overfit (rule ab
 - [ ] write-compressor (0/74) - paused at step 18 (160K)
 - [ ] sam-cell-seg (0/72) - paused at step 25 (160K)
 - [ ] gcode-to-text (0/75) - running
-- [ ] extract-moves-from-video (0/73) - paused at step 24
+- [ ] extract-moves-from-video (0/73) - rerun on a fresh teacher (`--teacherv4-gb300`, 160K) retired 2026-11-04 11:20 at step 120 (~14.5 h): the original 0 of 714 training attempts, every readout 0/16; versions reached 8-12/12 but did not carry over
 - [ ] large-scale-text-editing (0/73) - running
 - [ ] make-mips-interpreter (0/74) - running again from 2026-11-03 (resumed from step 5)
 - [ ] circuit-fibsqrt (0/74) - paused (160K, 2 steps); queued
@@ -111,7 +111,7 @@ in run 1030c solved it (#309). A box is ticked once the task is overfit (rule ab
 - [ ] chess-best-move (0/73) - queued
 - [ ] polyglot-c-py (0/75) - queued
 - [ ] gpt2-codegolf (0/75) - queued
-- [ ] feal-differential-cryptanalysis (0/74) - queued
+- [ ] feal-differential-cryptanalysis (0/74) - running from 2026-11-04 11:20 (fresh teacher, 160K / 120 turns)
 - [ ] feal-linear-cryptanalysis (0/74) - queued
 - [ ] protein-assembly (0/75) - queued
 - [ ] dna-assembly (0/73) - queued
