@@ -216,7 +216,9 @@ def _timeline_row(T: dict, task: str, cells: dict, readouts: list, versions: lis
     """The steps [lo, hi) of one timeline: the original's lane and every version already in the pool by hi."""
     lanes = [0] + sorted({r for (st, r) in cells if r and lo <= st < hi} |
                          {r for r, b in born.items() if b < hi and any(rr == r and st >= lo for (st, rr) in cells)} |
-                         {r for r, b in born.items() if lo <= b < hi})
+                         {r for r, b in born.items() if lo <= b < hi} |
+                         # a version born here keeps its parent's lane, so the dashed line starts where it should
+                         {v["parent"] for v in versions if lo <= v["step"] < hi and v["parent"] in born})
     height = {k: len(c["mix"]) + bool(c["fail"]) + bool(c["pass"]) for k, c in cells.items() if lo <= k[0] < hi}
     left, right, top = 92, 70, 56
     pps = 56.0  # room for a "0/12×3" label before the next step
