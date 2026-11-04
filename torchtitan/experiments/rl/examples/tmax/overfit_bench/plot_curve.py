@@ -10,6 +10,11 @@ original task's readout, and every accepted rewrite.
 
     plot_curve.py <job dir> [--out curve.png] [--smooth 5] [--since <run name>]
 
+The two views agreed in #321 are HTML pages (plot_pages.py):
+
+    plot_curve.py --timeline <job dir> [<job dir> ...] --out timeline.html
+    plot_curve.py --heatmap <jobs root> --results tb21_results.md --out heatmap.html
+
 Training points come from each run's training_lineage (a group's finalized
 solve count, placed at the step that trained it); the readout from the
 validation traces (bench.validations); rewrites from
@@ -101,12 +106,31 @@ def main() -> None:
     ap = argparse.ArgumentParser(
         description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
     )
-    ap.add_argument("job", type=Path)
+    ap.add_argument("job", type=Path, nargs="+")
     ap.add_argument("--out", type=Path)
     ap.add_argument("--smooth", type=int, default=5)
     ap.add_argument("--since", default="", help="first run directory name to plot")
+    view = ap.add_mutually_exclusive_group()
+    view.add_argument("--timeline", action="store_true", help="HTML lane timeline of each job given")
+    view.add_argument("--heatmap", action="store_true", help="HTML heatmap of every task; job is the jobs root")
+    ap.add_argument("--results", type=Path, help="tb21_results.md, for --heatmap")
     a = ap.parse_args()
-    job = a.job.resolve()
+    if a.timeline or a.heatmap:
+        import plot_pages
+
+        if a.heatmap:
+            if not a.results:
+                ap.error("--heatmap needs --results")
+            page = plot_pages.heatmap_page(a.job[0].resolve(), a.results)
+        else:
+            page = plot_pages.timeline_page([j.resolve() for j in a.job])
+        out = a.out or Path("heatmap.html" if a.heatmap else "timeline.html")
+        out.write_text(page, encoding="utf-8")
+        print(f"wrote {out}")
+        return
+    if len(a.job) != 1:
+        ap.error("the curve takes one job directory")
+    job = a.job[0].resolve()
     task = json.loads((job / bench.JOB_JSON).read_text())["task"]
 
     points, packed_at = training_points(job, a.since)
