@@ -1153,6 +1153,8 @@ def process_one(
                 return _failed(rec, stage="agent", error=e)
             rec["hint"] = new.get("_hint")
             rec["agent_validated"] = new.get("_agent_validated")
+            if new.get("_harder_expected"):
+                rec["harder_expected"] = new["_harder_expected"]
 
         _record_agent_diagnostics(rec, new)
         if new.get("_repair"):

@@ -26,7 +26,8 @@ A round:
      is no longer the task's measured a policy input that is gone; both get a
      `superseded` line and the reason. A task with a rewrite in progress is
      skipped until it ends; then its signals are judged against its new
-     revision. Picks start newest signal first. A signal whose task has
+     revision. Picks start newest signal first (EVOLVE_HARDER_SLOT_FRAC can
+     reserve a share of the workers for harder ones). A signal whose task has
      since finished another whole group at the same revision without a
      signal gets a `resolved` line instead of a rewrite: that group came out
      mixed, so the task no longer needs one.
@@ -66,6 +67,7 @@ import json
 import logging
 import math
 import os
+import re
 import shutil
 import socket
 import subprocess
@@ -78,10 +80,13 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import evolve_codex as ec  # noqa: E402
+import lineage_policy  # noqa: E402
 import feedback_loop as fb  # noqa: E402
 import grader_replay  # noqa: E402
+import grader_value_leak  # noqa: E402
 from finalize_interrupted_traces import finalize_interrupted  # noqa: E402
 import pack_to_dataset as pack  # noqa: E402
+import peer_context  # noqa: E402
 from recorded_solution import solution_path  # noqa: E402
 import rewrite_workspace as rw_workspace  # noqa: E402
 from rewrite_admission import admission_is_open  # noqa: E402
@@ -116,6 +121,10 @@ SIMPLIFY_ENABLED = os.environ.get("SWE_EVOLVE_SIMPLIFY", "0").lower() not in (
 # original's reference solutions, replayed under the rewrite's grader. Off by
 # default here; the overfit bench's rewriters turn it on.
 EASIER_GRADER_REPLAY = grader_replay.enabled()
+# A harder rewrite should break some of the parent's passing finals; the same
+# replay, verdict turned round (grader_replay.harder_verdict). "" (default)
+# runs nothing, "record" records it, "reject" also rejects as not_harder.
+HARDER_GRADER_REPLAY = grader_replay.harder_mode()
 EASIER_MIN_SCORED_ATTEMPTS = int(
     os.environ.get("EVOLVE_EASIER_MIN_SCORED_ATTEMPTS", "2")
 )
@@ -512,6 +521,78 @@ def _runs_of(counts: list[str]) -> str:
         else:
             out.append([c, 1])
     return " ".join(c if n == 1 else f"{c} x{n}" for c, n in out)
+
+
+def rewrite_context_enabled() -> bool:
+    """EVOLVE_REWRITE_CONTEXT=1 (#306 item 2): stage traces/context.json, the
+    last revision that produced a mixed group and what the revision being
+    rewritten was predicted to score (_stage_rewrite_context). Default off."""
+    return os.environ.get("EVOLVE_REWRITE_CONTEXT", "0") == "1"
+
+
+_K_OF_N = re.compile(r"(\d+)\s+of\s+(\d+)")
+
+
+def _prediction_for(task: layout.TaskDir, rev: int) -> tuple[int, int] | None:
+    """What the accepted rewrite that made ``rev`` expected from its next
+    group, as (k, n): an easier rewrite's simplify.json ``expected``, a
+    harder rewrite's ``harder_expected`` or, failing that, the
+    ``expected: "k of n"`` line in its hardening.md (EVOLVE_HARDER_TARGET
+    asks for both). None for r0, a revert, or a prediction in free text."""
+    for earlier in task.rewrite_dirs():
+        try:
+            meta = json.loads(earlier.meta.read_text())
+        except (OSError, ValueError):
+            continue
+        if meta.get("status") != "accepted" or meta.get("result_rev") != rev:
+            continue
+        expected = (meta.get("simplify") or {}).get("expected") or meta.get("harder_expected")
+        if not expected:
+            for path in (earlier.notes / "hardening.md", earlier.package / "run" / "hardening.md"):
+                if path.is_file():
+                    expected = ec.so.harder_expected(path.read_text(errors="replace"))
+                    break
+        m = _K_OF_N.search(expected or "")
+        return (int(m[1]), int(m[2])) if m else None
+    return None
+
+
+def _stage_rewrite_context(
+    root: layout.Root, task: layout.TaskDir, rewrite: layout.RewriteDir, signal: dict
+) -> dict:
+    """traces/context.json for the author's prompt (evolve_codex
+    _rewrite_context), and the context it holds.
+
+    ``last_mixed``: the latest revision whose training group came out mixed
+    (lineage_policy.last_mixed_rev), when it is not the revision being
+    rewritten, with its instruction copied to traces/last-mixed/. A copy, not
+    a link, so an edit there cannot reach the revision. ``prediction``: what
+    the rewrite that made this revision expected, beside that revision's first
+    training group. Each is left out when its data is missing. Under traces/,
+    so the blind verifier never sees it."""
+    rev = int(signal["rev"])
+    index = _index_attempts(root, task)
+    context: dict = {}
+    mixed = lineage_policy.last_mixed_rev(index)
+    if mixed is not None and mixed["rev"] != rev:
+        src = task.rev(mixed["rev"]) / "instruction.md"
+        if src.is_file():
+            out = rewrite.traces / "last-mixed"
+            out.mkdir(parents=True, exist_ok=True)
+            shutil.copyfile(src, out / "instruction.md")
+            context["last_mixed"] = {**mixed, "instruction": "traces/last-mixed/instruction.md"}
+    predicted = _prediction_for(task, rev)
+    first = next((g for g in lineage_policy.training_groups(index) if g["rev"] == rev), None)
+    if predicted is not None and first is not None:
+        context["prediction"] = {
+            "rev": rev,
+            "expected": f"{predicted[0]} of {predicted[1]}",
+            **{k: first[k] for k in ("run", "group", "solved", "total")},
+        }
+    if context:
+        rewrite.traces.mkdir(parents=True, exist_ok=True)
+        layout.write_json_atomic(rewrite.traces / "context.json", context)
+    return context
 
 
 def _write_record(root: layout.Root, task: layout.TaskDir, rewrite: layout.RewriteDir) -> int:
@@ -1078,6 +1159,20 @@ def handle(
     tid, rev = str(d["task"]), int(d["rev"])
     job = "harder" if d["direction"] == "harder" else "easier"
     task = root.evolution.task(tid)
+    if (
+        lineage_policy.swap_back_enabled()
+        and lineage_policy.keep_original()
+        and not dry
+        and d["direction"] == "harder"
+        and int(d["solved"]) == int(d["total"])
+        and lineage_policy.produced_by(layout.read_jsonl(task.lineage), rev) == "easier"
+    ):
+        return _swap_back(sig, task, rev)
+    needed = lineage_policy.retire_after_misses()
+    if needed and not dry:
+        target = lineage_policy.revert_target(_index_attempts(root, task), rev, needed)
+        if target is not None:
+            return _revert(sig, task, rev, target, needed)
     src = task.rev(rev)
     if not src.exists():
         if rev != 0:
@@ -1134,6 +1229,11 @@ def handle(
             root, task, rewrite, strict_storage=workspace.is_local, current=d
         )
         _write_record(root, task, rewrite)
+        if rewrite_context_enabled():
+            _stage_rewrite_context(root, task, rewrite, d)
+        if peer_context.enabled() and job in ("harder", "easier"):
+            n_peers = peer_context.stage(root, tid, rewrite.traces, d)
+            log.info("%s peer context: %d tasks in traces/peers", tid, n_peers)
         if n_history:
             log.info("%s history: %d earlier rewrites in traces/history", tid, n_history)
         parent_snapshot = None
@@ -1253,6 +1353,36 @@ def handle(
                     stage="grader_stricter",
                     reason=rec["grader_replay"]["why"],
                 )
+        if (
+            job == "harder"
+            and HARDER_GRADER_REPLAY
+            and rec.get("status") == "accepted"
+            and not dry
+        ):
+            if rec.get("changed") == ["instruction"]:
+                # Grader and environment are the parent's, so every replay
+                # passes whatever the instruction now withholds; the replay
+                # cannot see this kind of hardening.
+                rec["harder_replay"] = {"ok": True, "skipped": "instruction_only"}
+            else:
+                rec["harder_replay"] = grader_replay.harder_verdict(
+                    _grader_replay(root, task, tid, rev, src, rewrite, declared, stage=None)
+                )
+            if not rec["harder_replay"]["ok"] and HARDER_GRADER_REPLAY == "reject":
+                rec.update(
+                    status="rejected",
+                    stage="not_harder",
+                    reason=rec["harder_replay"]["why"],
+                )
+        leak_mode = grader_value_leak.mode()
+        if leak_mode and rec.get("status") == "accepted" and not dry:
+            rec["grader_value_leak"] = grader_value_leak.check(src, rewrite.package)
+            if not rec["grader_value_leak"]["ok"] and leak_mode == "reject":
+                rec.update(
+                    status="rejected",
+                    stage="grader_value_leak",
+                    reason=rec["grader_value_leak"]["why"],
+                )
         canary_config = PolicyCanaryConfig.from_env()
         if rec.get("status") == "accepted" and canary_config.group_size:
             if dry:
@@ -1318,6 +1448,8 @@ def handle(
         "calibration",
         "simplify_context",
         "grader_replay",
+        "harder_replay",
+        "grader_value_leak",
         "stage",
         "reason",
         "verdicts",
@@ -1345,6 +1477,7 @@ def handle(
         meta["finished"] = layout.stamp()
     layout.write_json_atomic(rewrite.meta, meta)
     published = time.monotonic()
+    ec.materialize_outside_packages(rewrite)
     try:
         rewrite = workspace.publish()
     except rw_workspace.UnpublishableRewrite:
@@ -1366,6 +1499,64 @@ def handle(
     return {"signal": sig, "rewrite": rewrite, "meta": meta, "status": status}
 
 
+def _swap_back(sig: Signal, task: layout.TaskDir, rev: int) -> dict:
+    """An accepted "swap_back": the fold drops the task's evolving row and keeps
+    its pinned original (lineage_policy.frozen_original). No package; the
+    task is paused from then on (_defer_reason)."""
+    rewrite = _new_rewrite_dir(task, "swap_back")
+    rewrite.path.mkdir(parents=True)
+    meta = {
+        "task": str(sig.data["task"]),
+        "job": "swap_back",
+        "signal": sig.sid,
+        "input_rev": rev,
+        "started": layout.stamp(),
+        "finished": layout.stamp(),
+        "status": "running",
+        "route": "swap_back",
+        "reason": f"easier r{rev} solved {sig.data['solved']}/{sig.data['total']}; back to the original",
+        "resources": None,
+        "result_rev": None,
+    }
+    layout.write_json_atomic(rewrite.meta, meta)
+    log.info("%s swap back: easier r%d learned, original stays", meta["task"], rev)
+    return {"signal": sig, "rewrite": rewrite, "meta": meta, "status": "accepted"}
+
+
+def _revert(sig: Signal, task: layout.TaskDir, rev: int, target: int, misses: int) -> dict:
+    """An accepted "revert" whose package is a copy of r<target>: the fold
+    publishes it as r<rev+1>, so revisions keep counting up, and the task is
+    paused from then on (_defer_reason). Resources are the ones r<target> was
+    folded with; for r0 the replaced row's carry across."""
+    resources = None
+    for previous in task.rewrite_dirs():
+        try:
+            prev = json.loads(previous.meta.read_text())
+        except (OSError, ValueError):
+            continue
+        if prev.get("status") == "accepted" and prev.get("result_rev") == target:
+            resources = prev.get("resources")
+    rewrite = _new_rewrite_dir(task, "revert")
+    shutil.copytree(task.rev(target), rewrite.package, ignore=SEED_IGNORE)
+    meta = {
+        "task": str(sig.data["task"]),
+        "job": "revert",
+        "signal": sig.sid,
+        "input_rev": rev,
+        "reverted_to": target,
+        "started": layout.stamp(),
+        "finished": layout.stamp(),
+        "status": "running",
+        "route": "retire",
+        "reason": f"{misses} revisions in a row missed on their first group; back to r{target}",
+        "resources": resources,
+        "result_rev": None,
+    }
+    layout.write_json_atomic(rewrite.meta, meta)
+    log.info("%s retire: r%d -> copy of r%d (%d first-group misses)", meta["task"], rev, target, misses)
+    return {"signal": sig, "rewrite": rewrite, "meta": meta, "status": "accepted"}
+
+
 def _grader_replay(
     root: layout.Root,
     task: layout.TaskDir,
@@ -1377,7 +1568,7 @@ def _grader_replay(
     *,
     stage: str | None,
 ) -> dict:
-    """grader_replay.check for an accepted easier rewrite of ``src`` (r<rev>)."""
+    """grader_replay.check for an accepted easier or harder rewrite of ``src`` (r<rev>)."""
     if stage == "instruction_only":
         # Only the instruction moved: grader, environment and solution are
         # the parent's, so nothing it passed can fail now.
@@ -1594,6 +1785,7 @@ def fold(root: layout.Root, accepted: list[dict]) -> int | None:
             rows[iid] = ln
             order.append(iid)
     gated: list[tuple[dict, str, int, dict]] = []
+    swapped: list[dict] = []
     for h in accepted:
         meta = h["meta"]
         tid, n = meta["task"], int(meta["input_rev"])
@@ -1602,15 +1794,21 @@ def fold(root: layout.Root, accepted: list[dict]) -> int | None:
         if tid not in rows:
             _finish(h, "rejected", stage="not_in_mix", reason="no longer in the mix")
             continue
+        if meta.get("job") == "swap_back":
+            if lineage_policy.original_id(tid) in rows:
+                swapped.append(h)
+            else:
+                _finish(h, "kept", stage="swap_back", reason="no pinned original in the mix")
+            continue
         if layout.exists(target):
             # Cannot happen while one loop runs: choose() hands out one
             # signal per task per round. A revision is never overwritten.
             _finish(h, "failed", stage="fold", reason=f"{target.name} already exists")
             continue
-        policy_canary = (
-            (meta.get("policy_canary") or {}) if policy_admission_enabled else {}
-        )
-        if policy_admission_enabled:
+        # A revert republishes a revision training already measured.
+        admission = policy_admission_enabled and meta.get("job") != "revert"
+        policy_canary = (meta.get("policy_canary") or {}) if admission else {}
+        if admission:
             if not policy_canary.get("ok") or "expires_at" not in policy_canary:
                 _finish(h, "kept", stage="policy_canary_missing", reason="no passing current-policy admission check")
                 continue
@@ -1653,11 +1851,23 @@ def fold(root: layout.Root, accepted: list[dict]) -> int | None:
         except Exception as e:  # noqa: BLE001 -- one malformed package, not the round
             _finish(h, "failed", stage="fold", reason=f"{type(e).__name__}: {e}")
             continue
+        if (
+            lineage_policy.keep_original()
+            and n == 0
+            and lineage_policy.original_id(tid) not in rows
+        ):
+            # Right after the task, not at the end: the held-out slice is the
+            # last rows of the file, and a held-out task is never folded.
+            oid, rows[oid] = lineage_policy.frozen_original(rows[tid])
+            order.insert(order.index(tid) + 1, oid)
         rows[tid] = json.dumps(row, ensure_ascii=False)
         folded.append(
             (h, n + 1, {rk: row["metadata"].get(rk) for rk in ROW_KEYS.values()})
         )
-    if not folded:
+    for h in swapped:
+        del rows[h["meta"]["task"]]
+        order.remove(h["meta"]["task"])
+    if not folded and not swapped:
         return None
     # Renamed only once every row is built, so a loop killed while a batch is
     # being packed leaves no r<N+1> on disk without a mix version naming it.
@@ -1682,6 +1892,7 @@ def fold(root: layout.Root, accepted: list[dict]) -> int | None:
                 "to_rev": to_rev,
                 "mix_version": version,
                 "rewrite": f"rewrites/{rewrite.path.name}",
+                **({"reverted_to": meta["reverted_to"]} if "reverted_to" in meta else {}),
             },
         )
         log.info(
@@ -1692,6 +1903,22 @@ def fold(root: layout.Root, accepted: list[dict]) -> int | None:
             " ".join(f"{k}={v}" for k, v in res.items()),
             (meta.get("resources") or {}).get("source") or "inherited",
         )
+    for h in swapped:
+        meta, rewrite = h["meta"], h["rewrite"]
+        meta.update({"status": "accepted", "finished": layout.stamp()})
+        layout.write_json_atomic(rewrite.meta, meta)
+        h["status"] = "accepted"
+        layout.append_jsonl(
+            root.evolution.task(meta["task"]).lineage,
+            {
+                "stamp": layout.stamp(),
+                "event": "swap_back",
+                "from_rev": meta["input_rev"],
+                "mix_version": version,
+                "rewrite": f"rewrites/{rewrite.path.name}",
+            },
+        )
+        log.info("swap back %s: r%d left the mix", meta["task"], meta["input_rev"])
     log.info(
         "published mix v%04d (%d rows, %d folded) -> %s",
         version,
@@ -2015,7 +2242,15 @@ def _created(s: Signal) -> str:
 
 
 def _defer_reason(root: layout.Root, s: Signal) -> str | None:
-    """Explain why an easier signal must not start a rewrite."""
+    """Explain why a signal must not start a rewrite: its task is paused, or
+    an easier signal lacks what an easier rewrite needs."""
+    if lineage_policy.retire_after_misses() or lineage_policy.swap_back_enabled():
+        lineage = layout.read_jsonl(root.evolution.task(s.task).lineage)
+        if lineage_policy.swapped_back(lineage):
+            return "paused: swapped back to the original"
+        source = lineage_policy.reverted_at(lineage, int(s.data["rev"]))
+        if source is not None:
+            return f"paused: r{s.data['rev']} is the retire copy of r{source}"
     if s.data["direction"] != "easier":
         return None
     if not SIMPLIFY_ENABLED and not unsolved(root, s.task, int(s.data["rev"])):
@@ -2130,6 +2365,40 @@ def select_work(
             lines.append(_ledger_entry(s, "superseded", reason=why))
     _append_ledger(root, lines)
     return todo
+
+
+def harder_slot_frac() -> float | None:
+    """EVOLVE_HARDER_SLOT_FRAC (#306 item 6): the share of the rewrite workers
+    harder signals are preferred for (slot_order). Unset, the default, keeps
+    newest-first regardless of direction. Harder is the most
+    gradient-efficient direction: .58-.72 of its rollout time ended in a
+    trained group in runs 1022/1026b/1031b, against .42-.66 for easier."""
+    v = os.environ.get("EVOLVE_HARDER_SLOT_FRAC", "").strip()
+    if not v:
+        return None
+    frac = float(v)
+    if not 0.0 <= frac <= 1.0:
+        raise ValueError("EVOLVE_HARDER_SLOT_FRAC must be within [0, 1]")
+    return frac
+
+
+def slot_order(
+    batch: list[Signal], free: int, *, running_harder: int, workers: int, frac: float | None
+) -> list[Signal]:
+    """The signals of ``batch`` (newest first) to start in ``free`` slots.
+
+    Without ``frac``, the first ``free``. With it, harder signals first, newest
+    first, until the harder rewrites in flight reach ceil(frac * workers); the
+    remaining slots take what is left newest first, of either direction, so a
+    slot stays empty only when the batch runs out."""
+    free = max(0, free)
+    if frac is None:
+        return batch[:free]
+    # The epsilon keeps 0.7 * 10 at 7: in floating point it is 7.000000000000001.
+    want = max(0, math.ceil(frac * workers - 1e-9) - running_harder)
+    harder = [s for s in batch if s.data["direction"] == "harder"][: min(want, free)]
+    taken = {s.sid for s in harder}
+    return harder + [s for s in batch if s.sid not in taken][: free - len(harder)]
 
 
 class _Closer:
@@ -2363,10 +2632,19 @@ def run_round(
                 return declared_cache["value"]
 
             def fill(batch: list[Signal]) -> None:
-                """Submit up to the free slots, newest mix in hand."""
+                """Submit up to the free slots, newest mix in hand; which
+                signals fill them is slot_order's."""
                 if not admission_is_open(dry=dry):
                     return
-                batch = batch[: workers - len(futs)]
+                batch = slot_order(
+                    batch,
+                    workers - len(futs),
+                    running_harder=sum(
+                        s.data["direction"] == "harder" for s in futs.values()
+                    ),
+                    workers=workers,
+                    frac=harder_slot_frac(),
+                )
                 if not batch:
                     return
                 declared, pretests, protecteds, input_rows = declared_now()

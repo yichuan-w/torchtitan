@@ -49,6 +49,8 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 import evolve as ev
+import grader_value_leak
+import peer_context
 import simplify_operators as so
 import synth_client as llm
 import task_size as ts
@@ -2246,6 +2248,43 @@ never states, "broken_setup" for an environment missing what the task needs,
 and "other" for anything else. An attempt that solved the task the intended
 way is not a defect, however quickly it did so."""
 
+# EVOLVE_HARDER_TARGET="lo-hi" (#306 item 6, default unset): the last sentence
+# of both harder jobs becomes an explicit band out of a group of 12, scaled to
+# this group (so.target_band). The band also replaces the guidance's "modest
+# reduction", and the job states how far 111e's harder rewrites fell short.
+# It asks for no `expected: "k of n"` line: in 111e, 78% of 844 harder
+# predictions were 6 of 12 and they correlated 0.07 with the first group, so
+# the line said little, and requiring it cost whole rewrites when it was
+# missing. An `expected:` line an author writes anyway is still read.
+_HALF_AIM = "Aim for a task a capable agent lands about half the time."
+assert _HARDER_JOB.endswith(_HALF_AIM) and _HARDER_JOB_BLIND.endswith(_HALF_AIM)
+_HARDER_TARGET = """Aim for a task the next group of {n} attempts solves {lo} to {hi} times.
+Past harder rewrites for this student were too small: in run 111e, 238 of the
+349 whose first training group was measured were solved by every attempt of
+it, and the authors of 220 of those 238 had reported that both replayed
+attempts now stopped. A change that looks sufficient to you is usually not."""
+# The guidance's own aim, which the band replaces: "modest" is the step the
+# 111e audit (issue #313) found too small for a 122B student.
+_MODEST_AIM = """Aim for a modest reduction in this student's solve rate toward mixed success,
+not universal failure."""
+assert _MODEST_AIM in _REAL_HARDER_GUIDANCE
+_BAND_AIM = """Aim for {lo} to {hi} of {n} solved in the next group, not universal
+failure."""
+
+
+def _harder_aim(job_text: str, attempts: int) -> str:
+    """A harder job with EVOLVE_HARDER_TARGET's band in place of its last
+    sentence and of the guidance's "modest reduction"; unchanged when the
+    flag is unset."""
+    band = so.target_band("EVOLVE_HARDER_TARGET", attempts)
+    if band is None:
+        return job_text
+    fields = {"n": attempts, "lo": band[0], "hi": band[1]}
+    return job_text.replace(_MODEST_AIM, _BAND_AIM.format(**fields)).replace(
+        _HALF_AIM, _HARDER_TARGET.format(**fields), 1
+    )
+
+
 _EASIER_JOB = """This task was solved {solved} of {attempts} attempts.
 Diagnose the attempts and reduce one obstacle while retaining a stated skill.
 {guidance}"""
@@ -2484,6 +2523,80 @@ excluding JSON metadata and completion markers.
 def _budget(timeout: int) -> str:
     deadline = time.strftime("%H:%M %Z", time.localtime(time.time() + timeout))
     return _BUDGET.format(deadline=deadline, budget_min=timeout // 60)
+
+
+def blind_isolation() -> bool:
+    """EVOLVE_BLIND_ISOLATION=1 (default off): move the blind verifier's
+    package out of the rewrite (_outside_package) and record, in its
+    session.json, any output naming a path outside it (_require_blind). Off,
+    the verifier runs exactly as before. Read per call, so a test or a caller
+    can set it per process."""
+    return os.environ.get("EVOLVE_BLIND_ISOLATION", "0") == "1"
+
+
+def _outside_package(sd: layout.SessionDir) -> Path:
+    """Give a blind session a package outside the rewrite directory.
+
+    The session's package used to sit at sessions/<stamp>--verifier/package,
+    so ../../../package from its cwd was the author's package, reference
+    solution and traces included; only the prompt kept it from going there.
+    Now ``sd.package`` is a link to a fresh directory under
+    EVOLVE_WORK_ROOT/blind (the system temp directory without one), and the
+    session runs in the link's target. materialize_outside_packages copies it
+    back into the session before the rewrite is published."""
+    base = os.environ.get("EVOLVE_WORK_ROOT", "").strip()
+    parent = Path(base) / "blind" if base else None
+    if parent is not None:
+        parent.mkdir(parents=True, exist_ok=True)
+    real = Path(tempfile.mkdtemp(prefix="blind-package-", dir=parent)).resolve()
+    real.chmod(0o700)
+    sd.package.symlink_to(real, target_is_directory=True)
+    return real
+
+
+def materialize_outside_packages(rewrite: layout.RewriteDir) -> None:
+    """Replace each session's package link with a copy of what it points at.
+    The copy is made beside the link first, so a failed copy leaves the link
+    and its target as they were."""
+    for sd in rewrite.session_dirs():
+        link = sd.package
+        if not link.is_symlink():
+            continue
+        real = Path(os.readlink(link))
+        if not real.is_dir():
+            continue
+        incoming = link.with_name("package.incoming")
+        shutil.rmtree(incoming, ignore_errors=True)
+        shutil.copytree(real, incoming, symlinks=True)
+        link.unlink()
+        incoming.rename(link)
+        shutil.rmtree(real, ignore_errors=True)
+
+
+# Seen in a blind session's own output (its prompt removed), each means it
+# looked outside its package: a climb back to the author's package, the
+# rewrite directory, or another task in the root. Measured over 428 verifier
+# sessions on della before the package moved out: none named the author's
+# package; every root path they printed was their own package's.
+def _require_blind(sd: layout.SessionDir, rewrite: layout.RewriteDir) -> list[str]:
+    """The escape marks in a blind session's output, prompt removed. Raises
+    nothing: a caller records them (the marks also match harmless output,
+    such as `ps` listing another session's command line)."""
+    prompt = sd.prompt.read_text(errors="replace") if sd.prompt.is_file() else ""
+    text = "".join(
+        p.read_text(errors="replace").replace(prompt, "")
+        for p in (sd.stdout, sd.stderr, sd.path / "events.jsonl")
+        if p.is_file()
+    )
+    marks = ("../package", str(rewrite.path) + "/", "/evolution/tasks/")
+    return [m for m in marks if m in text]
+
+
+def _record_blind(run, rewrite: layout.RewriteDir) -> None:
+    hits = _require_blind(run.dir, rewrite)
+    if hits:
+        run.meta["blind_escape"] = hits
+        log.warning("blind session %s named paths outside its package: %s", run.dir.path.name, hits)
 
 
 def _blind_layout(pkg: Path, vpkg: Path) -> None:
@@ -3151,7 +3264,7 @@ def _blind_verifier(
     with ThreadPoolExecutor(max_workers=2) as pool:
         timeout = _session_timeout(deadline, "blind verifier author")
         with session(rewrite, "verifier", timeout=timeout) as run:
-            vpkg = run.dir.package
+            vpkg = _outside_package(run.dir) if blind_isolation() else run.dir.package
             _blind_layout(pkg, vpkg)
             _restore_seed_tests(vpkg, seed_tests)
             prompt = _VERIFIER_JOB.format(
@@ -3208,6 +3321,8 @@ def _blind_verifier(
                 _run_codex(run, vpkg, prompt)
             finally:
                 _sandbox_down(vpkg)
+            if blind_isolation():
+                _record_blind(run, rewrite)
         _check_verdict(vpkg)
         sessions_done = time.monotonic()
         cancel_early = threading.Event()
@@ -3333,9 +3448,11 @@ def _blind_repair(
             + _budget(timeout)
         )
         try:
-            _run_codex(run, vpkg, prompt, resume=sid)
+            _run_codex(run, vpkg.resolve() if vpkg.is_symlink() else vpkg, prompt, resume=sid)
         finally:
             _sandbox_down(vpkg)
+        if blind_isolation():
+            _record_blind(run, rewrite)
     _check_verdict(vpkg)
     _verify_original_probes(vsession, rewrite, deadline)
     if independent_probes():
@@ -3777,6 +3894,35 @@ def _trace_counts(traces: Path) -> tuple[int, int] | None:
     return (solved, attempts) if attempts else None
 
 
+def _rewrite_context(traces: Path) -> tuple[str, str]:
+    """The author prompt's first line and its LAST MIXED VERSION paragraph,
+    from traces/context.json (evolve_ondella._stage_rewrite_context, staged
+    under EVOLVE_REWRITE_CONTEXT); empty strings for what it does not hold,
+    and both empty without it."""
+    try:
+        context = json.loads((traces / "context.json").read_text())
+    except (OSError, ValueError):
+        return "", ""
+    head = para = ""
+    if p := context.get("prediction"):
+        head = (
+            f"The version you are rewriting (r{p['rev']}) was predicted to solve "
+            f"{p['expected']}, and its first training group solved {p['solved']} of "
+            f"{p['total']}.\n\n"
+        )
+    if m := context.get("last_mixed"):
+        para = (
+            "\n\nTHE LAST MIXED VERSION\n"
+            f"r{m['rev']} is the latest version of this task that produced a mixed "
+            f"group: {m['solved']} of {m['total']} solved (run {m['run']}, group "
+            f"{m['group']}). Its instruction is {m['instruction']}. Compare it with "
+            "the current one: what changed between the two is the first candidate "
+            "for what moved this task out of the learnable band. It is read-only "
+            "evidence, not part of the task.\n"
+        )
+    return head, para
+
+
 def evolve_agentic(
     rewrite: layout.RewriteDir,
     task: dict,
@@ -3848,7 +3994,7 @@ def evolve_agentic(
     blind = job in ("harder", "easier") and VERIFIER_AUTHOR == "blind" and not keep_verifier
     prompt = (
         {
-            "harder": (_HARDER_JOB_BLIND if blind else _HARDER_JOB).format(
+            "harder": _harder_aim((_HARDER_JOB_BLIND if blind else _HARDER_JOB).format(
                 solved=solved,
                 attempts=attempts_n,
                 guidance=_calibration_guidance(solved, attempts_n)
@@ -3871,22 +4017,26 @@ def evolve_agentic(
                     "Do not add code to meet a minimum length."
                 ),
                 max_asserts=ts.MAX_ADDED_ASSERTS,
-            )
+            ), attempts_n)
             + _HARDER_REPAIR_NOTE
             + (_UNSOLVED_HARDER_NOTE if task.get("_unsolved") else ""),
             "easier": (_PLAN_JOB if task.get("_intervention_plan") else _EASIER_JOB).format(
                 solved=solved,
                 attempts=attempts_n,
-                guidance=so.prompt(task.get("_simplify_hint", "vague")),
+                guidance=so.prompt(task.get("_simplify_hint", "vague"), attempts_n),
             )
             + (_UNSOLVED_NOTE if task.get("_unsolved") else ""),
             "repair": _REPAIR_JOB.format(exit_code=exit_code),
         }[job]
         + (_CHECKED_NOTE if blind else "")
+        + (grader_value_leak.PROMPT_NOTE if job == "harder" and grader_value_leak.mode() else "")
         + _traces_spec(rewrite.traces)
         + _budget(author_timeout)
     )
 
+    if job in ("harder", "easier"):
+        head, last_mixed = _rewrite_context(rewrite.traces)
+        prompt = head + prompt
     history = rewrite.traces / "history"
     if job in ("harder", "easier") and history.is_dir() and any(history.iterdir()):
         prompt += (
@@ -3912,6 +4062,9 @@ def evolve_agentic(
             "revision failed -- open the records that answer it. They are "
             "read-only, and none of it goes into the task.\n"
         )
+
+    if job in ("harder", "easier"):
+        prompt += last_mixed + peer_context.prompt(rewrite.traces)
 
     if job in ("harder", "easier") and task.get("_student_feedback"):
         feedback = task["_student_feedback"]
@@ -4013,6 +4166,13 @@ def evolve_agentic(
         out["_agent_exit_code"] = agent_error.returncode
     if job == "harder":
         out["_harder_mode"] = "student"
+        if so.target_band("EVOLVE_HARDER_TARGET", attempts_n):
+            hardening = pkg / "run" / "hardening.md"
+            out["_harder_expected"] = (
+                so.harder_expected(hardening.read_text(errors="replace"))
+                if hardening.is_file()
+                else None
+            )
     if job == "easier":
         decision = so.read_decision(pkg, task.get("_simplify_hint", "vague"))
         decision["hint_level"] = task.get("_simplify_hint", "vague")
