@@ -432,6 +432,7 @@ async def _probe_once(
                 workdir=workdir,
                 baseline_digests=baseline,
                 diagnostics=grading,
+                task_id=md.get("instance_id"),
             )
     tail = (out + "\n" + err)[-400:]
     if shortcut is None:

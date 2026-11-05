@@ -272,6 +272,7 @@ async def grade_tmax(
     upload_tests: bool = True,
     harbor_reward: bool = False,
     env: dict[str, str] | None = None,
+    task_id: str | None = None,
 ) -> float:
     """Grade a tmax task in the (already-run) sandbox ``sb`` and return reward.
 
@@ -303,7 +304,7 @@ async def grade_tmax(
     if (
         upload_tests
         and verifier_snapshot.enabled()
-        and not verifier_snapshot.exempt(tmax.get("task_id"))
+        and not verifier_snapshot.exempt(task_id)
     ):
         restore = await verifier_snapshot.restore_verifier(sb, timeout=timeout)
         if diagnostics is not None:
@@ -311,7 +312,7 @@ async def grade_tmax(
         if restore.get("branch") not in (None, "none"):
             logger.info(
                 "[tmax] verifier_restore %s: %s",
-                tmax.get("task_id", "?"),
+                task_id or tmax.get("task_id", "?"),
                 json.dumps(restore, sort_keys=True),
             )
 
@@ -400,7 +401,7 @@ async def grade_tmax(
                 )
             logger.info(
                 "[tmax] integrity baseline difference for %s in %d protected entr(y/ies): %s; scoring 0",
-                tmax.get("task_id", "?"),
+                task_id or tmax.get("task_id", "?"),
                 len(_differing),
                 describe_differences(_protected, _differing),
             )
@@ -435,7 +436,7 @@ async def grade_tmax(
             logger.info(
                 "[tmax] pre_test SKIPPED for %s: environment changed since capture (stamped=%s episode=%s); "
                 "grading via test.sh without the pin check",
-                tmax.get("task_id", "?"),
+                task_id or tmax.get("task_id", "?"),
                 _stamped or "?",
                 _episode or "?",
             )
@@ -487,7 +488,7 @@ async def grade_tmax(
     if reward < 1.0:
         logger.info(
             "[tmax] verifier for %s exited %s with reward=%.2f; tail %r",
-            tmax.get("task_id", "?"),
+            task_id or tmax.get("task_id", "?"),
             rc,
             reward,
             verifier_tail,
@@ -916,6 +917,7 @@ def grade_tmax_daytona(
     workdir: str,
     timeout_sec: int | None = None,
     baseline_digests: dict[str, str] | None = None,
+    task_id: str | None = None,
 ) -> float:
     """Same steps as ``grade_tmax`` but against a RAW ``daytona`` Sandbox.
 
@@ -934,12 +936,12 @@ def grade_tmax_daytona(
 
     # VERIFIER RESTORE (TMAX_SNAPSHOT_VERIFIER, default off): same as grade_tmax, for
     # the standalone sync path. No-op when no snapshot exists.
-    if verifier_snapshot.enabled() and not verifier_snapshot.exempt(tmax.get("task_id")):
+    if verifier_snapshot.enabled() and not verifier_snapshot.exempt(task_id):
         restore = verifier_snapshot.restore_verifier_sync(sb, timeout=timeout)
         if restore.get("branch") not in (None, "none"):
             logger.info(
                 "[tmax] verifier_restore %s: %s",
-                tmax.get("task_id", "?"),
+                task_id or tmax.get("task_id", "?"),
                 json.dumps(restore, sort_keys=True),
             )
 
@@ -976,7 +978,7 @@ def grade_tmax_daytona(
         if _differing:
             logger.info(
                 "[tmax] integrity baseline difference for %s in %d protected entr(y/ies): %s; scoring 0",
-                tmax.get("task_id", "?"),
+                task_id or tmax.get("task_id", "?"),
                 len(_differing),
                 describe_differences(_protected, _differing),
             )

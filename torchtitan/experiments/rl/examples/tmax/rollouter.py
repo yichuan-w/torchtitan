@@ -2634,6 +2634,7 @@ class TMaxRollouter(Rollouter):
                                 timeout_sec=verifier_sec,
                                 baseline_digests=baseline_digests,
                                 diagnostics=verifier,
+                                task_id=sample.instance_id,
                             )
                             ctrf = await self._read_ctrf_quietly(sandbox, rollout_id)
                         timing["grade_secs"] = time.monotonic() - grade_at
@@ -2678,6 +2679,7 @@ class TMaxRollouter(Rollouter):
                                     timeout_sec=verifier_sec,
                                     baseline_digests=baseline_digests,
                                     diagnostics=shadow,
+                                    task_id=sample.instance_id,
                                 )
                             except Exception as e:  # noqa: BLE001
                                 logger.warning(

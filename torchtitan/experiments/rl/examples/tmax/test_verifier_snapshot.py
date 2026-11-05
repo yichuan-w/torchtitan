@@ -72,6 +72,47 @@ def test_snapshot_reports_size(tmp_path):
     _mkverifier(tmp_path)
     snap = _run(vs.SNAPSHOT_SH, tmp_path)
     assert snap["existed"] is True and snap["entries"] > 0 and snap["bytes"] > 0
+    assert (tmp_path / ".snap.manifest.done").exists()  # completion marker written last
+    assert not (tmp_path / ".snap.manifest.tmp").exists()  # temp manifest renamed into place
+
+
+def test_no_snapshot_fails_safe(tmp_path):
+    _mkverifier(tmp_path)
+    r = _run(vs.RESTORE_SH, tmp_path)  # RESTORE with no snapshot taken
+    assert r["snapshot"] is False and r["branch"] == "none" and r["reason"] == "no_snapshot"
+
+
+def test_incomplete_snapshot_no_done_fails_safe(tmp_path):
+    """A snapshot cut off before writing its marker must cause NO deletions/restore."""
+    v = _mkverifier(tmp_path)
+    _run(vs.SNAPSHOT_SH, tmp_path)
+    (tmp_path / ".snap.manifest.done").unlink()  # simulate a timeout before completion
+    (_sp(v) / "torch").mkdir()
+    (_sp(v) / "torch" / "__init__.py").write_text("x\n")  # the model then adds a package
+    sig = _sig(v)
+    r = _run(vs.RESTORE_SH, tmp_path)
+    assert r["snapshot"] is False and r["branch"] == "none" and r["reason"] == "no_valid_snapshot"
+    assert _sig(v) == sig  # nothing deleted or restored -- the grader's/model's entries stay
+    assert (_sp(v) / "torch" / "__init__.py").exists()
+
+
+def test_partial_manifest_tmp_fails_safe(tmp_path):
+    """A leftover partial manifest.tmp with no completion marker must also fail safe."""
+    v = _mkverifier(tmp_path)
+    before = _sig(v)
+    (tmp_path / ".snap").mkdir()
+    (tmp_path / ".snap.manifest.tmp").write_text("bin/python\tf\t1\t10\t\n")  # partial, no mv
+    r = _run(vs.RESTORE_SH, tmp_path)
+    assert r["branch"] == "none" and r["reason"] == "no_valid_snapshot"
+    assert _sig(v) == before  # no deletions
+
+
+def test_rewrite_shares_base_exemption(monkeypatch):
+    """instance_id is the base task id (rev is a separate metadata field), so a task and all
+    its rewrites carry the same exemption key; exempting the base exempts the rewrites."""
+    base = "software-engineering_20260607_104421_003"
+    monkeypatch.setenv(vs.EXEMPT_ENV, base)
+    assert vs.exempt(base) is True  # the id the harness passes for the task and every rewrite
 
 
 def test_no_change_branch_none(tmp_path):

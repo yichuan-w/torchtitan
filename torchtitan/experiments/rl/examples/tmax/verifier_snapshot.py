@@ -119,15 +119,22 @@ _t0=$(date +%s.%N)
 VDIR="${VDIR:-/opt/verifier}"
 SDIR="${SDIR:-/opt/.verifier_snapshot}"
 MFILE="${MFILE:-/opt/.verifier_snapshot.manifest}"
+DONE="${MFILE}.done"
 _elapsed() { awk "BEGIN{printf \"%.3f\", $(date +%s.%N)-$_t0}"; }
 if [ ! -e "$VDIR" ]; then printf '{"existed":false,"secs":%s}\n' "$(_elapsed)"; exit 0; fi
-rm -rf -- "$SDIR" "$MFILE" 2>/dev/null
+rm -rf -- "$SDIR" "$MFILE" "$MFILE.tmp" "$DONE" 2>/dev/null
 # Hardlink tree: near-zero extra disk (regular files share inodes with the original).
 cp -al -- "$VDIR" "$SDIR"
-# relpath \t type \t inode \t size \t symlink-target
-( cd "$VDIR" && find . -mindepth 1 -printf '%P\t%y\t%i\t%s\t%l\n' ) | LC_ALL=C sort > "$MFILE"
+# relpath \t type \t inode \t size \t symlink-target. Written to a temp file in the same dir
+# and renamed into place, so the manifest is either absent or complete (never a partial that
+# restore would read -- a partial would make it treat the grader's own entries as "new").
+( cd "$VDIR" && find . -mindepth 1 -printf '%P\t%y\t%i\t%s\t%l\n' ) | LC_ALL=C sort > "$MFILE.tmp"
+mv -f -- "$MFILE.tmp" "$MFILE"
 nf=$(wc -l < "$MFILE" 2>/dev/null); nf=${nf:-0}
 bytes=$(awk -F'\t' '$2=="f"{s+=$4} END{print s+0}' "$MFILE" 2>/dev/null); bytes=${bytes:-0}
+# Completion marker, written LAST: restore trusts the snapshot only if this exists, so a
+# snapshot cut off mid-copy or mid-manifest (e.g. a timeout) is never acted on.
+: > "$DONE"
 printf '{"existed":true,"entries":%s,"bytes":%s,"secs":%s}\n' "$nf" "$bytes" "$(_elapsed)"
 """
 
@@ -138,17 +145,27 @@ VDIR="${VDIR:-/opt/verifier}"
 SDIR="${SDIR:-/opt/.verifier_snapshot}"
 MFILE="${MFILE:-/opt/.verifier_snapshot.manifest}"
 MODE="${SNAP_MODE:-smart}"
+DONE="${MFILE}.done"
 _elapsed() { awk "BEGIN{printf \"%.3f\", $(date +%s.%N)-$_t0}"; }
 # Drop the snapshot once the decision is made: it is a hardlink tree + manifest, and leaving
 # it (tens of thousands of inodes for a big venv) under /opt during grading is needless
 # pressure. /opt/verifier is already in its final state by here.
-_cleanup() { rm -rf -- "$SDIR" "$MFILE" 2>/dev/null; }
+_cleanup() { rm -rf -- "$SDIR" "$MFILE" "$MFILE.tmp" "$DONE" 2>/dev/null; }
 _emit() {
   # branch reason added destructive inplace restored
   printf '{"snapshot":true,"branch":"%s","reason":"%s","added":%s,"destructive":%s,"inplace_unrestorable":%s,"restored":%s,"secs":%s}\n' \
     "$1" "$2" "$3" "$4" "$5" "$6" "$(_elapsed)"
 }
-if [ ! -d "$SDIR" ] || [ ! -f "$MFILE" ]; then printf '{"snapshot":false,"secs":%s}\n' "$(_elapsed)"; exit 0; fi
+# Fail safe: act only on a snapshot that wrote its completion marker last. A missing or
+# incomplete snapshot (never taken, or cut off by a timeout) means NO deletions and NO
+# restore -- never treat the grader's own entries as "new" because the manifest is partial.
+if [ ! -f "$DONE" ] || [ ! -d "$SDIR" ] || [ ! -f "$MFILE" ]; then
+  reason=no_snapshot
+  if [ -e "$SDIR" ] || [ -e "$MFILE" ] || [ -e "$MFILE.tmp" ] || [ -e "$DONE" ]; then reason=no_valid_snapshot; fi
+  _cleanup
+  printf '{"snapshot":false,"branch":"none","reason":"%s","secs":%s}\n' "$reason" "$(_elapsed)"
+  exit 0
+fi
 if [ ! -e "$VDIR" ]; then
   mkdir -p -- "$(dirname -- "$VDIR")"; cp -al -- "$SDIR" "$VDIR"
   _cleanup; _emit restored "verifier_dir_removed" 0 1 0 true; exit 0
