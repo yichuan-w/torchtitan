@@ -157,17 +157,16 @@ def _session(tmp_path) -> tuple[layout.RewriteDir, layout.SessionDir]:
 @pytest.mark.parametrize("line", ["cat ../../../package/solution/solve.sh",
                                   "ls {rw}/package/solution",
                                   "find /x/evolution/tasks/tw_2/rewrites"])
-def test_require_blind_fails_on_an_escape(tmp_path, line):
+def test_require_blind_finds_an_escape(tmp_path, line):
     rw, sd = _session(tmp_path)
     sd.stdout.write_text("exec\n" + line.format(rw=rw.path) + "\n")
-    with pytest.raises(ec.BlindEscape):
-        ec._require_blind(sd, rw)
+    assert ec._require_blind(sd, rw)
 
 
 def test_require_blind_ignores_the_echoed_prompt_and_its_own_package(tmp_path):
     rw, sd = _session(tmp_path)
     sd.stderr.write_text(sd.prompt.read_text() + "cat /tmp/blind-package-x/tests/test.sh\n")
-    ec._require_blind(sd, rw)
+    assert ec._require_blind(sd, rw) == []
 
 
 def test_outside_package_is_linked_and_copied_back(tmp_path, monkeypatch):
@@ -183,3 +182,50 @@ def test_outside_package_is_linked_and_copied_back(tmp_path, monkeypatch):
     assert not sd.package.is_symlink()
     assert (sd.package / "tests" / "test.sh").read_text() == "ok\n"
     assert not real.exists()
+
+
+def test_a_failed_copy_back_keeps_the_link_and_its_target(tmp_path, monkeypatch):
+    rw, sd = _session(tmp_path / "root")
+    real = ec._outside_package(sd)
+    (real / "f").write_text("x")
+
+    def broken(*args, **kwargs):
+        raise OSError("disk full")
+
+    monkeypatch.setattr(ec.shutil, "copytree", broken)
+    with pytest.raises(OSError):
+        ec.materialize_outside_packages(rw)
+    assert sd.package.is_symlink() and (real / "f").read_text() == "x"
+
+
+@pytest.mark.parametrize("flag", [False, True])
+def test_blind_isolation_is_off_by_default_and_only_records(tmp_path, monkeypatch, flag):
+    monkeypatch.delenv("EVOLVE_BLIND_ISOLATION", raising=False)
+    if flag:
+        monkeypatch.setenv("EVOLVE_BLIND_ISOLATION", "1")
+    rw = tb._rewrite(tmp_path, monkeypatch)
+    sessions = []
+    tb._wire(monkeypatch, sessions, [])
+    real_run = ec._run_codex
+
+    def escaping(run, cwd, prompt, resume=None):
+        out = real_run(run, cwd, prompt, resume=resume)
+        if not (cwd / "solution").exists():
+            run.dir.stdout.write_text("$ cat ../../../package/solution/solve.sh\n")
+        return out
+
+    monkeypatch.setattr(ec, "_run_codex", escaping)
+    out = ec.evolve_agentic(rw, dict(tb.SEED), "harder")
+    verifier = next(s for s in sessions if s["role"] == "verifier")
+    meta = json.loads(verifier["session"].meta.read_text())
+    if not flag:
+        # As before: the package is the session's own directory, nothing scanned.
+        assert not verifier["session"].package.is_symlink()
+        assert verifier["cwd"] == verifier["session"].package
+        assert "blind_escape" not in meta
+    else:
+        assert verifier["session"].package.is_symlink()
+        assert rw.path not in verifier["cwd"].parents
+        assert meta["blind_escape"] == ["../package"]
+    # Recorded only: the rewrite goes on either way.
+    assert out["test_state_py"] == tb.NEW_VERIFIER

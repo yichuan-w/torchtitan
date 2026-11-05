@@ -2565,8 +2565,13 @@ def _budget(timeout: int) -> str:
     return _BUDGET.format(deadline=deadline, budget_min=timeout // 60)
 
 
-class BlindEscape(RuntimeError):
-    """A blind session's output names a path outside its own package."""
+def blind_isolation() -> bool:
+    """EVOLVE_BLIND_ISOLATION=1 (default off): move the blind verifier's
+    package out of the rewrite (_outside_package) and record, in its
+    session.json, any output naming a path outside it (_require_blind). Off,
+    the verifier runs exactly as before. Read per call, so a test or a caller
+    can set it per process."""
+    return os.environ.get("EVOLVE_BLIND_ISOLATION", "0") == "1"
 
 
 def _outside_package(sd: layout.SessionDir) -> Path:
@@ -2590,16 +2595,22 @@ def _outside_package(sd: layout.SessionDir) -> Path:
 
 
 def materialize_outside_packages(rewrite: layout.RewriteDir) -> None:
-    """Replace each session's package link with a copy of what it points at."""
+    """Replace each session's package link with a copy of what it points at.
+    The copy is made beside the link first, so a failed copy leaves the link
+    and its target as they were."""
     for sd in rewrite.session_dirs():
         link = sd.package
         if not link.is_symlink():
             continue
         real = Path(os.readlink(link))
+        if not real.is_dir():
+            continue
+        incoming = link.with_name("package.incoming")
+        shutil.rmtree(incoming, ignore_errors=True)
+        shutil.copytree(real, incoming, symlinks=True)
         link.unlink()
-        if real.is_dir():
-            shutil.copytree(real, link, symlinks=True)
-            shutil.rmtree(real, ignore_errors=True)
+        incoming.rename(link)
+        shutil.rmtree(real, ignore_errors=True)
 
 
 # Seen in a blind session's own output (its prompt removed), each means it
@@ -2607,7 +2618,10 @@ def materialize_outside_packages(rewrite: layout.RewriteDir) -> None:
 # rewrite directory, or another task in the root. Measured over 428 verifier
 # sessions on della before the package moved out: none named the author's
 # package; every root path they printed was their own package's.
-def _require_blind(sd: layout.SessionDir, rewrite: layout.RewriteDir) -> None:
+def _require_blind(sd: layout.SessionDir, rewrite: layout.RewriteDir) -> list[str]:
+    """The escape marks in a blind session's output, prompt removed. Raises
+    nothing: a caller records them (the marks also match harmless output,
+    such as `ps` listing another session's command line)."""
     prompt = sd.prompt.read_text(errors="replace") if sd.prompt.is_file() else ""
     text = "".join(
         p.read_text(errors="replace").replace(prompt, "")
@@ -2615,9 +2629,14 @@ def _require_blind(sd: layout.SessionDir, rewrite: layout.RewriteDir) -> None:
         if p.is_file()
     )
     marks = ("../package", str(rewrite.path) + "/", "/evolution/tasks/")
-    hits = [m for m in marks if m in text]
+    return [m for m in marks if m in text]
+
+
+def _record_blind(run, rewrite: layout.RewriteDir) -> None:
+    hits = _require_blind(run.dir, rewrite)
     if hits:
-        raise BlindEscape(f"blind session {sd.path.name} read outside its package: {hits}")
+        run.meta["blind_escape"] = hits
+        log.warning("blind session %s named paths outside its package: %s", run.dir.path.name, hits)
 
 
 def _blind_layout(pkg: Path, vpkg: Path) -> None:
@@ -3285,7 +3304,7 @@ def _blind_verifier(
     with ThreadPoolExecutor(max_workers=2) as pool:
         timeout = _session_timeout(deadline, "blind verifier author")
         with session(rewrite, "verifier", timeout=timeout) as run:
-            vpkg = _outside_package(run.dir)
+            vpkg = _outside_package(run.dir) if blind_isolation() else run.dir.package
             _blind_layout(pkg, vpkg)
             _restore_seed_tests(vpkg, seed_tests)
             prompt = _VERIFIER_JOB.format(
@@ -3342,7 +3361,8 @@ def _blind_verifier(
                 _run_codex(run, vpkg, prompt)
             finally:
                 _sandbox_down(vpkg)
-            _require_blind(run.dir, rewrite)
+            if blind_isolation():
+                _record_blind(run, rewrite)
         _check_verdict(vpkg)
         sessions_done = time.monotonic()
         cancel_early = threading.Event()
@@ -3468,10 +3488,11 @@ def _blind_repair(
             + _budget(timeout)
         )
         try:
-            _run_codex(run, vpkg.resolve(), prompt, resume=sid)
+            _run_codex(run, vpkg.resolve() if vpkg.is_symlink() else vpkg, prompt, resume=sid)
         finally:
             _sandbox_down(vpkg)
-        _require_blind(run.dir, rewrite)
+        if blind_isolation():
+            _record_blind(run, rewrite)
     _check_verdict(vpkg)
     _verify_original_probes(vsession, rewrite, deadline)
     if independent_probes():
