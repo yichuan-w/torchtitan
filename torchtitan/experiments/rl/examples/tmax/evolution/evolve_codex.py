@@ -2458,6 +2458,31 @@ dropped. So a behaviour the task needs checked -- the one your change turns on
 above all -- is lost unless the instruction states it and the entry quotes that
 statement: state it in the instruction, or drop the entry."""
 
+# EVOLVE_NO_WORKED_ANSWERS=1 (#319, default off): the instruction states rules,
+# never the result for an input the task itself uses. task_001320 in 111e: a
+# blind verifier BLOCKED on a disputed count, the author was told to "state the
+# choice your reference solution makes" in the instruction, and it wrote the
+# reference's output for the shipped FACTORS operand ("input 6560999999999999
+# must print 3"). Later harder rewrites kept that sentence as the task's wording
+# and swapped in each new operand; students hard-coded it. Of 1,520 accepted
+# real-guidance harder rewrites in 111e, 7 added such a sentence, 2 of them in
+# this repair step. Off, every prompt is unchanged.
+def _no_worked_answers() -> bool:
+    return os.environ.get("EVOLVE_NO_WORKED_ANSWERS", "0") == "1"
+
+
+_NO_WORKED_ANSWER_NOTE = """
+
+A requirement in the instruction states a rule that holds for every input the
+deliverable may get. It never gives the result for an input the task itself
+uses: an operand in a shipped file, an input your scratch tests run, the
+reproduction case from your sources. Such a sentence hands the student the
+value the check expects, and printing that value passes without the work. This
+holds for such a sentence an earlier rewrite added too: withdraw it rather than
+keep it or update its numbers. Where a check needs that result, the verifier
+computes it from the environment."""
+
+
 _REPAIR_JOB = """Your rewrite did not survive the caller's check. It rebuilt the
 package from scratch, ran `solution/solve.sh` against the verifier (exit
 {exit_code}) and audited what the verifier demands against what an agent can
@@ -2522,6 +2547,26 @@ corrected task next. The container you had is gone; a fresh one is booting,
 and your first command waits for it.
 
 Confirm with `./sandbox check` before you stop."""
+
+_BLOCKED_CHOICE = """Stating a choice the grading
+already depends on does not change what the task asks for; change nothing
+else."""
+_BLOCKED_CHOICE_NO_ANSWER = """Stating a choice the grading
+already depends on does not change what the task asks for; change nothing
+else. A choice is a rule that holds for every input (which count, which
+format, which path), never the result for an input the task itself uses, such
+as an operand in a shipped file or a case a check runs: stating that result
+gives the answer away."""
+
+
+def _verifier_blocked_job() -> str:
+    """_VERIFIER_BLOCKED_JOB, with EVOLVE_NO_WORKED_ANSWERS's limit on what a
+    stated choice may be."""
+    if not _no_worked_answers():
+        return _VERIFIER_BLOCKED_JOB
+    assert _BLOCKED_CHOICE in _VERIFIER_BLOCKED_JOB
+    return _VERIFIER_BLOCKED_JOB.replace(_BLOCKED_CHOICE, _BLOCKED_CHOICE_NO_ANSWER)
+
 
 _VERIFIER_JOB = """The task in this package was revised through a change to its
 requirements or workflow. Write the verifier for the task as the
@@ -3598,7 +3643,7 @@ def _blind_verifier_answered(
                 0,
                 seq=answers,
                 deadline=deadline,
-                job=_VERIFIER_BLOCKED_JOB,
+                job=_verifier_blocked_job(),
             )
 
 
@@ -4065,7 +4110,7 @@ def evolve_agentic(
             + (_UNSOLVED_NOTE if task.get("_unsolved") else ""),
             "repair": _REPAIR_JOB.format(exit_code=exit_code),
         }[job]
-        + (_CHECKED_NOTE if blind else "")
+        + (_CHECKED_NOTE + (_NO_WORKED_ANSWER_NOTE if _no_worked_answers() else "") if blind else "")
         + _traces_spec(rewrite.traces)
         + _budget(author_timeout)
     )
