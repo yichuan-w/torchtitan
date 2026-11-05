@@ -2339,6 +2339,95 @@ def _harder_work_text(job_text: str, stats: dict | None, target: dict | None, at
     return harder_work.drop_modest(job_text) + harder_work.prompt_block(stats, target, attempts)
 
 
+# EVOLVE_HARDER_SILENT=1 (#319, default off): three passages of the real
+# harder guidance replaced. On the 122B EvolveBench slice, 16 of 24 accepted
+# rewrites that came back 12/12 had added an instruction sentence naming the
+# checked property, and most of the rest made the new failure loud on the
+# student's normal run (a traceback, a FAIL line, NaN), which it then fixed
+# 2-5 turns later. "Both replays now stop" was claimed by 19 of 24 rewrites at
+# 12/12 and 17 of 18 at 3-8/12: replayed keystrokes break at the first new
+# error, which a live student reads and repairs. The clean 3-8/12 rewrites hid
+# a wrong result that passed every check the student itself ran.
+_SILENT_SIGNAL_OLD = """and the output has to give an
+investigating student something to go on: a name, a code, a documented
+message."""
+_SILENT_SIGNAL_NEW = """and an investigating student has to be able to find
+the evidence, which nothing announces. List in `run/hardening.md` every check
+the successful attempts in `traces/` ran to convince themselves they were done
+-- the supplied tests, a sample run, a count, a printed summary -- and make the
+wrong result pass every one of them. The evidence lives in the environment (a
+data row, a dependency's documented behavior, a configuration value, a dtype,
+a header) and only a check those attempts did not run finds it. Do not ship a
+test, script, log line or exit code that reports the new failure: an error
+printed by something the student already runs is fixed within a few turns,
+and such changes stayed at k of k."""
+_SILENT_REQUIREMENT_OLD = """State any new requirement the
+way a user would, in a sentence or two -- the goal and the deliverable."""
+_SILENT_REQUIREMENT_NEW = """Prefer a change that a sentence
+the instruction already has requires, and that the environment now makes
+bite. A sentence you add states the outcome a user would judge ("the totals
+reconcile with the raw transactions", "sorted by instant"), in a sentence or
+two -- the goal and the deliverable. It never names the metric,
+representation, failure mode, library or file that tells your fix apart from
+the attempts' fix: read the sentence on its own, and if it tells an agent what
+code to change or what to check, put that fact in the environment where
+investigating finds it. Quote in `run/hardening.md` the instruction sentence
+the new requirement follows from."""
+_SILENT_REPLAY_OLD = """Base the prediction on the student's own path, not on
+the shortcut you imagine: after editing, replay the commands of two successful
+attempts from `traces/` against the revised task (`./sandbox exec`, then
+`./sandbox grade`; the verifier's output is in `run/last-grade.json`), each
+from a fresh `./sandbox reset` of the built image, starting nothing by hand
+that the instruction says is ready (AGENTS.md says why), and say
+in `run/hardening.md` where each now stops and every check it fails. If both
+still pass, the change does not touch the path the student takes. Then write
+the solved count you expect from the next group of the same size as a number
+("5 of 8"), resting on those replays."""
+_SILENT_REPLAY_NEW = """Base the prediction on the student's own path, not on
+the shortcut you imagine. A replayed command list only shows where old
+keystrokes break, and a broken command is the cheapest thing for a live
+student to repair. After editing, take two successful attempts from `traces/`
+and replay each against the revised task (`./sandbox exec`, then
+`./sandbox grade`; the verifier's output is in `run/last-grade.json`), from a
+fresh `./sandbox reset` of the built image, starting nothing by hand that the
+instruction says is ready (AGENTS.md says why), up to the first output that
+differs from what the attempt saw. From there continue as that attempt would:
+type the commands its own way of working gives for the new output, until it
+passes or submits believing it is done. Any error, traceback, nonzero exit,
+FAIL line or wrong count printed by something the attempt already runs counts
+as fixed within five turns. Say in `run/hardening.md`, for each attempt, where
+it diverged, what it did next, and whether it ends with its own checks passing
+and the grader failing. If both end passing the grader, the change does not
+hold against the student; choose another. Then write the solved count you
+expect from the next group of the same size as a number ("5 of 8"), resting
+on those continued attempts."""
+_SILENT_REPLACEMENTS = (
+    (_SILENT_SIGNAL_OLD, _SILENT_SIGNAL_NEW),
+    (_SILENT_REQUIREMENT_OLD, _SILENT_REQUIREMENT_NEW),
+    (_SILENT_REPLAY_OLD, _SILENT_REPLAY_NEW),
+)
+for _old, _ in _SILENT_REPLACEMENTS:
+    assert _REAL_HARDER_GUIDANCE.count(_old) == 1, _old
+
+
+def harder_silent() -> bool:
+    return os.environ.get("EVOLVE_HARDER_SILENT", "0") == "1"
+
+
+def _harder_silent_text(job_text: str) -> str:
+    """A harder job with EVOLVE_HARDER_SILENT's three passages; unchanged when
+    the flag is unset or the job carries other guidance (calibration, the
+    student guidance). Raises when the real guidance is present but a passage
+    it should replace is not, so a later edit cannot drop the change silently."""
+    if not harder_silent() or _SILENT_SIGNAL_OLD not in job_text:
+        return job_text
+    for old, new in _SILENT_REPLACEMENTS:
+        if job_text.count(old) != 1:
+            raise ValueError(f"EVOLVE_HARDER_SILENT: passage not found once: {old[:60]!r}")
+        job_text = job_text.replace(old, new)
+    return job_text
+
+
 _HARDER_WORK_JOB = """The caller cannot read your work estimate: `run/hardening.md`
 has no line of its own reading exactly `work: N turns`, with N the turns you
 expect the median successful attempt to need on the revised task. Add that
@@ -4031,7 +4120,7 @@ def evolve_agentic(
     blind = job in ("harder", "easier") and VERIFIER_AUTHOR == "blind" and not keep_verifier
     prompt = (
         {
-            "harder": _harder_work_text(_harder_aim((_HARDER_JOB_BLIND if blind else _HARDER_JOB).format(
+            "harder": _harder_silent_text(_harder_work_text(_harder_aim((_HARDER_JOB_BLIND if blind else _HARDER_JOB).format(
                 solved=solved,
                 attempts=attempts_n,
                 guidance=_calibration_guidance(solved, attempts_n)
@@ -4054,7 +4143,7 @@ def evolve_agentic(
                     "Do not add code to meet a minimum length."
                 ),
                 max_asserts=caps["max_added_asserts"],
-            ), attempts_n), work_stats, work_target, attempts_n)
+            ), attempts_n), work_stats, work_target, attempts_n))
             + _HARDER_REPAIR_NOTE
             + (_UNSOLVED_HARDER_NOTE if task.get("_unsolved") else ""),
             "easier": (_PLAN_JOB if task.get("_intervention_plan") else _EASIER_JOB).format(
