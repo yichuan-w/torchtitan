@@ -1440,6 +1440,8 @@ def handle(
         "policy_canary",
         "operator",
         "harder_mode",
+        "harder_expected",
+        "harder_work",
         "require_solution_growth",
         "student_feedback",
         "family",

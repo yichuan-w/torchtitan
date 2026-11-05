@@ -50,6 +50,7 @@ from pathlib import Path
 
 import evolve as ev
 import grader_value_leak
+import harder_work
 import peer_context
 import simplify_operators as so
 import synth_client as llm
@@ -2325,6 +2326,59 @@ def _require_harder_expected(
     return expected
 
 
+# EVOLVE_HARDER_WORK / EVOLVE_HARDER_ESCALATE (harder_work.py, default off):
+# the phrases harder_work.drop_modest replaces must be in the texts it edits.
+for _old, _new in harder_work.MODEST_REPLACEMENTS:
+    assert _old in _REAL_HARDER_GUIDANCE or _old in _STUDENT_HARDER_GUIDANCE, _old
+
+
+def _harder_work_text(job_text: str, stats: dict | None, target: dict | None, attempts: int) -> str:
+    """A harder job with the measured work target in place of the "modest
+    step" sizing; unchanged when neither flag gave this rewrite a target."""
+    if target is None or stats is None:
+        return job_text
+    return harder_work.drop_modest(job_text) + harder_work.prompt_block(stats, target, attempts)
+
+
+_HARDER_WORK_JOB = """The caller cannot read your work estimate: `run/hardening.md`
+has no line of its own reading exactly `work: N turns`, with N the turns you
+expect the median successful attempt to need on the revised task. Add that
+line, keeping what you already wrote. Change nothing else: the task, the
+reference solution and the environment stay as they are, and your last
+`./sandbox check` still stands."""
+
+
+def _require_harder_work(
+    rewrite: layout.RewriteDir,
+    author: layout.SessionDir,
+    deadline: RewriteDeadline,
+) -> int:
+    """The harder author's ``work: N turns`` line, under EVOLVE_HARDER_WORK or
+    an escalated EVOLVE_HARDER_ESCALATE; one resume of the author when it is
+    missing, as _require_harder_expected does. Raises ValueError when the line
+    is still missing, RuntimeError when the resume edited the task."""
+    pkg = rewrite.package
+    path = pkg / "run" / "hardening.md"
+
+    def read() -> int | None:
+        return harder_work.declared_work(path.read_text(errors="replace")) if path.is_file() else None
+
+    if (work := read()) is not None:
+        return work
+    before = _probe_hashes(pkg, ("run", "traces"))
+    timeout = _session_timeout(deadline, "harder work repair")
+    with session(rewrite, "declaration", timeout=timeout, resumes=author) as run:
+        _run_codex(
+            run, pkg, _HARDER_WORK_JOB + _budget(timeout), resume=_session_id(author)
+        )
+    _check_verdict(pkg)
+    if _probe_hashes(pkg, ("run", "traces")) != before:
+        raise RuntimeError("harder work repair changed task files")
+    if (work := read()) is None:
+        raise ValueError('run/hardening.md requires a line work: "N turns"')
+    return work
+
+
 _EASIER_JOB = """This task was solved {solved} of {attempts} attempts.
 Diagnose the attempts and reduce one obstacle while retaining a stated skill.
 {guidance}"""
@@ -4007,13 +4061,35 @@ def evolve_agentic(
         "python" if ev._verifier_rel(task).endswith(".py") else "shell",
         solution_rel=fmap["solve_sh"],
     )
+    work_stats = work_target = None
+    if job == "harder" and harder_work.enabled():
+        work_stats = harder_work.parent_stats(
+            rewrite.traces,
+            skip_finish=_RULE_TERMINATED,
+            turn_budget=so.STUDENT_TURNS,
+            secs_budget=so.STUDENT_SECONDS,
+            context_tokens=so.STUDENT_CONTEXT,
+        )
+        work_target = harder_work.target(work_stats, harder_work.lineage_misses(rewrite.traces))
+        if work_target is not None:
+            (pkg / "run" / "parent_work.json").write_text(
+                json.dumps({"stats": work_stats, "target": work_target}, indent=2) + "\n"
+            )
+            seed_file = pkg / "run" / "seed_size.json"
+            if seed_file.is_file():
+                seed_file.write_text(
+                    json.dumps({**json.loads(seed_file.read_text()), **work_target["caps"]}) + "\n"
+                )
+    caps = work_target["caps"] if work_target is not None else {
+        "max_added": ts.MAX_ADDED, "max_added_asserts": ts.MAX_ADDED_ASSERTS,
+    }
     # A plan of instruction-only interventions changes no requirement: the
     # original's verifier is the version's, never one rewritten for it.
     keep_verifier = job == "easier" and plan_is_instruction_only(task.get("_intervention_plan"))
     blind = job in ("harder", "easier") and VERIFIER_AUTHOR == "blind" and not keep_verifier
     prompt = (
         {
-            "harder": _harder_aim((_HARDER_JOB_BLIND if blind else _HARDER_JOB).format(
+            "harder": _harder_work_text(_harder_aim((_HARDER_JOB_BLIND if blind else _HARDER_JOB).format(
                 solved=solved,
                 attempts=attempts_n,
                 guidance=_calibration_guidance(solved, attempts_n)
@@ -4032,11 +4108,11 @@ def evolve_agentic(
                 seed_asserts=seed_size["verifier_asserts"],
                 growth_bound=(
                     "The reference solution may stay the same length or shrink, "
-                    f"and may grow by at most {ts.MAX_ADDED} non-comment lines. "
+                    f"and may grow by at most {caps['max_added']} non-comment lines. "
                     "Do not add code to meet a minimum length."
                 ),
-                max_asserts=ts.MAX_ADDED_ASSERTS,
-            ), attempts_n)
+                max_asserts=caps["max_added_asserts"],
+            ), attempts_n), work_stats, work_target, attempts_n)
             + _HARDER_REPAIR_NOTE
             + (_UNSOLVED_HARDER_NOTE if task.get("_unsolved") else ""),
             "easier": (_PLAN_JOB if task.get("_intervention_plan") else _EASIER_JOB).format(
@@ -4142,6 +4218,9 @@ def evolve_agentic(
             )
         if job == "harder" and so.target_band("EVOLVE_HARDER_TARGET", attempts_n):
             _require_harder_expected(rewrite, run.dir, deadline)
+        declared_work = None
+        if job == "harder" and work_target is not None:
+            declared_work = _require_harder_work(rewrite, run.dir, deadline)
         _add_time(timings, "agent", time.monotonic() - stage_start)
         if blind:
             author_check = _last_check(pkg)
@@ -4194,6 +4273,13 @@ def evolve_agentic(
                 if hardening.is_file()
                 else None
             )
+        if work_target is not None and work_stats is not None:
+            out["_harder_work"] = {
+                **work_target,
+                "declared_turns": declared_work,
+                "parent": harder_work.summary(work_stats),
+            }
+            out["_size_caps"] = work_target["caps"]
     if job == "easier":
         decision = so.read_decision(pkg, task.get("_simplify_hint", "vague"))
         decision["hint_level"] = task.get("_simplify_hint", "vague")

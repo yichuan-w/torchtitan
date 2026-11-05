@@ -666,6 +666,7 @@ def revalidate(
                     **_patches(orig, orig.get("_seed_dir") or task.get("_seed_dir")),
                 ),
                 **({"solution_lines": None} if orig.get("_unsolved") else {}),
+                **(task.get("_size_caps") or {}),
             },
             ts.size_of(
                 task["solve_sh"],
@@ -1155,6 +1156,8 @@ def process_one(
             rec["agent_validated"] = new.get("_agent_validated")
             if new.get("_harder_expected"):
                 rec["harder_expected"] = new["_harder_expected"]
+            if new.get("_harder_work"):
+                rec["harder_work"] = new["_harder_work"]
 
         _record_agent_diagnostics(rec, new)
         if new.get("_repair"):
