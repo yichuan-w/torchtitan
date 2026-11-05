@@ -49,6 +49,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 import evolve as ev
+import peer_context
 import simplify_operators as so
 import synth_client as llm
 import task_size as ts
@@ -4023,7 +4024,7 @@ def evolve_agentic(
         )
 
     if job in ("harder", "easier"):
-        prompt += last_mixed
+        prompt += last_mixed + peer_context.prompt(rewrite.traces)
 
     if job in ("harder", "easier") and task.get("_student_feedback"):
         feedback = task["_student_feedback"]

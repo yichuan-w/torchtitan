@@ -85,6 +85,7 @@ import feedback_loop as fb  # noqa: E402
 import grader_replay  # noqa: E402
 from finalize_interrupted_traces import finalize_interrupted  # noqa: E402
 import pack_to_dataset as pack  # noqa: E402
+import peer_context  # noqa: E402
 from recorded_solution import solution_path  # noqa: E402
 import rewrite_workspace as rw_workspace  # noqa: E402
 from rewrite_admission import admission_is_open  # noqa: E402
@@ -1229,6 +1230,9 @@ def handle(
         _write_record(root, task, rewrite)
         if rewrite_context_enabled():
             _stage_rewrite_context(root, task, rewrite, d)
+        if peer_context.enabled() and job in ("harder", "easier"):
+            n_peers = peer_context.stage(root, tid, rewrite.traces, d)
+            log.info("%s peer context: %d tasks in traces/peers", tid, n_peers)
         if n_history:
             log.info("%s history: %d earlier rewrites in traces/history", tid, n_history)
         parent_snapshot = None
