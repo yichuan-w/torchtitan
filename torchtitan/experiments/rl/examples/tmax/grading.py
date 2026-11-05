@@ -46,6 +46,7 @@ from torchtitan.experiments.rl.examples.tmax.integrity_baseline import (
     integrity_differences_sync,
     protected_entries_of,
 )
+from torchtitan.experiments.rl.examples.tmax import verifier_snapshot
 
 if TYPE_CHECKING:
     # Type-only so this module imports WITHOUT the torchtitan/vLLM stack -- the
@@ -271,6 +272,7 @@ async def grade_tmax(
     upload_tests: bool = True,
     harbor_reward: bool = False,
     env: dict[str, str] | None = None,
+    task_id: str | None = None,
 ) -> float:
     """Grade a tmax task in the (already-run) sandbox ``sb`` and return reward.
 
@@ -292,6 +294,27 @@ async def grade_tmax(
     test_sh = tmax.get("test_sh") or ""
     fixtures = tmax.get("fixtures") or {}
     reward_path = tmax.get("reward_path") or _DEFAULT_REWARD_PATH
+
+    # VERIFIER RESTORE (TMAX_SNAPSHOT_VERIFIER, default off): if the model changed
+    # /opt/verifier while solving, restore it from the snapshot the rollouter took
+    # before the model ran, so the verifier grades in the image's environment. No-op
+    # when no snapshot exists (a separate verifier sandbox or an eval image never has
+    # one). Only for in-place grading; a separate verifier sandbox (upload_tests=False)
+    # is not the model's sandbox and is left untouched.
+    if (
+        upload_tests
+        and verifier_snapshot.enabled()
+        and not verifier_snapshot.exempt(task_id)
+    ):
+        restore = await verifier_snapshot.restore_verifier(sb, timeout=timeout)
+        if diagnostics is not None:
+            diagnostics["verifier_restore"] = restore
+        if restore.get("branch") not in (None, "none"):
+            logger.info(
+                "[tmax] verifier_restore %s: %s",
+                task_id or tmax.get("task_id", "?"),
+                json.dumps(restore, sort_keys=True),
+            )
 
     await sb.exec(
         f"mkdir -p {shlex.quote(_VERIFIER_DIR)} {shlex.quote(_TESTS_DIR)} "
@@ -378,7 +401,7 @@ async def grade_tmax(
                 )
             logger.info(
                 "[tmax] integrity baseline difference for %s in %d protected entr(y/ies): %s; scoring 0",
-                tmax.get("task_id", "?"),
+                task_id or tmax.get("task_id", "?"),
                 len(_differing),
                 describe_differences(_protected, _differing),
             )
@@ -413,7 +436,7 @@ async def grade_tmax(
             logger.info(
                 "[tmax] pre_test SKIPPED for %s: environment changed since capture (stamped=%s episode=%s); "
                 "grading via test.sh without the pin check",
-                tmax.get("task_id", "?"),
+                task_id or tmax.get("task_id", "?"),
                 _stamped or "?",
                 _episode or "?",
             )
@@ -465,7 +488,7 @@ async def grade_tmax(
     if reward < 1.0:
         logger.info(
             "[tmax] verifier for %s exited %s with reward=%.2f; tail %r",
-            tmax.get("task_id", "?"),
+            task_id or tmax.get("task_id", "?"),
             rc,
             reward,
             verifier_tail,
@@ -894,6 +917,7 @@ def grade_tmax_daytona(
     workdir: str,
     timeout_sec: int | None = None,
     baseline_digests: dict[str, str] | None = None,
+    task_id: str | None = None,
 ) -> float:
     """Same steps as ``grade_tmax`` but against a RAW ``daytona`` Sandbox.
 
@@ -909,6 +933,17 @@ def grade_tmax_daytona(
     test_sh = tmax.get("test_sh") or ""
     fixtures = tmax.get("fixtures") or {}
     reward_path = tmax.get("reward_path") or _DEFAULT_REWARD_PATH
+
+    # VERIFIER RESTORE (TMAX_SNAPSHOT_VERIFIER, default off): same as grade_tmax, for
+    # the standalone sync path. No-op when no snapshot exists.
+    if verifier_snapshot.enabled() and not verifier_snapshot.exempt(task_id):
+        restore = verifier_snapshot.restore_verifier_sync(sb, timeout=timeout)
+        if restore.get("branch") not in (None, "none"):
+            logger.info(
+                "[tmax] verifier_restore %s: %s",
+                task_id or tmax.get("task_id", "?"),
+                json.dumps(restore, sort_keys=True),
+            )
 
     dirs = f"{_VERIFIER_DIR} {_TESTS_DIR} {workdir}"
     sb.process.exec(_root_sh(f"mkdir -p {dirs} && chmod 777 {dirs}"), timeout=60)
@@ -943,7 +978,7 @@ def grade_tmax_daytona(
         if _differing:
             logger.info(
                 "[tmax] integrity baseline difference for %s in %d protected entr(y/ies): %s; scoring 0",
-                tmax.get("task_id", "?"),
+                task_id or tmax.get("task_id", "?"),
                 len(_differing),
                 describe_differences(_protected, _differing),
             )

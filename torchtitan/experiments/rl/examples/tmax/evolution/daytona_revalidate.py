@@ -88,7 +88,11 @@ except ModuleNotFoundError as exc:  # pragma: no cover -- configuration, not log
         "copied out of the repository, set PYTHONPATH to a checkout instead. "
         f"({exc})"
     ) from exc
-from torchtitan.experiments.rl.examples.tmax import harbor_env, layout  # noqa: E402
+from torchtitan.experiments.rl.examples.tmax import (  # noqa: E402
+    harbor_env,
+    layout,
+    verifier_snapshot,
+)
 from torchtitan.experiments.rl.examples.tmax.grading import (  # noqa: E402
     _eval_timeout_sec,
     grade_separate,
@@ -324,6 +328,7 @@ async def _probe_once(
         f"({'shortcut probe' if shortcut else 'oracle'}) "
         f"box=cpu:{box['cpu']} mem_gb:{box['mem_gb']} disk_gb:{box['disk_gb']}"
     )
+    verifier_snapshot_rec: dict = {}
     async with boot_agent_sandbox(
         md.get("image") or "",
         dockerfile=md.get("dockerfile") or None,
@@ -376,6 +381,17 @@ async def _probe_once(
         # nothing run yet -- for the oracle and the shortcut probe alike; the
         # verifier re-digests and a difference grades 0. None without entries.
         baseline = await capture_baseline(sb, tmax, workdir=workdir, timeout=120)
+        # VERIFIER SNAPSHOT (TMAX_SNAPSHOT_VERIFIER, default off): snapshot /opt/verifier
+        # here -- setup done, before the solution runs -- to pair with the restore in
+        # grade_tmax, exactly as a training rollout does. No-op when it is absent.
+        if verifier_snapshot.enabled() and not verifier_snapshot.exempt(
+            md.get("instance_id") or tmax.get("task_id")
+        ):
+            vsnap = await verifier_snapshot.snapshot_verifier(
+                sb, timeout=solve_timeout or 300
+            )
+            verifier_snapshot_rec.update(vsnap)
+            log(f"verifier snapshot: {vsnap}")
         t0 = time.time()
         execution = await run_reference(
             agent_sb,
@@ -416,6 +432,7 @@ async def _probe_once(
                 workdir=workdir,
                 baseline_digests=baseline,
                 diagnostics=grading,
+                task_id=md.get("instance_id"),
             )
     tail = (out + "\n" + err)[-400:]
     if shortcut is None:
@@ -431,6 +448,7 @@ async def _probe_once(
             "solve_stderr": err,
             "pane_error": execution.get("pane_error"),
             "grading": grading,
+            "verifier_snapshot": verifier_snapshot_rec,
             "tail": tail,
             "verifier": grading,
             "resources": box,

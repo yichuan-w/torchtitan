@@ -107,6 +107,7 @@ from torchtitan.experiments.rl.examples.tmax.grading import (
     seed_workspace,
 )
 from torchtitan.experiments.rl.examples.tmax.integrity_baseline import capture_baseline
+from torchtitan.experiments.rl.examples.tmax import verifier_snapshot
 from torchtitan.experiments.rl.examples.tmax.overfit_bench import events as bench_events
 from torchtitan.experiments.rl.examples.tmax.rubric import RewardTMax, TMAX_REWARD_KEY
 from torchtitan.experiments.rl.examples.tmax.self_destruct import (
@@ -2472,6 +2473,32 @@ class TMaxRollouter(Rollouter):
                         workdir=sample.workdir,
                         timeout=verifier_sec or 120,
                     )
+                    # VERIFIER SNAPSHOT (TMAX_SNAPSHOT_VERIFIER, default off): the grader
+                    # venv at /opt/verifier is first on the model's PATH in verifier-base
+                    # images, so a pip install the model runs while solving can land in it.
+                    # Snapshot it here -- setup done, before the model's first action -- and
+                    # restore it in grade_tmax before test.sh. No-op when /opt/verifier is
+                    # absent (eval images). Recorded per rollout for measurement.
+                    if verifier_snapshot.enabled() and not verifier_snapshot.exempt(
+                        sample.instance_id
+                    ):
+                        snap = await verifier_snapshot.snapshot_verifier(
+                            root_sb, timeout=verifier_sec or 300
+                        )
+                        logger.info(
+                            "[tmax_verifier_snapshot] %s",
+                            json.dumps(
+                                {
+                                    "event": "tmax_verifier_snapshot",
+                                    "instance_id": sample.instance_id,
+                                    "group_id": group_id,
+                                    "rollout_id": rollout_idx,
+                                    "sandbox_id": sandbox.sandbox_id,
+                                    **snap,
+                                },
+                                sort_keys=True,
+                            ),
+                        )
                     # mini-swe-agent never uses tmux, so an image without it is
                     # no finding there.
                     if self._agent_name != "miniswe":
@@ -2607,6 +2634,7 @@ class TMaxRollouter(Rollouter):
                                 timeout_sec=verifier_sec,
                                 baseline_digests=baseline_digests,
                                 diagnostics=verifier,
+                                task_id=sample.instance_id,
                             )
                             ctrf = await self._read_ctrf_quietly(sandbox, rollout_id)
                         timing["grade_secs"] = time.monotonic() - grade_at
@@ -2651,6 +2679,7 @@ class TMaxRollouter(Rollouter):
                                     timeout_sec=verifier_sec,
                                     baseline_digests=baseline_digests,
                                     diagnostics=shadow,
+                                    task_id=sample.instance_id,
                                 )
                             except Exception as e:  # noqa: BLE001
                                 logger.warning(
