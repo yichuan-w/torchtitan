@@ -693,6 +693,15 @@ def test_batcher_loop_replenishes_each_group_exactly_once() -> None:
             if metric.key == "rollout_buffer/num_groups_dropped_stale"
         ]
         assert stale == [1.0]
+        # Groups 0 (untrainable), 1 (stale) and 2 (trainable): one of three dropped.
+        drop_frac = [
+            metric.value
+            for metric in packed.metrics
+            if metric.key == "rollout_buffer/stale_drop_frac"
+        ]
+        assert sum(v.value for v in drop_frac) / sum(
+            v.count for v in drop_frac
+        ) == pytest.approx(1 / 3)
         assert await training_batch_queue.get() is None
 
     asyncio.run(run())
@@ -1058,6 +1067,7 @@ def test_async_validation_skips_while_a_pass_is_in_flight() -> None:
         controller._validation_deferred = False
         controller._trace_report_tasks = set()
         controller.metrics_processor = MagicMock()
+        controller.eval_generator_router = None
         started = asyncio.Event()
         release = asyncio.Event()
 
@@ -1100,9 +1110,9 @@ def test_async_validation_defers_while_a_pass_is_in_flight() -> None:
         )
         controller._validation_task = None
         controller._validation_deferred = False
-        controller._validation_deferred = False
         controller._trace_report_tasks = set()
         controller.metrics_processor = MagicMock()
+        controller.eval_generator_router = None
         release = asyncio.Event()
 
         async def _slow_validate(*, step: int):
@@ -1121,6 +1131,63 @@ def test_async_validation_defers_while_a_pass_is_in_flight() -> None:
         release.set()
         await controller._await_pending_validation()
         assert not controller._validation_pass_in_flight()
+
+    asyncio.run(run())
+
+
+def test_async_validation_defers_when_eval_weights_are_stale() -> None:
+    """A step's eval pull is skipped while a pass is in flight; if that pass ends
+    before the step's validation starts, the eval generators still hold the older
+    version. The pass must wait for the next pull instead of scoring old weights
+    under this step's label."""
+
+    async def run() -> None:
+        controller = object.__new__(Controller)
+        controller.config = SimpleNamespace(
+            async_loop=SimpleNamespace(validation=ValidationConfig())
+        )
+        controller._validation_task = None
+        controller._validation_deferred = False
+        controller._trace_report_tasks = set()
+        controller.metrics_processor = MagicMock()
+        controller.eval_generator_router = MagicMock()
+        controller._eval_generator_policy_version = 10
+        controller._validate_and_log = AsyncMock(return_value=[])
+
+        controller._start_async_validation(step=15)
+        assert controller._validation_task is None
+        assert controller._validation_deferred
+        deferred = controller.metrics_processor.log.call_args.kwargs["metrics"]
+        assert [metric.key for metric in deferred] == [
+            "validation/stale_weights_deferred"
+        ]
+
+        controller._validation_deferred = False
+        controller._eval_generator_policy_version = 16
+        controller._start_async_validation(step=16)
+        await controller._await_pending_validation()
+        controller._validate_and_log.assert_awaited_once_with(step=16)
+
+    asyncio.run(run())
+
+
+@pytest.mark.parametrize("eval_pull_ok", [False, True])
+def test_eval_generator_version_tracks_successful_pulls(eval_pull_ok: bool) -> None:
+    """Only a pull that succeeded moves the version the eval generators hold."""
+
+    async def run() -> None:
+        controller = object.__new__(Controller)
+        controller.generator_router = MagicMock()
+        controller.generator_router.pull_model_state_dict = AsyncMock()
+        controller.eval_generator_router = MagicMock()
+        controller._eval_generator_policy_version = 4
+        controller._guard_eval_generators = AsyncMock(return_value=eval_pull_ok)
+
+        await controller._pull_generator_weights(policy_version=5)
+        assert controller._eval_generator_policy_version == (5 if eval_pull_ok else 4)
+
+        await controller._pull_generator_weights(policy_version=6, include_eval=False)
+        assert controller._eval_generator_policy_version == (5 if eval_pull_ok else 4)
 
     asyncio.run(run())
 

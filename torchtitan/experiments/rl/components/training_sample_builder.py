@@ -19,11 +19,33 @@ from torchtitan.experiments.rl.rollout import Rollout, RolloutGroup
 from torchtitan.experiments.rl.rollout.types import is_scored
 from torchtitan.experiments.rl.types import (
     RolloutTurnID,
+    SamplerTopK,
     TrainingSample,
     TrainingSampleGroup,
 )
 
 logger = logging.getLogger(__name__)
+
+
+def _concat_topk(parts: list[tuple[int, SamplerTopK | None]]) -> SamplerTopK | None:
+    """Concatenate a sample's per-segment top-k, filling segments without one
+    (prompt deltas, env replies, turns sampled without top-k) with empty rows."""
+    k = next((topk.k for _, topk in parts if topk is not None), None)
+    if k is None:
+        return None
+    rows = []
+    for num_rows, topk in parts:
+        if topk is not None and len(topk) == num_rows and topk.k == k:
+            rows.append(topk)
+            continue
+        if topk is not None:
+            logger.warning(
+                f"[training_sample_builder] dropping sampler top-k of shape "
+                f"{tuple(topk.token_ids.shape)} for a {num_rows}-token segment (k={k})"
+            )
+        if num_rows:
+            rows.append(SamplerTopK.empty_rows(num_rows, k))
+    return SamplerTopK.cat(rows)
 
 
 class TrainingSampleBuilder(Configurable):
@@ -261,6 +283,8 @@ class TrainingSampleBuilder(Configurable):
                 "must fill it (via its advantage estimator) before training_samples are built."
             )
         training_samples: list[TrainingSample] = []
+        # Per sample: (num_rows, top-k or None for rows the sampler did not produce).
+        topk_parts: list[list[tuple[int, SamplerTopK | None]]] = []
 
         # Used to check if [P1, C1] is prefix of [P1,C1,E1] in the docstring example
         prev_prompt_and_completion: list[int] = []
@@ -303,6 +327,7 @@ class TrainingSampleBuilder(Configurable):
                         advantage=[],
                     )
                 )
+                topk_parts.append([])
                 # New branch (first turn or a branch): no shared prefix.
                 prefix_len = 0
             else:
@@ -325,8 +350,13 @@ class TrainingSampleBuilder(Configurable):
             training_sample.loss_mask += [True] * num_completion
             training_sample.logprobs += rollout_turn.completion_logprobs
             training_sample.advantage += [rollout_advantage] * num_completion
+            topk_parts[-1].append((num_delta, None))
+            topk_parts[-1].append((num_completion, rollout_turn.completion_topk))
 
             prev_prompt_and_completion = prompt + rollout_turn.completion_token_ids
+
+        for training_sample, parts in zip(training_samples, topk_parts):
+            training_sample.topk = _concat_topk(parts)
 
         # TITO integrity. NOTE: counting loss_mask=True vs sum(completion lengths) is
         # TAUTOLOGICAL -- the loop above sets [True]*len(completion) and

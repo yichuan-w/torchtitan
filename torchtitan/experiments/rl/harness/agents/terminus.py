@@ -394,9 +394,11 @@ class _AdapterLLM:
         # No max_tokens: the adapter does not read it from the body (generation runs
         # on the session's SamplingConfig), and sending it reads as though it sets the
         # cap. See get_model_output_limit for where the real one comes from.
+        # plain_text, as in miniswe: a stray <tool_call> token in the reply would
+        # otherwise cut the text there and hide the <commands> after it.
         reply = await self._adapter.complete(
             self._session_id,
-            {"messages": messages, "stream": False},
+            {"messages": messages, "stream": False, "plain_text": True},
         )
         if reply is None:
             # The session is closed or the generator yielded nothing; ending the
@@ -468,6 +470,25 @@ class _AdapterLLM:
         return LLMResponse(content=text)
 
 
+def _return_salvage_as_response(agent: Any) -> None:
+    """Harbor's ``_query_llm`` returns the salvaged *str* when a truncated turn
+    still holds a complete action, and ``_handle_llm_interaction`` then reads
+    ``.content`` off it (AttributeError). Wrap it into the response it meant."""
+    query = getattr(agent, "_query_llm", None)
+    if query is None:
+        return
+
+    async def _query_llm(*args: Any, **kwargs: Any) -> Any:
+        response = await query(*args, **kwargs)
+        if not isinstance(response, str):
+            return response
+        from harbor.llms.base import LLMResponse  # type: ignore
+
+        return LLMResponse(content=response)
+
+    agent._query_llm = _query_llm
+
+
 _XML_TAG_RE = re.compile(
     r"<(response|analysis|plan|commands|keystrokes|task_complete)\b"
 )
@@ -499,6 +520,9 @@ class _CountingParser:
     Warning-only turns (empty commands, silent no-op) do not, and neither does
     re-parsing a capped turn's text, which the truncation rule owns. With
     ``strict_opening`` only a rejected turn before the first usable one does.
+    With ``format_streak_limit`` (0 = off) that many unusable turns in a row,
+    warning-only ones included, flag one too: a policy stuck answering without
+    commands otherwise loops until the context or turn cap.
     """
 
     def __init__(
@@ -507,11 +531,13 @@ class _CountingParser:
         llm: Any = None,
         strict_format: bool = False,
         strict_opening: bool = False,
+        format_streak_limit: int = 0,
     ) -> None:
         self._inner = inner
         self._llm = llm
         self._strict_format = strict_format
         self._strict_opening = strict_opening
+        self._format_streak_limit = format_streak_limit
         self.format_errors = 0
         self.completion_signals = 0
         self.categories = dict.fromkeys(FORMAT_ERROR_CATEGORIES, 0)
@@ -560,6 +586,12 @@ class _CountingParser:
             and self._llm is not None
             and getattr(result, "error", None)
             and content != self._llm.last_truncated_text
+        ):
+            self._llm.flag_violation("format", category)
+        if (
+            self._format_streak_limit
+            and self._streak >= self._format_streak_limit
+            and self._llm is not None
         ):
             self._llm.flag_violation("format", category)
         return result
@@ -625,9 +657,252 @@ _PANE_CAP_BYTES = 8 * 1024 * 1024
 # rollout record. Off by default because a run of 22,000 rollouts fetching up
 # to 8 MiB each is tens of gigabytes: turn it on for a run you mean to audit.
 
+# The pane's shell. Harbor starts it as a bare ``bash --login``, and three of an
+# interactive bash's defaults cost turns or whole episodes for reasons no task is
+# about:
+#   * no DEBIAN_FRONTEND: debconf asks on the pane's terminal, so an
+#     ``apt-get install`` that pulls in tzdata stops at a region prompt and waits
+#     out the episode (the reference solutions of adaptive-rejection-sampler and
+#     sqlite-with-gcov run out of time on this path; mini-swe-agent's plain exec
+#     has no terminal for debconf to ask on, and both pass there);
+#   * history expansion: a ``!`` inside double quotes is "event not found", and
+#     the command never runs;
+#   * EOF at the prompt exits: a stray C-d ends the shell and the episode with it.
+# They are set on the shell's own command line, so nothing is typed into the pane
+# and the first observation is what it was. DEBIAN_FRONTEND is exported to what
+# the agent runs (apt is its child); the two options stay this shell's own, so a
+# nested ``bash`` starts with the usual defaults. The verifier runs through its
+# own exec and sees none of this.
+_AGENT_SHELL = (
+    "env DEBIAN_FRONTEND=noninteractive bash --login +o histexpand -o ignoreeof"
+)
+# What harbor 0.22.0 (TmuxSession._tmux_start_session) starts the pane with.
+_HARBOR_PANE_SHELL = "bash --login"
+
+
 
 class _SandboxExecutionError(RuntimeError):
     """The sandbox API failed without returning a command result."""
+
+
+def _status_unanswered(error: BaseException) -> bool:
+    """The command was launched but its exit status never arrived.
+
+    Daytona raises this when a sandbox stalls past the command's deadline and
+    then, nearly always, comes back (mini-swe-agent reads the same error as a
+    timed-out command and 94% of those rollouts complete).
+    """
+    return isinstance(error, _SandboxExecutionError) and isinstance(
+        error.__cause__, TimeoutError
+    )
+
+
+# Harbor's tmux clients by what a second run would do: a query is safe to run
+# again; keys are not, since the first delivery may still land when the
+# sandbox resumes.
+_TMUX_QUERIES = frozenset({"has-session", "capture-pane", "display-message", "-V"})
+_TMUX_KEYS = frozenset({"send-keys"})
+
+# tmux echoes every line typed into the pane, so a heredoc the model writes
+# comes back in the next observation as "> "-prefixed lines -- 16% of the
+# context of 1022/1026b's trajectories that hit the context limit. A run of at
+# least this many such lines, each equal to a line typed this turn or the one
+# before, collapses to one marker line; 0 shows them all, as stock Terminus-2.
+_COLLAPSE_ECHO_MIN_LINES = int(os.environ.get("TMAX_COLLAPSE_ECHO_MIN_LINES", "3"))
+_TMUX_KEY_NAME = re.compile(
+    r"(?:[CMS]-.+|Enter|Escape|Tab|BTab|BSpace|Space|Up|Down|Left|Right|Home|End"
+    r"|IC|DC|NPage|PPage|PageUp|PageDown|F\d+|KP.+)"
+)
+
+
+def _typed_keys(command: str) -> str:
+    """The literal text a ``tmux send-keys`` command types; key names
+    (Enter, C-c, ...) are left out, Enter as a newline."""
+    try:
+        tokens = shlex.split(command)
+    except ValueError:
+        return ""
+    if tokens[:1] == ["timeout"]:
+        tokens = tokens[2:]
+    if tokens[:2] != ["tmux", "send-keys"]:
+        return ""
+    keys = tokens[2:]
+    if keys[:1] == ["-t"]:
+        keys = keys[2:]
+    if keys[:1] == ["--"]:
+        keys = keys[1:]
+    return "".join(
+        ("\n" if k in ("Enter", "C-m") else "") if _TMUX_KEY_NAME.fullmatch(k) else k
+        for k in keys
+    )
+
+
+# A continuation prompt line. Characters typed ahead of the shell sometimes land
+# in front of the prompt ("a>     ast = parse(...)"), hence up to 3 of them.
+_ECHO_LINE = re.compile(r"^.{0,3}?> ?(.*)$")
+
+
+def _collapse_echo(text: str, typed: str, min_lines: int) -> tuple[str, int]:
+    """Replace runs of echoed heredoc/continuation lines with one marker.
+
+    A line is echo when it is a continuation prompt (">" or "> X", see
+    _ECHO_LINE) and X is a line in ``typed``. The
+    run's last line (the closing delimiter) is kept, and a run that ends the
+    text is left whole: the shell is still waiting for input there, which the
+    model must see. Returns the text and how many lines were removed."""
+    if min_lines <= 0 or not typed:
+        return text, 0
+    typed_lines = {line.rstrip() for line in typed.split("\n")}
+    lines = text.split("\n")
+    last = len(lines) - 1
+    while last >= 0 and not lines[last].strip():
+        last -= 1
+
+    def is_echo(line: str) -> bool:
+        m = _ECHO_LINE.match(line)
+        return m is not None and m.group(1).rstrip() in typed_lines
+
+    out: list[str] = []
+    removed = 0
+    i = 0
+    while i < len(lines):
+        j = i
+        # A blank line between echo lines is one too (a blank heredoc line).
+        while j < len(lines) and (
+            is_echo(lines[j])
+            or (j > i and not lines[j] and j + 1 < len(lines) and is_echo(lines[j + 1]))
+        ):
+            j += 1
+        if j - i - 1 >= min_lines and j - 1 < last:
+            n = j - i - 1
+            out.append(f"[{n} lines you typed were echoed back; omitted]")
+            out.append(lines[j - 1])
+            removed += n
+            i = j
+        elif j > i:
+            out.extend(lines[i:j])
+            i = j
+        else:
+            out.append(lines[i])
+            i += 1
+    return "\n".join(out), removed
+
+
+# Keys typed while a program that does not read its input holds the pane's
+# foreground pile up in the pty's input queue. Once it is full (4 KiB) every
+# later key waits behind it, C-c included, so no signal is ever raised and the
+# screen stops changing -- 7% of a TB-2.1 eval's trials froze this way for 5+
+# turns, and 3.7% of late training rollouts. Each key delivery therefore probes
+# the foreground first, in the same exec: text for a program that has left
+# earlier input unread is held back and the model told why; C-c / C-\ against a
+# full queue discard the unread input and signal the foreground process group
+# directly; and once C-c has drawn nothing but its own echo on
+# _UNFREEZE_ESCALATE_TURNS - 1 turns while the same program holds the
+# foreground (``vim -Es``, a hung qemu guest, a handler that swallows SIGINT),
+# the next one is delivered as INT, then TERM, then KILL. A program that
+# answers C-c with output (a live guest console, telnet) is never escalated. TMAX_TERMINUS_UNFREEZE=0 turns it off.
+_UNFREEZE = os.environ.get("TMAX_TERMINUS_UNFREEZE", "1") == "1"
+_INTERRUPT_SIGNALS = {"C-c": "INT", "C-\\": "QUIT"}
+# n_tty buffers 4095 bytes; past this a key may not get in.
+_UNFREEZE_FULL_QUEUE_BYTES = 3000
+_UNFREEZE_ESCALATE_TURNS = 3
+_UNFREEZE_ESCALATION = ("INT", "TERM", "KILL")
+_UNFREEZE_MARK = "__torchtitan_unfreeze__"
+# What the terminal echoes for a control key in cooked mode.
+_CONTROL_ECHO = re.compile(r"\^[A-Z\\\[\]]")
+# Unread bytes in, and discarding, the pane tty's input queue. Opened O_NOCTTY so
+# the probing shell never adopts the pane's terminal. perl-base ships in every
+# Debian-family image; python3 covers the rest. Both missing reads as 0 unread.
+_TTY_QUEUE_BYTES = (
+    "{ perl -MFcntl -e 'sysopen(F,$ARGV[0],O_RDWR|O_NOCTTY) or exit 1; "
+    '$b=pack("L",0); ioctl(F,0x541B,$b) or exit 1; print unpack("L",$b)\' "$tty" '
+    "|| python3 -c 'import fcntl,os,struct,sys,termios; "
+    "fd=os.open(sys.argv[1],os.O_RDWR|os.O_NOCTTY); "
+    'print(struct.unpack("i",fcntl.ioctl(fd,termios.FIONREAD,b"0000"))[0])\' "$tty"; '
+    "} 2>/dev/null"
+)
+_TTY_FLUSH_INPUT = (
+    "{ perl -MFcntl -MPOSIX -e 'sysopen(F,$ARGV[0],O_RDWR|O_NOCTTY) or exit 1; "
+    "POSIX::tcflush(fileno(F),POSIX::TCIFLUSH()) or exit 1' \"$tty\" "
+    "|| python3 -c 'import os,sys,termios; "
+    "termios.tcflush(os.open(sys.argv[1],os.O_RDWR|os.O_NOCTTY),termios.TCIFLUSH)' "
+    '"$tty"; } 2>/dev/null'
+)
+
+
+def _sent_keys(command: str) -> list[str]:
+    """The key arguments of one ``tmux send-keys`` command ([] for anything else)."""
+    try:
+        tokens = shlex.split(command)
+    except ValueError:
+        return []
+    if tokens[:1] == ["timeout"]:
+        tokens = tokens[2:]
+    if tokens[:2] != ["tmux", "send-keys"]:
+        return []
+    keys = tokens[2:]
+    if keys[:1] == ["-t"]:
+        keys = keys[2:]
+    if keys[:1] == ["--"]:
+        keys = keys[1:]
+    return keys
+
+
+def _drew_output(text: str, typed: str) -> bool:
+    """Whether ``text`` (a turn's new terminal output) holds anything besides the
+    echo of what was typed and of control keys -- i.e. the program answered."""
+    typed_lines = {line.strip() for line in typed.split("\n") if line.strip()}
+    for line in text.split("\n"):
+        line = _CONTROL_ECHO.sub("", line).strip()
+        if line and line not in typed_lines:
+            return True
+    return False
+
+
+def _foreground_probe(pane_pid: str) -> str:
+    """Shell that sets ``tp`` (the pane tty's foreground process group, empty when
+    it is the pane's own shell), ``q`` (unread input bytes) and ``fg`` (its
+    command line), and prints them after _UNFREEZE_MARK."""
+    return (
+        f"pp={shlex.quote(pane_pid)}; tp=; q=0; fg=; "
+        "tp=$(sed 's/.*) //' /proc/$pp/stat 2>/dev/null | cut -d ' ' -f 6); "
+        'case "$tp" in ""|0|-*|"$pp") tp= ;; esac; '
+        'if [ -n "$tp" ]; then tty=$(readlink /proc/$pp/fd/0 2>/dev/null); '
+        f"q=$({_TTY_QUEUE_BYTES}); "
+        "fg=$(tr '\\0' ' ' < /proc/$tp/cmdline 2>/dev/null | cut -c 1-120); fi; "
+        f'printf "{_UNFREEZE_MARK}|%s|%s|%s\\n" "$tp" "${{q:-0}}" "$fg"; '
+    )
+
+
+def _tmux_client_kind(command: str) -> str:
+    """"query", "keys", or "" for anything that is not one simple tmux client."""
+    try:
+        tokens = shlex.split(command)
+    except ValueError:
+        return ""
+    if tokens[:1] == ["timeout"]:
+        tokens = tokens[2:]
+    if len(tokens) < 2 or tokens[0] != "tmux":
+        return ""
+    if any(t in (";", "&&", "||", "|", "&") for t in tokens):
+        return ""
+    if tokens[1] in _TMUX_QUERIES:
+        return "query"
+    if tokens[1] in _TMUX_KEYS:
+        return "keys"
+    return ""
+
+
+def _with_pinned_tmux(command: str, tmux_command: str) -> str:
+    """``command`` with every ``tmux`` it runs replaced by ``tmux_command``
+    (TerminalLifecycle.pin_tmux): a shell function covers each call in the
+    script, and a leading ``timeout N tmux`` (which execs by PATH) is rewritten."""
+    if not tmux_command:
+        return command
+    command = re.sub(
+        r"^(timeout\s+\S+\s+)tmux(?=\s)", lambda m: m.group(1) + tmux_command, command
+    )
+    return f'tmux() {{ {tmux_command} "$@"; }}; {command}'
 
 
 class _SandboxEnvironment:
@@ -652,14 +927,32 @@ class _SandboxEnvironment:
         # AgentRun and written into the rollout record's ``exec`` (see
         # _trace_exec). A few hundred small dicts per rollout at most.
         self.exec_trace: list[dict] = []
+        # Harness tmux commands whose status never arrived and were absorbed
+        # (re-run query, or keys taken as delivered) instead of failing.
+        self.unanswered_execs = 0
         # Set when Terminus-2 starts its pane, so the transcript can be fetched
         # before the sandbox goes away. None until then.
         self.pane_path: str | None = None
         self._pane_name = agent_dir.name + ".pane"
         self._observed_once = False
+        # Text typed into the pane this turn and the one before (_collapse_echo).
+        self._typed_now = ""
+        self._typed_before = ""
         # Returns the context-budget line for this turn ("" for none); set to
         # _AdapterLLM.context_notice once the session's LLM exists.
         self.context_notice: Callable[[], str] | None = None
+        # Foreground unfreezing (_UNFREEZE): notes for the next observation,
+        # whether this turn's text is being held, the process group the
+        # interrupts are aimed at, and on how many turns an interrupt drew no
+        # output from it (keys in between that draw none do not reset it: the
+        # model mixes C-c with q, :q! and Enter; any output does).
+        self._unfreeze_notes: list[str] = []
+        self._holding_keys = False
+        self._held_chars = 0
+        self._interrupt_target = ""
+        self._interrupt_turns = 0
+        self._interrupted_this_turn = False
+        self._last_screen = ""
         from .terminus_terminal import TerminalLifecycle
 
         self.terminal = TerminalLifecycle(self._terminal_exec)
@@ -688,15 +981,160 @@ class _SandboxEnvironment:
     ):
         if cwd:
             command = f"cd {shlex.quote(cwd)} && {command}"
+        command = self._agent_pane_shell(command)
         command = self._bound_pane_pipe(command)
+        command = self._neutral_tmux_server(command)
         command = self._end_send_keys_options(command)
+        # Classified before the turn-start prefix makes it a compound command.
+        kind = _tmux_client_kind(command)
+        typed = _typed_keys(command) if kind == "keys" else ""
+        signal = ""
+        if kind == "keys":
+            signal = next(
+                (_INTERRUPT_SIGNALS[k] for k in _sent_keys(command) if k in _INTERRUPT_SIGNALS),
+                "",
+            )
         command = self._record_turn_start(command)
-        return await self.terminal.run(
-            command,
-            lambda cmd: self._exec_raw(
-                cmd, env=env, timeout_sec=timeout_sec, user=user
-            ),
+        guarded = None
+        if kind == "keys" and _UNFREEZE and self.terminal.pane_pid:
+            if self._holding_keys and typed and not signal:
+                # Text after held text would land out of order, or alone.
+                self._held_chars += len(typed)
+                from harbor.environments.base import ExecResult  # type: ignore
+
+                return ExecResult(stdout="", stderr="", return_code=0)
+            guarded = self._guard_keys(command, typed, signal)
+        if kind == "keys":
+            self._typed_now += typed
+
+        async def run(cmd: str):
+            try:
+                return await self._exec_raw(
+                    cmd, env=env, timeout_sec=timeout_sec, user=user
+                )
+            except _SandboxExecutionError as e:
+                if not _status_unanswered(e):
+                    raise
+                if kind == "query":
+                    logger.warning(f"[terminus] re-running tmux query after {e}")
+                    self.unanswered_execs += 1
+                    return await self._exec_raw(
+                        cmd, env=env, timeout_sec=60, user=user
+                    )
+                if kind == "keys" and "claim=present" in str(e):
+                    # The wrapper took the command, so the keys were or will be
+                    # delivered; resending could type them twice. The next
+                    # observation shows what the terminal did with them.
+                    from harbor.environments.base import ExecResult  # type: ignore
+
+                    logger.warning(f"[terminus] keys sent, status lost: {e}")
+                    self.unanswered_execs += 1
+                    return ExecResult(stdout="", stderr="", return_code=0)
+                raise
+
+        if guarded is None:
+            return await self.terminal.run(command, run)
+        # The lifecycle reads the plain key delivery (a Harbor client it may
+        # check and replay); the guarded form is what runs.
+        result = await self.terminal.run(command, lambda _command: run(guarded))
+        return self._read_guard(result, typed)
+
+    def _guard_keys(self, command: str, typed: str, signal: str) -> str | None:
+        """``command`` wrapped in the foreground probe and what it decides."""
+        probe = _foreground_probe(self.terminal.pane_pid)
+        if not signal:
+            if not typed:
+                return None
+            # Text for a program that has left earlier input unread, and would
+            # bring the queue to where a key can no longer get in, only adds to
+            # the pile.
+            return (
+                f'{probe}if [ -n "$tp" ] && [ "${{q:-0}}" -gt 0 ] && '
+                f'[ $(( ${{q:-0}} + {len(typed.encode("utf-8", "replace"))} )) -ge '
+                f'{_UNFREEZE_FULL_QUEUE_BYTES} ]; then '
+                f'echo "{_UNFREEZE_MARK}held"; else {command}; fi'
+            )
+        self._interrupted_this_turn = True
+        # C-c that keeps drawing nothing from one program escalates; otherwise
+        # a full queue is the one case the key cannot reach it, so discard what
+        # is waiting and raise the signal ourselves. The key still follows;
+        # reaching the program (or the shell, once it is gone) it is harmless.
+        escalate = ""
+        unanswered = _UNFREEZE_ESCALATE_TURNS - 1
+        if self._interrupt_target and self._interrupt_turns >= unanswered:
+            level = min(
+                self._interrupt_turns - unanswered, len(_UNFREEZE_ESCALATION) - 1
+            )
+            escalate = (
+                f'if [ "$tp" = {shlex.quote(self._interrupt_target)} ]; then '
+                f"sig={_UNFREEZE_ESCALATION[level]}; fi; "
+            )
+        return (
+            f'{probe}sig=; if [ -n "$tp" ]; then '
+            f'if [ "${{q:-0}}" -ge {_UNFREEZE_FULL_QUEUE_BYTES} ]; then sig={signal}; fi; '
+            f"{escalate}"
+            f'if [ -n "$sig" ]; then {_TTY_FLUSH_INPUT}; kill -s "$sig" -- "-$tp" '
+            f'2>/dev/null; echo "{_UNFREEZE_MARK}signal|$sig"; fi; fi; {command}'
         )
+
+    def _read_guard(self, result: Any, typed: str) -> Any:
+        """Strip the probe's lines from ``result`` and act on what they say."""
+        stdout = result.stdout or ""
+        fields: list[str] = []
+        action = ""
+        kept = []
+        for line in stdout.split("\n"):
+            if line.startswith(_UNFREEZE_MARK + "|"):
+                fields = line.split("|", 3)[1:]
+            elif line.startswith(_UNFREEZE_MARK):
+                action = line[len(_UNFREEZE_MARK) :]
+            else:
+                kept.append(line)
+        result.stdout = "\n".join(kept)
+        if len(fields) < 3:
+            return result
+        target, unread, program = fields[0], fields[1], fields[2].strip() or "?"
+        if target != self._interrupt_target:
+            self._interrupt_target = target
+            self._interrupt_turns = 0
+        if action == "held":
+            self._holding_keys = True
+            self._held_chars += len(typed)
+            self.terminal._event("keys_held", pgrp=target, unread=unread, program=program)
+            self._unfreeze_notes.append(
+                f"`{program}` (pid {target}) is running in the foreground and has "
+                f"not read the last {unread} bytes typed to it"
+            )
+        elif action.startswith("signal|"):
+            sig = action.split("|", 1)[1]
+            self.terminal._event(
+                "foreground_signaled", pgrp=target, unread=unread, program=program, signal=sig
+            )
+            self._unfreeze_notes.append(
+                f"`{program}` (pid {target}) was not responding to keys, so its "
+                f"unread input ({unread} bytes) was discarded and it was sent SIG{sig}"
+            )
+        return result
+
+    def _take_unfreeze_note(self, drew_output: bool = True) -> str:
+        """The harness note for this turn's observation, and a fresh turn.
+
+        ``drew_output``: the turn's terminal output held more than echo."""
+        if drew_output:
+            self._interrupt_turns = 0
+        elif self._interrupted_this_turn:
+            self._interrupt_turns += 1
+        notes = self._unfreeze_notes
+        if self._holding_keys:
+            notes = notes + [
+                f"so {self._held_chars} characters you typed after that were not "
+                "sent; wait for it to finish, or stop it with C-c"
+            ]
+        self._unfreeze_notes = []
+        self._holding_keys = False
+        self._held_chars = 0
+        self._interrupted_this_turn = False
+        return f"[Terminal note: {'; '.join(notes)}.]" if notes else ""
 
     # ---- the turn's observation: new output by tmux line offsets ----------
     #
@@ -796,7 +1234,19 @@ class _SandboxEnvironment:
             f"printf '\n{sep}\n'; tmux capture-pane -p -t {target}"
         )
         started_at = time.time()
-        result = await self._exec_raw(script, timeout_sec=60)
+        stale = False
+        try:
+            result = await self._exec_raw(script, timeout_sec=60)
+        except _SandboxExecutionError as e:
+            if not _status_unanswered(e):
+                raise
+            # The first run may still have moved the offset file, so the new
+            # output can no longer be located: show the screen instead, as
+            # Terminus-2 does when its previous-buffer search fails.
+            logger.warning(f"[terminus] re-running observation after {e}")
+            self.unanswered_execs += 1
+            stale = True
+            result = await self._exec_raw(script, timeout_sec=60)
         if result.return_code == 97 or (
             result.return_code != 0 and not (result.stdout or "").strip()
         ):
@@ -830,11 +1280,31 @@ class _SandboxEnvironment:
             # Terminus-2's first capture is always the screen.
             self._observed_once = True
             mode = "first"
+        elif stale:
+            mode = "screen"
+        echo_collapsed = 0
+        if mode == "new":
+            drew_output = _drew_output(new_text, self._typed_now)
+        else:
+            drew_output = _CONTROL_ECHO.sub("", screen) != _CONTROL_ECHO.sub(
+                "", self._last_screen
+            )
+        self._last_screen = screen
+        if mode == "new":
+            new_text, echo_collapsed = _collapse_echo(
+                new_text,
+                self._typed_before + "\n" + self._typed_now,
+                _COLLAPSE_ECHO_MIN_LINES,
+            )
+        self._typed_before, self._typed_now = self._typed_now, ""
         if mode == "new" and new_text.strip():
             observation = f"New Terminal Output:\n{new_text}"
         else:
             observation = f"Current Terminal Screen:\n{screen}"
         shown = "new" if observation.startswith("New") else "screen"
+        unfreeze_note = self._take_unfreeze_note(drew_output)
+        if unfreeze_note:
+            observation = f"{observation.rstrip()}\n\n{unfreeze_note}\n"
         notice = self.context_notice() if self.context_notice else ""
         if notice:
             if _CONTEXT_NOTICE_STYLE in _APPENDED_NOTICE_STYLES:
@@ -854,6 +1324,7 @@ class _SandboxEnvironment:
                 "start": start,
                 "new_bytes": len(new_text.encode("utf-8", errors="replace")),
                 "screen_bytes": len(screen.encode("utf-8", errors="replace")),
+                "echo_collapsed": echo_collapsed,
             }
         )
         return observation
@@ -873,7 +1344,7 @@ class _SandboxEnvironment:
         started_at = time.time()
         try:
             exit_code, stdout, stderr = await self._sandbox.exec(
-                command,
+                _with_pinned_tmux(command, self.terminal.tmux_command),
                 user=str(user or self.default_user),
                 env=env,
                 check=False,
@@ -899,6 +1370,69 @@ class _SandboxEnvironment:
             if not stderr:
                 stderr = stdout
         return ExecResult(stdout=stdout, stderr=stderr, return_code=exit_code)
+
+    def _agent_pane_shell(self, command: str) -> str:
+        """Start the pane in ``_AGENT_SHELL`` rather than harbor's bare login shell.
+
+        Only harbor's own ``tmux new-session`` is rewritten, recognized by its
+        top-level tokens: keys the agent types arrive as one quoted send-keys
+        argument, so they are never touched even when they spell this command.
+        """
+        try:
+            tokens = shlex.split(command)
+        except ValueError:
+            return command
+        starts = [
+            i
+            for i in range(len(tokens) - 1)
+            if tokens[i] == "tmux" and tokens[i + 1] == "new-session"
+        ]
+        if not starts:
+            return command
+        rest = tokens[starts[0] + 2 :]
+        name = shell = None
+        if "-s" in rest and rest.index("-s") + 2 < len(rest):
+            name = rest[rest.index("-s") + 1]
+            shell = rest[rest.index("-s") + 2]
+        old = f"-s {name} {shlex.quote(_HARBOR_PANE_SHELL)}"
+        if shell != _HARBOR_PANE_SHELL or command.count(old) != 1:
+            logger.warning(
+                "[terminus] pane started without harbor's %r; shell defaults "
+                "not applied: %r",
+                _HARBOR_PANE_SHELL,
+                command[:400],
+            )
+            return command
+        return command.replace(old, f"-s {name} {shlex.quote(_AGENT_SHELL)}", 1)
+
+    def _neutral_tmux_server(self, command: str) -> str:
+        """Start harbor's tmux server through ``terminal.server_link``.
+
+        A symlink to the sandbox's tmux, so the server's process name carries
+        no "server" for the agent's ``pkill server`` to match; the pane is the
+        same. Without tmux on PATH the link fails and plain ``tmux`` runs.
+        """
+        link = self.terminal.server_link
+        if not link or not self.terminal.prepared:
+            return command
+        try:
+            tokens = shlex.split(command)
+        except ValueError:
+            return command
+        if not any(
+            tokens[i : i + 2] == ["tmux", "new-session"] for i in range(len(tokens) - 1)
+        ):
+            return command
+        if command.count("tmux new-session ") != 1:
+            logger.warning(
+                "[terminus] tmux server not renamed: %r", command[:400]
+            )
+            return command
+        q = shlex.quote(link)
+        return (
+            f't=tmux; ln -sfn "$(command -v tmux)" {q} 2>/dev/null && t={q}; '
+            + command.replace("tmux new-session ", '"$t" new-session ', 1)
+        )
 
     _PANE_PIPE = re.compile(r"pipe-pane\s+(?:-\w+\s+\S+\s+)*'cat > (?P<path>[^']+)'")
 
@@ -1010,6 +1544,22 @@ def _count_subagent_calls(agent: Any, llm: _AdapterLLM) -> None:
     agent._run_subagent = counting
 
 
+# tmux refuses a client command past ~16 KiB of bytes ("command too long"), and
+# harbor splits send-keys at 16,000 *characters*: 37K characters of a heredoc with
+# box-drawing and CJK text came to 48K bytes and one chunk crossed the limit,
+# failing the rollout (TB-2.1 reshard-c4-data, 2026-10-28). 4,000 characters stay
+# under it even at 4 bytes per character.
+_TMUX_SEND_KEYS_MAX_CHARS = 4000
+
+
+def _cap_tmux_send_keys_length() -> None:
+    from harbor.agents.terminus_2.tmux_session import TmuxSession  # type: ignore
+
+    TmuxSession._TMUX_SEND_KEYS_MAX_COMMAND_LENGTH = min(
+        TmuxSession._TMUX_SEND_KEYS_MAX_COMMAND_LENGTH, _TMUX_SEND_KEYS_MAX_CHARS
+    )
+
+
 async def terminus_agent(
     task: AgentTask,
     *,
@@ -1034,6 +1584,7 @@ async def terminus_agent(
     # Quiet litellm's per-turn token_counter for our placeholder model name (see
     # _register_titan_actor_with_litellm). Idempotent, cheap after the first call.
     _register_titan_actor_with_litellm()
+    _cap_tmux_send_keys_length()
 
     submitted = False
     turns = 0
@@ -1086,6 +1637,7 @@ async def terminus_agent(
             )
             agent._llm = llm
             env.context_notice = llm.context_notice
+            _return_salvage_as_response(agent)
             inner_parser = getattr(agent, "_parser", None)
             if inner_parser is None:
                 # Terminus-2 always builds one, so this only trips on an upstream
@@ -1102,6 +1654,7 @@ async def terminus_agent(
                     llm=llm,
                     strict_format=task.strict_format,
                     strict_opening=task.strict_opening,
+                    format_streak_limit=task.format_streak_limit,
                 )
                 agent._parser = parser
             _count_subagent_calls(agent, llm)

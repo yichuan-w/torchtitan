@@ -134,5 +134,12 @@ lineage), the original task's readout (validation traces) and each accepted
 rewrite as a harder/easier marker at the step it reached training. `--since`
 skips earlier runs left in the job dir.
 
+For teacher-rewriter jobs, `plot_curve.py --timeline <job dir> ...` writes an
+HTML lane timeline (the original and each version on its own lane, groups with
+and without a gradient told apart, readouts with exact counts, a dashed line
+where each version entered the pool), and `plot_curve.py --heatmap <jobs root>
+--results tb21_results.md` one row per task with the lenient and two-stage bars
+marked apart (#321).
+
 Status: running; the result (the first step at which the original is solved,
 and how many rewrites it took) goes here when there is one.

@@ -47,14 +47,41 @@ def safe(name: str) -> str:
     return _SAFE.sub("_", str(name))
 
 
+# Retry delays for a write the FUSE root refuses with a transient EPERM (run
+# 1029: about one every 1-2 h, each ending an evolve round mid-fold).
+_WRITE_RETRY_SEC = (1.0, 2.0, 4.0)
+
+
+def exists(path: Path) -> bool:
+    """``path.exists()``, repeated on PermissionError: the FUSE root sometimes
+    answers a stat of a missing path with EPERM instead of ENOENT."""
+    for delay in (*_WRITE_RETRY_SEC, None):
+        try:
+            return path.exists()
+        except PermissionError:
+            if delay is None:
+                raise
+            time.sleep(delay)
+    raise AssertionError("unreachable")
+
+
 def write_json_atomic(path: Path, value: dict) -> None:
-    """Write beside, then rename in: a reader never sees a half file."""
-    path.parent.mkdir(parents=True, exist_ok=True)
+    """Write beside, then rename in: a reader never sees a half file.
+
+    The whole write is repeated on PermissionError, which is idempotent: the
+    same bytes land at the same path."""
+    text = json.dumps(value, ensure_ascii=False, indent=1, sort_keys=True) + "\n"
     tmp = path.with_name(path.name + ".incoming")
-    tmp.write_text(
-        json.dumps(value, ensure_ascii=False, indent=1, sort_keys=True) + "\n"
-    )
-    os.replace(tmp, path)
+    for delay in (*_WRITE_RETRY_SEC, None):
+        try:
+            path.parent.mkdir(parents=True, exist_ok=True)
+            tmp.write_text(text)
+            os.replace(tmp, path)
+            return
+        except PermissionError:
+            if delay is None:
+                raise
+            time.sleep(delay)
 
 
 def append_jsonl(path: Path, value: dict) -> None:
@@ -622,7 +649,7 @@ class TaskDir:
         return self.path / f"r{n}"
 
     def revs(self) -> list[int]:
-        if not self.path.exists():
+        if not exists(self.path):
             return []
         out = []
         for p in self.path.iterdir():

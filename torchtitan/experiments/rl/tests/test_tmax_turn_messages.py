@@ -131,3 +131,14 @@ def test_a_re_rendered_prompt_restates_the_history_it_branched_from() -> None:
 
     assert turns[0].env_messages == []
     assert turns[1].prompt_messages == rewritten
+
+
+def test_generator_metrics_ride_through_to_the_rollout_turn() -> None:
+    from torchtitan.experiments.rl.observability import metrics as m
+
+    hit_rate = m.Metric("generator/prefix_cache_hit_rate", m.Mean(0.9))
+    first = _turn(messages=[{"role": "user", "content": "go"}], full=True)
+    first.metrics = [hit_rate]
+    turns = _captured_to_turns([first, _turn(messages=[])], group_id="g", rollout_idx=0)
+    assert turns[0].metrics == [hit_rate]
+    assert turns[1].metrics == []

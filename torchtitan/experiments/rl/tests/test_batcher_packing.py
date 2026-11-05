@@ -84,3 +84,15 @@ def test_packing_does_not_change_loss_or_grad(aggregation: str) -> None:
     loss_ffd, grad_ffd = _loss_and_grad(batch("first_fit_decreasing"))
     assert loss_ffd == pytest.approx(loss_nf, rel=1e-6)
     torch.testing.assert_close(grad_ffd, grad_nf, rtol=1e-6, atol=1e-7)
+
+
+def test_spread_pad_token_ids_varies_only_the_row_tail_input_ids() -> None:
+    batcher = Batcher.Config(
+        batch=BatchConfig(local_batch_size=1, seq_len=10), spread_pad_token_ids=True
+    ).build(num_groups_per_train_step=1, dp_degree=1, pad_id=7, initial_policy_version=0)
+    row = batcher._pack_training_sample_row([_sample(0, 4)])
+    assert row["input_ids"][0].tolist() == [1, 1, 1, 1, 0, 1, 2, 3, 4, 5]
+    assert row["labels"][0, 4:].tolist() == [7] * 6
+    assert not row["loss_mask"][0, 4:].any()
+    empty = batcher._pack_training_sample_row([])
+    assert len(set(empty["input_ids"][0].tolist())) == 10

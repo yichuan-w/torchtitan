@@ -472,6 +472,25 @@ def test_torch_pipeline_patch_points_uv_at_the_cpu_index_or_says_why_not(
         assert "UV_INDEX=unset STRATEGY=unset" in got.stdout
         assert "TB21_ENV_PATCH_FAILED: torch-pipeline-parallelism" in got.stderr
 
+def test_resource_override_resizes_only_its_task(tmp_path):
+    root = tmp_path / "tasks"
+    root.mkdir()
+    for task_id in ("extract-moves-from-video", "fix-git"):
+        _write_task(root, task_id, binary=None)
+    rows = {row["label"]: row for row in build_rows(tasks_root=str(root))[0]}
+    plain = {
+        row["label"]: row
+        for row in build_rows(tasks_root=str(root), env_patches=False)[0]
+    }
+
+    md = rows["extract-moves-from-video"]["metadata"]
+    assert (md["daytona_cpu"], md["daytona_mem_gb"], md["daytona_disk_gb"]) == (2, 4, 20)
+    assert md["resource_patch"] == {"daytona_cpu": 2, "daytona_mem_gb": 4, "daytona_disk_gb": 20}
+    assert md["tmax"] == plain["extract-moves-from-video"]["metadata"]["tmax"]
+    assert "resource_patch" not in plain["extract-moves-from-video"]["metadata"]
+    assert rows["fix-git"] == plain["fix-git"]
+
+
 def test_env_patches_are_idempotent(tmp_path):
     from torchtitan.experiments.rl.examples.tmax.prepare_tb2_1_data import (
         apply_env_patches,
@@ -686,3 +705,26 @@ def test_a_rewritten_separate_task_builds_its_verifier_from_tests(tmp_path):
     assert separate_verifier(
         tomllib.loads(_TASK_TOML), str(task), build=True
     ) == (None, "")
+
+
+def test_a_tb2_1_row_built_before_an_override_gets_it_at_load():
+    from torchtitan.experiments.rl.examples.tmax.data import _parse_sample_row
+
+    def row(tb_version):
+        return {
+            "label": "compile-compcert",
+            "metadata": {
+                "instance_id": "compile-compcert",
+                "image": "docker.io/alexgshaw/compile-compcert:20260403",
+                "tmax": {"test_sh": "#!/bin/bash\n"},
+                "tb_version": tb_version,
+                "daytona_cpu": 2,
+                "daytona_mem_gb": 4,
+                "daytona_disk_gb": 10,
+            },
+        }
+
+    sample = _parse_sample_row(row("2.1"))
+    assert (sample.daytona_cpu, sample.daytona_mem_gb, sample.daytona_disk_gb) == (2, 8, 10)
+    other = _parse_sample_row(row(None))
+    assert other.daytona_mem_gb == 4

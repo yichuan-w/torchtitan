@@ -194,3 +194,27 @@ def test_adapter_counts_the_confirmation_question():
         "Current terminal state:\n$ \n\nAre you sure you want to mark the task as "
         "complete? This will trigger your solution to be graded"
     )
+
+
+def test_terminus_asks_the_adapter_for_plain_text():
+    # Without plain_text the adapter cuts the reply at a stray <tool_call>
+    # token, hiding a well-formed <commands> block after it.
+    payloads = []
+
+    class _Adapter:
+        async def complete(self, _session_id, payload):
+            payloads.append(payload)
+            return {
+                "content": [{"type": "text", "text": VALID}],
+                "stop_reason": "end_turn",
+                "usage": {"input_tokens": 10, "output_tokens": 10},
+            }
+
+    llm = _AdapterLLM(
+        _Adapter(),
+        session_id="group=0/rollout=0",
+        max_context=63488,
+        turn_max_tokens=16384,
+    )
+    asyncio.run(llm.call(prompt="go"))
+    assert payloads[0]["plain_text"] is True

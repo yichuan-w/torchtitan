@@ -245,3 +245,87 @@ def test_control_command_is_not_rerun_after_other_sandbox_errors(tmp_path):
     with pytest.raises(_SandboxExecutionError):
         asyncio.run(env._terminal_exec("tmux display-message -p x"))
     assert sandbox.exec.await_count == 1
+
+
+def _unanswered():
+    return TimeoutError(
+        "daytona exec status unavailable after 250s without replaying the "
+        "command body (claim=present relaunches=0 launch exit=0 result='launched\\n')"
+    )
+
+
+def test_harbor_tmux_query_runs_again_when_its_status_never_arrived(tmp_path):
+    sandbox = AsyncMock()
+    sandbox.exec.side_effect = [_unanswered(), (0, "", "")]
+    sandbox.last_exec_stats = {}
+    env = _SandboxEnvironment(sandbox, agent_dir=tmp_path / "agent")
+    result = asyncio.run(env.exec("tmux has-session -t terminus-1"))
+    assert result.return_code == 0
+    assert sandbox.exec.await_count == 2
+    assert env.unanswered_execs == 1
+
+
+def test_claimed_keys_are_not_resent_when_their_status_never_arrived(tmp_path):
+    sandbox = AsyncMock()
+    sandbox.exec.side_effect = [_unanswered(), (0, "", "")]
+    sandbox.last_exec_stats = {}
+    env = _SandboxEnvironment(sandbox, agent_dir=tmp_path / "agent")
+    result = asyncio.run(env.exec("tmux send-keys -t terminus-1 -- 'ls' Enter"))
+    assert result.return_code == 0
+    assert sandbox.exec.await_count == 1
+
+
+def test_unclaimed_keys_and_other_commands_still_fail(tmp_path):
+    from torchtitan.experiments.rl.harness.agents.terminus import (
+        _SandboxExecutionError,
+    )
+
+    sandbox = AsyncMock()
+    sandbox.exec.side_effect = [
+        TimeoutError("daytona exec status unavailable (claim=absent)"),
+        _unanswered(),
+    ]
+    env = _SandboxEnvironment(sandbox, agent_dir=tmp_path / "agent")
+    with pytest.raises(_SandboxExecutionError):
+        asyncio.run(env.exec("tmux send-keys -t terminus-1 -- 'ls' Enter"))
+    with pytest.raises(_SandboxExecutionError):
+        asyncio.run(env.exec(r"tmux new-session -d -s x \; pipe-pane -t x 'cat'"))
+    assert sandbox.exec.await_count == 2
+
+
+def test_observation_runs_again_and_shows_the_screen_after_a_lost_status(tmp_path):
+    from torchtitan.experiments.rl.harness.agents.terminus import (
+        _SandboxExecutionError,
+    )
+
+    env = _env(tmp_path)
+    env._observed_once = True
+    replies = [
+        _SandboxExecutionError("lost"),
+        _result("68|39|0|100|200|62|39|0\nnew|33\nNEW\n\n__torchtitan_screen__\nSCREEN\n"),
+    ]
+    replies[0].__cause__ = _unanswered()
+
+    async def exec_raw(script, **kwargs):
+        reply = replies.pop(0)
+        if isinstance(reply, Exception):
+            raise reply
+        return reply
+
+    env._exec_raw = exec_raw
+    text = asyncio.run(env.observe_turn(SimpleNamespace(_session_name="terminus-1")))
+    assert text == "Current Terminal Screen:\nSCREEN\n"
+    assert env.unanswered_execs == 1
+
+
+def test_salvaged_string_reaches_the_parser_as_a_response():
+    from harbor.llms.base import LLMResponse
+
+    from torchtitan.experiments.rl.harness.agents.terminus import (
+        _return_salvage_as_response,
+    )
+
+    agent = SimpleNamespace(_query_llm=AsyncMock(return_value="<response/>"))
+    _return_salvage_as_response(agent)
+    response = asyncio.run(agent._query_llm())
+    assert isinstance(response, LLMResponse) and response.content == "<response/>"

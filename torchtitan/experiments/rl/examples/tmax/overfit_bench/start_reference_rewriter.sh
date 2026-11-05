@@ -6,8 +6,14 @@
 # with no scheduler (SWE_BENCH_SCHEDULER=0) it is the plain file-based loop.
 # REWRITER_MODE=ladder runs ladder_rewriter.py instead: the same rewrites, kept
 # side by side as versions of the pool (README.md, "The ladder rewriter").
+# REWRITER_MODE=teacher runs teacher_rewriter.py: one codex thread, called before training
+# (teacher_rewriter.py <job> --prepare) and after every group close to all failed or all
+# passed, keeps the pool (README.md, "The teacher rewriter").
+# REWRITER_MODE=interventions runs intervention_rewriter.py: every version the
+# original plus a named set of interventions (README.md, "The intervention
+# rewriter").
 #
-#   REWRITER_ENV=<env file> EVOLVE_WORK_ROOT=<node-local dir> [REWRITER_MODE=ladder] \
+#   REWRITER_ENV=<env file> EVOLVE_WORK_ROOT=<node-local dir> [REWRITER_MODE=ladder|interventions] \
 #       ./start_reference_rewriter.sh <job dir>
 #
 # REWRITER_ENV holds the loop's settings and credentials; see
@@ -32,5 +38,11 @@ case "${REWRITER_MODE:-reference}" in
     ladder)
         exec "$TRL_VENV/bin/python" "$BENCH/ladder_rewriter.py" \
             "$JOB" --workers 16 >> "$JOB/evolution/loop.log" 2>&1 ;;
-    *) echo "REWRITER_MODE is reference or ladder, not $REWRITER_MODE" >&2; exit 2 ;;
+    teacher)
+        exec "$TRL_VENV/bin/python" "$BENCH/teacher_rewriter.py" \
+            "$JOB" >> "$JOB/evolution/loop.log" 2>&1 ;;
+    interventions)
+        exec "$TRL_VENV/bin/python" "$BENCH/intervention_rewriter.py" \
+            "$JOB" --workers 16 >> "$JOB/evolution/loop.log" 2>&1 ;;
+    *) echo "REWRITER_MODE is reference, ladder, interventions or teacher, not $REWRITER_MODE" >&2; exit 2 ;;
 esac

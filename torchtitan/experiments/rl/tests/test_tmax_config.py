@@ -287,7 +287,7 @@ def test_tmax_4b_batch_invariant_uses_fp32_master_and_bf16_forward(
 
 @pytest.mark.parametrize(
     ("time_budget_override", "expected_time_budget"),
-    [(None, 2400), ("1800", 1800)],
+    [(None, 1900), ("1800", 1800)],
 )
 def test_tmax_time_budget(
     monkeypatch: pytest.MonkeyPatch,

@@ -40,6 +40,7 @@ from pathlib import Path
 
 from torchtitan.config import Configurable
 from torchtitan.experiments.rl.examples.tmax import harbor_env, layout
+from torchtitan.experiments.rl.examples.tmax.tb2_1_resources import resource_override
 from torchtitan.experiments.rl.training_lineage import canonical_json, content_revision
 from torchtitan.experiments.rl.types import SampleLineage
 
@@ -175,6 +176,8 @@ def _parse_sample_row(row: dict) -> TMaxSample:
         raise ValueError(
             f"row {instance_id!r} missing image/dockerfile/tmax in metadata"
         )
+    # A TB-2.1 row built before a tb2_1_resources entry existed still gets it.
+    md = {**md, **resource_override(md)}
     # Per-task Daytona resource overrides (cpu / mem GiB / disk GiB); each is
     # optional and a missing/None field falls back to the TT_DAYTONA_* env default.
     daytona_resources: dict[str, int | None] = {}

@@ -1489,7 +1489,11 @@ def _close(root: layout.Root, h: dict, *, dry: bool) -> None:
             "status": meta["status"],
         },
     )
-    record_outcome(root, rewrite, meta)
+    try:
+        record_outcome(root, rewrite, meta)
+    except OSError as e:
+        # Flow metrics only; a storage error here must not stop the closer.
+        log.warning("outcome record for %s skipped: %s", rewrite.path.name, e)
     _ledger_line(root, h["signal"], "handled", rewrite=_rewrite_ref(root, rewrite))
 
 
@@ -1598,7 +1602,7 @@ def fold(root: layout.Root, accepted: list[dict]) -> int | None:
         if tid not in rows:
             _finish(h, "rejected", stage="not_in_mix", reason="no longer in the mix")
             continue
-        if target.exists():
+        if layout.exists(target):
             # Cannot happen while one loop runs: choose() hands out one
             # signal per task per round. A revision is never overwritten.
             _finish(h, "failed", stage="fold", reason=f"{target.name} already exists")
@@ -2391,19 +2395,26 @@ def run_round(
                 below, and its finished signal is never handed out again."""
                 t0 = time.monotonic()
                 running = frozenset(s.task for s in futs.values()) | closer.busy()
-                more = select_work(
-                    root,
-                    load_ledger(root),
-                    result,
-                    only=only,
-                    limit=limit,
-                    dry=dry,
-                    signal=None,
-                    running=running,
-                    stuck=frozenset(stuck),
-                )
                 before = len(futs)
-                fill(more or [])
+                try:
+                    more = select_work(
+                        root,
+                        load_ledger(root),
+                        result,
+                        only=only,
+                        limit=limit,
+                        dry=dry,
+                        signal=None,
+                        running=running,
+                        stuck=frozenset(stuck),
+                    )
+                    fill(more or [])
+                except OSError as e:
+                    # A transient storage error (EPERM/EIO from the FUSE root)
+                    # skips this refill; raising here ended the round and left
+                    # every free slot empty until the running rewrites drained.
+                    log.warning("refill skipped: %s: %s", type(e).__name__, e)
+                    return
                 took = time.monotonic() - t0
                 if len(futs) > before or took >= 5:
                     log.info(
@@ -2572,6 +2583,10 @@ def main() -> None:
     )
     args = ap.parse_args()
     root = layout.Root.from_env()
+    if os.environ.get("EVOLVE_FUSE_RETRY", "1") != "0":
+        import fuse_retry
+
+        fuse_retry.install(str(root.path))
     # Before the lock and the log: a root whose epoch is shorter than the
     # final-validation reserve would fail every rewrite at its first session.
     budget = ec.rewrite_budget_sec(root, refresh=True)

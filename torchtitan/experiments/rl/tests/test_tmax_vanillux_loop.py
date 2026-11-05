@@ -453,6 +453,7 @@ def test_finish_reason_metrics_are_exhaustive_fractions() -> None:
         "rollout/finish_terminal_exited_frac": 0.0,
         "rollout/finish_error_frac": 0.2,
         "rollout/finish_disk_exhausted_frac": 0.0,
+        "rollout/finish_sandbox_destroyed_frac": 0.0,
         "rollout/finish_format_error_frac": 0.0,
         "rollout/finish_truncated_frac": 0.0,
     }

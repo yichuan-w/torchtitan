@@ -73,6 +73,7 @@ from torchtitan.experiments.rl.examples.tmax.prepare_tmax_data import (
     _DEFAULT_IMAGE_PREFIX,
     _REWARD_PATH,
 )
+from torchtitan.experiments.rl.examples.tmax.tb2_1_resources import RESOURCE_OVERRIDES
 
 # HF mirror of github.com/harbor-framework/terminal-bench-2-1 (same tree, same
 # commit -- its registry.json records the mirrored GitHub SHA).
@@ -112,12 +113,18 @@ _COLLECT_DEFAULTS = {"service": "main", "timeout_sec": 60.0}
 # error rather than as a short eval file.
 _EXPECTED_TASKS = 89
 
+# The harness runs as the image's default user (a Daytona exec without a user,
+# docker exec without -u), and some TB4 images end on an unprivileged USER
+# (risk-scorer-replay on `nobody`, rs-archive-clone and fp8-rmsnorm-gemm on
+# `agent`). Every derived Dockerfile of such a row therefore switches back to root:
+# the tmux layer below, and in a plain build (no --verify-runtime) this line alone
+# (apply_root_layer). Without it every root step fails on those images: mkdir
+# /logs, the /solution upload, the runuser of the agent-user login.
+_AS_ROOT = "USER root\n"
+
 # Run before evaluation, once per cached image. A failed install must fail the build.
-# As root: some images end on an unprivileged USER (TB4 risk-scorer-replay ends on
-# `nobody`, rs-archive-clone on `agent`), and apt-get then exits 100. Left at root:
-# the harness runs every command as root whatever the image's USER says.
-_TMUX_INSTALL = (
-    "USER root\n"
+# As root (apt-get exits 100 otherwise), and left at root so the harness keeps it.
+_TMUX_INSTALL = _AS_ROOT + (
     "RUN if ! command -v tmux >/dev/null 2>&1; then "
     "apt-get update && DEBIAN_FRONTEND=noninteractive "
     "apt-get install -y --no-install-recommends tmux; fi\n"
@@ -339,16 +346,24 @@ def _after_shebang(test_sh: str, block: str) -> str:
 def apply_env_patches(row: dict) -> dict:
     """Apply this task's ``_ENV_PATCHES`` entry to ``row`` in place.
 
-    This is a no-op for any task without an entry. It is idempotent: a ``test_sh``
+    ``tb2_1_resources.RESOURCE_OVERRIDES`` is applied here too and recorded in
+    ``metadata.resource_patch``. This is a no-op for any task without an entry in
+    either table. It is idempotent: a ``test_sh``
     that already carries the injected block is left alone. The patched row also
     records its upstream source in ``metadata.env_patch``.
     """
     md = row["metadata"]
+    resources = RESOURCE_OVERRIDES.get(md.get("instance_id"))
+    if resources is not None:
+        md.update(resources)
+        md["resource_patch"] = dict(resources)
     patch = _ENV_PATCHES.get(md.get("instance_id"))
     if patch is None:
         return row
     tmax = md["tmax"]
-    if "image_layer" in patch and "dockerfile" not in md:
+    if "image_layer" in patch and (
+        "dockerfile" not in md or md["dockerfile"] == _plain_dockerfile(md)
+    ):
         md["dockerfile"] = _patch_dockerfile(md)
     if "test_sh" in patch and _ENV_PATCH_BEGIN not in tmax["test_sh"]:
         tmax["test_sh"] = _after_shebang(
@@ -363,16 +378,42 @@ def _image_layer(task_id: str) -> str:
     return _ENV_PATCHES.get(task_id, {}).get("image_layer", "")
 
 
-def _patch_dockerfile(md: dict) -> str:
-    """The Dockerfile a plain build gives a row whose patch has an image layer."""
-    return f"FROM {md['image']}\n" + _image_layer(md["instance_id"])
+def _patch_dockerfile(md: dict, *, with_layer: bool = True) -> str:
+    """The Dockerfile a plain build gives a row that needs one: ``USER root`` for
+    an image that ends on the agent's user (``agent_user``), then the env patch's
+    image layer (``with_layer``)."""
+    root = _AS_ROOT if md.get("agent_user") else ""
+    layer = _image_layer(md["instance_id"]) if with_layer else ""
+    return f"FROM {md['image']}\n" + root + layer
+
+
+def _plain_dockerfile(md: dict) -> str:
+    """``_patch_dockerfile`` for the row as it stands: the layer only once its env
+    patch is applied."""
+    return _patch_dockerfile(md, with_layer=bool(md.get("env_patch")))
 
 
 def _has_own_dockerfile(md: dict) -> bool:
-    """True when the row carries a Dockerfile other than its env-patch one."""
-    return "dockerfile" in md and not (
-        _image_layer(md["instance_id"]) and md["dockerfile"] == _patch_dockerfile(md)
+    """True when the row carries a Dockerfile other than the one a plain build
+    derives (the env-patch layer, ``USER root`` for an agent_user row)."""
+    if "dockerfile" not in md:
+        return False
+    if not (_image_layer(md["instance_id"]) or md.get("agent_user")):
+        return True
+    return md["dockerfile"] not in (
+        _patch_dockerfile(md),
+        _patch_dockerfile(md, with_layer=False),
     )
+
+
+def apply_root_layer(row: dict) -> dict:
+    """Give an agent_user row a ``FROM <image>`` + ``USER root`` Dockerfile when it
+    has none, so the harness keeps root with or without --verify-runtime (whose
+    tmux layer starts with the same line). In place; a no-op for other rows."""
+    md = row["metadata"]
+    if md.get("agent_user") and "dockerfile" not in md:
+        md["dockerfile"] = _plain_dockerfile(md)
+    return row
 
 
 async def verify_runtime(
@@ -453,7 +494,11 @@ async def verify_runtime(
                 # The layer goes only on rows that carry the patch, so
                 # --no-env-patches yields the published environment.
                 layer = _image_layer(tid) if md.get("env_patch") else ""
-                md["dockerfile"] = f"FROM {pinned_image}\n" + layer + _TMUX_INSTALL
+                # An agent_user image is root before the layer's own RUN lines too.
+                as_root = _AS_ROOT if layer and md.get("agent_user") else ""
+                md["dockerfile"] = (
+                    f"FROM {pinned_image}\n" + as_root + layer + _TMUX_INSTALL
+                )
             digest = hashlib.sha256(
                 json.dumps(row, sort_keys=True).encode()
             ).hexdigest()
@@ -875,8 +920,9 @@ def _image_user(task_dir: str) -> str:
 
 def _agent_user(cfg: dict, task_dir: str) -> str:
     """Who the agent runs as: ``[agent].user``, else the image's own user, as in
-    Harbor. "" for root. The image itself is left at root by the tmux layer
-    (``_TMUX_INSTALL``), so the harness keeps root and only the agent drops."""
+    Harbor. "" for root. The image itself is left at root, by the tmux layer
+    (``_TMUX_INSTALL``) or, in a plain build, by ``apply_root_layer``, so the
+    harness keeps root and only the agent drops."""
     declared = _get(cfg, "agent", "user")
     user = str(declared) if declared is not None else _image_user(task_dir)
     if user in _ROOT_USERS:
@@ -1043,7 +1089,8 @@ def build_rows(
         if row is None:
             skipped[entry] = reason
             continue
-        rows.append(apply_env_patches(row) if env_patches else row)
+        row = apply_env_patches(row) if env_patches else row
+        rows.append(apply_root_layer(row))
         if limit is not None and len(rows) >= limit:
             break
     return rows, skipped
@@ -1133,6 +1180,7 @@ def main() -> None:
             rows = rows[: args.limit]
         if not args.no_env_patches:
             rows = [apply_env_patches(row) for row in rows]
+        rows = [apply_root_layer(row) for row in rows]
         skipped = {}
     else:
         rows, skipped = build_rows(

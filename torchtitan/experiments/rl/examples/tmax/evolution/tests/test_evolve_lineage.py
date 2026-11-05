@@ -1919,6 +1919,30 @@ def test_a_free_slot_is_refilled_before_the_fold(tmp_path, monkeypatch):
     _both_folded(root)
 
 
+def test_a_storage_error_during_refill_skips_it_instead_of_ending_the_round(
+    tmp_path, monkeypatch
+):
+    """A transient EPERM from the FUSE root inside a refill costs that refill
+    only: the round goes on and the next refill picks the signal up."""
+    root = _root(tmp_path, monkeypatch)
+    _two_tasks(root)
+    _stub(monkeypatch)
+    real_select = od.select_work
+    calls = []
+
+    def flaky_select(*args, **kwargs):
+        calls.append(1)
+        if len(calls) == 2:
+            raise PermissionError(1, "Operation not permitted")
+        return real_select(*args, **kwargs)
+
+    monkeypatch.setattr(od, "select_work", flaky_select)
+    r = od.run_round(root, workers=1)
+    assert len(calls) > 2, calls
+    assert (r["handled"], r["accepted"]) == (2, 2), r
+    _both_folded(root)
+
+
 def test_fold_carries_the_rows_domain_annotation(tmp_path, monkeypatch):
     """terminal_domain lives on the row (from the corpus table), not in the
     package, so a folded row keeps the replaced row's value."""

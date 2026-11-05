@@ -7,6 +7,7 @@
 """Verifier bootstrap failures must not become student capability failures."""
 
 import asyncio
+import subprocess
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, Mock
 
@@ -73,3 +74,75 @@ def test_bootstrap_failure_raises_without_a_test_verdict(
 )
 def test_other_grades_are_not_voided(output, script, reward):
     grading._check_verifier_python_download(script, output, reward)
+
+
+@pytest.mark.parametrize("pre_grade_rc,raises", [(124, True), (0, False)])
+def test_pre_grade_timeout_is_unscored_but_an_unwritable_reward_path_scores_0(
+    monkeypatch, pre_grade_rc, raises
+):
+    monkeypatch.setattr(grading, "_make_nonce", lambda: "nonce")
+    sandbox = AsyncMock()
+    # mkdir, then the pre-grade setup; the sentinel never lands.
+    sandbox.exec.side_effect = [(0, "", ""), (pre_grade_rc, "", "")]
+    sandbox.read_file.return_value = ""
+    diagnostics = {}
+    grade = grading.grade_tmax(
+        sandbox, {"test_sh": SCRIPT}, workdir="/app", diagnostics=diagnostics
+    )
+    if raises:
+        with pytest.raises(RuntimeError, match="pre-grade setup timed out"):
+            asyncio.run(grade)
+    else:
+        assert asyncio.run(grade) == 0.0
+        assert diagnostics == {"stage": "pre_grade", "verifier_ran": False}
+
+
+def _first_exec(upload_tests: bool) -> str:
+    sandbox = AsyncMock()
+    # Stop right after the setup command: the sentinel never lands.
+    sandbox.exec.side_effect = [(0, "", ""), (0, "", "")]
+    sandbox.read_file.return_value = ""
+    asyncio.run(
+        grading.grade_tmax(
+            sandbox, {"test_sh": SCRIPT}, workdir="/app", upload_tests=upload_tests
+        )
+    )
+    return sandbox.exec.call_args_list[0].args[0]
+
+
+def test_tests_dir_is_emptied_before_upload(monkeypatch, tmp_path):
+    monkeypatch.delenv("TMAX_CLEAN_TESTS_DIR", raising=False)
+    setup = _first_exec(upload_tests=True)
+    assert setup.index("rm -rf /tests;") < setup.index("mkdir -p")
+    # A separate verifier image's own /tests is never touched.
+    assert "rm -rf" not in _first_exec(upload_tests=False)
+    # Run for real against a stand-in /tests holding a planted conftest.py.
+    tests = tmp_path / "tests"
+    (tests / "sub").mkdir(parents=True)
+    (tests / "conftest.py").write_text("raise SystemExit")
+    (tests / "sub" / "pytest.ini").write_text("[pytest]")
+    monkeypatch.setattr(grading, "_TESTS_DIR", str(tests))
+    subprocess.run(
+        ["sh", "-c", f"{grading._clear_tests_command()}mkdir -p {tests}"], check=True
+    )
+    assert tests.is_dir() and not any(tests.iterdir())
+
+
+def test_tests_dir_cleaning_can_be_turned_off(monkeypatch):
+    monkeypatch.setenv("TMAX_CLEAN_TESTS_DIR", "0")
+    assert grading._clear_tests_command() == ""
+    assert "rm -rf" not in _first_exec(upload_tests=True)
+    sandbox = Mock()
+    sandbox.process.exec.side_effect = RuntimeError("stop")
+    with pytest.raises(RuntimeError):
+        grading.grade_tmax_daytona(sandbox, {"test_sh": SCRIPT}, workdir="/app")
+    assert "rm -rf" not in sandbox.process.exec.call_args.args[0]
+
+
+def test_daytona_grade_empties_tests_dir(monkeypatch):
+    monkeypatch.delenv("TMAX_CLEAN_TESTS_DIR", raising=False)
+    sandbox = Mock()
+    sandbox.process.exec.side_effect = RuntimeError("stop")
+    with pytest.raises(RuntimeError):
+        grading.grade_tmax_daytona(sandbox, {"test_sh": SCRIPT}, workdir="/app")
+    assert "rm -rf /tests;" in sandbox.process.exec.call_args.args[0]

@@ -83,6 +83,7 @@ wrote down, is what sizes the rewritten task's sandbox.
 from __future__ import annotations
 
 import argparse
+import fcntl
 import json
 import os
 import signal
@@ -909,6 +910,9 @@ def cmd_check(
             pkg, started, solve_timeout, at_max, box, null_reward, r,
             reused_from=hit["time"],
         )
+    print("check: rebuilding the container, then grading the untouched "
+          "workspace and running the reference solution; the verdict line "
+          "comes last")
     if _read_state(pkg).get("status") not in (None, "down"):
         cmd_down(pkg)
     if cmd_up(pkg, at_max=at_max) != 0:
@@ -919,6 +923,7 @@ def cmd_check(
         return 1
     state = _read_state(pkg)
     box = state.get("resources") or {}
+    print("check: grading the untouched workspace (null probe)")
     null = _request(state, "grade", wait=900)
     if not null.get("ok"):
         print(f"VERDICT: error   stage=null_probe ({null.get('error')})")
@@ -926,6 +931,7 @@ def cmd_check(
     null_reward = float(null.get("reward") or 0)
     if null_reward >= 1.0:
         return _null_probe_fail(pkg, digest, null_reward, box, at_max)
+    print(f"check: running the reference solution (up to {solve_timeout} s)")
     r = _request(state, "oracle", wait=solve_timeout + 600, solve_timeout=solve_timeout)
     r = _with_recorded_rerun(pkg, r, solve_timeout, at_max, null_probe=True)
     if not r.get("ok"):
@@ -1416,7 +1422,43 @@ async def _serve(pkg: Path, sock: str, resources: dict | None = None) -> int:
     return 0
 
 
+def _one_long_op(pkg: Path, op: str) -> None:
+    """Run check, oracle and reset one at a time in this package.
+
+    check and reset take the container down and boot another, so a second one
+    started while the first runs destroys the container the first is grading
+    in, and the first then reports a failure of its own making. Agents start a
+    second one when their exec tool returns before the first has printed (a
+    codex exec call returns at about 30 s whatever wait it asked for). The
+    second waits for the first instead, and then runs (or reuses its result).
+    It waits rather than refuses so that the harness's own check, run after a
+    session, is never turned away by a command the session left running. The
+    lock is held until this process exits; the kernel releases it if it dies."""
+    path = pkg / "run" / "sandbox-op.lock"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    fd = os.open(path, os.O_RDWR | os.O_CREAT, 0o644)
+    try:
+        fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except BlockingIOError:
+        held = os.pread(fd, 200, 0).decode(errors="replace").strip()
+        print(
+            f"./sandbox {op}: waiting for the one already running ({held}) to "
+            "finish; starting now would reset the container it is using",
+            flush=True,
+        )
+        fcntl.flock(fd, fcntl.LOCK_EX)
+    os.ftruncate(fd, 0)
+    os.pwrite(fd, f"./sandbox {op}, pid {os.getpid()}, since {_now()}".encode(), 0)
+    _held_locks.append(fd)
+
+
+_held_locks: list[int] = []
+
+
 def main() -> None:
+    # Each line reaches the caller as it is printed: an agent whose exec call
+    # returns before the command ends sees how far it got, not an empty pipe.
+    sys.stdout.reconfigure(line_buffering=True)
     ap = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     ap.add_argument("--pkg", default=".", help="the task package directory")
     sub = ap.add_subparsers(dest="cmd", required=True)
@@ -1479,6 +1521,8 @@ def main() -> None:
         sys.exit(cmd_up(pkg, at_max=args.max, detach=args.detach))
     if args.cmd == "down":
         sys.exit(cmd_down(pkg))
+    if args.cmd in ("check", "oracle", "reset"):
+        _one_long_op(pkg, args.cmd)
     if args.cmd == "reset":
         cmd_down(pkg)
         sys.exit(cmd_up(pkg, at_max=args.max))

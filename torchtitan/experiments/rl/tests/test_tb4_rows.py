@@ -261,3 +261,78 @@ def test_a_compose_sidecar_built_from_a_context_is_refused(tmp_path):
     _task(root, compose=compose)
     rows, skipped = B.build_rows(tasks_root=str(root))
     assert rows == [] and "['api'] build from a context" in skipped["demo-task"]
+
+
+# --------------------------------------------------------------------------- #
+# The harness stays root on an image that ends on the agent's user
+# --------------------------------------------------------------------------- #
+_AGENT_IMAGE = "FROM ubuntu:24.04\nRUN useradd -m agent\nUSER agent\nWORKDIR /app\n"
+
+
+@pytest.mark.parametrize("env_patches", [True, False])
+def test_a_plain_build_gives_an_agent_user_row_a_root_layer(tmp_path, env_patches):
+    """Without --verify-runtime nothing else switches the image back to root, and
+    the harness runs as the image's default user (mkdir /logs, the /solution
+    upload and the agent-user login would fail as `agent`)."""
+    root = tmp_path / "tasks"
+    root.mkdir()
+    _task(root, dockerfile=_AGENT_IMAGE)
+    (row,), _ = B.build_rows(tasks_root=str(root), env_patches=env_patches)
+    md = row["metadata"]
+    assert md["agent_user"] == "agent"
+    assert md["dockerfile"] == f"FROM {md['image']}\nUSER root\n"
+    assert md["image"].endswith(_PIN)  # the release's digest-pinned image
+    assert not B._has_own_dockerfile(md)
+
+
+def test_a_root_image_still_gets_no_dockerfile(tmp_path):
+    md = _row(tmp_path)
+    assert "agent_user" not in md and "dockerfile" not in md
+
+
+def test_verify_runtime_keeps_the_agent_user_row_on_its_tmux_layer(tmp_path, monkeypatch):
+    """The derived root Dockerfile is rebuilt by --verify-runtime exactly as before:
+    FROM the pinned image + the tmux layer (which starts with USER root)."""
+    import asyncio
+    import sys
+    import types
+    from contextlib import asynccontextmanager
+
+    @asynccontextmanager
+    async def boot(image, **kwargs):
+        async def execute(command, **kwargs):
+            return 0, "tmux 3.4", ""
+
+        yield types.SimpleNamespace(sandbox_id="box", exec=execute)
+
+    monkeypatch.setitem(
+        sys.modules,
+        "torchtitan.experiments.rl.harness.agents.claude_code",
+        types.SimpleNamespace(boot_agent_sandbox=boot),
+    )
+    root = tmp_path / "tasks"
+    root.mkdir()
+    _task(root, dockerfile=_AGENT_IMAGE)
+    rows, _ = B.build_rows(tasks_root=str(root))
+    image = rows[0]["metadata"]["image"]
+    asyncio.run(B.verify_runtime(rows, str(tmp_path / "evidence")))
+    assert rows[0]["metadata"]["dockerfile"] == f"FROM {image}\n" + B._TMUX_INSTALL
+
+
+def test_an_agent_user_row_is_root_before_its_env_patch_layer(tmp_path, monkeypatch):
+    monkeypatch.setitem(
+        B._ENV_PATCHES,
+        "demo-task",
+        {"upstream": "test", "image_layer": "RUN apt-get install -y demo\n"},
+    )
+    root = tmp_path / "tasks"
+    root.mkdir()
+    _task(root, dockerfile=_AGENT_IMAGE)
+    (row,), _ = B.build_rows(tasks_root=str(root))
+    md = row["metadata"]
+    assert md["dockerfile"] == (
+        f"FROM {md['image']}\nUSER root\nRUN apt-get install -y demo\n"
+    )
+    assert not B._has_own_dockerfile(md)
+    (unpatched,), _ = B.build_rows(tasks_root=str(root), env_patches=False)
+    assert unpatched["metadata"]["dockerfile"] == f"FROM {md['image']}\nUSER root\n"

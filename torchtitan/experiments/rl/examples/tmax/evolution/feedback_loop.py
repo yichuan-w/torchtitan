@@ -1073,6 +1073,11 @@ def process_one(
         if signal.get("student_feedback") is not None:
             task["_student_feedback"] = signal["student_feedback"]
             rec["student_feedback"] = signal["student_feedback"]
+        # The overfit bench's intervention rewriter names the version to build
+        # (the original plus a set of interventions); the trainer never writes it.
+        if signal.get("intervention_plan") is not None:
+            task["_intervention_plan"] = signal["intervention_plan"]
+            rec["intervention_plan"] = signal["intervention_plan"]
         task["_direction"] = job
         task["_resources"] = resources
         # The row's pin hook, as the loop snapshotted it beside rewrite.json

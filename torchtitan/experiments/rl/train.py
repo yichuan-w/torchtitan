@@ -33,8 +33,9 @@ from dataclasses import dataclass, field
 # must run before torch import. Set it as early as possible to avoid other
 # imports transitively importing torch.
 os.environ.setdefault("PYTORCH_CUDA_ALLOC_CONF", "expandable_segments:True")
-# Monarch reads this setting during import. Keep async actor endpoints concurrent;
-# @concurrent_endpoint is not available in the stable Monarch release yet (#3832).
+# Monarch < 0.7 reads this setting during import and keeps async actor endpoints
+# concurrent (#3832). 0.7 removed it; there the actors get the same behavior from
+# @concurrent_endpoint (actors/monarch_compat.py).
 os.environ["MONARCH_ACTOR_QUEUE_DISPATCH"] = "0"
 
 from monarch.actor import HostMesh, ProcMesh, this_host

@@ -977,8 +977,9 @@ def _trace(rw: layout.RewriteDir, n: int = 1, reward: float = 0.0) -> None:
     )
 
 
+@pytest.mark.parametrize("plan", [None, {"version": [{"id": "i1", "spec": "say how to install"}]}])
 def test_simplify_codex_rewrites_in_place_and_keeps_the_session(
-    tmp_path, monkeypatch
+    tmp_path, monkeypatch, plan
 ) -> None:
     rw = _rewrite(tmp_path, monkeypatch, job="easier")
     _trace(rw)
@@ -1025,9 +1026,10 @@ def test_simplify_codex_rewrites_in_place_and_keeps_the_session(
 
     seed = tmp_path / "seed"
     shutil.copytree(rw.package, seed)
-    result = ec.simplify_codex(
-        rw, {**TASK, "_seed_dir": str(seed)}, solved=0, attempts=16
-    )
+    task = {**TASK, "_seed_dir": str(seed)}
+    if plan is not None:
+        task["_intervention_plan"] = plan
+    result = ec.simplify_codex(rw, task, solved=0, attempts=16)
 
     assert (
         result["instruction"] == "rewritten instruction"
@@ -1047,6 +1049,11 @@ def test_simplify_codex_rewrites_in_place_and_keeps_the_session(
     assert "run/simplify.json" in agents
     assert "0 of 16" in sd.prompt.read_text()
     assert "Hint level: vague" in sd.prompt.read_text()
+    # A coordinator's plan replaces the choice of change, never the rules.
+    assert ("THE PLAN" in sd.prompt.read_text()) == (plan is not None)
+    if plan is not None:
+        assert json.loads((rw.package / "run" / "intervention_plan.json").read_text()) == plan
+        assert "is the original task, unchanged" in sd.prompt.read_text()
     assert (
         seen["kwargs"]["env"]["PATH"].startswith(str(Path(sys.executable).parent) + ":")
         or True
@@ -1625,3 +1632,97 @@ def test_calibration_appends_the_deployment_extra_rules(monkeypatch, tmp_path):
         assert g.rstrip().endswith("Withdraw the hints first.")
     monkeypatch.delenv("EVOLVE_SIMPLIFY_EXTRA_GUIDANCE_FILE")
     assert ec._calibration_guidance(12, 12) == ec._CALIBRATION_GUIDANCE
+
+
+def test_a_model_at_capacity_is_a_provider_failure() -> None:
+    out = '{"type":"error","message":"Selected model is at capacity. Please try a different model."}'
+    assert ec._agent_failure_type(out, "") == "provider_capacity"
+
+
+def test_a_session_cut_off_by_the_provider_continues_its_own_thread(tmp_path, monkeypatch) -> None:
+    rw = _rewrite(tmp_path, monkeypatch, job="easier")
+    monkeypatch.setattr(ec, "PROVIDER_RESUMES", 2)
+    monkeypatch.setattr(ec, "PROVIDER_RESUME_SEC", 0)
+    calls = []
+
+    def factory(command, **kwargs):
+        calls.append(command)
+        first = len(calls) == 1
+        if first:
+            home = Path(kwargs["env"]["CODEX_HOME"]) / "sessions/2026/10/26/rollout-a.jsonl"
+            home.parent.mkdir(parents=True)
+            home.write_text('{"type":"session_meta","payload":{"id":"sid-a"}}\n')
+        return _FakePopen(command, **kwargs, returncode=1 if first else 0,
+                          out="Selected model is at capacity." if first else "done\n")
+
+    monkeypatch.setattr(ec.subprocess, "Popen", factory)
+    monkeypatch.setattr(ec, "_codex_env", lambda sd: {"CODEX_HOME": str(sd.codex_home)})
+    monkeypatch.setattr(ec, "_codex_bin", lambda: Path("/opt/bin/codex"))
+    with ec.session(rw, "verifier", timeout=5) as run:
+        result = ec._run_codex(run, rw.package, "write the verifier")
+    assert result.returncode == 0 and len(calls) == 2
+    assert calls[1][1:4] == ["exec", "resume", "sid-a"]
+    assert "cut your session off (provider_capacity)" in run.dir.prompt.read_text()
+    assert "at capacity" in (run.dir.path / "stdout.0.txt").read_text()
+    assert json.loads(run.dir.meta.read_text())["status"] == "completed"
+
+
+def test_without_provider_resumes_the_failure_stands(tmp_path, monkeypatch) -> None:
+    rw = _rewrite(tmp_path, monkeypatch, job="easier")
+    monkeypatch.setattr(ec, "PROVIDER_RESUMES", 0)
+    _fake_popen(monkeypatch, returncode=1, out="Selected model is at capacity.")
+    with pytest.raises(ec.AgentSessionError) as raised:
+        with ec.session(rw, "agent", timeout=5) as run:
+            ec._run_codex(run, rw.package, "simplify it")
+    assert raised.value.failure_type == "provider_capacity"
+
+
+def test_an_instruction_only_plan_keeps_the_original_verifier(tmp_path) -> None:
+    hint = {"version": [{"id": "i1", "kind": "direction_hint"}, {"id": "i2", "kind": "setup_hint"}]}
+    assert ec.plan_is_instruction_only(hint)
+    assert not ec.plan_is_instruction_only({"version": [{"id": "i3", "kind": "scope_removal"}]})
+    assert not ec.plan_is_instruction_only(None) and not ec.plan_is_instruction_only({"version": []})
+    seed, pkg = tmp_path / "seed", tmp_path / "pkg"
+    (seed / "tests").mkdir(parents=True)
+    (seed / "tests" / "test_outputs.py").write_text("original")
+    (pkg / "tests").mkdir(parents=True)
+    (pkg / "tests" / "test_outputs.py").write_text("rewritten")
+    (pkg / "tests" / "extra.py").write_text("new check")
+    ec.restore_original_verifier(pkg, seed)
+    assert sorted(p.name for p in (pkg / "tests").iterdir()) == ["test_outputs.py"]
+    assert (pkg / "tests" / "test_outputs.py").read_text() == "original"
+
+
+def _attempt(path, **head):
+    path.write_text(json.dumps(head) + "\n" + json.dumps({"turn": 1}) + "\n")
+
+
+def test_trace_counts_count_what_traces_hold_the_way_the_trainer_does(tmp_path):
+    for i in range(1, 13):
+        _attempt(tmp_path / f"attempt-{i:02d}.jsonl", reward=1.0 if i <= 2 else 0.0)
+    _attempt(tmp_path / "attempt-13.jsonl", reward=0.0, infra_failed=True)
+    _attempt(tmp_path / "attempt-14.jsonl", reward=0.0, finish_reason="format_error")
+    _attempt(tmp_path / "attempt-15.jsonl", reward=float("nan"))
+    (tmp_path / "attempt-16.jsonl").write_text(json.dumps({"turn": 1}) + "\n")
+    assert ec._trace_counts(tmp_path) == (2, 12)
+    assert ec._trace_counts(tmp_path / "empty") is None
+
+
+def test_the_job_prompt_states_the_attempts_traces_hold_not_the_signals_group(
+    tmp_path, monkeypatch
+):
+    """A staged signal said total=5 while traces/ held 12 attempts; the prompt
+    read "0 of 5" and rewriters mixed both denominators."""
+    from test_blind_verifier import SEED, _rewrite, _wire
+
+    rw = _rewrite(tmp_path, monkeypatch)
+    rw.traces.mkdir(parents=True, exist_ok=True)
+    for i in range(1, 13):
+        _attempt(rw.traces / f"attempt-{i:02d}.jsonl", reward=0.0, finish_reason="submit")
+    sessions = []
+    _wire(monkeypatch, sessions, [])
+    monkeypatch.setattr(ec.so, "read_decision", lambda *a: {"retained_skill": "x"})
+    ec.evolve_agentic(rw, {**SEED, "_solved": 0, "_attempts": 5}, "easier")
+    prompt = sessions[0]["prompt"]
+    assert prompt.startswith("This task was solved 0 of 12 attempts.")
+    assert "0 of 5" not in prompt

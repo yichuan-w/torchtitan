@@ -9,16 +9,22 @@ measured. Learning the task by heart counts: the question is only whether the
 original task gets solved.
 
 Tasks: every Terminal-Bench 2.1 task (89) and every Terminal-Bench 4 task (66).
+The TB-2.1 bench list is `tb21_tasks.txt`: the 48 tasks the starting Qwen3.5-9B
+solved in none of its step-0 rollouts in run 1031b (5 per task). A task there is
+overfit once a readout passes the 64-attempt confirm.
 
 ## What the bench fixes
 
 - **Policy and recipe**: `recipe.env` (group size 12, LR 3e-6, 200 steps of
-  one group each, 8 groups in flight, groups up to 8 steps old still trained).
+  one group each, groups that all fail or all pass dropped without a step, 8 groups in
+  flight with all 96 attempts running at once, groups up to 12 steps old still trained).
   Hardware placement is the runner's.
 - **A training attempt** has the main training run's caps: 120 Terminus turns
   (`SWE_BENCH_MAX_TURNS`), 2 h of wall clock (`SWE_BENCH_TRAIN_BUDGET_SEC`)
   and an 80K context (`SWE_TMAX_CONTEXT=81920`, agent budget 79872), the same
-  for every task whatever it declares; no budget floor applies. Grading keeps
+  for every task whatever it declares; no budget floor applies. An attempt
+  that ends without submitting is scored at its verifier verdict, as the
+  readout scores it (`TMAX_GRADE_UNSUBMITTED_TRAIN`, from 2026-10-26). Grading keeps
   the task's own verifier timeout. Jobs before 2026-10-25 trained at 60 turns
   with no wall clock and the 63488-token context `runbook/rltrain.env` fills in.
 - **Sandbox**: every sandbox, training and readout, and a separate verifier's,
@@ -66,6 +72,21 @@ Two things it may not do, whatever else it decides:
   the readout). A rewriter learns how the policy does from the training
   attempts the bench already records, not by running the policy itself; the
   policy canary controller is refused in bench mode for this reason.
+
+Every run is the rewriter's first meeting with the policy on that task. It knows
+the task itself (instruction, environment, reference solution, tests) and what
+happens in this run, and nothing else about how the policy does on the task:
+no training records of earlier runs, no conclusions anyone drew from them, and
+no task-specific knowledge in its code or prompts. Two loops, kept apart:
+
+- **Inside a run** the rewriter teaches the policy, from what this run shows.
+- **Between runs** we improve the rewriter (its code and prompts) from
+  everything earlier runs showed, as a method that holds for any task. "Show
+  the rewriter each attempt's verifier output" is such an improvement; "tell
+  it which part of this task the policy gets wrong" is not.
+
+This keeps runs comparable across rewriters and tasks: a run measures the
+method, not what was learned about one task before it.
 
 Training never waits for the rewriter. A draw asks it at most 1 s for a
 version and otherwise draws from the pool; a rewrite in progress, a slow hook
@@ -166,6 +187,17 @@ evolution/daytona_revalidate.py <task package> --row <tasks dir>/<id>.jsonl
 bench.py readout <job> [<job> ...]
 ```
 
+`readout` also reports what a job spent: training attempts (dropped
+all-pass and all-fail groups included, since each still took its 12
+attempts of rollout-engine time), groups and how many trained, wall clock,
+and the attempts and hours up to `stable_solve_step`. Readout attempts are
+counted apart: they measure and do not train. Compare rewriters on attempts
+to a stable solve, not on steps; a step only counts the groups that trained.
+A job that leaves the recipe part way (e.g. a larger training context for a task
+whose attempts all ran out of it) records the change in `recipe_overrides.json`;
+`readout` then marks it `off-recipe from step N`, a recipe arm whose results do not
+count as the bench's.
+
 For TB2.1 the eval JSONL is `data/evalsets/tb2_1_tmux_f1640f428d48.jsonl`
 (built by `../prepare_tb2_1_data.py`, tmux preinstalled) and the task tree is
 `terminal-bench-2-1/`. TB4: `data/evalsets/tb4_tmux_493ef156d.jsonl` (66 tasks,
@@ -221,6 +253,57 @@ readout it came from (torch-tensor-parallelism, v6, 2026-10-23).
 
 `SYNC_OVERFIT.md` describes a strictly synchronous variant of a job (one group
 in flight, the next group waiting for the rewrites it triggered) and how it is run.
+
+### Running a teacher job end to end
+
+What the v12 job (TB2.1 torch-tensor-parallelism, della-tridao) ran, as commands. Paths are
+placeholders; `<job>` is the job directory, `<tt>` this checkout.
+
+```
+cd <tt>/torchtitan/experiments/rl/examples/tmax/overfit_bench
+
+# 1. the job
+python bench.py new --tasks <tasks dir> --task torch-tensor-parallelism --sources <tb2.1 task tree> \
+    --rewriter teacher --jobs-root <jobs root> --bin <dir with codex and jq>
+cp teacher_runner.env.example <job>/runner.env                 # placement; edit to the free GPUs
+cp reference_rewriter.env.example <job>/evolution/rewriter.env  # DAYTONA_API_KEY, codex account,
+chmod 600 <job>/evolution/rewriter.env                          # SYNTH_MODEL (v12: gpt-6.1-sol)
+
+# 2. the teacher's round before training, seeded into the pool (needs no GPU). Do not skip it:
+#    without it the pool is the original alone, and the first 8 groups (about an hour) all draw the
+#    original, which the base model rarely passes, so they take no step.
+set -a; . <job>/evolution/rewriter.env; set +a
+TRL_BASE=<job> TRL_TT=<tt> PYTHONPATH=<tt> EVOLVE_WORK_ROOT=<node-local dir> \
+    python teacher_rewriter.py <job> --prepare
+
+# 3. training and the teacher, side by side (in that order or either)
+RL_GPUS=<trainer GPUs>,<generator GPUs>,<readout GPU> TRL_PROFILE=<p> \
+    RUNNER_ENV=<job>/runner.env ./start_training.sh <job>
+REWRITER_MODE=teacher REWRITER_ENV=<job>/evolution/rewriter.env \
+    EVOLVE_WORK_ROOT=<node-local dir> ./start_reference_rewriter.sh <job>
+```
+
+- **The recipe** is `recipe.env` and is the same for every job: 200 steps of one group of 12, groups
+  that all fail or all pass dropped without taking a step, 8 groups in flight with all 96 attempts
+  running at once, groups up to 12 steps old still trained, a 16-attempt readout of the original every
+  5 steps. The runner file only places the work on GPUs.
+- **Which version a group gets**: the teacher's `draw_first` labels first, each once, in its order;
+  otherwise a random active version with probability weight / (sum of active weights).
+- **Resuming**: run step 3 again on the same job. Training restarts from the job's latest
+  `ckpt/step-*` (every 5 steps); the teacher keeps its state (`evolution/teacher/state.json`) and its
+  codex thread, and tells the thread when `AGENTS.md` changed. Groups in flight at the stop are lost.
+- **What to watch**: the training log for `Train | Step`, `Validation | Step` (its
+  `validation/policy_version` is the model the readout tested; the step it is logged at is later) and
+  OOM lines; `evolution/loop.log` for the teacher's rounds; `evolution/teacher/state.json` for each
+  round's assessment, plan and new versions; `evolution/teacher/rounds/NNN/` for its prompts and output;
+  `bench.py readout <job>` for the result.
+- **On a shared box**: other users' processes can arrive on your GPUs at any time.
+  `SWE_TRAINER_RESERVE_GB` protects the trainer; vLLM reserves its own fraction at startup and fails
+  there if the GPU has less free. A GPU's KV cache that sits near full makes every turn re-prefill its
+  context, which is what a second generator relieved (v12: 113 s to 58 s per turn).
+- **Sandboxes** are Daytona's: 10 GiB of disk at most, and the tests run in the student's sandbox
+  after it submits. A student that installs CUDA torch leaves the verifier's own install no room, and
+  the attempt scores 0 however correct its code.
 
 ## The ladder rewriter
 
@@ -310,3 +393,170 @@ difficulty). The version keeps training beside its child, and the original is
 never hardened. Measured reason: on v7 (2026-10-23), r3 was learnable from step
 33 but never solved a whole group, so at the default ratio 1.0 the ladder never
 built the next rung; at 0.75 it would have done so only at step 177.
+
+## The intervention rewriter
+
+`REWRITER_MODE=interventions ./start_reference_rewriter.sh <job>` runs
+`intervention_rewriter.py`. It uses the same bench interface and the same
+rewrite machinery as the ladder (`evolve_ondella.handle`, with its oracle,
+probes, verifier and grader replay). It differs in what a version is:
+
+- **A version is the original plus a named set of interventions.** An
+  intervention is one change to the original: its kind (`setup_hint`,
+  `check_hint`, `direction_hint`, `decomposition`, `feedback`,
+  `smaller_instance`, `supplied_work`, `scope_removal`), its spec and the
+  bottleneck it targets. Every build starts from the original package and
+  applies the whole set. The author reads the set in
+  `run/intervention_plan.json` and is told to add no other help. So no
+  version carries help left over from its parent.
+- **Easier means one intervention added; harder means one withdrawn.**
+  Withdrawal order:
+  1. setup and checking hints first;
+  2. then direction, decomposition, feedback and smaller-instance changes;
+  3. then supplied work;
+  4. scope removals last.
+- **The diagnosis chooses what to add.** A codex session reads:
+  - the original package;
+  - the training attempts of every version (the base version's newest 24,
+    and 6 of each other version);
+  - the catalog of interventions and built sets.
+
+  It names the base version's dominant bottleneck, citing attempts. It then
+  proposes up to 3 interventions that differ in mechanism, not only in
+  strength (`--candidates`). Each proposal is built in parallel as
+  base + proposal. A proposal may reuse a cataloged intervention. A scope
+  removal is proposed only when other kinds have failed on that bottleneck.
+- **Cold start.** The first diagnosis runs as soon as 6 attempts on the
+  original have been scored (`--cold-min`, counted from `rollout_done`), not
+  when the first group ends. The interface has no idle draw, so the slots
+  keep drawing the original meanwhile.
+- **When to act.**
+  - A version whose latest group solved nothing is diagnosed again, as base,
+    if:
+    - nothing whose set contains its own is learnable, untested or being
+      built;
+    - and it has had a group since its last diagnosis.
+  - A version whose latest group solved at least `--mastered` (0.9) of its
+    scored attempts builds its set minus the next intervention in withdrawal
+    order whose set has not been built.
+- **Draws.** `which_version` answers with a version that has had no group
+  drawn yet, oldest first. Otherwise it gives no answer and the weighted draw
+  decides.
+- **Weights.**
+  - `p(1-p)` over the last 3 groups, as in the ladder.
+  - 0.25 while a version is untested.
+  - Never below 0.05 for the original.
+  - At the cap of 8 active versions (`--max-active`), a new version replaces
+    the version with the longest all-failed streak. It never replaces the
+    original or a version that solved anything in its last 3 groups.
+  - A version is retired after 2 all-failed groups in a row
+    (`--stale-after`) while something built on its set is alive.
+
+Its state is in `evolution/interventions/`:
+
+- `state.json`: the catalog, every set with its build status and version,
+  and every diagnosis;
+- `diagnoses/<stamp>--<set>/`: the inputs, the session, and
+  `diagnosis.json`;
+- `signals/`: the plan of every build.
+
+Every decision is one `policy ...` line in `evolution/loop.log`. It reads
+training records only, never the readout. It takes the evolve loop's lock.
+
+## The teacher rewriter
+
+`teacher_rewriter.py <job> --prepare` before training, then
+`REWRITER_MODE=teacher ./start_reference_rewriter.sh <job>`. One codex session, continued round after
+round in one working directory (`evolution/teacher/work/`), runs the curriculum; this process only
+gives it the run and carries out its plan.
+
+- **When it is called**: once before training, and whenever a training group ends close to all failed
+  or all passed (`--near 1`: at most one attempt away), the groups that teach nothing. Events that
+  arrive while it works are kept for its next round.
+- **What it reads**: `AGENTS.md` (`teacher_agents.md`: the goal, how training works with the numbers
+  read from `recipe.env`, what it may do, the directory), and the directory: `problems/<label>/` (every
+  version that has been in the pool, in full, with `status.json` and `diff.patch` against the original),
+  `attempts/<label>/g<group>/NN.jsonl` (every training attempt of the run: a summary line with each
+  test's result, then one line per turn), `summary.md` and `history.md` (its rounds, predictions and
+  what each version then scored). Each round's prompt says only why it is called and what happened since.
+- **What it decides** (`plan.json`): new versions, written as complete task directories under `new/`,
+  with anything changed (instruction, environment, starting state, tests, reference solution); versions
+  to retire, the original included; weights; and `draw_first`, versions the next groups draw before
+  the weighted draw.
+- **What this process enforces**: a new version joins only after two checks on Daytona (its reference
+  solution passes its tests; its untouched starting state fails them); at most `--max-active` (8)
+  versions are in the pool; the teacher never sees the readout or another run's records (see "Two loops").
+
+## Status: what is not solved yet
+
+TB2.1, the 9B policy, as of 2026-10-30; running status is posted on
+https://github.com/yichuan-w/torchtitan/issues/307. "Stable" is the readout's own criterion: pass@5 at or above
+0.5 for three validations in a row. One line per task over every job run so far (`bench.py readout`).
+
+| task | jobs | best result | stable |
+|---|---|---|---|
+| sqlite-db-truncate | 3 | first pass step 160 (k5) | **yes, from step 195** (k5) |
+| dna-insert | 4 | first pass step 5, pass@5 1.0 once (k5) | no |
+| filter-js-from-html | 5 | first pass step 15 (img) | no |
+| llm-inference-batching-scheduler | 10 | first pass step 180 (k5) | no |
+| torch-tensor-parallelism | 22 | first pass step 240, pass@5 1.0 once (reference rewriter, GPT-5.6, 80K) | no |
+| raman-fitting | 4 | never passed (longest job 210 steps) | no |
+| large-scale-text-editing | 6 | never passed (longest job 65 steps) | no |
+| feal-differential-cryptanalysis | 1 | the job never trained | no |
+| torch-pipeline-parallelism | 0 | no job before 2026-10-30 | no |
+
+What 2026-11-01 showed (pure RL, 0/1 reward, teacher rewriter, one GB300 host per job; #307):
+
+- **The original has to stay in the pool.** Before `--original-share`, every teacher retired the
+  original after its first 8 groups (torch-pipeline-parallelism: 8 of 378 groups), so a pass on it
+  could only appear in the readout, which trains nothing. Held at 1/8, sqlite-db-truncate passed the
+  original in training (four 1/12 or 1/10 groups) and then in the readout: 1/16 at steps 60, 65, 70
+  and 80, after 0 at every readout before.
+- **Training on the original alone gets no gradient when the base model cannot pass it.** dna-insert:
+  0 of about 1500 attempts on the original (base readouts 0/78), so its original-only jobs took no step,
+  at G=12 or G=32, at LR 3e-6 or 1e-5.
+- **LR 1e-5 degrades the policy** (see `recipe.env`).
+- **What teachers did that did not carry over to the original**, each seen in one job, so findings
+  and not rules for the teacher (`teacher_agents.md` states the goal and the setup instead; #307):
+  a version that shipped most of the solution reached 12/12 while the original stayed 0/12
+  (torch-pipeline-parallelism r12); versions on a bare image, where the student has to set up its own
+  tools to test, and almost no readout attempt did (1 of 48 ran its code under a process group); a full
+  task with a runnable checker gave 2-5/12 and the same task without it 0/12 (dna-insert); a teacher
+  retired the versions that still gave mixed groups for harder ones that all failed, and its job took
+  no step for 2.5 h (large-scale-text-editing).
+- **More teacher findings, each from one job** (findings, not rules; 068e24a0 put them in
+  `teacher_agents.md` and 2026-11-03 moved them back here, since naming a task and an earlier run's
+  diagnosis hands a teacher on that task conclusions from outside its run): torch-tensor-parallelism,
+  0 of 650 original attempts passed, nearly all at the weight-slice assertion (the `[out, in]` weight
+  sharded on the wrong axis); installing the toolchain took about a quarter of the version attempts'
+  output there; on filter-js-from-html a version with a subset of the cases passed about 40% while
+  the original stayed near 0; the one torch-tensor run that passed the original (once in 551 readout
+  attempts) had starter code already sharding one class the tests' way.
+- **Told to show the tests' convention and ship checkers early (068e24a0), a teacher shipped the
+  grading material itself.** model-extraction-relu-logits got the original verifier with its grading
+  network as `/app/check.py`, then the grading seed and draw in an instruction; older torch-tensor,
+  torch-pipeline, filter-js and llm-inference-batching runs had versions carrying the original's test
+  files as checkers. From 9d033b16 `teacher_agents.md` keeps the original's tests, verifier, hidden
+  data, seeds, reference solution and hidden-check specifics out of what the student sees, and
+  `validate()` refuses a version that carries lines of the original's tests or solution.
+- **Once the original gives mixed groups, give it more of the draws.** sqlite-db-truncate at 1/2
+  (`--original-share 0.5`): its next original group passed 4/11, against 1/12 at 1/8.
+
+
+- **One task is solved.** Every task but sqlite-db-truncate either never passed or passed and lost it.
+- **No teacher-rewriter job has run to the end.** Every teacher job so far stopped within 5 readout
+  steps; on the 2026-10-29 torch-tensor-parallelism one the teacher process stopped after 90 minutes and
+  training went on without a rewriter.
+- **Many jobs ended before their first readout** (`last_step` None): startup failures, not results.
+- Jobs launched on the shared cluster before 2026-10-30 trained without `SWE_BENCH_TRAIN_BUDGET_SEC`
+  and read without `SWE_BENCH_READOUT_EVAL_BUDGET` (the launcher did not forward them), so their
+  attempts had the default budgets, not the recipe's.
+
+Running from 2026-10-30: the teacher rewriter (GPT-5.6) on torch-tensor-parallelism,
+torch-pipeline-parallelism, raman-fitting, large-scale-text-editing and llm-inference-batching-scheduler,
+one job per task, each on one 4 x GB300 host: trainer FSDP-2 on two GPUs, one rollout engine, one 160K
+readout engine. FSDP-2 fits: a 2026-10-30 job trained 13 steps at 80K on it without an OOM (its peak
+was not recorded). FSDP-1 should need ~300 GiB per rank, extrapolated from the B300 placement's
+92 GiB at FSDP-5 and 105 GiB at FSDP-4, and was not tried. The rollout engine
+at 0.88 memory holds 6.9M tokens with prefix caching; with all 96 attempts in flight it ran at a 33% KV
+peak, no preemption and a 95% prefix-cache hit rate, so turns do not re-prefill.

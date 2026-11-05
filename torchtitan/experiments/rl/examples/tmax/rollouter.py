@@ -32,7 +32,7 @@ last turn's ``env_rewards`` (key ``tmax_reward``) and read back by ``RewardTMax`
 
 Knobs read from env (the launcher sets these; see ``submit_swe_tmax_9b.sh``):
   ``SHIM_BIND_HOST`` / ``SHIM_PORT``  adapter bind address (default 127.0.0.1:18001)
-  ``SWE_TIME_BUDGET_SEC``             per-agent wallclock (default 2400)
+  ``SWE_TIME_BUDGET_SEC``             per-agent wallclock (default 1900)
   ``TMAX_EVAL_TIMEOUT_SEC``           verifier (test.sh) run timeout, applied to
                                       TRAINING and validation rollouts alike
                                       (default 600)
@@ -81,6 +81,7 @@ import json
 import logging
 import math
 import os
+import re
 import statistics
 import time
 from collections.abc import Mapping
@@ -108,6 +109,10 @@ from torchtitan.experiments.rl.examples.tmax.grading import (
 from torchtitan.experiments.rl.examples.tmax.integrity_baseline import capture_baseline
 from torchtitan.experiments.rl.examples.tmax.overfit_bench import events as bench_events
 from torchtitan.experiments.rl.examples.tmax.rubric import RewardTMax, TMAX_REWARD_KEY
+from torchtitan.experiments.rl.examples.tmax.self_destruct import (
+    last_turn_commands,
+    match_self_destruct,
+)
 from torchtitan.experiments.rl.examples.tmax.vanillux_loop import (  # noqa: F401 -- registers the default agent
     vanillux_agent,
 )
@@ -156,6 +161,11 @@ _FINISH_REASONS = (
     "error",
     # The agent filled its own sandbox disk (see _run_agent_rollout); scored 0.
     "disk_exhausted",
+    # The agent's last command killed its own sandbox (see self_destruct); scored 0.
+    "sandbox_destroyed",
+    # Training only: the sandbox failed mid-episode with no rule match and no
+    # platform signature (see _SCORE_AGENT_STAGE_FAILURES); scored 0.
+    "sandbox_failed",
     # A strict environment rule ended the episode on the offending turn, ungraded
     # (TMaxRollouter.Config.strict_format / strict_opening / strict_truncation).
     "format_error",
@@ -169,6 +179,15 @@ _RULE_TERMINATED_REASONS = frozenset({"format_error", "truncated"})
 
 # See TMaxRollouter.Config.reward_mode.
 _REWARD_MODES = frozenset({"sparse", "dense"})
+
+# Script drift in the policy's own output. Run 1031b degenerated into CJK /
+# Arabic / Hangul / Thai / kana tokens inside English reasoning and code
+# ("upper恩velope"); a Latin letter touching a CJK character is the in-word form
+# that legitimate Chinese text (copied from a task file) rarely produces.
+_NON_LATIN_RE = re.compile(
+    "[\u4e00-\u9fff\u0600-\u06ff\uac00-\ud7af\u0e00-\u0e7f\u3040-\u30ff]"
+)
+_LATIN_CJK_ADJACENT_RE = re.compile("[A-Za-z][\u4e00-\u9fff]|[\u4e00-\u9fff][A-Za-z]")
 
 # Canonical RTS check names (``test_check_01_required_evidence`` and its shorter
 # variants), matched as substrings of the CTRF test names. They separate "wrong
@@ -186,6 +205,13 @@ _DISK_ISSUE_KINDS = {
     "command_disk_exhausted",
     "session_disk_exhausted",
 }
+
+
+def _disk_events(issue_tracker: SandboxIssueTracker) -> int:
+    counts = issue_tracker.counts
+    return sum(counts.get(kind, 0) for kind in _DISK_ISSUE_KINDS)
+
+
 _TRANSPORT_ISSUE_KINDS = {
     "command_logs_failed",
     "command_logs_missing",
@@ -224,6 +250,47 @@ _TIMEOUT_ISSUE_KINDS = {
     "command_status_timeout",
     "command_timeout",
 }
+
+
+# debconf's frontend set to Noninteractive before the agent starts, as Docker images
+# commonly do. Otherwise an apt install that pulls in tzdata waits on a "Geographic
+# area" prompt hidden behind the model's `| tail`; the model interrupts it, and the
+# half-configured dpkg then breaks the verifier's own apt-get too (55 such installs,
+# 2 zeroed grades in the 2026-10-25 TB-2.1 eval). Images without debconf skip it.
+_NONINTERACTIVE_DEBCONF = os.environ.get("TMAX_NONINTERACTIVE_DEBCONF", "1") == "1"
+# Score a sandbox the agent's own last command destroyed as 0 instead of masking it
+# as infra (self_destruct.py); 0 restores the mask.
+_SCORE_SELF_DESTRUCT = os.environ.get("TMAX_SCORE_SELF_DESTRUCT", "1") == "1"
+# Training only: score 0 any other sandbox failure during the agent stage after a
+# completed turn. Of 1026b's 547 masked training rollouts, the ones no rule matched
+# were still mostly the agent's doing (libc or libz moved away, `rm -rf /tmp/*`
+# taking the tmux socket, its own shell's pid in a kill list, `cp -r /usr
+# /dev/shm`) or a task outgrowing its sandbox; losses with a benign last command
+# were well under 1 in 1000 rollouts. 0 restores the mask.
+_SCORE_AGENT_STAGE_FAILURES = (
+    os.environ.get("TMAX_SCORE_AGENT_STAGE_FAILURES", "1") == "1"
+)
+# Errors that are the platform's or the harness's whatever the agent did: Daytona
+# API throttling or 5xx, a dead Monarch actor, and tmux refusing an over-long
+# key delivery.
+_PLATFORM_FAILURE = re.compile(
+    r"\b(?:429|50[0-4])\b|Throttler|Too Many Requests|rate limit|Unauthorized"
+    r"|ActorError|SupervisionError|command too long",
+    re.I,
+)
+_DEBCONF_NONINTERACTIVE_CMD = (
+    "command -v debconf-set-selections >/dev/null 2>&1 && "
+    "echo 'debconf debconf/frontend select Noninteractive' | debconf-set-selections"
+)
+
+
+async def _set_debconf_noninteractive(sandbox: _RootSandbox) -> None:
+    try:
+        await sandbox.exec(
+            _DEBCONF_NONINTERACTIVE_CMD, user="root", check=False, timeout=60
+        )
+    except Exception as e:  # noqa: BLE001 -- a convenience, never fail a rollout on it
+        logger.warning(f"[tmax] debconf noninteractive setup failed: {e}")
 
 
 def _captured_to_turns(
@@ -273,10 +340,12 @@ def _captured_to_turns(
                 prompt_token_ids=ct.prompt_token_ids,
                 completion_token_ids=ct.completion_token_ids,
                 completion_logprobs=ct.completion_logprobs,
+                completion_topk=ct.completion_topk,
                 min_policy_version=ct.min_policy_version,
                 max_policy_version=ct.max_policy_version,
                 prompt_messages=prompt_messages,
                 completion_message=ct.completion_message,
+                metrics=ct.metrics,
             )
         )
         pending_env = []
@@ -306,6 +375,9 @@ class _SandboxRolloutDiagnostics:
     # so a run on a cluster with a different egress policy leaves a record of
     # what tasks that use the network were facing.
     net_probe: dict = field(default_factory=dict)
+    # Disk and memory the sandbox used (_resource_probe), at boot and after
+    # grading; what per-task resource rows are sized from.
+    resource_probe: dict = field(default_factory=dict)
 
 
 # Network probe run inside every sandbox right after boot, before the agent's
@@ -368,6 +440,43 @@ async def _net_probe(sandbox) -> dict:
         out["targets"][host] = dict(f.split("=", 1) for f in fields if "=" in f)
     if stderr:
         out["stderr"] = stderr[-200:]
+    return out
+
+
+# Disk/memory probe run at boot and again after grading, so a task's resource
+# row can be sized from what rollouts actually used (agent + verifier), not
+# from a reference solution's replay. Disk is the root filesystem's used bytes
+# at that moment (files are rarely deleted, so the post-grade reading is close
+# to the peak; on Daytona the image layers are not counted, as the quota
+# isn't); memory is the cgroup's lifetime peak (page cache included) plus its
+# OOM-kill count. Recorded only; never affects reward. TT_SANDBOX_RESOURCE_PROBE=0 turns it off.
+_RESOURCE_PROBE_SEC = int(os.environ.get("TT_SANDBOX_RESOURCE_PROBE_SEC", "15"))
+_RESOURCE_PROBE_SCRIPT = r"""
+df -B1 -P / 2>/dev/null | awk 'NR==2 {print "disk_used=" $3; print "disk_total=" $2}'
+for f in memory.peak memory.max memory.current memory/memory.max_usage_in_bytes memory/memory.limit_in_bytes memory/memory.usage_in_bytes; do
+  [ -r "/sys/fs/cgroup/$f" ] && echo "cg_$(basename $f)=$(cat /sys/fs/cgroup/$f)"
+done
+awk '$1 == "oom_kill" {print "cg_oom_kill=" $2}' /sys/fs/cgroup/memory.events 2>/dev/null
+exit 0
+"""
+
+
+async def _resource_probe(sandbox) -> dict:
+    """Read the sandbox's disk and memory use into a dict of byte counts.
+    Never raises: a failed probe records its error instead."""
+    if os.environ.get("TT_SANDBOX_RESOURCE_PROBE", "1") == "0":
+        return {}
+    out: dict = {}
+    try:
+        _, stdout, _ = await sandbox.exec(
+            _RESOURCE_PROBE_SCRIPT, user="root", timeout=_RESOURCE_PROBE_SEC
+        )
+    except Exception as e:  # noqa: BLE001 -- the record carries the failure
+        return {"error": f"{type(e).__name__}: {e}"[:200]}
+    for line in (stdout or "").splitlines():
+        key, sep, val = line.strip().partition("=")
+        if sep and val.isdigit():
+            out[key] = int(val)
     return out
 
 
@@ -513,6 +622,54 @@ def _rule_termination_metrics(rollouts: list[Rollout]) -> list[m.Metric]:
             m.Metric("rollout/rule_terminated_turn_mean", m.Mean.from_list(turns))
         )
     return out
+
+
+def _message_text(value) -> str:
+    """Every string in a completion message (content blocks, thinking, text),
+    skipping the ``role`` / ``type`` tags."""
+    if isinstance(value, str):
+        return value
+    if isinstance(value, Mapping):
+        return "\n".join(
+            _message_text(v) for k, v in value.items() if k not in ("role", "type")
+        )
+    if isinstance(value, (list, tuple)):
+        return "\n".join(_message_text(v) for v in value)
+    return ""
+
+
+def _script_mix_metrics(rollouts: list[Rollout]) -> list[m.Metric]:
+    """Non-Latin script in the policy's completions, per sibling then averaged.
+
+    ``nonlatin_per_1k_chars_mean`` is the character density; the two turn
+    fractions count turns with any non-Latin character and with a Latin letter
+    touching a CJK character. Siblings without completed turns are skipped.
+    """
+    density, nonlatin_turns, adjacent_turns = [], [], []
+    for rollout in rollouts:
+        messages = [getattr(turn, "completion_message", None) for turn in rollout.turns]
+        texts = [_message_text(message) for message in messages if message]
+        if not texts:
+            continue
+        chars = sum(len(t) for t in texts)
+        density.append(
+            1000.0 * sum(len(_NON_LATIN_RE.findall(t)) for t in texts) / max(chars, 1)
+        )
+        nonlatin_turns.append(
+            sum(bool(_NON_LATIN_RE.search(t)) for t in texts) / len(texts)
+        )
+        adjacent_turns.append(
+            sum(bool(_LATIN_CJK_ADJACENT_RE.search(t)) for t in texts) / len(texts)
+        )
+    if not density:
+        return []
+    return [
+        m.Metric("rollout/nonlatin_per_1k_chars_mean", m.Mean.from_list(density)),
+        m.Metric("rollout/nonlatin_turn_frac", m.Mean.from_list(nonlatin_turns)),
+        m.Metric(
+            "rollout/latin_cjk_adjacent_turn_frac", m.Mean.from_list(adjacent_turns)
+        ),
+    ]
 
 
 def _timing_metrics(timings: list[Mapping[str, float]]) -> list[m.Metric]:
@@ -1022,6 +1179,8 @@ def _write_rollout_record(
             # What the sandbox could reach at boot: per target dns/http and
             # their milliseconds, plus icmp. Empty when the probe is off.
             "net_probe": dict(sandbox_diagnostics.net_probe),
+            # Bytes of disk/memory in use at boot and after grading.
+            "resource_probe": dict(sandbox_diagnostics.resource_probe),
             "secs": round(secs, 1),
             "budget_sec": int(budget_sec),
             "turns": len(turns),
@@ -1185,7 +1344,7 @@ class TMaxRollouter(Rollouter):
         num_rollout_workers x this. Each completed sibling immediately releases its
         slot to the next waiting rollout."""
 
-        time_budget_sec: int = 2400
+        time_budget_sec: int = 1900
         """Per-rollout agent wall-clock budget (the vanillux loop stops after this)."""
 
         agent_budget_floor_sec: int = _DECLARED_AGENT_BUDGET_FLOOR_SEC
@@ -1642,6 +1801,7 @@ class TMaxRollouter(Rollouter):
             ),
             *finish_metrics,
             *_rule_termination_metrics(rollouts),
+            *_script_mix_metrics(rollouts),
             *sandbox_metrics,
             *timing_metrics,
         ]
@@ -2118,6 +2278,8 @@ class TMaxRollouter(Rollouter):
         failure: dict = {}
         terminal_events: list[dict] = []
         failure_stage = "setup"
+        # Disk-full events recorded before grading began (see the disk rule).
+        disk_events_before_grade = 0
         # Per-test verifier breakdown; stays None unless the rollout was graded with
         # the CTRF read enabled and the task wrote a parsable report.
         ctrf: dict | None = None
@@ -2193,6 +2355,7 @@ class TMaxRollouter(Rollouter):
         # finish_reason=hit_time_budget.
         timing: dict = {}
         net_probe: dict = {}
+        resource_probe: dict = {}
         # Where this rollout's record goes; None writes nothing (said once).
         run = _run_dir()
         collect_pane = (
@@ -2253,6 +2416,9 @@ class TMaxRollouter(Rollouter):
                     # system paths); the faithful Vanillux loop dispatches bash here.
                     root_sb = _RootSandbox(sandbox, exec_timing)
                     net_probe = await _net_probe(sandbox)
+                    boot_resources = await _resource_probe(sandbox)
+                    if boot_resources:
+                        resource_probe["boot"] = boot_resources
                     if net_probe:
                         logger.info(
                             "[tmax_net_probe] %s",
@@ -2284,6 +2450,8 @@ class TMaxRollouter(Rollouter):
                     # seed-bearing tasks are unsolvable (inputs absent during rollout).
                     # Grading fixtures (tests/*) are uploaded later by grade_tmax.
                     await seed_workspace(root_sb, sample.tmax)
+                    if _NONINTERACTIVE_DEBCONF:
+                        await _set_debconf_noninteractive(root_sb)
                     healthcheck = getattr(sample, "healthcheck", None)
                     if healthcheck:
                         # Harbor waits for [environment].healthcheck before the
@@ -2402,6 +2570,7 @@ class TMaxRollouter(Rollouter):
                     )
                     if submitted or grade_unsubmitted:
                         failure_stage = "verifier"
+                        disk_events_before_grade = _disk_events(issue_tracker)
                         grade_at = time.monotonic()
                         separate = sample.tmax.get("separate_verifier")
                         if separate:
@@ -2490,6 +2659,27 @@ class TMaxRollouter(Rollouter):
                                 )
                             timing["shadow_grade_secs"] = time.monotonic() - grade_at
                             verifier["shadow"] = {"reward": shadow_reward, **shadow}
+                    if resource_probe:
+                        resource_probe["end"] = await _resource_probe(sandbox)
+                        logger.info(
+                            "[tmax_resource_probe] %s",
+                            json.dumps(
+                                {
+                                    "event": "tmax_resource_probe",
+                                    "instance_id": sample.instance_id,
+                                    "group_id": group_id,
+                                    "rollout_id": rollout_idx,
+                                    "finish_reason": finish_reason,
+                                    "declared": {
+                                        "cpu": sample.daytona_cpu,
+                                        "mem_gb": sample.daytona_mem_gb,
+                                        "disk_gb": sample.daytona_disk_gb,
+                                    },
+                                    **resource_probe,
+                                },
+                                sort_keys=True,
+                            ),
+                        )
                 status = RolloutStatus.COMPLETED
         except (TimeoutError, asyncio.TimeoutError):
             infra_failed = True
@@ -2506,8 +2696,13 @@ class TMaxRollouter(Rollouter):
             reward = 0.0
             error_msg = f"{type(e).__name__}: {e}"
             terminal_events = getattr(e, "terminal_events", terminal_events)
-            if failure_stage == "agent" and any(
-                kind in issue_tracker.counts for kind in _DISK_ISSUE_KINDS
+            if (failure_stage == "agent" and _disk_events(issue_tracker)) or (
+                # Full before the verifier script ran (`mkdir /tests: no space
+                # left on device` at upload): what filled it is the agent's.
+                failure_stage == "verifier"
+                and _disk_events(issue_tracker) > disk_events_before_grade
+                and "exit_code" not in verifier
+                and not sample.tmax.get("separate_verifier")
             ):
                 # The sandbox's own quota filled while the agent was driving it,
                 # and the harness then lost the sandbox (a session or command
@@ -2547,6 +2742,57 @@ class TMaxRollouter(Rollouter):
             self._rollout_gate.release()
             captured = await adapter.finish_session(rollout_id)
 
+        # The sandbox died during the agent's run and its last turn ran a command
+        # that kills it: the agent's outcome, scored 0 and trained on, not masked.
+        # Timeouts keep the mask, as do failures with no completed turn.
+        if (
+            _SCORE_SELF_DESTRUCT
+            and infra_failed
+            and status == RolloutStatus.ERROR
+            and failure_stage == "agent"
+            and captured
+            and captured[-1].completion_token_ids
+        ):
+            matched = match_self_destruct(last_turn_commands(captured))
+            if matched is not None:
+                infra_failed = False
+                status = RolloutStatus.COMPLETED
+                finish_reason = "sandbox_destroyed"
+                logger.warning(
+                    f"[tmax] {rollout_id}: sandbox destroyed by the agent's "
+                    f"last command, scored 0 ({matched!r}; {error_msg})"
+                )
+                failure = {
+                    "origin": "agent",
+                    "reason": "sandbox_destroyed",
+                    "stage": failure_stage,
+                    "matched": matched,
+                }
+
+        if (
+            _SCORE_AGENT_STAGE_FAILURES
+            and group_id >= 0
+            and infra_failed
+            and status == RolloutStatus.ERROR
+            and failure_stage == "agent"
+            and captured
+            and captured[-1].completion_token_ids
+            and not _PLATFORM_FAILURE.search(error_msg or "")
+        ):
+            infra_failed = False
+            status = RolloutStatus.COMPLETED
+            finish_reason = "sandbox_failed"
+            logger.warning(
+                f"[tmax] {rollout_id}: sandbox failed during the agent's run, "
+                f"scored 0 ({error_msg})"
+            )
+            failure = {
+                "origin": "agent",
+                "reason": "sandbox_failed",
+                "stage": failure_stage,
+                "error": (error_msg or "")[:200],
+            }
+
         disk_gb = (
             sandbox.allocated_disk_gb
             if sandbox is not None
@@ -2564,6 +2810,7 @@ class TMaxRollouter(Rollouter):
             terminal_events=terminal_events,
             timing=dict(timing),
             net_probe=dict(net_probe),
+            resource_probe=dict(resource_probe),
         )
 
         turns = _captured_to_turns(captured, group_id, rollout_idx)
@@ -2636,6 +2883,7 @@ class TMaxRollouter(Rollouter):
                         "issue_counts": diagnostics.issue_counts,
                         "num_dropped_details": diagnostics.num_dropped_details,
                         "net_probe": diagnostics.net_probe,
+                        "resource_probe": diagnostics.resource_probe,
                     },
                     sort_keys=True,
                 ),

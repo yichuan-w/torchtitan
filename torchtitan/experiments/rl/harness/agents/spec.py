@@ -82,7 +82,7 @@ class AgentTask:
 
     format_streak_limit: int = 0
     """End the episode as a strict ``format_error`` once this many consecutive
-    turns are rejected (0 = off). Only miniswe honors it."""
+    turns are rejected (0 = off). miniswe and terminus honor it."""
 
     context_notice: bool = True
     """Show the harness's context-budget notices (warnings and status lines).

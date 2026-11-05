@@ -56,7 +56,7 @@ from torchtitan.experiments.rl.examples.swe_r2e.config_registry import (
 )
 from torchtitan.experiments.rl.examples.tmax.data import TMaxDataset
 from torchtitan.experiments.rl.examples.tmax.rollouter import TMaxRollouter
-from torchtitan.experiments.rl.losses import DPPOLoss, GRPOLoss
+from torchtitan.experiments.rl.losses import DPPOLoss, GRPOLoss, ScoreCenteringLoss
 from torchtitan.tools.logging import logger
 
 # tmax JSONL path, supplied by the launcher (PROMPT_DATA -> SWE_PROMPT_DATA).
@@ -202,7 +202,11 @@ def _tmax_rollouter(*, validation_from_caller: bool = False) -> TMaxRollouter.Co
         # names + defaults as before; the RolloutWorker pool splits
         # rollout_concurrency across workers.
         rollout_concurrency=int(os.environ.get("SWE_ROLLOUT_CONCURRENCY", "16")),
-        time_budget_sec=int(os.environ.get("SWE_TIME_BUDGET_SEC", "2400")),
+        # 1900 keeps a group's slowest rollout (plus ~50 s boot) inside the 5-step
+        # off-policy window at ~7 min/step: in run 1030c (budget 2400), groups whose
+        # slowest rollout passed 2300 s were dropped stale 86% of the time, while
+        # rollouts past 1900 s held under 1% of all solves.
+        time_budget_sec=int(os.environ.get("SWE_TIME_BUDGET_SEC", "1900")),
         eval_timeout_sec=int(os.environ.get("TMAX_EVAL_TIMEOUT_SEC", "600")),
         max_context_tokens=int(
             os.environ.get(
@@ -401,6 +405,16 @@ def _tmax_recipe_loss(loss):
     _which = os.environ.get("SWE_LOSS", "dppo").lower()
     if _which == "dapo":
         return loss
+    if _which == "sc":
+        # Score centering (arXiv 2609.20807); _tmax_score_centering_sampling turns
+        # on the sampler top-k it needs.
+        return dataclasses.replace(
+            loss,
+            loss_fn=ScoreCenteringLoss.Config(
+                weight=os.environ.get("SWE_SC_WEIGHT", "tis"),
+                tis_cap=float(os.environ.get("SWE_SC_TIS_CAP", "2.0")),
+            ),
+        )
     if _which == "grpo":
         # Standard GRPO clipped surrogate (swaps the DPPO trust-region for the PPO
         # clip). Only loss_fn swapped; num_chunks etc. preserved.
@@ -416,6 +430,20 @@ def _tmax_recipe_loss(loss):
             # clamps the surrogate ratio so a residual GDN gen/train logprob-mismatch
             # tail cannot spike the gradient (our logdiff max ~2 vs open-instruct ~0.5).
             ratio_cap=float(os.environ.get("SWE_DPPO_RATIO_CAP", "0")),
+        ),
+    )
+
+
+def _tmax_score_centering_sampling(generator):
+    """Under SWE_LOSS=sc, have the generator return the sampler's top-k logprobs
+    (SWE_SC_TOPK, default 32; the paper finds k=32 matches the full vocabulary)."""
+    if os.environ.get("SWE_LOSS", "dppo").lower() != "sc":
+        return generator
+    return dataclasses.replace(
+        generator,
+        sampling=dataclasses.replace(
+            generator.sampling,
+            num_topk_logprobs=int(os.environ.get("SWE_SC_TOPK", "32")),
         ),
     )
 
@@ -453,6 +481,7 @@ def rl_grpo_qwen3_5_27b_tmax() -> Controller.Config:
     config.trainer = dataclasses.replace(
         config.trainer, loss=_tmax_recipe_loss(config.trainer.loss)
     )
+    config.generator = _tmax_score_centering_sampling(config.generator)
     return config
 
 
@@ -1080,6 +1109,7 @@ def rl_grpo_qwen3_5_9b_tmax(
     # Loss: the tmax recipe's DPPO is the DEFAULT (SWE_LOSS=dapo reverts). See
     # _tmax_recipe_loss. num_chunks=32 (chunked lm-head loss) is preserved.
     _loss = _tmax_recipe_loss(dataclasses.replace(config.trainer.loss, num_chunks=32))
+    config.generator = _tmax_score_centering_sampling(config.generator)
     config.trainer = dataclasses.replace(
         config.trainer,
         loss=_loss,
@@ -1201,6 +1231,14 @@ def rl_grpo_qwen3_5_9b_tmax(
     _gml = float(os.environ.get("SWE_GPU_MEM_LIMIT", "0"))
     if _gml:
         config.generator = dataclasses.replace(config.generator, gpu_memory_limit=_gml)
+    # Fixed generator KV cache (GiB) for a shared box, see VLLMGenerator.Config.kv_cache_gb.
+    _kvgb = float(os.environ.get("SWE_KV_CACHE_GB", "0"))
+    if _kvgb:
+        config.generator = dataclasses.replace(config.generator, kv_cache_gb=_kvgb)
+    # CPU KV offload per engine (GiB over its TP ranks), see VLLMGenerator.Config.kv_offload_gb.
+    _kvoff = float(os.environ.get("SWE_GEN_KV_OFFLOAD_GB", "0"))
+    if _kvoff:
+        config.generator = dataclasses.replace(config.generator, kv_offload_gb=_kvoff)
     # Generator engine-count override. The base bakes DP-8 x TP-1 = 8 engines = 8
     # GPUs, which leaves nothing for the trainer on a single 8-GPU host; pair this
     # with SWE_DP_SHARD so the two sum to the GPUs available.

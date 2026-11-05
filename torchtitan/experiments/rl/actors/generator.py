@@ -21,7 +21,7 @@ import cloudpickle
 import torch
 import torch.distributed as dist
 import torchstore as ts
-from monarch.actor import Actor, Channel, current_rank, endpoint, Port, PortReceiver
+from monarch.actor import Actor, Channel, current_rank, Port, PortReceiver
 from torchtitan.components.checkpoint import CheckpointManager
 from torchtitan.config import CompileConfig, Configurable, DebugConfig, OverrideConfig
 from torchtitan.distributed.dp_weight_broadcast import (
@@ -29,6 +29,7 @@ from torchtitan.distributed.dp_weight_broadcast import (
     DPWeightBroadcaster,
 )
 from torchtitan.distributed.utils import set_batch_invariance
+from torchtitan.experiments.rl.actors.monarch_compat import endpoint
 from torchtitan.experiments.rl.batch_invariance import (
     force_logprobs_fn_for_batch_invariance,
     patch_bmm_for_batch_invariance,
@@ -57,7 +58,7 @@ from torchtitan.experiments.rl.observability import metrics as m
 from torchtitan.experiments.rl.routing.intra_generator_router import (
     IntraGeneratorRouter,
 )
-from torchtitan.experiments.rl.types import Completion
+from torchtitan.experiments.rl.types import Completion, SamplerTopK
 from torchtitan.models.common.attention import FlexAttention, VarlenAttention
 from torchtitan.observability import structured_logger as sl
 from torchtitan.protocols.model_spec import ModelSpec
@@ -66,9 +67,11 @@ from vllm import EngineArgs, LLMEngine, SamplingParams
 from vllm.config import AttentionConfig, CompilationConfig, ParallelConfig
 from vllm.config.compilation import CompilationMode, PassConfig
 from vllm.distributed import get_dp_group
+from vllm.logprobs import FlatLogprobs
 from vllm.outputs import RequestOutput
 from vllm.sampling_params import RequestOutputKind
 from vllm.v1.attention.backends.registry import AttentionBackendEnum
+from vllm.v1.metrics.loggers import StatLoggerBase
 
 
 # SWE_TS_REPLICA_DEDUP=1: read each replicated (HSDP) weight region from one
@@ -79,6 +82,103 @@ if os.environ.get("SWE_TS_REPLICA_DEDUP", "0") == "1":
     install()
 
 logger = logging.getLogger(__name__)
+
+
+# Latest engine-aggregate stats of this process's engine (one per generator
+# process), stamped onto every finished request's metrics so they reach W&B.
+_ENGINE_STATS: dict[str, float] = {}
+
+
+class _EngineStatsLogger(StatLoggerBase):
+    """Engine-aggregate vLLM stats (KV-cache usage, queue depth, preemptions).
+
+    vLLM's own LoggingStatLogger prints these every 10 s through the ``vllm``
+    logger, but remote generator processes do not forward their output to the
+    controller console (no run since at least 1018 has a vLLM line there). So
+    ``record`` keeps the latest values in ``_ENGINE_STATS`` for the per-request
+    metrics (``engine_kv_cache_usage``, ``engine_waiting_reqs``,
+    ``engine_preempted_total``, each Mean and Max per step), and ``log`` writes one
+    line per ``RL_VLLM_STATS_INTERVAL_SEC`` (default 60; 0 = off) for wherever the
+    process's own output is kept. A rising preempted total is KV thrashing: each
+    preempted request is re-prefilled. The line also carries the window's prefix
+    cache hit rate (hit tokens / queried tokens, preempted re-prefills included).
+    """
+
+    def __init__(self, vllm_config: Any, engine_index: int = 0) -> None:
+        self._interval = float(os.environ.get("RL_VLLM_STATS_INTERVAL_SEC", "60"))
+        self._engine_index = engine_index
+        self._last = time.monotonic()
+        self._running = self._waiting = 0
+        self._kv_peak = 0.0
+        self._preempted = self._preempted_total = 0
+        self._prefix_queries = self._prefix_hits = 0
+
+    def record(
+        self,
+        scheduler_stats: Any,
+        iteration_stats: Any,
+        mm_cache_stats: Any = None,
+        engine_idx: int = 0,
+    ) -> None:
+        if scheduler_stats is not None:
+            self._running = scheduler_stats.num_running_reqs
+            self._waiting = (
+                scheduler_stats.num_waiting_reqs
+                + scheduler_stats.num_skipped_waiting_reqs
+            )
+            self._kv_peak = max(self._kv_peak, scheduler_stats.kv_cache_usage)
+            _ENGINE_STATS["kv_cache_usage"] = scheduler_stats.kv_cache_usage
+            _ENGINE_STATS["waiting_reqs"] = self._waiting
+            prefix = getattr(scheduler_stats, "prefix_cache_stats", None)
+            if prefix is not None:
+                self._prefix_queries += prefix.queries + prefix.preempted_queries
+                self._prefix_hits += prefix.hits + prefix.preempted_hits
+        if iteration_stats is not None:
+            self._preempted += iteration_stats.num_preempted_reqs
+            _ENGINE_STATS["preempted_total"] = (
+                _ENGINE_STATS.get("preempted_total", 0)
+                + iteration_stats.num_preempted_reqs
+            )
+
+    def log_engine_initialized(self) -> None:
+        pass
+
+    def log(self) -> None:
+        now = time.monotonic()
+        if self._interval <= 0 or now - self._last < self._interval:
+            return
+        self._preempted_total += self._preempted
+        prefix_hit = (
+            f"{100 * self._prefix_hits / self._prefix_queries:.1f}%"
+            if self._prefix_queries
+            else "n/a"
+        )
+        logger.info(
+            f"[vllm_stats] engine={self._engine_index} running={self._running} "
+            f"waiting={self._waiting} kv_peak={100 * self._kv_peak:.1f}% "
+            f"preempted={self._preempted} preempted_total={self._preempted_total} "
+            f"prefix_hit={prefix_hit} window_s={now - self._last:.0f}"
+        )
+        # Also to the structured log: it is mirrored into the run dump while the
+        # job runs, unlike this process's stdout.
+        sl.log_trace_scalar(
+            {
+                "vllm_stats.running": self._running,
+                "vllm_stats.waiting": self._waiting,
+                "vllm_stats.kv_peak": self._kv_peak,
+                "vllm_stats.preempted": self._preempted,
+                "vllm_stats.preempted_total": self._preempted_total,
+                **(
+                    {"vllm_stats.prefix_hit": self._prefix_hits / self._prefix_queries}
+                    if self._prefix_queries
+                    else {}
+                ),
+            }
+        )
+        self._last = now
+        self._kv_peak = 0.0
+        self._preempted = 0
+        self._prefix_queries = self._prefix_hits = 0
 
 
 def _flash_attention_kernels_available() -> bool:
@@ -287,6 +387,7 @@ class _RequestMetricsInputs:
 
     num_cached_tokens: int | None
     has_stats: bool
+    num_prompt_tokens: int = 0
     queued_ts: float = 0.0
     scheduled_ts: float = 0.0
     first_token_ts: float = 0.0
@@ -295,18 +396,53 @@ class _RequestMetricsInputs:
     num_generation_tokens: int = 0
 
 
+def _split_flat_logprobs(
+    flat: FlatLogprobs,
+) -> tuple[list[float], SamplerTopK]:
+    """Split vLLM's flat sample logprobs into the sampled token's logprob and
+    the top-k.
+
+    Each position holds ``[sampled, top-1, ..., top-k]`` (the sampler writes the
+    sampled token first, then the top-k, even when the sampled token is among
+    them), so every position has exactly ``k + 1`` entries.
+    """
+    num_positions = len(flat)
+    if num_positions == 0:
+        return [], SamplerTopK.empty_rows(0, 0)
+    width = flat.end_indices[0] - flat.start_indices[0]
+    if len(flat.logprobs) != num_positions * width:
+        raise ValueError(
+            f"uneven flat logprobs: {len(flat.logprobs)} entries over "
+            f"{num_positions} positions"
+        )
+    token_ids = torch.tensor(flat.token_ids, dtype=torch.int32).view(
+        num_positions, width
+    )
+    logprobs = torch.tensor(flat.logprobs, dtype=torch.float32).view(
+        num_positions, width
+    )
+    topk = SamplerTopK(
+        token_ids=token_ids[:, 1:].contiguous(), logprobs=logprobs[:, 1:].contiguous()
+    )
+    return logprobs[:, 0].tolist(), topk
+
+
 def _extract_request_metrics_inputs(
     request_output: RequestOutput,
 ) -> _RequestMetricsInputs:
     """Pull the raw metric inputs off a finished ``RequestOutput``."""
     stats = request_output.metrics
+    num_prompt_tokens = len(getattr(request_output, "prompt_token_ids", None) or ())
     if stats is None:
         return _RequestMetricsInputs(
-            num_cached_tokens=request_output.num_cached_tokens, has_stats=False
+            num_cached_tokens=request_output.num_cached_tokens,
+            has_stats=False,
+            num_prompt_tokens=num_prompt_tokens,
         )
     return _RequestMetricsInputs(
         num_cached_tokens=request_output.num_cached_tokens,
         has_stats=True,
+        num_prompt_tokens=num_prompt_tokens,
         queued_ts=stats.queued_ts,
         scheduled_ts=stats.scheduled_ts,
         first_token_ts=stats.first_token_ts,
@@ -333,16 +469,18 @@ def _prepare_generation_request_metrics(
     vLLM at ``output_processor._finish_request``.
     """
 
-    # TODO: Per-request fields here come from RequestOutput.metrics
-    # (RequestStateStats). Engine-aggregate stats, such as KV-cache usage,
-    # prefix-cache hit rate, preemptions, and batch occupancy, live in
-    # SchedulerStats / IterationStats and require registering a
-    # vllm.v1.metrics.loggers.StatLoggerBase via
-    # LLMEngine.from_engine_args(..., stat_loggers=[...]).
-
-    metric_values: dict[str, float] = {}
+    # Per-request fields come from RequestOutput.metrics (RequestStateStats);
+    # the engine_* values are the engine's state when the request finished
+    # (_EngineStatsLogger).
+    metric_values: dict[str, float] = {
+        f"{prefix}/engine_{key}": value for key, value in _ENGINE_STATS.items()
+    }
     if inputs.num_cached_tokens is not None:
         metric_values[f"{prefix}/num_cached_tokens"] = inputs.num_cached_tokens
+        if inputs.num_prompt_tokens > 0:
+            metric_values[f"{prefix}/prefix_cache_hit_rate"] = (
+                inputs.num_cached_tokens / inputs.num_prompt_tokens
+            )
 
     if inputs.has_stats:
         metric_values[f"{prefix}/queue_time_ms"] = (
@@ -500,6 +638,10 @@ class SamplingConfig:
 
     stop_token_ids: list[int] | None = None
     """Renderer role-boundary stop tokens; filled by the controller."""
+
+    num_topk_logprobs: int = 0
+    """Also return the sampler's top-k logprobs at every generated position
+    (``Completion.topk``), for score centering. 0 = sampled token only."""
 
 
 class RequestDispatcher:
@@ -769,10 +911,14 @@ class RequestDispatcher:
 
             # get logprobs
             completion_output = request_output.outputs[0]
-            token_logprobs = [
-                next(iter(logprob_dict.values())).logprob
-                for logprob_dict in completion_output.logprobs
-            ]
+            topk = None
+            if isinstance(completion_output.logprobs, FlatLogprobs):
+                token_logprobs, topk = _split_flat_logprobs(completion_output.logprobs)
+            else:
+                token_logprobs = [
+                    next(iter(logprob_dict.values())).logprob
+                    for logprob_dict in completion_output.logprobs
+                ]
 
             completions.append(
                 (
@@ -789,6 +935,7 @@ class RequestDispatcher:
                         token_logprobs=token_logprobs,
                         finish_reason=completion_output.finish_reason,
                         stop_reason=getattr(completion_output, "stop_reason", None),
+                        topk=topk,
                     ),
                     _extract_request_metrics_inputs(request_output),
                 )
@@ -907,6 +1054,11 @@ def use_assigned_physical_gpu() -> None:
         return
     os.environ["LOCAL_RANK"] = gpu_index
     torch.cuda.set_device(int(gpu_index))
+    # vLLM's uniproc rendezvous otherwise binds port 0, releases it, then binds
+    # the TCPStore: sibling packed engines (and any other socket drawing from
+    # the ephemeral range) can take it in between -> EADDRINUSE.
+    # A per-GPU base below the ephemeral range removes the race.
+    os.environ.setdefault("VLLM_PORT", str(20000 + 100 * int(gpu_index)))
 
 
 class VLLMGenerator(Actor, Configurable):
@@ -996,6 +1148,17 @@ class VLLMGenerator(Actor, Configurable):
 
         gpu_memory_limit: float = 0.9
         """Fraction of GPU memory to use for the vLLM engine (0.0 to 1.0)."""
+
+        kv_cache_gb: float = 0.0
+        """Fixed KV-cache size in GiB; 0 sizes it from gpu_memory_limit. On a GPU other
+        users share, vLLM's startup profiling counts their allocations as its own and can
+        size the cache negative; a fixed size skips that estimate."""
+
+        kv_offload_gb: float = 0.0
+        """CPU memory (GiB, summed over the engine's TP ranks) for vLLM's native KV
+        offload; 0 disables it. Prefix-cache blocks evicted from GPU are kept in host
+        memory and copied back on a later hit, so multi-turn sessions that sit idle on
+        tool calls do not re-prefill. A CPU hit restores the same bytes as a GPU hit."""
 
         cudagraph: VLLMCudagraphConfig = field(default_factory=VLLMCudagraphConfig)
         """CUDA graph capture settings for the vLLM engine."""
@@ -1318,8 +1481,13 @@ class VLLMGenerator(Actor, Configurable):
             mamba_cache_dtype=config.mamba_cache_dtype,
             mamba_ssm_cache_dtype=config.mamba_ssm_cache_dtype,
         )
+        if config.kv_cache_gb:
+            engine_kwargs["kv_cache_memory_bytes"] = int(config.kv_cache_gb * 2**30)
         engine_kwargs["max_model_len"] = model_spec.model.max_seq_len
         engine_kwargs["max_num_seqs"] = self._max_num_seqs
+        # vLLM rejects requests asking for more than max_logprobs (default 20).
+        if config.sampling.num_topk_logprobs > 20:
+            engine_kwargs["max_logprobs"] = config.sampling.num_topk_logprobs
         has_gdn_layers = any(
             getattr(layer, "delta_net", None) is not None
             for layer in getattr(model_spec.model, "layers", ())
@@ -1336,6 +1504,13 @@ class VLLMGenerator(Actor, Configurable):
         # 'align'-mode prefix caching so multi-turn rollouts reuse the shared prefix.
         if config.enable_prefix_caching is not None:
             engine_kwargs["enable_prefix_caching"] = config.enable_prefix_caching
+        if config.kv_offload_gb:
+            engine_kwargs["kv_offloading_size"] = config.kv_offload_gb
+            engine_kwargs["kv_offloading_backend"] = "native"
+            # vLLM rejects a KV connector under expandable_segments:True unless
+            # the KV cache comes from the cumem pool, which pins its pages.
+            engine_kwargs["enable_cumem_allocator"] = True
+            _patch_offload_metrics_for_inprocess_engine()
         # Continuous batching requires FCFS scheduling: admission order must equal the
         # broadcast order on every rank
         engine_kwargs["scheduling_policy"] = "fcfs"
@@ -1483,9 +1658,9 @@ class VLLMGenerator(Actor, Configurable):
 
         with sl.log_trace_span("vllm_init"):
             logger.info("Initializing LLMEngine from EngineArgs...")
-            # TODO(async-rl): capture engine-aggregate stats (KV-cache util, queue depth, preemptions,
-            #   prefix-cache hit rate) via a `StatLoggerBase` in `from_engine_args`;
-            self._engine = LLMEngine.from_engine_args(engine_args)
+            self._engine = LLMEngine.from_engine_args(
+                engine_args, stat_loggers=[_EngineStatsLogger]
+            )
             logger.info("vLLM rollout engine initialized")
 
         self.policy_version = 0
@@ -2066,6 +2241,12 @@ class VLLMGenerator(Actor, Configurable):
         ``seed`` per sample), so each sample in a group is a distinct ``n=1``
         request that stays diverse and bitwise-reproducible.
         """
+        num_topk = sampling.num_topk_logprobs
+        topk_kwargs = {}
+        if num_topk > 0:
+            # Flat lists instead of one dict per position, and no detokenizing
+            # of the k candidates: we only keep token ids. Stops are by token id.
+            topk_kwargs = {"flat_logprobs": True, "detokenize": False}
         return SamplingParams(
             temperature=sampling.temperature,
             top_p=sampling.top_p,
@@ -2073,7 +2254,10 @@ class VLLMGenerator(Actor, Configurable):
             n=1,  # always expects a single sample per request. Caller can call N times.
             stop_token_ids=sampling.stop_token_ids or None,
             seed=sampling.seed,
-            logprobs=0,  # return only the sampled token's logprob (for the GRPO ratio)
+            # The sampled token's logprob (for the GRPO ratio), plus the top-k
+            # when score centering asks for them.
+            logprobs=num_topk,
+            **topk_kwargs,
             # Return each request's result once, when it is fully done, instead of streaming partial
             # outputs as tokens arrive.
             # TODO(async-rl): use RequestOutputKind.CUMULATIVE for exact per-token
@@ -2474,3 +2658,36 @@ class LoopDecision:
     # lockstep. An orphaned RUNNING request is not benign: it decodes to its
     # full max_tokens (32K on this recipe) for nobody, squatting a decode slot
     # for hours -- measured 08-29, ~500 orphans against 768 slots.
+
+
+def _patch_offload_metrics_for_inprocess_engine() -> None:
+    """vLLM's offload stats assume ops were msgpack-serialized into dicts on the
+    way from an engine-core process; our engine is in-process, so they arrive as
+    OffloadingOperationMetrics objects and an assert kills the engine loop.
+    Normalize them to dicts before vLLM reads them. Stats only."""
+    import dataclasses
+
+    from vllm.distributed.kv_transfer.kv_connector.v1.offloading import metrics
+
+    if getattr(metrics, "_tt_inprocess_patched", False):
+        return
+
+    def _as_dicts(data):
+        return {
+            k: [dataclasses.asdict(op) if dataclasses.is_dataclass(op) else op for op in ops]
+            for k, ops in data.items()
+        }
+
+    observe = metrics.OffloadPromMetrics.observe
+    reduce = metrics.OffloadingConnectorStats.reduce
+
+    def _observe(self, transfer_stats_data, engine_idx=0):
+        return observe(self, _as_dicts(transfer_stats_data), engine_idx)
+
+    def _reduce(self):
+        self.data = _as_dicts(self.data)
+        return reduce(self)
+
+    metrics.OffloadPromMetrics.observe = _observe
+    metrics.OffloadingConnectorStats.reduce = _reduce
+    metrics._tt_inprocess_patched = True

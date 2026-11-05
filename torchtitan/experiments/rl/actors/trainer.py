@@ -10,6 +10,7 @@ import math
 import os
 import pickle
 import re
+import shutil
 import threading
 import time
 from dataclasses import dataclass, field, replace
@@ -17,7 +18,8 @@ from typing import Any
 
 import torch
 import torchstore as ts
-from monarch.actor import Actor, current_rank, endpoint
+from monarch.actor import Actor, current_rank
+from torch.distributed.checkpoint.api import CheckpointException
 from torch.distributed.tensor import DTensor
 from torchtitan.components.checkpoint import CheckpointManager
 from torchtitan.components.checkpoint_utils import canonical_fqn
@@ -41,6 +43,7 @@ from torchtitan.distributed.activation_checkpoint import (
     SelectiveAC,
 )
 from torchtitan.distributed.utils import set_batch_invariance
+from torchtitan.experiments.rl.actors.monarch_compat import endpoint
 from torchtitan.experiments.rl.losses import GRPOLoss
 from torchtitan.experiments.rl.types import OptimStepOutput, TrainingMicrobatch
 from torchtitan.models.common.attention import FlexAttention
@@ -464,6 +467,8 @@ class PolicyTrainer(Actor, Configurable):
         self.policy_version = config.initial_policy_version
         self._controller_training_data = b""
 
+        self._failed_saves = 0
+        self._pending_save_step: int | None = None
         # Always build CheckpointManager; enable is a field on the config.
         # When enable=False (CI/debug), load() is a no-op and random init stands.
         self.checkpointer = config.checkpoint.build(
@@ -499,6 +504,25 @@ class PolicyTrainer(Actor, Configurable):
         else:
             self.dp_size = 1
             self.dp_rank = 0
+
+        # SWE_TRAINER_RESERVE_GB=N: grow this rank's cached GPU memory to N GiB now, at
+        # startup. The trainer otherwise reaches its peak only in the first backward,
+        # and on a GPU shared with other users a process that arrives in between can
+        # take that memory (the overfit bench lost three resumes this way, 10-27/28).
+        # Nothing here calls empty_cache, so the freed block stays in the caching
+        # allocator and later steps reuse it. 0 (default) reserves nothing.
+        reserve_gib = float(os.environ.get("SWE_TRAINER_RESERVE_GB", "0") or 0)
+        if reserve_gib > 0 and self.device.type == "cuda":
+            gib = 1 << 30
+            missing = int(reserve_gib * gib) - torch.cuda.memory_reserved(self.device)
+            if missing > 0:
+                block = torch.empty(missing, dtype=torch.uint8, device=self.device)
+                del block
+            logger.info(
+                f"[trainer] dp_rank={self.dp_rank}: reserved "
+                f"{torch.cuda.memory_reserved(self.device) / gib:.1f} GiB at startup "
+                f"(SWE_TRAINER_RESERVE_GB={reserve_gib:g})"
+            )
 
         logger.debug(
             f"PolicyTrainer initialized (dp_rank={self.dp_rank}, dp_size={self.dp_size})"
@@ -753,6 +777,16 @@ class PolicyTrainer(Actor, Configurable):
         loss_mask = local_batch.loss_mask.to(device)
         generator_logprobs = local_batch.generator_logprobs.to(device)
         advantages = local_batch.advantages.to(device)
+        # Sampler top-k for score centering; only losses that take them get them.
+        topk_inputs = {}
+        inner_loss = getattr(self.loss_fn, "loss_fn", self.loss_fn)
+        if local_batch.topk_token_ids is not None and getattr(
+            inner_loss, "accepts_topk", False
+        ):
+            topk_inputs = {
+                "topk_token_ids": local_batch.topk_token_ids.to(device),
+                "topk_logprobs": local_batch.topk_logprobs.to(device),
+            }
 
         attention_masks = model.get_attention_masks(positions)
 
@@ -818,6 +852,7 @@ class PolicyTrainer(Actor, Configurable):
                     # tokens the batch shed); the loss scale uses
                     # num_loss_denominator_tokens.
                     metric_denominator=num_packed_valid_tokens,
+                    **topk_inputs,
                 )
             logger.info(f"[trainer] dp_rank={self.dp_rank}: loss done")
             _mem_log("loss done")
@@ -952,7 +987,46 @@ class PolicyTrainer(Actor, Configurable):
                     "controller data snapshot disagrees with checkpoint policy version"
                 )
             self._controller_training_data = training_data_state
-        return self.checkpointer.save(step, last_step=last_step)
+        # A storage hiccup (fsync failing on a FUSE mount) used to end the run, and
+        # the step's partial folder would also break the next resume. Drop that
+        # folder and keep training: the previous checkpoint still stands. With
+        # async saves a background write fails at the next save's wait, so that
+        # wait runs first, on its own, to tell whose write failed.
+        should_save = self.checkpointer._should_save(step, last_step=last_step)
+        if should_save and self._pending_save_step is not None:
+            try:
+                self.checkpointer.maybe_wait_for_saving()
+                self._failed_saves = 0
+            except (OSError, CheckpointException) as e:
+                self.checkpointer.save_future = None
+                self._drop_failed_save(self._pending_save_step, e)
+            self._pending_save_step = None
+        try:
+            saved = self.checkpointer.save(step, last_step=last_step)
+        except (OSError, CheckpointException) as e:
+            self.checkpointer.save_future = None
+            self._drop_failed_save(step, e)
+            if last_step:
+                raise
+            return False
+        if saved and self.checkpointer.save_future is not None:
+            self._pending_save_step = step
+        elif saved:
+            self._failed_saves = 0
+        return saved
+
+    def _drop_failed_save(self, step: int, error: BaseException) -> None:
+        """Remove a failed save's folder; three failures in a row still raise."""
+        self._failed_saves += 1
+        path = self.checkpointer._create_checkpoint_id(step)
+        logger.warning(
+            f"checkpoint save of step {step} failed ({self._failed_saves} in a row): "
+            f"{error!r}; removing {path} and continuing"
+        )
+        if torch.distributed.get_rank() == 0:
+            shutil.rmtree(path, ignore_errors=True)
+        if self._failed_saves >= 3:
+            raise error
 
     @endpoint
     @sl.log_trace_span("push_model_state_dict")

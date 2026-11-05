@@ -37,7 +37,7 @@ from torchtitan.experiments.rl.controller import (
     ValidationConfig,
 )
 from torchtitan.experiments.rl.examples.search_r1.rollouter import SearchR1Rollouter
-from torchtitan.experiments.rl.losses import DAPOLoss
+from torchtitan.experiments.rl.losses import DAPOLoss, ScoreCenteringLoss
 from torchtitan.experiments.rl.models.cast_linear import LMHeadCastConverter
 from torchtitan.experiments.rl.models.vllm_registry import InferenceParallelismConfig
 from torchtitan.experiments.rl.observability.metrics import MetricsProcessor
@@ -277,3 +277,33 @@ def rl_grpo_qwen3_5_9b_search_r1_unified_prefix() -> Controller.Config:
         enable_prefix_caching=True,
     )
     return config
+
+
+def _qwen3_5_9b_search_r1_sc_ablate(*, score_centering: bool) -> Controller.Config:
+    """Score-centering ablation on the Qwen3.5-9B GDN Search-R1 recipe.
+
+    Off-policy window 8 (the recipe's default is 3). Both arms train the same
+    TIS-weighted policy gradient in place of DAPO; the SC arm also asks the
+    sampler for its top-k and subtracts the expected score (arXiv 2609.20807).
+    The held-out NQ-500 eval still runs every 25 steps.
+    """
+    config = rl_grpo_qwen3_5_9b_search_r1()
+    config.async_loop.max_offpolicy_steps = 8
+    config.trainer.loss = dataclasses.replace(
+        config.trainer.loss, loss_fn=ScoreCenteringLoss.Config(weight="tis")
+    )
+    if score_centering:
+        config.generator.sampling = dataclasses.replace(
+            config.generator.sampling, num_topk_logprobs=32
+        )
+    return config
+
+
+def rl_qwen3_5_9b_search_r1_sc_ablate_tis() -> Controller.Config:
+    """Score-centering ablation, TIS arm."""
+    return _qwen3_5_9b_search_r1_sc_ablate(score_centering=False)
+
+
+def rl_qwen3_5_9b_search_r1_sc_ablate_sc_tis() -> Controller.Config:
+    """Score-centering ablation, SC + TIS arm."""
+    return _qwen3_5_9b_search_r1_sc_ablate(score_centering=True)

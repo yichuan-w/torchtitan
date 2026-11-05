@@ -8,6 +8,8 @@
 
 from __future__ import annotations
 
+import dataclasses
+
 from torchtitan.components.checkpoint import CheckpointManager
 from torchtitan.components.loss import ChunkedLossWrapper
 from torchtitan.components.lr_scheduler import LRSchedulersContainer
@@ -28,7 +30,7 @@ from torchtitan.experiments.rl.controller import (
 from torchtitan.experiments.rl.environment import TokenEnv
 from torchtitan.experiments.rl.examples.dapo_math.data import AIME2025Dataset
 from torchtitan.experiments.rl.examples.dapo_math.rollouter import DapoMathRollouter
-from torchtitan.experiments.rl.losses import DAPOLoss
+from torchtitan.experiments.rl.losses import DAPOLoss, ScoreCenteringLoss
 from torchtitan.experiments.rl.models.cast_linear import LMHeadCastConverter
 from torchtitan.experiments.rl.models.vllm_registry import InferenceParallelismConfig
 from torchtitan.experiments.rl.observability.metrics import MetricsProcessor
@@ -159,3 +161,60 @@ def rl_dapo_qwen3_4b_math_32k() -> Controller.Config:
         max_total_tokens=34816,
         dump_folder="outputs/rl/qwen3_4b_dapo_math_32k",
     )
+
+
+def _qwen3_4b_math_8k_stale(
+    *, score_centering: bool, num_generators: int = 2
+) -> Controller.Config:
+    """TP=2 trainer with a deep off-policy window, for the score-centering A/B
+    (two generators = half a node by default). Both arms train the same
+    TIS-weighted policy gradient; the SC arm also asks the sampler for its top-k
+    and subtracts the expected score (arXiv 2609.20807), so the centering term
+    is the only difference."""
+    arm = "sc_tis" if score_centering else "tis"
+    config = _qwen3_4b_dapo_math_config(
+        max_response_tokens=8192,
+        max_total_tokens=10240,
+        dump_folder=f"outputs/rl/qwen3_4b_math_8k_stale_{arm}",
+    )
+    config.num_generators = num_generators
+    config.async_loop.max_offpolicy_steps = 8
+    config.trainer.loss = dataclasses.replace(
+        config.trainer.loss, loss_fn=ScoreCenteringLoss.Config(weight="tis")
+    )
+    if score_centering:
+        config.generator.sampling = dataclasses.replace(
+            config.generator.sampling, num_topk_logprobs=32
+        )
+    return config
+
+
+def rl_qwen3_4b_math_8k_stale_tis() -> Controller.Config:
+    """Score-centering A/B baseline: TIS policy gradient, off-policy window 8."""
+    return _qwen3_4b_math_8k_stale(score_centering=False)
+
+
+def rl_qwen3_4b_math_8k_stale_sc_tis() -> Controller.Config:
+    """Score-centering A/B: TIS policy gradient plus score centering (k=32)."""
+    return _qwen3_4b_math_8k_stale(score_centering=True)
+
+
+def _qwen3_4b_math_8k_sc_ablate(*, score_centering: bool) -> Controller.Config:
+    """Full-node score-centering ablation with a running eval: six generators,
+    200 steps, AIME 2025 avg@8 at temperature 1 every 25 steps."""
+    config = _qwen3_4b_math_8k_stale(score_centering=score_centering, num_generators=6)
+    config.async_loop.num_training_steps = 200
+    config.async_loop.validation = ValidationConfig(
+        num_samples=30, interval=25, group_size=8, temperature=1.0
+    )
+    return config
+
+
+def rl_qwen3_4b_math_8k_sc_ablate_tis() -> Controller.Config:
+    """Score-centering ablation, TIS arm."""
+    return _qwen3_4b_math_8k_sc_ablate(score_centering=False)
+
+
+def rl_qwen3_4b_math_8k_sc_ablate_sc_tis() -> Controller.Config:
+    """Score-centering ablation, SC + TIS arm."""
+    return _qwen3_4b_math_8k_sc_ablate(score_centering=True)

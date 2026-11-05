@@ -65,7 +65,16 @@ class TerminalUnavailable(RuntimeError):
 class TerminalLifecycle:
     def __init__(self, execute: Any) -> None:
         self.execute = execute
-        self.directory = f"/var/tmp/terminus-{uuid.uuid4().hex}"
+        # TT_NEUTRAL_TMUX: run the server as `tmux-session` from a tmux-* dir.
+        # Its default title "tmux: server" fell to the agent's `pkill server`
+        # on tasks with their own `server`, and security tasks deleted the
+        # terminus-* dir as suspicious (run 111e: 27 and 42 rollouts).
+        neutral = os.environ.get("TT_NEUTRAL_TMUX", "1") == "1"
+        prefix = "tmux" if neutral else "terminus"
+        self.directory = f"/var/tmp/{prefix}-{uuid.uuid4().hex}"
+        # Linux tmux titles its server "<argv0 name>: server" cut to 15 bytes at
+        # a space, so a 12-character name drops "server" from it.
+        self.server_link = f"{self.directory}/tmux-session" if neutral else ""
         self.prepared = False
         self.session: str | None = None
         self.server_pid = ""
@@ -75,6 +84,9 @@ class TerminalLifecycle:
         self.pane_starttime = ""
         self.events: list[dict] = []
         self.isolated = False
+        # How the harness runs its tmux clients once pinned (see pin_tmux); ""
+        # runs whatever `tmux` the sandbox's PATH and library cache resolve.
+        self.tmux_command = ""
 
     def _event(self, kind: str, **details: Any) -> None:
         self.events.append({"time": time.time(), "kind": kind, **details})
@@ -93,7 +105,45 @@ class TerminalLifecycle:
         # The comm field in /proc/PID/stat can contain spaces and parentheses.
         return f"sed 's/.*) //' /proc/{self.server_pid}/stat | cut -d ' ' -f 20"
 
+    async def pin_tmux(self) -> None:
+        """Run the harness's tmux clients from a private copy.
+
+        Every key delivery and observation starts a new tmux client by bare
+        name, through the PATH and library cache the agent is free to change: a
+        task that builds tmux, ncurses or libevent into /usr/local (or removes
+        the system package) leaves the next client unable to start --
+        ``libncurses.so.6: cannot open shared object file`` or ``undefined
+        symbol: tiparm_s`` -- while the server and the agent's work are fine,
+        and the rollout was masked as infra (10 of 120 attempts at one 1026b
+        task). The binary that started the server, its shared libraries and its
+        dynamic loader are copied into the private directory, and clients run
+        through that loader with ``--library-path``, which sets no environment
+        the pane could inherit. Never raises: without ldd, a loader or room to
+        copy, clients run as before.
+        """
+        if os.environ.get("TT_PIN_TMUX", "1") != "1":
+            return
+        pinned = f"{self.directory}/tmux"
+        d = shlex.quote(pinned)
+        result = await self.execute(
+            f"t=$(command -v tmux) && command -v ldd >/dev/null 2>&1 && "
+            f"mkdir -p {d} && cp -L \"$t\" {d}/tmux && "
+            f"for f in $(ldd \"$t\" | grep -o '/[^ ]*'); do "
+            f"cp -L \"$f\" {d}/ || exit 1; done && "
+            f"l=$(ls {d}/ld-*.so* 2>/dev/null | head -n 1) && [ -n \"$l\" ] && "
+            f"\"$l\" --library-path {d} {d}/tmux -V >/dev/null && echo \"$l\""
+        )
+        loader = (result.stdout or "").strip().splitlines()[-1:] or [""]
+        if result.return_code or not loader[0].startswith(pinned + "/ld-"):
+            self._event("tmux_pin_unavailable", return_code=result.return_code)
+            return
+        self.tmux_command = shlex.join(
+            [loader[0], "--library-path", pinned, f"{pinned}/tmux"]
+        )
+        self._event("tmux_pinned")
+
     async def bind(self, session: str) -> None:
+        await self.pin_tmux()
         target = shlex.quote(session)
         result = await self.execute(
             f"tmux set-option -t {target} remain-on-exit on && "

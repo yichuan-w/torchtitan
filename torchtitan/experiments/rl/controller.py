@@ -209,6 +209,10 @@ def _should_drop_group_at_batcher(*, group_age: int, max_offpolicy_steps: int) -
     return group_age > max_offpolicy_steps
 
 
+# Share of completed groups the batcher dropped as past the policy-age limit.
+_STALE_DROP_FRAC = "rollout_buffer/stale_drop_frac"
+
+
 @dataclass(kw_only=True, slots=True)
 class ValidationConfig:
     """Held-out validation that runs at the start and end of training, and
@@ -872,8 +876,11 @@ class Controller(Configurable):
         self._eval_guard_failures = 0
         # In-flight background validation pass (validation.run_async); None = idle.
         self._validation_task: asyncio.Task | None = None
-        # A pass that came due while one was in flight (defer_busy_passes).
+        # A pass that came due while one was in flight (defer_busy_passes), or whose
+        # step's eval pull did not happen (see _start_async_validation).
         self._validation_deferred = False
+        # Policy version the eval generators last pulled; None until the first pull.
+        self._eval_generator_policy_version: int | None = None
         # Trace reports written outside their pass (trace_report_in_background).
         self._trace_report_tasks: set[asyncio.Task] = set()
         # Set once an optimizer step has had a nonzero gradient (or on resume,
@@ -1548,7 +1555,7 @@ class Controller(Configurable):
             await training_pull
             return
         # Concurrent: the eval pull must not add its latency to the training step.
-        await asyncio.gather(
+        _, eval_pulled = await asyncio.gather(
             training_pull,
             self._guard_eval_generators(
                 lambda: self.eval_generator_router.pull_model_state_dict(
@@ -1557,6 +1564,8 @@ class Controller(Configurable):
                 what=f"eval generator weight pull at version {policy_version}",
             ),
         )
+        if eval_pulled:
+            self._eval_generator_policy_version = policy_version
 
     # TODO: fold validation into a Validator(Configurable) the controller attaches, instead of 4 methods.
     async def _run_validation_group(
@@ -1735,6 +1744,8 @@ class Controller(Configurable):
             self._sampling,
             temperature=validation.temperature,
             top_p=validation.top_p,
+            # Validation never trains, so it has no use for the top-k.
+            num_topk_logprobs=0,
             **(
                 {}
                 if validation.max_tokens is None
@@ -2089,6 +2100,7 @@ class Controller(Configurable):
                 await self.eval_generator_router.pull_model_state_dict(
                     policy_version=self._trainer_policy_version
                 )
+            self._eval_generator_policy_version = self._trainer_policy_version
         # Label the pass with the version actually reached, not the requested step
         # count: the loop also exits early when the batcher drains.
         post_validation = await self._validate_and_log(
@@ -2261,6 +2273,31 @@ class Controller(Configurable):
             self.metrics_processor.log(
                 step=step,
                 metrics=[m.Metric("validation/skipped", m.Sum(1.0))],
+                is_validation=True,
+                commit=True,
+            )
+            return
+        # The step's eval pull is skipped while a pass is in flight, and that pass
+        # can finish between the pull and this call (the checkpoint save sits in
+        # between), so the eval generators may still hold an older version. Scoring
+        # them here would label old weights with this step. Defer instead: the next
+        # step starts with no pass in flight, so its pull includes the eval
+        # generators and the pass runs on that step's weights.
+        if (
+            self.eval_generator_router is not None
+            and self._eval_generator_policy_version != step
+        ):
+            logger.warning(
+                "step %d: eval generators hold policy version %s, not %d; "
+                "deferring validation to the next step's weight pull",
+                step,
+                self._eval_generator_policy_version,
+                step,
+            )
+            self._validation_deferred = True
+            self.metrics_processor.log(
+                step=step,
+                metrics=[m.Metric("validation/stale_weights_deferred", m.Sum(1.0))],
                 is_validation=True,
                 commit=True,
             )
@@ -2790,7 +2827,8 @@ class Controller(Configurable):
                                 m.Metric(
                                     "rollout_buffer/num_groups_dropped_stale",
                                     m.Sum(1.0),
-                                )
+                                ),
+                                m.Metric(_STALE_DROP_FRAC, m.Mean(1.0)),
                             ],
                         )
                     )
@@ -2800,8 +2838,15 @@ class Controller(Configurable):
                 training_sample_group = training_sample_builder.build_from_group(
                     rollout_group=rollout_group
                 )
+                # Every group past the staleness check counts toward the drop
+                # rate, trainable or not, so the rate is over all completed groups.
                 training_sample_group = replace(
-                    training_sample_group, lineage=rollout_group.lineage
+                    training_sample_group,
+                    lineage=rollout_group.lineage,
+                    metrics=[
+                        *training_sample_group.metrics,
+                        m.Metric(_STALE_DROP_FRAC, m.Mean(0.0)),
+                    ],
                 )
 
             if not training_sample_group.training_samples:

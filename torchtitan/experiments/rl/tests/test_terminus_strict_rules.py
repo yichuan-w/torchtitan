@@ -180,6 +180,22 @@ def test_opening_rule_still_counts_warning_only_turns_as_opening():
     assert (llm.violation, llm.violation_turn) == ("format", 2)
 
 
+def test_format_streak_limit_ends_a_run_of_unusable_turns():
+    """Five unusable turns in a row end the episode, warning-only ones included;
+    a usable turn resets the count."""
+    llm = _llm()
+    parser = _CountingParser(SafeTerminusXMLParser(), llm=llm, format_streak_limit=5)
+    replies = [REJECTED["plain_text"]] * 4 + [VALID]
+    replies += [WARNING_ONLY["empty_commands"], REJECTED["plain_text"]] * 2
+    for reply in replies:
+        llm.calls += 1
+        parser.parse_response(reply)
+    assert llm.violation is None
+    llm.calls += 1
+    parser.parse_response(REJECTED["plain_text"])
+    assert (llm.violation, llm.violation_turn) == ("format", 10)
+
+
 def test_reparsing_a_capped_turn_is_left_to_the_truncation_rule():
     """Lenient truncation re-parses the capped text for warnings; that is not a
     rejected turn of its own, even with the format rule on."""

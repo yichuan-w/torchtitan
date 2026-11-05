@@ -15,6 +15,53 @@ when it was unfair. Of eight hardened tasks reviewed that a policy failed 16 of
 make that mistake, because you cannot see the vocabulary; write the checks an
 agent could satisfy having read only what you can read.
 
+## What this revision may change in the verifier
+
+The student was measured on the previous revision, graded by the inherited
+verifier, and that measurement is why this revision exists. A requirement the
+instruction did not change is graded the way the student was measured: keep its
+inherited check at the same strictness -- the same tolerance, the same equality
+or containment, the same artifacts examined, the same way of running the
+program. Making a retained check stricter (an exact value where it was
+approximate, a rerun on fresh inputs where it checked the artifact, an
+inspection of source code, a new boundary case, an exact format) changes the
+task's difficulty through a grader the student cannot read: an easier revision
+turns harder, and a harder one fails for a reason its instruction never states.
+In one audited batch, 79 of the 82 easier rewrites judged unfair or broken had
+every confirmed defect in checks the verifier author added this way, not in the
+change the rewrite made. Loosen a retained check only where it rejects a
+representation the instruction permits, and change one otherwise only for a
+defect the rewriter reported (`run/reported-defects.json`, when present) or for
+the defect below.
+
+Same strictness never keeps a check that checks nothing, and repairing one
+never invents an interface. Grade the untouched workspace and, where the task
+has a deliverable, an empty or no-op one in the container. If an inherited check
+passes it, that check is a defect, whether or not anyone reported it. The one
+repair you may make is to check the value of a deliverable the instruction
+already states, compared by the property the instruction states for it. Compare
+exactly only where the instruction determines that value uniquely; where it
+allows a range of answers (a quantity it leaves vague, a choice it leaves open),
+keep the inherited range or property check and add a check that rejects the
+no-op submission itself, so the no-op becomes its counterexample. Record the
+repair in `run/verifier-changes.md` with the no-op submission that passed.
+
+If blocking the no-op would need anything the instruction does not state -- an
+invocation of the student's program, a path, an argument, a rerun on new
+inputs, a file it must write -- do not invent it. Write `BLOCKED: <the check a
+no-op passes, and the interface the instruction would have to state to check the
+work>` to `run/verdict.txt` and stop: the task's author states that interface in
+the instruction, and the verifier is written again against it. In audited
+rewrites, a rule that let this repair compare "the value the work produces"
+however it could produced 26 of 41 defects: the verifier reran the student's
+program through an invocation the instruction never states, or tightened a vague
+quantity into an exact value, and a correct solution failed.
+
+Write or change checks for what the revision changed: the clauses the
+instruction diff adds or rewrites, and the reported defects. Everything below
+about how to write a check applies to those checks. When the instruction did not
+change, the inherited verifier stays as it is unless a reported defect names it.
+
 Your working directory is the task package with the solution removed.
 Use only this package as task evidence. Do not search or read sibling tasks,
 prior experiment outputs, campaign files, or other sessions to recover withheld
@@ -29,14 +76,15 @@ solutions or examples. Public tool documentation remains available.
 | `tests/test_state.py` or `tests/test.sh` | the previous revision's verifier, the one the task had before this change (whoever changed the task may have drafted a checker; you are not shown it). Yours replaces it: keep every inherited check whose requirement remains in the instruction, correct or remove one whose requirement changed or went, and add what the new requirement needs. |
 | `run/seed_size.json` | the seed verifier's assertion count. Yours may exceed it by at most 5. |
 | `run/resources.json` | the box the container opens at |
+| `run/checked-behaviours.json` | when present: in words, behaviours the task's author checked against its solution with a scratch checker you are not shown, each with the instruction sentence it rests on, quoted verbatim. Each entry needs a check in your verifier, no stricter than its quoted sentence; your prompt says how. |
 | anything else | the rest of the real package: entrypoints, fixtures, `task.toml` |
 
 Before opening the inherited verifier, read `instruction.md` and list its
 required outcomes in `run/verifier-changes.md`. Mark which omissions would leave
 the task unsolved, including explicitly required intermediate artifacts. Keep
 method, format and packaging constraints distinct, and enforce them when the
-public contract requires them. Then inspect the environment and inherited tests;
-do not downgrade a requirement because the old verifier omitted it.
+public contract requires them. Then inspect the environment and inherited tests,
+and mark which requirements this revision changed.
 
 Edit the verifier in place and save replay controls under `run/verifier-probes/`.
 Write `run/verifier-changes.md` as you go: one line per inherited check you kept,
@@ -83,7 +131,24 @@ and explores the container. Concretely:
   spelled the same, in `instruction.md` or in a file under `environment/` that the
   instruction points at.** Where the instruction leaves a name open, check the
   value instead: a report line that contains the commit's SHA, whichever label it
-  is under; a field equal to the file's SHA-256, whichever key holds it.
+  is under; a field equal to the file's SHA-256, whichever key holds it. The same
+  holds for wording: where the instruction asks for a free-text report, log or
+  note, check the facts it must state, never a phrase, keyword or layout the
+  instruction does not give.
+- **Advice is not a requirement.** A sentence the revision adds about how to
+  work -- a suggested order or stage, where to look, which tool may help, a
+  check to run -- helps the student and adds nothing to grade: test the outcome
+  the instruction asks for, never whether the advice was followed. Only a
+  sentence that states what the result must be is a requirement.
+- **These two rules shape checks you write; they never license weakening one.**
+  An inherited check of a retained requirement stays as strong as it was: if
+  it demands phrasing the instruction does not give, replace it with a check of
+  the same fact, never delete it. When a reported defect removes a hidden
+  requirement, the check that replaces it must still need the work the task
+  asks for -- a value only doing the work produces, compared exactly or within
+  the stated tolerance -- never a range, a non-empty file or a count that a
+  trivial or copied output also passes. In audited rewrites, checks loosened
+  this way let a student pass without doing the work.
 - **Keep every existing test that still holds under the new instruction.** Remove
   a check only when its requirement was removed or relaxed in the public task;
   simplification does not permit dropping checks for retained requirements.
@@ -113,8 +178,8 @@ and explores the container. Concretely:
   user to.
 
 Complete the initial requirements list with the check of each promised behavior
-or result and the source of its expected answer, including requirements the old
-verifier missed. Do not treat existence, shape or a source-code keyword as proof
+or result and the source of its expected answer: the inherited check for a
+retained requirement, your check for a changed one. Do not treat existence, shape or a source-code keyword as proof
 that a required operation was performed. For supplied-data tasks, derive
 expectations from the original fixture or expected values prepared before solver
 execution and supplied with the grader. Never use solver-writable replacement
@@ -197,7 +262,7 @@ task asks only for a final artifact or state, check that result without inventin
 a requirement to save a script. Accept alternative paths, formats and implementations
 wherever the public task leaves them open.
 
-Cover valid boundary cases of both retained and changed requirements. For reusable
+Cover valid boundary cases of the changed requirements. For reusable
 programs, test empty inputs when permitted and nonempty inputs with no qualifying
 results; these exercise different behavior. In each case, check retained output
 requirements, such as required headers or schema even when there are no records.
@@ -215,8 +280,8 @@ incidental machine load, network availability or scheduling. Use timing or exter
 services as acceptance conditions only when the public task requires them; keep
 ordinary hang-prevention timeouts separate from correctness checks.
 
-Before finishing, inspect whether a no-op, a hardcoded answer or fabricated evidence
-could still pass, and whether an equivalent legal solution could fail. Choose examples
+Before finishing, inspect whether a no-op or fabricated evidence could still pass
+(and, for an explicitly required reusable program, a hardcoded answer), and whether an equivalent legal solution could fail. Choose examples
 relevant to this task. In your final response, identify one concrete incorrect solution
 and the check that rejects it, and one legal alternative the checks allow; distinguish
 code inspection from executed tests. Keep the existing sandbox checks and job limits.
@@ -256,7 +321,8 @@ verifier that was never run against a real container is a guess.
 
 Save your public-instruction-only solution as `run/verifier-probes/correct.sh`:
 a shell script that completes the task from a fresh environment. Split the
-changed requirement into its independently falsifiable clauses. For each clause,
+changed requirement into its independently falsifiable clauses; a retained
+requirement keeps the inherited check and needs no new control. For each clause,
 save `wrong-1.sh`, `wrong-2.sh`, and so on: each script produces a nonempty,
 well-formed result but violates that clause alone. Check every clause of the
 changed dependency, including its validity conditions, rather than stopping
