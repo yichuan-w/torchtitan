@@ -68,7 +68,9 @@ def test_stage_picks_newest_in_band_groups_and_skips_the_current_task(tmp_path):
     traces = tmp_path / "traces"
     n = pc.stage(root, "self", traces, {"run": RUN})
     assert n == 3
-    index = json.loads((traces / "peers" / "index.json").read_text())
+    staged = json.loads((traces / "peers" / "index.json").read_text())
+    assert staged["root"] == str(root.path)
+    index = staged["peers"]
     assert [(p["task"], p["group"], p["solved"], p["total"]) for p in index] == [
         ("p1", 47, 4, 12), ("p2", 46, 8, 12), ("p3", 45, 3, 12)]
     p1 = traces / "peers" / "peer-1"
@@ -95,9 +97,19 @@ def test_stage_count_is_capped(tmp_path):
     assert pc.stage(root, "self", tmp_path / "traces", {"run": RUN}) == pc.PEER_COUNT
 
 
+def test_no_peers_still_stages_the_root_pointer(tmp_path):
+    root = layout.Root(tmp_path)
+    traces = tmp_path / "traces"
+    assert pc.stage(root, "self", traces, {"run": RUN}) == 0
+    assert json.loads((traces / "peers" / "index.json").read_text()) == {
+        "root": str(root.path), "peers": []}
+    text = pc.prompt(traces)
+    assert "WHERE THE STUDENT STANDS NOW" not in text
+    assert f"The whole experiment root is at {root.path}." in text
+
+
 def test_stage_never_raises(tmp_path):
     root = layout.Root(tmp_path)
-    assert pc.stage(root, "self", tmp_path / "traces", {"run": RUN}) == 0
     assert pc.stage(root, "self", tmp_path / "traces", {}) == 0  # no run: logged, skipped
     assert not (tmp_path / "traces" / "peers").exists()
 
@@ -115,11 +127,16 @@ def test_long_commands_are_cut(tmp_path):
 def test_prompt_lists_the_staged_peers(tmp_path):
     assert pc.prompt(tmp_path) == ""
     (tmp_path / "peers").mkdir()
-    (tmp_path / "peers" / "index.json").write_text(json.dumps(
-        [{"dir": "traces/peers/peer-1", "solved": 5, "total": 12, "group": 47}]))
+    (tmp_path / "peers" / "index.json").write_text(json.dumps({"root": "/r", "peers": [
+        {"dir": "traces/peers/peer-1", "solved": 5, "total": 12, "group": 47}]}))
     text = pc.prompt(tmp_path)
     assert "WHERE THE STUDENT STANDS NOW" in text
     assert "- traces/peers/peer-1/: 5 of 12 solved (group 47)" in text
+    assert "- /r/runs/<run>/rollouts/<task>/g<group>-r<idx>.jsonl" in text
+    assert "- /r/evolution/tasks/<task>/rewrites/<stamp>--<job>/" in text
+    assert "never scan it" in text
+    (tmp_path / "peers" / "index.json").write_text("[]")  # the old shape: nothing
+    assert pc.prompt(tmp_path) == ""
 
 
 # -- wiring: the loop stages it under the flag, the author prompt reads it ---
@@ -159,20 +176,35 @@ def test_loop_stages_peers_only_under_the_flag(tmp_path, monkeypatch, flag):
         assert seen == [None]
         return
     [index] = seen
-    assert [(p["task"], p["solved"], p["total"]) for p in index] == [("tw_peer", 6, 12)]
+    assert index["root"] == str(root.path)
+    assert [(p["task"], p["solved"], p["total"]) for p in index["peers"]] == [
+        ("tw_peer", 6, 12)]
+
+
+ROOT_MARK = "/peer-context-root-marker"
 
 
 @pytest.mark.parametrize("job", ["harder", "easier"])
-def test_author_prompt_carries_the_peers_paragraph(tmp_path, monkeypatch, job):
+def test_only_the_author_prompt_names_the_root(tmp_path, monkeypatch, job):
+    """The blind verifier is kept from the root (and other rewrites' solutions)
+    only by never being told where it is: the paragraph must not reach it."""
     rw = tb._rewrite(tmp_path, monkeypatch)
     sessions = []
     tb._wire(monkeypatch, sessions, [])
     monkeypatch.setattr(ec.so, "read_decision", lambda *_: {"operator": "x"})
     (rw.traces / "peers").mkdir(parents=True)
-    (rw.traces / "peers" / "index.json").write_text(json.dumps(
-        [{"dir": "traces/peers/peer-1", "solved": 5, "total": 12, "group": 47}]))
+    (rw.traces / "peers" / "index.json").write_text(json.dumps({"root": ROOT_MARK, "peers": [
+        {"dir": "traces/peers/peer-1", "solved": 5, "total": 12, "group": 47}]}))
     try:
         ec.evolve_agentic(rw, dict(tb.SEED), job)
-    except Exception:  # noqa: BLE001 -- only the author's prompt is under test
+    except Exception:  # noqa: BLE001 -- only the prompts are under test
         pass
-    assert "WHERE THE STUDENT STANDS NOW" in sessions[0]["prompt"]
+    authors = [s for s in sessions if s["role"] == "author"]
+    verifiers = [s for s in sessions if s["role"] == "verifier"]
+    assert authors and verifiers
+    assert "WHERE THE STUDENT STANDS NOW" in authors[0]["prompt"]
+    assert f"The whole experiment root is at {ROOT_MARK}." in authors[0]["prompt"]
+    for v in verifiers:
+        assert ROOT_MARK not in v["prompt"]
+        assert "THE REST OF THE EXPERIMENT" not in v["prompt"]
+        assert "WHERE THE STUDENT STANDS NOW" not in v["prompt"]
