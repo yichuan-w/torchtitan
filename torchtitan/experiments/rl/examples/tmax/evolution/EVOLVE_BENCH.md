@@ -403,3 +403,27 @@ task.
   counted.
 - The auditors and verifiers are models: rates move with the auditor model and
   are comparable only between arms audited in one batch with one rubric.
+
+## The 122B student on a local GPU host (#319)
+
+`train-111c-122b` is the 122B runs' training rollout (111c, kept by 111e and
+114): k=12, `max_model_len` 92160 with the agent stopping at 90112, 150
+Terminus turns, 2400 s for a row that declares nothing, the della-style
+context notice at half the window, strict opening, format-streak 5,
+unsubmitted attempts 0. `bench_local_eval.py` scores an evalset under it
+against a locally served student (vLLM's OpenAI server), with the harness of
+the checkout on `PYTHONPATH`, and writes the eval directory `tally`, `freeze
+--eval` and `compare` read; `launch.json` records the checkpoint, the student
+checkout's commit, the GPUs and the serving layout. `--stop-on-fail` (for
+screening a slice whose members must solve every attempt) stops issuing a
+task's attempts once one fails, and is recorded.
+
+`freeze --reference-first-group <run>` adds that run's rev-0 first groups that
+solved inside `--reference-band` (3-8 of 12 by default) to the set's run as
+reference-only records (`reference.json`, no signal); `offline_stage.py`
+stages them beside the signals, so `EVOLVE_PEER_CONTEXT` finds in-band peers
+in the signal's run as it does in training.
+
+`audit-run --runner codex --codex-bin <codex> --api-base <responses endpoint>`
+runs the auditor and verifier through `codex exec` in its read-only sandbox,
+the rubric ahead of the prompt, for a model without Bedrock access.

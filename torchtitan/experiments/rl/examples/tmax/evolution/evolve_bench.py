@@ -127,6 +127,45 @@ STUDENT_RECIPES = {
         # bake tmux into each row's Dockerfile.
         "SWE_TB2_BAKE_TMUX": "0",
     },
+    # The 122B runs' training rollout (111c, kept by 111e and 114: env_122b_114.sh
+    # and submit_tmax122b_114.sh): groups of 12, 92160 context with the agent
+    # stopping at 90112, 150 Terminus turns, 2400 s for a row that declares
+    # nothing (max(declared, 5400) for one that does), the della-style context
+    # notice at half the window, strict opening, format-streak 5, unsubmitted
+    # attempts 0, rows as they are. Scored by bench_local_eval.py against a
+    # locally served student (#319).
+    "train-111c-122b": {
+        **_COMMON,
+        "TMAX_TERMINUS_MAX_TURNS": "150",
+        "TMAX_CALL_LIMIT": "150",
+        "TT_DAYTONA_CPU": "2",
+        "TT_DAYTONA_MEM_GB": "4",
+        "TT_DAYTONA_DISK_GB": "10",
+        "SWE_TB2_VAL_K": "12",
+        "SWE_TMAX_CONTEXT": "92160",
+        "SWE_MAX_CONTEXT_LEN": "90112",
+        "TMAX_TURN_MAX_TOKENS": "16384",
+        "SWE_EVAL_TIME_BUDGET_SEC": "2400",
+        "SWE_EVAL_BUDGET_FLOOR_SEC": "5400",
+        "SWE_TIME_BUDGET_SEC": "2400",
+        "SWE_AGENT_TIMEOUT_FLOOR_SEC": "5400",
+        "TMAX_EVAL_TIMEOUT_SEC": "600",
+        "SWE_EVAL_MAX_TURNS": "0",
+        "SWE_EVAL_MAX_CONTEXT_LEN": "0",
+        "SWE_EVAL_AGENT_BUDGET_CAP_SEC": "0",
+        "SWE_EVAL_VERIFIER_BUDGET_CAP_SEC": "0",
+        "SWE_EVAL_CONTEXT_NOTICE": "1",
+        "TMAX_CONTEXT_NOTICE_STYLE": "della",
+        "TMAX_CONTEXT_WARN_FRAC": "0.5",
+        "SWE_EVAL_GRADE_UNSUBMITTED": "0",
+        "TMAX_GRADE_UNSUBMITTED_TRAIN": "0",
+        "SWE_EVAL_SHADOW_GRADE_TIMEOUTS": "0",
+        "SWE_EVAL_STRICT_OPENING": "1",
+        "SWE_EVAL_STRICT_FORMAT": "0",
+        "SWE_EVAL_STRICT_TRUNCATION": "0",
+        "TMAX_FORMAT_STREAK_LIMIT": "5",
+        "SWE_TB2_BAKE_TMUX": "0",
+    },
     # What the repair342 and r100 evals and both arms of agentpick400-measured
     # ran: the eval path's own behaviour, a 65536 context (the code's default,
     # so unset here), 2400 s for rows that declare nothing.
@@ -514,6 +553,8 @@ def freeze(
     sources: list[Path],
     log: Log,
     recipe: str = DEFAULT_RECIPE,
+    reference_first_group: list[Path] | None = None,
+    reference_band: str = "3-8",
 ) -> Path:
     """Snapshot a signal selection as ``<bench>/sets/<name>/``.
 
@@ -535,6 +576,13 @@ def freeze(
     manifest pinning each of those by sha256, each task's seed package by a
     tree digest, and each task's before-measurement by its source.
     Everything is checked before anything is written.
+
+    ``reference_first_group`` (#319): training runs whose rev-0 first groups
+    that solved inside ``reference_band`` (lo-hi out of the recipe's k) go into
+    the set's run as reference-only groups: their records under rollouts/,
+    named in reference.json, with no signal. offline_stage.py stages them
+    beside the signals, so EVOLVE_PEER_CONTEXT finds in-band peers in the
+    signal's run as it does in training.
     """
     out = bench / "sets" / name
     if out.exists():
@@ -618,6 +666,15 @@ def freeze(
         del signals[tid]
         measured.pop(tid, None)
 
+    k = int(STUDENT_RECIPES[recipe]["SWE_TB2_VAL_K"])
+    lo, hi = (int(x) for x in reference_band.split("-"))
+    reference: dict[str, dict] = {}
+    for r in reference_first_group or []:
+        for tid, m in _measured_by_first_group(r, k).items():
+            if tid in signals or tid in reference or m["graded"] != k or not lo <= m["solved"] <= hi:
+                continue
+            reference[tid] = m
+
     dst = out / "runs" / name
     (dst / "signals").mkdir(parents=True)
     (dst / "rollouts").mkdir()
@@ -634,6 +691,17 @@ def freeze(
         directions[sig["direction"]] += 1
         log(f"task={tid} group={sig['group']} direction={sig['direction']} solved={sig['solved']}/{sig['total']} "
             f"records={len(records)} package={packages[tid]['source']}:{packages[tid]['tree_sha256'][:12]}")
+    ref_records: list[str] = []
+    for tid, m in sorted(reference.items()):
+        for rel, src in m["records"].items():
+            (dst / rel).parent.mkdir(parents=True, exist_ok=True)
+            os.link(src, dst / rel)
+            files[f"runs/{name}/{rel}"] = layout.sha256_file(dst / rel)
+            ref_records.append(rel)
+    if reference:
+        layout.write_json_atomic(dst / "reference.json", ref_records)
+        files[f"runs/{name}/reference.json"] = layout.sha256_file(dst / "reference.json")
+        log(f"reference groups={len(reference)} records={len(ref_records)} band={reference_band}")
     shutil.copy2(src_launch, dst / "launch.json")
     files[f"runs/{name}/launch.json"] = layout.sha256_file(dst / "launch.json")
     os.link(mix, out / "mix.jsonl")
@@ -681,6 +749,10 @@ def freeze(
                      | {"test_sh_sha256": hashlib.sha256(mm["test_sh"].encode()).hexdigest()}
                      for t, mm in sorted(measured.items()) if t in signals},
         "packages": packages,
+        "reference": {"first_group": [str(r.resolve()) for r in reference_first_group or []],
+                      "band": reference_band,
+                      "groups": {t: {kk: v for kk, v in mm.items() if kk not in ("records", "test_sh")}
+                                 for t, mm in sorted(reference.items())}} if reference else None,
         "files": files,
     }
     layout.write_json_atomic(out / "manifest.json", manifest)
@@ -2934,17 +3006,62 @@ def _audit_call(*, task_dir: Path, prompt: str, argv: list[str], credentials: di
     return _audit_json_reply(proc.stdout)
 
 
+def _codex_audit_argv(codex_bin: str, model: str, api_base: str) -> list[str]:
+    """The read-only Codex command for one call (`audit-run --runner codex`): the
+    model through an OpenAI-compatible Responses endpoint, Codex's read-only
+    sandbox, no user config, rules or session kept. The rubric goes ahead of the
+    task prompt, as Codex exec has no system-prompt file."""
+    return [
+        codex_bin, "exec", "--sandbox", "read-only", "--ephemeral", "--skip-git-repo-check",
+        "--ignore-user-config", "--ignore-rules",
+        "-c", "model_providers.responses.name=audit",
+        "-c", f"model_providers.responses.base_url={api_base}",
+        "-c", "model_providers.responses.env_key=OPENAI_API_KEY",
+        "-c", "model_providers.responses.wire_api=responses",
+        "-c", "model_provider=responses", "-c", "model_reasoning_effort=medium",
+        "-m", model,
+    ]
+
+
+def _codex_audit_call(*, task_dir: Path, prompt: str, argv: list[str], rubric: Path) -> tuple[dict, dict]:
+    with tempfile.TemporaryDirectory(prefix="evolve-bench-audit-") as raw_home:
+        home = Path(raw_home)
+        out = home / "last-message.txt"
+        env = {"PATH": "/usr/local/bin:/usr/bin:/bin", "HOME": str(home), "CODEX_HOME": str(home),
+               "OPENAI_API_KEY": os.environ.get("AUDIT_OPENAI_API_KEY", "local-proxy"),
+               "NO_PROXY": "127.0.0.1,localhost", "no_proxy": "127.0.0.1,localhost"}
+        full = f"{rubric.read_text()}\n\n---\n\n{prompt}"
+        proc = subprocess.run(
+            [*argv, "-C", str(task_dir), "-o", str(out), "-"], input=full, capture_output=True, text=True,
+            env=env, timeout=AUDIT_TIMEOUT_SEC, check=False,
+        )
+        if proc.returncode:
+            raise RuntimeError(f"codex exited {proc.returncode}: {(proc.stderr or proc.stdout)[-200:]}")
+        text = out.read_text().strip() if out.exists() else ""
+    m = re.search(r"tokens used\s*\n\s*([\d,]+)", proc.stdout + proc.stderr)
+    envelope = {"usage": {"total_tokens": int(m.group(1).replace(",", "")) if m else None}, "total_cost_usd": None}
+    text = re.sub(r"^```(?:json)?\s*|\s*```$", "", text)
+    payload = json.loads(text[text.find("{"): text.rfind("}") + 1])
+    if not isinstance(payload, dict):
+        raise ValueError("codex result is not a JSON object")
+    return payload, envelope
+
+
 def _audit_run_item(item: tuple, *, stage: str, argv: list[str], credentials: dict[str, str], region: str,
                     rubric_sha256: str, cli_version: str, log, log_lock: threading.Lock,
-                    verify_locks: dict[Path, threading.Lock]) -> bool:
+                    verify_locks: dict[Path, threading.Lock], rubric: Path | None = None) -> bool:
     task_dir, variant_dir, output, finding = item
     variant = variant_dir.name
     prompt = _audit_prompt(stage, variant, finding)
     for attempt in range(1, AUDIT_MAX_ATTEMPTS + 1):
         try:
-            payload, envelope = _audit_call(task_dir=task_dir, prompt=prompt, argv=argv,
-                                            credentials=credentials, region=region)
-            metadata = _audit_metadata(model=argv[argv.index("--model") + 1], cli_version=cli_version,
+            if rubric is not None:
+                payload, envelope = _codex_audit_call(task_dir=task_dir, prompt=prompt, argv=argv, rubric=rubric)
+            else:
+                payload, envelope = _audit_call(task_dir=task_dir, prompt=prompt, argv=argv,
+                                                credentials=credentials, region=region)
+            metadata = _audit_metadata(model=argv[argv.index("--model" if "--model" in argv else "-m") + 1],
+                                       cli_version=cli_version,
                                        rubric_sha256=rubric_sha256, argv=argv, envelope=envelope)
             if stage == "audit":
                 if not _valid_verdict(payload):
@@ -2972,8 +3089,9 @@ def _audit_run_item(item: tuple, *, stage: str, argv: list[str], credentials: di
     return False
 
 
-def audit_run(*, audit: Path, stage: str, model: str, concurrency: int, env_file: Path,
-              region: str, log: Log) -> dict[str, int]:
+def audit_run(*, audit: Path, stage: str, model: str, concurrency: int, env_file: Path | None,
+              region: str, log: Log, runner: str = "claude", codex_bin: str | None = None,
+              api_base: str | None = None) -> dict[str, int]:
     """Run one isolated, resumable audit or verification stage over a bundle."""
     if stage not in {"audit", "verify"}:
         raise SystemExit(f"unknown audit stage {stage}")
@@ -2984,17 +3102,27 @@ def audit_run(*, audit: Path, stage: str, model: str, concurrency: int, env_file
     rubric = audit / ("INSTRUCTIONS.md" if stage == "audit" else "VERIFY.md")
     if not rubric.is_file():
         raise SystemExit(f"missing {rubric}")
-    credentials = _audit_env_file(env_file)
-    with tempfile.TemporaryDirectory(prefix="evolve-bench-version-") as raw_home:
-        cli_env = _audit_env(credentials, region, Path(raw_home))
-        cli_version = _audit_cli_version(cli_env)
+    if runner == "codex":
+        if not codex_bin or not api_base:
+            raise SystemExit("--runner codex needs --codex-bin and --api-base")
+        credentials = {}
+        cli_version = "codex " + subprocess.run([codex_bin, "--version"], capture_output=True, text=True,
+                                                check=True).stdout.strip()
+    else:
+        if env_file is None:
+            raise SystemExit("--runner claude needs --env-file")
+        credentials = _audit_env_file(env_file)
+        with tempfile.TemporaryDirectory(prefix="evolve-bench-version-") as raw_home:
+            cli_env = _audit_env(credentials, region, Path(raw_home))
+            cli_version = _audit_cli_version(cli_env)
     rubric_sha256 = layout.sha256_file(rubric)
     manifest_path = audit / "audit_run.json"
     timestamp = datetime.datetime.now(datetime.timezone.utc).isoformat()
     manifest = {
         "model": model, "rubric_sha256": rubric_sha256, "cli_version": cli_version,
         "bench_commit": _bench_commit(), "stage": stage, "concurrency": concurrency,
-        "env_file": str(env_file.resolve()), "timestamp": timestamp,
+        "env_file": str(env_file.resolve()) if env_file else None, "runner": runner,
+        "api_base": api_base, "timestamp": timestamp,
     }
     if manifest_path.exists():
         old = json.loads(manifest_path.read_text())
@@ -3042,13 +3170,17 @@ def audit_run(*, audit: Path, stage: str, model: str, concurrency: int, env_file
     log_lock = threading.Lock()
     verify_locks = collections.defaultdict(threading.Lock)
     system_prompt_file = audit / ("INSTRUCTIONS.md" if stage == "audit" else "VERIFY.md")
-    argv = _audit_argv(model, system_prompt_file)
-    log(f"stage={stage} start items={len(items)} model={model} cli_version={cli_version}")
+    if runner == "codex":
+        argv = _codex_audit_argv(codex_bin, model, api_base)
+    else:
+        argv = _audit_argv(model, system_prompt_file)
+    log(f"stage={stage} start items={len(items)} model={model} cli_version={cli_version} runner={runner}")
     done = failed = 0
     with concurrent.futures.ThreadPoolExecutor(max_workers=concurrency) as pool:
         futures = [pool.submit(_audit_run_item, item, stage=stage, argv=argv, credentials=credentials,
                                region=region, rubric_sha256=rubric_sha256, cli_version=cli_version,
-                               log=log, log_lock=log_lock, verify_locks=verify_locks) for item in items]
+                               log=log, log_lock=log_lock, verify_locks=verify_locks,
+                               rubric=system_prompt_file if runner == "codex" else None) for item in items]
         for future in futures:
             if future.result():
                 done += 1
@@ -3134,6 +3266,10 @@ def main() -> None:
                    help="the student recipe the measurements were taken under")
     p.add_argument("--first-group", type=Path, nargs="*", default=[],
                    help="training runs measuring the rows (each task's first rev-0 group, first k graded attempts)")
+    p.add_argument("--reference-first-group", type=Path, nargs="*", default=[],
+                   help="training runs whose in-band rev-0 first groups go in as reference-only groups "
+                        "(EVOLVE_PEER_CONTEXT's peers), never signals")
+    p.add_argument("--reference-band", default="3-8", help="solved lo-hi out of the recipe's k")
     g = p.add_mutually_exclusive_group(required=True)
     g.add_argument("--release", type=Path, help="a data_release.py release: mix, sources and config")
     g.add_argument("--mix", type=Path, help="the seed mix the signals measured (with --sources)")
@@ -3216,7 +3352,11 @@ def main() -> None:
     p.add_argument("--stage", choices=("audit", "verify"), required=True)
     p.add_argument("--model", required=True)
     p.add_argument("--concurrency", type=int, required=True)
-    p.add_argument("--env-file", type=Path, required=True, help="Bedrock credentials; values are never logged")
+    p.add_argument("--env-file", type=Path, help="Bedrock credentials (--runner claude); values are never logged")
+    p.add_argument("--runner", choices=("claude", "codex"), default="claude",
+                   help="claude: claude -p on Bedrock; codex: codex exec, read-only sandbox, on --api-base")
+    p.add_argument("--codex-bin", help="--runner codex: the codex binary")
+    p.add_argument("--api-base", help="--runner codex: an OpenAI-compatible Responses endpoint")
     p.add_argument("--aws-region", "--region", dest="aws_region", default="us-east-1")
     p = sub.add_parser("audit-tally", help="unblind an audit into per-arm rates")
     p.add_argument("--audit", type=Path, required=True)
@@ -3233,10 +3373,10 @@ def main() -> None:
         if bool(a.run) == bool(a.eval or a.first_group):
             ap.error("give --run, or measurements (--eval / --first-group)")
         freeze(bench=a.bench, name=a.name, run=a.run, evals=a.eval, first_group=a.first_group, selected=a.selected,
-               recipe=a.recipe,
+               recipe=a.recipe, reference_first_group=a.reference_first_group, reference_band=a.reference_band,
                release=a.release, mix=a.mix, sources=a.sources, log=_log_for(a.bench, "freeze"))
     elif a.cmd == "run":
-        run_arm(bench=a.bench, set_name=a.set, arm_path=a.arm, log=_log_for(a.bench, "run"), workers=a.workers,
+        run_arm(bench=a.bench.resolve(), set_name=a.set, arm_path=a.arm, log=_log_for(a.bench, "run"), workers=a.workers,
                 before=a.before, every=a.every, minutes=a.minutes, eval_host=a.eval_host,
                 eval_gpus=a.eval_gpus, no_auto_eval=a.no_auto_eval)
     elif a.cmd == "pipeline":
@@ -3287,8 +3427,8 @@ def main() -> None:
                      log=_log_for(a.out.parent, "audit-bundle"))
     elif a.cmd == "audit-run":
         audit_run(audit=a.audit, stage=a.stage, model=a.model, concurrency=a.concurrency,
-                  env_file=a.env_file, region=a.aws_region,
-                  log=_log_for(a.audit, f"audit-run-{a.stage}"))
+                  env_file=a.env_file, region=a.aws_region, runner=a.runner, codex_bin=a.codex_bin,
+                  api_base=a.api_base, log=_log_for(a.audit, f"audit-run-{a.stage}"))
     elif a.cmd == "audit-tally":
         tallies = {s.split("=", 1)[0]: json.load(open(s.split("=", 1)[1])) for s in a.tallies}
         res = audit_tally(audit=a.audit, key=a.key, tallies=tallies)
