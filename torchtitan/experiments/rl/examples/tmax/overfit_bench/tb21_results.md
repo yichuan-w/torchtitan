@@ -82,7 +82,7 @@ in run 1030c solved it (#309). A box is ticked once the task is overfit (rule ab
 - [x] sqlite-db-truncate (base 0/74) - overfit at step 100
 - [ ] llm-inference-batching-scheduler (0/75) - paused at step 42 (160K/300 turns; node budget 8 from 2026-11-02 09:00)
 - [ ] mailman (0/70) - retired 2026-11-04 06:40 at step ~115 (~20 h): the original 0 in every training group and readout (steps 0-100), also after the switch to 160K at step 80; versions reached 8/12 but did not carry over
-- [ ] mteb-leaderboard (0/73) - queued
+- [ ] mteb-leaderboard (0/73) - paused 2026-11-05 14:30 (node budget cut to 6) at step 152 (`--teacherv4-gb300`, 160K / 120 turns); readouts 0/16 since step 80, original 24/2482 in training; format errors 45% of attempts at steps 140+; resumes from step-140
 - [x] overfull-hbox (0/75) - overfit at step ~54 (training group on the original 7/12; base 0/75)
 - [ ] regex-log (0/75) - retired 2026-11-04 09:20 at step 76 (~25 h): the original passed 1 of 1455 training attempts and one readout (1/16 at step 30), 0/16 otherwise; versions reached 8/11 but did not carry over
 - [ ] sparql-university (0/75) - retired 2026-11-04 01:20 at step 118 (~16 h): the original 0 of 970 attempts (92% submitted, not cut by the context) while versions on graphs of their own reached 8-11/12
@@ -98,8 +98,8 @@ in run 1030c solved it (#309). A box is ticked once the task is overfit (rule ab
 - [ ] torch-pipeline-parallelism (0/75) - running (back on the recipe: at 300 turns most attempts hit the 2 h budget)
 - [ ] path-tracing (0/75) - paused at step 32 (160K)
 - [ ] path-tracing-reverse (0/75) - running (160K/300 turns)
-- [ ] write-compressor (0/74) - paused at step 18 (160K)
-- [ ] sam-cell-seg (0/72) - paused at step 25 (160K)
+- [ ] write-compressor (0/74) - paused 2026-11-05 14:30 (node budget cut to 6) at step 52 (`--teacherv4-gb300`); readouts 0/16, no original pass; format errors 19-36% from step 40; resumes from step-40
+- [ ] sam-cell-seg (0/72) - paused 2026-11-05 14:30 (node budget cut to 6) at step 70 (`--teacherv4-gb300`); readouts 0/16, no original pass; resumes from step-60
 - [ ] gcode-to-text (0/75) - running
 - [ ] extract-moves-from-video (0/73) - rerun on a fresh teacher (`--teacherv4-gb300`, 160K) retired 2026-11-04 11:20 at step 120 (~14.5 h): the original 0 of 714 training attempts, every readout 0/16; versions reached 8-12/12 but did not carry over
 - [ ] large-scale-text-editing (0/73) - running
@@ -109,10 +109,10 @@ in run 1030c solved it (#309). A box is ticked once the task is overfit (rule ab
 - [ ] dna-insert (0/75) - paused (135 steps at 80K, readout 0); queued
 - [ ] make-doom-for-mips (0/74) - paused at step 15 (17 of 79 groups mixed)
 - [ ] regex-chess (0/75) - paused at step 0 (160K; originals ran out of 80K context)
-- [ ] chess-best-move (0/73) - queued
+- [ ] chess-best-move (0/73) - paused 2026-11-05 14:30 (node budget cut to 6) at step 48 (`--teacherv4-gb300`); readouts 0/16, no original pass; resumes from step-40
 - [ ] polyglot-c-py (0/75) - queued
-- [ ] gpt2-codegolf (0/75) - queued
-- [ ] feal-differential-cryptanalysis (0/74) - running from 2026-11-04 11:20 (fresh teacher, 160K / 120 turns)
+- [ ] gpt2-codegolf (0/75) - paused 2026-11-05 14:30 (node budget cut to 6) at step 92 (`--teacherv4-gb300`); readouts 0/16, no original pass; format errors 11-50% from step 80; resumes from step-80
+- [ ] feal-differential-cryptanalysis (0/74) - paused 2026-11-05 14:30 (node budget cut to 6) at step 32 (`--teacherv4-gb300`); readouts 0/16, no original pass; the teacher is refused by its safety filter in most rounds; no complete checkpoint (step-20's write stalled at 38.8 GB), so it restarts from step 0
 - [ ] feal-linear-cryptanalysis (0/74) - skipped, not run: expected to be blocked by the teacher's safety filter, as feal-differential-cryptanalysis's teacher is in 8-10 rounds an hour ("flagged for possible cybersecurity risk", #307)
 - [ ] protein-assembly (0/75) - running from 2026-11-05 11:20 in train-fasttext's place (`--teacherv4-gb300`, original share 0.25, 160K / 120 turns, checkpoint every 5 steps)
 - [ ] dna-assembly (0/73) - queued
