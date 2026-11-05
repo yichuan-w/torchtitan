@@ -328,6 +328,7 @@ async def _probe_once(
         f"({'shortcut probe' if shortcut else 'oracle'}) "
         f"box=cpu:{box['cpu']} mem_gb:{box['mem_gb']} disk_gb:{box['disk_gb']}"
     )
+    verifier_snapshot_rec: dict = {}
     async with boot_agent_sandbox(
         md.get("image") or "",
         dockerfile=md.get("dockerfile") or None,
@@ -389,6 +390,7 @@ async def _probe_once(
             vsnap = await verifier_snapshot.snapshot_verifier(
                 sb, timeout=solve_timeout or 300
             )
+            verifier_snapshot_rec.update(vsnap)
             log(f"verifier snapshot: {vsnap}")
         t0 = time.time()
         execution = await run_reference(
@@ -445,6 +447,7 @@ async def _probe_once(
             "solve_stderr": err,
             "pane_error": execution.get("pane_error"),
             "grading": grading,
+            "verifier_snapshot": verifier_snapshot_rec,
             "tail": tail,
             "verifier": grading,
             "resources": box,

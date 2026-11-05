@@ -308,7 +308,7 @@ async def grade_tmax(
         restore = await verifier_snapshot.restore_verifier(sb, timeout=timeout)
         if diagnostics is not None:
             diagnostics["verifier_restore"] = restore
-        if restore.get("changed"):
+        if restore.get("branch") not in (None, "none"):
             logger.info(
                 "[tmax] verifier_restore %s: %s",
                 tmax.get("task_id", "?"),
@@ -936,7 +936,7 @@ def grade_tmax_daytona(
     # the standalone sync path. No-op when no snapshot exists.
     if verifier_snapshot.enabled() and not verifier_snapshot.exempt(tmax.get("task_id")):
         restore = verifier_snapshot.restore_verifier_sync(sb, timeout=timeout)
-        if restore.get("changed"):
+        if restore.get("branch") not in (None, "none"):
             logger.info(
                 "[tmax] verifier_restore %s: %s",
                 tmax.get("task_id", "?"),
