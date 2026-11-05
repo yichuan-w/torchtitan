@@ -1,0 +1,15 @@
+{
+  "hooks": {
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "f=\"$(git rev-parse --show-toplevel 2>/dev/null)/torchtitan/experiments/rl/tools/issue_listener/issue_listener.py\"; if grep -q stop-hook \"$f\" 2>/dev/null; then python3 \"$f\" stop-hook; fi",
+            "timeout": 15
+          }
+        ]
+      }
+    ]
+  }
+}
