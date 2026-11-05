@@ -1,0 +1,56 @@
+task,instr_lines_changed,lcs_added_vs_solve,lcs_text
+software-engineering_20260415_123352_017,6,82,gcc /app/polyglot/compute.py.c -o /app/polyglot/compute && /app/polyglot/compute 0
+software-engineering_20260415_182321_024,10,49," def synchronize_gradients(self
+data-processing_20260604_004411_001,11,35,/app/data/normalized_candidates.csv
+file-operations_20260416_020953_001,7,32,/app/recovered_transactions.json
+software-engineering_20260415_094424_003,19,27,/app/subprocess_executor.py
+games_20260606_172606_001,2,23,at /app/board-state.txt
+security_20260508_153434_006,3,22, the credentials vault
+scientific-computing_20260508_045557_007,4,20,/app/xrd_overlap.dat
+model-training_20260507_170334_001,2,19, expanded tokenizer
+software-engineering_20260503_182123_026,8,19,evaluate_expression
+games_20260611_205750_001,2,19,/app/oscillator.txt
+optimization_20260604_003113_001,6,18,dbscan_baseline.py
+mathematics_20260510_005520_001,2,17, and predict the 
+tobymao__sqlglot.036601ba.lm_rewrite__croj8akp,11,15,eliminate_joins
+amueller__word_cloud.ec24191c.combine_file__9bx7cdni,20,15,min_word_length
+model-training_20260604_193056_004,3,14,/app/model.pkl
+software-engineering_20260604_002443_002,2,14,/app/scanner.c
+data-science_20260413_173854_003,2,13,total_revenue
+data-processing_20260611_210349_004,2,13, the checksum
+model-training_20260415_002933_002,1,13, quantization
+data-querying_20260508_045800_001,9,12, destination
+bentoml__bentoml-5084,2,11, repository
+data-processing_20260606_172622_004,4,11,total_value
+data-processing_20260606_172622_004,2,11,total_value
+data-science_20260606_153537_005,2,10,continuity
+task_005564_c049fbb2,2,10,atplotlib 
+software-engineering_20260602_105139_006,2,8,objects 
+software-engineering_20260613_152233_022,3,8,math.obj
+gpflow__gpflow-2096,2,8,/GPflow/
+arrow-py__arrow.1d70d009.func_pm_ctrl_shuffle__vaslaiy9,2,8, integer
+optimization_20260424_090344_001,2,7,s with 
+software-engineering_20260514_134238_012,2,7,request
+software-engineering_20260615_143301_011,2,7, values
+software-engineering_20260501_051538_026,2,6, check
+software-engineering_20260604_193056_026,2,6, /app/
+data-science_20260604_003113_003,0,0,
+data-processing_20260606_172554_004,0,0,
+file-operations_20260610_111012_004,0,0,
+games_20260604_002443_001,0,0,
+mathematics_20260510_005520_001,0,0,
+mathematics_20260610_112157_002,0,0,
+software-engineering_20260418_044216_012,0,0,
+software-engineering_20260418_044216_018,0,0,
+security_20260602_105139_001,0,0,
+security_20260510_125534_005,0,0,
+security_20260610_111012_002,0,0,
+security_20260604_193356_008,0,0,
+system-administration_20260610_112157_009,0,0,
+software-engineering_20260604_004411_005,0,0,
+system-administration_20260611_112034_008,0,0,
+task_001405_cce4db51,3,0,
+task_002422_ccc838ee,3,0,
+task_002422_ccc838ee,0,0,
+task_004494_dbb6143e,0,0,
+task_007982_fd0af271,0,0,

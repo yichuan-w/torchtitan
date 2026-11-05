@@ -1,0 +1,12 @@
+,easier,harder
+accepted,1378,1029
+rewriter gave up (GIVE UP / BLOCKED),42,52
+provider cyber classifier,59,24
+agent session error / timeout,18,31
+semantic probe failed,26,17
+agent validation / no change / other,11,10
+identity gate (image USER changed),0,5
+oracle failed,1,0
+unfinished at run end,2,11
+signal superseded before handling,39,17
+total signals,1576,1196
