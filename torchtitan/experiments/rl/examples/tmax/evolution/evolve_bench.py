@@ -2872,16 +2872,18 @@ def _audit_path() -> str:
 
 
 def _audit_env(credentials: dict[str, str], region: str, home: Path) -> dict[str, str]:
-    """Build a clean Bedrock environment; no caller environment is inherited."""
+    """Build a clean Bedrock environment; no caller environment is inherited.
+    With no credentials (``audit-run --runner claude-local``) the CLI reaches
+    the model through its own installed provider, still with an empty home."""
     config = home / "claude-config"
     config.mkdir(parents=True, exist_ok=True)
     env = {
         "PATH": _audit_path(),
         "HOME": str(home),
         "CLAUDE_CONFIG_DIR": str(config),
-        "CLAUDE_CODE_USE_BEDROCK": "1",
-        "AWS_REGION": region,
     }
+    if credentials:
+        env.update({"CLAUDE_CODE_USE_BEDROCK": "1", "AWS_REGION": region})
     env.update(credentials)
     return env
 
@@ -2909,7 +2911,8 @@ def _audit_cli_version(env: dict[str, str]) -> str:
 
 def _audit_json_reply(stdout: str) -> tuple[dict, dict]:
     """Decode Claude's JSON envelope and its JSON result string."""
-    envelope = json.loads(stdout)
+    lines = [ln for ln in stdout.splitlines() if ln.lstrip().startswith("{")]
+    envelope = json.loads(lines[-1] if lines else stdout)
     payload = envelope.get("structured_output", envelope.get("result", envelope))
     if isinstance(payload, str):
         payload = json.loads(payload)
@@ -3109,9 +3112,9 @@ def audit_run(*, audit: Path, stage: str, model: str, concurrency: int, env_file
         cli_version = "codex " + subprocess.run([codex_bin, "--version"], capture_output=True, text=True,
                                                 check=True).stdout.strip()
     else:
-        if env_file is None:
+        if runner == "claude" and env_file is None:
             raise SystemExit("--runner claude needs --env-file")
-        credentials = _audit_env_file(env_file)
+        credentials = _audit_env_file(env_file) if runner == "claude" else {}
         with tempfile.TemporaryDirectory(prefix="evolve-bench-version-") as raw_home:
             cli_env = _audit_env(credentials, region, Path(raw_home))
             cli_version = _audit_cli_version(cli_env)
@@ -3353,8 +3356,9 @@ def main() -> None:
     p.add_argument("--model", required=True)
     p.add_argument("--concurrency", type=int, required=True)
     p.add_argument("--env-file", type=Path, help="Bedrock credentials (--runner claude); values are never logged")
-    p.add_argument("--runner", choices=("claude", "codex"), default="claude",
-                   help="claude: claude -p on Bedrock; codex: codex exec, read-only sandbox, on --api-base")
+    p.add_argument("--runner", choices=("claude", "claude-local", "codex"), default="claude",
+                   help="claude: claude -p on Bedrock; claude-local: the same command on the CLI's own "
+                        "installed provider; codex: codex exec, read-only sandbox, on --api-base")
     p.add_argument("--codex-bin", help="--runner codex: the codex binary")
     p.add_argument("--api-base", help="--runner codex: an OpenAI-compatible Responses endpoint")
     p.add_argument("--aws-region", "--region", dest="aws_region", default="us-east-1")
