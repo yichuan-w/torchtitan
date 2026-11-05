@@ -98,6 +98,20 @@ def _pre_grade_command(reward_path: str, ctrf_path: str, nonce: str) -> str:
     )
 
 
+def _clear_tests_command() -> str:
+    """Shell that empties ``/tests`` before the verifier's files go in.
+
+    The agent shares ``/tests`` with the verifier, so a ``conftest.py`` or
+    ``pytest.ini`` it left there would load into the verifier's pytest. No
+    task image ships ``/tests`` content; every file the verifier needs is
+    uploaded here. ``TMAX_CLEAN_TESTS_DIR=0`` keeps it as it was.
+    """
+    if os.environ.get("TMAX_CLEAN_TESTS_DIR", "1") != "1":
+        return ""
+    q = shlex.quote(_TESTS_DIR)
+    return f"chattr -R -i {q} 2>/dev/null; rm -rf {q}; "
+
+
 def _make_nonce() -> str:
     return f"tmax-sentinel-{uuid.uuid4().hex}"
 
@@ -293,8 +307,10 @@ async def grade_tmax(
     fixtures = tmax.get("fixtures") or {}
     reward_path = tmax.get("reward_path") or _DEFAULT_REWARD_PATH
 
+    # A separate verifier image holds its own /tests: leave that one alone.
+    clear = _clear_tests_command() if upload_tests else ""
     await sb.exec(
-        f"mkdir -p {shlex.quote(_VERIFIER_DIR)} {shlex.quote(_TESTS_DIR)} "
+        f"{clear}mkdir -p {shlex.quote(_VERIFIER_DIR)} {shlex.quote(_TESTS_DIR)} "
         f"{shlex.quote(workdir)}",
         user="root",
         check=False,
@@ -911,7 +927,10 @@ def grade_tmax_daytona(
     reward_path = tmax.get("reward_path") or _DEFAULT_REWARD_PATH
 
     dirs = f"{_VERIFIER_DIR} {_TESTS_DIR} {workdir}"
-    sb.process.exec(_root_sh(f"mkdir -p {dirs} && chmod 777 {dirs}"), timeout=60)
+    sb.process.exec(
+        _root_sh(f"{_clear_tests_command()}mkdir -p {dirs} && chmod 777 {dirs}"),
+        timeout=60,
+    )
     for rel, content in fixtures.items():
         dest = _grading_fixture_dest(rel)
         if dest is None:

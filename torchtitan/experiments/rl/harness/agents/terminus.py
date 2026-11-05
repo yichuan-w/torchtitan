@@ -983,6 +983,7 @@ class _SandboxEnvironment:
             command = f"cd {shlex.quote(cwd)} && {command}"
         command = self._agent_pane_shell(command)
         command = self._bound_pane_pipe(command)
+        command = self._neutral_tmux_server(command)
         command = self._end_send_keys_options(command)
         # Classified before the turn-start prefix makes it a compound command.
         kind = _tmux_client_kind(command)
@@ -1403,6 +1404,35 @@ class _SandboxEnvironment:
             )
             return command
         return command.replace(old, f"-s {name} {shlex.quote(_AGENT_SHELL)}", 1)
+
+    def _neutral_tmux_server(self, command: str) -> str:
+        """Start harbor's tmux server through ``terminal.server_link``.
+
+        A symlink to the sandbox's tmux, so the server's process name carries
+        no "server" for the agent's ``pkill server`` to match; the pane is the
+        same. Without tmux on PATH the link fails and plain ``tmux`` runs.
+        """
+        link = self.terminal.server_link
+        if not link or not self.terminal.prepared:
+            return command
+        try:
+            tokens = shlex.split(command)
+        except ValueError:
+            return command
+        if not any(
+            tokens[i : i + 2] == ["tmux", "new-session"] for i in range(len(tokens) - 1)
+        ):
+            return command
+        if command.count("tmux new-session ") != 1:
+            logger.warning(
+                "[terminus] tmux server not renamed: %r", command[:400]
+            )
+            return command
+        q = shlex.quote(link)
+        return (
+            f't=tmux; ln -sfn "$(command -v tmux)" {q} 2>/dev/null && t={q}; '
+            + command.replace("tmux new-session ", '"$t" new-session ', 1)
+        )
 
     _PANE_PIPE = re.compile(r"pipe-pane\s+(?:-\w+\s+\S+\s+)*'cat > (?P<path>[^']+)'")
 

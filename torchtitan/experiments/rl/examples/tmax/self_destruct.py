@@ -48,7 +48,7 @@ SELF_DESTRUCT_RULES: dict[str, re.Pattern[str]] = {
         # Its toolbox process carries the sandbox API too.
         "kill_daytona": _SEP + r"(?:pkill|killall)\b[^\n;&|]*\bdaytona\b"
         r"|" + _SEP + r"(?:pkill|killall)\b[^\n;&]*\btoolbox\b"
-        # `pkill -f term` matches the harness's terminus-* tmux server and pane.
+        # `pkill -f term` matches the harness's tmux server and pane (session terminus-2).
         r"|" + _SEP + r"pkill\b[^\n;&]*\s-\S*f\S*\s+['\"]?[^'\"\s]*\bterm"
         r"|\bkill\b[^\n;&|]*\$\((?:pgrep|pidof)[^)]*\b(?:daytona|tmux)\b"
         r"|grep[^\n|]*\bdaytona\b[^\n]*\|\s*xargs\s+(?:-\S+\s+)*kill\b"
@@ -70,7 +70,8 @@ SELF_DESTRUCT_RULES: dict[str, re.Pattern[str]] = {
         # Children of pid 1, the tmux server among them.
         "pkill_children_of_pid1": _SEP + r"pkill\s+(?:-\S+\s+)*-P\s+1" + _END,
         # The harness's tmux server or session; the server retitles itself
-        # "tmux: server", so a bare `pkill server` kills it.
+        # "tmux: server", so a bare `pkill server` kills it (not under
+        # TT_NEUTRAL_TMUX, where the rule only fires if the sandbox died anyway).
         "tmux_kill": _SEP
         + r"tmux\s+kill-server\b"
         + r"|"

@@ -154,6 +154,8 @@ def test_first_pane_screen_is_unchanged(tmp_path):
         start = _harbor_session(label, str(tmp_path / f"{label}.pane"))._tmux_start_session
         if shell_command != "base":
             start = _env()._agent_pane_shell(start)
+        if shell_command == "neutral":
+            start = _neutral_env(sock)._neutral_tmux_server(start)
         subprocess.run(["bash", "-c", start], env=env, check=True, timeout=30)
         try:
             screen, deadline = "", time.monotonic() + 10
@@ -170,3 +172,72 @@ def test_first_pane_screen_is_unchanged(tmp_path):
     base, fixed = first_screen("base", "base"), first_screen("fixed", "fixed")
     assert "$" in base
     assert fixed == base
+    assert first_screen("neutral", "neutral") == base
+
+
+# --- the tmux server under a neutral name (TT_NEUTRAL_TMUX) ---------------
+
+
+def _neutral_env(directory) -> terminus._SandboxEnvironment:
+    env = _env()
+    env.terminal.directory = str(directory)
+    env.terminal.server_link = f"{directory}/tmux-session"
+    env.terminal.prepared = True
+    return env
+
+
+def test_server_starts_through_the_link_only_when_prepared(monkeypatch):
+    monkeypatch.delenv("TT_NEUTRAL_TMUX", raising=False)
+    start = _harbor_session()._tmux_start_session
+    env = _env()
+    assert env._neutral_tmux_server(start) == start
+    env.terminal.prepared = True
+    link = env.terminal.server_link
+    assert link.endswith("/tmux-session")
+    sent = env._neutral_tmux_server(start)
+    assert sent.startswith(f't=tmux; ln -sfn "$(command -v tmux)" {link} 2>/dev/null')
+    assert '"$t" new-session ' in sent and "tmux new-session" not in sent
+    # The pane's command line is otherwise unchanged.
+    assert sent.split('"$t" new-session ', 1)[1] == start.split("tmux new-session ", 1)[1]
+    for command in _harbor_session()._tmux_send_keys([start, "Enter"]) + [
+        "tmux has-session -t terminus-2",
+        "tmux set-option -g history-limit 10000000",
+    ]:
+        assert env._neutral_tmux_server(command) == command
+
+
+def test_neutral_server_can_be_turned_off(monkeypatch):
+    monkeypatch.setenv("TT_NEUTRAL_TMUX", "0")
+    env = _env()
+    env.terminal.prepared = True
+    start = _harbor_session()._tmux_start_session
+    assert env._neutral_tmux_server(start) == start
+
+
+@pytest.mark.skipif(shutil.which("tmux") is None, reason="needs tmux")
+@pytest.mark.skipif(shutil.which("pgrep") is None, reason="needs pgrep")
+def test_pkill_server_does_not_match_the_neutral_server(tmp_path):
+    sock = tmp_path / "s"
+    sock.mkdir()
+    env = {"PATH": "/usr/bin:/bin", "HOME": str(tmp_path), "TMUX_TMPDIR": str(sock)}
+    name = f"t{os.getpid()}"
+    start = _harbor_session(name, str(tmp_path / "p.pane"))._tmux_start_session
+    start = _neutral_env(sock)._neutral_tmux_server(_env()._agent_pane_shell(start))
+
+    def tmux(*args):
+        return subprocess.run(
+            ["tmux", *args], env=env, capture_output=True, text=True, timeout=10
+        )
+
+    subprocess.run(["bash", "-c", start], env=env, check=True, timeout=30)
+    try:
+        pid = tmux("display-message", "-p", "-t", name, "#{pid}").stdout.strip()
+        comm = Path(f"/proc/{pid}/comm").read_text().strip()
+        assert "server" not in comm and comm.startswith("tmux-session")
+        # `pkill server` picks by the same match as `pgrep server` (never
+        # sent for real here: it would hit the host's own servers).
+        listed = subprocess.run(["pgrep", "server"], capture_output=True, text=True)
+        assert pid not in listed.stdout.split()
+        assert tmux("has-session", "-t", name).returncode == 0
+    finally:
+        tmux("kill-server")
