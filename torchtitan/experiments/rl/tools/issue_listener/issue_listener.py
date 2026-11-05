@@ -4,9 +4,11 @@ Claude Code session per side, the hub, handles every issue of yichuan-w/torchtit
 Ported from andylizf/simulator-kernel bench/tools/issue_listener.py.
 
 watch          poll all open issues every 60 s for comment and issue-body versions from a collaborator account other
-               than this one that are not acked, mention or not; print them in full and exit
-watch --stream the same poll, never exiting: each item is printed once per run as one line naming a file that holds
-               its full text, for the hub's watcher subagent to read through the Monitor tool
+               than this one that are not acked, mention or not; print them in full and exit. The hub runs it as a
+               background task, so its exit is what wakes the hub. One runs per state directory: a second exits 3
+               at once. A request of ours to another collaborator unanswered for 60 and for 120 minutes is an item too
+watching       exit 0 if a watch is running (and print its pid), 1 if not
+stop-hook      the hub's Stop hook (.claude/settings.json): block the hub's turn from ending while no watch runs
 watch --init   mark everything that exists now as handled, so the first watch does not print the backlog
 ack N ID       mark item ID of issue N (a comment id, or `body`) handled at the version watch printed; also
                `watch --ack N ID`
@@ -16,7 +18,6 @@ hub-set SID [CWD]
                record the hub's Claude session id, and the directory it is launched in, for agent-listen.sh
 hub-launch     launch the hub once, in tmux session tt-hub-session, unless a process already has its session open
                (then print where); agent-listen.sh with no arguments runs this
-watcher-prompt print the prompt the hub gives its watcher subagent
 """
 import argparse
 import fcntl
@@ -30,7 +31,7 @@ import time
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
-# Every process here (the watcher's `watch`, a person's manual run, the other worktrees) asks GitHub for the same
+# Every process here (the hub's `watch`, a person's manual run, the other worktrees) asks GitHub for the same
 # URLs through gh's on-disk response cache, so the machine makes about one request per URL per POLL_CACHE however many
 # run: polling per process once used up the 5000/h core limit.
 POLL_CACHE = "60s"
@@ -39,6 +40,9 @@ POLL_CACHE = "60s"
 REPO = "yichuan-w/torchtitan"
 # Relative to the repository root, the hub's working directory.
 LISTENER = "torchtitan/experiments/rl/tools/issue_listener/issue_listener.py"
+# .claude/CLAUDE.md: a side whose hub is up answers another collaborator within 30 minutes. A request of ours left without any
+# comment from that collaborator for SILENCE_MINUTES becomes an item (their hub is probably down), and again at twice it.
+SILENCE_MINUTES = 60
 
 
 def gh_json(args, cache=None):
@@ -109,7 +113,8 @@ def watch_since(printed, handled):
 
 def watch_items(since):
     """Every open issue's body and every comment in an open issue updated since `since`, from a collaborator account
-    other than this one. Two list calls per poll (more only past 100 items a page), through the shared cache."""
+    other than this one, plus silence items. Two list calls per poll (more only past 100 items a page), through the
+    shared cache."""
     repo, me, collaborators = context()
     issues = [i for i in gh_pages(f"repos/{repo}/issues?state=open&per_page=100") if "pull_request" not in i]
     numbers = {str(i["number"]) for i in issues}
@@ -119,13 +124,48 @@ def watch_items(since):
               # an issue's updated_at moves with every comment and label, so a body's version is its text
               "version": "sha1:" + hashlib.sha1((i["body"] or "").encode()).hexdigest()[:12]}
              for i in issues if asker(i["user"]["login"])]
+    ours, latest = [], {i["user"]["login"]: i["created_at"] for i in issues if asker(i["user"]["login"])}
     for c in gh_pages(f"repos/{repo}/issues/comments?since={since}&per_page=100"):
         n = c["issue_url"].rsplit("/", 1)[1]
-        if n in numbers and asker(c["user"]["login"]):
-            items.append({"issue": n, "id": str(c["id"]), "author": c["user"]["login"], "created": c["created_at"],
+        if n not in numbers:
+            continue
+        login = c["user"]["login"]
+        if asker(login):
+            items.append({"issue": n, "id": str(c["id"]), "author": login, "created": c["created_at"],
                           "updated": c["updated_at"], "url": c["html_url"], "body": c["body"] or "",
                           "version": c["updated_at"]})
+            latest[login] = max(latest.get(login, ""), c["created_at"])
+        elif login == me:
+            ours.append(c)
+    items += silence_items(ours, latest, [c for c in collaborators if c != me])
     return sorted(items, key=lambda it: (it["updated"], it["issue"]))
+
+
+def silence_items(ours, latest, others):
+    """For each other collaborator: our oldest comment that mentions them and that they have not followed with any
+    issue comment or body makes an item at SILENCE_MINUTES and another at twice that. The oldest, so that our own later
+    posts do not restart the clock. Each is acked like a comment."""
+    now = datetime.now(timezone.utc)
+    out = []
+    for who in others:
+        asked = [c for c in ours if f"@{who}" in (c["body"] or "") and c["created_at"] > latest.get(who, "")]
+        if not asked:
+            continue
+        c = min(asked, key=lambda c: c["created_at"])
+        minutes = (now - datetime.strptime(c["created_at"], "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=timezone.utc))
+        minutes = int(minutes.total_seconds() // 60)
+        for tier, limit in (("silence", SILENCE_MINUTES), ("silence2", 2 * SILENCE_MINUTES)):
+            if minutes >= limit:
+                n = c["issue_url"].rsplit("/", 1)[1]
+                out.append({"issue": n, "id": f"{tier}-{c['id']}", "author": who, "created": c["created_at"],
+                            "updated": c["created_at"], "url": c["html_url"], "version": tier,
+                            "body": f"No issue comment from @{who} since this request of ours, {minutes} minutes ago "
+                                    f"(over {limit}). A side whose hub is up answers within 30 minutes (.claude/CLAUDE.md), "
+                                    "so their hub is probably down. This needs a person: only the owner of that side "
+                                    "can restart their hub. Ask them on the issue to run agent-listen.sh"
+                                    + (", and tell your own owner now, so that they can reach that person directly."
+                                       if tier == "silence2" else ".")})
+    return out
 
 
 def key_of(it):
@@ -172,8 +212,16 @@ def item_text(it):
 def watch(interval=60, once=False):
     """Print every item whose current version is not acked, then exit 0; with nothing to print, poll again every
     `interval` s. An item printed by an earlier run and never acked prints again at once: a hub that died before
-    acking it gets it back. So the hub acks an item as soon as it has handed it to a subagent."""
+    acking it gets it back. So the hub acks an item as soon as it has handed it to a subagent. Only one watch runs per
+    state directory; a second exits 3 without polling."""
     d = state_dir()
+    lock = open(d / "watch.lock", "a+")
+    try:
+        fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except BlockingIOError:
+        print(f"a watch is already running (pid {(d / 'watch.pid').read_text().strip()}); this one exits")
+        return 3
+    (d / "watch.pid").write_text(f"{os.getpid()}\n")
     while True:
         new = poll(d)
         if new:
@@ -186,23 +234,28 @@ def watch(interval=60, once=False):
         time.sleep(interval)
 
 
-def watch_stream(interval=60):
-    """The watcher's Monitor command: poll every `interval` s, never exit, and print each item as one line (Monitor makes
-    each stdout line a notification, and cuts a long one short) the first time this run sees its current version: its
-    header and the path of a file in the state directory holding its full text. An item still unacked therefore prints
-    once per run, so every re-arm of the monitor hands the hub again what it has not acked."""
+def watching(d):
+    """The pid of the running watch, or None. Reads the lock only, never GitHub, so the Stop hook stays fast."""
+    with open(d / "watch.lock", "a+") as lock:
+        try:
+            fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError:
+            return (d / "watch.pid").read_text().strip()
+        fcntl.flock(lock, fcntl.LOCK_UN)
+        return None
+
+
+def stop_hook():
+    """Claude Code Stop hook: when the session ending its turn is the hub (hub-set) and no watch runs, block the stop
+    with the command to start one; every other session, and the hub with a watch running, stops as usual."""
+    hook = json.load(sys.stdin)
     d = state_dir()
-    (d / "items").mkdir(exist_ok=True)
-    sent = {}
-    while True:
-        for it in poll(d) or []:
-            if sent.get(key_of(it)) != it["version"]:
-                sent[key_of(it)] = it["version"]
-                text = item_text(it)
-                path = d / "items" / f"{it['issue']}-{it['id']}.txt"
-                path.write_text(text)
-                print(f"{text.splitlines()[0]} {it['url']} full text: {path}", flush=True)
-        time.sleep(interval)
+    if hook.get("session_id") != read_json(d / "hub.json").get("session") or watching(d):
+        return 0
+    print(json.dumps({"decision": "block", "reason":
+        f"The issue listener is not running. Start it with the Bash tool, run_in_background true, from {os.getcwd()}: "
+        f"`python3 {LISTENER} watch` (.claude/CLAUDE.md, \"Keeping a listener up\"), then end the turn."}))
+    return 0
 
 
 def watch_init():
@@ -260,29 +313,17 @@ def route(argv):
 
 
 # ---- Launching the hub (agent-listen.sh with no arguments): once, never while a process has its session open ----
-# Nothing here keeps running. The hub keeps itself listening through its watcher subagent's monitor; if the hub itself exits or
-# stops at a usage limit, nothing restarts it until agent-listen.sh is run again.
+# Nothing here keeps running. The hub keeps itself listening through its background `watch`, which its Stop hook makes it
+# restart; if the hub itself exits or stops at a usage limit, nothing restarts it until agent-listen.sh is run again.
 CLAUDE_HOME = Path(os.environ.get("CLAUDE_CONFIG_DIR", "~/.claude")).expanduser()
 HUB_PANE = "tt-hub-session"
-WATCHER_PROMPT = (
-    "You are the hub's watcher (.claude/CLAUDE.md, \"Keeping a listener up\"). Your one job is to keep "
-    f"`python3 {LISTENER} watch --stream` running under the Monitor tool and pass on what it prints. Load Monitor and "
-    "SendMessage with ToolSearch (`select:Monitor,SendMessage`) if they are not loaded. Arm Monitor on that command, "
-    "in the directory you start in, with timeout_ms 1800000, the longest it allows. Each line it prints is one item: "
-    "send the lines of each notification, and of notifications that arrive together, to the main agent in one message "
-    "(SendMessage to \"main\"), verbatim. The command never exits by itself: an item notification does not end it, "
-    "so after forwarding items do not arm anything. Arm it again, the same way and without telling anyone, only when "
-    "you get the monitor's expiry notice or a notice that its stream ended; never have two monitors armed. Do nothing "
-    "else: no acks, no GitHub replies, no other commands, and never end a turn without the monitor armed.")
 FIRST_PROMPT = (
-    "You are this side's hub (.claude/CLAUDE.md, \"Keeping a listener up\"). Before anything else, start the "
-    "watcher: one background subagent (Agent tool, model \"sonnet\") whose prompt is the output of "
-    f"`python3 {LISTENER} watcher-prompt`, word for word. Do not run `watch` yourself. The watcher sends you each "
-    "new or edited comment and issue body as a line that ends with the path of a file holding its full text; hand "
-    "each to that issue's subagent "
-    f"(`python3 {LISTENER} route list`), ack it with `issue_listener.py ack <issue> <id>` once the subagent has it "
-    "(an unacked item comes back each time the watcher re-arms, every 30 minutes), and start a new watcher whenever "
-    "you are told the watcher has finished.")
+    "You are this side's hub (.claude/CLAUDE.md, \"Keeping a listener up\"). Before anything else, start "
+    f"`python3 {LISTENER} watch` with the Bash tool and run_in_background true. It exits when it has items, printing "
+    "them, and its exit wakes you: in the same message as handing each item to that issue's subagent "
+    f"(`python3 {LISTENER} route list`), start the next watch the same way, and ack each item with "
+    "`issue_listener.py ack <issue> <id>` once the subagent has it. A silence item means another collaborator has not "
+    "answered our request: handle it as .claude/CLAUDE.md says.")
 
 
 def alive(pid):
@@ -389,8 +430,12 @@ if __name__ == "__main__":
         ack(sys.argv[3], sys.argv[4])
     elif cmd == "watch" and not arg:
         sys.exit(watch())
-    elif cmd == "watch" and arg == "--stream":
-        watch_stream()
+    elif cmd == "watching":
+        pid = watching(state_dir())
+        print(f"watch running, pid {pid}" if pid else "no watch running")
+        sys.exit(0 if pid else 1)
+    elif cmd == "stop-hook":
+        sys.exit(stop_hook())
     elif cmd == "ack" and len(sys.argv) == 4:
         ack(sys.argv[2], sys.argv[3])
     elif cmd == "route":
@@ -401,7 +446,5 @@ if __name__ == "__main__":
         print(f"hub session {arg}, launched in {cwd}; state in {state_dir()}")
     elif cmd == "hub-launch":
         sys.exit(hub_launch())
-    elif cmd == "watcher-prompt":
-        print(WATCHER_PROMPT)
     else:
         sys.exit(__doc__)

@@ -86,31 +86,39 @@ directory it lives in.
 **Keeping a listener up.** Each collaborator runs one hub, so that a request
 from another collaborator reaches an agent session on their side without anyone
 watching the thread. The hub is one Claude Code session that handles every issue
-on that side and gives each issue a subagent of its own. It listens through one
-more background subagent, the watcher, started with model `sonnet` and, word for
-word, the prompt that `python3
-torchtitan/experiments/rl/tools/issue_listener/issue_listener.py watcher-prompt`
-prints. The watcher keeps `issue_listener.py watch --stream` running under the
-Monitor tool with the longest timeout it allows (30 minutes): the stream polls
-every minute and prints every new or edited comment and issue body from another
-collaborator's account, mentioned or not, as one line naming a file that holds
-its full text. The watcher sends each batch of lines verbatim to the hub
-(`SendMessage` to `main`) and keeps running with one monitor armed; when that
-monitor expires, it arms it again without contacting the hub. The hub never runs `watch` itself. It acks each item (`issue_listener.py
-ack <issue> <id>`) as soon as it has handed the item to a subagent; an item it
-has not acked comes back each time the watcher re-arms. It starts a new watcher
-whenever it is told the watcher has finished. `bash
+on that side and gives each issue a subagent of its own. It listens by running
+`python3 torchtitan/experiments/rl/tools/issue_listener/issue_listener.py watch` itself, as a background task (the Bash tool with
+`run_in_background`, which has no time limit). `watch` polls every minute and
+exits when it has something, printing every new or edited comment and issue
+body from another collaborator's account, mentioned or not, in full; its exit
+is what wakes the hub, and nothing wakes it otherwise. Only one `watch` runs per
+checkout's state directory: a second exits at once. In the same message as
+handing each item to that issue's subagent, the hub starts the next `watch` the
+same way, and it acks each item (`issue_listener.py ack <issue> <id>`) once a
+subagent has it; an item it has not acked prints again on the next `watch`. The
+repository's `.claude/settings.json` gives the hub a Stop hook
+(`issue_listener.py stop-hook`): a turn of the hub cannot end while no `watch`
+runs, and the hook says how to start one. `bash
 torchtitan/experiments/rl/tools/issue_listener/agent-listen.sh`, run with `gh`
 signed in as that collaborator's own account, from a checkout of the canonical
-branch on a machine that stays on, launches the hub once (tmux session
-`tt-hub-session`) when no process has its session open, and otherwise says
+branch on a machine that stays on, launches the hub once (tmux
+session `tt-hub-session`) when no process has its session open, and otherwise says
 where it runs; `issue_listener.py hub-set <session id>` names the hub first. It
 installs nothing outside the repository and leaves nothing running besides the
 hub. Nothing restarts the hub itself: after it exits, stops at a usage limit, or
 the machine reboots, that side hears nothing until someone runs
-`agent-listen.sh` again. An agent that finds its own side's hub or watcher down
-restarts it without asking, and may ask another collaborator's agent to do the
-same.
+`agent-listen.sh` again. An agent that finds its own side's hub down restarts
+it without asking, and may ask another collaborator's agent to do the same.
+
+**When the other side goes quiet.** `watch` also turns silence into an item: a
+comment of ours that mentions another collaborator, followed by no issue
+comment from that account for 60 minutes, prints as a `silence` item, and at
+120 minutes as a `silence2` item. A side whose hub is up answers within 30
+minutes, so silence means that hub is probably down, and only the person on that
+side can bring it back. On `silence` the hub asks on the issue, in one comment,
+for that side's hub to be restarted (`agent-listen.sh`) and lists what waits on
+that side. On `silence2` it also tells its own owner at once, so that the owner
+can reach that person directly. Both are acked like any item.
 
 **One voice per issue on each side.** Each side has one hub and one `watch`, and
 speaks with one voice in each issue. An issue belongs to whichever of an

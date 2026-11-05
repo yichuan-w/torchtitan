@@ -151,38 +151,56 @@ class WatchTest(unittest.TestCase):
         self.assertEqual(il.watch_since(printed, {}), "2026-11-03T00:00:00Z")
         self.assertEqual(il.watch_since(printed, {"51:3": "2026-11-03T11:02:00Z"}), "2026-11-09T00:00:00Z")
 
-    def test_stream_prints_each_item_once_per_run_as_one_line_with_its_text_file(self):
-        self.gh.comment(3, 51, PEER, "two\nlines", at(58))
-        polls = []
+    def test_one_watch_per_state_dir_and_watching_reads_the_lock(self):
+        self.assertIsNone(il.watching(self.gh_state()))
+        with open(self.gh_state() / "watch.lock", "a+") as lock:
+            il.fcntl.flock(lock, il.fcntl.LOCK_EX | il.fcntl.LOCK_NB)  # another watch holds it
+            (self.gh_state() / "watch.pid").write_text("4242\n")
+            self.assertEqual(il.watching(self.gh_state()), "4242")
+            code, out = self.run_watch()
+            self.assertEqual(code, 3)
+            self.assertIn("already running (pid 4242)", out)
+        self.assertIsNone(il.watching(self.gh_state()))
 
-        def sleep(_):
-            polls.append(1)
-            if len(polls) == 2:
-                self.gh.comment(4, 51, PEER, "later", at(1))
-            if len(polls) == 3:
-                raise KeyboardInterrupt
+    def test_stop_hook_blocks_only_the_hub_without_a_watch(self):
+        il.update_json(self.gh_state() / "hub.json", lambda h: h.update(session="hub-sid"))
 
-        def run():
+        def hook(sid):
             out = io.StringIO()
-            saved, il.time.sleep = il.time.sleep, sleep
+            saved = sys.stdin
+            sys.stdin = io.StringIO(json.dumps({"session_id": sid}))
             try:
-                with contextlib.redirect_stdout(out), self.assertRaises(KeyboardInterrupt):
-                    il.watch_stream()
+                with contextlib.redirect_stdout(out):
+                    self.assertEqual(il.stop_hook(), 0)
             finally:
-                il.time.sleep = saved
-            return out.getvalue().splitlines()
+                sys.stdin = saved
+            return out.getvalue()
 
-        lines = run()  # three polls: 3 once, not again on the second poll; 4 once it appears
-        self.assertEqual([line.split()[:3] for line in lines], [["===", "#51", "3"], ["===", "#51", "4"]])
-        path = Path(lines[0].split("full text: ")[1])
-        self.assertEqual(path, self.gh_state() / "items" / "51-3.txt")
-        self.assertIn("two\nlines", path.read_text())
-        self.quiet(il.ack, "51", "4")
-        polls.clear()
-        lines = run()  # a re-armed stream hands back only what is still unacked
-        self.assertEqual(len(lines), 1)
-        self.assertIn("=== #51 3 yichuan-w", lines[0])
-        self.assertIn("[again, first printed", lines[0])
+        self.assertEqual(hook("other-sid"), "")
+        decision = json.loads(hook("hub-sid"))
+        self.assertEqual(decision["decision"], "block")
+        self.assertIn(f"`python3 {il.LISTENER} watch`", decision["reason"])
+        with open(self.gh_state() / "watch.lock", "a+") as lock:
+            il.fcntl.flock(lock, il.fcntl.LOCK_EX | il.fcntl.LOCK_NB)
+            (self.gh_state() / "watch.pid").write_text("4242\n")
+            self.assertEqual(hook("hub-sid"), "")
+
+    def test_silence_from_our_oldest_unanswered_mention_at_60_and_120_minutes(self):
+        self.gh.comment(5, 51, ME, f"@{PEER} could you run X?", at(130))
+        self.gh.comment(6, 51, ME, f"@{PEER} and Y", at(10))  # a later post of ours does not restart the clock
+        code, out = self.run_watch()
+        self.assertEqual(code, 0)
+        self.assertIn("=== #51 silence-5 yichuan-w", out)
+        self.assertIn("=== #51 silence2-5 yichuan-w", out)
+        self.assertIn("This needs a person", out)
+        self.quiet(il.ack, "51", "silence-5")
+        self.quiet(il.ack, "51", "silence2-5")
+        self.assertEqual(self.run_watch(), (1, ""))
+        self.gh.comment(7, 51, PEER, "on it", at(5))  # any comment from them ends the silence
+        self.gh.comment(8, 51, ME, f"@{PEER} thanks", at(1))
+        code, out = self.run_watch()
+        self.assertIn("=== #51 7 yichuan-w", out)
+        self.assertNotIn("silence", out)
 
     def test_route_set_get_list_and_ack_moves_last(self):
         self.quiet(il.route, ["set", "51", "--name", "issue-51", "--id", "a123", "--status", "running E181 ladder"])
@@ -245,7 +263,7 @@ class LaunchTest(unittest.TestCase):
             code = il.hub_launch()
         return code, out.getvalue()
 
-    def test_no_process_launches_claude_once_with_the_watcher_prompt(self):
+    def test_no_process_launches_claude_once_with_the_first_prompt(self):
         code, out = self.launch()
         self.assertEqual(code, 0)
         calls = self.log.read_text().splitlines()
@@ -253,9 +271,8 @@ class LaunchTest(unittest.TestCase):
         settings = self.state / "hub-settings.json"
         self.assertIn(f"-s tt-hub-session -c /repo claude --dangerously-skip-permissions --settings {settings} "
                       f"--resume {SID}", new)
-        self.assertIn('start the watcher: one background subagent (Agent tool, model "sonnet")', new)
-        self.assertIn(f"`python3 {il.LISTENER} watcher-prompt`", new)
-        self.assertIn("Do not run `watch` yourself", new)
+        self.assertIn(f"`python3 {il.LISTENER} watch` with the Bash tool and run_in_background true", new)
+        self.assertIn("start the next watch the same way", new)
         self.assertTrue(json.loads(settings.read_text())["skipDangerousModePermissionPrompt"])
         cfg = json.loads((self.home / ".claude.json").read_text())
         self.assertEqual(cfg["projects"]["/repo"], {"hasTrustDialogAccepted": True, "hasCompletedProjectOnboarding": True})
@@ -281,15 +298,6 @@ class LaunchTest(unittest.TestCase):
             finally:
                 proc.kill()
                 proc.wait()
-
-    def test_watcher_prompt_rearms_silently_and_sends_items_to_main(self):
-        prompt = il.WATCHER_PROMPT
-        self.assertIn(f"`python3 {il.LISTENER} watch --stream` running under the Monitor tool", prompt)
-        self.assertIn("timeout_ms 1800000", prompt)
-        self.assertIn("Arm it again, the same way and without telling anyone, only when", prompt)
-        self.assertIn('(SendMessage to "main"), verbatim', prompt)
-        self.assertIn("an item notification does not end it", prompt)
-        self.assertIn("never have two monitors armed", prompt)
 
     def test_once_is_a_no_op_that_says_the_keeper_is_gone(self):
         r = subprocess.run(["bash", str(HERE / "agent-listen.sh"), "--once"], capture_output=True, text=True)
