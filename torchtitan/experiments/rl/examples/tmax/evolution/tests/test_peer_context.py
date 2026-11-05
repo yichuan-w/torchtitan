@@ -34,8 +34,10 @@ def _group(root, task, group, solved, total=12, rev=0):
     run = root.run(RUN)
     for i in range(total):
         reward = 1.0 if i < solved else 0.0
+        # Under rollouts/ whatever the sign: a bench set frozen from an eval
+        # keeps its negative (validation) ids there.
         rollout_record.write_record(
-            run.rollout_record(task, group, i),
+            run.rollouts / layout.safe(task) / f"g{group}-r{i}.jsonl",
             {"task": task, "rev": rev, "run": RUN, "group": group, "rollout": i,
              "reward": reward, "agent": "terminus"},
             [{"turn": 1, "keystrokes": [f"echo {task}-{i}\n"], "output": "SECRET OUTPUT"},
@@ -80,6 +82,21 @@ def test_stage_picks_newest_in_band_groups_and_skips_the_current_task(tmp_path):
     assert "echo p1-0" in solved and "(submitted)" in solved
     assert "SECRET OUTPUT" not in solved
     assert "echo p1-4" in (p1 / "failed.md").read_text()
+
+
+def test_negative_validation_groups_are_read_after_training_groups(tmp_path):
+    """A bench set frozen from an eval names its records g-270-r0.jsonl."""
+    root = layout.Root(tmp_path)
+    _group(root, "frozen_old", -12, 5, total=5)
+    _group(root, "frozen_new", -270, 2, total=5)
+    _group(root, "trained", 3, 6)
+    _group(root, "trained", -400, 2, total=5)  # its training group wins
+    peers = pc.select(root.run(RUN))
+    assert [(p["task"], p["group"]) for p in peers] == [
+        ("trained", 3), ("frozen_new", -270)]  # frozen_old: 5 of 5, out of band
+    traces = tmp_path / "traces"
+    assert pc.stage(root, "self", traces, {"run": RUN}) == 2
+    assert "echo frozen_new-0" in (traces / "peers" / "peer-2" / "solved.md").read_text()
 
 
 def test_band_follows_harder_target(tmp_path, monkeypatch):
