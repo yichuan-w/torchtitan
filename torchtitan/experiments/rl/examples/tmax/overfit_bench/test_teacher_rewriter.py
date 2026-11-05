@@ -134,6 +134,23 @@ def test_only_a_new_versions_first_attempts_all_failing_call_the_teacher(job, mo
     assert len(script.prompts) == 1
 
 
+def test_a_new_version_whose_first_group_has_no_pass_is_retired(job, monkeypatch):
+    root, run, sched, client = job
+    script = Script(new_version("v1", "solve a gently"), new_version("v2", "solve a more"), lambda w: {},
+                    lambda w: {}, lambda w: {})
+    t = _setup(job, monkeypatch, script)
+    _settle(t, lambda: len(_pool(sched)) == 2)
+    v1 = next(v["id"] for v in _pool(sched).values() if v["rev"] == 1)
+    _attempts(run, sched, group=0, rewards=[0.0] * 12, version=v1, rev=1)
+    _settle(t, lambda: any(v["rev"] == 2 for v in _pool(sched).values()))
+    assert _pool(sched)[v1]["status"] == "retired"
+    v2 = next(v["id"] for v in _pool(sched).values() if v["rev"] == 2)
+    _attempts(run, sched, group=1, rewards=[1.0] + [0.0] * 11, version=v2, rev=2)
+    _attempts(run, sched, group=2, rewards=[0.0] * 12, version=v2, rev=2)  # not its first group
+    _settle(t, lambda: len(t.groups[v2]) == 2)
+    assert _pool(sched)[v2]["status"] == "active"
+
+
 def test_a_new_version_failing_its_first_attempts_calls_the_teacher_once(job, monkeypatch):
     root, run, sched, client = job
     script = Script(new_version("v1", "solve a gently"), lambda w: {}, lambda w: {})

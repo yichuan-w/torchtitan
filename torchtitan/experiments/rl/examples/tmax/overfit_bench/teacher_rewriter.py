@@ -84,6 +84,10 @@ class Policy:
     # the teacher can start on an easier one without waiting for the rest (#307: the group is not
     # stopped, since one at a 10% rate still passes in the other 8 attempts 57% of the time). 0: off.
     first_fails: int = 4
+    # A new version whose first training group ends with no pass is retired: across the tb21 runs
+    # such versions went on to spend 23k attempts of which 23% were in mixed groups, against 81% for
+    # versions whose first group was mixed (#307). The teacher may write it again from problems/.
+    retire_first_fail: bool = True
 
 
 def recipe() -> dict[str, str]:
@@ -323,6 +327,14 @@ class Teacher:
             self.hold_original()
         label = self.label(vid)
         self.news.append(f"{label} g{g['group']} finished: {g['passed']}/{g['scored']} passed")
+        v = self.versions.get(vid)
+        if (self.policy.retire_first_fail and v and v["status"] == "active" and v.get("rev") not in (0, "0")
+                and len(self.groups[vid]) == 1 and g["passed"] == 0):
+            self._call("retire", vid)
+            v["status"] = "retired"
+            self.news.append(f"retired {label}: its first group ended 0/{g['scored']} (write it again from "
+                             f"problems/{label}/ to bring it back)")
+            self.hold_original()
         near = self.policy.near
         if g["passed"] <= near or g["passed"] >= g["scored"] - near:
             self.pending.append(f"{label}'s group g{g['group']} ended {g['passed']}/{g['scored']}")
