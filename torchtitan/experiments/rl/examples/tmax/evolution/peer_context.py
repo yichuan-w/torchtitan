@@ -43,7 +43,9 @@ INSTRUCTION_CHARS = 3000
 COMMAND_CHARS = 300
 COMMANDS_CHARS = 6000
 
-_RECORD = re.compile(r"g(\d+)-r(\d+)\.jsonl")
+# Validation groups carry negative ids, counting down (-1, -2, ...); a bench
+# set frozen from an eval keeps them under rollouts/ (g-270-r0.jsonl).
+_RECORD = re.compile(r"g(-?\d+)-r(\d+)\.jsonl")
 _cache: dict[Path, tuple[float, list[dict]]] = {}
 _cache_lock = threading.Lock()
 
@@ -63,9 +65,17 @@ def _band(total: int) -> tuple[int, int]:
     return band
 
 
+def _recency(group: int) -> tuple[int, int]:
+    """Sort key, larger is preferred: any training group (id >= 0, counting up)
+    before any validation group (id < 0, counting down), each newest first. The
+    two counters are separate, so a training and a validation id say nothing
+    about which came later; training groups are what the student trains on."""
+    return (1, group) if group >= 0 else (0, -group)
+
+
 def _latest_groups(run: layout.Run) -> list[tuple[int, Path]]:
-    """(group, task directory) for each task's newest training group, newest
-    first. File names only: no record is opened."""
+    """(group, task directory) for each task's newest group by _recency, most
+    preferred first. File names only: no record is opened."""
     out = []
     if not run.rollouts.is_dir():
         return out
@@ -76,8 +86,8 @@ def _latest_groups(run: layout.Run) -> list[tuple[int, Path]]:
             continue
         groups = [int(m[1]) for p in names if (m := _RECORD.fullmatch(p))]
         if groups:
-            out.append((max(groups), task_dir))
-    return sorted(out, key=lambda g: g[0], reverse=True)
+            out.append((max(groups, key=_recency), task_dir))
+    return sorted(out, key=lambda g: _recency(g[0]), reverse=True)
 
 
 def _peer(task_dir: Path, group: int) -> dict | None:
