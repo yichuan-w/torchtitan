@@ -24,6 +24,12 @@
 # here in shell are spelled the same way.
 set -euo pipefail
 
+# No core dumps: della-tridao runs with `ulimit -c unlimited`, and a trainer that
+# aborts at teardown ("terminate called without an active exception") wrote a
+# 1.5-3 GB core into its run dir on GPFS each time - 2061 of them, 5.4 TiB, by
+# 2026-11 on a group fileset that hit its 60 TiB quota. stdout.log keeps the trace.
+ulimit -c 0
+
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 DRY_RUN=0
