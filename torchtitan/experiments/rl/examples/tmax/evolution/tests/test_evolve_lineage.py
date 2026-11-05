@@ -1345,6 +1345,51 @@ def test_easier_signal_requires_configured_scored_evidence(
     assert result["handled"] == 1 and seen[0]["job"] == "easier"
 
 
+def test_easier_ledger_lines_record_how_the_attempts_ended(
+    tmp_path, monkeypatch
+) -> None:
+    """An easier signal's ledger line carries the raw ending counts (#322),
+    whatever its outcome; routing is unchanged."""
+    root = _root(tmp_path, monkeypatch)
+    sid = _signal(root, direction="easier", n=6)
+    run = root.run(RUN)
+    endings = [
+        ("hit_context_limit", {"shadow": {"reward": 1.0}}),
+        ("hit_context_limit", {"shadow": {"reward": 0.0}}),
+        ("hit_time_budget", {}),
+        ("hit_max_turns", {}),
+        ("submit", {}),
+        ("format_error", {}),
+    ]
+    for i, (reason, verifier) in enumerate(endings):
+        path = run.rollout_record("tw_a", 7, i)
+        head, turns = rollout_record.read_record(path)
+        head |= {"finish_reason": reason, "verifier": verifier}
+        rollout_record.write_record(path, head, turns)
+    seen = _stub(monkeypatch)
+    monkeypatch.setattr(od, "SIMPLIFY_ENABLED", True)
+
+    assert od.run_round(root, workers=1)["handled"] == 1
+    assert seen[0]["job"] == "easier"
+    (line,) = [l for l in _ledger(root) if l["signal"] == sid]
+    assert line["endings"] == {
+        "scored": 5,
+        "context": 2,
+        "time": 1,
+        "turns": 1,
+        "shadow_passed": 1,
+        "unreadable": 0,
+    }
+
+
+def test_harder_ledger_lines_carry_no_endings(tmp_path, monkeypatch) -> None:
+    root = _root(tmp_path, monkeypatch)
+    _signal(root, direction="harder")
+    _stub(monkeypatch)
+    od.run_round(root, workers=1)
+    assert all("endings" not in l for l in _ledger(root))
+
+
 def test_a_deferred_signal_stays_deferred_when_the_switch_is_turned_on(
     tmp_path, monkeypatch
 ) -> None:
