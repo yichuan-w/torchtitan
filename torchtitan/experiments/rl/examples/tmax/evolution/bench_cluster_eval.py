@@ -14,7 +14,8 @@ eval directory ends up in the layout tb2_eval_local.sh leaves, so `tally`,
 `freeze --eval`, `salvage` and `compare` read it unchanged:
 
     <eval>/launch.json                                 recipe, checkpoint, GPUs, generators
-    <eval>/validation_rollouts/<task>/g<G>-r<i>.jsonl  one record per attempt
+    <eval>/validation_rollouts/<task>/g<G>-r<i>.jsonl  one record per attempt (the job writes them
+                                                       under <out>--attempt-<id>/; collect gathers them)
     <eval>/trainer/validation_traces/step-0/index.json the controller's index
 
 Two subcommands around the cluster submit:
@@ -22,7 +23,8 @@ Two subcommands around the cluster submit:
     stage    an evalset -> <base>/evals/<name>/launch.json + job.env, and a copy
              of the evalset in the shared directory the job reads. The job's
              output directory (TRL_RUN_DIR) is <remote-root>/<name>, which is
-             also the Daytona `run` label of every sandbox it creates.
+             names the Daytona `run` label of every sandbox it creates
+             (<name>--attempt-<controller lifetime id>).
     collect  the job's output directory -> the eval directory, checked against
              the controller's index (or, for a job stopped before writing it,
              every record so far, for `evolve_bench.py salvage`).
@@ -187,8 +189,21 @@ def note_job(a: argparse.Namespace) -> None:
     layout.write_json_atomic(path, launch)
 
 
-def _records(out: Path) -> list[Path]:
-    return sorted(p for p in (out / "validation_rollouts").glob("*/*.jsonl") if eb.RECORD_NAME.fullmatch(p.name))
+def _records(out: Path) -> list[tuple[Path, Path]]:
+    """(record, its path relative to the run directory) for every attempt the
+    job wrote. A controller lifetime writes into a sibling
+    ``<out>--attempt-<id>/`` (layout.Run.for_attempt); the copies go to one
+    directory, where the index's relative paths find them."""
+    out_dirs = [out, *sorted(out.parent.glob(f"{out.name}--attempt-*"))]
+    found = {}
+    for d in out_dirs:
+        for p in sorted((d / "validation_rollouts").glob("*/*.jsonl")):
+            if eb.RECORD_NAME.fullmatch(p.name):
+                rel = p.relative_to(d)
+                if rel in found:
+                    raise SystemExit(f"{rel} is in two attempt directories: {found[rel]} and {p}")
+                found[rel] = p
+    return [(p, rel) for rel, p in sorted(found.items())]
 
 
 def collect(a: argparse.Namespace) -> None:
@@ -197,8 +212,8 @@ def collect(a: argparse.Namespace) -> None:
     out = Path(launch["cluster"]["local_output"])
     index_src = out / "trainer" / eb.INDEX.relative_to("trainer")
     records = _records(out)
-    for src in records:
-        dst = ev / src.relative_to(out)
+    for src, rel in records:
+        dst = ev / rel
         if not dst.exists() or dst.stat().st_size != src.stat().st_size:
             dst.parent.mkdir(parents=True, exist_ok=True)
             shutil.copy2(src, dst)
@@ -214,7 +229,7 @@ def collect(a: argparse.Namespace) -> None:
             raise SystemExit(f"{len(missing)} index entries name no record, e.g. {missing[:3]}")
     print(f"{ev}: {len(records)} records copied; index {'present' if index_src.exists() else 'not written yet'}")
     secs = collections.defaultdict(list)
-    for src in records:
+    for src, _ in records:
         with open(src) as fh:
             h = json.loads(fh.readline())
         if isinstance(h.get("secs"), (int, float)):
