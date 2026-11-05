@@ -134,6 +134,16 @@ def test_only_a_new_versions_first_attempts_all_failing_call_the_teacher(job, mo
     assert len(script.prompts) == 1
 
 
+def test_the_originals_first_attempts_failing_call_the_teacher_while_it_is_the_whole_pool(job, monkeypatch):
+    root, run, sched, client = job
+    script = Script(lambda w: {}, lambda w: {})
+    t = _setup(job, monkeypatch, script)
+    _settle(t)
+    _attempts(run, sched, group=0, rewards=[0.0] * 6, done=False)
+    _settle(t, lambda: len(t.attempts[V0]) == 6 and len(script.prompts) == 2)
+    assert "r0's first 4 attempts all failed (its group runs on)" in script.prompts[1]
+
+
 def test_a_new_version_whose_first_group_has_no_pass_is_retired(job, monkeypatch):
     root, run, sched, client = job
     script = Script(new_version("v1", "solve a gently"), new_version("v2", "solve a more"), lambda w: {},
@@ -296,12 +306,12 @@ def test_a_resumed_run_numbers_its_groups_after_the_earlier_runs(job, monkeypatc
 
 def test_a_changed_agents_md_is_announced_in_the_next_round(job, monkeypatch):
     root, run, sched, client = job
-    script = Script(lambda w: {}, lambda w: {})
+    script = Script(lambda w: {}, lambda w: {}, lambda w: {})
     t = _setup(job, monkeypatch, script)
     _settle(t)
     monkeypatch.setattr(tr, "agents_md", lambda policy, sandbox: "# changed")
     _attempts(run, sched, group=0, rewards=[0.0] * 12)
-    _settle(t, lambda: len(script.prompts) == 2)
+    _settle(t, lambda: len(script.prompts) >= 2)
     assert "AGENTS.md has changed" in script.prompts[1] and "AGENTS.md has changed" not in script.prompts[0]
 
 

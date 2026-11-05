@@ -315,8 +315,11 @@ class Teacher:
             n = self.policy.first_fails
             # A format error ends an attempt before it tries the task: it says nothing about difficulty.
             scored = [a for a in self.attempts[vid] if a["reward"] is not None and a["end"] != "format_error"]
+            # The original counts too while it is the whole pool: a teacher that wrote nothing before
+            # training otherwise waits for its first group, an hour of 0/12 (protein-assembly, 2026-11-05).
+            alone = not any(v["status"] == "active" and v.get("rev") not in (0, "0") for v in self.versions.values())
             if (n and len(scored) == n and not self.groups.get(vid) and all(float(a["reward"]) <= 0 for a in scored)
-                    and self.versions.get(vid, {}).get("rev") not in (0, "0")):
+                    and (self.versions.get(vid, {}).get("rev") not in (0, "0") or alone)):
                 self.pending.append(f"{self.label(vid)}'s first {n} attempts all failed (its group runs on)")
             return
         if not e.get("scored"):
