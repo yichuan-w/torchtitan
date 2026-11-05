@@ -146,6 +146,14 @@ callsites before changing them.
 scaffold the 9B was SFT'd under. Rewriting a prompt for clarity puts the policy
 off-distribution and starves the solve rate. Leave them alone.
 
+A change to what evolve's rewriting agents are told -- the author, verifier or
+probe prompts, and every setting that adds or replaces a paragraph in them --
+reaches a training run only after it has beaten the current mainline prompt on
+EvolveBench. EvolveBench is the only measure that decides; a training run's own
+numbers, an offline analysis of an earlier run, or a reading of the mechanism do
+not stand in for it. A check that only records, and changes no prompt, is not
+held back by this.
+
 `rollout_reward/mean`, the number on stdout, is not the learning curve. With
 `drop_zero_std=True` the trained batch is filtered to mixed-outcome groups, so
 that number sits near 0.5 by construction. The learning signal is
