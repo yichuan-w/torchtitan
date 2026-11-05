@@ -76,3 +76,13 @@ def _no_container_from_a_session(monkeypatch):
     ec = sys.modules.get("evolve_codex")
     if ec is not None and hasattr(ec, "_sandbox_boot"):
         monkeypatch.setattr(ec, "_sandbox_boot", lambda pkg: None)
+
+
+
+@pytest.fixture(autouse=True)
+def _fixed_rewrite_budget(monkeypatch):
+    """A day per rewrite unless a test sets its own. Derived, the budget comes
+    from whatever mix and runs the root holds and is cached per process for
+    ten minutes: a test with a few-row mix left ~112s behind, and every later
+    test that reached a deadline check failed it."""
+    monkeypatch.setenv("EVOLVE_REWRITE_BUDGET_SEC", "86400")

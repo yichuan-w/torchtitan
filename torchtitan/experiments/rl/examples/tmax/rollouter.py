@@ -2151,6 +2151,8 @@ class TMaxRollouter(Rollouter):
             return
         if rollouts and rollouts[0].group_id < 0:  # validation prompts, never trained
             return
+        if getattr(sample, "evolve_frozen", False):  # pinned copy, never rewritten
+            return
         try:
             # is_scored (not "is not None"): an infra-failed sibling carries a NaN
             # reward, and statistics.pstdev raises on NaN under Python 3.12.
