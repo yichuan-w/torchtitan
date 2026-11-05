@@ -295,8 +295,9 @@ def test_harder_target_replaces_the_half_aim(tmp_path, monkeypatch, blind):
     assert "238 of the\n349" in seen[0] and "220 of those 238" in seen[0]
     assert ec._MODEST_AIM not in seen[0]
     assert "Aim for 3 to 5 of 12 solved in the next group" in seen[0]
-    assert '`expected: "k of 12"`' in seen[0]
-    assert len(seen) == 1  # the line was there: no repair session
+    assert 'expected: "k of' not in seen[0]
+    assert len(seen) == 1
+    # An expected line the author writes anyway is still read.
     assert out["_harder_expected"] == "4 of 12"
 
 
@@ -310,43 +311,18 @@ def test_harder_target_scales_to_the_group(tmp_path, monkeypatch):
     assert "next group of 8 attempts solves 2 to 3 times" in seen[0]
 
 
-def test_a_free_text_prediction_goes_back_to_the_author(tmp_path, monkeypatch):
+def test_a_missing_prediction_line_is_not_sent_back(tmp_path, monkeypatch):
+    """The band asks for no expected line, and its absence costs nothing."""
     monkeypatch.setenv("EVOLVE_HARDER_TARGET", "3-5")
     rw = tb._rewrite(tmp_path, monkeypatch)
     sessions = []
     tb._wire(monkeypatch, sessions, [])
     _harder_traces(rw)
-    seen = _hardening_author(
-        monkeypatch, "I expect 4 of 12.\n", 'I expect 4 of 12.\nexpected: "4 of 12"\n'
-    )
+    seen = _hardening_author(monkeypatch, "I expect about half.\n", None)
     out = ec.evolve_agentic(rw, dict(tb.SEED), "harder")
-    assert [s["role"] for s in sessions] == ["author", "author", "verifier"]
-    assert sessions[1]["resume"] == "sid"
-    assert seen[1].startswith("The caller cannot read your prediction")
-    assert out["_harder_expected"] == "4 of 12"
-
-
-@pytest.mark.parametrize("edit_task", [False, True])
-def test_a_prediction_still_missing_or_a_repair_that_edits_discards(
-    tmp_path, monkeypatch, edit_task
-):
-    monkeypatch.setenv("EVOLVE_HARDER_TARGET", "3-5")
-    rw = tb._rewrite(tmp_path, monkeypatch)
-    sessions = []
-    tb._wire(monkeypatch, sessions, [])
-    _harder_traces(rw)
-    _hardening_author(
-        monkeypatch, "about half\n",
-        'expected: "4 of 12"\n' if edit_task else "still about half\n", edit_task,
-    )
-    error, match = (
-        (RuntimeError, "harder expected repair changed task files")
-        if edit_task
-        else (ValueError, 'requires a line expected: "k of n"')
-    )
-    with pytest.raises(error, match=match):
-        ec.evolve_agentic(rw, dict(tb.SEED), "harder")
-    assert [s["role"] for s in sessions] == ["author", "author"]
+    assert [s["role"] for s in sessions] == ["author", "verifier"]
+    assert len(seen) == 1 and out["_harder_expected"] is None
+    assert not hasattr(ec, "_require_harder_expected")
 
 
 def test_a_recorded_harder_expected_is_the_prediction(tmp_path) -> None:
