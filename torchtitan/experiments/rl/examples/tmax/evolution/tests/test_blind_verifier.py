@@ -244,9 +244,12 @@ def test_blind_mode_runs_two_sessions_and_the_second_never_sees_the_solution(
     assert [s["role"] for s in sessions] == ["author", "verifier"]
     assert sessions[0]["saw_solution"] is True and sessions[1]["saw_solution"] is False
     assert sessions[0]["cwd"] == rw.package
-    # The verifier's author works in a copy under its own session.
-    assert sessions[1]["cwd"] == sessions[1]["session"].package
-    assert replays == [sessions[1]["cwd"]]
+    # The verifier's author works in a copy its session links to, outside the
+    # rewrite, so ../../../package from its cwd is not the author's package.
+    assert sessions[1]["session"].package.is_symlink()
+    assert sessions[1]["cwd"] == sessions[1]["session"].package.resolve()
+    assert rw.path not in sessions[1]["cwd"].parents
+    assert [p.resolve() for p in replays] == [sessions[1]["cwd"]]
     assert sessions[1]["session"].path.parent == rw.sessions
     if job == "harder":
         assert "`tests/` is your scratch checker, and it is thrown away" in sessions[0]["prompt"]

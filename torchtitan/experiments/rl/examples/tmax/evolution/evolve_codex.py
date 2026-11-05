@@ -49,6 +49,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 import evolve as ev
+import grader_value_leak
 import peer_context
 import simplify_operators as so
 import synth_client as llm
@@ -2564,6 +2565,61 @@ def _budget(timeout: int) -> str:
     return _BUDGET.format(deadline=deadline, budget_min=timeout // 60)
 
 
+class BlindEscape(RuntimeError):
+    """A blind session's output names a path outside its own package."""
+
+
+def _outside_package(sd: layout.SessionDir) -> Path:
+    """Give a blind session a package outside the rewrite directory.
+
+    The session's package used to sit at sessions/<stamp>--verifier/package,
+    so ../../../package from its cwd was the author's package, reference
+    solution and traces included; only the prompt kept it from going there.
+    Now ``sd.package`` is a link to a fresh directory under
+    EVOLVE_WORK_ROOT/blind (the system temp directory without one), and the
+    session runs in the link's target. materialize_outside_packages copies it
+    back into the session before the rewrite is published."""
+    base = os.environ.get("EVOLVE_WORK_ROOT", "").strip()
+    parent = Path(base) / "blind" if base else None
+    if parent is not None:
+        parent.mkdir(parents=True, exist_ok=True)
+    real = Path(tempfile.mkdtemp(prefix="blind-package-", dir=parent)).resolve()
+    real.chmod(0o700)
+    sd.package.symlink_to(real, target_is_directory=True)
+    return real
+
+
+def materialize_outside_packages(rewrite: layout.RewriteDir) -> None:
+    """Replace each session's package link with a copy of what it points at."""
+    for sd in rewrite.session_dirs():
+        link = sd.package
+        if not link.is_symlink():
+            continue
+        real = Path(os.readlink(link))
+        link.unlink()
+        if real.is_dir():
+            shutil.copytree(real, link, symlinks=True)
+            shutil.rmtree(real, ignore_errors=True)
+
+
+# Seen in a blind session's own output (its prompt removed), each means it
+# looked outside its package: a climb back to the author's package, the
+# rewrite directory, or another task in the root. Measured over 428 verifier
+# sessions on della before the package moved out: none named the author's
+# package; every root path they printed was their own package's.
+def _require_blind(sd: layout.SessionDir, rewrite: layout.RewriteDir) -> None:
+    prompt = sd.prompt.read_text(errors="replace") if sd.prompt.is_file() else ""
+    text = "".join(
+        p.read_text(errors="replace").replace(prompt, "")
+        for p in (sd.stdout, sd.stderr, sd.path / "events.jsonl")
+        if p.is_file()
+    )
+    marks = ("../package", str(rewrite.path) + "/", "/evolution/tasks/")
+    hits = [m for m in marks if m in text]
+    if hits:
+        raise BlindEscape(f"blind session {sd.path.name} read outside its package: {hits}")
+
+
 def _blind_layout(pkg: Path, vpkg: Path) -> None:
     """The author's package minus what the verifier's author must not see."""
     hidden = set(HIDDEN_FROM_VERIFIER)
@@ -3229,7 +3285,7 @@ def _blind_verifier(
     with ThreadPoolExecutor(max_workers=2) as pool:
         timeout = _session_timeout(deadline, "blind verifier author")
         with session(rewrite, "verifier", timeout=timeout) as run:
-            vpkg = run.dir.package
+            vpkg = _outside_package(run.dir)
             _blind_layout(pkg, vpkg)
             _restore_seed_tests(vpkg, seed_tests)
             prompt = _VERIFIER_JOB.format(
@@ -3286,6 +3342,7 @@ def _blind_verifier(
                 _run_codex(run, vpkg, prompt)
             finally:
                 _sandbox_down(vpkg)
+            _require_blind(run.dir, rewrite)
         _check_verdict(vpkg)
         sessions_done = time.monotonic()
         cancel_early = threading.Event()
@@ -3411,9 +3468,10 @@ def _blind_repair(
             + _budget(timeout)
         )
         try:
-            _run_codex(run, vpkg, prompt, resume=sid)
+            _run_codex(run, vpkg.resolve(), prompt, resume=sid)
         finally:
             _sandbox_down(vpkg)
+        _require_blind(run.dir, rewrite)
     _check_verdict(vpkg)
     _verify_original_probes(vsession, rewrite, deadline)
     if independent_probes():
@@ -3990,6 +4048,7 @@ def evolve_agentic(
             "repair": _REPAIR_JOB.format(exit_code=exit_code),
         }[job]
         + (_CHECKED_NOTE if blind else "")
+        + (grader_value_leak.PROMPT_NOTE if job == "harder" and grader_value_leak.mode() else "")
         + _traces_spec(rewrite.traces)
         + _budget(author_timeout)
     )

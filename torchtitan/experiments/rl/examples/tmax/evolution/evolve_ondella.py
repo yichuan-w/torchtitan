@@ -83,6 +83,7 @@ import evolve_codex as ec  # noqa: E402
 import lineage_policy  # noqa: E402
 import feedback_loop as fb  # noqa: E402
 import grader_replay  # noqa: E402
+import grader_value_leak  # noqa: E402
 from finalize_interrupted_traces import finalize_interrupted  # noqa: E402
 import pack_to_dataset as pack  # noqa: E402
 import peer_context  # noqa: E402
@@ -1373,6 +1374,15 @@ def handle(
                     stage="not_harder",
                     reason=rec["harder_replay"]["why"],
                 )
+        leak_mode = grader_value_leak.mode()
+        if leak_mode and rec.get("status") == "accepted" and not dry:
+            rec["grader_value_leak"] = grader_value_leak.check(src, rewrite.package)
+            if not rec["grader_value_leak"]["ok"] and leak_mode == "reject":
+                rec.update(
+                    status="rejected",
+                    stage="grader_value_leak",
+                    reason=rec["grader_value_leak"]["why"],
+                )
         canary_config = PolicyCanaryConfig.from_env()
         if rec.get("status") == "accepted" and canary_config.group_size:
             if dry:
@@ -1439,6 +1449,7 @@ def handle(
         "simplify_context",
         "grader_replay",
         "harder_replay",
+        "grader_value_leak",
         "stage",
         "reason",
         "verdicts",
@@ -1466,6 +1477,7 @@ def handle(
         meta["finished"] = layout.stamp()
     layout.write_json_atomic(rewrite.meta, meta)
     published = time.monotonic()
+    ec.materialize_outside_packages(rewrite)
     try:
         rewrite = workspace.publish()
     except rw_workspace.UnpublishableRewrite:
