@@ -7,6 +7,7 @@ import pandas as pd
 
 groups = pd.read_csv(sys.argv[1])
 meta, out = sys.argv[2], sys.argv[3]
+MIN_G, NAME, KEY = int(sys.argv[4]), sys.argv[5], sys.argv[6]  # min groups per rev; output name; sort key: revs|groups
 tr = groups.dropna(subset=["train_step", "solved", "rev"]).sort_values("group")
 cands = []
 for task, g in tr.groupby("task"):
@@ -17,9 +18,9 @@ for task, g in tr.groupby("task"):
             acc.append(d)
     dirs = {d["job"] for d in acc}
     per_rev = g.groupby("rev").size()
-    if dirs >= {"easier", "harder"} and len(per_rev) >= 3 and (per_rev >= 3).all():
+    if dirs >= {"easier", "harder"} and len(per_rev) >= 3 and (per_rev >= MIN_G).all():
         cands.append((len(per_rev), len(g), task, sorted(acc, key=lambda d: d["result_rev"])))
-cands.sort(reverse=True)
+cands.sort(key=(lambda c: (c[0], c[1])) if KEY == "revs" else (lambda c: (c[1], c[0])), reverse=True)
 print(len(cands), "lineages qualify;", [(c[2], c[0], c[1]) for c in cands[:6]])
 f, axes = plt.subplots(2, 2, figsize=(12, 6.5), sharey=True)
 for ax, (nrev, ng, task, acc) in zip(axes.flat, cands[:4]):
@@ -37,7 +38,7 @@ for ax, (nrev, ng, task, acc) in zip(axes.flat, cands[:4]):
     ax.grid(axis="y", color="#e6e5e1", lw=0.6)
     for sp in ("top", "right"): ax.spines[sp].set_visible(False)
 f.tight_layout()
-f.savefig(f"{out}/item7_lineages.png", dpi=170)
+f.savefig(f"{out}/item7_{NAME}.png", dpi=170)
 for nrev, ng, task, acc in cands[:4]:
     g = tr[tr.task == task]
     print(task, {int(r): list(x.solved.astype(int)) for r, x in g.groupby("rev")}, [(d["result_rev"], d["job"]) for d in acc])
