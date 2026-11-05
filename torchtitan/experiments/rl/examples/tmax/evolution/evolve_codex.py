@@ -37,6 +37,7 @@ import hashlib
 import json
 import logging
 import os
+import re
 import shutil
 import statistics
 import subprocess
@@ -2468,7 +2469,7 @@ statement: state it in the instruction, or drop the entry."""
 # real-guidance harder rewrites in 111e, 7 added such a sentence, 2 of them in
 # this repair step. Off, every prompt is unchanged.
 def _no_worked_answers() -> bool:
-    return os.environ.get("EVOLVE_NO_WORKED_ANSWERS", "0") == "1"
+    return os.environ.get("EVOLVE_NO_WORKED_ANSWERS", "0") == "1" or _harder_quiet()
 
 
 _NO_WORKED_ANSWER_NOTE = """
@@ -2481,6 +2482,67 @@ value the check expects, and printing that value passes without the work. This
 holds for such a sentence an earlier rewrite added too: withdraw it rather than
 keep it or update its numbers. Where a check needs that result, the verifier
 computes it from the environment."""
+
+
+# EVOLVE_HARDER_QUIET=1 (#319, default off; turns EVOLVE_NO_WORKED_ANSWERS on
+# too): a harder change counts only where its wrong result passes the checks
+# the successful attempts ran on their own work, and the instruction states the
+# result a user sees, never the property that tells the fix apart. In combo1 of
+# the 122B harder slice, 16 of 24 rewrites still at 12/12 had named the checked
+# property in the instruction, and the rest mostly failed loudly; the "both
+# replays fail" line appeared in 19/24 of them and 17/18 of the 3-8/12 ones.
+# Applies to the real guidance only (not calibration, not student guidance).
+# Off, every prompt is unchanged.
+def _harder_quiet() -> bool:
+    return os.environ.get("EVOLVE_HARDER_QUIET", "0") == "1"
+
+
+_QUIET_REPLAY = (
+    "If both still pass, the change does not touch the path the student takes.",
+    "If both still pass, the change does not touch the path the student takes. "
+    "A replay stops at the first new error only because it replays fixed\n"
+    "keystrokes; a student reads that error and changes course. Count every failure\n"
+    "the attempt's own commands would print -- a traceback, a FAIL line, a non-zero\n"
+    "exit, a count or label that is plainly wrong -- as fixed within a few turns.\n"
+    "The change makes the task harder only where the wrong result passes every\n"
+    "check the successful attempts ran on their own work; do not ship a test,\n"
+    "script or exit code that reports it.",
+)
+_QUIET_REQUIREMENT = (
+    "the way the real software presents them.",
+    "the way the real software presents them. The new requirement states the\n"
+    "result a user sees -- the file, the output, the behaviour -- not the property,\n"
+    "representation, metric or failure mode that tells the correct fix from the\n"
+    "plausible one: naming that does the student's diagnosis for it.",
+)
+_QUIET_VERIFIABLE = (
+    "Make the changed requirement distinguish a correct result from the observed "
+    "shortcut using only the instruction and environment;",
+    "Make the changed requirement checkable through the result a user sees: the\n"
+    "instruction states that result, and the environment lets the verifier compute\n"
+    "it for a correct fix and tell it from the observed shortcut;",
+)
+_QUIET_CHECKED_NOTE = """
+
+For the behaviour your change turns on, quote the sentence that states the
+result a user sees. The instruction does not name the property, metric or
+failure mode behind that result, so no entry quotes one."""
+
+
+def _sub_words(text: str, old: str, new: str) -> str:
+    """Replace the one occurrence of ``old`` in ``text``, whatever line breaks
+    the prompt source wraps it with."""
+    pattern = r"\s+".join(re.escape(word) for word in old.split())
+    out, n = re.subn(pattern, lambda _m: new, text)
+    assert n == 1, (n, old)
+    return out
+
+
+def _harder_quiet_text(text: str, blind: bool) -> str:
+    """The real-guidance harder prompt under EVOLVE_HARDER_QUIET."""
+    for old, new in (_QUIET_REPLAY, _QUIET_REQUIREMENT) + ((_QUIET_VERIFIABLE,) if blind else ()):
+        text = _sub_words(text, old, new)
+    return text
 
 
 _REPAIR_JOB = """Your rewrite did not survive the caller's check. It rebuilt the
@@ -4074,9 +4136,12 @@ def evolve_agentic(
     # original's verifier is the version's, never one rewritten for it.
     keep_verifier = job == "easier" and plan_is_instruction_only(task.get("_intervention_plan"))
     blind = job in ("harder", "easier") and VERIFIER_AUTHOR == "blind" and not keep_verifier
+    quiet = _harder_quiet() and job == "harder" and not calibration and HARDER_GUIDANCE == "real"
     prompt = (
         {
-            "harder": _harder_work_text(_harder_aim((_HARDER_JOB_BLIND if blind else _HARDER_JOB).format(
+            "harder": _harder_work_text(_harder_aim((
+                lambda text: _harder_quiet_text(text, blind) if quiet else text
+            )((_HARDER_JOB_BLIND if blind else _HARDER_JOB).format(
                 solved=solved,
                 attempts=attempts_n,
                 guidance=_calibration_guidance(solved, attempts_n)
@@ -4099,7 +4164,7 @@ def evolve_agentic(
                     "Do not add code to meet a minimum length."
                 ),
                 max_asserts=caps["max_added_asserts"],
-            ), attempts_n), work_stats, work_target, attempts_n)
+            )), attempts_n), work_stats, work_target, attempts_n)
             + _HARDER_REPAIR_NOTE
             + (_UNSOLVED_HARDER_NOTE if task.get("_unsolved") else ""),
             "easier": (_PLAN_JOB if task.get("_intervention_plan") else _EASIER_JOB).format(
@@ -4110,7 +4175,13 @@ def evolve_agentic(
             + (_UNSOLVED_NOTE if task.get("_unsolved") else ""),
             "repair": _REPAIR_JOB.format(exit_code=exit_code),
         }[job]
-        + (_CHECKED_NOTE + (_NO_WORKED_ANSWER_NOTE if _no_worked_answers() else "") if blind else "")
+        + (
+            _CHECKED_NOTE
+            + (_NO_WORKED_ANSWER_NOTE if _no_worked_answers() else "")
+            + (_QUIET_CHECKED_NOTE if quiet else "")
+            if blind
+            else ""
+        )
         + _traces_spec(rewrite.traces)
         + _budget(author_timeout)
     )
