@@ -49,6 +49,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 import evolve as ev
+import peer_context
 import simplify_operators as so
 import synth_client as llm
 import task_size as ts
@@ -3912,6 +3913,9 @@ def evolve_agentic(
             "revision failed -- open the records that answer it. They are "
             "read-only, and none of it goes into the task.\n"
         )
+
+    if job in ("harder", "easier"):
+        prompt += peer_context.prompt(rewrite.traces)
 
     if job in ("harder", "easier") and task.get("_student_feedback"):
         feedback = task["_student_feedback"]
