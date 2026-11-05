@@ -127,6 +127,46 @@ STUDENT_RECIPES = {
         # bake tmux into each row's Dockerfile.
         "SWE_TB2_BAKE_TMUX": "0",
     },
+    # The 122B runs' training rollout (111c, kept by 111e and 114: env_122b_114.sh
+    # and submit_tmax122b_114.sh): groups of 12, 92160 context with the agent
+    # stopping at 90112, 150 Terminus turns, 2400 s for a row that declares
+    # nothing (max(declared, 5400) for one that does), the della-style context
+    # notice at half the window, strict opening, format-streak 5, unsubmitted
+    # attempts 0, rows as they are. Scored by bench_local_eval.py against a
+    # locally served student, or by bench_cluster_eval.py as a validation-only
+    # cluster job (#319).
+    "train-111c-122b": {
+        **_COMMON,
+        "TMAX_TERMINUS_MAX_TURNS": "150",
+        "TMAX_CALL_LIMIT": "150",
+        "TT_DAYTONA_CPU": "2",
+        "TT_DAYTONA_MEM_GB": "4",
+        "TT_DAYTONA_DISK_GB": "10",
+        "SWE_TB2_VAL_K": "12",
+        "SWE_TMAX_CONTEXT": "92160",
+        "SWE_MAX_CONTEXT_LEN": "90112",
+        "TMAX_TURN_MAX_TOKENS": "16384",
+        "SWE_EVAL_TIME_BUDGET_SEC": "2400",
+        "SWE_EVAL_BUDGET_FLOOR_SEC": "5400",
+        "SWE_TIME_BUDGET_SEC": "2400",
+        "SWE_AGENT_TIMEOUT_FLOOR_SEC": "5400",
+        "TMAX_EVAL_TIMEOUT_SEC": "600",
+        "SWE_EVAL_MAX_TURNS": "0",
+        "SWE_EVAL_MAX_CONTEXT_LEN": "0",
+        "SWE_EVAL_AGENT_BUDGET_CAP_SEC": "0",
+        "SWE_EVAL_VERIFIER_BUDGET_CAP_SEC": "0",
+        "SWE_EVAL_CONTEXT_NOTICE": "1",
+        "TMAX_CONTEXT_NOTICE_STYLE": "della",
+        "TMAX_CONTEXT_WARN_FRAC": "0.5",
+        "SWE_EVAL_GRADE_UNSUBMITTED": "0",
+        "TMAX_GRADE_UNSUBMITTED_TRAIN": "0",
+        "SWE_EVAL_SHADOW_GRADE_TIMEOUTS": "0",
+        "SWE_EVAL_STRICT_OPENING": "1",
+        "SWE_EVAL_STRICT_FORMAT": "0",
+        "SWE_EVAL_STRICT_TRUNCATION": "0",
+        "TMAX_FORMAT_STREAK_LIMIT": "5",
+        "SWE_TB2_BAKE_TMUX": "0",
+    },
     # What the repair342 and r100 evals and both arms of agentpick400-measured
     # ran: the eval path's own behaviour, a 65536 context (the code's default,
     # so unset here), 2400 s for rows that declare nothing.
