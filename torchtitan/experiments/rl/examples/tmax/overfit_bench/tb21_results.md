@@ -113,7 +113,7 @@ in run 1030c solved it (#309). A box is ticked once the task is overfit (rule ab
 - [ ] polyglot-c-py (0/75) - queued
 - [ ] gpt2-codegolf (0/75) - queued
 - [ ] feal-differential-cryptanalysis (0/74) - running from 2026-11-04 11:20 (fresh teacher, 160K / 120 turns)
-- [ ] feal-linear-cryptanalysis (0/74) - queued
-- [ ] protein-assembly (0/75) - queued
+- [ ] feal-linear-cryptanalysis (0/74) - skipped, not run: expected to be blocked by the teacher's safety filter, as feal-differential-cryptanalysis's teacher is in 8-10 rounds an hour ("flagged for possible cybersecurity risk", #307)
+- [ ] protein-assembly (0/75) - running from 2026-11-05 11:20 in train-fasttext's place (`--teacherv4-gb300`, original share 0.25, 160K / 120 turns, checkpoint every 5 steps)
 - [ ] dna-assembly (0/73) - queued
 - [ ] reshard-c4-data (0/74) - queued
