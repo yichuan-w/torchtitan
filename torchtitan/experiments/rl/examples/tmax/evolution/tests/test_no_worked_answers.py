@@ -20,6 +20,8 @@ from test_blind_verifier import _rewrite, _wire, SEED
 
 
 def _author_prompt(tmp_path, monkeypatch) -> str:
+    # A fixed budget: rewrite_budget_sec caches another test's root otherwise.
+    monkeypatch.setenv("EVOLVE_REWRITE_BUDGET_SEC", "86400")
     rw = _rewrite(tmp_path, monkeypatch)
     sessions, checks = [], []
     _wire(monkeypatch, sessions, checks)
