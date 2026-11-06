@@ -103,9 +103,16 @@ def main() -> None:
             log_line(f"task={tid} skipped: r{newest} is newer than the signal's rev {data.get('rev', 0)}")
             continue
         if a.only_failed:
-            rws = sorted(
-                glob.glob(os.path.join(task_dir, "rewrites", "*", "rewrite.json"))
-            )
+            # Only rewrites that answered this signal's revision count: a chain
+            # hop's signal at rev N follows an accepted rewrite of rev N-1.
+            rws = [
+                p
+                for p in sorted(
+                    glob.glob(os.path.join(task_dir, "rewrites", "*", "rewrite.json"))
+                )
+                if int(json.load(open(p)).get("input_rev") or 0)
+                == int(data.get("rev") or 0)
+            ]
             st = json.load(open(rws[-1]))["status"] if rws else "never_handled"
             if st not in ("failed", "interrupted", "never_handled"):
                 n_skip += 1

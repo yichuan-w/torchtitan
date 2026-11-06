@@ -97,3 +97,41 @@ def test_skip_accepted_compares_with_the_signal_rev(tmp_path, signal_rev, revs, 
         text=True,
     ).stdout
     assert out.startswith(f"staged {int(staged)} signals")
+
+
+@pytest.mark.parametrize(
+    "signal_rev,rewrites,staged",
+    [
+        (0, [], True),
+        (0, [(0, "accepted")], False),
+        (0, [(0, "failed")], True),
+        (0, [(0, "failed"), (0, "failed")], False),
+        # A chain hop: the accepted rewrite of r0 answered the previous signal.
+        (1, [(0, "accepted")], True),
+        (1, [(0, "accepted"), (1, "failed")], True),
+        (1, [(0, "accepted"), (1, "accepted")], False),
+    ],
+)
+def test_only_failed_counts_rewrites_of_the_signal_rev(tmp_path, signal_rev, rewrites, staged):
+    """--only-failed and --max-attempts read only the rewrites whose input is
+    the revision the signal measured, so a chain hop's signal at r1 is not
+    taken for already answered by the accepted rewrite of r0."""
+    run = _source_run(tmp_path / "src", "easier", rev=signal_rev)
+    task = tmp_path / "root" / "evolution" / "tasks" / "task_a"
+    for r in range(signal_rev + 1):
+        (task / f"r{r}").mkdir(parents=True)
+    for i, (input_rev, status) in enumerate(rewrites):
+        d = task / "rewrites" / f"20261106-00000{i}Z--easier"
+        d.mkdir(parents=True)
+        (d / "rewrite.json").write_text(json.dumps({"input_rev": input_rev, "status": status}))
+    selected = tmp_path / "selected.json"
+    selected.write_text(json.dumps({"task_a": {"group": 7}}))
+    out = subprocess.run(
+        [sys.executable, str(STAGE), "--run", str(run), "--selected", str(selected),
+         "--root", str(tmp_path / "root"), "--name", "staged-1", "--skip-accepted",
+         "--only-failed", "--max-attempts", "2", "--attempts-since", "20261106"],
+        check=True,
+        capture_output=True,
+        text=True,
+    ).stdout
+    assert out.startswith(f"staged {int(staged)} signals")
