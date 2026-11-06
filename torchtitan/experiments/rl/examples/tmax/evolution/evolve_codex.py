@@ -3296,12 +3296,99 @@ def _independent_verifier(
             return
 
 
-def _instruction_change_note(before: Path, after: Path) -> str:
+# EVOLVE_EASIER_KEEP_CHECKS=1 (#324, default off): the blind verifier of a
+# simplification keeps every inherited check whose requirement the revised
+# instruction still states. In 1030c, 35 of 2,407 accepted rewrites (1.5%) had a
+# verifier that accepts a wrong answer the instruction still rules out, 28 of
+# them easier. The verifier sessions of the dev55/test113/dev168 bench, under
+# the same AGENTS.md, give three reasons for deleting such a check, and each is
+# a sentence this setting rewrites for a simplification: the AGENTS.md limits on
+# method, provenance and hardcoding checks, written for any check, applied to
+# inherited anti-shortcut checks (`test_quine_no_file_read` "does not prohibit
+# reading its own source"); the diff note's "removes or narrows loses or
+# narrows its inherited checks" read as "work the revision now supplies loses
+# its checks" (the Agda `SmallLib` rewrite removed the only check that rejected
+# a postulate); and the reported-defect note's "this is not widening" (`== 50`
+# became `> 0`). Off, every prompt and AGENTS.md is unchanged.
+def _easier_keep_checks() -> bool:
+    return os.environ.get("EVOLVE_EASIER_KEEP_CHECKS", "0") == "1"
+
+
+_SPEC_METHOD_EVIDENCE = """obtaining the result do not require proof of execution history. Require a token
+log, saved workflow, provenance artifact, or evidence of a restricted method only
+when the public contract explicitly makes it part of acceptance."""
+_SPEC_METHOD_EVIDENCE_KEEP = """obtaining the result do not require proof of execution history. Add a check that
+requires a token log, saved workflow, provenance artifact, or evidence of a
+restricted method only when the public contract explicitly makes it part of
+acceptance; an inherited check of that kind follows "What this revision may
+change" like any other."""
+_SPEC_FINAL_ARTIFACT = """- Identify whether the public task requires a final artifact or a reusable
+  program. Check final-artifact semantics on the supplied inputs. Check
+  intermediate artifacts, execution evidence, or method restrictions only when
+  the public contract requires them. Do not infer a prohibition on copying or
+  hardcoding."""
+_SPEC_FINAL_ARTIFACT_KEEP = """- Identify whether the public task requires a final artifact or a reusable
+  program. Check final-artifact semantics on the supplied inputs. A check you
+  add examines intermediate artifacts, execution evidence, or method
+  restrictions only when the public contract requires them, and infers no
+  prohibition on copying or hardcoding. These limits are on the checks you add.
+  An inherited check that runs the submitted program on inputs it was not
+  given, hides or replaces a file before running it, rejects a tool or library
+  the instruction rules out, or otherwise rejects a hardcoded or copied answer
+  stays at its strictness while the sentence it rests on is still in the
+  instruction: the student was measured with it, and without it a submission
+  that skips the work passes."""
+
+
+def _keep_checks_spec() -> str:
+    """verifier_author.md with the two method/hardcoding limits scoped to the
+    checks the verifier author adds."""
+    spec = VERIFIER_SPEC.read_text()
+    for old, new in (
+        (_SPEC_METHOD_EVIDENCE, _SPEC_METHOD_EVIDENCE_KEEP),
+        (_SPEC_FINAL_ARTIFACT, _SPEC_FINAL_ARTIFACT_KEEP),
+    ):
+        assert spec.count(old) == 1, old
+        spec = spec.replace(old, new)
+    return spec
+
+
+def _keeps_checks(vpkg: Path) -> bool:
+    """Whether this verifier session was laid out under EVOLVE_EASIER_KEEP_CHECKS,
+    read from its own AGENTS.md so a resumed repair gets the same notes."""
+    try:
+        return _SPEC_FINAL_ARTIFACT_KEEP in (vpkg / "AGENTS.md").read_text()
+    except OSError:
+        return False
+
+
+_CHANGE_NOTE_SCOPE = (
+    "A requirement this diff removes or narrows loses or narrows its "
+    "inherited checks: an inherited check of the old scope now rejects work the "
+    "instruction permits. "
+)
+_CHANGE_NOTE_SCOPE_KEEP = (
+    _CHANGE_NOTE_SCOPE
+    + "A removed or reworded sentence removes a requirement only when the "
+    "revised instruction no longer states it anywhere. Work the revision now "
+    "supplies -- a starter, a finished stage, an installed dependency -- is still "
+    "graded wherever the instruction asks for the result it produces or says to "
+    "keep, preserve or leave it working: the student can still break it, so its "
+    "inherited checks stay at their strictness. Where an inherited check of work "
+    "the revision removed also rejects a shortcut to a requirement that remains, "
+    "keep that part of it. "
+)
+
+
+def _instruction_change_note(
+    before: Path, after: Path, *, keep_checks: bool = False
+) -> str:
     """The public instruction's diff against the previous revision, for the
     blind verifier author. Without it the author sees only the new text and the
     inherited checks, so a requirement the rewrite narrowed in one sentence while
     another sentence still reads the old way keeps its old checks, and the
-    revision then rejects work its instruction permits."""
+    revision then rejects work its instruction permits. ``keep_checks`` adds
+    EVOLVE_EASIER_KEEP_CHECKS's limit on what a simplification's diff removes."""
     try:
         old = (before / "instruction.md").read_text()
         new = (after / "instruction.md").read_text()
@@ -3316,9 +3403,9 @@ def _instruction_change_note(before: Path, after: Path) -> str:
     return (
         "\nThe public instruction changed in this revision:\n\n```diff\n"
         + diff
-        + "```\n\nA requirement this diff removes or narrows loses or narrows its "
-        "inherited checks: an inherited check of the old scope now rejects work the "
-        "instruction permits. Where an unchanged sentence still reads the old way, "
+        + "```\n\n"
+        + (_CHANGE_NOTE_SCOPE_KEEP if keep_checks else _CHANGE_NOTE_SCOPE)
+        + "Where an unchanged sentence still reads the old way, "
         "the changed sentence states the narrowed scope; check that scope, and name "
         "the conflict in run/verifier-changes.md. A removed sentence that only fixed "
         "how the expected values are computed (a window, a convention) removes no "
@@ -3370,6 +3457,9 @@ def _blind_verifier(
         with session(rewrite, "verifier", timeout=timeout) as run:
             vpkg = run.dir.package
             _blind_layout(pkg, vpkg)
+            keep_checks = _easier_keep_checks() and "_simplify_hint" in task
+            if keep_checks:
+                (vpkg / "AGENTS.md").write_text(_keep_checks_spec())
             _restore_seed_tests(vpkg, seed_tests)
             prompt = _VERIFIER_JOB.format(
                 verifier_rel=seed_rel,
@@ -3378,7 +3468,7 @@ def _blind_verifier(
             )
             if task.get("_role_files"):
                 prompt += _ROLE_PATCH_NOTE
-            prompt += _instruction_change_note(seed_pkg, pkg)
+            prompt += _instruction_change_note(seed_pkg, pkg, keep_checks=keep_checks)
             prompt += _reported_defects(pkg, vpkg)
             prompt += _checked_behaviours(pkg, vpkg)
             prompt += _budget(timeout)
@@ -3849,10 +3939,18 @@ def _reported_defects(pkg: Path, vpkg: Path) -> str:
         "student's attempts. Where one says an inherited check rejects an answer "
         "the instruction permits, judge that against the instruction yourself: if "
         "the instruction permits the answer, correct the check so it accepts it "
-        "while still checking the required content -- the bound was never the "
-        "task's, so this is not widening; if it does not, keep the check. Either "
+        "while still checking the required content -- "
+        + (_REPORTED_KEEP if _keeps_checks(vpkg) else _REPORTED_WIDENING)
+        + "; if it does not, keep the check. Either "
         "way, record your decision on each in `run/verifier-changes.md`.\n"
     )
+
+
+_REPORTED_WIDENING = "the bound was never the task's, so this is not widening"
+_REPORTED_KEEP = (
+    "change only what rejects that answer, so every answer the inherited check "
+    "rejected that the instruction still does not permit stays rejected"
+)
 
 
 def _quoted_in(quote: str, text: str) -> bool:
