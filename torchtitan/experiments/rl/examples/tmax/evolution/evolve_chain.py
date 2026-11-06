@@ -423,6 +423,64 @@ def reference_run(d: Path, evals: list[Path], band_: str, exclude: set[str]) -> 
     return out
 
 
+def add_reference_packages(a: argparse.Namespace) -> None:
+    """Copy each reference task's package into the chain's sources, so
+    EVOLVE_PEER_CONTEXT can show the author the peer's instruction (it reads
+    <root>/data/sources/*/tasks/<peer>/instruction.md for a rev-0 peer; without
+    the package the peer's instruction is empty). The package is the first
+    candidate whose instruction.md is the reference run's row problem_statement
+    (and whose tests/test.sh is the row's test_sh, when one matches); it goes
+    under the chain corpus of the row's corpus, which every arm root already links."""
+    d, chain = _load_chain(a.bench, a.chain)
+    set_run = a.bench / "sets" / a.chain / "runs" / a.chain
+    tids = sorted({rel.split("/")[1] for rel in json.load(open(set_run / "reference.json"))})
+    rows: dict[str, dict] = {}
+    for mix in a.rows:
+        for r in eb._rows(mix):
+            rows.setdefault(eb._iid(r), r)
+    corpora = {c.name.split("@")[0]: c for c in sorted((d / "sources").iterdir())}
+    have = {t.name for c in corpora.values() for t in (c / "tasks").iterdir()}
+    added, missing, kept = {}, [], 0
+    for tid in tids:
+        if tid in have:
+            kept += 1
+            continue
+        row = rows.get(tid)
+        if row is None:
+            missing.append(f"{tid}: no row")
+            continue
+        want_i = (row["metadata"].get("problem_statement") or "").strip()
+        cands = [Path(s) / "tasks" / tid for s in a.sources if (Path(s) / "tasks" / tid / "instruction.md").is_file()]
+        same_i = [c for c in cands if (c / "instruction.md").read_text(errors="replace").strip() == want_i]
+        same_t = [c for c in same_i if (c / "tests" / "test.sh").is_file()
+                  and (c / "tests" / "test.sh").read_text() == row["metadata"]["tmax"]["test_sh"]]
+        pick = (same_t or same_i or [None])[0]
+        from_row = False
+        if pick is None:
+            # No package carries the instruction the student saw; the peer's
+            # instruction.md is written from the row's problem_statement instead.
+            pick = next((c for c in cands if (c / "tests" / "test.sh").is_file()
+                         and (c / "tests" / "test.sh").read_text() == row["metadata"]["tmax"]["test_sh"]),
+                        cands[0] if cands else None)
+            from_row = pick is not None and bool(want_i)
+            if not from_row:
+                missing.append(f"{tid}: no package and no problem_statement ({len(cands)} candidates)")
+                continue
+        corpus = corpora.get(row["metadata"].get("corpus")) or next(iter(corpora.values()))
+        dst = corpus / "tasks" / tid
+        shutil.copytree(pick, dst, symlinks=True)
+        if from_row:
+            (dst / "instruction.md").write_text(row["metadata"]["problem_statement"])
+        added[tid] = {"from": str(pick.resolve()), "corpus": corpus.name, "grader_matches_row": bool(same_t),
+                      "instruction_from_row": from_row}
+    chain.setdefault("reference_packages", {}).update(added)
+    layout.write_json_atomic(d / "chain.json", chain)
+    print(f"{a.chain}: {len(tids)} reference tasks; {len(added)} packages added, {kept} already in the sources, "
+          f"{len(missing)} missing")
+    for m in missing:
+        print(f"  {m}")
+
+
 # ------------------------------------------------------------------- the hop state
 
 
@@ -1017,6 +1075,10 @@ def main() -> None:
     ad.add_argument("--reference-band", default="3-8")
     ad.add_argument("--reference-k", type=int, default=0, help="graded attempts a reference group must have")
     ad.add_argument("--dry-run", action="store_true")
+    ar = sub.add_parser("add-reference-packages", help="reference tasks' packages into the chain's sources")
+    ar.add_argument("--chain", required=True)
+    ar.add_argument("--rows", type=Path, nargs="+", required=True, help="the reference runs' inputs/mix.jsonl")
+    ar.add_argument("--sources", type=Path, nargs="+", required=True, help="corpus dirs holding tasks/<id>")
     la = sub.add_parser("launch", help="start hop h's drive in every arm root")
     la.add_argument("--chain", required=True)
     la.add_argument("--hop", type=int, required=True, choices=range(1, HOPS + 1))
@@ -1047,7 +1109,7 @@ def main() -> None:
     if a.cmd == "split-eval":
         split_eval(a.eval_dir.resolve(), a.prefix, a.out)
         return
-    {"build": build, "admit": admit, "launch": launch, "hop-evalset": hop_evalset, "hop-collect": hop_collect,
+    {"build": build, "admit": admit, "add-reference-packages": add_reference_packages, "launch": launch, "hop-evalset": hop_evalset, "hop-collect": hop_collect,
      "audit-bundle": audit_bundle, "report": report}[a.cmd](a)
 
 
