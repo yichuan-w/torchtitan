@@ -171,28 +171,32 @@ encoding rewrites are from run 1030c, whose samples are on branch
 - `task_005436_d605aece`, the TLS rewrite (r0 to r1, harder): not worth it. It
   claims the student must make a self-signed certificate pass default hostname
   verification for `localhost`; most failures did the check the instruction
-  asks for (`curl --cacert`) and failed on a urllib3 pin the instruction does
-  not state.
+  asks for (`curl --cacert`), which passes because OpenSSL falls back to the
+  CN, and failed under the grader's pinned urllib3 2.0.0, which does not fall
+  back; the instruction does not state the pin.
 - `software-engineering_20260508_045740_001`, the LZ4 rewrite (harder): not
   worth it. It claims the student must tell link-time library lookup from
   the runtime loader's, so that the installed extension loads the LZ4 1.10.0
-  the task provides and not the system 1.9.4; most failures loaded 1.10.0 at
-  runtime and failed on not finding the copy provided under `/opt`.
+  the task provides and not the system 1.9.4; most failures already loaded
+  1.10.0 at runtime, most of them from a copy they compiled themselves, and
+  failed on not using the copy provided under `/opt`.
 - `task_001320` rev2 and rev3: leak.
-- `system-administration_20260509_065529_005`, the HAProxy rewrite (r1 to r2):
-  the check its author meant to add was dropped.
+- `system-administration_20260509_065529_005`, the HAProxy rewrite (r1 to r2,
+  harder): not worth it; the rewriter meant to keep a check on the running
+  503 response, and the blind verifier narrowed it.
 - the rewrites of arm A4 (`EVOLVE_HARDER_WORK` alone) on the 122B harder slice
   whose failures hit the time limit, three of them (mathematics,
   model-training, sci_154924): lengthened work.
 - the 24 rewrites still at 12/12 that Yichuan read in #319, listed with their
-  rewrite directories there: not worth it.
+  rewrite directories there (comment 6671575981): not worth it.
 
 Cases that should be judged worth it come from 13 candidates: the 11
 audit-clean rewrites at 3 to 8 of 12 in #319, the Bubblewrap rewrite
 (`task_000575_10c82d13`) and the encoding rewrite (`task_002307_b945c419`)
 from #324 item 5, each with evidence on the questions above; Zhifei's side
 assigns their labels. If fewer than 10 of them are worth it, more come from
-the audit-clean mixed rewrites of the first rep over this standard's pool.
+the first rep over this standard's pool: audit-clean rewrites whose k=12
+measurement is mixed.
 
 ### Arms under this standard
 
