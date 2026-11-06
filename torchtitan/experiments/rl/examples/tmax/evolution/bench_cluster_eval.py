@@ -195,14 +195,19 @@ def _records(out: Path) -> list[tuple[Path, Path]]:
     ``<out>--attempt-<id>/`` (layout.Run.for_attempt); the copies go to one
     directory, where the index's relative paths find them."""
     out_dirs = [out, *sorted(out.parent.glob(f"{out.name}--attempt-*"))]
-    found = {}
+    # A controller restart reruns validation in a new lifetime directory; each
+    # task's records are taken from the newest directory holding any of them,
+    # the lifetime whose index the job wrote last.
+    newest: dict[str, Path] = {}
     for d in out_dirs:
-        for p in sorted((d / "validation_rollouts").glob("*/*.jsonl")):
+        for t in sorted((d / "validation_rollouts").glob("*")):
+            if any(eb.RECORD_NAME.fullmatch(p.name) for p in t.glob("*.jsonl")):
+                newest[t.name] = d
+    found = {}
+    for task, d in sorted(newest.items()):
+        for p in sorted((d / "validation_rollouts" / task).glob("*.jsonl")):
             if eb.RECORD_NAME.fullmatch(p.name):
-                rel = p.relative_to(d)
-                if rel in found:
-                    raise SystemExit(f"{rel} is in two attempt directories: {found[rel]} and {p}")
-                found[rel] = p
+                found[p.relative_to(d)] = p
     return [(p, rel) for rel, p in sorted(found.items())]
 
 

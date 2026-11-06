@@ -218,8 +218,18 @@ def build(a: argparse.Namespace) -> None:
           f"{len(entry_rows)} need an entry measurement; unresolved {len(missing)}")
 
 
+_EVAL_CACHE: dict[str, dict[str, list[dict]]] = {}
+
+
 def _eval_tasks(ev: Path) -> dict[str, list[dict]]:
-    """Each task's record headers in an eval directory (and its --attempt-* siblings)."""
+    """Each task's record headers in an eval directory (and its --attempt-* siblings), read once per process."""
+    key = str(ev.resolve())
+    if key not in _EVAL_CACHE:
+        _EVAL_CACHE[key] = _read_eval_tasks(ev)
+    return _EVAL_CACHE[key]
+
+
+def _read_eval_tasks(ev: Path) -> dict[str, list[dict]]:
     out: dict[str, list[dict]] = collections.defaultdict(list)
     for d in [ev, *sorted(ev.parent.glob(f"{ev.name}--attempt-*"))]:
         for p in sorted((d / "validation_rollouts").glob("*/*.jsonl")):
@@ -278,7 +288,8 @@ def split_eval(combined: Path, prefix: str, out: Path) -> Path:
                           note=f"derived: prefix {prefix} of {combined}")
     n = 0
     dirs = [combined, *sorted(combined.parent.glob(f"{combined.name}--attempt-*"))]
-    if launch.get("cluster", {}).get("local_output"):
+    # The job's own output on the shared mount only when nothing was collected locally.
+    if launch.get("cluster", {}).get("local_output") and not (combined / "validation_rollouts").is_dir():
         lo = Path(launch["cluster"]["local_output"])
         dirs += [lo, *sorted(lo.parent.glob(f"{lo.name}--attempt-*"))]
     seen: dict[str, Path] = {}
